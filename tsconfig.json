@@ -1,5 +1,18 @@
 {
-  "extends": "../../tsconfig.json",
+  "lib": ["dom", "ESNext"],
+  "moduleResolution": "bundler",
+  "moduleDetection": "force",
+  "composite": true,
+  "strict": true,
+  "downlevelIteration": true,
+  "skipLibCheck": true,
+  "allowSyntheticDefaultImports": true,
+  "forceConsistentCasingInFileNames": true,
+  "allowJs": true,
+  "declaration": true,
+  "emitDeclarationOnly": true,
+  "declarationMap": true,
+  "types": ["@types/bun"],
   "include": ["src/**/*"],
   "files": ["src/sec.ts"],
   "exclude": ["**/*.test.ts"],
@@ -7,6 +20,8 @@
     "outDir": "dist",
     "baseUrl": "./src",
     "rootDir": "./src",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "target": "esnext"
   }
 }

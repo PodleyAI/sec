@@ -1,12 +1,12 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { Sqlite } from "@ellmers/sqlite";
-import { globalServiceRegistry } from "@ellmers/util";
+import { Sqlite } from "@podley/sqlite";
+import { globalServiceRegistry } from "@podley/til";
 import { mkdirSync } from "fs";
 import path from "path";
 import { SEC_DB_FOLDER, SEC_DB_NAME } from "./tokens";

@@ -1,12 +1,12 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
 import { Static, Type, FormatRegistry } from "@sinclair/typebox";
-import { ArrayToObject, TypeNullable } from "@ellmers/util";
+import { ArrayToObject, TypeNullable } from "@podley/util";
 import { ALL_FORMS } from "./FormNames";
 // import { ALL_FORMS } from "./FormNames";
 

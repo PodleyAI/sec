@@ -1,11 +1,11 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@ellmers/task-graph";
+import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
 import { Static, TObject, Type } from "@sinclair/typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { CompanyFacts, Factoid, FactoidSchema } from "../../types/CompanyFacts";
@@ -44,7 +44,9 @@ class SecFetchCompanyFactsTask extends SecCachedFetchTask<FetchCompanyFactsTaskI
   }
   inputToUrl(input: FetchCompanyFactsTaskInput): string {
     const date = input.date ? secDate(input.date) : undefined;
-    return `https://data.sec.gov/api/xbrl/companyfacts/CIK${input.cik.toString().padStart(10, "0")}.json${date ? `?date=${date}` : ""}`;
+    return `https://data.sec.gov/api/xbrl/companyfacts/CIK${input.cik
+      .toString()
+      .padStart(10, "0")}.json${date ? `?date=${date}` : ""}`;
   }
 }
 

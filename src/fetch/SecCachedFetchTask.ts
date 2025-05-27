@@ -1,13 +1,13 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, TaskConfig, TaskOutput } from "@ellmers/task-graph";
-import { FetchTaskInput, FetchTaskOutput } from "@ellmers/tasks";
-import { globalServiceRegistry } from "@ellmers/util";
+import { IExecuteConfig, TaskConfig, TaskOutput } from "@podley/task-graph";
+import { FetchTaskInput, FetchTaskOutput } from "@podley/tasks";
+import { globalServiceRegistry } from "@podley/util";
 import path from "node:path";
 import { YYYYdMMdDD } from "../util/parseDate";
 import { SEC_RAW_DATA_FOLDER } from "../util/tokens";
@@ -65,7 +65,7 @@ function guessResponseType(urlstr: string, input: FetchTaskInput): response_type
 
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
-  O extends TaskOutput = FetchTaskOutput,
+  O extends TaskOutput = FetchTaskOutput
 > extends SecFetchTask<I & FetchTaskInput, O> {
   static type = "SecCachedFetchTask";
   static category = "Hidden";

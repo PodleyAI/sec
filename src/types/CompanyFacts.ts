@@ -1,5 +1,5 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
@@ -7,7 +7,7 @@
 
 // data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json
 
-import { TypeDate, TypeNullable } from "@ellmers/util";
+import { TypeDate, TypeNullable } from "@podley/util";
 import { Static, Type } from "@sinclair/typebox";
 import { YYYYdMMdDD } from "./../util/parseDate";
 import { Frame } from "./BaseTypes";

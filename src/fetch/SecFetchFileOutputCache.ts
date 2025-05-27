@@ -1,12 +1,12 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TaskInput, TaskOutput, TaskOutputRepository } from "@ellmers/task-graph";
-import { FetchTaskOutput } from "@ellmers/tasks";
+import { TaskInput, TaskOutput, TaskOutputRepository } from "@podley/task-graph";
+import { FetchTaskOutput } from "@podley/tasks";
 import { mkdirSync } from "node:fs";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";

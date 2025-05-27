@@ -1,14 +1,14 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, NamedGraphResult, Task, TaskGraph } from "@ellmers/task-graph";
+import { IExecuteConfig, NamedGraphResult, Task, TaskGraph } from "@podley/task-graph";
 import { FetchQuarterlyIndexTask, FetchQuarterlyIndexTaskOutput } from "./FetchQuarterlyIndexTask";
 import { TypeSecCik } from "../../types/CompanySubmission";
-import { TypeDateTime } from "@ellmers/util";
+import { TypeDateTime } from "@podley/util";
 import { Static, TObject, Type } from "@sinclair/typebox";
 
 // NOTE: ONLY PREVIOUS QUARTERS' master index are immutable, current one is not (though should switch to daily)
@@ -94,7 +94,9 @@ export class FetchQuarterlyIndexRangeTask extends Task<
       const fetchYear = startYear + Math.floor(i / 4);
       const fetchMonth = (i % 4) * 3 + 1;
       const fetchDay = 1;
-      const date = `${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-${fetchDay.toString().padStart(2, "0")}`;
+      const date = `${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-${fetchDay
+        .toString()
+        .padStart(2, "0")}`;
       const task = new FetchQuarterlyIndexTask({
         date,
       });

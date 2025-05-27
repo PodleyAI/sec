@@ -1,11 +1,11 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { globalServiceRegistry } from "@ellmers/util";
+import { globalServiceRegistry } from "@podley/util";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_RAW_DATA_FOLDER } from "../util/tokens";
 
 export const EnvToDI = () => {

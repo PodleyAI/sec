@@ -1,12 +1,12 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { runWorkflow } from "@ellmers/cli";
-import { Workflow } from "@ellmers/task-graph";
+import { runWorkflow } from "@podley/cli";
+import { Workflow } from "@podley/task-graph";
 import type { Command } from "commander";
 import { FetchSubmissionsTask } from "../task/submissions/FetchSubmissionsTask";
 import { StoreSubmissionsTask } from "../task/submissions/StoreSubmissionsTask";

@@ -1,5 +1,5 @@
 //    *******************************************************************************
-//    *   ELLMERS: Embedding Large Language Model Experiential Retrieval Service    *
+//    *   PODLEY.AI: Your Agentic AI library                                        *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
@@ -10,9 +10,9 @@ import {
   EvenlySpacedRateLimiter,
   InMemoryRateLimiter,
   JobQueue,
-} from "@ellmers/job-queue";
-import { InMemoryQueueStorage } from "@ellmers/storage";
-import { FetchTaskInput, FetchTaskOutput } from "@ellmers/tasks";
+} from "@podley/job-queue";
+import { InMemoryQueueStorage } from "@podley/storage";
+import { FetchTaskInput, FetchTaskOutput } from "@podley/tasks";
 import { SecJobQueueName } from "../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 
