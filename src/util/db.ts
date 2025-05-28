@@ -6,9 +6,10 @@
 //    *******************************************************************************
 
 import { Sqlite } from "@podley/sqlite";
-import { globalServiceRegistry } from "@podley/til";
+import { globalServiceRegistry } from "@podley/util";
 import { mkdirSync } from "fs";
 import path from "path";
+import { sleepSync } from "bun";
 import { SEC_DB_FOLDER, SEC_DB_NAME } from "./tokens";
 
 let db: Sqlite.Database | null = null;
@@ -475,7 +476,7 @@ export function query_get<ReturnType = any>(
     ) as ReturnType;
   } catch (err) {
     if (err == "Error: database is locked") {
-      Bun.sleepSync(2000);
+      sleepSync(2000);
       res = query<ReturnType, Sqlite.SQLQueryBindings>(sql, prepare)?.get(
         params ? params : null
       ) as ReturnType;

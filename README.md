@@ -5,14 +5,18 @@
 - [Table of Contents](#table-of-contents)
 - [Setup](#setup)
 - [CIKs](#ciks)
-- [Indexes: Main, Quarterly, and Daily](#indexes-main-quarterly-and-daily)
+- [Indexes: Quarterly, and Daily](#indexes-quarterly-and-daily)
+  - [Code](#code)
   - [Usage](#usage)
 - [Company Submissions](#company-submissions)
   - [Data Retrieved](#data-retrieved)
-  - [Retrieving Data](#retrieving-data)
+  - [Code](#code-1)
+  - [Usage](#usage-1)
 - [Filing Submissions and Forms](#filing-submissions-and-forms)
   - [Common Forms](#common-forms)
 - [Company Facts](#company-facts)
+  - [Code](#code-2)
+  - [Usage](#usage-2)
 - [SPACs](#spacs)
 - [Portals](#portals)
 - [Reg-A and Reg-A+](#reg-a-and-reg-a)
@@ -26,6 +30,14 @@ To install dependencies, run:
 
 ```bash
 bun install
+```
+
+Create a `.env.local` file in the root of the project and add the following:
+
+```bash
+SEC_RAW_DATA_FOLDER=<path-to-raw-data>
+SEC_DB_FOLDER=<path-to-db-folder>
+SEC_DB_NAME=edgar
 ```
 
 ## CIKs
@@ -43,7 +55,7 @@ You can retrieve and process this file using the following:
 ./src/sec.ts bootstrap-all-cik-names
 ```
 
-## Indexes: Main, Quarterly, and Daily
+## Indexes: Quarterly, and Daily
 
 The SEC publishes `txt` index files listing all submitted filings. Each entry includes:
 
@@ -52,12 +64,17 @@ The SEC publishes `txt` index files listing all submitted filings. Each entry in
 - Filing Form Type
 - Submission Date & Time
 
+### Code
+
+- **Task:** [FetchQuarterlyIndexRangeTask.ts](./src/task/index/FetchQuarterlyIndexRangeTask.ts)
+- **Command:** [BootstrapCikLastUpdate.ts](./src/commands/BootstrapCikLastUpdate.ts)
+
 ### Usage
 
 We utilize these indexes to generate a **"dirty" CIK list**, indicating which filings need to be downloaded. While an optimized approach would selectively fetch only required filings, our method ensures data integrity by marking CIKs for processing. This helps recover missing files due to: process failures, skipped days, and other errors.
 
 ```bash
-./src/sec.ts bootstrap-quarterly-index
+./src/sec.ts bootstrap-quarterly-index <year to start>
 ```
 
 ## Company Submissions
@@ -75,13 +92,15 @@ The SEC provides an API to fetch company submission data, including metadata abo
 - **Size** – File size (bytes)
 - **Items** – Number of included items
 
-### Retrieving Data
+### Code
 
-- **Task:** [FetchCompanySubmissions.ts](./src/task/FetchCompanySubmissions.ts)
-- **Command:** [FetchCompanySubmissions.ts](./src/commands/FetchCompanySubmissions.ts)
+- **Task:** [FetchSubmissionsTask.ts](./src/task/submissions/FetchSubmissionsTask.ts)
+- **Command:** [CompanySubmissions.ts](./src/commands/submissions/CompanySubmissions.ts)
+
+### Usage
 
 ```bash
-./src/sec.ts fetch-company-submissions 1018724
+./src/sec.ts company-submissions 1018724
 ```
 
 ## Filing Submissions and Forms
@@ -101,6 +120,17 @@ The SEC API allows retrieval of individual filing submissions, containing the ac
 ## Company Facts
 
 The SEC API provides **Company Facts**, delivering structured and normalized financial and operational data for a specific company.
+
+### Code
+
+- **Task:** [FetchCompanyFactsTask.ts](./src/task/facts/FetchCompanyFactsTask.ts)
+- **Command:** [CompanyFacts.ts](./src/commands/CompanyFacts.ts)
+
+### Usage
+
+```bash
+./src/sec.ts company-facts 1018724
+```
 
 ## SPACs
 

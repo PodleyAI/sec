@@ -1,0 +1,45 @@
+{
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "editor.stickyTabStops": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "editor.formatOnSave": true,
+  "eslint.format.enable": true,
+  "files.exclude": {
+    // "**/dist": true,
+    // "**/build": true,
+    "**/storybook-static": true,
+    "**/*.tsbuildinfo": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/dist": true,
+    "**/bun.lock": true,
+    "**/*.tsbuildinfo": true
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.codeActionsOnSave.rules": null,
+  "explorer.autoRevealExclude": {
+    "data-out/**": true,
+    "data-in/**": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "typescript.format.enable": true,
+  "typescript.disableAutomaticTypeAcquisition": false,
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "html.format.enable": true,
+  "json.format.enable": true,
+  "javascript.format.enable": true,
+  "editor.wordWrapColumn": 100,
+  "prettier.printWidth": 100,
+  "bun.debugTerminal.enabled": true,
+  "markdown.extension.toc.levels": "2..6",
+  "js/ts.implicitProjectConfig.target": "ESNext",
+  "typescript.tsdk": "./node_modules/typescript/lib"
+}
