@@ -8,18 +8,18 @@
 import { getTaskQueueRegistry, setTaskQueueRegistry } from "@podley/task-graph";
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { FetchDailyIndexTask } from "../task/index/FetchDailyIndexTask";
-import { TaskFailedError } from "@podley/ask-graph";
+import { TaskFailedError } from "@podley/task-graph";
 // @ts-expect-error ts(2307)
 import master20240101 from "./mock_data/master.20240101.idx" with { type: "text" };
 // @ts-expect-error ts(2307)
 import master20240102 from "./mock_data/master.20240102.idx" with { type: "text" };
-import { FetchTaskOutput } from "@podley/asks";
-import { JobQueue } from "@podley/ob-queue";
-import { FetchTaskInput } from "@podley/asks";
+import { FetchTaskOutput } from "@podley/tasks";
+import { JobQueue } from "@podley/job-queue";
+import { FetchTaskInput } from "@podley/tasks";
 import { SecFetchJob } from "../fetch/SecFetchJob";
 import { SecJobQueueName } from "../config/Constants";
-import { InMemoryQueueStorage } from "@podley/torage";
-import { InMemoryRateLimiter } from "@podley/ob-queue";
+import { InMemoryQueueStorage } from "@podley/storage";
+import { InMemoryRateLimiter } from "@podley/job-queue";
 import { EnvToDI } from "../config/EnvToDI";
 
 EnvToDI();
