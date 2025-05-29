@@ -10,6 +10,6 @@ packages/cli-sec/
 packages/ngraph/
 .cache/
 .turbo
-.env.*
+.env.local
 sec-data/
 sec-db/
