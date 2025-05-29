@@ -18,13 +18,13 @@
     "dist"
   ],
   "dependencies": {
-    "@podley/cli": "link:@podley/cli",
-    "@podley/job-queue": "link:@podley/job-queue",
-    "@podley/sqlite": "link:@podley/sqlite",
-    "@podley/storage": "link:@podley/storage",
-    "@podley/task-graph": "link:@podley/task-graph",
-    "@podley/tasks": "link:@podley/tasks",
-    "@podley/util": "link:@podley/util",
+    "@podley/cli": "0.0.5",
+    "@podley/job-queue": "0.0.5",
+    "@podley/sqlite": "0.0.5",
+    "@podley/storage": "0.0.5",
+    "@podley/task-graph": "0.0.5",
+    "@podley/tasks": "0.0.5",
+    "@podley/util": "0.0.5",
     "@sinclair/typebox": "^0.34.33",
     "@sroussey/parse-address": "^2.4.0",
     "awesome-phonenumber": "^7.5.0",
@@ -42,5 +42,8 @@
   },
   "devDependencies": {
     "@types/csv-parse": "^1.2.5"
-  }
+  },
+  "trustedDependencies": [
+    "onnxruntime-node"
+  ]
 }
