@@ -32,33 +32,36 @@ import { Form_253G4 } from "./Form_253G4";
 import { Form_QUALIF } from "./Form_QUALIF";
 import { Form_TTW } from "./Form_TTW";
 
-export const EXEMPT_OFFERING_FORM_NAMES = [
-  ...Form_1_A.forms,
-  ...Form_1_A_POS.forms,
-  ...Form_1_A_W.forms,
-  ...Form_1K.forms,
-  ...Form_1SA.forms,
-  ...Form_1U.forms,
-  ...Form_1Z.forms,
-  ...Form_1ZW.forms,
-  ...Form_DOS.forms,
-  ...Form_DOSLTR.forms,
-  ...Form_C.forms,
-  ...Form_CW.forms,
-  ...Form_CU.forms,
-  ...Form_CUW.forms,
-  ...Form_CAR.forms,
-  ...Form_CARW.forms,
-  ...Form_CTR.forms,
-  ...Form_CTRW.forms,
-  ...Form_D.forms,
-  ...Form_REGDEX.forms,
-  ...Form_253G1.forms,
-  ...Form_253G2.forms,
-  ...Form_253G3.forms,
-  ...Form_253G4.forms,
-  ...Form_QUALIF.forms,
-  ...Form_TTW.forms,
+export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
+  ...Form_1_A.forms.map((form) => [form, Form_1_A] as const),
+  ...Form_1_A_POS.forms.map((form) => [form, Form_1_A_POS] as const),
+  ...Form_1_A_W.forms.map((form) => [form, Form_1_A_W] as const),
+  ...Form_1K.forms.map((form) => [form, Form_1K] as const),
+  ...Form_1SA.forms.map((form) => [form, Form_1SA] as const),
+  ...Form_1U.forms.map((form) => [form, Form_1U] as const),
+  ...Form_1Z.forms.map((form) => [form, Form_1Z] as const),
+  ...Form_1ZW.forms.map((form) => [form, Form_1ZW] as const),
+  ...Form_DOS.forms.map((form) => [form, Form_DOS] as const),
+  ...Form_DOSLTR.forms.map((form) => [form, Form_DOSLTR] as const),
+  ...Form_C.forms.map((form) => [form, Form_C] as const),
+  ...Form_CW.forms.map((form) => [form, Form_CW] as const),
+  ...Form_CU.forms.map((form) => [form, Form_CU] as const),
+  ...Form_CUW.forms.map((form) => [form, Form_CUW] as const),
+  ...Form_CAR.forms.map((form) => [form, Form_CAR] as const),
+  ...Form_CARW.forms.map((form) => [form, Form_CARW] as const),
+  ...Form_CTR.forms.map((form) => [form, Form_CTR] as const),
+  ...Form_CTRW.forms.map((form) => [form, Form_CTRW] as const),
+  ...Form_D.forms.map((form) => [form, Form_D] as const),
+  ...Form_REGDEX.forms.map((form) => [form, Form_REGDEX] as const),
+  ...Form_253G1.forms.map((form) => [form, Form_253G1] as const),
+  ...Form_253G2.forms.map((form) => [form, Form_253G2] as const),
+  ...Form_253G3.forms.map((form) => [form, Form_253G3] as const),
+  ...Form_253G4.forms.map((form) => [form, Form_253G4] as const),
+  ...Form_QUALIF.forms.map((form) => [form, Form_QUALIF] as const),
+  ...Form_TTW.forms.map((form) => [form, Form_TTW] as const),
 ] as const;
 
+export const EXEMPT_OFFERING_FORM_NAMES = EXEMPT_OFFERING_FORM_NAMES_MAP.map(
+  ([form, Form]) => form
+);
 export type ExemptOfferingForm = (typeof EXEMPT_OFFERING_FORM_NAMES)[number];

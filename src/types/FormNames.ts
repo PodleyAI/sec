@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { ALL_FORMS, AllForms } from "../forms/all-forms";
+import { ALL_FORM_NAMES, AllForms } from "../forms/all-forms";
 
-export { ALL_FORMS };
+export { ALL_FORM_NAMES };
 export type Form = AllForms;

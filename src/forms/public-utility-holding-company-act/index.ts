@@ -26,28 +26,31 @@ import { Form_U_12_IA } from "./Form_U_12_IA";
 import { Form_35_APP } from "./Form_35_APP";
 import { Form_35_CERT } from "./Form_35_CERT";
 
-export const PUBLIC_UTILITY_HOLDING_COMPANY_ACT_FORMS = [
-  ...Form_U_1.forms,
-  ...Form_U_13_1.forms,
-  ...Form_U_12_IB.forms,
-  ...Form_U_13E_1.forms,
-  ...Form_U_13_60.forms,
-  ...Form_U_33_S.forms,
-  ...Form_U_3A_2.forms,
-  ...Form_U_3A3_1.forms,
-  ...Form_U_57.forms,
-  ...Form_U_6B_2.forms,
-  ...Form_U_7D.forms,
-  ...Form_U_R_1.forms,
-  ...Form_45B_3.forms,
-  ...Form_U5A.forms,
-  ...Form_U5B.forms,
-  ...Form_U5S.forms,
-  ...Form_U_9C_3.forms,
-  ...Form_U_12_IA.forms,
-  ...Form_35_APP.forms,
-  ...Form_35_CERT.forms,
+export const PUBLIC_UTILITY_HOLDING_COMPANY_ACT_FORMS_MAP = [
+  ...Form_U_1.forms.map((form) => [form, Form_U_1] as const),
+  ...Form_U_13_1.forms.map((form) => [form, Form_U_13_1] as const),
+  ...Form_U_12_IB.forms.map((form) => [form, Form_U_12_IB] as const),
+  ...Form_U_13E_1.forms.map((form) => [form, Form_U_13E_1] as const),
+  ...Form_U_13_60.forms.map((form) => [form, Form_U_13_60] as const),
+  ...Form_U_33_S.forms.map((form) => [form, Form_U_33_S] as const),
+  ...Form_U_3A_2.forms.map((form) => [form, Form_U_3A_2] as const),
+  ...Form_U_3A3_1.forms.map((form) => [form, Form_U_3A3_1] as const),
+  ...Form_U_57.forms.map((form) => [form, Form_U_57] as const),
+  ...Form_U_6B_2.forms.map((form) => [form, Form_U_6B_2] as const),
+  ...Form_U_7D.forms.map((form) => [form, Form_U_7D] as const),
+  ...Form_U_R_1.forms.map((form) => [form, Form_U_R_1] as const),
+  ...Form_45B_3.forms.map((form) => [form, Form_45B_3] as const),
+  ...Form_U5A.forms.map((form) => [form, Form_U5A] as const),
+  ...Form_U5B.forms.map((form) => [form, Form_U5B] as const),
+  ...Form_U5S.forms.map((form) => [form, Form_U5S] as const),
+  ...Form_U_9C_3.forms.map((form) => [form, Form_U_9C_3] as const),
+  ...Form_U_12_IA.forms.map((form) => [form, Form_U_12_IA] as const),
+  ...Form_35_APP.forms.map((form) => [form, Form_35_APP] as const),
+  ...Form_35_CERT.forms.map((form) => [form, Form_35_CERT] as const),
 ] as const;
+
+export const PUBLIC_UTILITY_HOLDING_COMPANY_ACT_FORMS =
+  PUBLIC_UTILITY_HOLDING_COMPANY_ACT_FORMS_MAP.map(([form, Form]) => form);
 
 export type PublicUtilityHoldingCompanyActForm =
   (typeof PUBLIC_UTILITY_HOLDING_COMPANY_ACT_FORMS)[number];

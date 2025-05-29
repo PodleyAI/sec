@@ -31,32 +31,35 @@ import { Form_F_7 } from "./Form_F_7";
 import { Form_F_8 } from "./Form_F_8";
 import { Form_F_9 } from "./Form_F_9";
 
-export const FOREIGN_REGISTRATION_FORM_NAMES = [
-  ...Form_CB.forms,
-  ...Form_F_X.forms,
-  ...Form_F_1.forms,
-  ...Form_20FR12B.forms,
-  ...Form_20FR12G.forms,
-  ...Form_F_1MEF.forms,
-  ...Form_F_2.forms,
-  ...Form_F_2D.forms,
-  ...Form_F_2DPOS.forms,
-  ...Form_F_2MEF.forms,
-  ...Form_F_3.forms,
-  ...Form_F_3ASR.forms,
-  ...Form_F_3D.forms,
-  ...Form_F_3DPOS.forms,
-  ...Form_F_4.forms,
-  ...Form_F_6.forms,
-  ...Form_F_6_POS.forms,
-  ...Form_F_6EF.forms,
-  ...Form_F_7.forms,
-  ...Form_F_8.forms,
-  ...Form_F_9.forms,
-  ...Form_F_10.forms,
-  ...Form_F_10EF.forms,
-  ...Form_F_10POS.forms,
-  ...Form_F_N.forms,
+export const FOREIGN_REGISTRATION_FORM_NAMES_MAP = [
+  ...Form_CB.forms.map((form) => [form, Form_CB] as const),
+  ...Form_F_X.forms.map((form) => [form, Form_F_X] as const),
+  ...Form_F_1.forms.map((form) => [form, Form_F_1] as const),
+  ...Form_20FR12B.forms.map((form) => [form, Form_20FR12B] as const),
+  ...Form_20FR12G.forms.map((form) => [form, Form_20FR12G] as const),
+  ...Form_F_1MEF.forms.map((form) => [form, Form_F_1MEF] as const),
+  ...Form_F_2.forms.map((form) => [form, Form_F_2] as const),
+  ...Form_F_2D.forms.map((form) => [form, Form_F_2D] as const),
+  ...Form_F_2DPOS.forms.map((form) => [form, Form_F_2DPOS] as const),
+  ...Form_F_2MEF.forms.map((form) => [form, Form_F_2MEF] as const),
+  ...Form_F_3.forms.map((form) => [form, Form_F_3] as const),
+  ...Form_F_3ASR.forms.map((form) => [form, Form_F_3ASR] as const),
+  ...Form_F_3D.forms.map((form) => [form, Form_F_3D] as const),
+  ...Form_F_3DPOS.forms.map((form) => [form, Form_F_3DPOS] as const),
+  ...Form_F_4.forms.map((form) => [form, Form_F_4] as const),
+  ...Form_F_6.forms.map((form) => [form, Form_F_6] as const),
+  ...Form_F_6_POS.forms.map((form) => [form, Form_F_6_POS] as const),
+  ...Form_F_6EF.forms.map((form) => [form, Form_F_6EF] as const),
+  ...Form_F_7.forms.map((form) => [form, Form_F_7] as const),
+  ...Form_F_8.forms.map((form) => [form, Form_F_8] as const),
+  ...Form_F_9.forms.map((form) => [form, Form_F_9] as const),
+  ...Form_F_10.forms.map((form) => [form, Form_F_10] as const),
+  ...Form_F_10EF.forms.map((form) => [form, Form_F_10EF] as const),
+  ...Form_F_10POS.forms.map((form) => [form, Form_F_10POS] as const),
+  ...Form_F_N.forms.map((form) => [form, Form_F_N] as const),
 ] as const;
 
+export const FOREIGN_REGISTRATION_FORM_NAMES = FOREIGN_REGISTRATION_FORM_NAMES_MAP.map(
+  ([form, Form]) => form
+);
 export type ForeignRegistrationStatementForm = (typeof FOREIGN_REGISTRATION_FORM_NAMES)[number];

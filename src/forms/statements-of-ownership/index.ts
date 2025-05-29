@@ -23,24 +23,28 @@ import { Form_SC14D9C } from "./Form_SC14D9C";
 import { Form_SC14D9F } from "./Form_SC14D9F";
 import { Form_SC14D1F } from "./Form_SC14D1F";
 
-export const STATEMENTS_OF_OWNERSHIP_FORMS = [
-  ...Form_SC_13D.forms,
-  ...Form_SC_13G.forms,
-  ...Form_SC_13E1.forms,
-  ...Form_SC_13E3.forms,
-  ...Form_SC_13E4.forms,
-  ...Form_SC_13E4F.forms,
-  ...Form_SC_14D1.forms,
-  ...Form_SC_14D1F.forms,
-  ...Form_SC_14D9.forms,
-  ...Form_SC_14F1.forms,
-  ...Form_SC_14N.forms,
-  ...Form_SC_TO_C.forms,
-  ...Form_SC_TO_I.forms,
-  ...Form_SC_TO_T.forms,
-  ...Form_SC14D1F.forms,
-  ...Form_SC14D9C.forms,
-  ...Form_SC14D9F.forms,
+export const STATEMENTS_OF_OWNERSHIP_FORMS_MAP = [
+  ...Form_SC_13D.forms.map((form) => [form, Form_SC_13D] as const),
+  ...Form_SC_13G.forms.map((form) => [form, Form_SC_13G] as const),
+  ...Form_SC_13E1.forms.map((form) => [form, Form_SC_13E1] as const),
+  ...Form_SC_13E3.forms.map((form) => [form, Form_SC_13E3] as const),
+  ...Form_SC_13E4.forms.map((form) => [form, Form_SC_13E4] as const),
+  ...Form_SC_13E4F.forms.map((form) => [form, Form_SC_13E4F] as const),
+  ...Form_SC_14D1.forms.map((form) => [form, Form_SC_14D1] as const),
+  ...Form_SC_14D1F.forms.map((form) => [form, Form_SC_14D1F] as const),
+  ...Form_SC_14D9.forms.map((form) => [form, Form_SC_14D9] as const),
+  ...Form_SC_14F1.forms.map((form) => [form, Form_SC_14F1] as const),
+  ...Form_SC_14N.forms.map((form) => [form, Form_SC_14N] as const),
+  ...Form_SC_TO_C.forms.map((form) => [form, Form_SC_TO_C] as const),
+  ...Form_SC_TO_I.forms.map((form) => [form, Form_SC_TO_I] as const),
+  ...Form_SC_TO_T.forms.map((form) => [form, Form_SC_TO_T] as const),
+  ...Form_SC14D1F.forms.map((form) => [form, Form_SC14D1F] as const),
+  ...Form_SC14D9C.forms.map((form) => [form, Form_SC14D9C] as const),
+  ...Form_SC14D9F.forms.map((form) => [form, Form_SC14D9F] as const),
 ] as const;
+
+export const STATEMENTS_OF_OWNERSHIP_FORMS = STATEMENTS_OF_OWNERSHIP_FORMS_MAP.map(
+  ([form, Form]) => form
+);
 
 export type StatementOfOwnershipForm = (typeof STATEMENTS_OF_OWNERSHIP_FORMS)[number];

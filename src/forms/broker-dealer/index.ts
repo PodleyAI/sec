@@ -16,17 +16,18 @@ import { Form_G_FIN } from "./Form_G_FIN";
 import { Form_MSD } from "./Form_MSD";
 import { Form_REG_NR } from "./Form_REG_NR";
 
-export const BROKER_DEALER_FORM_NAMES = [
-  ...Form_17HACON.forms,
-  ...Form_17HQCON.forms,
-  ...Form_X17A5.forms,
-  ...Form_FOCUSN.forms,
-  ...Form_7M.forms,
-  ...Form_8M.forms,
-  ...Form_9M.forms,
-  ...Form_G_FIN.forms,
-  ...Form_MSD.forms,
-  ...Form_REG_NR.forms,
+export const BROKER_DEALER_FORM_NAMES_MAP = [
+  ...Form_17HACON.forms.map((form) => [form, Form_17HACON] as const),
+  ...Form_17HQCON.forms.map((form) => [form, Form_17HQCON] as const),
+  ...Form_X17A5.forms.map((form) => [form, Form_X17A5] as const),
+  ...Form_FOCUSN.forms.map((form) => [form, Form_FOCUSN] as const),
+  ...Form_7M.forms.map((form) => [form, Form_7M] as const),
+  ...Form_8M.forms.map((form) => [form, Form_8M] as const),
+  ...Form_9M.forms.map((form) => [form, Form_9M] as const),
+  ...Form_G_FIN.forms.map((form) => [form, Form_G_FIN] as const),
+  ...Form_MSD.forms.map((form) => [form, Form_MSD] as const),
+  ...Form_REG_NR.forms.map((form) => [form, Form_REG_NR] as const),
 ] as const;
 
+export const BROKER_DEALER_FORM_NAMES = BROKER_DEALER_FORM_NAMES_MAP.map(([form, Form]) => form);
 export type BrokerDealerForm = (typeof BROKER_DEALER_FORM_NAMES)[number];

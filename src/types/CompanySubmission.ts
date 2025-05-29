@@ -7,15 +7,14 @@
 
 import { Static, Type, FormatRegistry } from "@sinclair/typebox";
 import { ArrayToObject, TypeNullable } from "@podley/util";
-import { ALL_FORMS } from "./FormNames";
-// import { ALL_FORMS } from "./FormNames";
+import { ALL_FORM_NAMES } from "./FormNames";
 
-// const TypeSECForm = () => Type.Union(ALL_FORMS.map((f) => Type.Literal(f)));
+// const TypeSECForm = () => Type.Union(ALL_FORM_NAMES.map((f) => Type.Literal(f)));
 
 FormatRegistry.Set("sec-form", (value: string) => {
-  if (!ALL_FORMS.includes(value as any)) console.warn(`Unknown SEC form: ${value}`);
+  if (!ALL_FORM_NAMES.includes(value as any)) console.warn(`Unknown SEC form: ${value}`);
   return true;
-  // if (ALL_FORMS.includes(value as any)) {
+  // if (ALL_FORM_NAMES.includes(value as any)) {
   //   return true;
   // }
   // return false;

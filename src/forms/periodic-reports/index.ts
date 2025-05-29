@@ -40,48 +40,52 @@ import { Form_13F_HR } from "./Form_13F_HR";
 import { Form_13F_NT } from "./Form_13F_NT";
 import { Form_NTFNSAR } from "./Form_NTFNSAR";
 
-export const ANNUAL_REPORT_FORM_NAMES = [
-  ...Form_ARS.forms,
-  ...Form_10K.forms,
-  ...Form_10K405.forms,
-  ...Form_NT_10K.forms,
-  ...Form_NTN_10K.forms,
-  ...Form_10KSB.forms,
-  ...Form_10C.forms,
-  ...Form_10KT.forms,
-  ...Form_10KSB40.forms,
-  ...Form_10KT405.forms,
-  ...Form_11KT.forms,
-  ...Form_18K.forms,
-  ...Form_11K.forms,
-  ...Form_NT_11K.forms,
-  ...Form_SBSEA.forms,
-  ...Form_SBSEC.forms,
-  ...Form_NSARA.forms,
-  ...Form_NSARAT.forms,
-  ...Form_NSARB.forms,
-  ...Form_NSARBT.forms,
-  ...Form_NSARU.forms,
-  ...Form_NT_NSAR.forms,
-  ...Form_N30D.forms,
-  ...Form_20F.forms,
-  ...Form_NT_20F.forms,
-  ...Form_NTFNSAR.forms,
+export const ANNUAL_REPORT_FORM_NAMES_MAP = [
+  ...Form_ARS.forms.map((form) => [form, Form_ARS] as const),
+  ...Form_10K.forms.map((form) => [form, Form_10K] as const),
+  ...Form_10K405.forms.map((form) => [form, Form_10K405] as const),
+  ...Form_NT_10K.forms.map((form) => [form, Form_NT_10K] as const),
+  ...Form_NTN_10K.forms.map((form) => [form, Form_NTN_10K] as const),
+  ...Form_10KSB.forms.map((form) => [form, Form_10KSB] as const),
+  ...Form_10C.forms.map((form) => [form, Form_10C] as const),
+  ...Form_10KT.forms.map((form) => [form, Form_10KT] as const),
+  ...Form_10KSB40.forms.map((form) => [form, Form_10KSB40] as const),
+  ...Form_10KT405.forms.map((form) => [form, Form_10KT405] as const),
+  ...Form_11KT.forms.map((form) => [form, Form_11KT] as const),
+  ...Form_18K.forms.map((form) => [form, Form_18K] as const),
+  ...Form_11K.forms.map((form) => [form, Form_11K] as const),
+  ...Form_NT_11K.forms.map((form) => [form, Form_NT_11K] as const),
+  ...Form_SBSEA.forms.map((form) => [form, Form_SBSEA] as const),
+  ...Form_SBSEC.forms.map((form) => [form, Form_SBSEC] as const),
+  ...Form_NSARA.forms.map((form) => [form, Form_NSARA] as const),
+  ...Form_NSARAT.forms.map((form) => [form, Form_NSARAT] as const),
+  ...Form_NSARB.forms.map((form) => [form, Form_NSARB] as const),
+  ...Form_NSARBT.forms.map((form) => [form, Form_NSARBT] as const),
+  ...Form_NSARU.forms.map((form) => [form, Form_NSARU] as const),
+  ...Form_NT_NSAR.forms.map((form) => [form, Form_NT_NSAR] as const),
+  ...Form_N30D.forms.map((form) => [form, Form_N30D] as const),
+  ...Form_20F.forms.map((form) => [form, Form_20F] as const),
+  ...Form_NT_20F.forms.map((form) => [form, Form_NT_20F] as const),
+  ...Form_NTFNSAR.forms.map((form) => [form, Form_NTFNSAR] as const),
 ] as const;
 
+export const ANNUAL_REPORT_FORM_NAMES = ANNUAL_REPORT_FORM_NAMES_MAP.map(([form, Form]) => form);
 export type AnnualReportForm = (typeof ANNUAL_REPORT_FORM_NAMES)[number];
 
-export const QUARTERLY_REPORT_FORM_NAMES = [
-  ...Form_10_Q.forms,
-  ...Form_NTN_10Q.forms,
-  ...Form_10QSB.forms,
-  ...Form_NT_10_Q.forms,
-  ...Form_10_QT.forms,
-  ...Form_13F_E.forms,
-  ...Form_13F_HR.forms,
-  ...Form_13F_NT.forms,
+export const QUARTERLY_REPORT_FORM_NAMES_MAP = [
+  ...Form_10_Q.forms.map((form) => [form, Form_10_Q] as const),
+  ...Form_NTN_10Q.forms.map((form) => [form, Form_NTN_10Q] as const),
+  ...Form_10QSB.forms.map((form) => [form, Form_10QSB] as const),
+  ...Form_NT_10_Q.forms.map((form) => [form, Form_NT_10_Q] as const),
+  ...Form_10_QT.forms.map((form) => [form, Form_10_QT] as const),
+  ...Form_13F_E.forms.map((form) => [form, Form_13F_E] as const),
+  ...Form_13F_HR.forms.map((form) => [form, Form_13F_HR] as const),
+  ...Form_13F_NT.forms.map((form) => [form, Form_13F_NT] as const),
 ] as const;
 
+export const QUARTERLY_REPORT_FORM_NAMES = QUARTERLY_REPORT_FORM_NAMES_MAP.map(
+  ([form, Form]) => form
+);
 export type QuarterlyReportForm = (typeof QUARTERLY_REPORT_FORM_NAMES)[number];
 
 export const PERIODIC_REPORT_FORM_NAMES = [
@@ -90,3 +94,8 @@ export const PERIODIC_REPORT_FORM_NAMES = [
 ] as const;
 
 export type PeriodicReportForm = (typeof PERIODIC_REPORT_FORM_NAMES)[number];
+
+export const PERIODIC_REPORT_FORM_NAMES_MAP = [
+  ...ANNUAL_REPORT_FORM_NAMES_MAP,
+  ...QUARTERLY_REPORT_FORM_NAMES_MAP,
+] as const;
