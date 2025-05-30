@@ -8,11 +8,11 @@
 import { Form_1_A } from "./Form_1_A";
 import { Form_1_A_POS } from "./Form_1_A_POS";
 import { Form_1_A_W } from "./Form_1_A_W";
-import { Form_1K } from "./Form_1K";
-import { Form_1SA } from "./Form_1SA";
-import { Form_1U } from "./Form_1U";
-import { Form_1Z } from "./Form_1Z";
-import { Form_1ZW } from "./Form_1ZW";
+import { Form_1_K } from "./Form_1_K";
+import { Form_1_SA } from "./Form_1_SA";
+import { Form_1_U } from "./Form_1_U";
+import { Form_1_Z } from "./Form_1_Z";
+import { Form_1_Z_W } from "./Form_1_Z_W";
 import { Form_DOS } from "./Form_DOS";
 import { Form_DOSLTR } from "./Form_DOSLTR";
 import { Form_C } from "./Form_C";
@@ -36,11 +36,11 @@ export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_1_A.forms.map((form) => [form, Form_1_A] as const),
   ...Form_1_A_POS.forms.map((form) => [form, Form_1_A_POS] as const),
   ...Form_1_A_W.forms.map((form) => [form, Form_1_A_W] as const),
-  ...Form_1K.forms.map((form) => [form, Form_1K] as const),
-  ...Form_1SA.forms.map((form) => [form, Form_1SA] as const),
-  ...Form_1U.forms.map((form) => [form, Form_1U] as const),
-  ...Form_1Z.forms.map((form) => [form, Form_1Z] as const),
-  ...Form_1ZW.forms.map((form) => [form, Form_1ZW] as const),
+  ...Form_1_K.forms.map((form) => [form, Form_1_K] as const),
+  ...Form_1_SA.forms.map((form) => [form, Form_1_SA] as const),
+  ...Form_1_U.forms.map((form) => [form, Form_1_U] as const),
+  ...Form_1_Z.forms.map((form) => [form, Form_1_Z] as const),
+  ...Form_1_Z_W.forms.map((form) => [form, Form_1_Z_W] as const),
   ...Form_DOS.forms.map((form) => [form, Form_DOS] as const),
   ...Form_DOSLTR.forms.map((form) => [form, Form_DOSLTR] as const),
   ...Form_C.forms.map((form) => [form, Form_C] as const),
