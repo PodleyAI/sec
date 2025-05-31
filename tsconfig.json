@@ -16,7 +16,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "declarationMap": true,
-    "types": ["bun-types"],
+    "types": ["@types/bun"],
     "outDir": "dist",
     "baseUrl": "./src",
     "rootDir": "./src",
