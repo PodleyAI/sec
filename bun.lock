@@ -12,7 +12,7 @@
         "@podley/tasks": "0.0.5",
         "@podley/util": "0.0.5",
         "@sinclair/typebox": "^0.34.33",
-        "@sroussey/parse-address": "^2.4.0",
+        "@sroussey/parse-address": "^2.4.2",
         "awesome-phonenumber": "^7.5.0",
         "bun-types": "1.2.14",
         "cheerio": "^1.0.0",
@@ -133,7 +133,7 @@
 
     "@sqlite.org/sqlite-wasm": ["@sqlite.org/sqlite-wasm@3.49.1-build4", "", { "bin": { "sqlite-wasm": "bin/index.js" } }, "sha512-TBbTTWhiI6v2CT7J1hij5shx+RGL4iICprVGYhO+LKv5Nbn3NeJPWCY8kMKL5vA6b33NeWkBk4dy6RFbNh3jBw=="],
 
-    "@sroussey/parse-address": ["@sroussey/parse-address@2.4.0", "", { "dependencies": { "xregexp": "^5.1.1" } }, "sha512-fdhtrSqUAked58zLCldfBa9It0/RPfWztV5JG5rJ12h/51iK2HxyueL6t9e8Ejtz3/w+r/8V+uR5GH/SK6P6Vg=="],
+    "@sroussey/parse-address": ["@sroussey/parse-address@2.4.2", "", { "dependencies": { "xregexp": "^5.1.2" } }, "sha512-KLQX00WY96RgZnhzQg2pAS/XylVYuXY3MqkynyF/+jMt1vDFJieT7LQSWlwNOpiRpgQbr8x3lBxOVFGil9WMaA=="],
 
     "@sroussey/transformers": ["@sroussey/transformers@3.5.1-2", "", { "dependencies": { "@huggingface/jinja": "^0.4.1", "onnxruntime-node": "1.22.0", "onnxruntime-web": "1.22.0", "sharp": "^0.34.2" } }, "sha512-zdTdphtJtyuZlPNSvecmG2J81vlDIPv+lXglEFy9ZEc2gHYv0mOFKhyB49LG803je4N2EjH+q9K1tF8S+F2i7A=="],
 
