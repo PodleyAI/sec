@@ -17,6 +17,8 @@ import { UpdateAllCompanyFacts } from "./UpdateAllCompanyFacts";
 import { SecJobQueue } from "../fetch/SecJobQueue";
 import { getTaskQueueRegistry } from "@podley/task-graph";
 import { UpdateAllSubmissions } from "./UpdateAllSubmissions";
+import { Form } from "./Form";
+import { Doc } from "./Doc";
 
 export const AddCommands = (program: Command) => {
   EnvToDI();
@@ -30,4 +32,6 @@ export const AddCommands = (program: Command) => {
   SetupDB(program);
   UpdateAllCompanyFacts(program);
   UpdateAllSubmissions(program);
+  Form(program);
+  Doc(program);
 };

@@ -5,7 +5,6 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { PERIODIC_REPORT_FORM_NAMES, PERIODIC_REPORT_FORM_NAMES_MAP } from "./periodic-reports";
 import {
   APPLICATION_WITHDRAWAL_FORM_NAMES,
   APPLICATION_WITHDRAWAL_FORM_NAMES_MAP,
@@ -49,6 +48,7 @@ import {
   MUNICIPAL_ADVISOR_FORM_NAMES_MAP,
 } from "./municipal-advisor";
 import { NRSRO_FORM_NAMES, NRSRO_FORM_NAMES_MAP } from "./nrsro";
+import { PERIODIC_REPORT_FORM_NAMES, PERIODIC_REPORT_FORM_NAMES_MAP } from "./periodic-reports";
 import { PORTAL_FORM_NAMES, PORTAL_FORM_NAMES_MAP } from "./portal";
 import { PROXY_FORMS, PROXY_FORMS_MAP } from "./proxies-information-statements";
 import {
@@ -73,7 +73,7 @@ import {
   TRUST_INDENTURE_ACT_FORM_NAMES,
   TRUST_INDENTURE_ACT_FORM_NAMES_MAP,
 } from "./trust-indenture-act";
-import { Form } from "./Form";
+import { FormConstructor } from "./Form";
 
 // Combine all form names into a single array
 export const ALL_FORM_NAMES = [
@@ -137,4 +137,4 @@ const ALL_FORMS_MAP_ARRAY = [
   ...EXCHANGE_REGISTRATION_FORMS_MAP,
 ] as const;
 
-export const ALL_FORMS_MAP = new Map<string, Form>(ALL_FORMS_MAP_ARRAY);
+export const ALL_FORMS_MAP = new Map<string, FormConstructor>(ALL_FORMS_MAP_ARRAY);
