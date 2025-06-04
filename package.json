@@ -27,8 +27,8 @@
     "@podley/util": "0.0.5",
     "@sinclair/typebox": "^0.34.33",
     "@sroussey/parse-address": "^2.4.2",
+    "@sroussey/parse-full-name": "^2.0.0",
     "awesome-phonenumber": "^7.5.0",
-    "@types/bun": "1.2.15",
     "cheerio": "^1.0.0",
     "cheerio-json-mapper": "^1.0.4",
     "commander": "^14.0.0",
@@ -38,12 +38,19 @@
     "fast-xml-parser": "^5.2.3",
     "html-entities": "^2.6.0",
     "pdf2json": "^3.1.6",
-    "words-to-numbers": "^1.5.1"
+    "words-to-numbers": "^1.5.1",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@types/csv-parse": "^1.2.5"
+    "@types/csv-parse": "^1.2.5",
+    "@types/xml2js": "^0.4.14",
+    "@types/bun": "latest"
   },
   "trustedDependencies": [
     "onnxruntime-node"
-  ]
+  ],
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }
