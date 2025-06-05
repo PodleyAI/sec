@@ -7,7 +7,7 @@
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/sec.ts",
     "dev-types": "tsc --watch --preserveWatchOutput",
-    "build": "bun run build-clean && bun run build-js",
+    "build": "bun run build-clean && bun run build-js && bun run build-types",
     "build-clean": "rm -fr dist/*",
     "build-js": "bun build --target=bun --packages=external --outdir ./dist ./src/sec.ts",
     "build-types": "rm -f tsconfig.tsbuildinfo && tsc",
@@ -18,17 +18,17 @@
     "dist"
   ],
   "dependencies": {
-    "@podley/cli": "0.0.5",
-    "@podley/job-queue": "0.0.5",
-    "@podley/sqlite": "0.0.5",
-    "@podley/storage": "0.0.5",
-    "@podley/task-graph": "0.0.5",
-    "@podley/tasks": "0.0.5",
-    "@podley/util": "0.0.5",
+    "@podley/cli": "0.0.7",
+    "@podley/job-queue": "0.0.7",
+    "@podley/sqlite": "0.0.7",
+    "@podley/storage": "0.0.7",
+    "@podley/task-graph": "0.0.7",
+    "@podley/tasks": "0.0.7",
+    "@podley/util": "0.0.7",
     "@sinclair/typebox": "^0.34.33",
-    "@sroussey/parse-address": "^2.4.0",
+    "@sroussey/parse-address": "^2.4.2",
+    "@sroussey/parse-full-name": "^2.0.0",
     "awesome-phonenumber": "^7.5.0",
-    "bun-types": "1.2.14",
     "cheerio": "^1.0.0",
     "cheerio-json-mapper": "^1.0.4",
     "commander": "^14.0.0",
@@ -38,12 +38,19 @@
     "fast-xml-parser": "^5.2.3",
     "html-entities": "^2.6.0",
     "pdf2json": "^3.1.6",
-    "words-to-numbers": "^1.5.1"
+    "words-to-numbers": "^1.5.1",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@types/csv-parse": "^1.2.5"
+    "@types/csv-parse": "^1.2.5",
+    "@types/xml2js": "^0.4.14",
+    "@types/bun": "latest"
   },
   "trustedDependencies": [
     "onnxruntime-node"
-  ]
+  ],
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }

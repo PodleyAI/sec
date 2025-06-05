@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns="http://www.sec.gov/edgar/regacommon" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://www.sec.gov/edgar/statecodes" targetNamespace="http://www.sec.gov/edgar/regacommon" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:import namespace="http://www.sec.gov/edgar/statecodes" schemaLocation="eis_stateCodes.xsd"/>
+	<xs:simpleType name="SCHEMA_VERSION_TYPE">
+		<xs:annotation>
+			<xs:documentation> The schema version element applies only to the submission's primary document.	It does not apply to the submission file. This element should not be included in a Reduced Content submission. EDGAR inserts this element in the version of 	the primary document that gets disseminated. If you do provide a value for this element and it does not match the current version of this schema file being used by EDGAR, then EDGAR will generate a WARNING.	</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:length value="5"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DECIMAL_TYPE13_2">
+		<xs:restriction base="xs:decimal">
+			<xs:totalDigits value="15"/>
+			<xs:fractionDigits value="2"/>
+			<xs:pattern value="[\+\-]?\d{0,13}\.\d\d"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	 <xs:simpleType name="DECIMAL_TYPE13_4">
+		<xs:restriction base="xs:decimal">
+			<xs:totalDigits value="17"/>
+			<xs:fractionDigits value="4"/>
+			<xs:pattern value="[\+\-]?\d{0,13}\.\d\d\d\d"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<xs:simpleType name="DECIMAL_TYPE14_2">
+        <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="16"/>
+            <xs:fractionDigits value="2"/>
+            <xs:pattern value="[\+\-]?\d{0,14}\.\d\d"/>
+        </xs:restriction>
+    </xs:simpleType>
+	
+	<xs:simpleType name="DECIMAL_TYPE14_4">
+        <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="18"/>
+            <xs:fractionDigits value="4"/>
+            <xs:pattern value="[\+\-]?\d{0,14}\.\d\d\d\d"/>
+        </xs:restriction>
+    </xs:simpleType>
+	
+	<xs:simpleType name="STRING_9_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="9"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="INTEGER_NONNEGATIVE_13">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:totalDigits value="13" fixed="true"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="INTEGER_NONNEGATIVE_7">
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:totalDigits value="7" fixed="true"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<xs:simpleType name="STRING_2K_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="2000"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="INTEGER_TYPE_4">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="1"/>
+			<xs:maxInclusive value="9999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="IRS_NUMBER_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:pattern value="\d{2}-\d{7}"/>
+		</xs:restriction>
+	</xs:simpleType>
+</xs:schema>

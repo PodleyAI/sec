@@ -5,10 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError } from "@podley/task-graph";
 import { sleep, TypeDateTime } from "@podley/util";
 import { TObject, Type } from "@sinclair/typebox";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { query_run } from "../../util/db";
 import { TypeSecDate, YYYYdMMdDD } from "../../util/parseDate";
 
@@ -45,7 +45,7 @@ export class StoreCikLastUpdatedTask extends Task<
 
   async execute(
     input: StoreCikLastUpdatedTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreCikLastUpdatedTaskOutput> {
     const updateList = input.updateList.filter(Boolean);
     if (!updateList || updateList.length === 0) return { success: false };
@@ -56,7 +56,7 @@ export class StoreCikLastUpdatedTask extends Task<
     const batchSize = 1000;
     const batches = Math.ceil(length / batchSize);
     for (let i = 0; i < batches; i++) {
-      if (config.signal?.aborted) {
+      if (context.signal?.aborted) {
         throw new TaskAbortedError();
       }
       const batch = updateList
@@ -76,7 +76,7 @@ export class StoreCikLastUpdatedTask extends Task<
       );
       const newProgress = Math.round((index++ / length) * 1000) / 10;
       if (newProgress > progress) {
-        config.updateProgress(newProgress);
+        context.updateProgress(newProgress);
         progress = newProgress;
         await sleep(0);
       }

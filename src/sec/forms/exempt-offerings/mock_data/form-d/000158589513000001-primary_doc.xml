@@ -1,0 +1,157 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0706</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001585895</cik>
+        <entityName>EntraTympanic, LLC</entityName>
+        <issuerAddress>
+            <street1>131 GREEN STREET</street1>
+            <city>MEDFIELD</city>
+            <stateOrCountry>MA</stateOrCountry>
+            <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+            <zipCode>02052</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>617-504-0384</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2009</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>George</firstName>
+                <middleName>Brian</middleName>
+                <lastName>Kenney</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>131 Green Street</street1>
+                <city>Medfield</city>
+                <stateOrCountry>MA</stateOrCountry>
+                <stateOrCountryDescription>MASSACHUSETTS</stateOrCountryDescription>
+                <zipCode>02052</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Christian</firstName>
+                <lastName>Pfeffer</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Reitmorstrasse 21</street1>
+                <city>Munich</city>
+                <stateOrCountry>2M</stateOrCountry>
+                <stateOrCountryDescription>GERMANY</stateOrCountryDescription>
+                <zipCode>80538</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other Health Care</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>No Revenues</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2013-08-21</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>25000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>SDDCO Brokerage Advisors LLC</recipientName>
+                <recipientCRDNumber>153563</recipientCRDNumber>
+                <associatedBDName>SDDCO Brokerage Advisors LLC</associatedBDName>
+                <associatedBDCRDNumber>153563</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>485 Madison Avenue, Floor 15</street1>
+                    <city>New York</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>10022</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <value>All States</value>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>5000000</totalOfferingAmount>
+            <totalAmountSold>25000</totalAmountSold>
+            <totalRemaining>4975000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>1</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse>Sales commission of 5% plus a 1% warrant</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>EntraTympanic, LLC</issuerName>
+                <signatureName>George Kenney</signatureName>
+                <nameOfSigner>George B. Kenney</nameOfSigner>
+                <signatureTitle>President</signatureTitle>
+                <signatureDate>2013-09-12</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

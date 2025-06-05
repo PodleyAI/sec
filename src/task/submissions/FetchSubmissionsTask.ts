@@ -7,7 +7,7 @@
 
 import {
   Dataflow,
-  IExecuteConfig,
+  IExecuteContext,
   Task,
   TaskFailedError,
   TaskGraph,
@@ -22,7 +22,7 @@ import {
   FullCompanySubmissionSchema,
   TypeFilings,
   TypeSecCik,
-} from "../../types/CompanySubmission";
+} from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";
 import { SecFetchSubmissionsTask } from "./SecFetchSubmissionsTask";
 
@@ -59,13 +59,13 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
 
   async execute(
     input: FetchSubmissionsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchSubmissionsOutput> {
     const cik = input.cik;
     if (!cik) throw new TaskFailedError("CIK is required");
     const date = input.date ? secDate(input.date) : undefined;
 
-    const builder = config.own(new Workflow());
+    const builder = context.own(new Workflow());
     builder.pipe(
       new SecFetchSubmissionsTask(input, {
         id: "fetch-company-submissions",
@@ -99,7 +99,7 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
             )
           );
           graph.addTask(
-            async function reduceFilings(input: FetchTaskOutput, config: IExecuteConfig) {
+            async function reduceFilings(input: FetchTaskOutput, context: IExecuteContext) {
               // example submissions/CIK0000001750-submissions-001.json
               const filings = Value.Encode(TypeFilings(), input.json);
               return {

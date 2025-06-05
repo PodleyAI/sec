@@ -1,0 +1,720 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2010 rel. 3 (http://www.altova.com) by knowlinm (KEANE FEDERAL SYSTEMS) -->
+<xs:schema xmlns="http://www.sec.gov/edgar/common_drp"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ns1="http://www.sec.gov/edgar/common" targetNamespace="http://www.sec.gov/edgar/common_drp" elementFormDefault="qualified" attributeFormDefault="unqualified">
+  <xs:import namespace="http://www.sec.gov/edgar/common" schemaLocation="eis_Common.xsd"/>
+  <!-- Begin Common Disclosure Reporting Page Elements -->
+  <!-- Begin Disclosure Reporting Page Part1 -->
+  <xs:complexType name="APPLICANT_INFO">
+    <xs:sequence>
+      <xs:element name="nameOfApplicant" type="ns1:NAME_TYPE"/>
+      <xs:element name="applicantCRD" type="ns1:CRD_NUMBER_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CA_PRINCIPAL_INFO">
+    <xs:sequence>
+      <xs:element name="name" type="NAME_OPTION_TYPE"/>
+      <xs:element name="crdNo" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+      <xs:element name="controlAffiliateType" type="FIRM_INDIVIDUAL_TYPE" minOccurs="0"/>
+      <xs:element name="isRegistered" type="ns1:YES_NO_TYPE"/>
+      <!-- The below element is commented out due to the fact it is not in the FRD -->
+      <!-- <xs:element name="isRemoveDRP" type="ns1:YES_NO_TYPE"/> -->
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FIRM_INDIVIDUAL_TYPE">
+    <xs:choice>
+      <xs:element name="firm" default="Firm"/>
+      <xs:element name="individual" default="Individual"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="NAME_OPTION_TYPE">
+    <xs:choice>
+      <xs:element name="orgName" type="ns1:ENTITY_NAME_TYPE"/>
+      <xs:element name="individualName" type="ns1:NAME_TYPE_2"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="PERSON_ENTITY_OPTION_TYPE">
+    <xs:choice>
+      <xs:element name="applicant" default="The Applicant"/>
+      <xs:element name="applicantAndCa" default="Applicant and one or more affiliate(s)"/>
+      <xs:element name="controlAffiliate" default="One or more control affiliate(s)"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="DRP_PART1_TYPE">
+    <xs:sequence>
+      <xs:element name="personOrEntity" type="PERSON_ENTITY_OPTION_TYPE" minOccurs="0"/>
+      <xs:element name="applicantInfo" type="APPLICANT_INFO" minOccurs="0"/>
+      <xs:element name="controlAffiliatePrincipalInfo" type="CA_PRINCIPAL_INFO" minOccurs="0"/>
+      <xs:element name="isDRPSubmittedForEvent" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Disclosure Reporting Page Part1 -->
+  <!-- Verify the APPEALED_TO_ENTITY_TYPE is not suppose to be a name field. -->
+  <xs:simpleType name="APPEALED_TO_ENTITY_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SEC"/>
+      <xs:enumeration value="SRO"/>
+      <xs:enumeration value="State Court"/>
+      <xs:enumeration value="Federal Court"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="APPEALED_TO_TYPE">
+    <xs:sequence>
+      <xs:element name="date" type="ns1:DATE_TYPE"/>
+      <xs:choice>
+        <xs:element name="appealedTo" type="APPEALED_TO_ENTITY_TYPE"/>
+        <xs:element name="appealedToCourtName" type="ns1:STRING_150_TYPE"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CHARGED_ORGANIZATION">
+    <xs:sequence>
+      <xs:element name="nameOfOrg" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="positionTitleOrRelationship" type="ns1:STRING_60_TYPE"/>
+      <xs:element name="isOrgInvestmentRelated" type="ns1:YES_NO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CHARGES_WHERE_BROUGHT_IN">
+    <xs:sequence>
+      <xs:element name="nameOfCourt" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="city" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="stateOrCountry" type="ns1:STATE_COUNTRY_TYPE"/>
+      <xs:element name="docketOrCaseNo" type="ns1:STRING_25_TYPE"/>
+      <!--Following element is applicable to Bankruptcy DRP for Federal Bankruptcy Filings only -->
+      <xs:element name="bankruptcyChapterNo" type="ns1:STRING_50_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EVENT_STATUS_TYPE">
+    <xs:choice>
+      <xs:element name="pending" default="Pending"/>
+      <xs:element name="onAppeal" default="On Appeal"/>
+      <xs:element name="final" default="Final"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="EXPLANATION_INFO">
+    <xs:sequence>
+      <xs:element name="explanation" default="Explanation"/>
+      <xs:element name="provideExplanation" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EXACT_OR_EXPLANATION">
+    <xs:sequence>
+      <xs:element name="date" type="ns1:DATE_TYPE"/>
+      <xs:choice>
+        <xs:element name="exact" default="Exact"/>
+        <xs:element name="explanationInfo" type="EXPLANATION_INFO"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="MATTER_RESOLVED_BASE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Consent"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Settled"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="MONETARY_SANCTION_TYPE">
+    <xs:sequence>
+      <xs:element name="monetarySanction" default="Monetary/Fine"/>
+      <xs:element name="amount" type="ns1:DECIMAL_TYPE14_2_FIXED"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="PRINCIPAL_PRODUCT_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Annuity(ies) - Fixed"/>
+      <xs:enumeration value="Annuity(ies) - Variable"/>
+      <xs:enumeration value="CD(s)"/>
+      <xs:enumeration value="Commodity Option(s)"/>
+      <xs:enumeration value="Debt - Asset Backed"/>
+      <xs:enumeration value="Debt - Corporate"/>
+      <xs:enumeration value="Debt - Government"/>
+      <xs:enumeration value="Debt - Municipal"/>
+      <xs:enumeration value="Derivative(s)"/>
+      <xs:enumeration value="Direct Investment(s) - DPP &amp; LP Interest(s)"/>
+      <xs:enumeration value="Equity - OTC"/>
+      <xs:enumeration value="Equity Listed (Common &amp; Preferred Stock)"/>
+      <xs:enumeration value="Futures - Commodity"/>
+      <xs:enumeration value="Futures - Financial"/>
+      <xs:enumeration value="Index Option(s)"/>
+      <xs:enumeration value="Insurance"/>
+      <xs:enumeration value="Investment Contract(s)"/>
+      <xs:enumeration value="Money Market Fund(s)"/>
+      <xs:enumeration value="Mutual Fund(s)"/>
+      <xs:enumeration value="No Product"/>
+      <xs:enumeration value="Options"/>
+      <xs:enumeration value="Penny Stock(s)"/>
+      <xs:enumeration value="Unit Investment Trust(s)"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="PRINCIPAL_PRODUCT_TYPE">
+    <xs:choice>
+      <xs:element name="principalOption" type="PRINCIPAL_PRODUCT_OPTION_TYPE"/>
+      <xs:element name="otherProducts" type="ns1:OTHER_TYPE"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:simpleType name="PRINCIPAL_SANCTION_RELIEF_BASE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Cease and Desist"/>
+      <xs:enumeration value="Disgorgement"/>
+      <xs:enumeration value="Injunction"/>
+      <xs:enumeration value="Restitution"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="SANCTIONS_ORDERED_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Revocation/Expulsion/Denial"/>
+      <xs:enumeration value="Censure"/>
+      <xs:enumeration value="Cease and Desist/Injunctoin"/>
+      <xs:enumeration value="Disgorgement/Restitution"/>
+      <xs:enumeration value="Bar"/>
+      <xs:enumeration value="Suspension"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="SANCTIONS_ORDERED_OPTIONS_TYPE">
+    <xs:sequence>
+      <xs:element name="monetarySanctionOption" type="MONETARY_SANCTION_TYPE" minOccurs="0"/>
+      <xs:element name="sanctionsOptions" type="SANCTIONS_ORDERED_OPTION_TYPE" minOccurs="0" maxOccurs="6"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SANCTIONS_ORDERED_TYPE">
+    <xs:sequence>
+      <xs:element name="sanctionsOrderedOptions" type="SANCTIONS_ORDERED_OPTIONS_TYPE" minOccurs="0"/>
+      <xs:element name="otherSanctions" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+      <xs:element name="sanctionDetail" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SANCTIONS_ORDERED_TYPE_2">
+    <xs:sequence>
+      <xs:element name="sanctionsOrderedOptions" type="SANCTIONS_ORDERED_OPTIONS_TYPE" minOccurs="0"/>
+      <xs:element name="otherSanctions" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="sanctionDetail" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- End Common Disclosure Reporting Page Elements -->
+  <!-- Begin Criminal Disclosure Reporting Page -->
+  <xs:simpleType name="CRIMINAL_DISPOSITION_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Convicted"/>
+      <xs:enumeration value="Acquitted"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Pretrial"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="FELONY_MISDEMEANOR_TYPE">
+    <xs:choice>
+      <xs:element name="felony" default="Felony"/>
+      <xs:element name="misdemeanor" default="Misdemeanor"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="EVENT_DISC_DETAIL_TYPE">
+    <xs:sequence>
+      <xs:element name="charge" type="ns1:STRING_255_TYPE"/>
+      <xs:element name="numberOfCounts" type="ns1:STRING_NUMERIC_3_TYPE"/>
+      <xs:element name="felonyOrMisdemeanor" type="FELONY_MISDEMEANOR_TYPE"/>
+      <xs:element name="plea" type="ns1:STRING_255_TYPE"/>
+      <!-- Find out if productType is a PRINCIPAL_PRODUCT_TYPE element. -->
+      <xs:element name="isMunicipalAdvisorRelated" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isInvestmentRelated" type="ns1:YES_NO_TYPE"/>
+      <!-- productType is related to municipal advisor element. -->
+      <xs:element name="productType" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+      <xs:element name="investmentProductType" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+      <xs:element name="amendedDate" type="ns1:DATE_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EVENT_DISC_DETAILS_TYPE">
+    <xs:sequence>
+      <xs:element name="eventDiscDetail" type="EVENT_DISC_DETAIL_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DISPOSITION_DISC_DETAIL_TYPE">
+    <xs:sequence>
+      <xs:element name="charge" type="ns1:STRING_255_TYPE"/>
+      <xs:element name="dispositionType" type="CRIMINAL_DISPOSITION_OPTION_TYPE"/>
+      <xs:element name="date" type="ns1:DATE_TYPE"/>
+      <xs:element name="sentencePenalty" type="ns1:STRING_60_TYPE"/>
+      <xs:element name="duration" type="ns1:STRING_10_TYPE" minOccurs="0"/>
+      <xs:element name="startDatePenalty" type="ns1:DATE_TYPE" minOccurs="0"/>
+      <xs:element name="penaltyFineAmout" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="datePaid" type="ns1:DATE_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DISPOSITION_DISC_DETAILS_TYPE">
+    <xs:sequence>
+      <xs:element name="dispositionDiscDetail" type="DISPOSITION_DISC_DETAIL_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CRIMINAL_DRP_PART2_TYPE">
+    <xs:sequence>
+      <xs:element name="chargedOrg" type="CHARGED_ORGANIZATION"/>
+      <xs:element name="chargesBroughtIn" type="CHARGES_WHERE_BROUGHT_IN"/>
+      <xs:element name="firstCharged" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="eventDiscDetails" type="EVENT_DISC_DETAILS_TYPE"/>
+      <xs:element name="isAnyChargeFelony" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="currentStatusOfEvent" type="EVENT_STATUS_TYPE"/>
+      <xs:element name="eventStatusDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="dispositionDisclosureDetail" type="DISPOSITION_DISC_DETAILS_TYPE"/>
+      <xs:element name="summaryOfCircum" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CRIMINAL_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="criminalDRPPart1" type="DRP_PART1_TYPE"/>
+      <!-- We need to confirm that a 1 Criminal Disclosure Report can have multiple Part 2s. -->
+      <xs:element name="criminalDRPPart2" type="CRIMINAL_DRP_PART2_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CRIMINAL_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="criminalDRP" type="CRIMINAL_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CRIMINAL_DISCLOSURE_TYPE">
+    <xs:sequence>
+      <xs:element name="isConvictedFelony" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isChargedFelony" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isConvictedMisdemeanor" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isChargedMisdemeanor" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="criminalDisclosureDetails" type="CRIMINAL_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Criminal Disclosure Reporting Page -->
+  <!-- Begin Regulatory Disclosure Reporting Page -->
+  <xs:complexType name="SEC_CFTC_REGULATORY_TYPE">
+    <xs:sequence>
+      <xs:element name="isAppControlPrincipalFalseOmit" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isAppControlPrincipalViolation" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="isApControlPrincipalCauseOfRestriction" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasOrderAgainstAppPrincipal" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasCivilMoneyPenalty" type="ns1:YES_NO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FEDERAL_REGULATORY_TYPE">
+    <xs:sequence>
+      <xs:element name="foundAppPrincipalFalseStatement" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="foundAppPrincipalInViolation" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="foundAppPrincipalCauseOfRestriction" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasOrderAgainstAppPrincipal" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasDeniedLicense" type="ns1:YES_NO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SELF_REGULATORY_TYPE">
+    <xs:sequence>
+      <xs:element name="foundAppPrincipalFalseStatement" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="foundAppPrincipalInViolation" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="foundAppPrincipalCauseOfRestriction" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="disciplinedAppPrincipalByExpelling" type="ns1:YES_NO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="REGULATOR_INITIATED_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SEC"/>
+      <xs:enumeration value="Other Federal"/>
+      <xs:enumeration value="State"/>
+      <xs:enumeration value="SRO"/>
+      <xs:enumeration value="Foreign"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PRINCIPAL_SANCTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Civl and Administrative Penalty(ies)/Fines)"/>
+      <xs:enumeration value="Bar"/>
+      <xs:enumeration value="Censure"/>
+      <xs:enumeration value="Denial"/>
+      <xs:enumeration value="Expulsion"/>
+      <xs:enumeration value="Prohibition"/>
+      <xs:enumeration value="Reprimand"/>
+      <xs:enumeration value="Revocation"/>
+      <xs:enumeration value="Suspension"/>
+      <xs:enumeration value="Undertaking"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PRINCIPAL_SANCTION_RELIEF_BASE_2">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Cease and Desist (Private/Civil Complaint)"/>
+      <xs:enumeration value="Restraining Order"/>
+      <xs:enumeration value="Injunction"/>
+      <xs:enumeration value="Disgorgement"/>
+      <xs:enumeration value="Civil Penalty(ies)/Fine(s)"/>
+      <xs:enumeration value="Restitution"/>
+      <xs:enumeration value="Money Damages"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PRINCIPAL_SANCTION_OPTION_TYPE">
+    <xs:union memberTypes="PRINCIPAL_SANCTION_RELIEF_BASE PRINCIPAL_SANCTION_TYPE"/>
+  </xs:simpleType>
+  <xs:complexType name="PRINCIPAL_SANCTION_OTHER_TYPE">
+    <xs:choice>
+      <xs:element name="sanctionOption" type="PRINCIPAL_SANCTION_OPTION_TYPE"/>
+      <xs:element name="otherSanctions" type="ns1:OTHER_TYPE"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:simpleType name="OTHER_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PRINCIPAL_SANCTION_OTHER_TYPE_2">
+    <xs:union memberTypes="PRINCIPAL_SANCTION_RELIEF_BASE PRINCIPAL_SANCTION_TYPE OTHER_TYPE"/>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Acceptance, Waiver &amp; Consent (AWC)"/>
+      <xs:enumeration value="Decision &amp; Order of Offer Settlement"/>
+      <xs:enumeration value="Decision"/>
+      <xs:enumeration value="Order"/>
+      <xs:enumeration value="Stipulation and Consent"/>
+      <xs:enumeration value="Vacated"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_OPTION_TYPE">
+    <xs:union memberTypes="MATTER_RESOLVED_BASE MATTER_RESOLVED_TYPE"/>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_OTHER_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Withdrawn"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_OPTION_TYPE_4">
+    <xs:union memberTypes="MATTER_RESOLVED_BASE MATTER_RESOLVED_TYPE"/>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_OPTION_TYPE_5">
+    <xs:union memberTypes="MATTER_RESOLVED_OPTION_TYPE_4 MATTER_RESOLVED_OTHER_TYPE"/>
+  </xs:simpleType>
+  <xs:complexType name="REGULATORY_DRP_PART2_TYPE">
+    <xs:sequence>
+      <xs:element name="regulatorInitiatedOption" type="REGULATOR_INITIATED_OPTION_TYPE"/>
+      <xs:element name="fullNameRegulator" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="principalSanction" type="PRINCIPAL_SANCTION_OTHER_TYPE"/>
+      <xs:element name="dateInitiated" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="docketOrCaseNo" type="ns1:STRING_25_TYPE"/>
+      <xs:element name="employingFirm" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="principalProduct" type="PRINCIPAL_PRODUCT_TYPE"/>
+      <xs:element name="allegationsDescription" type="ns1:STRING_255_TYPE"/>
+      <xs:element name="currentStatus" type="EVENT_STATUS_TYPE"/>
+      <xs:element name="actionAppealedTo" type="APPEALED_TO_TYPE" minOccurs="0"/>
+      <!-- the following 3 elements are applicable only when the current status is final or on Appeal -->
+      <xs:element name="matterResolvedType" type="MATTER_RESOLVED_OPTION_TYPE" minOccurs="0"/>
+      <xs:element name="resolutionDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="sanctionsOrdered" type="SANCTIONS_ORDERED_TYPE" minOccurs="0"/>
+      <xs:element name="summaryOfDetails" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="REGULATORY_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="regulatoryDRPPart1" type="DRP_PART1_TYPE"/>
+      <xs:element name="regulatoryDRPPart2" type="REGULATORY_DRP_PART2_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="REGULATORY_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="regulatoryDRP" type="REGULATORY_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="REGULATORY_DISCLOSURE_TYPE">
+    <xs:sequence>
+      <xs:element name="secOrCFTCRegulatory" type="SEC_CFTC_REGULATORY_TYPE"/>
+      <xs:element name="federalRegulatory" type="FEDERAL_REGULATORY_TYPE"/>
+      <xs:element name="selfRegulatory" type="SELF_REGULATORY_TYPE"/>
+      <xs:element name="hasAppPrincipalActAsAttorneyRevoked" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="IsAppPrincipalSubjectRegulatoryProceeding" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="regulatoryDisclosureDetails" type="REGULATORY_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End  Regulatory Disclosure Reporting Page -->
+  <!-- Begin Civi Judicial Disclosure Reporting Page -->
+  <xs:simpleType name="MATTER_RESOLVED_TYPE_2">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Judegement Rendered"/>
+      <xs:enumeration value="Opinion"/>
+      <xs:enumeration value="Withdrawn"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="MATTER_RESOLVED_OPTION_TYPE_2">
+    <xs:union memberTypes="MATTER_RESOLVED_BASE MATTER_RESOLVED_TYPE_2"/>
+  </xs:simpleType>
+  <!-- need to update part 2 with this element -->
+  <xs:complexType name="MATTER_RESOLVED_OPTION_TYPE_3">
+    <xs:sequence>
+      <xs:element name="matterResolvedType" type="MATTER_RESOLVED_OPTION_TYPE_2"/>
+      <xs:element name="other" type="ns1:OTHER_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="PRINCIPAL_RELIEF_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Civl Penalty(ies)/Fines)"/>
+      <xs:enumeration value="Money Damages (Private/Civil Complaint)"/>
+      <xs:enumeration value="Restraining Order"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PRINCIPAL_RELIEF_OPTION_TYPE">
+    <xs:union memberTypes="PRINCIPAL_SANCTION_RELIEF_BASE PRINCIPAL_RELIEF_TYPE"/>
+  </xs:simpleType>
+  <xs:complexType name="PRINCIPAL_RELIEF_OTHER_TYPE">
+    <xs:sequence>
+      <xs:choice>
+        <xs:element name="reliefOption" type="PRINCIPAL_RELIEF_OPTION_TYPE"/>
+        <xs:element name="otherReliefSought" type="ns1:OTHER_TYPE"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="COURT_INITIATED_BY_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Regulator"/>
+      <xs:enumeration value="Foreign financial regulatory authority"/>
+      <xs:enumeration value="SRO"/>
+      <xs:enumeration value="Commodities exchange"/>
+      <xs:enumeration value="Agency"/>
+      <xs:enumeration value="Firm, private plaintiff"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="COURT_INITIATED_BY_INFO_TYPE">
+    <xs:choice>
+      <xs:element name="courtInitiatedByOption" type="COURT_INITIATED_BY_OPTION_TYPE"/>
+      <xs:element name="courtInitiatedByOther" type="ns1:OTHER_TYPE"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="CIVIL_JUDICIAL_DRP_PART2_TYPE">
+    <xs:sequence>
+      <xs:element name="courtInitiatedBy" type="COURT_INITIATED_BY_INFO_TYPE"/>
+      <xs:element name="principalRelief" type="PRINCIPAL_RELIEF_OTHER_TYPE"/>
+      <xs:element name="filingDate" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="principalProduct" type="PRINCIPAL_PRODUCT_TYPE"/>
+      <xs:element name="formalActionBrought" type="CHARGES_WHERE_BROUGHT_IN"/>
+      <xs:element name="employingFirm" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="allegationsDescription" type="ns1:STRING_255_TYPE"/>
+      <xs:element name="currentStatus" type="EVENT_STATUS_TYPE"/>
+      <xs:element name="actionAppealedTo" type="APPEALED_TO_TYPE" minOccurs="0"/>
+      <xs:element name="noticeDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <!-- the following 3 elements are applicable only when the current status is final or on Appeal -->
+      <xs:element name="matterResolved" type="MATTER_RESOLVED_OPTION_TYPE_3" minOccurs="0"/>
+      <xs:element name="resolutionDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="resolutionDetail" type="SANCTIONS_ORDERED_TYPE" minOccurs="0"/>
+      <xs:element name="summaryOfDetails" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CIVIL_JUDICIAL_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="civilJudicialDRPPart1" type="DRP_PART1_TYPE"/>
+      <xs:element name="civilJudicialDRPPart2" type="CIVIL_JUDICIAL_DRP_PART2_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CIVIL_JUDICIAL_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="civilJudicialDRP" type="CIVIL_JUDICIAL_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CIVIL_JUDICIAL_DISCLOSURE_TYPE">
+    <xs:sequence>
+      <xs:element name="hasCourtEnjoinedAppPrincipal" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasCourtFoundAppPrincipalViolation" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasCourtDismissedAgainstAppPrincipal" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="IsAppPrincipalSubjectCivilProceeding" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="civilJudicialDisclosures" type="CIVIL_JUDICIAL_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Civi Judicial Disclosure Reporting Page -->
+  <!-- Begin Bankruptcy/SIPC Disclosure Reporting Page -->
+  <xs:simpleType name="BANKRUPTCY_ACTION_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Bankruptcy"/>
+      <xs:enumeration value="Declaration"/>
+      <xs:enumeration value="Receivership"/>
+      <xs:enumeration value="Compromise"/>
+      <xs:enumeration value="Liquidated"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="BANKRUPTCY_ACTION_TYPE">
+    <xs:choice>
+      <xs:element name="bankruptcyOption" type="BANKRUPTCY_ACTION_OPTION_TYPE"/>
+      <xs:element name="other" type="ns1:OTHER_TYPE"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="BANKRUPTCY_ACTION_TYPE_2">
+    <xs:choice>
+      <xs:element name="bankruptcyOption" type="BANKRUPTCY_ACTION_OPTION_TYPE"/>
+      <xs:element name="other" type="ns1:OTHER_TYPE"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:simpleType name="BANKRUPTCY_DISPOSITION_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Direct Payment Procedure"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Satisfied/Released"/>
+      <xs:enumeration value="Discharged"/>
+      <xs:enumeration value="Dissolved"/>
+      <xs:enumeration value="SIPA Trustee Appointed"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="BANKRUPTCY_DISPOSITION_TYPE">
+    <xs:sequence>
+      <xs:choice>
+        <xs:element name="dispositionOptionType" type="BANKRUPTCY_DISPOSITION_OPTION_TYPE"/>
+        <xs:element name="other" type="ns1:OTHER_TYPE"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SIPA_TRUSTEE_OR_PAYMENT">
+    <xs:choice>
+      <xs:element name="nameOfTrustee" type="ns1:ENTITY_NAME_TYPE"/>
+      <xs:element name="amountPaidOrAgreedTo" type="ns1:DECIMAL_TYPE14_2"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="SIPA_TRUSTEE_TYPE">
+    <xs:sequence>
+      <xs:element name="sipaTrusteeOrPayment" type="SIPA_TRUSTEE_OR_PAYMENT"/>
+      <xs:element name="isCurrentlyOpen" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="dateDirectPayment" type="EXACT_OR_EXPLANATION"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BANKRUPTCY_DRP_PART2_TYPE">
+    <xs:sequence>
+      <xs:element name="actionType" type="BANKRUPTCY_ACTION_TYPE"/>
+      <xs:element name="actionDate" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="financialActionRelates" type="CHARGED_ORGANIZATION"/>
+      <xs:element name="courtActionBroughtIn" type="CHARGES_WHERE_BROUGHT_IN"/>
+      <xs:element name="isActionPending" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="dispositionType" type="BANKRUPTCY_DISPOSITION_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="summaryOfEvents" type="ns1:STRING_255_TYPE"/>
+      <xs:element name="sipaTrustee" type="SIPA_TRUSTEE_TYPE" minOccurs="0"/>
+      <xs:element name="detailsOfDisposition" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BANKRUPTCY_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="bankruptcyDRPPart1" type="DRP_PART1_TYPE"/>
+      <xs:element name="backruptcyDRPPart2" type="BANKRUPTCY_DRP_PART2_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BANKRUPTCY_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="bankruptcyDRP" type="BANKRUPTCY_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Bankruptcy/SIPC Disclosure Reporting Page-->
+  <!--Begin Bond Disclosure Reporting Page (SBSE) -->
+  <xs:simpleType name="BOND_DISPOSITION_OPTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Denied"/>
+      <xs:enumeration value="Payout"/>
+      <xs:enumeration value="Revoked"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="PAYOUT_TYPE">
+    <xs:sequence>
+      <xs:element name="payoutAmount" type="ns1:DECIMAL_TYPE14_2"/>
+      <xs:element name="datePaid" type="ns1:DATE_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PAYOUT_TYPE_2">
+    <xs:sequence>
+      <xs:element name="payoutAmount" type="ns1:DECIMAL_TYPE14_2_FIXED"/>
+      <xs:element name="datePaid" type="ns1:DATE_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BOND_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="applicantInfo" type="APPLICANT_INFO"/>
+      <xs:element name="firmName" type="ns1:ENTITY_NAME_TYPE"/>
+      <xs:element name="bondingCompanyName" type="ns1:ENTITY_NAME_TYPE"/>
+      <xs:element name="dispositionType" type="BOND_DISPOSITION_OPTION_TYPE"/>
+      <xs:element name="dispositoinDate" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="payoutInfo" type="PAYOUT_TYPE" minOccurs="0"/>
+      <xs:element name="summarizeDetails" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BOND_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="bondDRP" type="BOND_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Bond Disclosure Reporting Page (SBSE) -->
+  <!-- Begin Judgement/Lien Disclosure Reporting Page ( SBSE) -->
+  <xs:complexType name="EVENT_PROCEED_NUMBERS">
+    <xs:sequence>
+      <xs:element name="eventOrProceedNum" type="ns1:STRING_NUMERIC_3_TYPE"/>
+      <xs:element name="eventOrProceedTotal" type="ns1:STRING_NUMERIC_3_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="LIEN_RESOLVED_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Discharged"/>
+      <xs:enumeration value="Released"/>
+      <xs:enumeration value="Removed"/>
+      <xs:enumeration value="Satisfied"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="LIEN_TYPE">
+    <xs:choice>
+      <xs:element name="civil" default="Civil"/>
+      <xs:element name="default" default="Default"/>
+      <xs:element name="tax" default="Tax"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="JUDGEMENT_DRP_TYPE">
+    <xs:sequence>
+      <xs:element name="applicantInfo" type="APPLICANT_INFO"/>
+      <xs:element name="eventProceedingNumbers" type="EVENT_PROCEED_NUMBERS"/>
+      <xs:element name="JudgementOrLienAmout" type="ns1:DECIMAL_TYPE14_2_FIXED"/>
+      <xs:element name="judgementOrLienHolder" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="judegmentOrLienType" type="LIEN_TYPE"/>
+      <xs:element name="dateFiled" type="EXACT_OR_EXPLANATION"/>
+      <xs:element name="isJudgentLienOutstanding" type="ns1:TRUE_FALSE_TYPE"/>
+      <xs:element name="provideStatusDate" type="EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="matterResolved" type="LIEN_RESOLVED_TYPE" minOccurs="0"/>
+      <xs:element name="court" type="CHARGES_WHERE_BROUGHT_IN"/>
+      <xs:element name="summaryOfEvents" type="ns1:STRING_255_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="JUDGEMENT_DRP_TYPES">
+    <xs:sequence>
+      <xs:element name="judgementDRP" type="JUDGEMENT_DRP_TYPE" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Judgement/Lien Disclosure Reporting Page ( SBSE) -->
+  <!-- Begin Financial Disclosure Reporting Page ( SBSE) -->
+  <xs:complexType name="FINANCIAL_DISCLOSURE_PART1_TYPE">
+    <xs:sequence>
+      <xs:element name="hasSubjectOfBankruptcy" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="hasTrusteeAppointed" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="bankruptcyDisclosureDetails" type="BANKRUPTCY_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FINANCIAL_DISCLOSURE_PART2_TYPE">
+    <xs:sequence>
+      <xs:element name="hasBondDenied" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="bondDisclosureDetails" type="BOND_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FINANCIAL_DISCLOSURE_PART3_TYPE">
+    <xs:sequence>
+      <xs:element name="doesAppHaveLiens" type="ns1:YES_NO_TYPE"/>
+      <xs:element name="judgementDisclosureDetails" type="JUDGEMENT_DRP_TYPES" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FINANCIAL_DISCLOSURE_TYPE">
+    <xs:sequence>
+      <xs:element name="financialDisclosurePart1" type="FINANCIAL_DISCLOSURE_PART1_TYPE"/>
+      <!-- Following two elements are applicable and required for SEBE only-->
+      <xs:element name="financialDisclosurePart2" type="FINANCIAL_DISCLOSURE_PART2_TYPE" minOccurs="0"/>
+      <xs:element name="financialDisclosurePart3" type="FINANCIAL_DISCLOSURE_PART3_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Financial Disclosure Reporting Page ( SBSE) -->
+  <!-- Begin Disclosure Reporting Page container -->
+  <xs:complexType name="DRP_INFO_TYPE">
+    <xs:sequence>
+      <xs:element name="criminalDisclosure" type="CRIMINAL_DISCLOSURE_TYPE"/>
+      <xs:element name="regulatoryDisclosure" type="REGULATORY_DISCLOSURE_TYPE"/>
+      <xs:element name="civilJudicialDisclosure" type="CIVIL_JUDICIAL_DISCLOSURE_TYPE"/>
+      <xs:element name="financialDisclosure" type="FINANCIAL_DISCLOSURE_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- End Disclosure Reporting Page container -->
+
+</xs:schema>

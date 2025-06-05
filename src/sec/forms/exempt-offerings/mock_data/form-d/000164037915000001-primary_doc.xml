@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0707</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001640379</cik>
+        <entityName>GR Partners Burke, LLC</entityName>
+        <issuerAddress>
+            <street1>300 PLAZA DRIVE, STE. 260</street1>
+            <city>HIGHLANDS RANCH</city>
+            <stateOrCountry>CO</stateOrCountry>
+            <stateOrCountryDescription>COLORADO</stateOrCountryDescription>
+            <zipCode>80129</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>303-350-4709</issuerPhoneNumber>
+        <jurisdictionOfInc>COLORADO</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2015</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Richard</firstName>
+                <middleName>C.</middleName>
+                <lastName>Rizzuto</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>300 Plaza Drive, Ste. 260</street1>
+                <city>Highlands Ranch</city>
+                <stateOrCountry>CO</stateOrCountry>
+                <stateOrCountryDescription>COLORADO</stateOrCountryDescription>
+                <zipCode>80129</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Vice President of GR Asset Management, Inc., the Manager of GR Partners Burke LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Douglas</firstName>
+                <middleName>C.</middleName>
+                <lastName>Gordon</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>300 Plaza Drive, Ste. 260</street1>
+                <city>Highlands Ranch</city>
+                <stateOrCountry>CO</stateOrCountry>
+                <stateOrCountryDescription>COLORADO</stateOrCountryDescription>
+                <zipCode>80129</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>President of GR Asset Management, Inc., the Manager of GR Partners Burke LLC</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other Real Estate</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>4a5</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2015-04-16</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>1700000</totalOfferingAmount>
+            <totalAmountSold>1700000</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>true</hasNonAccreditedInvestors>
+            <numberNonAccreditedInvestors>1</numberNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>11</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>GR Partners Burke, LLC</issuerName>
+                <signatureName>/s/ Douglas C. Gordon</signatureName>
+                <nameOfSigner>Douglas C. Gordon</nameOfSigner>
+                <signatureTitle>Pres. of GR Asset Management, Inc., Manager</signatureTitle>
+                <signatureDate>2015-04-27</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

@@ -5,10 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { processSubmissionTickers } from "../../util/commonStoreSec";
+import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
+import { EntityRepo } from "../../storage/entity/EntityRepo";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 export type StoreSubmissionTickersTaskInput = FetchSubmissionsOutput;
 
 export type StoreSubmissionTickersTaskOutput = {
@@ -35,9 +35,9 @@ export class StoreSubmissionTickersTask extends Task<
 
   async execute(
     input: StoreSubmissionTickersTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreSubmissionTickersTaskOutput> {
-    if (config.signal?.aborted) {
+    if (context.signal?.aborted) {
       throw new TaskAbortedError();
     }
     let { submission } = input;
@@ -53,7 +53,8 @@ export class StoreSubmissionTickersTask extends Task<
         const ticker = tickers[i];
         const exchange = exchanges[i];
         if (!ticker || !exchange) continue;
-        processSubmissionTickers(cik, ticker, exchange);
+        const submissionRepo = new EntityRepo();
+        await submissionRepo.saveEntityTicker({ cik, ticker, exchange });
       }
     }
 

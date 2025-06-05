@@ -5,10 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, IWorkflow, pipe, Task } from "@podley/task-graph";
-import { TObject, Type } from "@sinclair/typebox";
+import { IExecuteContext, IWorkflow, pipe, Task } from "@podley/task-graph";
 import { sleep } from "@podley/util";
-import { processUpdateProcessing } from "../../util/commonStoreSec";
+import { TObject, Type } from "@sinclair/typebox";
+import { processUpdateProcessing } from "./StoreSubmissionsTask";
 import { query_all } from "../../util/db";
 import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { StoreSubmissionsTask } from "./StoreSubmissionsTask";
@@ -38,7 +38,7 @@ export class UpdateAllSubmissionsTask extends Task<
 
   async execute(
     input: UpdateAllSubmissionsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<UpdateAllSubmissionsTaskOutput> {
     const needsUpating = query_all(`
       SELECT cik_last_update.cik, cik_last_update.last_update, processed_submissions.last_processed FROM cik_last_update 
@@ -62,11 +62,11 @@ export class UpdateAllSubmissionsTask extends Task<
     const totalCount = needsUpatingCount + needsInitialProcessingCount;
 
     if (needsUpatingCount) {
-      const wf = config.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
+      const wf = context.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
       for (let i = 0; i < needsUpatingCount; i++) {
         const result = needsUpating[i];
         runWorkflow(wf, { cik: parseInt(result.cik), date: result.last_update });
-        config.updateProgress(
+        context.updateProgress(
           Math.ceil((i / totalCount) * 100),
           `Processed ${i} of ${totalCount} submissions (updating)`
         );
@@ -78,7 +78,7 @@ export class UpdateAllSubmissionsTask extends Task<
       const workflowsNumber = Math.min(needsInitialProcessingCount, BATCH_SIZE);
       const workflows: IWorkflow<any, any>[] = [];
       for (let i = 0; i < workflowsNumber; i++) {
-        workflows.push(config.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()])));
+        workflows.push(context.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()])));
       }
       for (let i = 0; i < needsInitialProcessing.length; i += BATCH_SIZE) {
         const batch = needsInitialProcessing.slice(i, i + BATCH_SIZE);
@@ -93,7 +93,7 @@ export class UpdateAllSubmissionsTask extends Task<
         }
         await Promise.all(promises);
         await sleep(0);
-        config.updateProgress(
+        context.updateProgress(
           Math.ceil(((i + needsUpatingCount) / totalCount) * 100),
           `Processed ${i + needsUpatingCount} of ${totalCount} submissions (initial processing)`
         );

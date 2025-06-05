@@ -5,10 +5,11 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
-import { insertAddress, insertPhone } from "../../util/commonStoreSec";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
+import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
+import { AddressRepo } from "../../storage/address/AddressRepo";
+import { PhoneRepo } from "../../storage/phone/PhoneRepo";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 
 export type StoreSubmissionContactInfoTaskInput = FetchSubmissionsOutput;
 
@@ -36,9 +37,9 @@ export class StoreSubmissionContactInfoTask extends Task<
 
   async execute(
     input: StoreSubmissionContactInfoTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreSubmissionContactInfoTaskOutput> {
-    if (config.signal?.aborted) {
+    if (context.signal?.aborted) {
       throw new TaskAbortedError();
     }
     let { submission } = input;
@@ -48,12 +49,25 @@ export class StoreSubmissionContactInfoTask extends Task<
     if (!submission) throw new TaskError("No submission data");
     const cik = submission.cik;
 
-    if (submission.phone) {
-      insertPhone(submission.phone, "entity:contact", cik);
-    }
+    let country_code = undefined;
 
     for (const [kind, address] of Object.entries(submission.addresses)) {
-      if (address) insertAddress(address, "entity:" + kind, cik);
+      if (address) {
+        const addressRepo = new AddressRepo();
+        const addressRecord = await addressRepo.saveAddress(address);
+        if (!country_code && addressRecord.country_code) {
+          country_code = addressRecord.country_code;
+        }
+        await addressRepo.saveRelatedEntity(addressRecord.address_hash_id, "entity:" + kind, cik);
+      }
+    }
+    if (submission.phone) {
+      const phoneRepo = new PhoneRepo();
+      const phone = await phoneRepo.savePhone({
+        phone_raw: submission.phone,
+        country_code: country_code,
+      });
+      await phoneRepo.saveRelatedEntity(phone.international_number, "entity:contact", cik);
     }
 
     return { success: true };

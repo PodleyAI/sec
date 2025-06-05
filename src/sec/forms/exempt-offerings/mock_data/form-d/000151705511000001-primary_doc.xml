@@ -1,0 +1,229 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0704</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001517055</cik>
+        <entityName>Indepth Exploration LLC</entityName>
+        <issuerAddress>
+            <street1>515 SAM HOUSTON PARKWAY SUITE 305</street1>
+            <city>HOUSTO</city>
+            <stateOrCountry>TX</stateOrCountry>
+            <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+            <zipCode>77060</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>832-948-0372</issuerPhoneNumber>
+        <jurisdictionOfInc>TEXAS</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2010</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Duane</firstName>
+                <middleName>Jay</middleName>
+                <lastName>Stephens</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>515 Sam Houston Parkway Suite 305</street1>
+                <city>Houston</city>
+                <stateOrCountry>TX</stateOrCountry>
+                <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                <zipCode>77060</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Oil and Gas</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$1 - $1,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isMineralPropertyType>true</isMineralPropertyType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>11211</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Duane Stephens</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>515 Sam Houston Parkway Suite 305</street1>
+                    <city>Houston</city>
+                    <stateOrCountry>TX</stateOrCountry>
+                    <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                    <zipCode>77060</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>AL</state>
+                    <description>ALABAMA</description>
+                    <state>AZ</state>
+                    <description>ARIZONA</description>
+                    <state>AR</state>
+                    <description>ARKANSAS</description>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CO</state>
+                    <description>COLORADO</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>DE</state>
+                    <description>DELAWARE</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>GA</state>
+                    <description>GEORGIA</description>
+                    <state>ID</state>
+                    <description>IDAHO</description>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>IN</state>
+                    <description>INDIANA</description>
+                    <state>IA</state>
+                    <description>IOWA</description>
+                    <state>KS</state>
+                    <description>KANSAS</description>
+                    <state>KY</state>
+                    <description>KENTUCKY</description>
+                    <state>LA</state>
+                    <description>LOUISIANA</description>
+                    <state>ME</state>
+                    <description>MAINE</description>
+                    <state>MD</state>
+                    <description>MARYLAND</description>
+                    <state>MA</state>
+                    <description>MASSACHUSETTS</description>
+                    <state>MI</state>
+                    <description>MICHIGAN</description>
+                    <state>MN</state>
+                    <description>MINNESOTA</description>
+                    <state>MS</state>
+                    <description>MISSISSIPPI</description>
+                    <state>MO</state>
+                    <description>MISSOURI</description>
+                    <state>MT</state>
+                    <description>MONTANA</description>
+                    <state>NE</state>
+                    <description>NEBRASKA</description>
+                    <state>NV</state>
+                    <description>NEVADA</description>
+                    <state>NH</state>
+                    <description>NEW HAMPSHIRE</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NM</state>
+                    <description>NEW MEXICO</description>
+                    <state>NC</state>
+                    <description>NORTH CAROLINA</description>
+                    <state>ND</state>
+                    <description>NORTH DAKOTA</description>
+                    <state>OH</state>
+                    <description>OHIO</description>
+                    <state>OK</state>
+                    <description>OKLAHOMA</description>
+                    <state>OR</state>
+                    <description>OREGON</description>
+                    <state>PR</state>
+                    <description>PUERTO RICO</description>
+                    <state>SC</state>
+                    <description>SOUTH CAROLINA</description>
+                    <state>SD</state>
+                    <description>SOUTH DAKOTA</description>
+                    <state>TN</state>
+                    <description>TENNESSEE</description>
+                    <state>TX</state>
+                    <description>TEXAS</description>
+                    <state>UT</state>
+                    <description>UTAH</description>
+                    <state>VT</state>
+                    <description>VERMONT</description>
+                    <state>VA</state>
+                    <description>VIRGINIA</description>
+                    <state>WA</state>
+                    <description>WASHINGTON</description>
+                    <state>WV</state>
+                    <description>WEST VIRGINIA</description>
+                    <state>WY</state>
+                    <description>WYOMING</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>448450</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>448450</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>75000</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>Management Fee for Attorney,printing,accounting,travel,office expenses</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Indepth Exploration LLC</issuerName>
+                <signatureName>Duane Stephens</signatureName>
+                <nameOfSigner>Duane Stephens</nameOfSigner>
+                <signatureTitle>Managing Partner</signatureTitle>
+                <signatureDate>2011-03-30</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

@@ -7,7 +7,10 @@
 
 import { Static, TObject, Type } from "@sinclair/typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
-import { FullCompanySubmissionSchema, TypeSecCik } from "../../types/CompanySubmission";
+import {
+  FullCompanySubmissionSchema,
+  TypeSecCik,
+} from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeOptionalSecDate } from "../../util/parseDate";
 
 // NOTE: company submissions are mutable, so we need to pass in a date to break the cache

@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common" xmlns:ns2="http://www.sec.gov/edgar/statecodes" xmlns:ns3="http://www.sec.gov/edgar/regacommon" targetNamespace="http://www.sec.gov/edgar/rega/oneafiler" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:import namespace="http://www.sec.gov/edgar/common" schemaLocation="eis_Common.xsd"/>
+	<xs:import namespace="http://www.sec.gov/edgar/statecodes" schemaLocation="eis_stateCodes.xsd"/>
+	<xs:import namespace="http://www.sec.gov/edgar/regacommon" schemaLocation="eis_RegA_common.xsd"/>
+	<xs:simpleType name="SUBMISSION_TYPE">
+		<xs:annotation>
+			<xs:documentation> Enumerated values and descriptions: 1-A: Offering Statement, 1-A/A: Pre-qualification amendment for offering statement, DOS: Confidential draft offering statement, DOS/A: Confidential draft pre-qualification amendment for offering statement, 1-A POS: Post-qualification amendment to offering statement </xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="1-A"/>
+			<xs:enumeration value="1-A/A"/>
+			<xs:enumeration value="DOS"/>
+			<xs:enumeration value="DOS/A"/>
+			<xs:enumeration value="1-A POS"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DISCLOSE_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="Pro-rate basis"/>
+			<xs:enumeration value="First-come, first served basis"/>
+			<xs:enumeration value="Other"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="TIER_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="Tier1"/>
+			<xs:enumeration value="Tier2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="SECURITIES_OFFERED_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="Equity (common or preferred stock)"/>
+			<xs:enumeration value="Debt"/>
+			<xs:enumeration value="Option, warrant or other right to acquire another security"/>
+			<xs:enumeration value="Security to be acquired upon exercise of option, warrant or other right to acquire security"/>
+			<xs:enumeration value="Tenant-in-common securities"/>
+			<xs:enumeration value="Other(describe)"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="INDUSTRY_GROUP_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="Banking"/>
+			<xs:enumeration value="Insurance"/>
+			<xs:enumeration value="Other"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="STATEMENT_AUDIT_STATUS_TYPE">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="Unaudited"/>
+			<xs:enumeration value="Audited"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ISSUER_CREDENTIALS_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the ISSUER_CREDENTIALS_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="cik" type="ns1:CIK_TYPE" minOccurs="1"/>
+			<xs:element name="ccc" type="ns1:CCC_TYPE" minOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CO_ISSUER_CREDENTIALS_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the CO_ISSUER_CREDENTIALS_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="cik" type="ns1:CIK_TYPE" minOccurs="0"/>
+			<xs:element name="ccc" type="ns1:CCC_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FILER_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the FILER_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="issuerCredentials" type="ISSUER_CREDENTIALS_TYPE" minOccurs="1"/>
+			<xs:element name="dosFileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+			<xs:element name="offeringFileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FLAGS_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the FLAGS_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="returnCopyFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+			<xs:element name="overrideInternetFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+			<xs:element name="sinceLastFiling" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CONTACT_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the CONTACT_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="contactName" type="ns1:NAME_TYPE" minOccurs="0"/>
+			<xs:element name="contactPhoneNumber" type="ns1:EDGAR_PHONE_TYPE" minOccurs="0"/>
+			<xs:element name="contactEmailAddress" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="NOTIFICATIONS_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the NOTIFICATIONS_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="notificationEmailAddress" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0" maxOccurs="3"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CO_FILER_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the CO_FILER_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="coIssuerCredentials" type="CO_ISSUER_CREDENTIALS_TYPE" minOccurs="0"/>
+			<xs:element name="coIssuerFileNumber" type="ns1:FILE_NUMBER_TYPE_2" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FILER_INFO_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the FILER_INFO_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="liveTestFlag" type="ns1:LIVE_TEST_TYPE" minOccurs="1"/>
+			<xs:element name="filer" type="FILER_TYPE" minOccurs="1"/>
+			<xs:element name="flags" type="FLAGS_TYPE" minOccurs="0"/>
+			<xs:element name="contact" type="CONTACT_TYPE" minOccurs="0"/>
+			<xs:element name="notifications" type="NOTIFICATIONS_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CO_ISSUER_INFO_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the CO_ISSUER_INFO_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="co-filer" type="CO_FILER_TYPE" minOccurs="0" maxOccurs="15"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="EMPLOYEES_INFO_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the EMPLOYEES_INFO_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="issuerName" type="ns1:STRING_150_TYPE" minOccurs="1"/>
+			<xs:element name="jurisdictionOrganization" type="ns2:STATE_COUNTRY_CODE" minOccurs="1"/>
+			<xs:element name="yearIncorporation" type="ns1:YEAR_TYPE" minOccurs="1"/>
+			<xs:element name="cik" type="ns1:CIK_TYPE" minOccurs="1"/>
+			<xs:element name="sicCode" type="ns3:INTEGER_TYPE_4" minOccurs="1"/>
+			<xs:element name="irsNum" type="ns3:IRS_NUMBER_TYPE" minOccurs="1"/>
+			<xs:element name="fullTimeEmployees" type="ns3:INTEGER_NONNEGATIVE_7" minOccurs="1"/>
+			<xs:element name="partTimeEmployees" type="ns3:INTEGER_NONNEGATIVE_7" minOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ISSUER_INFO_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the ISSUER_INFO_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="street1" type="ns1:STREET_TYPE" minOccurs="1"/>
+			<xs:element name="street2" type="ns1:STREET_TYPE" minOccurs="0"/>
+			<xs:element name="city" type="ns1:STRING_30_TYPE" minOccurs="1"/>
+			<xs:element name="stateOrCountry" type="ns2:STATE_COUNTRY_CODE" minOccurs="1"/>
+			<xs:element name="zipCode" type="ns1:ZIP_TYPE" minOccurs="1"/>
+			<xs:element name="phoneNumber" type="ns1:PHONE_TYPE" minOccurs="1"/>
+			<xs:element name="connectionName" type="ns1:NAME_TYPE" minOccurs="1"/>
+			<xs:element name="connectionStreet1" type="ns1:STREET_TYPE" minOccurs="0"/>
+			<xs:element name="connectionStreet2" type="ns1:STREET_TYPE" minOccurs="0"/>
+			<xs:element name="connectionCity" type="ns1:STRING_30_TYPE" minOccurs="0"/>
+			<xs:element name="connectionStateOrCountry" type="ns2:STATE_COUNTRY_CODE" minOccurs="0"/>
+			<xs:element name="connectionZipCode" type="ns1:ZIP_TYPE" minOccurs="0"/>
+			<xs:element name="connectionPhoneNumber" type="ns1:EDGAR_PHONE_TYPE" minOccurs="0"/>
+			<xs:element name="commentsEmailAddress" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0" maxOccurs="2"/>
+			<xs:element name="industryGroup" type="INDUSTRY_GROUP_TYPE" minOccurs="1"/>
+			<xs:element name="cashEquivalents" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="investmentSecurities" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="totalInvestments" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="accountsReceivable" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="loans" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="propertyPlantEquipment" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="propertyAndEquipment" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="totalAssets" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="accountsPayable" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="policyLiabilitiesAndAccruals" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="deposits" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="longTermDebt" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="totalLiabilities" type="ns3:DECIMAL_TYPE14_2" minOccurs="1"/>
+			<xs:element name="totalStockholderEquity" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="totalLiabilitiesAndEquity" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="totalRevenues" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="totalInterestIncome" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="costAndExpensesApplToRevenues" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="totalInterestExpenses" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="depreciationAndAmortization" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="netIncome" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="earningsPerShareBasic" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="earningsPerShareDiluted" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="nameAuditor" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="COMMON_EQUITY_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the COMMON_EQUITY_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="commonEquityClassName" type="ns1:STRING_30_TYPE" minOccurs="0"/>
+			<xs:element name="outstandingCommonEquity" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="1"/>
+			<xs:element name="commonCusipEquity" type="ns3:STRING_9_TYPE" minOccurs="0"/>
+			<xs:element name="publiclyTradedCommonEquity" type="ns1:STRING_50_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PREFERRED_EQUITY_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the PREFERRED_EQUITY_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="preferredEquityClassName" type="ns1:STRING_30_TYPE" minOccurs="0"/>
+			<xs:element name="outstandingPreferredEquity" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="1"/>
+			<xs:element name="preferredCusipEquity" type="ns3:STRING_9_TYPE" minOccurs="0"/>
+			<xs:element name="publiclyTradedPreferredEquity" type="ns1:STRING_50_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DEBT_SECURITIES_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the DEBT_SECURITIES_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="debtSecuritiesClassName" type="ns1:STRING_30_TYPE" minOccurs="0"/>
+			<xs:element name="outstandingDebtSecurities" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="1"/>
+			<xs:element name="cusipDebtSecurities" type="ns3:STRING_9_TYPE" minOccurs="0"/>
+			<xs:element name="publiclyTradedDebtSecurities" type="ns1:STRING_50_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ISSUER_ELIGIBILITY_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the ISSUER_ELIGIBILITY_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="certifyIfTrue" type="ns1:TRUE_FALSE_TYPE" minOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="APPLICATION_RULE262_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the APPLICATION_RULE262_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="certifyIfNotDisqualified" type="ns1:TRUE_FALSE_TYPE" minOccurs="1"/>
+			<xs:element name="certifyIfBadActor" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SUMMARY_INFO_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the SUMMARY_INFO_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="indicateTier1Tier2Offering" type="TIER_TYPE" minOccurs="1"/>
+			<xs:element name="financialStatementAuditStatus" type="STATEMENT_AUDIT_STATUS_TYPE" minOccurs="1"/>
+			<xs:element name="securitiesOfferedTypes" type="SECURITIES_OFFERED_TYPE" minOccurs="1" maxOccurs="6"/>
+			<xs:element name="securitiesOfferedOtherDesc" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+			<xs:element name="offerDelayedContinuousFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="offeringYearFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="offeringAfterQualifFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="offeringBestEffortsFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="solicitationProposedOfferingFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="resaleSecuritiesAffiliatesFlag" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+			<xs:element name="securitiesOffered" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="1"/>
+			<xs:element name="outstandingSecurities" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+			<xs:element name="pricePerSecurity" type="ns3:DECIMAL_TYPE13_4" minOccurs="0"/>
+			<xs:element name="issuerAggregateOffering" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="securityHolderAggegate" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="qualificationOfferingAggregate" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="concurrentOfferingAggregate" type="ns3:DECIMAL_TYPE13_2" minOccurs="1"/>
+			<xs:element name="totalAggregateOffering" type="ns3:DECIMAL_TYPE14_2" minOccurs="1"/>
+			<xs:element name="underwritersServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="underwritersFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="salesCommissionsServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="salesCommissionsServiceProviderFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="findersFeesServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="finderFeesFee" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="auditorServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="auditorFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="legalServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="legalFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="promotersServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="promotersFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="blueSkyServiceProviderName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="blueSkyFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="brokerDealerCrdNumber" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+			<xs:element name="estimatedNetAmount" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+			<xs:element name="clarificationResponses" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="JURIDICTION_SECURITIES_OFFERED_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the JURIDICTION_SECURITIES_OFFERED_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="jurisdictionsOfSecOfferedNone" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+			<xs:element name="jurisdictionsOfSecOfferedSame" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+			<xs:element name="issueJuridicationSecuritiesOffering" type="ns2:STATE_COUNTRY_CODE" minOccurs="0" maxOccurs="64"/>
+			<xs:element name="dealersJuridicationSecuritiesOffering" type="ns2:STATE_COUNTRY_CODE" minOccurs="0" maxOccurs="64"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="UNREGISTERED_SECURITIES_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the UNREGISTERED_SECURITIES_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="ifUnregsiteredNone" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SECURITIES_ISSUED_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the SECURITIES_ISSUED_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="securitiesIssuerName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+			<xs:element name="securitiesIssuerTitle" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+			<xs:element name="securitiesIssuedTotalAmount" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+			<xs:element name="securitiesPrincipalHolderAmount" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+			<xs:element name="securitiesIssuedAggregateAmount" type="ns3:STRING_2K_TYPE" minOccurs="0"/>
+			<xs:element name="aggregateConsiderationBasis" type="ns3:STRING_2K_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="UNREGISTERED_SECURITIES_ACT_TYPE">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the UNREGISTERED_SECURITIES_ACT_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="securitiesActExcemption" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="HEADER_DATA">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the HEADER_DATA_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="submissionType" type="SUBMISSION_TYPE" minOccurs="1"/>
+			<xs:element name="filerInfo" type="FILER_INFO_TYPE" minOccurs="1"/>
+			<xs:element name="coIssuerInfo" type="CO_ISSUER_INFO_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FORM_DATA">
+		<xs:annotation>
+			<xs:documentation>These elements are part of the FORM_DATA_TYPE group</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="employeesInfo" type="EMPLOYEES_INFO_TYPE" minOccurs="1" maxOccurs="15"/>
+			<xs:element name="issuerInfo" type="ISSUER_INFO_TYPE" minOccurs="1"/>
+			<xs:element name="commonEquity" type="COMMON_EQUITY_TYPE" minOccurs="1" maxOccurs="10"/>
+			<xs:element name="preferredEquity" type="PREFERRED_EQUITY_TYPE" minOccurs="1" maxOccurs="10"/>
+			<xs:element name="debtSecurities" type="DEBT_SECURITIES_TYPE" minOccurs="1" maxOccurs="10"/>
+			<xs:element name="issuerEligibility" type="ISSUER_ELIGIBILITY_TYPE" minOccurs="1"/>
+			<xs:element name="applicationRule262" type="APPLICATION_RULE262_TYPE" minOccurs="1"/>
+			<xs:element name="summaryInfo" type="SUMMARY_INFO_TYPE" minOccurs="1"/>
+			<xs:element name="juridictionSecuritiesOffered" type="JURIDICTION_SECURITIES_OFFERED_TYPE" minOccurs="0"/>
+			<xs:element name="unregisteredSecurities" type="UNREGISTERED_SECURITIES_TYPE" minOccurs="0"/>
+			<xs:element name="securitiesIssued" type="SECURITIES_ISSUED_TYPE" minOccurs="0" maxOccurs="50"/>
+			<xs:element name="unregisteredSecuritiesAct" type="UNREGISTERED_SECURITIES_ACT_TYPE" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="edgarSubmission">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="schemaVersion" type="ns1:SCHEMA_VERSION_TYPE" minOccurs="0"/>
+				<xs:element name="headerData" type="HEADER_DATA"/>
+				<xs:element name="formData" type="FORM_DATA"/>
+				<xs:element name="documents" type="ns1:EDGAR_DOCUMENTS_TYPE" minOccurs="0" maxOccurs="1"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

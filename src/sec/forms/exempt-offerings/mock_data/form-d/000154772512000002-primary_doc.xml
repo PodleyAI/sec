@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0705</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001547725</cik>
+        <entityName>Downtown Commercial Loan Fund, LLC</entityName>
+        <issuerAddress>
+            <street1>401 WEST MAIN STREET - SUITE 1702</street1>
+            <city>LOUISVILLE</city>
+            <stateOrCountry>KY</stateOrCountry>
+            <stateOrCountryDescription>KENTUCKY</stateOrCountryDescription>
+            <zipCode>40202</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>502-584-6000</issuerPhoneNumber>
+        <jurisdictionOfInc>KENTUCKY</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2012</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Alan</firstName>
+                <lastName>DeLisle</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>One Riverfront Plaza</street1>
+                <street2>401 West Main Street, Suite 1702</street2>
+                <city>Louisville</city>
+                <stateOrCountry>KY</stateOrCountry>
+                <stateOrCountryDescription>KENTUCKY</stateOrCountryDescription>
+                <zipCode>40202</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other Banking and Financial Services</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>No Revenues</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2012-04-20</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>250000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>10000000</totalOfferingAmount>
+            <totalAmountSold>3260000</totalAmountSold>
+            <totalRemaining>6740000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>8</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Downtown Commercial Loan Fund, LLC</issuerName>
+                <signatureName>Alan DeLisle</signatureName>
+                <nameOfSigner>Alan DeLisle</nameOfSigner>
+                <signatureTitle>Manager's Agent</signatureTitle>
+                <signatureDate>2012-05-07</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

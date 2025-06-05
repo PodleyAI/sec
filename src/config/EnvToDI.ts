@@ -6,7 +6,7 @@
 //    *******************************************************************************
 
 import { globalServiceRegistry } from "@podley/util";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_RAW_DATA_FOLDER } from "../util/tokens";
+import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_RAW_DATA_FOLDER } from "./tokens";
 
 export const EnvToDI = () => {
   // TODO(str): we should use dotenv to work on node

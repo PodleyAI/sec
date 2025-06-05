@@ -5,9 +5,9 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
-import { Factoid } from "../../types/CompanyFacts";
+import { Factoid } from "../../sec/facts/CompanyFacts";
 import { query_run } from "../../util/db";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 
@@ -40,7 +40,7 @@ export class StoreCompanyFactsTask extends Task<
 
   async execute(
     input: StoreCompanyFactsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreCompanyFactsTaskOutput> {
     const factsArray: Factoid[] = input.facts.filter((f) => !!f);
     if (!factsArray) throw new TaskError("No facts data to store");
@@ -49,7 +49,7 @@ export class StoreCompanyFactsTask extends Task<
     const batchSize = 1000;
     const batches = Math.ceil(factsArray.length / batchSize);
     for (let i = 0; i < batches; i++) {
-      if (config.signal?.aborted) {
+      if (context.signal?.aborted) {
         throw new TaskAbortedError();
       }
       const batch = factsArray
@@ -80,7 +80,7 @@ export class StoreCompanyFactsTask extends Task<
       const newProgress = Math.round((i / batches) * 100);
       if (newProgress > progress) {
         // round numbers, so max 100 times
-        config.updateProgress(newProgress);
+        context.updateProgress(newProgress);
         progress = newProgress;
       }
     }

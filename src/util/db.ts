@@ -10,11 +10,11 @@ import { globalServiceRegistry } from "@podley/util";
 import { mkdirSync } from "fs";
 import path from "path";
 import { sleepSync } from "bun";
-import { SEC_DB_FOLDER, SEC_DB_NAME } from "./tokens";
+import { SEC_DB_FOLDER, SEC_DB_NAME } from "../config/tokens";
 
 let db: Sqlite.Database | null = null;
 
-function getDb() {
+export function getDb() {
   if (!db) {
     const location = path.join(
       globalServiceRegistry.get(SEC_DB_FOLDER),
@@ -114,6 +114,7 @@ export function createDb() {
   );
   query_run(`CREATE INDEX IF NOT EXISTS filings_file_number ON filings(cik,file_number,form)`);
   query_run(`CREATE INDEX IF NOT EXISTS filings_global_form ON filings(form,cik)`);
+  query_run(`CREATE INDEX IF NOT EXISTS filings_accession_number ON filings(accession_number)`);
 
   query_run(
     `CREATE TABLE IF NOT EXISTS cik_name (
@@ -460,16 +461,12 @@ export function query<ReturnType, ParamsType extends Sqlite.SQLQueryBindings>(
   return stmt;
 }
 
-interface Exists {
-  _exists: boolean;
-}
-
 export function query_get<ReturnType = any>(
   sql: string,
   params?: Sqlite.SQLQueryBindings,
   prepare = true
-): (ReturnType & Exists) | Exists {
-  let res;
+): ReturnType | undefined {
+  let res: ReturnType;
   try {
     res = query<ReturnType, Sqlite.SQLQueryBindings>(sql, prepare)?.get(
       params ? params : null
@@ -482,8 +479,8 @@ export function query_get<ReturnType = any>(
       ) as ReturnType;
     } else throw new Error(`${err} in ${sql} \n with ${JSON.stringify(params)}`);
   }
-  if (res) return { ...res, _exists: true };
-  return { _exists: false };
+  if (res) return res;
+  return undefined;
 }
 
 export function query_all<ReturnType = any>(

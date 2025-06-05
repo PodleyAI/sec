@@ -5,11 +5,11 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError } from "@podley/task-graph";
 import { Static, TObject, Type } from "@sinclair/typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { SecFetchTask } from "../../fetch/SecFetchTask";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeSecDate } from "../../util/parseDate";
 
 // NOTE: cik names are mutable, so we use date to break the cache
@@ -70,9 +70,9 @@ export class FetchAllCikNamesTask extends Task<
 
   async execute(
     input: FetchAllCikNamesTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchAllCikNamesTaskOutput> {
-    const secFetch = config.own(
+    const secFetch = context.own(
       new SecFetchTask({
         url: `https://www.sec.gov/Archives/edgar/cik-lookup-data.txt${
           input.date ? `?date=${input.date}` : ""
@@ -86,7 +86,7 @@ export class FetchAllCikNamesTask extends Task<
     let index = 0;
     let progress = 0;
     const cikList = lines.map((line: string) => {
-      if (config.signal.aborted) {
+      if (context.signal.aborted) {
         throw new TaskAbortedError();
       }
       const colonIndex = line.lastIndexOf(":", line.lastIndexOf(":") - 1);
@@ -95,7 +95,7 @@ export class FetchAllCikNamesTask extends Task<
       const newProgress = Math.round((index++ / lines.length) * 100);
       if (newProgress > progress) {
         // round numbers, so max 100 times
-        config.updateProgress(newProgress, `cik: ${cik}`);
+        context.updateProgress(newProgress, `cik: ${cik}`);
         progress = newProgress;
       }
       return { name: name ? name.trim() : "?", cik: Number(cik) };
