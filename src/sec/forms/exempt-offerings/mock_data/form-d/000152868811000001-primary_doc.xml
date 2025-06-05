@@ -1,0 +1,242 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0704</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001528688</cik>
+        <entityName>Momentum Topco, Inc.</entityName>
+        <issuerAddress>
+            <street1>17811 Fitch</street1>
+            <city>Irvine</city>
+            <stateOrCountry>CA</stateOrCountry>
+            <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+            <zipCode>92614</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>949-833-8886</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2011</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <issuerList>
+        <issuer>
+            <cik>0001529368</cik>
+            <entityName>Momentum Textiles, LLC</entityName>
+            <issuerAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </issuerAddress>
+            <issuerPhoneNumber>949-833-8886</issuerPhoneNumber>
+            <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+            <issuerPreviousNameList>
+                <previousName>Momentum Group Inc.</previousName>
+                <previousName>Momentum Textiles, Inc.</previousName>
+                <previousName>Textile Acquisition Inc.</previousName>
+            </issuerPreviousNameList>
+            <edgarPreviousNameList>
+                <value>None</value>
+            </edgarPreviousNameList>
+            <entityType>Limited Liability Company</entityType>
+            <yearOfInc>
+                <overFiveYears>true</overFiveYears>
+            </yearOfInc>
+        </issuer>
+    </issuerList>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Roger</firstName>
+                <middleName>G.</middleName>
+                <lastName>Arciniega</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>President and Chief Executive Officer of Momentum Topco, Inc. and Momentum Textiles, LLC; Director of Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Joanne</firstName>
+                <middleName>F.</middleName>
+                <lastName>Corrao</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Secretary and Treasurer of Momentum Topco, Inc.; Vice President, Secretary and Chief Financial Officer of Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Timothy</firstName>
+                <middleName>R.</middleName>
+                <lastName>Kuehl</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Director of Momentum Topco, Inc. and Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Andrew</firstName>
+                <middleName>D.</middleName>
+                <lastName>Cantwell</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Director of Momentum Topco, Inc. and Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Anthony</firstName>
+                <lastName>Armand</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Director of Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Kathleen</firstName>
+                <lastName>Gowdy</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>17811 Fitch</street1>
+                <city>Irvine</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>92614</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Vice President of Operations of Momentum Textiles, LLC</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2011-08-23</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isDebtType>true</isDebtType>
+            <isOptionToAcquireType>true</isOptionToAcquireType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>true</isBusinessCombinationTransaction>
+            <clarificationOfResponse>Momentum Topco, Inc. issued stock and options to purchase stock in connection with its acquisition of Momentum Textiles, LLC (&quot;Textiles&quot;). Textiles, an indirect, wholly owned subsidiary of Topco, issued various promissory notes.</clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>94009406</totalOfferingAmount>
+            <totalAmountSold>94009406</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>14</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>10158744</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>true</authorizedRepresentative>
+            <signature>
+                <issuerName>Momentum Topco, Inc.</issuerName>
+                <signatureName>/s/ Joanne F. Corrao</signatureName>
+                <nameOfSigner>Joanne F. Corrao</nameOfSigner>
+                <signatureTitle>Secretary &amp; Treasurer</signatureTitle>
+                <signatureDate>2011-09-06</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

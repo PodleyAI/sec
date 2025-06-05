@@ -8,7 +8,7 @@
 import { TaskInput } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
 // NOTE: accession documents are immutable, so we don't need to pass in a date for invalidation
 

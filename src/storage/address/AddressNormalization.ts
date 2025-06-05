@@ -6,9 +6,9 @@
 //    *******************************************************************************
 
 import { AddressParser } from "@sroussey/parse-address";
-import { getCompanyEndings } from "../../util/dataCleaningUtils";
 import { Address } from "./AddressSchema";
 import { COUNTRY_STATE_CODE_ARRAY, KEYWORD_STATE_OR_COUNTRY_MAP } from "./AddressSchemaCodes";
+import { hasCompanyEnding } from "../company/CompanyNormalization";
 
 export type AddressImport = {
   // required fields
@@ -27,7 +27,6 @@ export type AddressImport = {
 };
 
 const parser = new AddressParser();
-const companyRegExp = new RegExp("^[^0-9]*" + getCompanyEndings() + "$", "gi");
 
 /**
  * Cleans street address by removing care-of patterns and company endings
@@ -35,10 +34,14 @@ const companyRegExp = new RegExp("^[^0-9]*" + getCompanyEndings() + "$", "gi");
 function cleanStreet(street: string | null | undefined): string | null {
   if (!street?.trim()) return null;
 
+  if (hasCompanyEnding(street)) {
+    return null;
+  }
+
   const cleaned = street
     .trim()
     .replace(/(C\/O.*)$/i, "")
-    .replace(companyRegExp, "")
+    .replace(/(C\/O.*)$/i, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -148,8 +151,12 @@ function normalizeUSStreetAddress(
         .filter((s) => s?.toString().trim())
         .map((s) => s.toString().trim())
         .join(" ") || null;
-
-    return [newStreet1, newStreet2, null, cleanCity];
+    if (newStreet1) {
+      return [newStreet1, newStreet2, null, cleanCity];
+    } else if (newStreet2) {
+      return [newStreet2, null, null, cleanCity];
+    }
+    return [null, null, null, cleanCity];
   } catch (error) {
     console.warn("Address parsing failed:", error);
     return [street1, street2, street3, city];
@@ -246,7 +253,7 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
   state_or_country =
     state_or_country || findCountryByKeyword([street1, street2, street3, city, state_or_country]);
 
-  const country_code = findCountryCode(
+  let country_code = findCountryCode(
     state_or_country,
     importAddress.country,
     importAddress.countryCode
@@ -267,7 +274,17 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
 
   zip = normalizePostalCode(zip, country_code);
 
-  if (!street1 || !state_or_country || !country_code || !city) {
+  if (!street1 && importAddress.street1) {
+    street1 = importAddress.street1;
+    street2 = importAddress.street2 || null;
+    street3 = importAddress.street3 || null;
+    city = city || importAddress.city || null;
+    state_or_country = state_or_country || importAddress.stateOrCountry || null;
+    country_code = country_code || importAddress.countryCode || null;
+    zip = zip || importAddress.zipCode || null;
+  }
+
+  if (!street1 || !state_or_country || !city || !country_code) {
     return undefined;
   }
 

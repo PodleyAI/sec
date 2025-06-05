@@ -5,18 +5,15 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { InMemoryTabularRepository } from "@podley/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PhoneImport } from "./PhoneNormalization";
+import { PhoneRepo } from "./PhoneRepo";
 import {
-  Phone,
-  PhoneEntityJunctionPrimaryKeyNames,
-  PhonePrimaryKeyNames,
-  PhoneRepo,
+  type Phone,
   type PhoneEntityJunctionRepositoryStorage,
   type PhoneRepositoryStorage,
-} from "./PhoneRepo";
-import { PhoneSchema, PhonesEntityJunctionSchema } from "./PhoneSchema";
+} from "./PhoneSchema";
 
 describe("PhoneRepo", () => {
   let phoneRepo: PhoneRepo;
@@ -24,23 +21,10 @@ describe("PhoneRepo", () => {
   let phoneEntityJunctionStorage: PhoneEntityJunctionRepositoryStorage;
 
   beforeEach(() => {
-    // Create real in-memory repositories with appropriate indexes
-    phoneStorage = new InMemoryTabularRepository(
-      PhoneSchema,
-      PhonePrimaryKeyNames,
-      ["international_number", "country_code"] // Add indexes for searching
-    );
-
-    phoneEntityJunctionStorage = new InMemoryTabularRepository(
-      PhonesEntityJunctionSchema,
-      PhoneEntityJunctionPrimaryKeyNames,
-      [["relation_name"], ["cik"], ["international_number"]] // Add indexes for searching
-    );
-
-    phoneRepo = new PhoneRepo({
-      phoneRepository: phoneStorage,
-      phoneEntityJunctionRepository: phoneEntityJunctionStorage,
-    });
+    resetDependencyInjectionsForTesting();
+    phoneRepo = new PhoneRepo();
+    phoneStorage = phoneRepo.phoneRepository;
+    phoneEntityJunctionStorage = phoneRepo.phoneEntityJunctionRepository;
   });
 
   describe("getPhone", () => {
@@ -70,6 +54,7 @@ describe("PhoneRepo", () => {
     it("should save a normalized phone", async () => {
       const phoneImport: PhoneImport = {
         phone_raw: "555-123-4567",
+        country_code: "VU", // wrong country code, but should be normalized to US
       };
 
       const result = await phoneRepo.savePhone(phoneImport);

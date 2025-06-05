@@ -5,41 +5,15 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@podley/storage";
-import { createServiceToken, globalServiceRegistry } from "@podley/util";
-import { Static } from "@sinclair/typebox";
+import { globalServiceRegistry } from "@podley/util";
 import { normalizePhone, PhoneImport } from "./PhoneNormalization";
-import { PhonesEntityJunctionSchema, PhoneSchema } from "./PhoneSchema";
-
-/**
- * Phone schema
- */
-export type Phone = Static<typeof PhoneSchema>;
-export const PhonePrimaryKeyNames = ["international_number"] as const;
-export type PhoneRepositoryStorage = TabularRepository<
-  typeof PhoneSchema,
-  typeof PhonePrimaryKeyNames
->;
-export const PHONE_REPOSITORY_TOKEN = createServiceToken<PhoneRepositoryStorage>(
-  "sec.storage.phoneRepository"
-);
-
-/**
- * Phone-entity junction schema
- */
-export const PhoneEntityJunctionPrimaryKeyNames = [
-  "international_number",
-  "relation_name",
-  "cik",
-] as const;
-export type PhoneEntityJunctionRepositoryStorage = TabularRepository<
-  typeof PhonesEntityJunctionSchema,
-  typeof PhoneEntityJunctionPrimaryKeyNames
->;
-export const PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN =
-  createServiceToken<PhoneEntityJunctionRepositoryStorage>(
-    "sec.storage.phoneEntityJunctionRepository"
-  );
+import {
+  Phone,
+  PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
+  PHONE_REPOSITORY_TOKEN,
+  PhoneEntityJunctionRepositoryStorage,
+  PhoneRepositoryStorage,
+} from "./PhoneSchema";
 
 // Options for the PhoneRepo
 interface PhoneRepoOptions {
@@ -68,7 +42,10 @@ export class PhoneRepo implements PhoneRepoOptions {
   }
 
   async savePhone(phone: PhoneImport): Promise<Phone> {
-    const normalizedPhone = normalizePhone(phone);
+    let normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      normalizedPhone = normalizePhone({ phone_raw: phone.phone_raw, country_code: "US" });
+    }
     if (!normalizedPhone) {
       throw new Error(`Unable to clean and normalize the provided phone: ${phone}`);
     }

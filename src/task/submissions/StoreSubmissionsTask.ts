@@ -6,22 +6,22 @@
 //    *******************************************************************************
 
 import {
-  IExecuteConfig,
+  IExecuteContext,
   Task,
   TaskAbortedError,
   TaskError,
   Workflow,
   parallel,
 } from "@podley/task-graph";
-import { processUpdateProcessing } from "../../util/commonStoreSec";
+import { TObject, Type } from "@sinclair/typebox";
+import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { StoreSubmissionCikNameTask } from "./StoreSubmissionCikNameTask";
 import { StoreSubmissionContactInfoTask } from "./StoreSubmissionContactInfoTask";
-import { StoreSubmissionEntitiesTask } from "./StoreSubmissionEntitiesTask";
+import { StoreSubmissionEntityTask } from "./StoreSubmissionEntityTask";
 import { StoreSubmissionFilingsTask } from "./StoreSubmissionFilingsTask";
 import { StoreSubmissionSicTask } from "./StoreSubmissionSicTask";
 import { StoreSubmissionTickersTask } from "./StoreSubmissionTickersTask";
-import { TObject, Type } from "@sinclair/typebox";
+import { query_run } from "../../util/db";
 
 export type StoreSubmissionsTaskInput = FetchSubmissionsOutput;
 
@@ -49,21 +49,20 @@ export class StoreSubmissionsTask extends Task<
 
   async execute(
     input: StoreSubmissionsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreSubmissionsTaskOutput> {
-    if (config.signal?.aborted) {
+    if (context.signal?.aborted) {
       throw new TaskAbortedError();
     }
     let { submission } = input;
     if (!submission) throw new TaskError("No submission data");
     const cik = submission.cik;
 
-    const workflow = config.own(new Workflow());
+    const workflow = context.own(new Workflow());
     workflow.pipe(
       parallel([
-        new StoreSubmissionCikNameTask(input),
         new StoreSubmissionSicTask(input),
-        new StoreSubmissionEntitiesTask(input),
+        new StoreSubmissionEntityTask(input),
         new StoreSubmissionContactInfoTask(input),
         new StoreSubmissionTickersTask(input),
         new StoreSubmissionFilingsTask(input),
@@ -76,4 +75,16 @@ export class StoreSubmissionsTask extends Task<
     await workflow.run();
     return { success: true };
   }
+}
+
+export function processUpdateProcessing(cik: number, success: boolean): void {
+  query_run(
+    `INSERT OR REPLACE INTO processed_submissions(cik,last_processed,success)
+      VALUES($cik,$last_processed,$success)`,
+    {
+      $cik: cik,
+      $last_processed: todayYYYYdMMdDD(),
+      $success: success,
+    }
+  );
 }

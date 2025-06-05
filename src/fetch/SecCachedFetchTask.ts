@@ -5,12 +5,12 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, TaskConfig, TaskOutput } from "@podley/task-graph";
+import { IExecuteContext, TaskConfig, TaskOutput } from "@podley/task-graph";
 import { FetchTaskInput, FetchTaskOutput } from "@podley/tasks";
 import { globalServiceRegistry } from "@podley/util";
 import path from "node:path";
 import { YYYYdMMdDD } from "../util/parseDate";
-import { SEC_RAW_DATA_FOLDER } from "../util/tokens";
+import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 import { SecFetchTask } from "./SecFetchTask";
 
@@ -84,8 +84,8 @@ export abstract class SecCachedFetchTask<
       (this.runInputData as FetchTaskInput).response_type = response_type;
     }
 
-    const globalPath = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
-    if (globalPath) {
+    if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
+      const globalPath = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
       let folderPath;
       if (globalPath.startsWith("/")) {
         folderPath = path.join(globalPath);
@@ -99,7 +99,7 @@ export abstract class SecCachedFetchTask<
     }
   }
 
-  execute(input: I & FetchTaskInput, executeConfig: IExecuteConfig): Promise<O | undefined> {
+  execute(input: I & FetchTaskInput, executeConfig: IExecuteContext): Promise<O | undefined> {
     const url = this.inputToUrl(input);
     const response_type = guessResponseType(url, input);
 

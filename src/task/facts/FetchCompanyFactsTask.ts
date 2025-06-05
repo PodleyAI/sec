@@ -5,11 +5,11 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError } from "@podley/task-graph";
 import { Static, TObject, Type } from "@sinclair/typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
-import { CompanyFacts, Factoid, FactoidSchema } from "../../types/CompanyFacts";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";
 
 // NOTE: company facts are mutable, so we need to pass in a date to break the cache
@@ -72,12 +72,12 @@ export class FetchCompanyFactsTask extends Task<
   private _secFetch?: SecFetchCompanyFactsTask;
   async execute(
     input: FetchCompanyFactsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchCompanyFactsTaskOutput> {
     const cik = input.cik;
     if (!cik) return { facts: [], cik: 0 };
 
-    this._secFetch ??= config.own(new SecFetchCompanyFactsTask(input));
+    this._secFetch ??= context.own(new SecFetchCompanyFactsTask(input));
     this._secFetch.setDefaults(input);
     const secData = await this._secFetch.run();
     const companyFacts = secData.json! as unknown as CompanyFacts;
@@ -89,7 +89,7 @@ export class FetchCompanyFactsTask extends Task<
       Object.entries(names).forEach(([name, info]) => {
         Object.entries(info.units).forEach(([unit, summaries]) => {
           for (const summary of summaries) {
-            if (config.signal?.aborted) {
+            if (context.signal?.aborted) {
               throw new TaskAbortedError();
             }
             factsArray.push({

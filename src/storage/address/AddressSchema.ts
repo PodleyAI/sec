@@ -5,7 +5,8 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TypeNullable } from "@podley/util";
+import { TabularRepository } from "@podley/storage";
+import { createServiceToken, TypeNullable } from "@podley/util";
 import { Static, Type } from "@sinclair/typebox";
 import { ISO_COUNTRY_CODE_ARRAY, SEC_STATE_CODE_ARRAY } from "./AddressSchemaCodes";
 
@@ -36,6 +37,22 @@ export const AddressSchema = Type.Object({
 export type Address = Static<typeof AddressSchema>;
 
 /**
+ * Address repository storage type and primary key definitions
+ */
+export const AddressPrimaryKeyNames = ["address_hash_id"] as const;
+export type AddressRepositoryStorage = TabularRepository<
+  typeof AddressSchema,
+  typeof AddressPrimaryKeyNames
+>;
+
+/**
+ * Dependency injection tokens for repositories
+ */
+export const ADDRESS_REPOSITORY_TOKEN = createServiceToken<AddressRepositoryStorage>(
+  "sec.storage.addressRepository"
+);
+
+/**
  * Address Entity Junction schema - links addresses to entities (CIK entities)
  */
 export const AddressesEntityJunctionSchema = Type.Object({
@@ -51,3 +68,15 @@ export const AddressesEntityJunctionSchema = Type.Object({
 });
 
 export type AddressesEntityJunction = Static<typeof AddressesEntityJunctionSchema>;
+
+/**
+ * Address junction repository storage type and primary key definitions
+ */
+export const AddressJunctionPrimaryKeyNames = ["address_hash_id", "relation_name", "cik"] as const;
+export type AddressJunctionRepositoryStorage = TabularRepository<
+  typeof AddressesEntityJunctionSchema,
+  typeof AddressJunctionPrimaryKeyNames
+>;
+
+export const ADDRESS_JUNCTION_REPOSITORY_TOKEN =
+  createServiceToken<AddressJunctionRepositoryStorage>("sec.storage.addressJunctionRepository");

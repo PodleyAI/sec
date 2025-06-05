@@ -5,10 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
-import { processSubmissionSic } from "../../util/commonStoreSec";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
+import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
+import { EntityRepo } from "../../storage/entity/EntityRepo";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 
 export type StoreSubmissionSicTaskInput = FetchSubmissionsOutput;
 
@@ -39,9 +39,9 @@ export class StoreSubmissionSicTask extends Task<
 
   async execute(
     input: StoreSubmissionSicTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreSubmissionSicTaskOutput> {
-    if (config.signal?.aborted) {
+    if (context.signal?.aborted) {
       throw new TaskAbortedError();
     }
     let { submission } = input;
@@ -52,7 +52,9 @@ export class StoreSubmissionSicTask extends Task<
 
     const { sic, sicDescription } = submission;
     if (sic && sicDescription) {
-      processSubmissionSic(sic, sicDescription);
+      const sicCode = Number(sic);
+      const submissionRepo = new EntityRepo();
+      await submissionRepo.saveSicCode(sicCode, sicDescription);
     } else {
       return { success: false };
     }

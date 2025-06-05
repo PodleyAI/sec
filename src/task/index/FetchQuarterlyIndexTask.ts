@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
 import { response_type, SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import {
@@ -15,7 +15,7 @@ import {
   TypeSecDate,
   YYYYdMMdDD,
 } from "../../util/parseDate";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { parse } from "csv-parse";
 
 // NOTE: ONLY PREVIOUS QUARTYS master index are immutable, current one is not (though should switch to daily)
@@ -81,14 +81,14 @@ export class FetchQuarterlyIndexTask extends Task<
 
   async execute(
     input: FetchQuarterlyIndexTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchQuarterlyIndexTaskOutput> {
     let date = input.date;
     if (!date) {
       date = secDate(new Date());
     }
 
-    const secFetch = config.own(new SecFetchQuarterlyIndexTask({ date }));
+    const secFetch = context.own(new SecFetchQuarterlyIndexTask({ date }));
     const secData = await secFetch.run();
     let data = secData.text!;
     let loc = data.indexOf("-------");
@@ -127,10 +127,10 @@ export class FetchQuarterlyIndexTask extends Task<
             totalRecords = Math.max(totalRecords, rowCount);
             const newProgress = Math.round(((rowCount / totalRecords) * 100) / 5) * 5;
             if (newProgress > progress) {
-              config.updateProgress(newProgress, `count: ${rowCount}`);
+              context.updateProgress(newProgress, `count: ${rowCount}`);
               progress = newProgress;
             }
-            if (config.signal?.aborted) {
+            if (context.signal?.aborted) {
               throw new TaskAbortedError();
             }
           },

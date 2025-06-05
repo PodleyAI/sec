@@ -1,0 +1,293 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0603</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001091185</cik>
+        <entityName>QUANTAPOINT INC</entityName>
+        <issuerAddress>
+            <street1>Arbor Professional Center</street1>
+            <street2>275 Curry Hollow Road, Suite M100</street2>
+            <city>Pittsburgh</city>
+            <stateOrCountry>PA</stateOrCountry>
+            <zipCode>15236</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>412-653-0100</issuerPhoneNumber>
+        <jurisdictionOfInc>PENNSYLVANIA</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <previousName>Quantapoint, Inc., a PA corp.</previousName>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <previousName>K2T INC</previousName>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2009</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>John</firstName>
+                <middleName>R.</middleName>
+                <lastName>Wilson</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>President and CEO</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Mark</firstName>
+                <middleName>E.</middleName>
+                <lastName>Downs</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Eric</firstName>
+                <lastName>Hoffman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Pradeep</firstName>
+                <middleName>K.</middleName>
+                <lastName>Khosla</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>John</firstName>
+                <middleName>R.</middleName>
+                <lastName>Wilson</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>R.</firstName>
+                <middleName>Craig</middleName>
+                <lastName>Kirsch</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Lawrence</firstName>
+                <middleName>E.</middleName>
+                <lastName>Mock, Jr.</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Eric</firstName>
+                <lastName>Hoffman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Executive Vice President</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>John</firstName>
+                <middleName>R.</middleName>
+                <lastName>Beall</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Executive Vice President and Chief Financial Officer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Pradeep</firstName>
+                <middleName>K</middleName>
+                <lastName>Khosla</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Arbor Professional Center</street1>
+                <street2>275 Curry Hollow Road, Suite M100</street2>
+                <city>Pittsburgh</city>
+                <stateOrCountry>PA</stateOrCountry>
+                <zipCode>15236</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Secretary</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$5,000,001 - $25,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2009-12-30</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>true</isBusinessCombinationTransaction>
+            <clarificationOfResponse>1. Recapitalization
+2. Reincorporation by merger in Delaware</clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>1000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>None</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>None</street1>
+                    <city>None</city>
+                    <stateOrCountry>XX</stateOrCountry>
+                    <zipCode>None</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>FL</state>
+                    <state>GA</state>
+                    <state>IL</state>
+                    <state>PA</state>
+                </statesOfSolicitationList>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>3000000</totalOfferingAmount>
+            <totalAmountSold>3000000</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>21</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>QUANTAPOINT INC</issuerName>
+                <signatureName>/s/ John R. Wilson</signatureName>
+                <nameOfSigner>John R. Wilson</nameOfSigner>
+                <signatureTitle>President and CEO</signatureTitle>
+                <signatureDate>2010-01-08</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

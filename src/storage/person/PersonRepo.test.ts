@@ -5,78 +5,37 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { InMemoryTabularRepository } from "@podley/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { normalizePerson, type PersonImport } from "./PersonNormalization";
-import {
-  PersonAddressJunctionPrimaryKeyNames,
-  PersonEntityJunctionPrimaryKeyNames,
-  PersonPhoneJunctionPrimaryKeyNames,
-  PersonPrimaryKeyNames,
-  PersonRepo,
-} from "./PersonRepo";
+import { PersonRepo } from "./PersonRepo";
 import {
   Person,
-  PersonPhoneJunctionSchema,
-  PersonsAddressJunctionSchema,
-  PersonSchema,
-  PersonsEntityJunctionSchema,
+  PersonAddressJunctionRepositoryStorage,
+  PersonEntityJunctionRepositoryStorage,
+  PersonPhoneJunctionRepositoryStorage,
+  PersonRepositoryStorage,
 } from "./PersonSchema";
 
 describe("PersonRepo", () => {
   let personRepo: PersonRepo;
-  let personStorage: InMemoryTabularRepository<typeof PersonSchema, typeof PersonPrimaryKeyNames>;
-  let personJunctionStorage: InMemoryTabularRepository<
-    typeof PersonsEntityJunctionSchema,
-    typeof PersonEntityJunctionPrimaryKeyNames
-  >;
-  let personAddressJunctionStorage: InMemoryTabularRepository<
-    typeof PersonsAddressJunctionSchema,
-    typeof PersonAddressJunctionPrimaryKeyNames
-  >;
-  let personPhoneJunctionStorage: InMemoryTabularRepository<
-    typeof PersonPhoneJunctionSchema,
-    typeof PersonPhoneJunctionPrimaryKeyNames
-  >;
+  let personStorage: PersonRepositoryStorage;
+  let personJunctionStorage: PersonEntityJunctionRepositoryStorage;
+  let personAddressJunctionStorage: PersonAddressJunctionRepositoryStorage;
+  let personPhoneJunctionStorage: PersonPhoneJunctionRepositoryStorage;
   // Mock data
-  const mockPerson1: PersonImport = "John William Smith JR";
-
-  const mockPerson2: PersonImport = "Jane Unknown Doe";
-
-  const mockPerson3: PersonImport = "John Williams";
+  const mockPerson1: PersonImport = { name: "John William Smith JR" };
+  const mockPerson2: PersonImport = { name: "Jane Unknown Doe" };
+  const mockPerson3: PersonImport = { name: "John Williams" };
 
   beforeEach(() => {
-    // Create real in-memory repositories with appropriate indexes
-    personStorage = new InMemoryTabularRepository(
-      PersonSchema,
-      PersonPrimaryKeyNames,
-      ["first", "last"] // Add indexes for searching by names
-    );
+    resetDependencyInjectionsForTesting();
 
-    personJunctionStorage = new InMemoryTabularRepository(
-      PersonsEntityJunctionSchema,
-      PersonEntityJunctionPrimaryKeyNames,
-      [["relation_name"], ["cik"]] // Add indexes for searching
-    );
-
-    personAddressJunctionStorage = new InMemoryTabularRepository(
-      PersonsAddressJunctionSchema,
-      PersonAddressJunctionPrimaryKeyNames,
-      [["relation_name"], ["address_hash_id"]] // Add indexes for searching
-    );
-
-    personPhoneJunctionStorage = new InMemoryTabularRepository(
-      PersonPhoneJunctionSchema,
-      PersonPhoneJunctionPrimaryKeyNames,
-      [["relation_name"], ["international_number"]] // Add indexes for searching
-    );
-
-    personRepo = new PersonRepo({
-      personRepository: personStorage,
-      personEntityJunctionRepository: personJunctionStorage,
-      personAddressJunctionRepository: personAddressJunctionStorage,
-      personPhoneJunctionRepository: personPhoneJunctionStorage,
-    });
+    personRepo = new PersonRepo();
+    personStorage = personRepo.personRepository;
+    personJunctionStorage = personRepo.personEntityJunctionRepository;
+    personAddressJunctionStorage = personRepo.personAddressJunctionRepository;
+    personPhoneJunctionStorage = personRepo.personPhoneJunctionRepository;
   });
 
   describe("constructor", () => {
@@ -132,7 +91,7 @@ describe("PersonRepo", () => {
     });
 
     it("should throw error when normalizePerson returns null", async () => {
-      const normalizedPerson = normalizePerson("John William Smith JR");
+      const normalizedPerson = normalizePerson({ name: "John William Smith JR" });
       const allPersons = await personStorage.getAll();
       const allJunctions = await personJunctionStorage.getAll();
       expect(allPersons || []).toEqual([]);

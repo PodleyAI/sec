@@ -5,12 +5,13 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@podley/task-graph";
 import { objectOfArraysAsArrayOfObjects, sleep } from "@podley/util";
-import { processSubmissionFilings } from "../../util/commonStoreSec";
-import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { TObject, Type } from "@sinclair/typebox";
-import { Filings } from "../../types/CompanySubmission";
+import { Filings } from "../../sec/submissions/EnititySubmissionSchema";
+import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
+import { EntityRepo } from "../../storage/entity/EntityRepo";
+import { Filing } from "../../storage/filing/FilingSchema";
 
 export type StoreSubmissionFilingsTaskInput = FetchSubmissionsOutput;
 
@@ -38,7 +39,7 @@ export class StoreSubmissionFilingsTask extends Task<
 
   async execute(
     input: StoreSubmissionFilingsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreSubmissionFilingsTaskOutput> {
     let { submission } = input;
     if (Array.isArray(submission)) {
@@ -64,17 +65,37 @@ export class StoreSubmissionFilingsTask extends Task<
     const filings = objectOfArraysAsArrayOfObjects(filings_array);
     let index = 0;
     let progress = 0;
+    const entityRepo = new EntityRepo();
     for (const filing of filings) {
-      if (config.signal.aborted) {
+      if (context.signal.aborted) {
         throw new TaskAbortedError();
       }
       const newProgress = Math.round((index++ / filings.length) * 10) * 10; // much faster than if we give up time for ui
       if (newProgress > progress) {
-        config.updateProgress(newProgress);
+        context.updateProgress(newProgress);
         progress = newProgress;
         await sleep(0);
       }
-      processSubmissionFilings(cik, filing);
+
+      // Transform the Filing from API format to database schema format
+      const filingData: Filing = {
+        cik,
+        accession_number: filing.accessionNumber,
+        filing_date: filing.filingDate,
+        report_date: filing.reportDate || null,
+        acceptance_date: filing.acceptanceDateTime,
+        form: filing.form || null,
+        file_number: filing.fileNumber || null,
+        film_number: filing.filmNumber || null,
+        primary_doc: filing.primaryDocument,
+        primary_doc_description: filing.primaryDocDescription || null,
+        size: filing.size || null,
+        is_xbrl: filing.isXBRL || null,
+        is_inline_xbrl: filing.isInlineXBRL || null,
+        items: filing.items || null,
+        act: filing.act || null,
+      };
+      await entityRepo.saveFiling(filingData);
     }
 
     return { success: true };

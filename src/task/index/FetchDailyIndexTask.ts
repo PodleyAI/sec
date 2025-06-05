@@ -5,11 +5,11 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task } from "@podley/task-graph";
+import { IExecuteContext, Task } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
 import { parse } from "csv-parse/sync";
 import { response_type, SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import {
   parseDate,
   secDate,
@@ -80,11 +80,11 @@ export class FetchDailyIndexTask extends Task<FetchDailyIndexTaskInput, FetchDai
 
   async execute(
     input: FetchDailyIndexTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchDailyIndexTaskOutput> {
     const date = input.date ? secDate(input.date) : secDate(new Date());
 
-    const secFetch = config.own(new SecFetchDailyIndexTask({ date }));
+    const secFetch = context.own(new SecFetchDailyIndexTask({ date }));
     const secData = await secFetch.run();
     let data = secData.text!;
     let loc = data.indexOf("-------");

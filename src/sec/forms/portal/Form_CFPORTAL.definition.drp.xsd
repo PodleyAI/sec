@@ -1,0 +1,823 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns="http://www.sec.gov/edgar/crowdfunding_drp"
+  xmlns:ns1="http://www.sec.gov/edgar/common"
+  xmlns:ns2="http://www.sec.gov/edgar/statecodes"
+  xmlns:ns3="http://www.sec.gov/edgar/common_drp" targetNamespace="http://www.sec.gov/edgar/crowdfunding_drp" elementFormDefault="qualified" attributeFormDefault="unqualified">
+  <xs:import namespace="http://www.sec.gov/edgar/common" schemaLocation="eis_Common.xsd"/>
+  <xs:import namespace="http://www.sec.gov/edgar/statecodes" schemaLocation="eis_stateCodes.xsd"/>
+  <xs:import namespace="http://www.sec.gov/edgar/common_drp" schemaLocation="eis_Common_DRP.xsd"/>
+
+  <!--Common Types Starts-->
+
+  <xs:simpleType name="INITIAL_AMENDED_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="INITIAL"/>
+      <xs:enumeration value="AMENDED"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DRP_FILE_FOR_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Applicant"/>
+      <xs:enumeration value="Applicant and one or more associated persons"/>
+      <xs:enumeration value="One or more of applicant's associated persons"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="APPLICANT_DRP_REMOVAL_REASON_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="The applicant is registered or applying for registration and the event or proceeding was resolved in the applicant's favor."/>
+      <xs:enumeration value="The DRP was filed in error."/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ASSOCIATED_PERSON_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="a firm"/>
+      <xs:enumeration value="a natural person"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ASSOCIATED_PERSON_REGISTERED_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="The associated person is registered with the SEC"/>
+      <xs:enumeration value="The associated person is not registered with the SEC"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ASSOCIATED_PERSON_DRP_REMOVAL_REASON_INFO_TYPE">
+    <xs:sequence>
+      <xs:element name="drpRemoveReason" type="DRP_REMOVE_REASON_TYPE"/>
+      <xs:element name="explanation" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="DRP_REMOVE_REASON_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="The associated person(s) is (are) no longer associated with the applicant."/>
+      <xs:enumeration value="The event or proceeding was resolved in the associated person's favor."/>
+      <xs:enumeration value="The event or proceeding occurred more than ten years ago."/>
+      <xs:enumeration value="The DRP was filed in error."/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="EVENT_STATUS_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Pending"/>
+      <xs:enumeration value="On Appeal"/>
+      <xs:enumeration value="Final"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FELONY_MISDEMEANOR_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Felony"/>
+      <xs:enumeration value="Misdemeanor"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ASSOCIATED_PERSON_DETAILS_TYPE">
+    <xs:sequence>
+      <xs:element name="personType" type="ASSOCIATED_PERSON_TYPE" minOccurs="0"/>
+      <xs:element name="personRegistered" type="ASSOCIATED_PERSON_REGISTERED_TYPE" minOccurs="0"/>
+      <xs:element name="fullName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="crdNumber" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="DRP_FILE_FOR_TYPE_2">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Applicant"/>
+      <xs:enumeration value="Applicant and one or more control affiliate(s)"/>
+      <xs:enumeration value="One or more of control affiliate(s)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PRINCIPAL_PRODUCT_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Annuity(ies) - Fixed"/>
+      <xs:enumeration value="Annuity(ies) - Variable"/>
+      <xs:enumeration value="Money Market Fund(s)"/>
+      <xs:enumeration value="CD(s)"/>
+      <xs:enumeration value="Commodity Option(s)"/>
+      <xs:enumeration value="Debt - Asset Backed"/>
+      <xs:enumeration value="Debt - Corporate"/>
+      <xs:enumeration value="Debt - Government"/>
+      <xs:enumeration value="Debt - Municipal"/>
+      <xs:enumeration value="Derivative(s)"/>
+      <xs:enumeration value="Direct Investment(s) - DPP &amp; LP Interest(s)"/>
+      <xs:enumeration value="Equity - OTC"/>
+      <xs:enumeration value="Equity Listed (Common &amp; Preferred Stock)"/>
+      <xs:enumeration value="Futures - Commodity"/>
+      <xs:enumeration value="Futures - Financial"/>
+      <xs:enumeration value="Index Option(s)"/>
+      <xs:enumeration value="Insurance"/>
+      <xs:enumeration value="Investment Contract(s)"/>
+      <xs:enumeration value="Mutual Fund(s)"/>
+      <xs:enumeration value="No Product"/>
+      <xs:enumeration value="Options"/>
+      <xs:enumeration value="Penny Stock(s)"/>
+      <xs:enumeration value="Unit Investment Trust(s)"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--Common Types Ends-->
+
+  <!-- CRIMINAL DRP Starts -->
+
+  <xs:simpleType name="CRIMINAL_EVENT_COURT_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Federal Court"/>
+      <xs:enumeration value="Military Court"/>
+      <xs:enumeration value="State Court"/>
+      <xs:enumeration value="Foreign Court"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="CRIMINAL_DISPOSITION_OPTION_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Acquitted"/>
+      <xs:enumeration value="Amended"/>
+      <xs:enumeration value="Convicted"/>
+      <xs:enumeration value="Deferred Adjudication"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Found not guilty"/>
+      <xs:enumeration value="Pled guilty"/>
+      <xs:enumeration value="Pled nolo contendere"/>
+      <xs:enumeration value="Pled not guilty"/>
+      <xs:enumeration value="Pretrial diversion/intervention"/>
+      <xs:enumeration value="Reduced"/>
+      <xs:enumeration value="Appealed"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="CRIMINAL_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-A(1)"/>
+      <xs:enumeration value="5-A(2)"/>
+      <xs:enumeration value="5-B(1)"/>
+      <xs:enumeration value="5-B(2)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="CRIMINAL_RESPONDING_TO_TYPES">
+    <xs:sequence>
+      <xs:element name="responseQuestion" type="CRIMINAL_RESPONDING_TO_TYPE" maxOccurs="4"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="APPEAL_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Affirmed"/>
+      <xs:enumeration value="Vacated &amp; Returned For Further Action"/>
+      <xs:enumeration value="Vacated / Final"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="SENTENCE_DURATION_TYPE">
+    <xs:sequence>
+      <xs:element name="days" type="ns1:STRING_NUMERIC_3_TYPE" minOccurs="0"/>
+      <xs:element name="months" type="ns1:STRING_NUMERIC_3_TYPE" minOccurs="0"/>
+      <xs:element name="years" type="ns1:STRING_NUMERIC_3_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="criminalDrp" type="CRIMINAL_DRP_TYPE" minOccurs="1" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CRIMINAL_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="0" />
+      <xs:element name="respondingTo" type="CRIMINAL_RESPONDING_TO_TYPES" minOccurs="1" />
+      <xs:element name="drpFiledFor" type="DRP_FILE_FOR_TYPE" minOccurs="1" />
+      <xs:element name="applicant" type="CRIMINAL_APPLICANT_TYPE" minOccurs="0"/>
+      <xs:element name="associatedPerson" type="CRIMINAL_ASSOCIATED_PERSON_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_APPLICANT_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CRIMINAL_APPLICANT_INFORMATION_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="drpRemovalReason" type="APPLICANT_DRP_REMOVAL_REASON_TYPE" minOccurs="0"/>
+      <xs:element name="criminalDrpDetails" type="CRIMINAL_DRP_PART_2_TYPE" minOccurs="1"/>
+      <xs:element name="dispositionDisclosure" type="DISPOSITION_DISCLOSURE_TYPE" minOccurs="1"/>
+      <xs:element name="summaryOfCircumstances" type="ns1:STRING_10K_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_ASSOCIATED_PERSON_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CRIMINAL_ASSOCIATED_PERSON_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="associatedPersonDetails" type="ASSOCIATED_PERSON_DETAILS_TYPE" minOccurs="0"/>
+      <xs:element name="drpRemovalInfo" type="ASSOCIATED_PERSON_DRP_REMOVAL_REASON_INFO_TYPE" minOccurs="0"/>
+      <xs:element name="criminalDrpDetails" type="CRIMINAL_DRP_PART_2_TYPE" minOccurs="1"/>
+      <xs:element name="dispositionDisclosure" type="DISPOSITION_DISCLOSURE_TYPE" minOccurs="1"/>
+      <xs:element name="summaryOfCircumstances" type="ns1:STRING_10K_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_DRP_PART_2_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CRIMINAL_DRP_PART_2 group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="organizationName" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="engagedInInvestmentRelatedBusiness" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="descRelationshipWithApplicant" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="courtType" type="CRIMINAL_EVENT_COURT_TYPE" minOccurs="1"/>
+      <xs:element name="nameOfCourt" type="ns1:STRING_256_TYPE" minOccurs="1"/>
+      <xs:element name="courtAddress" type="ns1:ADDRESS_TYPE" minOccurs="1"/>
+      <xs:element name="docketOrCaseNumber" type="ns1:STRING_256_TYPE" minOccurs="1"/>
+      <xs:element name="dateFirstCharged" type="ns1:EXACT_OR_EXPLANATION" minOccurs="1"/>
+      <xs:element name="criminalCharge" type="CRIMINAL_CHARGE_TYPE" minOccurs="1" maxOccurs="50"/>
+      <xs:element name="anyChargeFelony" type="ns1:YES_NO_TYPE" minOccurs="1"/>
+      <xs:element name="eventCurrentStatus" type="EVENT_STATUS_TYPE" minOccurs="0"/>
+      <xs:element name="eventStatusDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CRIMINAL_CHARGE_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CRIMINAL_CHARGE_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="chargeDesc" type="ns1:STRING_10K_TYPE" />
+      <xs:element name="numberOfCounts" type="ns1:STRING_NUMERIC_3_TYPE" />
+      <xs:element name="felonyOrMisdemeanor" type="FELONY_MISDEMEANOR_TYPE" />
+      <xs:element name="plea" type="ns1:STRING_10K_TYPE" />
+      <xs:element name="investmentProductType" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DISPOSITION_DISCLOSURE_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the DISPOSITION_DISC_DETAIL_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="dispositionTypes" type="CRIMINAL_DISPOSITION_OPTION_TYPE" minOccurs="0" maxOccurs="13" />
+      <xs:element name="dispositionTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="appealTypes" type="APPEAL_TYPE" minOccurs="0" maxOccurs="4" />
+      <xs:element name="appealTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionDate" type="ns1:DATE_TYPE" minOccurs="0"/>
+      <xs:element name="sentencePenalty" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="duration" type="SENTENCE_DURATION_TYPE" minOccurs="0"/>
+      <xs:element name="startDatePenalty" type="ns1:DATE_TYPE" minOccurs="0"/>
+      <xs:element name="penaltyFineAmount" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="datePaid" type="ns1:DATE_TYPE" />
+    </xs:sequence>
+  </xs:complexType>
+  <!-- CRIMINAL_APPLICANT DRP Ends -->
+
+
+
+
+  <!-- REGULATORY_APPLICANT DRP Starts -->
+
+  <xs:simpleType name="REGULATORY_ASSOCIATED_PERSON_REMOVE_REASON_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="The associated person(s) is (are) no longer associated with the applicant."/>
+      <xs:enumeration value="The event or proceeding was resolved in the associated person's favor."/>
+      <xs:enumeration value="The DRP was filed in error."/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="REGULATORY_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-C(1)"/>
+      <xs:enumeration value="5-C(2)"/>
+      <xs:enumeration value="5-C(3)"/>
+      <xs:enumeration value="5-C(4)"/>
+      <xs:enumeration value="5-C(5)"/>
+      <xs:enumeration value="5-D(1)"/>
+      <xs:enumeration value="5-D(2)"/>
+      <xs:enumeration value="5-D(3)"/>
+      <xs:enumeration value="5-D(4)"/>
+      <xs:enumeration value="5-D(5)"/>
+      <xs:enumeration value="5-E(1)"/>
+      <xs:enumeration value="5-E(2)"/>
+      <xs:enumeration value="5-E(3)"/>
+      <xs:enumeration value="5-E(4)"/>
+      <xs:enumeration value="5-F"/>
+      <xs:enumeration value="5-G"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="REGULATORY_RESPONDING_TO_TYPES">
+    <xs:sequence>
+      <xs:element name="responseQuestion" type="REGULATORY_RESPONDING_TO_TYPE" maxOccurs="16"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="PORTAL_DRP_FILE_FOR_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Applicant (the funding portal)"/>
+      <xs:enumeration value="Applicant and one or more of the applicant's associated person(s)"/>
+      <xs:enumeration value="One or more of applicant's associated person(s)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="REGULATOR_INITIATED_OPTION_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="SEC"/>
+      <xs:enumeration value="Foreign Authority"/>
+      <xs:enumeration value="Other Federal Authority"/>
+      <xs:enumeration value="State"/>
+      <xs:enumeration value="SRO"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PRINCIPAL_SANCTION_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Civil and Administrative Penalty(ies)/Fine(s)"/>
+      <xs:enumeration value="Restitution"/>
+      <xs:enumeration value="Bar"/>
+      <xs:enumeration value="Cease and Desist"/>
+      <xs:enumeration value="Censure"/>
+      <xs:enumeration value="Denial"/>
+      <xs:enumeration value="Expulsion"/>
+      <xs:enumeration value="Revocation"/>
+      <xs:enumeration value="Injunction"/>
+      <xs:enumeration value="Prohibition"/>
+      <xs:enumeration value="Reprimand"/>
+      <xs:enumeration value="Disgorgement"/>
+      <xs:enumeration value="Suspension"/>
+      <xs:enumeration value="Undertaking"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="REGULATORY_MATTER_RESOLVED_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Acceptance, Waiver  &amp; Consent (AWC)"/>
+      <xs:enumeration value="Consent"/>
+      <xs:enumeration value="Decision"/>
+      <xs:enumeration value="Decision  &amp; Order of Offer of Settlement"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Withdrawn"/>
+      <xs:enumeration value="Settled"/>
+      <xs:enumeration value="Stipulation  &amp; Consent"/>
+      <xs:enumeration value="Vacated"/>
+      <xs:enumeration value="Order"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="SANCTIONS_ORDERED_LIST_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Monetary/Fine"/>
+      <xs:enumeration value="Bar"/>
+      <xs:enumeration value="Revocation/Expulsion/Denial"/>
+      <xs:enumeration value="Disgorgement"/>
+      <xs:enumeration value="Cease and Desist/ Injunction"/>
+      <xs:enumeration value="Censure"/>
+      <xs:enumeration value="Suspension"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="SANCTIONS_ORDERED_TYPE">
+    <xs:sequence>
+      <xs:element name="sanctionOrdered" type="SANCTIONS_ORDERED_LIST_TYPE" maxOccurs="8"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="SANCTIONS_ORDERED_DETAIL_TYPE">
+    <xs:sequence>
+      <xs:element name="sanctionsOrdered" type="SANCTIONS_ORDERED_TYPE" minOccurs="0"/>
+      <xs:element name="amountPaid" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="otherSanctions" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="sanctionDetail" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="REGULATORY_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="regulatoryDrp" type="REGULATORY_DRP_TYPE" minOccurs="1" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="REGULATORY_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the REGULATORY_ACTION_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="1"/>
+      <xs:element name="respondingTo" type="REGULATORY_RESPONDING_TO_TYPES" minOccurs="1"/>
+      <xs:element name="drpFiledFor" type="PORTAL_DRP_FILE_FOR_TYPE" minOccurs="1"/>
+      <xs:element name="applicant" type="REGULATORY_APPLICANT_INFORMATION_TYPE" minOccurs="0"/>
+      <xs:element name="associatedPerson" type="REGULATORY_ASSOCIATED_PERSON_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="REGULATORY_APPLICANT_INFORMATION_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the REGULATORY_APPLICANT_INFORMATION_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="drpRemovalReason" type="APPLICANT_DRP_REMOVAL_REASON_TYPE" minOccurs="0"/>
+      <xs:element name="regulatoryDrpDetails" type="REGULATORY_DRP_PART_2_TYPE" minOccurs="0" maxOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="REGULATORY_ASSOCIATED_PERSON_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the REGULATORY_ASSOCIATED_PERSON_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="associatedPersonDetails" type="ASSOCIATED_PERSON_DETAILS_TYPE"/>
+      <xs:element name="drpRemovalReason" type="REGULATORY_ASSOCIATED_PERSON_REMOVE_REASON_TYPE" minOccurs="0"/>
+      <xs:element name="circumstancesExplanation" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="regulatoryDrpDetails" type="REGULATORY_DRP_PART_2_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="REGULATORY_DRP_PART_2_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the REGULATORY_DRP_PART_2_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="regulatoryActionInitiatedBy" type="REGULATOR_INITIATED_OPTION_TYPE" minOccurs="0"/>
+      <xs:element name="regulatorName" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="principalSanction" type="PRINCIPAL_SANCTION_TYPE" minOccurs="0"/>
+      <xs:element name="otherPrincipalSanctionDesc" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="otherSanctionsDesc" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="dateInitiated" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="docketOrCaseNumber" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="apEmployingFirm" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="principalProductType" type="PRINCIPAL_PRODUCT_TYPE" minOccurs="0"/>
+      <xs:element name="principalProductTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="otherProductDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="descAllegations" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="currentStatus" type="EVENT_STATUS_TYPE" minOccurs="0"/>
+      <xs:element name="appealedTo" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="matterResolvedType" type="REGULATORY_MATTER_RESOLVED_TYPE" minOccurs="0"/>
+      <xs:element name="matterResolvedTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="resolutionDateExactExplain" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="sanctionsOrderedDetails" type="SANCTIONS_ORDERED_DETAIL_TYPE" minOccurs="0"/>
+      <xs:element name="summaryOfDetails" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- REGULATORY_APPLICANT DRP Ends -->
+
+  <!-- CIVIL JUDICIARY DRP Starts  -->
+
+  <xs:simpleType name="CIVIL_JUDICIAL_ASSOCIATED_PERSON_REMOVE_REASON_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="The associated person(s) is (are) no longer associated with the applicant"/>
+      <xs:enumeration value="The event or proceeding was resolved in the associated person's favor"/>
+      <xs:enumeration value="The DRP was filed in error"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="CIVIL_JUDICIAL_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="civilJudicialDrp" type="CIVIL_JUDICIAL_DRP_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CIVIL_JUDICIAL_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CIVIL_JUDICIAL_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="1" />
+      <xs:element name="respondingTo" type="CIVIL_JUDICIAL_RESPONDING_TO_TYPES" minOccurs="1"/>
+      <xs:element name="drpFiledFor" type="DRP_FILE_FOR_TYPE" minOccurs="1" />
+      <xs:element name="applicant" type="CIVIL_JUDICIAL_APPLICANT_TYPE" minOccurs="0"/>
+      <xs:element name="associatedPerson" type="CIVIL_JUDICIAL_ASSOCIATED_PERSON_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="CIVIL_JUDICIAL_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-H(1)"/>
+      <xs:enumeration value="5-H(2)"/>
+      <xs:enumeration value="5-H(3)"/>
+      <xs:enumeration value="5-I"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="CIVIL_JUDICIAL_RESPONDING_TO_TYPES">
+    <xs:sequence>
+      <xs:element name="responseQuestion" type="CIVIL_JUDICIAL_RESPONDING_TO_TYPE" maxOccurs="4"/>
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="CIVIL_JUDICIAL_APPLICANT_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CIVIL_JUDICIAL_APPLICANT_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="drpRemovalReason" type="APPLICANT_DRP_REMOVAL_REASON_TYPE" minOccurs="0"/>
+      <xs:element name="circumstancesExplanation" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="civilJudicialDrpDetails" type="CIVIL_JUDICIAL_DRP_PART_2_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CIVIL_JUDICIAL_ASSOCIATED_PERSON_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CIVIL_JUDICIAL_ASSOCIATED_PERSON_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="associatedPersonDetails" type="ASSOCIATED_PERSON_DETAILS_TYPE" minOccurs="0"/>
+      <xs:element name="drpRemovalReason" type="CIVIL_JUDICIAL_ASSOCIATED_PERSON_REMOVE_REASON_TYPE" minOccurs="0"/>
+      <xs:element name="circumstancesExplanation" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="civilJudicialDrpDetails" type="CIVIL_JUDICIAL_DRP_PART_2_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CIVIL_JUDICIAL_DRP_PART_2_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CIVIL_JUDICIAL_DRP_PART_2 group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="courtActionInitiatorName" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="principalReliefSought" type="RELIEF_SOUGHT_TYPE" minOccurs="0"/>
+      <xs:element name="otherPrincipleReliefSought" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="otherReliefSought" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="filingDateOfCourtActionExactOrExplain" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="principalProductType" type="PRINCIPAL_PRODUCT_TYPE" minOccurs="0"/>
+      <xs:element name="otherPrincipalProductType" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="otherProductType" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="civilActionCourtType" type="CIVIL_ACTION_COURT_TYPE" minOccurs="1"/>
+      <xs:element name="civilActionCourtName" type="ns1:STRING_256_TYPE" minOccurs="1"/>
+      <xs:element name="cityOrCounty" type="ns1:STRING_150_TYPE" minOccurs="1"/>
+      <xs:element name="stateOrCountry" type="ns2:STATE_COUNTRY_CODE" minOccurs="1"/>
+      <xs:element name="docketOrCaseNumber" type="ns1:STRING_256_TYPE" minOccurs="1"/>
+      <xs:element name="associatePersonEmployingFirm" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="describeCivilActionAllegations" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="eventCurrentStatus" type="EVENT_STATUS_TYPE" minOccurs="0"/>
+      <xs:element name="courtNameAndDateAppeal" type="ns1:STRING_1K_TYPE" minOccurs="0" />
+      <xs:element name="processingDateCourtActionExactOrExplain" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0" />
+      <xs:element name="matterResolveType" type="MATTER_RESOLVE_TYPE" minOccurs="0"/>
+      <xs:element name="otherMatterResolveType" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="resolutionDateExactOrExplain" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0" />
+      <xs:element name="sanctionReliefType" type="SANCTIONS_ORDERED_TYPE" minOccurs="0"/>
+      <xs:element name="grantOrFineAmount" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="otherSanctionsOrdered" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="sanctionDetail" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+      <xs:element name="summaryOfCircumstances" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="RELIEF_SOUGHT_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Cease and Desist"/>
+      <xs:enumeration value="Restraining Order"/>
+      <xs:enumeration value="Injunction"/>
+      <xs:enumeration value="Disgorgement"/>
+      <xs:enumeration value="Civil Penalty(ies)/Fine(s)"/>
+      <xs:enumeration value="Restitution"/>
+      <xs:enumeration value="Money Damages"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="CIVIL_ACTION_COURT_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Federal Court"/>
+      <xs:enumeration value="State Court"/>
+      <xs:enumeration value="Foreign Court"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="MATTER_RESOLVE_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Consent"/>
+      <xs:enumeration value="Judgement Rendered"/>
+      <xs:enumeration value="Settled"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Opinion"/>
+      <xs:enumeration value="Withdrawn "/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <!-- CIVIL JUDICIARY DRP Ends  -->
+
+
+  <!-- Bankruptcy DRP Starts -->
+
+  <xs:simpleType name="BANKRUPTCY_ACTION_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Bankruptcy"/>
+      <xs:enumeration value="Compromise"/>
+      <xs:enumeration value="Declaration"/>
+      <xs:enumeration value="Liquidated"/>
+      <xs:enumeration value="Receivership"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="BANKRUPTCY_SIPC_RESPONDING_TO_TYPES">
+    <xs:sequence>
+      <xs:element name="responseQuestion" type="BANKRUPTCY_SIPC_RESPONDING_TO_TYPE" maxOccurs="2"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="BANKRUPTCY_SIPC_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-J(1)"/>
+      <xs:enumeration value="5-J(2)"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="BANKRUPTCY_DISPOSITION_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Direct Payment Procedure"/>
+      <xs:enumeration value="Discharged"/>
+      <xs:enumeration value="Dismissed"/>
+      <xs:enumeration value="Dissolved"/>
+      <xs:enumeration value="Satisfied/Released"/>
+      <xs:enumeration value="SIPA Trustee Appointed"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="BANKRUPTCY_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="bankruptcyDrp" type="BANKRUPTCY_SIPC_DRP_TYPE" minOccurs="1" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BANKRUPTCY_SIPC_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the BANKRUPTCY_SIPC_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="1"/>
+      <xs:element name="respondingTo" type="BANKRUPTCY_SIPC_RESPONDING_TO_TYPES" minOccurs="1"/>
+      <xs:element name="drpFiledFor" type="DRP_FILE_FOR_TYPE_2" minOccurs="1"/>
+      <xs:element name="applicant" type="BANKRUPTCY_APPLICANT_TYPE" minOccurs="0"/>
+      <xs:element name="affiliatePerson" type="BANKRUPTCY_AFFILIATE_PERSON_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BANKRUPTCY_APPLICANT_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the BANKRUPTCY_APPLICANT_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="appBankruptcySipcDrpDetails" type="BANKRUPTCY_SIPC_DRP_APPLICANT_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BANKRUPTCY_AFFILIATE_PERSON_TYPE">
+    <xs:sequence>
+      <xs:element name="affBankruptcySipcDrpDetails" type="BANKRUPTCY_SIPC_DRP_AFFILIATE_TYPE" minOccurs="1"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BANKRUPTCY_SIPC_DRP_APPLICANT_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the BANKRUPTCY_SIPC_DRP_APPLICANT_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="actionType" type="BANKRUPTCY_ACTION_TYPE" minOccurs="0" maxOccurs="6"/>
+      <xs:element name="actionTypeOtherDesc" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="actionDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="organizationName" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="nameOfCourt" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="cityOrCounty" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="stateOrCountry" type="ns2:STATE_COUNTRY_CODE" minOccurs="0"/>
+      <xs:element name="docketOrCaseNo" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="bankruptcyChapterNo" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="isActionPending" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionType" type="BANKRUPTCY_DISPOSITION_TYPE" minOccurs="0" maxOccurs="7"/>
+      <xs:element name="dispositionTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="summaryOfEvents" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="amountPaid" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="nameOfTrustee" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="isCurrentlyOpen" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="dateDirectPayment" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="detailsOfDisposition" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BANKRUPTCY_SIPC_DRP_AFFILIATE_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the BANKRUPTCY_SIPC_DRP_AFFILIATE_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="apCrdNumber" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+      <xs:element name="controlAffiliateType" type="ASSOCIATED_PERSON_TYPE" minOccurs="0"/>
+      <xs:element name="isRegistered" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="fullNameOfFirmOrPerson" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="isAmendmentRemoveDrp" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="isConAffRegisteredCrd" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="actionType" type="BANKRUPTCY_ACTION_TYPE" minOccurs="0" maxOccurs="6"/>
+      <xs:element name="actionTypeOtherDesc" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="actionDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="organizationName" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="nameOfCourt" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="cityOrCounty" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="stateOrCountry" type="ns2:STATE_COUNTRY_CODE" minOccurs="0"/>
+      <xs:element name="docketOrCaseNo" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="bankruptcyChapterNo" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="isActionPending" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionType" type="BANKRUPTCY_DISPOSITION_TYPE" minOccurs="0" maxOccurs="7"/>
+      <xs:element name="dispositionTypeOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="summaryOfEvents" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="amountPaid" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="nameOfTrustee" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="isCurrentlyOpen" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="dateDirectPayment" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="detailsOfDisposition" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- Bankruptcy DRP Ends -->
+
+  <!--Bond DRP Starts-->
+  <xs:simpleType name="BOND_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-K"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="BOND_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="bondDrp" type="BOND_DRP_TYPE" minOccurs="1" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BOND_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the BOND_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="0"/>
+      <xs:element name="respondingTo" type="BOND_RESPONDING_TO_TYPE" minOccurs="0"/>
+      <xs:element name="firmName" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="bondingCompanyName" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionType" type="ns3:BOND_DISPOSITION_OPTION_TYPE" minOccurs="0"/>
+      <xs:element name="dispositionDate" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="payoutInfo" type="ns3:PAYOUT_TYPE_2" minOccurs="0"/>
+      <xs:element name="summarizeDetails" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!--Bond DRP Ends-->
+
+  <!--Judgement DRP Starts-->
+  <xs:simpleType name="JUDGEMENT_RESPONDING_TO_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="5-L"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="LIEN_JUDGEMENT_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Civil"/>
+      <xs:enumeration value="Default"/>
+      <xs:enumeration value="Tax"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="LIEN_JUDGEMENT_OUTSTANDING_TYPE">
+    <xs:sequence>
+      <xs:element name="isJudgementLienOutstanding" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="provideExplanationDesc" type="ns1:STRING_1K_TYPE" minOccurs="0"/>
+      <xs:element name="matterResolved" type="ns3:LIEN_RESOLVED_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="JUDGEMENT_DISCLOSURE_CONTAINER">
+    <xs:sequence>
+      <xs:element name="judgementDrp" type="JUDGEMENT_DRP_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="JUDGEMENT_DRP_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the JUDGEMENT_DRP_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="initialOrAmended" type="INITIAL_AMENDED_TYPE" minOccurs="0"/>
+      <xs:element name="respondingTo" type="JUDGEMENT_RESPONDING_TO_TYPE" minOccurs="0"/>
+      <xs:element name="judgementOrLienAmount" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="judgementOrLienHolder" type="ns1:ENTITY_NAME_TYPE" minOccurs="0"/>
+      <xs:element name="judgementOrLienType" type="LIEN_JUDGEMENT_TYPE" minOccurs="0"/>
+      <xs:element name="dateFiled" type="ns1:EXACT_OR_EXPLANATION" minOccurs="0"/>
+      <xs:element name="judgementLienOutstanding" type="LIEN_JUDGEMENT_OUTSTANDING_TYPE" minOccurs="0"/>
+      <xs:element name="nameOfCourt" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="courtAddress" type="ns1:ADDRESS_TYPE" minOccurs="1"/>
+      <xs:element name="docketOrCaseNumber" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="summaryOfEvents" type="ns1:STRING_10K_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!--Judgement DRP Ends-->
+
+</xs:schema>

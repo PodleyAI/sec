@@ -7,10 +7,15 @@
 
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { InMemoryTabularRepository } from "@podley/storage";
-import { AddressRepo, AddressPrimaryKeyNames, AddressJunctionPrimaryKeyNames } from "./AddressRepo";
-import type { Address } from "./AddressRepo";
+import { AddressRepo } from "./AddressRepo";
+import type { Address } from "./AddressSchema";
 import { normalizeAddress, type AddressImport } from "./AddressNormalization";
-import { AddressesEntityJunctionSchema, AddressSchema } from "./AddressSchema";
+import {
+  AddressesEntityJunctionSchema,
+  AddressSchema,
+  AddressPrimaryKeyNames,
+  AddressJunctionPrimaryKeyNames,
+} from "./AddressSchema";
 
 describe("AddressRepo", () => {
   let addressRepo: AddressRepo;
@@ -23,12 +28,12 @@ describe("AddressRepo", () => {
     typeof AddressJunctionPrimaryKeyNames
   >;
 
-  const mockAddressImport: AddressImport = {
+  const mockAddressImport: Readonly<AddressImport> = {
     street1: "123 Main St",
     city: "New York",
     stateOrCountry: "NY",
     zipCode: "10001",
-  };
+  } as const;
   const badAddressImport: AddressImport = {
     street1: "123 Main St",
   };
@@ -73,7 +78,8 @@ describe("AddressRepo", () => {
 
   describe("saveAddress", () => {
     it("should successfully save address and junction record", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 123456);
 
       const storedAddress = await addressStorage.get({
         address_hash_id: mockAddress.address_hash_id,
@@ -95,7 +101,7 @@ describe("AddressRepo", () => {
     });
 
     it("should throw error when normalizeAddress returns null", async () => {
-      expect(addressRepo.saveAddress(badAddressImport, "business|address", 123456)).rejects.toThrow(
+      expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 
@@ -106,7 +112,7 @@ describe("AddressRepo", () => {
     });
 
     it("should throw error when cleanAddress returns undefined", async () => {
-      expect(addressRepo.saveAddress(badAddressImport, "business|address", 123456)).rejects.toThrow(
+      expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 
@@ -117,7 +123,8 @@ describe("AddressRepo", () => {
     });
 
     it("should handle different relation names and CIKs", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "mailing|address", 789456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "mailing|address", 789456);
 
       const junctionRecord = await addressJunctionStorage.get({
         address_hash_id: mockAddress.address_hash_id,
@@ -133,7 +140,8 @@ describe("AddressRepo", () => {
     });
 
     it("should call both repository put methods", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 123456);
 
       const storedAddress = await addressStorage.get({
         address_hash_id: mockAddress.address_hash_id,
@@ -148,19 +156,22 @@ describe("AddressRepo", () => {
     });
 
     it("should handle empty string relation name", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "", 123456);
 
       const junctionRecord = await addressJunctionStorage.get({
         address_hash_id: mockAddress.address_hash_id,
         relation_name: "",
         cik: 123456,
       });
-      expect(junctionRecord).not.toBeDefined();
+      expect(junctionRecord).toBeDefined();
     });
 
     it("should handle multiple addresses with same hash_id but different relations", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 123456);
-      await addressRepo.saveAddress(mockAddressImport, "mailing|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "mailing|address", 123456);
 
       const storedAddress = await addressStorage.get({
         address_hash_id: mockAddress.address_hash_id,
@@ -180,7 +191,8 @@ describe("AddressRepo", () => {
 
   describe("integration scenarios", () => {
     it("should handle complete workflow: save then retrieve address", async () => {
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 123456);
 
       const retrievedAddress = await addressRepo.getAddress(mockAddress.address_hash_id);
 
@@ -201,7 +213,7 @@ describe("AddressRepo", () => {
         zipCode: "invalid",
       };
 
-      expect(addressRepo.saveAddress(malformedImport, "business|address", 123456)).rejects.toThrow(
+      expect(addressRepo.saveAddress(malformedImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 
@@ -215,8 +227,10 @@ describe("AddressRepo", () => {
       const address1 = { ...mockAddress, city: "NEW YORK" };
       const address2 = { ...mockAddress, city: "BOSTON" };
 
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 123456);
-      await addressRepo.saveAddress(mockAddressImport, "business|address", 789012);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 123456);
+      await addressRepo.saveAddress(mockAddressImport);
+      await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 789012);
 
       const nyAddresses = await addressStorage.search({ city: "NEW YORK" });
 

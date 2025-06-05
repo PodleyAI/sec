@@ -1,0 +1,239 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0705</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001517055</cik>
+        <entityName>Indepth Exploration LLC</entityName>
+        <issuerAddress>
+            <street1>515 SAM HOUSTON PARKWAY SUITE 300</street1>
+            <city>HOUSTON</city>
+            <stateOrCountry>TX</stateOrCountry>
+            <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+            <zipCode>77060</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>832-948-0372</issuerPhoneNumber>
+        <jurisdictionOfInc>TEXAS</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2010</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Duane</firstName>
+                <middleName>Jay</middleName>
+                <lastName>Stephens</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>515 Sam Houston Parkway East Suite 300</street1>
+                <city>Houston</city>
+                <stateOrCountry>TX</stateOrCountry>
+                <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                <zipCode>77060</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Managing Partner / Adameck #1 Drilling Program</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Oil and Gas</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$1,000,001 - $5,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isMineralPropertyType>true</isMineralPropertyType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>16500</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>None</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>n/a</street1>
+                    <city>n/a</city>
+                    <stateOrCountry>TX</stateOrCountry>
+                    <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                    <zipCode>77060</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>AL</state>
+                    <description>ALABAMA</description>
+                    <state>AK</state>
+                    <description>ALASKA</description>
+                    <state>AZ</state>
+                    <description>ARIZONA</description>
+                    <state>AR</state>
+                    <description>ARKANSAS</description>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CO</state>
+                    <description>COLORADO</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>DE</state>
+                    <description>DELAWARE</description>
+                    <state>DC</state>
+                    <description>DISTRICT OF COLUMBIA</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>GA</state>
+                    <description>GEORGIA</description>
+                    <state>HI</state>
+                    <description>HAWAII</description>
+                    <state>ID</state>
+                    <description>IDAHO</description>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>IN</state>
+                    <description>INDIANA</description>
+                    <state>IA</state>
+                    <description>IOWA</description>
+                    <state>KS</state>
+                    <description>KANSAS</description>
+                    <state>KY</state>
+                    <description>KENTUCKY</description>
+                    <state>LA</state>
+                    <description>LOUISIANA</description>
+                    <state>MD</state>
+                    <description>MARYLAND</description>
+                    <state>MA</state>
+                    <description>MASSACHUSETTS</description>
+                    <state>MI</state>
+                    <description>MICHIGAN</description>
+                    <state>MN</state>
+                    <description>MINNESOTA</description>
+                    <state>MS</state>
+                    <description>MISSISSIPPI</description>
+                    <state>MO</state>
+                    <description>MISSOURI</description>
+                    <state>MT</state>
+                    <description>MONTANA</description>
+                    <state>NE</state>
+                    <description>NEBRASKA</description>
+                    <state>NV</state>
+                    <description>NEVADA</description>
+                    <state>NH</state>
+                    <description>NEW HAMPSHIRE</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NM</state>
+                    <description>NEW MEXICO</description>
+                    <state>NC</state>
+                    <description>NORTH CAROLINA</description>
+                    <state>ND</state>
+                    <description>NORTH DAKOTA</description>
+                    <state>OH</state>
+                    <description>OHIO</description>
+                    <state>OK</state>
+                    <description>OKLAHOMA</description>
+                    <state>OR</state>
+                    <description>OREGON</description>
+                    <state>PR</state>
+                    <description>PUERTO RICO</description>
+                    <state>SC</state>
+                    <description>SOUTH CAROLINA</description>
+                    <state>SD</state>
+                    <description>SOUTH DAKOTA</description>
+                    <state>TN</state>
+                    <description>TENNESSEE</description>
+                    <state>TX</state>
+                    <description>TEXAS</description>
+                    <state>UT</state>
+                    <description>UTAH</description>
+                    <state>VT</state>
+                    <description>VERMONT</description>
+                    <state>VA</state>
+                    <description>VIRGINIA</description>
+                    <state>WA</state>
+                    <description>WASHINGTON</description>
+                    <state>WV</state>
+                    <description>WEST VIRGINIA</description>
+                    <state>WI</state>
+                    <description>WISCONSIN</description>
+                    <state>WY</state>
+                    <description>WYOMING</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>1650000</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>1650000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse>No commissions or finders fees paid</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>75000</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>Management fee
+Organizational fee
+Accounting
+Legal
+Printing</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Indepth Exploration LLC</issuerName>
+                <signatureName>Duane Stephens</signatureName>
+                <nameOfSigner>Duane Stephens</nameOfSigner>
+                <signatureTitle>Managing Partner</signatureTitle>
+                <signatureDate>2012-05-17</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

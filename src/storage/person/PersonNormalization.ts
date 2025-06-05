@@ -8,7 +8,11 @@
 import { parseFullName } from "@sroussey/parse-full-name";
 import { Person } from "./PersonSchema";
 
-export type PersonImport = string;
+export type PersonImport = {
+  name: string;
+  cik?: number | null;
+  crd?: string | null;
+};
 
 /**
  * Generates a hash ID for a person based on normalized name components
@@ -24,7 +28,11 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
   ]
     .filter((v) => v !== null && v !== undefined)
     .join("-")
-    .toLowerCase();
+    .toLowerCase()
+    .replaceAll(/[\. ]/g, "-")
+    .replaceAll(/--+/g, "-")
+    .trim()
+    .replace(/^-|-$/g, "");
 
   return hashString;
 }
@@ -35,7 +43,14 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
 export function normalizePerson(importPerson: PersonImport | null): Person | undefined {
   if (!importPerson) return undefined;
 
-  const results = parseFullName(importPerson, { normalize: true, fixCase: 1 });
+  // Extract name, cik, and crd from the object
+  const name = importPerson.name;
+  const cik = importPerson.cik || null;
+  const crd = importPerson.crd || null;
+
+  const cleanPerson = name.replace("/s/", "").trim();
+
+  const results = parseFullName(cleanPerson, { normalize: true, fixCase: 1 });
 
   if (results.error?.length) {
     // console.error(`Error parsing full name: ${importPerson}, but moving on...`, results.error);
@@ -54,6 +69,8 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
     nick: results.nick,
     dob: null,
     notes: null,
+    cik,
+    crd,
   };
 
   const personHashId = generatePersonHash(person);

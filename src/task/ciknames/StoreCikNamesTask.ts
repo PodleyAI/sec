@@ -5,10 +5,11 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, Task, TaskAbortedError } from "@podley/task-graph";
+import { IExecuteContext, Task, TaskAbortedError } from "@podley/task-graph";
 import { query_run } from "../../util/db";
 import { FetchAllCikNamesTask, FetchAllCikNamesTaskOutput } from "./FetchAllCikNamesTask";
 import { TObject, Type } from "@sinclair/typebox";
+import { EntityRepo } from "../../storage/entity/EntityRepo";
 
 export type StoreCikNamesTaskOutput = {
   success: boolean;
@@ -34,7 +35,7 @@ export class StoreCikNamesTask extends Task<FetchAllCikNamesTaskOutput, StoreCik
 
   async execute(
     input: FetchAllCikNamesTaskOutput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<StoreCikNamesTaskOutput> {
     const cikList: { cik: number; name: string }[] = input.cikList;
     if (!cikList) return { success: false };
@@ -43,21 +44,16 @@ export class StoreCikNamesTask extends Task<FetchAllCikNamesTaskOutput, StoreCik
     let progress = 0;
     let index = 0;
     for (const { cik, name } of cikList) {
-      if (config.signal?.aborted) {
+      if (context.signal?.aborted) {
         throw new TaskAbortedError();
       }
-      query_run(
-        `INSERT OR REPLACE INTO cik_names(cik,name)
-          VALUES($cik,$name)`,
-        {
-          $cik: cik,
-          $name: name,
-        }
-      );
+      const entityRepo = new EntityRepo();
+      await entityRepo.saveCikName(cik, name);
+
       const newProgress = Math.round((index++ / estimatedFacts) * 100);
       if (newProgress > progress) {
         // round numbers, so max 100 times
-        config.updateProgress(newProgress, `cik: ${cik}`);
+        context.updateProgress(newProgress, `cik: ${cik}`);
         progress = newProgress;
       }
     }

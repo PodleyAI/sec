@@ -5,9 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TypeNullable } from "@podley/util";
+import { TabularRepository } from "@podley/storage";
+import { createServiceToken } from "@podley/util";
 import { Static, Type } from "@sinclair/typebox";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
 export const PHONE_TYPE = Type.Union(
   [
@@ -48,6 +49,22 @@ export const PhoneSchema = Type.Object({
 export type Phone = Static<typeof PhoneSchema>;
 
 /**
+ * Phone repository storage type and primary key definitions
+ */
+export const PhonePrimaryKeyNames = ["international_number"] as const;
+export type PhoneRepositoryStorage = TabularRepository<
+  typeof PhoneSchema,
+  typeof PhonePrimaryKeyNames
+>;
+
+/**
+ * Dependency injection tokens for repositories
+ */
+export const PHONE_REPOSITORY_TOKEN = createServiceToken<PhoneRepositoryStorage>(
+  "sec.storage.phoneRepository"
+);
+
+/**
  * Phone Entity Junction schema - links phones to entities (CIK entities)
  */
 export const PhonesEntityJunctionSchema = Type.Object({
@@ -60,3 +77,21 @@ export const PhonesEntityJunctionSchema = Type.Object({
 });
 
 export type PhonesEntityJunction = Static<typeof PhonesEntityJunctionSchema>;
+
+/**
+ * Phone-entity junction repository storage type and primary key definitions
+ */
+export const PhoneEntityJunctionPrimaryKeyNames = [
+  "international_number",
+  "relation_name",
+  "cik",
+] as const;
+export type PhoneEntityJunctionRepositoryStorage = TabularRepository<
+  typeof PhonesEntityJunctionSchema,
+  typeof PhoneEntityJunctionPrimaryKeyNames
+>;
+
+export const PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN =
+  createServiceToken<PhoneEntityJunctionRepositoryStorage>(
+    "sec.storage.phoneEntityJunctionRepository"
+  );

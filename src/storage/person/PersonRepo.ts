@@ -5,80 +5,21 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@podley/storage";
-import { createServiceToken, globalServiceRegistry } from "@podley/util";
-import { Static } from "@sinclair/typebox";
+import { globalServiceRegistry } from "@podley/util";
 import { normalizePerson, PersonImport } from "./PersonNormalization";
 import {
-  PersonsEntityJunctionSchema,
-  PersonSchema,
-  PersonsAddressJunctionSchema,
-  PersonPhoneJunctionSchema,
+  Person,
+  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
+  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
+  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
+  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
+  PERSON_REPOSITORY_TOKEN,
+  PersonAddressJunctionRepositoryStorage,
+  PersonEntityJunctionRepositoryStorage,
+  PersonPhoneJunctionRepositoryStorage,
+  PersonPreviousNamesRepositoryStorage,
+  PersonRepositoryStorage,
 } from "./PersonSchema";
-
-/**
- * Person schema
- */
-export type Person = Static<typeof PersonSchema>;
-export const PersonPrimaryKeyNames = ["person_hash_id"] as const;
-export type PersonRepositoryStorage = TabularRepository<
-  typeof PersonSchema,
-  typeof PersonPrimaryKeyNames
->;
-export const PERSON_REPOSITORY_TOKEN = createServiceToken<PersonRepositoryStorage>(
-  "sec.storage.personRepository"
-);
-
-/**
- * Person-entity junction schema
- */
-export const PersonEntityJunctionPrimaryKeyNames = [
-  "person_hash_id",
-  "relation_name",
-  "cik",
-] as const;
-export type PersonEntityJunctionRepositoryStorage = TabularRepository<
-  typeof PersonsEntityJunctionSchema,
-  typeof PersonEntityJunctionPrimaryKeyNames
->;
-export const PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN =
-  createServiceToken<PersonEntityJunctionRepositoryStorage>(
-    "sec.storage.personEntityJunctionRepository"
-  );
-
-/**
- * Person-address junction schema
- */
-export const PersonAddressJunctionPrimaryKeyNames = [
-  "person_hash_id",
-  "relation_name",
-  "address_hash_id",
-] as const;
-export type PersonAddressJunctionRepositoryStorage = TabularRepository<
-  typeof PersonsAddressJunctionSchema,
-  typeof PersonAddressJunctionPrimaryKeyNames
->;
-export const PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN =
-  createServiceToken<PersonAddressJunctionRepositoryStorage>(
-    "sec.storage.personAddressJunctionRepository"
-  );
-
-/**
- * Person-phone junction schema
- */
-export const PersonPhoneJunctionPrimaryKeyNames = [
-  "person_hash_id",
-  "relation_name",
-  "international_number",
-] as const;
-export type PersonPhoneJunctionRepositoryStorage = TabularRepository<
-  typeof PersonPhoneJunctionSchema,
-  typeof PersonPhoneJunctionPrimaryKeyNames
->;
-export const PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN =
-  createServiceToken<PersonPhoneJunctionRepositoryStorage>(
-    "sec.storage.personPhoneJunctionRepository"
-  );
 
 // Options for the PersonRepo
 interface PersonRepoOptions {
@@ -86,6 +27,7 @@ interface PersonRepoOptions {
   personEntityJunctionRepository?: PersonEntityJunctionRepositoryStorage;
   personAddressJunctionRepository?: PersonAddressJunctionRepositoryStorage;
   personPhoneJunctionRepository?: PersonPhoneJunctionRepositoryStorage;
+  personPreviousNamesRepository?: PersonPreviousNamesRepositoryStorage;
 }
 
 /**
@@ -96,6 +38,7 @@ export class PersonRepo implements PersonRepoOptions {
   personEntityJunctionRepository: PersonEntityJunctionRepositoryStorage;
   personAddressJunctionRepository: PersonAddressJunctionRepositoryStorage;
   personPhoneJunctionRepository: PersonPhoneJunctionRepositoryStorage;
+  personPreviousNamesRepository: PersonPreviousNamesRepositoryStorage;
 
   constructor(options: PersonRepoOptions = {}) {
     this.personRepository =
@@ -112,6 +55,10 @@ export class PersonRepo implements PersonRepoOptions {
     this.personPhoneJunctionRepository =
       options.personPhoneJunctionRepository ??
       globalServiceRegistry.get(PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN);
+
+    this.personPreviousNamesRepository =
+      options.personPreviousNamesRepository ??
+      globalServiceRegistry.get(PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN);
   }
 
   async getPerson(personHashId: string): Promise<Person | undefined> {
@@ -165,6 +112,36 @@ export class PersonRepo implements PersonRepoOptions {
     });
   }
 
+  async savePreviousName(
+    person_hash_id: string,
+    previous_name: string,
+    name_type: "maiden" | "former" | "alias" | "other",
+    source?: string,
+    date_changed?: string
+  ): Promise<void> {
+    // Skip saving if the previous name is empty/invalid
+    if (!previous_name || previous_name.trim() === "" || previous_name.toLowerCase() === "none") {
+      return;
+    }
+
+    // Check if this previous name already exists
+    const existing = await this.personPreviousNamesRepository.get({
+      person_hash_id,
+      previous_name,
+      name_type,
+    });
+
+    if (!existing) {
+      await this.personPreviousNamesRepository.put({
+        person_hash_id,
+        previous_name,
+        name_type,
+        source,
+        date_changed,
+      });
+    }
+  }
+
   async savePersonRelatedEntity(
     person: PersonImport,
     relation_name: string,
@@ -209,7 +186,7 @@ export class PersonRepo implements PersonRepoOptions {
     if (firstName) searchCriteria.first = firstName;
     if (lastName) searchCriteria.last = lastName;
 
-    // If no search criteria provided, return all`
+    // If no search criteria provided, return all
     if (Object.keys(searchCriteria).length === 0) {
       return (await this.personRepository.getAll()) || [];
     }

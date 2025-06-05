@@ -19,9 +19,11 @@ import { getTaskQueueRegistry } from "@podley/task-graph";
 import { UpdateAllSubmissions } from "./UpdateAllSubmissions";
 import { Form } from "./Form";
 import { Doc } from "./Doc";
+import { DefaultDI } from "../config/DefaultDI";
 
 export const AddCommands = (program: Command) => {
   EnvToDI();
+  DefaultDI();
   getTaskQueueRegistry().registerQueue(SecJobQueue);
   SecJobQueue.start();
   AddDailyIndexCommands(program);

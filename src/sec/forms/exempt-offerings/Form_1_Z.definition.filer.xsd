@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common" xmlns:ns2="http://www.sec.gov/edgar/statecodes" xmlns:ns3="http://www.sec.gov/edgar/regacommon" targetNamespace="http://www.sec.gov/edgar/rega/onezfiler" elementFormDefault="qualified" attributeFormDefault="unqualified">
+    <xs:import namespace="http://www.sec.gov/edgar/common" schemaLocation="eis_Common.xsd"/>
+    <xs:import namespace="http://www.sec.gov/edgar/statecodes" schemaLocation="eis_stateCodes.xsd"/>
+    <xs:import namespace="http://www.sec.gov/edgar/regacommon" schemaLocation="eis_RegA_common.xsd"/>
+    <xs:simpleType name="SUBMISSION_TYPE">
+        <xs:annotation>
+            <xs:documentation> Enumerated values and descriptions: 1-Z: Exit report under Regulation A , 1-Z/A: Amendment to exit report under Regulation A </xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:token">
+            <xs:enumeration value="1-Z"/>
+            <xs:enumeration value="1-Z/A"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:complexType name="ISSUER_CREDENTIALS_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the ISSUER_CREDENTIALS_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="cik" type="ns1:CIK_TYPE"/>
+            <xs:element name="ccc" type="ns1:CCC_TYPE"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CO_ISSUER_CREDENTIALS_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the CO_ISSUER_CREDENTIALS_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="cik" type="ns1:CIK_TYPE" minOccurs="0"/>
+            <xs:element name="ccc" type="ns1:CCC_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="FILER_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the FILER_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="issuerCredentials" type="ISSUER_CREDENTIALS_TYPE"/>
+            <xs:element name="fileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+            <xs:element name="successorFileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="FLAGS_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the FLAGS_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="confirmingCopyFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+            <xs:element name="successorFilingFlag" type="ns1:YES_NO_TYPE"/>
+            <xs:element name="returnCopyFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+            <xs:element name="overrideInternetFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CONTACT_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the CONTACT_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="contactName" type="ns1:NAME_TYPE" minOccurs="0"/>
+            <xs:element name="contactPhone" type="ns1:PHONE_TYPE" minOccurs="0"/>
+            <xs:element name="contactEmailAddress" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="NOTIFICATIONS_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the NOTIFICATIONS_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="notificationEmail" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0" maxOccurs="3"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CO_FILER_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the CO_FILER_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="coIssuerCredentials" type="CO_ISSUER_CREDENTIALS_TYPE" minOccurs="0"/>
+            <xs:element name="fileNumber" type="ns1:FILE_NUMBER_TYPE_2" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="FILER_INFO_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the FILER_INFO_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="liveTestFlag" type="ns1:LIVE_TEST_TYPE"/>
+            <xs:element name="filer" type="FILER_TYPE"/>
+            <xs:element name="flags" type="FLAGS_TYPE"/>
+            <xs:element name="contact" type="CONTACT_TYPE" minOccurs="0"/>
+            <xs:element name="notifications" type="NOTIFICATIONS_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CO_ISSUER_INFO_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the CO_ISSUER_INFO_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="co-filer" type="CO_FILER_TYPE" minOccurs="0" maxOccurs="15"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="ITEM1_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the ITEM1_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="issuerName" type="ns1:STRING_150_TYPE"/>
+            <xs:element name="street1" type="ns1:STREET_TYPE"/>
+            <xs:element name="street2" type="ns1:STREET_TYPE" minOccurs="0"/>
+            <xs:element name="city" type="ns1:STRING_30_TYPE"/>
+            <xs:element name="stateOrCountry" type="ns2:STATE_COUNTRY_CODE"/>
+            <xs:element name="zipCode" type="ns1:ZIP_TYPE"/>
+            <xs:element name="phone" type="ns1:PHONE_TYPE"/>
+            <xs:element name="commissionFileNumber" type="ns1:FILE_NUMBER_TYPE" maxOccurs="5"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="SUMMARY_INFO_OFFERING_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the SUMMARY_INFO_OFFERING_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="offeringQualificationDate" type="ns1:DATE_TYPE" minOccurs="0"/>
+            <xs:element name="offeringCommenceDate" type="ns1:DATE_TYPE" minOccurs="0"/>
+            <xs:element name="offeringSecuritiesQualifiedSold" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+            <xs:element name="offeringSecuritiesSold" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+            <xs:element name="pricePerSecurity" type="ns3:DECIMAL_TYPE14_4" minOccurs="0"/>
+            <xs:element name="portionSecuritiesSoldIssuer" type="ns3:DECIMAL_TYPE14_2" minOccurs="0"/>
+            <xs:element name="portionSecuritiesSoldSecurityholders" type="ns3:DECIMAL_TYPE14_2" minOccurs="0"/>
+            <xs:element name="underwrittenSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="underwriterFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="salesCommissionsSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="salesCommissionsFee" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="findersSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="findersFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="auditorSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="auditorFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="legalSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="legalFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="promoterSpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="promotersFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="blueSkySpName" type="ns1:STRING_150_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="blueSkyFees" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="crdNumberBrokerDealer" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+            <xs:element name="issuerNetProceeds" type="ns3:DECIMAL_TYPE13_2" minOccurs="0"/>
+            <xs:element name="clarificationResponses" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CERTIFICATION_SUSPENSION_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the CERTIFICATION_SUSPENSION_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="securitiesClassTitle" type="ns1:STRING_255_TYPE" minOccurs="0"/>
+            <xs:element name="certificationFileNumber" type="ns1:FILE_NUMBER_TYPE" maxOccurs="5"/>
+            <xs:element name="approxRecordHolders" type="ns3:INTEGER_NONNEGATIVE_13" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="SIGNATURE_TAB_TYPE">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the SIGNATURE_TAB_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="cik" type="ns1:CIK_TYPE"/>
+            <xs:element name="regulationIssuerName1" type="ns1:STRING_150_TYPE"/>
+            <xs:element name="regulationIssuerName2" type="ns1:STRING_150_TYPE"/>
+            <xs:element name="signatureBy" type="ns1:STRING_150_TYPE"/>
+            <xs:element name="date" type="ns1:DATE_TYPE"/>
+            <xs:element name="title" type="ns1:STRING_255_TYPE"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="HEADER_DATA">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the HEADER_DATA_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="submissionType" type="SUBMISSION_TYPE"/>
+            <xs:element name="filerInfo" type="FILER_INFO_TYPE"/>
+            <xs:element name="coIssuerInfo" type="CO_ISSUER_INFO_TYPE" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="FORM_DATA">
+        <xs:annotation>
+            <xs:documentation>These elements are part of the FORM_DATA_TYPE group</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="item1" type="ITEM1_TYPE"/>
+            <xs:element name="summaryInfoOffering" type="SUMMARY_INFO_OFFERING_TYPE" minOccurs="0" maxOccurs="5"/>
+            <xs:element name="certificationSuspension" type="CERTIFICATION_SUSPENSION_TYPE" minOccurs="0" maxOccurs="100"/>
+            <xs:element name="signatureTab" type="SIGNATURE_TAB_TYPE" maxOccurs="16"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="edgarSubmission">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="schemaVersion" type="ns1:SCHEMA_VERSION_TYPE" minOccurs="0"/>
+                <xs:element name="headerData" type="HEADER_DATA"/>
+                <xs:element name="formData" type="FORM_DATA"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

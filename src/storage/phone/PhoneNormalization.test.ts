@@ -112,6 +112,9 @@ describe("PhoneNormalization", () => {
         { phone_raw: "abc" },
         { phone_raw: "555" },
         { phone_raw: "++1234567890" },
+        { phone_raw: "000-000-0000" },
+        { phone_raw: "0000000000" },
+        { phone_raw: "(000) 000-0000" },
       ];
 
       invalidInputs.forEach((input) => {

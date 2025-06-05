@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0704</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001523260</cik>
+        <entityName>Briarwick Apartments, LLC</entityName>
+        <issuerAddress>
+            <street1>731 NORTH JACKSON STREET</street1>
+            <street2>SUITE 400</street2>
+            <city>MILWAUKEE</city>
+            <stateOrCountry>WI</stateOrCountry>
+            <stateOrCountryDescription>WISCONSIN</stateOrCountryDescription>
+            <zipCode>53202</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>414-272-2200</issuerPhoneNumber>
+        <jurisdictionOfInc>WISCONSIN</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2011</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>W.</firstName>
+                <middleName>Brian</middleName>
+                <lastName>Blake</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>731 North Jackson Street</street1>
+                <street2>Suite 400</street2>
+                <city>Milwaukee</city>
+                <stateOrCountry>WI</stateOrCountry>
+                <stateOrCountryDescription>WISCONSIN</stateOrCountryDescription>
+                <zipCode>53202</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Vice President of Blake Capital Corp., the Manager of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>W.</firstName>
+                <middleName>Scott</middleName>
+                <lastName>Blake</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>731 North Jackson Street</street1>
+                <street2>Suite 400</street2>
+                <city>Milwaukee</city>
+                <stateOrCountry>WI</stateOrCountry>
+                <stateOrCountryDescription>WISCONSIN</stateOrCountryDescription>
+                <zipCode>53202</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>President of Blake Capital Corp., the Manager of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>.</firstName>
+                <lastName>Blake Capital Corp</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>731 North Jackson Street</street1>
+                <street2>Suite 400</street2>
+                <city>Milwaukee</city>
+                <stateOrCountry>WI</stateOrCountry>
+                <stateOrCountryDescription>WISCONSIN</stateOrCountryDescription>
+                <zipCode>53202</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Residential</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2011-07-07</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>60000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>4500000</totalOfferingAmount>
+            <totalAmountSold>4500000</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>26</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Briarwick Apartments, LLC</issuerName>
+                <signatureName>/s/ W. Brian Blake</signatureName>
+                <nameOfSigner>W. Brian Blake</nameOfSigner>
+                <signatureTitle>Vice President of Manager</signatureTitle>
+                <signatureDate>2011-07-14</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

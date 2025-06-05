@@ -5,9 +5,9 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, NamedGraphResult, Task, TaskGraph } from "@podley/task-graph";
+import { IExecuteContext, NamedGraphResult, Task, TaskGraph } from "@podley/task-graph";
 import { FetchQuarterlyIndexTask, FetchQuarterlyIndexTaskOutput } from "./FetchQuarterlyIndexTask";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeDateTime } from "@podley/util";
 import { Static, TObject, Type } from "@sinclair/typebox";
 
@@ -73,7 +73,7 @@ export class FetchQuarterlyIndexRangeTask extends Task<
 
   async execute(
     input: FetchQuarterlyIndexRangeTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<FetchQuarterlyIndexRangeTaskOutput> {
     if (!input.startYear) return { updateList: [] };
 
@@ -86,7 +86,7 @@ export class FetchQuarterlyIndexRangeTask extends Task<
     const endYear = input.endYear ?? todayYear;
     const endQuarter = input.endQuarter ?? Math.ceil(todayMonth / 3);
 
-    const tasks = config.own(new TaskGraph());
+    const tasks = context.own(new TaskGraph());
 
     // from the date to the current date, fetch the quarterly index
     const quarters = (endYear - startYear) * 4 + (endQuarter - startQuarter);

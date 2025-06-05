@@ -68,6 +68,19 @@ describe("cleanAddress", () => {
       expect(result!.country_code).toBe("US");
       expect(result!.state_or_country).toBe("TX");
     });
+
+    it("should handle addresses with PO Boxes", () => {
+      const input = {
+        street1: "PO Box 171305",
+        city: "Salt Lake City",
+        stateOrCountry: "UT",
+        stateOrCountryDescription: "UTAH",
+        zipCode: "84117",
+      };
+
+      const result = normalizeAddress(input);
+      expect(result!.street1).toBe("PO Box 171305");
+    });
   });
 
   describe("Canadian Addresses", () => {

@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001897624</cik>
+        <entityName>NP1 RBGCF Mauritius</entityName>
+        <issuerAddress>
+            <street1>Sanne House, Bank Street, TwentyEight</street1>
+            <street2>Cybercity</street2>
+            <city>Ebene</city>
+            <stateOrCountry>O4</stateOrCountry>
+            <stateOrCountryDescription>MAURITIUS</stateOrCountryDescription>
+            <zipCode>72201</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>2304673000</issuerPhoneNumber>
+        <jurisdictionOfInc>MAURITIUS</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Other</entityType>
+        <entityTypeOtherDesc>INCORPORATED IN MAURITIUS AS A PRIVATE COMPANY LIMITED BY SHARES WITH LIMITED LIFE</entityTypeOtherDesc>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2020</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Sateeta</firstName>
+                <lastName>Jeewoolall-Jessoo</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Sanne House, Bank Street, TwentyEight</street1>
+                <street2>Cybercity</street2>
+                <city>Ebene</city>
+                <stateOrCountry>O4</stateOrCountry>
+                <stateOrCountryDescription>MAURITIUS</stateOrCountryDescription>
+                <zipCode>72201</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Gulshan</firstName>
+                <middleName>Raj</middleName>
+                <lastName>Ramgoolam</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>Sanne House, Bank Street, TwentyEight</street1>
+                <street2>Cybercity</street2>
+                <city>Ebene</city>
+                <stateOrCountry>O4</stateOrCountry>
+                <stateOrCountryDescription>MAURITIUS</stateOrCountryDescription>
+                <zipCode>72201</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Nousrath</firstName>
+                <middleName>Begum</middleName>
+                <lastName>Bhugeloo</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>56 Avenue Le Conte De Lisle</street1>
+                <city>Quatre Bornes</city>
+                <stateOrCountry>O4</stateOrCountry>
+                <stateOrCountryDescription>MAURITIUS</stateOrCountryDescription>
+                <zipCode>72104</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Investing</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$5,000,001 - $25,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.1</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2021-08-19</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>100000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>5900000</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>8</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>NP1 RBGCF Mauritius</issuerName>
+                <signatureName>Gulshan Raj Ramgoolam</signatureName>
+                <nameOfSigner>Gulshan Raj Ramgoolam</nameOfSigner>
+                <signatureTitle>Director</signatureTitle>
+                <signatureDate>2021-12-15</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

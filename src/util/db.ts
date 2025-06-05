@@ -10,7 +10,7 @@ import { globalServiceRegistry } from "@podley/util";
 import { mkdirSync } from "fs";
 import path from "path";
 import { sleepSync } from "bun";
-import { SEC_DB_FOLDER, SEC_DB_NAME } from "./tokens";
+import { SEC_DB_FOLDER, SEC_DB_NAME } from "../config/tokens";
 
 let db: Sqlite.Database | null = null;
 

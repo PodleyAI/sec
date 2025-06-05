@@ -9,9 +9,9 @@ import { IExecuteContext, Task, TaskError, Workflow } from "@podley/task-graph";
 import { Static, TObject, Type } from "@sinclair/typebox";
 import { query_get, query_run } from "../../util/db";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
-import { TypeSecCik } from "../../types/CompanySubmission";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { FetchTaskOutput } from "@podley/tasks";
-import { ALL_FORMS_MAP } from "../../forms/all-forms";
+import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({

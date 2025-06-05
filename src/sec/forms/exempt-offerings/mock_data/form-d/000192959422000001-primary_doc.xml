@@ -1,0 +1,209 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001929594</cik>
+        <entityName>BV Design Multifamily DST</entityName>
+        <issuerAddress>
+            <street1>8390 LYNDON B JOHNSON FWY</street1>
+            <street2>STE 565</street2>
+            <city>DALLAS</city>
+            <stateOrCountry>TX</stateOrCountry>
+            <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+            <zipCode>75243</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>214.484.6331</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Other</entityType>
+        <entityTypeOtherDesc>Statutory Trust</entityTypeOtherDesc>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2022</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Steven</firstName>
+                <middleName>D</middleName>
+                <lastName>May</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>10475 Epping Ln</street1>
+                <city>Dallas</city>
+                <stateOrCountry>TX</stateOrCountry>
+                <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                <zipCode>75229</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Commercial</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$1 - $1,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2022-05-19</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>25000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Thornhill Securities, Inc</recipientName>
+                <recipientCRDNumber>22333</recipientCRDNumber>
+                <associatedBDName>Thornhill Securities, Inc</associatedBDName>
+                <associatedBDCRDNumber>22333</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>400 W 15th St</street1>
+                    <street2>Ste 700</street2>
+                    <city>Austin</city>
+                    <stateOrCountry>TX</stateOrCountry>
+                    <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                    <zipCode>78701</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <value>All States</value>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+            <recipient>
+                <recipientName>Robert D. Anderson</recipientName>
+                <recipientCRDNumber>3101064</recipientCRDNumber>
+                <associatedBDName>BV Securities, LLC</associatedBDName>
+                <associatedBDCRDNumber>103800</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>8390 Lyndon B Johnson Fwy</street1>
+                    <street2>Ste 565</street2>
+                    <city>Dallas</city>
+                    <stateOrCountry>TX</stateOrCountry>
+                    <stateOrCountryDescription>TEXAS</stateOrCountryDescription>
+                    <zipCode>75243</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CO</state>
+                    <description>COLORADO</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>GA</state>
+                    <description>GEORGIA</description>
+                    <state>ID</state>
+                    <description>IDAHO</description>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>IN</state>
+                    <description>INDIANA</description>
+                    <state>KY</state>
+                    <description>KENTUCKY</description>
+                    <state>ME</state>
+                    <description>MAINE</description>
+                    <state>MI</state>
+                    <description>MICHIGAN</description>
+                    <state>MO</state>
+                    <description>MISSOURI</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NM</state>
+                    <description>NEW MEXICO</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                    <state>NC</state>
+                    <description>NORTH CAROLINA</description>
+                    <state>ND</state>
+                    <description>NORTH DAKOTA</description>
+                    <state>OH</state>
+                    <description>OHIO</description>
+                    <state>PA</state>
+                    <description>PENNSYLVANIA</description>
+                    <state>SC</state>
+                    <description>SOUTH CAROLINA</description>
+                    <state>TX</state>
+                    <description>TEXAS</description>
+                    <state>UT</state>
+                    <description>UTAH</description>
+                    <state>VA</state>
+                    <description>VIRGINIA</description>
+                    <state>WI</state>
+                    <description>WISCONSIN</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>29583000</totalOfferingAmount>
+            <totalAmountSold>900000</totalAmountSold>
+            <totalRemaining>28683000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>true</hasNonAccreditedInvestors>
+            <numberNonAccreditedInvestors>0</numberNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>1</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>14791500</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>BV Design Multifamily DST</issuerName>
+                <signatureName>Sharla Langston</signatureName>
+                <nameOfSigner>Sharla Langstton</nameOfSigner>
+                <signatureTitle>Attorney-in-fact</signatureTitle>
+                <signatureDate>2022-05-19</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

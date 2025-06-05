@@ -1,0 +1,207 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0704</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001496539</cik>
+        <entityName>Platinum Energy Partners 2007 A LP</entityName>
+        <issuerAddress>
+            <street1>2350 NORTH FOREST ROAD</street1>
+            <city>GETZVILLE</city>
+            <stateOrCountry>NY</stateOrCountry>
+            <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+            <zipCode>14068</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>716-636-0401</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2007</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <issuerList>
+        <issuer>
+            <cik>0001496538</cik>
+            <entityName>Platinum Energy Partners 2007 B LP</entityName>
+            <issuerAddress>
+                <street1>2350 NORTH FOREST ROAD</street1>
+                <city>GETZVILLE</city>
+                <stateOrCountry>NY</stateOrCountry>
+                <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                <zipCode>14068</zipCode>
+            </issuerAddress>
+            <issuerPhoneNumber>716-636-0401</issuerPhoneNumber>
+            <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+            <issuerPreviousNameList>
+                <value>None</value>
+            </issuerPreviousNameList>
+            <edgarPreviousNameList>
+                <value>None</value>
+            </edgarPreviousNameList>
+            <entityType>Limited Partnership</entityType>
+            <yearOfInc>
+                <withinFiveYears>true</withinFiveYears>
+                <value>2007</value>
+            </yearOfInc>
+        </issuer>
+    </issuerList>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>U.S. Energy</firstName>
+                <lastName>Development Corporation</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>2350 North Forest Road</street1>
+                <city>Getzville</city>
+                <stateOrCountry>NY</stateOrCountry>
+                <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                <zipCode>14068</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Managing General Partner</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Joseph</firstName>
+                <middleName>M.</middleName>
+                <lastName>Jayson</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>2350 North Forest Road</street1>
+                <city>Getzville</city>
+                <stateOrCountry>NY</stateOrCountry>
+                <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                <zipCode>14068</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Officer &amp; Director of Managing General Partner</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Douglas</firstName>
+                <middleName>K.</middleName>
+                <lastName>Walch</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>2350 North Forest Road</street1>
+                <city>Getzville</city>
+                <stateOrCountry>NY</stateOrCountry>
+                <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                <zipCode>14068</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Officer of Managing General Partner</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Oil and Gas</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>No Revenues</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2007-09-24</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isOtherType>true</isOtherType>
+            <descriptionOfOtherType>Limited Partnership Interest</descriptionOfOtherType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>5000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Judith Jayson</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>Westmoreland Capital Corporation</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>2350 North Forest Road</street1>
+                    <city>Getzville</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>14068</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>25000000</totalOfferingAmount>
+            <totalAmountSold>1135000</totalAmountSold>
+            <totalRemaining>23865000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>19</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>1375000</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse>Sales commissions are paid by Managing General Partner</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>true</authorizedRepresentative>
+            <signature>
+                <issuerName>Platinum Energy Partners 2007 A LP</issuerName>
+                <signatureName>/s/ Douglas K. Walch</signatureName>
+                <nameOfSigner>Douglas K. Walch</nameOfSigner>
+                <signatureTitle>President of Managing General Partner</signatureTitle>
+                <signatureDate>2010-07-14</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

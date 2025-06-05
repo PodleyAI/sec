@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { IExecuteConfig, IWorkflow, pipe, Task } from "@podley/task-graph";
+import { IExecuteContext, IWorkflow, pipe, Task } from "@podley/task-graph";
 import { TObject, Type } from "@sinclair/typebox";
 import { query_all, query_run } from "../../util/db";
 import { parseDate } from "../../util/parseDate";
@@ -38,7 +38,7 @@ export class UpdateAllCompanyFactsTask extends Task<
 
   async execute(
     input: UpdateAllCompanyFactsTaskInput,
-    config: IExecuteConfig
+    context: IExecuteContext
   ): Promise<UpdateAllCompanyFactsTaskOutput> {
     const needsUpating = query_all(`
       SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update 
@@ -62,7 +62,7 @@ export class UpdateAllCompanyFactsTask extends Task<
     const totalCount = needsUpatingCount + needsProcessingCount;
 
     if (needsUpatingCount) {
-      const wf = config.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
+      const wf = context.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
       for (let i = 0; i < needsUpatingCount; i++) {
         const result = needsUpating[i];
         try {
@@ -79,7 +79,7 @@ export class UpdateAllCompanyFactsTask extends Task<
           );
         }
         await sleep(0);
-        config.updateProgress(
+        context.updateProgress(
           Math.ceil((i / totalCount) * 100),
           `Processed ${i} of ${totalCount} company facts (updating)`
         );
@@ -92,7 +92,7 @@ export class UpdateAllCompanyFactsTask extends Task<
       const workflows: IWorkflow<any, any>[] = [];
       for (let i = 0; i < workflowsNumber; i++) {
         workflows.push(
-          config.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]))
+          context.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]))
         );
       }
       for (let i = 0; i < needsProcessing.length; i += BATCH_SIZE) {
@@ -108,7 +108,7 @@ export class UpdateAllCompanyFactsTask extends Task<
         }
         await Promise.all(promises);
         await sleep(0);
-        config.updateProgress(
+        context.updateProgress(
           Math.ceil(((i + needsUpatingCount) / totalCount) * 100),
           `Processed ${i + needsUpatingCount} of ${totalCount} company facts (initial processing)`
         );

@@ -17,14 +17,12 @@ export interface PhoneImport {
  * Cleans and normalizes a phone import object
  */
 export function normalizePhone(importPhone: PhoneImport | null): Phone | undefined {
-  if (!importPhone || !importPhone.phone_raw) return undefined;
+  if (!importPhone) return undefined;
+  const phone_raw = importPhone.phone_raw.trim();
+  if (!phone_raw) return undefined;
+  if (phone_raw == "(000) 000-0000") return undefined;
 
   try {
-    // Parse the phone number with awesome-phonenumber
-    // Default to US region if no country code is detected
-
-    // TODO: Guess country code
-
     const countryCode = importPhone.country_code || "US";
     const phoneNumber = parsePhoneNumber(importPhone.phone_raw, {
       regionCode: countryCode,
@@ -48,7 +46,6 @@ export function normalizePhone(importPhone: PhoneImport | null): Phone | undefin
 
     return phone;
   } catch (error) {
-    // If parsing fails, return undefined
     return undefined;
   }
 }

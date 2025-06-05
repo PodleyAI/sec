@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns="http://www.sec.gov/edgar/formc"
+  xmlns:ns1="http://www.sec.gov/edgar/common"
+  xmlns:ns2="http://www.sec.gov/edgar/statecodes" targetNamespace="http://www.sec.gov/edgar/formc" elementFormDefault="qualified" attributeFormDefault="unqualified">
+  <xs:import namespace="http://www.sec.gov/edgar/common" schemaLocation="eis_Common.xsd"/>
+  <xs:import namespace="http://www.sec.gov/edgar/statecodes" schemaLocation="eis_stateCodes.xsd"/>
+  <xs:simpleType name="SUBMISSION_TYPE">
+    <xs:annotation>
+      <xs:documentation>Enumerated values and descriptions: C: Offering Statement, C-W: Offering Statement
+                Withdrawal, C-U: Progress Update, C-U-W: Progress Update Withdrawal, C/A: Amendment to Offering
+                Statement, C/A-W: Amendment to Offering Statement Withdrawal, C-AR: Annual Report, C-AR-W: Annual Report
+                Withdrawal, C-AR/A: Amendment to Annual Report, C-AR/A-W: Amendment to Annual Report Withdrawal, C-TR:
+                Termination of Reporting, C-TR-W: Termination of Reporting Withdrawal
+      </xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="C"/>
+      <xs:enumeration value="C-W"/>
+      <xs:enumeration value="C-U"/>
+      <xs:enumeration value="C-U-W"/>
+      <xs:enumeration value="C/A"/>
+      <xs:enumeration value="C/A-W"/>
+      <xs:enumeration value="C-AR"/>
+      <xs:enumeration value="C-AR-W"/>
+      <xs:enumeration value="C-AR/A"/>
+      <xs:enumeration value="C-AR/A-W"/>
+      <xs:enumeration value="C-TR"/>
+      <xs:enumeration value="C-TR-W"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="LEGAL_STATUS_FORM_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Corporation"/>
+      <xs:enumeration value="Limited Partnership"/>
+      <xs:enumeration value="Limited Liability Company"/>
+      <xs:enumeration value="General Partnership"/>
+      <xs:enumeration value="Business Trust"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="SECURITY_OFFERED_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Common Stock"/>
+      <xs:enumeration value="Preferred Stock"/>
+      <xs:enumeration value="Debt"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="OVER_SUBSCRIPTION_ALLOCATION_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="Pro-rata basis"/>
+      <xs:enumeration value="First-come, first-served basis"/>
+      <xs:enumeration value="Other"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="COISSUER_FILER_TYPE">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="EdgarFiler"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="FILER_CREDENTIALS_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the FILER_CREDENTIALS_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="filerCik" type="ns1:CIK_TYPE"/>
+      <xs:element name="filerCcc" type="ns1:CCC_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="LEGAL_STATUS_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the LEGAL_STATUS_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="legalStatusForm" type="LEGAL_STATUS_FORM_TYPE" minOccurs="0"/>
+      <xs:element name="legalStatusOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="jurisdictionOrganization" type="ns1:US_STATE_CODES_AND_TERRITORIES" minOccurs="0"/>
+      <xs:element name="dateIncorporation" type="ns1:DATE_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FILER_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the FILER_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="filerCredentials" type="FILER_CREDENTIALS_TYPE"/>
+      <xs:element name="fileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FLAGS_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the FLAGS_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="confirmingCopyFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+      <xs:element name="returnCopyFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+      <xs:element name="overrideInternetFlag" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CONTACT_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CONTACT_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="contactName" type="ns1:NAME_TYPE"/>
+      <xs:element name="contactPhone" type="ns1:PHONE_TYPE"/>
+      <xs:element name="contactEmail" type="ns1:INTERNET_ADDRESS_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="NOTIFICATIONS_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the NOTIFICATIONS_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="notificationEmail" type="ns1:INTERNET_ADDRESS_TYPE" minOccurs="0" maxOccurs="3"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ISSUER_INFO_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the ISSUER_INFO_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="nameOfIssuer" type="ns1:NAME_TYPE_150"/>
+      <xs:element name="legalStatus" type="LEGAL_STATUS_TYPE" minOccurs="0"/>
+      <xs:element name="issuerAddress" type="ns1:ADDRESS_TYPE" minOccurs="0"/>
+      <xs:element name="issuerWebsite" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ISSUER_SIGNATURE_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the ISSUER_SIGNATURE_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="issuer" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="issuerSignature" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="issuerTitle" type="ns1:STRING_256_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SIGNATURE_PERSON_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the SIGNATURE_PERSON_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="personSignature" type="ns1:STRING_150_TYPE"/>
+      <xs:element name="personTitle" type="ns1:STRING_256_TYPE"/>
+      <xs:element name="signatureDate" type="ns1:DATE_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ISSUER_INFORMATION_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the ISSUER_INFORMATION_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="isAmendment" type="ns1:TRUE_FALSE_TYPE" minOccurs="0"/>
+      <xs:element name="progressUpdate" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="natureOfAmendment" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="issuerInfo" type="ISSUER_INFO_TYPE"/>
+      <xs:element name="isCoIssuer" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="coIssuers" type="CO_ISSUERS_INFO_TYPE" minOccurs="0"/>
+      <xs:element name="companyName" type="ns1:STRING_150_TYPE" minOccurs="0"/>
+      <xs:element name="commissionCik" type="ns1:CIK_TYPE" minOccurs="0"/>
+      <xs:element name="commissionFileNumber" type="ns1:FILE_NUMBER_TYPE" minOccurs="0"/>
+      <xs:element name="crdNumber" type="ns1:CRD_NUMBER_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FILER_INFO_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the FILER_INFO_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="filer" type="FILER_TYPE"/>
+      <xs:element name="period" type="ns1:DATE_TYPE" minOccurs="0"/>
+      <xs:element name="liveTestFlag" type="ns1:LIVE_TEST_TYPE"/>
+      <xs:element name="flags" type="FLAGS_TYPE"/>
+      <xs:element name="contact" type="CONTACT_TYPE" minOccurs="0"/>
+      <xs:element name="notifications" type="NOTIFICATIONS_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OFFERING_INFORMATION_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the OFFERING_INFORMATION_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="compensationAmount" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="financialInterest" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="securityOfferedType" type="SECURITY_OFFERED_TYPE" minOccurs="0"/>
+      <xs:element name="securityOfferedOtherDesc" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="noOfSecurityOffered" type="ns1:INTEGER_TYPE_10" minOccurs="0"/>
+      <xs:element name="price" type="ns1:DECIMAL_TYPE7_5_FIXED" minOccurs="0"/>
+      <xs:element name="priceDeterminationMethod" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="offeringAmount" type="ns1:DECIMAL_TYPE7_2_FIXED" minOccurs="0"/>
+      <xs:element name="overSubscriptionAccepted" type="ns1:YES_NO_TYPE" minOccurs="0"/>
+      <xs:element name="overSubscriptionAllocationType" type="OVER_SUBSCRIPTION_ALLOCATION_TYPE" minOccurs="0"/>
+      <xs:element name="descOverSubscription" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+      <xs:element name="maximumOfferingAmount" type="ns1:DECIMAL_TYPE7_2_FIXED" minOccurs="0"/>
+      <xs:element name="deadlineDate" type="ns1:DATE_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ANNUAL_REPORT_DISCLOSURE_REQUIREMENTS_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the ANNUAL_REPORT_DISCLOSURE_REQUIREMENTS_TYPE group
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="currentEmployees" type="ns1:DECIMAL_TYPE7_2_NONNEGATIVE" minOccurs="0"/>
+      <xs:element name="totalAssetMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="totalAssetPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="cashEquiMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="cashEquiPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="actReceivedMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="actReceivedPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="shortTermDebtMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="shortTermDebtPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="longTermDebtMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="longTermDebtPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="revenueMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="revenuePriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="costGoodsSoldMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="costGoodsSoldPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="taxPaidMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="taxPaidPriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="netIncomeMostRecentFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="netIncomePriorFiscalYear" type="ns1:DECIMAL_TYPE14_2_FIXED" minOccurs="0"/>
+      <xs:element name="issueJurisdictionSecuritiesOffering" type="ns2:STATE_COUNTRY_CODE" minOccurs="0" maxOccurs="64"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SIGNATURE_INFO_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the SIGNATURE_INFO_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="issuerSignature" type="ISSUER_SIGNATURE_TYPE"/>
+      <xs:element name="signaturePersons" type="SIGNATURE_PERSONS_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SIGNATURE_PERSONS_TYPE">
+    <xs:sequence>
+      <xs:element name="signaturePerson" type="SIGNATURE_PERSON_TYPE" maxOccurs="15"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="HEADER_DATA">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the HEADER_DATA_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="submissionType" type="SUBMISSION_TYPE"/>
+      <xs:element name="filerInfo" type="FILER_INFO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CO_ISSUERS_INFO_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CO_ISSUERS_INFO_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="coIssuerInfo" type="CO_ISSUER_INFO_TYPE" minOccurs="0" maxOccurs="50"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CO_ISSUER_INFO_TYPE">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the CO_ISSUER_INFORMATION_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="isEdgarFiler" type="COISSUER_FILER_TYPE" minOccurs="0"/>
+      <xs:element name="coIssuerCik" type="ns1:CIK_TYPE" minOccurs="0"/>
+      <xs:element name="nameOfCoIssuer" type="ns1:NAME_TYPE_150" minOccurs="0"/>
+      <xs:element name="coIssuerLegalStatus" type="LEGAL_STATUS_TYPE" minOccurs="0"/>
+      <xs:element name="coIssuerAddress" type="ns1:ADDRESS_TYPE" minOccurs="0"/>
+      <xs:element name="coIssuerWebsite" type="ns1:STRING_256_TYPE" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FORM_DATA">
+    <xs:annotation>
+      <xs:documentation>These elements are part of the FORM_DATA_TYPE group</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="issuerInformation" type="ISSUER_INFORMATION_TYPE"/>
+      <xs:element name="offeringInformation" type="OFFERING_INFORMATION_TYPE" minOccurs="0"/>
+      <xs:element name="annualReportDisclosureRequirements" type="ANNUAL_REPORT_DISCLOSURE_REQUIREMENTS_TYPE" minOccurs="0"/>
+      <xs:element name="signatureInfo" type="SIGNATURE_INFO_TYPE"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="edgarSubmission">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="schemaVersion" type="ns1:SCHEMA_VERSION_TYPE" minOccurs="0"/>
+        <xs:element name="headerData" type="HEADER_DATA"/>
+        <xs:element name="formData" type="FORM_DATA"/>
+        <xs:element name="documents" type="ns1:EDGAR_DOCUMENTS_TYPE" minOccurs="0" maxOccurs="1"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

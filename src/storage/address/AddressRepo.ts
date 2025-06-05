@@ -5,39 +5,15 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@podley/storage";
-import { createServiceToken, globalServiceRegistry } from "@podley/util";
-import { Static } from "@sinclair/typebox";
+import { globalServiceRegistry } from "@podley/util";
 import { AddressImport, normalizeAddress } from "./AddressNormalization";
-import { AddressesEntityJunctionSchema, AddressSchema } from "./AddressSchema";
-
-/**
- * Address schema
- */
-export type Address = Static<typeof AddressSchema>;
-export const AddressPrimaryKeyNames = ["address_hash_id"] as const;
-export type AddressRepositoryStorage = TabularRepository<
-  typeof AddressSchema,
-  typeof AddressPrimaryKeyNames
->;
-
-/**
- * Address junction schema
- */
-export const AddressJunctionPrimaryKeyNames = ["address_hash_id", "relation_name", "cik"] as const;
-export type AddressJunctionRepositoryStorage = TabularRepository<
-  typeof AddressesEntityJunctionSchema,
-  typeof AddressJunctionPrimaryKeyNames
->;
-
-/**
- * Dependency injection tokens for repositories
- */
-export const ADDRESS_REPOSITORY_TOKEN = createServiceToken<AddressRepositoryStorage>(
-  "sec.storage.addressRepository"
-);
-export const ADDRESS_JUNCTION_REPOSITORY_TOKEN =
-  createServiceToken<AddressJunctionRepositoryStorage>("sec.storage.addressJunctionRepository");
+import {
+  Address,
+  ADDRESS_JUNCTION_REPOSITORY_TOKEN,
+  ADDRESS_REPOSITORY_TOKEN,
+  AddressJunctionRepositoryStorage,
+  AddressRepositoryStorage,
+} from "./AddressSchema";
 
 // Options for the AddressRepo
 interface AddressRepoOptions {
@@ -65,19 +41,22 @@ export class AddressRepo implements AddressRepoOptions {
     return this.addressRepository.get({ address_hash_id });
   }
 
-  async saveAddress(address: AddressImport, relation_name: string, cik: number) {
+  async saveAddress(address: AddressImport) {
     const normalizedAddress = normalizeAddress(address);
     if (!normalizedAddress) {
-      throw new Error("Unable to clean and normalize the provided address");
+      throw new Error(
+        `Unable to clean and normalize the provided address ${JSON.stringify(address)}`
+      );
     }
     await this.addressRepository.put(normalizedAddress);
-    if (relation_name && cik) {
-      this.addressJunctionRepository.put({
-        address_hash_id: normalizedAddress.address_hash_id,
-        relation_name,
-        cik,
-      });
-    }
     return normalizedAddress;
+  }
+
+  async saveRelatedEntity(address_hash_id: string, relation_name: string, cik: number) {
+    this.addressJunctionRepository.put({
+      address_hash_id,
+      relation_name,
+      cik,
+    });
   }
 }
