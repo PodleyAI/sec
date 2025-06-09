@@ -21,7 +21,7 @@
     "@podley/cli": "0.0.7",
     "@podley/job-queue": "0.0.7",
     "@podley/sqlite": "0.0.7",
-    "@podley/storage": "0.0.7",
+    "@podley/storage": "0.0.10",
     "@podley/task-graph": "0.0.7",
     "@podley/tasks": "0.0.7",
     "@podley/util": "0.0.7",
