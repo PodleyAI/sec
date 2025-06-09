@@ -24,7 +24,7 @@
     "@podley/storage": "0.0.7",
     "@podley/task-graph": "0.0.7",
     "@podley/tasks": "0.0.7",
-    "@podley/util": "0.0.7",
+    "@podley/util": "0.0.10",
     "@sinclair/typebox": "^0.34.33",
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
