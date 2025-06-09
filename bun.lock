@@ -10,7 +10,7 @@
         "@podley/storage": "0.0.7",
         "@podley/task-graph": "0.0.7",
         "@podley/tasks": "0.0.7",
-        "@podley/util": "0.0.7",
+        "@podley/util": "0.0.10",
         "@sinclair/typebox": "^0.34.33",
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
@@ -113,7 +113,7 @@
 
     "@podley/test": ["@podley/test@0.0.7", "", { "dependencies": { "@podley/ai": "0.0.7", "@podley/ai-provider": "0.0.7", "@podley/job-queue": "0.0.7", "@podley/sqlite": "0.0.7", "@podley/storage": "0.0.7", "@podley/task-graph": "0.0.7", "@podley/tasks": "0.0.7", "@podley/util": "0.0.7" }, "peerDependencies": { "@electric-sql/pglite": "^0.2.17" } }, "sha512-PG1kN38iT1/amHRjyGo8q8czk4jm7QL18NJgX5QGjCt79zRZGTRdA6Fy5s32jvxy33AsCARh+WGki6yinztJQg=="],
 
-    "@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+    "@podley/util": ["@podley/util@0.0.10", "", {}, "sha512-Si9TXzdV6WjeTRXCNyNGdT0VTgBg1rFH+GpZYZLdU3fkvwWImku+9E8rKgLf0kkkYprvl+LHayoOC2muhsGi1Q=="],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 
@@ -538,6 +538,22 @@
     "yargs-parser": ["yargs-parser@21.1.1", "", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
 
     "yoga-layout": ["yoga-layout@3.2.1", "", {}, "sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ=="],
+
+    "@podley/ai/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/ai-provider/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/cli/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/job-queue/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/storage/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/task-graph/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/tasks/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
+
+    "@podley/test/@podley/util": ["@podley/util@0.0.7", "", {}, "sha512-hTa0Um/g8Y/RCeu49SNNGHEPmDQPV1+BY2L9cK+HyuJ2eMDzbYGZWPFt/C8isdYaL30TPR6/cG9GFkH8/rqQ3w=="],
 
     "cli-truncate/slice-ansi": ["slice-ansi@5.0.0", "", { "dependencies": { "ansi-styles": "^6.0.0", "is-fullwidth-code-point": "^4.0.0" } }, "sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ=="],
 
