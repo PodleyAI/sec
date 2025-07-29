@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001839539</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2020</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Special Financial Report for the fiscal year</formIndication>
+      <fiscalYearEnd>12-31-2020</fiscalYearEnd>
+      <street1>497 BROOME STREET</street1>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10013</zipCode>
+      <phoneNumber>203-518-5172</phoneNumber>
+      <issuedSecuritiesTitle>Class A ordinary shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Masterworks 038, LLC</issuerName>
+      <cik>0001839539</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-4355660</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001944416</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>true</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Apsy Inc</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <legalStatusOtherDesc/>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>07-28-2020</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>8871 Burton Way</com:street1>
+          <com:city>West Hollywood</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>90048</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.apsy.io</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>Y</isCoIssuer>
+      <coIssuers>
+        <coIssuerInfo>
+          <nameOfCoIssuer>Apsy.io I, a series of Wefunder SPV, LLC</nameOfCoIssuer>
+          <coIssuerLegalStatus>
+            <legalStatusForm>Limited Liability Company</legalStatusForm>
+            <legalStatusOtherDesc/>
+            <jurisdictionOrganization>DE</jurisdictionOrganization>
+            <dateIncorporation>09-20-2022</dateIncorporation>
+          </coIssuerLegalStatus>
+          <coIssuerAddress>
+            <com:street1>4104 24TH ST</com:street1>
+            <com:street2>PMB 8113</com:street2>
+            <com:city>San Francisco</com:city>
+            <com:stateOrCountry>CA</com:stateOrCountry>
+            <com:zipCode>94114</com:zipCode>
+          </coIssuerAddress>
+          <coIssuerWebsite>https://wefunder.com/</coIssuerWebsite>
+        </coIssuerInfo>
+        <coIssuerInfo>
+          <nameOfCoIssuer>Apsy.io I EB, a series of Wefunder SPV, LLC</nameOfCoIssuer>
+          <coIssuerLegalStatus>
+            <legalStatusForm>Limited Liability Company</legalStatusForm>
+            <legalStatusOtherDesc/>
+            <jurisdictionOrganization>DE</jurisdictionOrganization>
+            <dateIncorporation>09-20-2022</dateIncorporation>
+          </coIssuerLegalStatus>
+          <coIssuerAddress>
+            <com:street1>4104 24TH ST</com:street1>
+            <com:street2>PMB 8113</com:street2>
+            <com:city>San Francisco</com:city>
+            <com:stateOrCountry>CA</com:stateOrCountry>
+            <com:zipCode>94114</com:zipCode>
+          </coIssuerAddress>
+          <coIssuerWebsite>https://wefunder.com/</coIssuerWebsite>
+        </coIssuerInfo>
+      </coIssuers>
+      <companyName>Wefunder Portal LLC</companyName>
+      <commissionCik>0001670254</commissionCik>
+      <commissionFileNumber>007-00033</commissionFileNumber>
+      <crdNumber>283503</crdNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>6.5% of the offering amount upon a successful fundraise, and be entitled to reimbursement for out-of-pocket third party expenses it pays or incurs on behalf of the Issuer in connection with the offering.</compensationAmount>
+      <financialInterest>No</financialInterest>
+      <securityOfferedType>Other</securityOfferedType>
+      <securityOfferedOtherDesc>Simple Agreement for Future Equity (SAFE)</securityOfferedOtherDesc>
+      <noOfSecurityOffered>50000</noOfSecurityOffered>
+      <price>1.00000</price>
+      <priceDeterminationMethod>Pro-rated portion of the total principal value of $50,000; interests will be sold in increments of $1; each investment is convertible to one share of stock as described under Item 13.</priceDeterminationMethod>
+      <offeringAmount>50000.00</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>As determined by the issuer</descOverSubscription>
+      <maximumOfferingAmount>1000000.00</maximumOfferingAmount>
+      <deadlineDate>04-30-2023</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>4</currentEmployees>
+      <totalAssetMostRecentFiscalYear>36580.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>837.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>19439.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>837.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>16735.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>0.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>91237.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>9522.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>0.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>101736.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>1068.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>89770.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>9522.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-56346.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-8685.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>B5</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GU</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>1V</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Apsy Inc</issuer>
+        <issuerSignature>Tooraj Helmi</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Tooraj Helmi</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>09-19-2022</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

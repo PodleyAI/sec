@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001843165</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>LQR House Inc.</issuerName>
+      <street1>2699 Stirling Road</street1>
+      <street2>Suite A-105</street2>
+      <city>Fort Lauderdale</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33312</zipCode>
+      <phone>507-734-7991</phone>
+      <commissionFileNumber>024-11787</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>03-07-2022</offeringQualificationDate>
+      <offeringCommenceDate>03-07-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>16000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>n/a</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>Dalmore Group LLC</salesCommissionsSpName>
+      <salesCommissionsFee>20000.00</salesCommissionsFee>
+      <findersSpName>n/a</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>dbbmckennon</auditorSpName>
+      <auditorFees>10000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>65000.00</legalFees>
+      <promoterSpName>n/a</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>Various</blueSkySpName>
+      <blueSkyFees>12000.00</blueSkyFees>
+      <crdNumberBrokerDealer>136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11787</certificationFileNumber>
+      <approxRecordHolders>78</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001843165</cik>
+      <regulationIssuerName1>LQR House Inc.</regulationIssuerName1>
+      <regulationIssuerName2>LQR House Inc.</regulationIssuerName2>
+      <signatureBy>Angela Kattoula</signatureBy>
+      <date>06-27-2022</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

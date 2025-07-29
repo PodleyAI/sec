@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001836735</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>550 Reserve St.</street1>
+      <street2>Suite 190</street2>
+      <city>Southlake</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>76092</zipCode>
+      <phoneNumber>469-694-2707</phoneNumber>
+      <issuedSecuritiesTitle>Class A Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>VictoryBase Corporation</issuerName>
+      <cik>0001836735</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-3850063</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11748</commissionFileNumber>
+      <offeringQualificationDate>03-09-2022</offeringQualificationDate>
+      <offeringCommenceDate>03-09-2022</offeringCommenceDate>
+      <qualifiedSecuritiesSold>7500000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>170</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>1700.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <auditorSpName>Assurance Dimensions</auditorSpName>
+      <auditorFees>8000.00</auditorFees>
+      <legalSpName>Cantey Hangar</legalSpName>
+      <legalFees>72317.50</legalFees>
+      <promoterSpName>IR Labs</promoterSpName>
+      <promotersFees>57860.25</promotersFees>
+      <blueSkySpName>Entoro Capital, Two12</blueSkySpName>
+      <blueSkyFees>22865.00</blueSkyFees>
+      <issuerNetProceeds>1700.00</issuerNetProceeds>
+      <clarificationResponses>As of Feb 26, 2024, VictoryBase Corporation abandoned its Regulation A Tier 2 offering, with no immediate plans to re-file. As of April 19, 2024, the company redeemed 170 Class A shares for $1700, closing out all outstanding shares from this offering.</clarificationResponses>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

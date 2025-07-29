@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001904054</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Birgo Reiturn Fund LLC</issuerName>
+      <street1>848 West North Avenue</street1>
+      <city>Pittsburgh</city>
+      <stateOrCountry>PA</stateOrCountry>
+      <zipCode>15233</zipCode>
+      <phone>412-567-1324</phone>
+      <commissionFileNumber>024-11783</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>09-26-2022</offeringQualificationDate>
+      <offeringCommenceDate>09-27-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>75000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>100.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Units of Membership Interest</securitiesClassTitle>
+      <certificationFileNumber>024-11783</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001904054</cik>
+      <regulationIssuerName1>Birgo Reiturn Fund LLC</regulationIssuerName1>
+      <regulationIssuerName2>Birgo Reiturn Fund LLC</regulationIssuerName2>
+      <signatureBy>/s/ Andrew Reichert</signatureBy>
+      <date>10-17-2023</date>
+      <title>Birgo Reiturn Fund Manager LLC, its manager</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

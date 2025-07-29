@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001876769</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Here Collection LLC</issuerName>
+      <street1>124 Washington Street</street1>
+      <street2>Suite 101</street2>
+      <city>Foxoro</city>
+      <stateOrCountry>MA</stateOrCountry>
+      <zipCode>02035</zipCode>
+      <phone>508-543-1720</phone>
+      <commissionFileNumber>024-12096</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-24-2023</offeringQualificationDate>
+      <offeringCommenceDate>01-24-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>688000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>BF Borgers CPA PC</auditorSpName>
+      <auditorFees>6480.00</auditorFees>
+      <legalSpName>Goodwin Procter LLP</legalSpName>
+      <legalFees>70000.00</legalFees>
+      <blueSkySpName>State filing fees</blueSkySpName>
+      <blueSkyFees>13000.00</blueSkyFees>
+      <crdNumberBrokerDealer>136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+      <clarificationResponses>Part I information relates to the most recent qualified offering statement.</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Series #1 Interests, Series #2 Interests, Series #3 Interests, Series #4 Interests, Series #6 Interests, Series #7 Interests, Series #8 Interests, Series #9 Interests, Series #11 Interests, Series #13 Interests, Series #16 Interests, Series #17 Interests</securitiesClassTitle>
+      <certificationFileNumber>024-12096</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001876769</cik>
+      <regulationIssuerName1>Here Collection LLC</regulationIssuerName1>
+      <regulationIssuerName2>Here Collection LLC</regulationIssuerName2>
+      <signatureBy>/s/ Craig Jalbert</signatureBy>
+      <date>04-28-2025</date>
+      <title>Director and President</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

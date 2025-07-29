@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001874009</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Masterworks 070, LLC</issuerName>
+      <street1>225 Liberty Street</street1>
+      <street2>29th Floor</street2>
+      <city>New York</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10281</zipCode>
+      <phone>203-518-5172</phone>
+      <commissionFileNumber>024-11604</commissionFileNumber>
+    </item1>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Ordinary Shares</securitiesClassTitle>
+      <certificationFileNumber>024-11604</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001874009</cik>
+      <regulationIssuerName1>Masterworks 070, LLC</regulationIssuerName1>
+      <regulationIssuerName2>Masterworks 070, LLC</regulationIssuerName2>
+      <signatureBy>/s/ Josh Goldestein</signatureBy>
+      <date>12-30-2022</date>
+      <title>General Counsel, Secretary and Member of the Board of Managers</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

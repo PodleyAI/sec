@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001892858</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Herdwhistle Technologies Inc.</issuerName>
+      <street1>130 - 3510 29 Street Northeast</street1>
+      <city>Calgary</city>
+      <stateOrCountry>A0</stateOrCountry>
+      <zipCode>T1Y 7E5</zipCode>
+      <phone>587-774-5888</phone>
+      <commissionFileNumber>024-11716</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-14-2022</offeringQualificationDate>
+      <offeringCommenceDate>01-17-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>2500000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>8.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>N/A</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>Dalmore Group, LLC</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersSpName>N/A</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Kenway Mack Slusarchuk Stewart LLP</auditorSpName>
+      <auditorFees>3770.54</auditorFees>
+      <legalSpName>Smith Eilers, PLLC</legalSpName>
+      <legalFees>30000.00</legalFees>
+      <promoterSpName>N/A</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>N/A</blueSkySpName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <crdNumberBrokerDealer>136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+      <clarificationResponses>N/A</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Shares</securitiesClassTitle>
+      <certificationFileNumber>024-11716</certificationFileNumber>
+      <approxRecordHolders>1</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001892858</cik>
+      <regulationIssuerName1>HerdWhistle Technologies Inc.</regulationIssuerName1>
+      <regulationIssuerName2>HerdWhistle Technologies Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Adam Morand</signatureBy>
+      <date>03-24-2022</date>
+      <title>Director</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

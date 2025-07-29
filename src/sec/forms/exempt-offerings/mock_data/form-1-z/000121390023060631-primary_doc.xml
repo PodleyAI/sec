@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001879323</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>RADAR USA, INC.</issuerName>
+      <street1>448 W Market Street, Suite 203</street1>
+      <city>San Diego</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92101</zipCode>
+      <phone>609-472-0877</phone>
+      <commissionFileNumber>024-11870</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>07-07-2022</offeringQualificationDate>
+      <offeringCommenceDate>07-08-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>20000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>175500</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>175500.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>Entoro Securities, LLC</underwrittenSpName>
+      <underwriterFees>10530.00</underwriterFees>
+      <auditorSpName>DALE MATHESON CARR-HILTON LABONTE LLP</auditorSpName>
+      <auditorFees>50000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>60000.00</legalFees>
+      <crdNumberBrokerDealer>35192</crdNumberBrokerDealer>
+      <issuerNetProceeds>54970.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Non-Voting Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11870</certificationFileNumber>
+      <approxRecordHolders>89</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001879323</cik>
+      <regulationIssuerName1>RADAR USA, INC.</regulationIssuerName1>
+      <regulationIssuerName2>RADAR USA, INC.</regulationIssuerName2>
+      <signatureBy>/s/ Frederick S. Shaw</signatureBy>
+      <date>07-28-2023</date>
+      <title>Chief Financial Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

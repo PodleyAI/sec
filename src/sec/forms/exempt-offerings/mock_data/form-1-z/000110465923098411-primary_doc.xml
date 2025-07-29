@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001838860</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Balanced Pharma Inc</issuerName>
+      <street1>18204 Mainsail Pointe</street1>
+      <city>CORNELIUS</city>
+      <stateOrCountry>NC</stateOrCountry>
+      <zipCode>28031</zipCode>
+      <phone>704-278-7054</phone>
+      <commissionFileNumber>024-11834</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>04-08-2022</offeringQualificationDate>
+      <offeringCommenceDate>04-08-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>6250000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>271760</offeringSecuritiesSold>
+      <pricePerSecurity>4.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>1087040.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <salesCommissionsSpName>Dalmore Group LLC</salesCommissionsSpName>
+      <salesCommissionsFee>35075.68</salesCommissionsFee>
+      <auditorSpName>Artesian CPA, LLC</auditorSpName>
+      <auditorFees>27000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>60000.00</legalFees>
+      <blueSkySpName>Various</blueSkySpName>
+      <blueSkyFees>12000.00</blueSkyFees>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11834</certificationFileNumber>
+      <approxRecordHolders>187</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001838860</cik>
+      <regulationIssuerName1>Balanced Pharma Inc</regulationIssuerName1>
+      <regulationIssuerName2>Balanced Pharma Inc</regulationIssuerName2>
+      <signatureBy>/s/ J. Scott Keadle</signatureBy>
+      <date>09-05-2023</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

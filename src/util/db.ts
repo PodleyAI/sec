@@ -256,54 +256,6 @@ export function createDb() {
   query_run(`CREATE INDEX IF NOT EXISTS issuers_entities ON issuers(issuer_cik,cik)`);
 
   query_run(
-    `CREATE TABLE IF NOT EXISTS crowdfunding (
-      cik unsigned int not null,
-      file_number varchar(10) not null,
-      filing_date date not null,
-      name varchar(140) not null,
-      legal_status varchar(50) not null,
-      state_jurisdiction varchar(2) not null,
-      date_incorporation date not null,
-      url varchar(255) not null,
-      portal_cik unsigned int not null,
-      status char(20) not null,
-      primary key (cik,file_number)
-    )`
-  );
-
-  query_run(
-    `CREATE TABLE IF NOT EXISTS crowdfunding_offerings (
-      cik unsigned int not null,
-      file_number varchar(10) not null,
-      filing_date date not null,
-      compensation_amount_percent decimal(5,4),
-      financial_interest_percent decimal(5,4),
-      compensation_amount_detail text,
-      financial_interest_detail text,
-      security_offered_type text,
-      no_of_security_offered unsigned int,
-      price decimal(7,2),
-      price_determination_method text,
-      offering_amount decimal(7,2),
-      maximum_offering_amount decimal(7,2),
-      over_subscription_accepted char(3),
-      deadline_date date,
-      primary key (cik,file_number,filing_date)
-    )`
-  );
-
-  query_run(
-    `CREATE TABLE IF NOT EXISTS crowdfunding_reports (
-      cik unsigned int not null,
-      file_number varchar(10) not null,
-      filing_date date not null,
-      disclosure_name char(50),
-      disclosure_value decimal(14,2),
-      primary key (cik,file_number,filing_date,disclosure_name)
-    )`
-  );
-
-  query_run(
     `CREATE TABLE IF NOT EXISTS spacs (
       cik unsigned int not null primary key,
       name text,

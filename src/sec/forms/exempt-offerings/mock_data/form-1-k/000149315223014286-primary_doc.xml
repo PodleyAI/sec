@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001882020</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2022</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2022</fiscalYearEnd>
+      <street1>225 LIBERTY STREET</street1>
+      <street2>29TH FLOOR</street2>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10281</zipCode>
+      <phoneNumber>203-518-5172</phoneNumber>
+      <issuedSecuritiesTitle>Class A ordinary shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>MASTERWORKS 078, LLC</issuerName>
+      <cik>0001882020</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>87-2465121</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

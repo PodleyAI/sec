@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001836735</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2021</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Special Financial Report for the fiscal year</formIndication>
+      <fiscalYearEnd>12-31-2021</fiscalYearEnd>
+      <street1>PO Box 617</street1>
+      <city>Roanoke</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>76262</zipCode>
+      <phoneNumber>469-694-2707</phoneNumber>
+      <issuedSecuritiesTitle>Class A Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>VictoryBase Corporation</issuerName>
+      <cik>0001836735</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-3850063</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

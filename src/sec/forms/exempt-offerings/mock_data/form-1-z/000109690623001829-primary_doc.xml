@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877566</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Streamline USA, Inc.</issuerName>
+      <street1>11264 Playa Court,</street1>
+      <city>Culver City</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>90230</zipCode>
+      <phone>310-397-2300</phone>
+      <commissionFileNumber>024-11628</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>11-29-2021</offeringQualificationDate>
+      <offeringCommenceDate>02-18-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>75000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>2.5000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>Procyon Financial LLC</auditorSpName>
+      <auditorFees>14500.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>69875.00</legalFees>
+      <blueSkySpName>Agile Legal</blueSkySpName>
+      <blueSkyFees>15796.00</blueSkyFees>
+      <crdNumberBrokerDealer>0</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11628</certificationFileNumber>
+      <approxRecordHolders>9</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001877566</cik>
+      <regulationIssuerName1>Streamline USA, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Streamline USA, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Dapeng Ma</signatureBy>
+      <date>09-22-2023</date>
+      <title>Dapeng Ma, Board Charman</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

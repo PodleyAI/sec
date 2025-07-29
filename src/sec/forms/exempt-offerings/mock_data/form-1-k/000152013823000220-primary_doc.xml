@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001836735</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2022</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2022</fiscalYearEnd>
+      <street1>550 Reserve St, Suite 190</street1>
+      <city>Southlake</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>76092</zipCode>
+      <phoneNumber>469-694-2707</phoneNumber>
+      <issuedSecuritiesTitle>Class A Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>VictoryBase Corporation</issuerName>
+      <cik>0001836735</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-3850063</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

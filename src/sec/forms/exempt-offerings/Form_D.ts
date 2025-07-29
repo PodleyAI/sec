@@ -13,7 +13,10 @@ export class Form_D extends Form {
   static readonly description = "Notice of sales of unregistered securities";
   static readonly forms = ["D", "D/A"] as const;
 
-  static async parse(xml: string): Promise<FormD> {
+  static async parse(form: (typeof Form_D.forms)[number], xml: string): Promise<FormD> {
+    if (!Form_D.forms.includes(form)) {
+      throw new Error(`Invalid form: ${form}`);
+    }
     const parser = Form_D.getParser(FormDSubmissionSchema);
     const json = parser.parse(xml) as FormDSubmission;
     const rawFormD = json.edgarSubmission;

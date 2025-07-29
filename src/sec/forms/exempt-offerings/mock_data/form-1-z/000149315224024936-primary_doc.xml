@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001881767</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Spirits Capital Corporation</issuerName>
+      <street1>100 Bayview Circle</street1>
+      <street2>Suite 4100</street2>
+      <city>Newport Beach</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92660</zipCode>
+      <phone>949-674-0355</phone>
+      <commissionFileNumber>024-12312</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>11-30-2023</offeringQualificationDate>
+      <offeringCommenceDate>12-01-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>20000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>1.7500</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <salesCommissionsSpName>tZERO Securities, LLC</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <auditorSpName>Urish Popeck &amp; Co., LLC</auditorSpName>
+      <auditorFees>25000.00</auditorFees>
+      <legalSpName>Barton LLP</legalSpName>
+      <legalFees>75000.00</legalFees>
+      <blueSkySpName>Barton LLP</blueSkySpName>
+      <blueSkyFees>50000.00</blueSkyFees>
+      <crdNumberBrokerDealer>000304537</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+      <clarificationResponses>No sales made</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>common stock</securitiesClassTitle>
+      <certificationFileNumber>024-12312</certificationFileNumber>
+      <approxRecordHolders>151</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001881767</cik>
+      <regulationIssuerName1>Spirits Capital Corporation</regulationIssuerName1>
+      <regulationIssuerName2>Spirits Capital Corporation</regulationIssuerName2>
+      <signatureBy>Todd Sanders</signatureBy>
+      <date>06-24-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001874009</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2021</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2021</fiscalYearEnd>
+      <street1>225 LIBERTY STREET</street1>
+      <street2>29TH FLOOR</street2>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10281</zipCode>
+      <phoneNumber>203-518-5172</phoneNumber>
+      <issuedSecuritiesTitle>Class A ordinary shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Masterworks 070, LLC</issuerName>
+      <cik>0001874009</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>87-1461419</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11604</commissionFileNumber>
+      <offeringQualificationDate>09-17-2021</offeringQualificationDate>
+      <offeringCommenceDate>09-17-2021</offeringCommenceDate>
+      <qualifiedSecuritiesSold>122100</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>122100</offeringSecuritiesSold>
+      <pricePerSecurity>20.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>2442000.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <underwrittenSpName>Independent Brokerage Solutions LLC</underwrittenSpName>
+      <underwriterFees>26281.00</underwriterFees>
+      <salesCommissionsSpName>Independent Brokerage Solutions LLC</salesCommissionsSpName>
+      <salesCommissionsFee>73260.00</salesCommissionsFee>
+      <findersSpName>N/A</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>LGA, LLP</auditorSpName>
+      <auditorFees>5500.00</auditorFees>
+      <legalSpName>Anthony L.G., PLLC</legalSpName>
+      <legalFees>5000.00</legalFees>
+      <promoterSpName>N/A</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>Anthony L.G., PLLC</blueSkySpName>
+      <blueSkyFees>5000.00</blueSkyFees>
+      <crdNumberBrokerDealer>153563</crdNumberBrokerDealer>
+      <issuerNetProceeds>2442000.00</issuerNetProceeds>
+      <clarificationResponses>Estimated Net Proceeds Calculation (above) of $2,442,000 does not include any offering fees as all fees in connection with the offering are to be paid by Masterworks Administrative Services, LLC.</clarificationResponses>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

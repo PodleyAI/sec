@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001902930</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Performance Drink Group, Inc.</issuerName>
+      <street1>120 Pebble Trail</street1>
+      <city>Alpharetta</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30009</zipCode>
+      <phone>770-235-6053</phone>
+      <commissionFileNumber>024-11774</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-20-2022</offeringQualificationDate>
+      <offeringCommenceDate>01-21-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>1000000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>44687500</offeringSecuritiesSold>
+      <pricePerSecurity>0.0200</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>850000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Stout Law Group</legalSpName>
+      <legalFees>12500.00</legalFees>
+      <blueSkySpName>Various</blueSkySpName>
+      <blueSkyFees>2500.00</blueSkyFees>
+      <issuerNetProceeds>835000.00</issuerNetProceeds>
+      <clarificationResponses>Price per security: $675,000 at $0.02 and $175,000 at $0.016</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11774</certificationFileNumber>
+      <approxRecordHolders>560</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001902930</cik>
+      <regulationIssuerName1>Performance Drink Group, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Performance Drink Group, Inc.</regulationIssuerName2>
+      <signatureBy>Jeffrey M. Canouse</signatureBy>
+      <date>03-03-2023</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

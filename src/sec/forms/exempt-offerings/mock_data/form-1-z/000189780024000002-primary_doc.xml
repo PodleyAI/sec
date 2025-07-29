@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001897800</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Inland Mid-Continent Corp</issuerName>
+      <street1>2702 E 72ND ST</street1>
+      <city>TULSA</city>
+      <stateOrCountry>OK</stateOrCountry>
+      <zipCode>74136</zipCode>
+      <phone>9187797585</phone>
+      <commissionFileNumber>024-11837</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-28-2023</offeringQualificationDate>
+      <offeringCommenceDate>03-08-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>10000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11837</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001897800</cik>
+      <regulationIssuerName1>Inland Mid-Continent Corp</regulationIssuerName1>
+      <regulationIssuerName2>Inland Mid-Continent Corp</regulationIssuerName2>
+      <signatureBy>Jeff Leenerts</signatureBy>
+      <date>02-07-2024</date>
+      <title>President</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

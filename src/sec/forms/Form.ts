@@ -16,8 +16,8 @@ export abstract class Form {
   static readonly name: string;
   static readonly description: string;
   static readonly forms: readonly string[];
-  static async parse(xml: string): Promise<any> {
-    throw new Error("parse not implemented");
+  static async parse(form: string, xml: string): Promise<any> {
+    throw new Error(`Parsing not implemented for ${form}`);
   }
 
   private static _arrayPaths = new Map<string, string[]>();

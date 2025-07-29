@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns1:edgarSubmission xmlns:ns1="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <ns1:headerData>
+    <ns1:submissionType>1-K</ns1:submissionType>
+    <ns1:filerInfo>
+      <ns1:liveTestFlag>LIVE</ns1:liveTestFlag>
+      <ns1:filer>
+        <ns1:issuerCredentials>
+          <ns1:cik>0001865429</ns1:cik>
+          <ns1:ccc>XXXXXXXX</ns1:ccc>
+        </ns1:issuerCredentials>
+      </ns1:filer>
+      <ns1:flags>
+        <ns1:shellCompanyFlag>N</ns1:shellCompanyFlag>
+        <ns1:successorFilingFlag>N</ns1:successorFilingFlag>
+      </ns1:flags>
+      <ns1:reportingPeriod>12-31-2021</ns1:reportingPeriod>
+    </ns1:filerInfo>
+  </ns1:headerData>
+  <ns1:formData>
+    <ns1:item1>
+      <ns1:formIndication>Annual Report</ns1:formIndication>
+      <ns1:fiscalYearEnd>12-31-2021</ns1:fiscalYearEnd>
+      <ns1:street1>128 Broadview Avenue</ns1:street1>
+      <ns1:city>Warrenton</ns1:city>
+      <ns1:stateOrCountry>VA</ns1:stateOrCountry>
+      <ns1:zipCode>20186</ns1:zipCode>
+      <ns1:phoneNumber>540-359-7100</ns1:phoneNumber>
+      <ns1:issuedSecuritiesTitle>Common Stock</ns1:issuedSecuritiesTitle>
+    </ns1:item1>
+    <ns1:item1Info>
+      <ns1:issuerName>Oak View Bankshares, Inc.</ns1:issuerName>
+      <ns1:cik>0001865429</ns1:cik>
+      <ns1:jurisdictionOrganization>VA</ns1:jurisdictionOrganization>
+      <ns1:irsNum>87-0937245</ns1:irsNum>
+    </ns1:item1Info>
+    <ns1:item2>
+      <ns1:regArule257>false</ns1:regArule257>
+    </ns1:item2>
+    <ns1:summaryInfo>
+      <ns1:commissionFileNumber>024-11546</ns1:commissionFileNumber>
+      <ns1:offeringQualificationDate>06-24-2021</ns1:offeringQualificationDate>
+      <ns1:offeringCommenceDate>06-29-2021</ns1:offeringCommenceDate>
+      <ns1:qualifiedSecuritiesSold>2956157</ns1:qualifiedSecuritiesSold>
+      <ns1:offeringSecuritiesSold>2956157</ns1:offeringSecuritiesSold>
+      <ns1:pricePerSecurity>0.0000</ns1:pricePerSecurity>
+      <ns1:aggregrateOfferingPrice>0.00</ns1:aggregrateOfferingPrice>
+      <ns1:aggregrateOfferingPriceHolders>0.00</ns1:aggregrateOfferingPriceHolders>
+      <ns1:auditorSpName>Yount, Hyde &amp; Barbour, P.C.</ns1:auditorSpName>
+      <ns1:auditorFees>3500.00</ns1:auditorFees>
+      <ns1:legalSpName>Williams Mullen</ns1:legalSpName>
+      <ns1:legalFees>75000.00</ns1:legalFees>
+      <ns1:clarificationResponses>Shares of Oak View Bankshares, Inc. were issued to shareholders of Oak View National Bank in connection with a one-bank holding company reorganization.</ns1:clarificationResponses>
+    </ns1:summaryInfo>
+  </ns1:formData>
+</ns1:edgarSubmission>
