@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001876769</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>1000 BRICKELL AVENUE 10TH FLOOR</street1>
+      <street2>SUITE #715 PMB 363</street2>
+      <city>MIAMI</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33131</zipCode>
+      <phoneNumber>786-708-8097</phoneNumber>
+      <issuedSecuritiesTitle>Series 1, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 2, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 3, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 4, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 6, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 7, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 8, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 9, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 11, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 13, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 14, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 16, a series of Here Collection, LLC,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 17, a series of Here Collection, LLC.</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 18, a series of Here Collection LLC.</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Here Collection LLC</issuerName>
+      <cik>0001876769</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>87-1896999</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

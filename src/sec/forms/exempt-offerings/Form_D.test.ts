@@ -59,7 +59,7 @@ describe("Form_D comprehensive storage test", () => {
 
         try {
           // Parse the Form D
-          const formD = await Form_D.parse(xmlContent);
+          const formD = await Form_D.parse("D", xmlContent);
 
           // Extract metadata for storage
           const accessionNumber = file.replace("-primary_doc.xml", "");
@@ -130,7 +130,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000175724818000002";
       const cik = parseInt(formD.primaryIssuer.cik);
 
@@ -161,7 +161,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000192959422000001";
       const cik = parseInt(formD.primaryIssuer.cik);
 
@@ -199,7 +199,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000192959422000001";
       const cik = parseInt(formD.primaryIssuer.cik);
 
@@ -237,7 +237,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000192959422000001";
       const cik = parseInt(formD.primaryIssuer.cik);
 
@@ -286,7 +286,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000175724718000001";
       const cik = parseInt(formD.primaryIssuer.cik);
 
@@ -324,7 +324,7 @@ describe("Form_D comprehensive storage test", () => {
         "utf-8"
       );
 
-      const formD = await Form_D.parse(xmlContent);
+      const formD = await Form_D.parse("D", xmlContent);
       const accessionNumber = "000175724718000001";
       const cik = parseInt(formD.primaryIssuer.cik);
 

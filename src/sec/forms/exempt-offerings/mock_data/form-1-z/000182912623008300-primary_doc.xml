@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001832034</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>370 Markets LLC</issuerName>
+      <street1>8545 W Warm Springs Road</street1>
+      <street2>Ste A4 #192</street2>
+      <city>Las Vegas</city>
+      <stateOrCountry>NV</stateOrCountry>
+      <zipCode>89113</zipCode>
+      <phone>702-860-9650</phone>
+      <commissionFileNumber>024-11383</commissionFileNumber>
+    </item1>
+    <certificationSuspension>
+      <securitiesClassTitle>Various Classes of Series Interests</securitiesClassTitle>
+      <certificationFileNumber>024-11383</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001832034</cik>
+      <regulationIssuerName1>370 Markets LLC</regulationIssuerName1>
+      <regulationIssuerName2>370 Markets LLC</regulationIssuerName2>
+      <signatureBy>/s/ Gerome Daren Sapp</signatureBy>
+      <date>12-29-2023</date>
+      <title>Chief Executive Officer of 370 Legacy, Inc., its managing member</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

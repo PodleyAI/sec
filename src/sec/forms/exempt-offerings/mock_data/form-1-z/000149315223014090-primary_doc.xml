@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877934</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+    <coIssuerInfo>
+      <co-filer>
+        <coIssuerCredentials>
+          <cik>0001879249</cik>
+          <ccc>XXXXXXXX</ccc>
+        </coIssuerCredentials>
+        <fileNumber>24R-00592-01</fileNumber>
+      </co-filer>
+    </coIssuerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>286 Lenox Partners LLC</issuerName>
+      <street1>330 5th Avenue</street1>
+      <street2>Suite 802</street2>
+      <city>New York</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10001</zipCode>
+      <phone>646-685-8778</phone>
+      <commissionFileNumber>024-11632</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>10-26-2021</offeringQualificationDate>
+      <offeringCommenceDate>10-27-2021</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>2150000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>1783250</offeringSecuritiesSold>
+      <pricePerSecurity>250.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>NA</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>NA</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersSpName>NA</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>NA</auditorSpName>
+      <auditorFees>0.00</auditorFees>
+      <legalSpName>NA</legalSpName>
+      <legalFees>0.00</legalFees>
+      <promoterSpName>NA</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>NA</blueSkySpName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <issuerNetProceeds>1783250.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Units of Limited Liability Company Interest</securitiesClassTitle>
+      <certificationFileNumber>024-11632</certificationFileNumber>
+      <approxRecordHolders>245</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001877934</cik>
+      <regulationIssuerName1>286 Lenox Partners LLC</regulationIssuerName1>
+      <regulationIssuerName2>286 Lenox Partners LLC</regulationIssuerName2>
+      <signatureBy>/s/ Alexander Smith</signatureBy>
+      <date>04-28-2023</date>
+      <title>Manager</title>
+    </signatureTab>
+    <signatureTab>
+      <cik>0001879249</cik>
+      <regulationIssuerName1>Regal 286 Lenox, LLC</regulationIssuerName1>
+      <regulationIssuerName2>Regal 286 Lenox LLC</regulationIssuerName2>
+      <signatureBy>/s/ Alexander Smith</signatureBy>
+      <date>04-28-2023</date>
+      <title>Manager</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

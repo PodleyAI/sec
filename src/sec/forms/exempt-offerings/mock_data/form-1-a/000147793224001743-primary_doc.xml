@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns0="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0002008813</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Gem Industries Group, Inc.</issuerName>
+      <jurisdictionOrganization>OK</jurisdictionOrganization>
+      <yearIncorporation>2023</yearIncorporation>
+      <cik>0002008813</cik>
+      <sicCode>7011</sicCode>
+      <irsNum>93-3076263</irsNum>
+      <fullTimeEmployees>0</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>7394 McRavins Way</street1>
+      <city>Lexington</city>
+      <stateOrCountry>OK</stateOrCountry>
+      <zipCode>73051</zipCode>
+      <phoneNumber>405-955-4850</phoneNumber>
+      <connectionName>Dr. David Wise</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>800838.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>0.00</propertyPlantEquipment>
+      <totalAssets>800838.00</totalAssets>
+      <accountsPayable>0.00</accountsPayable>
+      <longTermDebt>0.00</longTermDebt>
+      <totalLiabilities>0.00</totalLiabilities>
+      <totalStockholderEquity>800838.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>800838.00</totalLiabilitiesAndEquity>
+      <totalRevenues>0.00</totalRevenues>
+      <costAndExpensesApplToRevenues>0.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>0.00</depreciationAndAmortization>
+      <netIncome>-379162.00</netIncome>
+      <earningsPerShareBasic>0.00</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.00</earningsPerShareDiluted>
+    </issuerInfo>
+    <commonEquity>
+      <outstandingCommonEquity>0</outstandingCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+      <certifyIfBadActor>false</certifyIfBadActor>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier1</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Unaudited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>10000000</securitiesOffered>
+      <outstandingSecurities>21000000</outstandingSecurities>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <issuerAggregateOffering>10000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>1180000.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>11180000.00</totalAggregateOffering>
+      <underwritersFees>0.00</underwritersFees>
+      <salesCommissionsServiceProviderFees>0.00</salesCommissionsServiceProviderFees>
+      <finderFeesFee>0.00</finderFeesFee>
+      <auditorFees>0.00</auditorFees>
+      <legalServiceProviderName>Various</legalServiceProviderName>
+      <legalFees>13000.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyServiceProviderName>Various States</blueSkyServiceProviderName>
+      <blueSkyFees>3000.00</blueSkyFees>
+      <estimatedNetAmount>9984000.00</estimatedNetAmount>
+      <clarificationResponses/>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <unregisteredSecurities>
+      <ifUnregsiteredNone>false</ifUnregsiteredNone>
+    </unregisteredSecurities>
+    <securitiesIssued>
+      <securitiesIssuerName>Gem Industries, Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>21000000</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$1,180,000 at $0.056 per share</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Exempt from registration under Section 4(2) of the Securities Act , as Amended, and the Rules promulgated thereunder.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

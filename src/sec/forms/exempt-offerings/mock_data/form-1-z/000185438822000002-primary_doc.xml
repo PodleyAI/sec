@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001854388</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Solar Intermodal Corp</issuerName>
+      <street1>101 Eisenhower Parkway, Ste. 300</street1>
+      <city>Roseland</city>
+      <stateOrCountry>NJ</stateOrCountry>
+      <zipCode>07068</zipCode>
+      <phone>2015195501</phone>
+      <commissionFileNumber>024-11560</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-23-2021</offeringQualificationDate>
+      <offeringCommenceDate>08-25-2021</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>5000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>41500</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>41500.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <issuerNetProceeds>40631.77</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11560</certificationFileNumber>
+      <approxRecordHolders>1</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001854388</cik>
+      <regulationIssuerName1>Solar Intermodal Corp</regulationIssuerName1>
+      <regulationIssuerName2>Solar Intermodal Corp</regulationIssuerName2>
+      <signatureBy>Robert Anderson</signatureBy>
+      <date>08-03-2022</date>
+      <title>DIRECTOR, CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

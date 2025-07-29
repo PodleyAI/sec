@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001832034</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2022</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2022</fiscalYearEnd>
+      <street1>2800 PATTERSON AVE</street1>
+      <city>RICHMOND</city>
+      <stateOrCountry>VA</stateOrCountry>
+      <zipCode>23221</zipCode>
+      <phoneNumber>702-860-9650</phoneNumber>
+      <issuedSecuritiesTitle>Series Holy Grail Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Silicon Valley Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Legacy Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Speedboat Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series The Goats Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series North Carolina Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Born and BRED Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Mamba Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Grammy Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Hova Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Kobe AJ Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series OG AF1 Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 85 Boxed Jordan Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 85 AJ Colors Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 85 Chicago B-Grade Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Off-White The Ten Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series OVO Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Air Yeezy 2 Collection Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series UNDFTD AJ4 Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Nipsey AJ3 Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Usher Gold Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Eminem AJ 4 Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Dr J Pack Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series DJ AM Collection Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Music Box AF1 Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series SB Mummy Dunk Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series SB Strawberry Cough Shares</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series Dark Marina Blue Jordan 1 release Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>370 Markets LLC</issuerName>
+      <cik>0001832034</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-1961217</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

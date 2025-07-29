@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877235</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2021</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Special Financial Report for the fiscal year</formIndication>
+      <fiscalYearEnd>12-31-2021</fiscalYearEnd>
+      <street1>9628 WEST STATE STREET</street1>
+      <city>STAR</city>
+      <stateOrCountry>ID</stateOrCountry>
+      <zipCode>83669</zipCode>
+      <phoneNumber>208-494-3115</phoneNumber>
+      <issuedSecuritiesTitle>Class B Non-Voting Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Diversified Opportunity, Inc.</issuerName>
+      <cik>0001877235</cik>
+      <jurisdictionOrganization>ID</jurisdictionOrganization>
+      <irsNum>85-1738909</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11725</commissionFileNumber>
+      <offeringQualificationDate>03-09-2022</offeringQualificationDate>
+      <offeringCommenceDate>03-09-2022</offeringCommenceDate>
+      <qualifiedSecuritiesSold>75000000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <aggregrateOfferingPrice>0.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

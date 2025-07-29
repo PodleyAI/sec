@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877566</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2022</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2022</fiscalYearEnd>
+      <street1>11264 PLAYA COURT</street1>
+      <city>CULVER CITY</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>90230</zipCode>
+      <phoneNumber>310-397-2300</phoneNumber>
+      <issuedSecuritiesTitle>Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Streamline USA, Inc.</issuerName>
+      <cik>0001877566</cik>
+      <jurisdictionOrganization>WY</jurisdictionOrganization>
+      <irsNum>87-1984205</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

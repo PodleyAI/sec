@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001908252</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>StartEngine Collectibles Fund II LLC</issuerName>
+      <street1>3900 W. Alameda Ave.</street1>
+      <street2>Suite 1200</street2>
+      <city>BURBANK</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>91505</zipCode>
+      <phone>949-415-8730</phone>
+      <commissionFileNumber>024-11793</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-24-2022</offeringQualificationDate>
+      <offeringCommenceDate>02-24-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>6416</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>BF Borgers</auditorSpName>
+      <auditorFees>5000.00</auditorFees>
+      <legalSpName>CrowdCheck</legalSpName>
+      <legalFees>25000.00</legalFees>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>None</securitiesClassTitle>
+      <certificationFileNumber>024-11793</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001908252</cik>
+      <regulationIssuerName1>StartEngine Collectibles Fund II LLC</regulationIssuerName1>
+      <regulationIssuerName2>StartEngine Collectibles Fund II LLC</regulationIssuerName2>
+      <signatureBy>/s/ Johanna Cronin</signatureBy>
+      <date>07-27-2022</date>
+      <title>Manager of StartEngine Assets LLC, its Manager</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001872325</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2021</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2021</fiscalYearEnd>
+      <street1>14555 DALLAS PARKWAY SUITE 100-298</street1>
+      <city>DALLAS</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>75254</zipCode>
+      <phoneNumber>2142267113</phoneNumber>
+      <issuedSecuritiesTitle>Membership Interests</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>COMMON DWELLING FUND, LLC</issuerName>
+      <cik>0001872325</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>86-2520968</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11583</commissionFileNumber>
+      <offeringQualificationDate>08-08-2021</offeringQualificationDate>
+      <offeringCommenceDate>08-08-2021</offeringCommenceDate>
+      <qualifiedSecuritiesSold>75000000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>69020</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>69020.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <auditorSpName>Haynie &amp; Company</auditorSpName>
+      <auditorFees>6600.00</auditorFees>
+      <legalSpName>JDT Legal</legalSpName>
+      <legalSpName>PLLC</legalSpName>
+      <legalFees>10000.00</legalFees>
+      <issuerNetProceeds>52420.00</issuerNetProceeds>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

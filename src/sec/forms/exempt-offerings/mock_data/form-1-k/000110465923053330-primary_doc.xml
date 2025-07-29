@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001838860</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2022</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2022</fiscalYearEnd>
+      <street1>18204 Mainsail Pointe</street1>
+      <city>Cornelius</city>
+      <stateOrCountry>NC</stateOrCountry>
+      <zipCode>28031</zipCode>
+      <phoneNumber>704-278-7054</phoneNumber>
+      <issuedSecuritiesTitle>Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Balanced Pharma Inc</issuerName>
+      <cik>0001838860</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-2855195</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11834</commissionFileNumber>
+      <offeringQualificationDate>04-08-2022</offeringQualificationDate>
+      <offeringCommenceDate>04-08-2022</offeringCommenceDate>
+      <qualifiedSecuritiesSold>6250000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>268011</offeringSecuritiesSold>
+      <pricePerSecurity>4.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>1072044.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <underwrittenSpName>Dalmore Group LLC</underwrittenSpName>
+      <underwriterFees>35075.68</underwriterFees>
+      <auditorSpName>Artesian CPA, LLC</auditorSpName>
+      <auditorFees>27000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>60000.00</legalFees>
+      <blueSkySpName>Various</blueSkySpName>
+      <blueSkyFees>12000.00</blueSkyFees>
+      <crdNumberBrokerDealer>136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>937968.32</issuerNetProceeds>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

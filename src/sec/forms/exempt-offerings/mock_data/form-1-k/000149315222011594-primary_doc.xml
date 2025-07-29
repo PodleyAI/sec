@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877934</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2021</reportingPeriod>
+    </filerInfo>
+    <coIssuerInfo>
+      <co-filer>
+        <coIssuerCredentials>
+          <cik>0001879249</cik>
+          <ccc>XXXXXXXX</ccc>
+        </coIssuerCredentials>
+      </co-filer>
+    </coIssuerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2021</fiscalYearEnd>
+      <street1>330 5th Avenue</street1>
+      <street2>Suite 802</street2>
+      <city>New York</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10001</zipCode>
+      <phoneNumber>646-685-8778</phoneNumber>
+      <issuedSecuritiesTitle>Units of LLC Interest</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>286 Lenox Partners LLC</issuerName>
+      <cik>0001877934</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>87-1060100</irsNum>
+    </item1Info>
+    <item1Info>
+      <issuerName>Regal 286 Lenox LLC</issuerName>
+      <cik>0001879249</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>84-3468296</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11632</commissionFileNumber>
+      <offeringQualificationDate>10-26-2021</offeringQualificationDate>
+      <offeringCommenceDate>10-27-2021</offeringCommenceDate>
+      <qualifiedSecuritiesSold>2150000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>1783250</offeringSecuritiesSold>
+      <pricePerSecurity>250.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>0.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <issuerNetProceeds>1783250.00</issuerNetProceeds>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

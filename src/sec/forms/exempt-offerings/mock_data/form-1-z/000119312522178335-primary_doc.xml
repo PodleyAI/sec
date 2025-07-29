@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns1:edgarSubmission xmlns:ns1="http://www.sec.gov/edgar/rega/onezfiler">
+  <ns1:headerData>
+    <ns1:submissionType>1-Z</ns1:submissionType>
+    <ns1:filerInfo>
+      <ns1:liveTestFlag>LIVE</ns1:liveTestFlag>
+      <ns1:filer>
+        <ns1:issuerCredentials>
+          <ns1:cik>0001865429</ns1:cik>
+          <ns1:ccc>XXXXXXXX</ns1:ccc>
+        </ns1:issuerCredentials>
+      </ns1:filer>
+      <ns1:flags>
+        <ns1:successorFilingFlag>N</ns1:successorFilingFlag>
+      </ns1:flags>
+    </ns1:filerInfo>
+  </ns1:headerData>
+  <ns1:formData>
+    <ns1:item1>
+      <ns1:issuerName>Oak View Bankshares, Inc.</ns1:issuerName>
+      <ns1:street1>128 Broadview Avenue</ns1:street1>
+      <ns1:city>Warrenton</ns1:city>
+      <ns1:stateOrCountry>VA</ns1:stateOrCountry>
+      <ns1:zipCode>20186</ns1:zipCode>
+      <ns1:phone>540-359-7100</ns1:phone>
+      <ns1:commissionFileNumber>024-11546</ns1:commissionFileNumber>
+    </ns1:item1>
+    <ns1:summaryInfoOffering/>
+    <ns1:certificationSuspension>
+      <ns1:securitiesClassTitle>Common Stock</ns1:securitiesClassTitle>
+      <ns1:certificationFileNumber>024-11546</ns1:certificationFileNumber>
+      <ns1:approxRecordHolders>328</ns1:approxRecordHolders>
+    </ns1:certificationSuspension>
+    <ns1:signatureTab>
+      <ns1:cik>0001865429</ns1:cik>
+      <ns1:regulationIssuerName1>Oak View Bankshares, Inc.</ns1:regulationIssuerName1>
+      <ns1:regulationIssuerName2>Oak View Bankshares, Inc.</ns1:regulationIssuerName2>
+      <ns1:signatureBy>Tammy P. Frazier</ns1:signatureBy>
+      <ns1:date>06-22-2022</ns1:date>
+      <ns1:title>Chief Financial Officer</ns1:title>
+    </ns1:signatureTab>
+  </ns1:formData>
+</ns1:edgarSubmission>

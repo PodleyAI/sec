@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001844222</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>StartEngine Real Estate REIT 1 LLC</issuerName>
+      <street1>3900 W ALAMEDA AVE., SUITE 1200</street1>
+      <city>BURBANK</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>91505</zipCode>
+      <phone>1-800-317-2200</phone>
+      <commissionFileNumber>024-11465</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>07-14-2021</offeringQualificationDate>
+      <offeringCommenceDate>07-15-2021</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>7500000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>None</securitiesClassTitle>
+      <certificationFileNumber>024-11465</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001844222</cik>
+      <regulationIssuerName1>StartEngine Real Estate REIT 1 LLC</regulationIssuerName1>
+      <regulationIssuerName2>StartEngine Real Estate REIT 1 LLC</regulationIssuerName2>
+      <signatureBy>Leon Benrimon</signatureBy>
+      <date>03-11-2022</date>
+      <title>Manager of StartEngine Assets LLC, its Manager</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

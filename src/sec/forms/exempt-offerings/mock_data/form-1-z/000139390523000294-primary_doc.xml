@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001902930</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Performance Drink Group, Inc.</issuerName>
+      <street1>120 Pebble Trail</street1>
+      <city>Alpharetta</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30009</zipCode>
+      <phone>770-235-6053</phone>
+      <commissionFileNumber>024-12182</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>03-24-2023</offeringQualificationDate>
+      <offeringCommenceDate>03-24-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>500000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>0.0030</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12182</certificationFileNumber>
+      <approxRecordHolders>560</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001902930</cik>
+      <regulationIssuerName1>Performance Drink Group, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Performance Drink Group, Inc.</regulationIssuerName2>
+      <signatureBy>Jeffrey M. Canouse</signatureBy>
+      <date>07-30-2023</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

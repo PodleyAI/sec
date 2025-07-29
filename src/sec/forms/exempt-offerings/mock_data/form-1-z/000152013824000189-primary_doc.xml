@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001836735</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Victorybase Corporation</issuerName>
+      <street1>550 Reserve St.</street1>
+      <street2>Ste. 190</street2>
+      <city>Southlake</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>76092</zipCode>
+      <phone>469-694-2707</phone>
+      <commissionFileNumber>024-11748</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>03-09-2022</offeringQualificationDate>
+      <offeringCommenceDate>03-09-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>7500000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>170</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>1700.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>Assurance Dimensions</auditorSpName>
+      <auditorFees>8000.00</auditorFees>
+      <legalSpName>Cantey Hangar</legalSpName>
+      <legalFees>72317.50</legalFees>
+      <promoterSpName>IR Labs</promoterSpName>
+      <promotersFees>57860.25</promotersFees>
+      <blueSkySpName>Entoro Capital, Two12</blueSkySpName>
+      <blueSkyFees>22865.00</blueSkyFees>
+      <issuerNetProceeds>1700.00</issuerNetProceeds>
+      <clarificationResponses>As of Feb 26, 2024, VictoryBase Corporation abandoned its Regulation A Tier 2 offering, with no immediate plans to re-file. As of April 19, 2024, the company redeemed 170 Class A shares for $1700, closing out all outstanding shares from this offering.</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11748</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001836735</cik>
+      <regulationIssuerName1>VictoryBase Corporation</regulationIssuerName1>
+      <regulationIssuerName2>VictoryBase Corporation</regulationIssuerName2>
+      <signatureBy>/s/ Thomas Paquin</signatureBy>
+      <date>04-30-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

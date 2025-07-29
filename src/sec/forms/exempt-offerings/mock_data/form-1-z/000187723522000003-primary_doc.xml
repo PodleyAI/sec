@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001877235</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Diversified Opportunity, Inc.</issuerName>
+      <street1>9628 West State Street</street1>
+      <city>Star</city>
+      <stateOrCountry>ID</stateOrCountry>
+      <zipCode>83669</zipCode>
+      <phone>208-494-3115</phone>
+      <commissionFileNumber>024-11725</commissionFileNumber>
+    </item1>
+    <certificationSuspension>
+      <securitiesClassTitle>Class B Non-voting Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11725</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001877235</cik>
+      <regulationIssuerName1>Diversified Opportunity, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Diversified Opportunity, Inc.</regulationIssuerName2>
+      <signatureBy>Karl Pedersen</signatureBy>
+      <date>09-27-2022</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>
