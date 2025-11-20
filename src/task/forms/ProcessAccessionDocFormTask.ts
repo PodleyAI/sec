@@ -94,7 +94,7 @@ export class ProcessAccessionDocFormTask extends Task<
         const { text } = input;
         const formCls = ALL_FORMS_MAP.get(form!);
         if (!formCls) throw new TaskError("Form not found");
-        const result = await formCls.parse(text!);
+        const result = await formCls.parse(form!, text!);
         return { result };
       },
       async function storeProcessedFiling() {
