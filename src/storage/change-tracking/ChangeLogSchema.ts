@@ -6,8 +6,9 @@
 //    *******************************************************************************
 
 import { TabularRepository } from "@podley/storage";
-import { createServiceToken, TypeNullable } from "@podley/util";
+import { createServiceToken } from "@podley/util";
 import { Static, Type } from "@sinclair/typebox";
+import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
  * Change Log schema - unified tracking of all changes across the system
@@ -91,7 +92,8 @@ export type ChangeLog = Static<typeof ChangeLogSchema>;
 export const ChangeLogPrimaryKeyNames = ["change_id"] as const;
 export type ChangeLogRepositoryStorage = TabularRepository<
   typeof ChangeLogSchema,
-  typeof ChangeLogPrimaryKeyNames
+  typeof ChangeLogPrimaryKeyNames,
+  ChangeLog
 >;
 
 /**

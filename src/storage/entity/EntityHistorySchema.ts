@@ -6,7 +6,8 @@
 //    *******************************************************************************
 
 import { TabularRepository } from "@podley/storage";
-import { createServiceToken, TypeNullable } from "@podley/util";
+import { createServiceToken } from "@podley/util";
+import { TypeNullable } from "../../util/TypeBoxUtil";
 import { Static, Type } from "@sinclair/typebox";
 
 /**
@@ -82,7 +83,8 @@ export type EntityHistory = Static<typeof EntityHistorySchema>;
 export const EntityHistoryPrimaryKeyNames = ["cik", "valid_from"] as const;
 export type EntityHistoryRepositoryStorage = TabularRepository<
   typeof EntityHistorySchema,
-  typeof EntityHistoryPrimaryKeyNames
+  typeof EntityHistoryPrimaryKeyNames,
+  EntityHistory
 >;
 
 /**

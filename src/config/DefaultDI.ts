@@ -9,6 +9,7 @@ import { globalServiceRegistry } from "@workglow/util";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
+  AddressesEntityJunction,
   AddressesEntityJunctionSchema,
   AddressJunctionPrimaryKeyNames,
   AddressPrimaryKeyNames,
@@ -85,6 +86,7 @@ import {
   PersonPreviousNamesSchema,
   PersonPrimaryKeyNames,
   PersonsAddressJunctionSchema,
+  Person,
   PersonSchema,
   PersonsEntityJunctionSchema,
 } from "../storage/person/PersonSchema";
@@ -107,6 +109,7 @@ import {
   CrowdfundingReportsSchema,
   CrowdfundingSchema,
 } from "../storage/portal/CrowdfundingSchema";
+import { Address } from "../storage/address/AddressSchema";
 import {
   PORTAL_REPOSITORY_TOKEN,
   PortalPrimaryKeyNames,
@@ -118,13 +121,21 @@ export const DefaultDI = () => {
   // ------------------------------ Addresses --------------------------------
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "addresses", AddressSchema, AddressPrimaryKeyNames, [
-      "city",
-    ])
+    new SqliteTabularRepository<typeof AddressSchema, typeof AddressPrimaryKeyNames, Address>(
+      getDb(),
+      "addresses",
+      AddressSchema,
+      AddressPrimaryKeyNames,
+      ["city"]
+    )
   );
   globalServiceRegistry.registerInstance(
     ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularRepository<
+      typeof AddressesEntityJunctionSchema,
+      typeof AddressJunctionPrimaryKeyNames,
+      AddressesEntityJunction
+    >(
       getDb(),
       "addresses_entity_junction",
       AddressesEntityJunctionSchema,
@@ -135,9 +146,13 @@ export const DefaultDI = () => {
   // ------------------------------ Persons --------------------------------
   globalServiceRegistry.registerInstance(
     PERSON_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "persons", PersonSchema, PersonPrimaryKeyNames, [
-      ["last", "first"],
-    ])
+    new SqliteTabularRepository<typeof PersonSchema, typeof PersonPrimaryKeyNames, Person>(
+      getDb(),
+      "persons",
+      PersonSchema,
+      PersonPrimaryKeyNames,
+      [["last", "first"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
