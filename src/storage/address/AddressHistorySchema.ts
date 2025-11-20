@@ -6,7 +6,8 @@
 //    *******************************************************************************
 
 import { TabularRepository } from "@podley/storage";
-import { createServiceToken, TypeNullable } from "@podley/util";
+import { createServiceToken } from "@podley/util";
+import { TypeNullable } from "../../util/TypeBoxUtil";
 import { Static, Type } from "@sinclair/typebox";
 
 /**
@@ -54,7 +55,8 @@ export const AddressHistoryJunctionPrimaryKeyNames = [
 ] as const;
 export type AddressHistoryJunctionRepositoryStorage = TabularRepository<
   typeof AddressesEntityHistoryJunctionSchema,
-  typeof AddressHistoryJunctionPrimaryKeyNames
+  typeof AddressHistoryJunctionPrimaryKeyNames,
+  AddressesEntityHistoryJunction
 >;
 
 export const ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN =
