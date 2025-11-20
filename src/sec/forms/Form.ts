@@ -42,5 +42,5 @@ export abstract class Form {
 }
 
 export type FormConstructor = typeof Form & {
-  parse(input: string): Promise<any>;
+  parse(form: string, xml: string): Promise<any>;
 };
