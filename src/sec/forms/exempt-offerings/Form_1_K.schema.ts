@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { Type, Static } from "@sinclair/typebox";
+import { Type, Static } from "typebox";
 import {
   TRUE_FALSE_LIST,
   STRING_150_TYPE,

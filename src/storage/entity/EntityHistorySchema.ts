@@ -8,7 +8,7 @@
 import { TabularRepository } from "@podley/storage";
 import { createServiceToken } from "@podley/util";
 import { TypeNullable } from "../../util/TypeBoxUtil";
-import { Static, Type } from "@sinclair/typebox";
+import { Static, Type } from "typebox";
 
 /**
  * Entity History schema - tracks changes to entity attributes over time

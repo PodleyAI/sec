@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { Static, Type } from "@sinclair/typebox";
+import { Static, Type } from "typebox";
 import { STATE_COUNTRY_CODE } from "../../../storage/address/AddressSchema";
 import {
   CIK_TYPE,
