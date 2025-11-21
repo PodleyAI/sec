@@ -6,7 +6,7 @@
 //    *******************************************************************************
 
 import { describe, expect, it } from "bun:test";
-import { Value } from "@sinclair/typebox/value";
+import Value from "typebox/value";
 import { ChangeLogSchema, type ChangeLog } from "./ChangeLogSchema";
 
 describe("ChangeLogSchema", () => {

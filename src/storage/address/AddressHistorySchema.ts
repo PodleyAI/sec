@@ -8,7 +8,7 @@
 import { TabularRepository } from "@podley/storage";
 import { createServiceToken } from "@podley/util";
 import { TypeNullable } from "../../util/TypeBoxUtil";
-import { Static, Type } from "@sinclair/typebox";
+import { Static, Type } from "typebox";
 
 /**
  * Address Entity History Junction schema - tracks temporal relationships between addresses and entities

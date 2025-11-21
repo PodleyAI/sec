@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Value } from "@sinclair/typebox/value";
+import Value from "typebox/value";
 import { Form } from "../Form";
 import { Form1A, Form1ASchema, Form1ASubmission, Form1ASubmissionSchema } from "./Form_1_A.schema";
 
