@@ -8,7 +8,6 @@ RUN su - node -c "curl -fsSL https://bun.sh/install | bash"
 ENV BUN_INSTALL="/home/node/.bun" 
 ENV PATH="$BUN_INSTALL/bin:$PATH" 
 
-RUN /home/node/.bun/bin/bunx playwright install-deps
 
 # Set zsh as default shell for the existing non-root user (node in this image)
 ARG USERNAME=node

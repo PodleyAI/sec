@@ -22,29 +22,12 @@
   "remoteUser": "node",
 
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
+    "ghcr.io/devcontainers/features/git:1": {
+      "lfs": true
+    }
   },
-  "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-    "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind"
-  ],
   "postCreateCommand": "sudo chmod 666 /var/run/docker-host.sock && sudo usermod -aG docker node || true",
   "runArgs": ["--add-host=host.docker.internal:host-gateway"],
 
-  "remoteEnv": {
-    "DATABASE_URL": "postgres://postgres:postgres@host.docker.internal:54422/postgres",
-    "SUPABASE_URL": "http://host.docker.internal:54421",
-    "DOCKER_HOST": "unix:///var/run/docker-host.sock"
-  },
-  "postAttachCommand": "bash -c 'if [ -z \"$(git config --global user.name)\" ]; then read -p \"Enter your git name: \" git_name && git config --global user.name \"$git_name\" || true; fi; if [ -z \"$(git config --global user.email)\" ]; then read -p \"Enter your git email: \" git_email && git config --global user.email \"$git_email\" || true; fi'",
-  "portsAttributes": {
-    "5173": { "label": "Vite Application" },
-    "6006": { "label": "Storybook" },
-    "54421": { "label": "API" },
-    "54422": { "label": "Postgres Database" },
-    "54423": { "label": "Supabase Studio" },
-    "54424": { "label": "Email Testing" }
-  }
+  "postAttachCommand": "bash -c 'if [ -z \"$(git config --global user.name)\" ]; then read -p \"Enter your git name: \" git_name && git config --global user.name \"$git_name\" || true; fi; if [ -z \"$(git config --global user.email)\" ]; then read -p \"Enter your git email: \" git_email && git config --global user.email \"$git_email\" || true; fi'"
 }
