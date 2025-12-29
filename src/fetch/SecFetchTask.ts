@@ -5,7 +5,7 @@
  */
 
 import { JobQueueTaskConfig, TaskOutput } from "@workglow/task-graph";
-import { FetchTask, FetchTaskInput, FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTask, FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
 import { Job, JobConstructorParam } from "@workglow/job-queue";
 import { SecJobQueueName, SecUserAgent } from "../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
@@ -14,11 +14,11 @@ import { SecFetchJob } from "./SecFetchJob";
  * SEC-specific fetch task
  */
 export class SecFetchTask<
-  Input extends FetchTaskInput = FetchTaskInput,
-  Output extends TaskOutput = FetchTaskOutput,
+  Input extends FetchUrlTaskInput = FetchUrlTaskInput,
+  Output extends TaskOutput = FetchUrlTaskOutput,
   Config extends JobQueueTaskConfig = JobQueueTaskConfig
-> extends FetchTask<Input, Output, Config> {
-  constructor(input: FetchTaskInput = {} as FetchTaskInput, config: Config = {} as Config) {
+> extends FetchUrlTask<Input, Output, Config> {
+  constructor(input: FetchUrlTaskInput = {} as FetchUrlTaskInput, config: Config = {} as Config) {
     config.queue = SecJobQueueName;
     input.queue = SecJobQueueName;
 

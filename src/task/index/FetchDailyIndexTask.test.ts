@@ -8,9 +8,9 @@ import { getTaskQueueRegistry, setTaskQueueRegistry } from "@workglow/task-graph
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 import { TaskFailedError } from "@workglow/task-graph";
-import { FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskOutput } from "@workglow/tasks";
 import { JobQueue } from "@workglow/job-queue";
-import { FetchTaskInput } from "@workglow/tasks";
+import { FetchUrlTaskInput } from "@workglow/tasks";
 import { SecFetchJob } from "../../fetch/SecFetchJob";
 import { SecJobQueueName } from "../../config/Constants";
 import { InMemoryQueueStorage } from "@workglow/storage";
@@ -92,11 +92,15 @@ describe("FetchDailyIndexTask", () => {
   beforeAll(() => {
     (global as any).fetch = mockFetch;
     getTaskQueueRegistry().registerQueue(
-      new JobQueue<FetchTaskInput, FetchTaskOutput, SecFetchJob>(SecJobQueueName, SecFetchJob, {
-        storage: new InMemoryQueueStorage(SecJobQueueName),
-        limiter: new InMemoryRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
-        waitDurationInMilliseconds: 1,
-      })
+      new JobQueue<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(
+        SecJobQueueName,
+        SecFetchJob,
+        {
+          storage: new InMemoryQueueStorage(SecJobQueueName),
+          limiter: new InMemoryRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
+          waitDurationInMilliseconds: 1,
+        }
+      )
     );
     getTaskQueueRegistry().startQueues();
   });

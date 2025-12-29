@@ -7,23 +7,47 @@
 import {
   CompositeLimiter,
   EvenlySpacedRateLimiter,
-  InMemoryRateLimiter,
-  JobQueue,
+  JobQueueServer,
+  JobQueueClient,
+  RateLimiter,
 } from "@workglow/job-queue";
-import { InMemoryQueueStorage } from "@workglow/storage";
-import { FetchTaskInput, FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
+import { InMemoryQueueStorage, InMemoryRateLimiterStorage } from "@workglow/storage";
+
 import { SecJobQueueName } from "../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 
-export const SecJobQueue = new JobQueue<FetchTaskInput, FetchTaskOutput, SecFetchJob>(
-  SecJobQueueName,
-  SecFetchJob,
-  {
-    storage: new InMemoryQueueStorage(SecJobQueueName),
-    limiter: new CompositeLimiter([
-      new InMemoryRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
-      new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
-    ]),
-    waitDurationInMilliseconds: 1,
-  }
+// Create storage for the rate limiter
+const rateLimiterStorage = new InMemoryRateLimiterStorage();
+const limiter = new RateLimiter(rateLimiterStorage, SecJobQueueName, {
+  maxExecutions: 10,
+  windowSizeInSeconds: 1,
+  initialBackoffDelay: 1000,
+  backoffMultiplier: 2,
+  maxBackoffDelay: 60000,
+});
+
+export const SecJobQueueStorage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
+  SecJobQueueName
 );
+
+export const SecJobQueueServer = new JobQueueServer<
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  SecFetchJob
+>(SecFetchJob, {
+  queueName: SecJobQueueName,
+  storage: SecJobQueueStorage,
+  limiter: new CompositeLimiter([
+    limiter,
+    new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
+  ]),
+  pollIntervalMs: 1,
+});
+
+export const SecJobQueueClient = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
+  storage: SecJobQueueStorage,
+  queueName: SecJobQueueName,
+});
+
+SecJobQueueClient.attach(SecJobQueueServer);

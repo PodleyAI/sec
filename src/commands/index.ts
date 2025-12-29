@@ -13,7 +13,7 @@ import { CompanySubmissions } from "./Submissions";
 import { AddDailyIndexCommands } from "./DailyIndex";
 import { SetupDB } from "./SetupDB";
 import { UpdateAllCompanyFacts } from "./UpdateAllCompanyFacts";
-import { SecJobQueue } from "../fetch/SecJobQueue";
+import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 import { getTaskQueueRegistry } from "@workglow/task-graph";
 import { UpdateAllSubmissions } from "./UpdateAllSubmissions";
 import { Form } from "./Form";
@@ -24,8 +24,14 @@ import { UpdateAllForms } from "./UpdateAllForms";
 export const AddCommands = (program: Command) => {
   EnvToDI();
   DefaultDI();
-  getTaskQueueRegistry().registerQueue(SecJobQueue);
-  SecJobQueue.start();
+
+  getTaskQueueRegistry().registerQueue({
+    server: SecJobQueueServer,
+    client: SecJobQueueClient,
+    storage: SecJobQueueStorage,
+  });
+  SecJobQueueServer.start();
+
   AddDailyIndexCommands(program);
   BootstrapAllCikNames(program);
   BootstrapCikLastUpdate(program);

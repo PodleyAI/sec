@@ -5,7 +5,7 @@
  */
 
 import { TaskInput, TaskOutput, TaskOutputRepository } from "@workglow/task-graph";
-import { FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskOutput } from "@workglow/tasks";
 import { mkdirSync } from "node:fs";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
@@ -16,8 +16,8 @@ interface SecFetchFileOutputCacheOptions {
   folderPath: string;
   outputCompression?: boolean;
   inputToFileName: (input: any) => string;
-  outputSerializer?: (output: FetchTaskOutput) => string | Blob;
-  outputDeserializer?: (output: string | Blob) => FetchTaskOutput;
+  outputSerializer?: (output: FetchUrlTaskOutput) => string | Blob;
+  outputDeserializer?: (output: string | Blob) => FetchUrlTaskOutput;
   response_type?: string;
 }
 
@@ -32,7 +32,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     mkdirSync(this.folderPath, { recursive: true });
   }
 
-  outputSerializer(output: FetchTaskOutput, response_type: string): any {
+  outputSerializer(output: FetchUrlTaskOutput, response_type: string): any {
     if (response_type === "json") {
       return JSON.stringify(output.json);
     } else if (response_type === "text") {
@@ -45,8 +45,8 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     }
   }
 
-  outputDeserializer(data: any, response_type: string): FetchTaskOutput {
-    const result: FetchTaskOutput = {};
+  outputDeserializer(data: any, response_type: string): FetchUrlTaskOutput {
+    const result: FetchUrlTaskOutput = {};
     if (response_type === "json") {
       result.json = JSON.parse(data as string);
     }

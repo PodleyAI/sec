@@ -5,7 +5,7 @@
  */
 
 import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph";
-import { FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskOutput } from "@workglow/tasks";
 import { Static, Type } from "typebox";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -90,7 +90,7 @@ export class ProcessAccessionDocFormTask extends Task<
         accessionNumber: accessionNumber,
         fileName: fileName!,
       }),
-      async function processForm(input: FetchTaskOutput) {
+      async function processForm(input: FetchUrlTaskOutput) {
         const { text } = input;
         const formCls = ALL_FORMS_MAP.get(form!);
         if (!formCls) throw new TaskError("Form not found");

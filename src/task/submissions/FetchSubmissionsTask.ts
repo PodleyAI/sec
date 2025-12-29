@@ -12,7 +12,7 @@ import {
   TaskGraph,
   Workflow,
 } from "@workglow/task-graph";
-import { FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskOutput } from "@workglow/tasks";
 import { Static, TObject, Type } from "typebox";
 import { Value } from "typebox/value";
 import {
@@ -98,7 +98,7 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
             )
           );
           graph.addTask(
-            async function reduceFilings(input: FetchTaskOutput, context: IExecuteContext) {
+            async function reduceFilings(input: FetchUrlTaskOutput, context: IExecuteContext) {
               // example submissions/CIK0000001750-submissions-001.json
               const filings = Value.Encode(TypeFilings(), input.json);
               return {

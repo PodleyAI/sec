@@ -133,6 +133,7 @@ export class FetchQuarterlyIndexTask extends Task<
             if (context.signal?.aborted) {
               throw new TaskAbortedError();
             }
+            return record;
           },
         },
         (err) => {

@@ -5,7 +5,7 @@
  */
 
 import { IExecuteContext, TaskConfig, TaskOutput } from "@workglow/task-graph";
-import { FetchTaskInput, FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
 import { globalServiceRegistry } from "@workglow/util";
 import path from "node:path";
 import { YYYYdMMdDD } from "../util/parseDate";
@@ -20,7 +20,7 @@ export interface SecCachedFetchTaskInput {
   response_type?: response_type;
 }
 
-function guessResponseType(urlstr: string, input: FetchTaskInput): response_type {
+function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_type {
   const url = new URL(urlstr);
   const ext = url.pathname.split(".").pop() ?? "json";
   let response_type = input.response_type;
@@ -64,8 +64,8 @@ function guessResponseType(urlstr: string, input: FetchTaskInput): response_type
 
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
-  O extends TaskOutput = FetchTaskOutput
-> extends SecFetchTask<I & FetchTaskInput, O> {
+  O extends TaskOutput = FetchUrlTaskOutput
+> extends SecFetchTask<I & FetchUrlTaskInput, O> {
   static type = "SecCachedFetchTask";
   static category = "Hidden";
   static cacheable = true;
@@ -83,12 +83,12 @@ export abstract class SecCachedFetchTask<
   abstract inputToUrl(input: I): string;
 
   constructor(input: I, config: Partial<TaskConfig> = {}) {
-    super(input as I & FetchTaskInput, config);
-    if (!(input as FetchTaskInput).response_type) {
-      const response_type = guessResponseType(this.inputToUrl(input), input as FetchTaskInput);
-      (input as FetchTaskInput).response_type = response_type;
-      (this.defaults as FetchTaskInput).response_type = response_type;
-      (this.runInputData as FetchTaskInput).response_type = response_type;
+    super(input as I & FetchUrlTaskInput, config);
+    if (!(input as FetchUrlTaskInput).response_type) {
+      const response_type = guessResponseType(this.inputToUrl(input), input as FetchUrlTaskInput);
+      (input as FetchUrlTaskInput).response_type = response_type;
+      (this.defaults as FetchUrlTaskInput).response_type = response_type;
+      (this.runInputData as FetchUrlTaskInput).response_type = response_type;
     }
 
     if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
@@ -106,7 +106,7 @@ export abstract class SecCachedFetchTask<
     }
   }
 
-  execute(input: I & FetchTaskInput, executeConfig: IExecuteContext): Promise<O | undefined> {
+  execute(input: I & FetchUrlTaskInput, executeConfig: IExecuteContext): Promise<O | undefined> {
     const url = this.inputToUrl(input);
     const response_type = guessResponseType(url, input);
 
@@ -116,6 +116,6 @@ export abstract class SecCachedFetchTask<
       response_type: response_type,
     };
 
-    return super.execute(fetchInput as I & FetchTaskInput, executeConfig);
+    return super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig);
   }
 }

@@ -5,13 +5,13 @@
  */
 
 import { JobQueueTaskConfig } from "@workglow/task-graph";
-import { FetchJob, FetchTaskInput, FetchTaskOutput } from "@workglow/tasks";
+import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
 import { SecUserAgent } from "../config/Constants";
 
 export class SecFetchJob<
-  Input extends FetchTaskInput = FetchTaskInput,
-  Output = FetchTaskOutput
-> extends FetchJob<Input, Output> {
+  Input extends FetchUrlTaskInput = FetchUrlTaskInput,
+  Output = FetchUrlTaskOutput
+> extends FetchUrlJob<Input, Output> {
   constructor(config: JobQueueTaskConfig & { input: Input }) {
     // Set SEC-specific headers
     config.input.headers = {
