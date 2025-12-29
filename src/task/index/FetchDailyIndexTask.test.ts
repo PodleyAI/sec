@@ -9,12 +9,11 @@ import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 import { TaskFailedError } from "@workglow/task-graph";
 import { FetchUrlTaskOutput } from "@workglow/tasks";
-import { JobQueue } from "@workglow/job-queue";
+import { JobQueueServer, JobQueueClient, EvenlySpacedRateLimiter } from "@workglow/job-queue";
 import { FetchUrlTaskInput } from "@workglow/tasks";
 import { SecFetchJob } from "../../fetch/SecFetchJob";
 import { SecJobQueueName } from "../../config/Constants";
 import { InMemoryQueueStorage } from "@workglow/storage";
-import { InMemoryRateLimiter } from "@workglow/job-queue";
 import { EnvToDI } from "../../config/EnvToDI";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -88,26 +87,42 @@ const oldFetch = global.fetch;
 EnvToDI();
 describe("FetchDailyIndexTask", () => {
   let db: any;
+  let server: JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>;
 
   beforeAll(() => {
     (global as any).fetch = mockFetch;
-    getTaskQueueRegistry().registerQueue(
-      new JobQueue<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(
-        SecJobQueueName,
-        SecFetchJob,
-        {
-          storage: new InMemoryQueueStorage(SecJobQueueName),
-          limiter: new InMemoryRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
-          waitDurationInMilliseconds: 1,
-        }
-      )
+    
+    const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(SecJobQueueName);
+    
+    server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(
+      SecFetchJob,
+      {
+        queueName: SecJobQueueName,
+        storage: storage,
+        limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
+        pollIntervalMs: 1,
+      }
     );
-    getTaskQueueRegistry().startQueues();
+    
+    const client = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
+      storage: storage,
+      queueName: SecJobQueueName,
+    });
+    
+    client.attach(server);
+    
+    getTaskQueueRegistry().registerQueue({
+      server: server,
+      client: client,
+      storage: storage,
+    });
+    
+    server.start();
   });
 
   afterAll(() => {
     (global as any).fetch = oldFetch;
-    getTaskQueueRegistry().stopQueues();
+    server.stop();
     setTaskQueueRegistry(null);
   });
 
