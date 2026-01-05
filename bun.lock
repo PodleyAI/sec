@@ -11,7 +11,7 @@
         "@workglow/job-queue": "0.0.84",
         "@workglow/sqlite": "0.0.84",
         "@workglow/storage": "0.0.84",
-        "@workglow/task-graph": "0.0.84",
+        "@workglow/task-graph": "0.0.85",
         "@workglow/tasks": "0.0.84",
         "@workglow/util": "0.0.84",
         "awesome-phonenumber": "^7.6.0",
@@ -182,7 +182,7 @@
 
     "@workglow/storage": ["@workglow/storage@0.0.84", "", { "peerDependencies": { "@supabase/supabase-js": "^2.89.0", "@workglow/sqlite": "0.0.84", "@workglow/util": "0.0.84", "pg": "^8.16.3" } }, "sha512-2QlK8xNCV9q9UkQH4Xz47wd6E1w434EtDneL0xz/L63CGUkp3psaPQfetAGbDF1n/cD0CSRzMME0pxg60fy4+w=="],
 
-    "@workglow/task-graph": ["@workglow/task-graph@0.0.84", "", { "peerDependencies": { "@workglow/job-queue": "0.0.84", "@workglow/storage": "0.0.84", "@workglow/util": "0.0.84" } }, "sha512-8PmAmrhghBUlBGYWKEWy55SbUmAe+kilyxyvgysHxbJMY/kQXweGUei504Oh8BJhwHgvS1qnLm/NdmkJTJ4kZw=="],
+    "@workglow/task-graph": ["@workglow/task-graph@0.0.85", "", { "peerDependencies": { "@workglow/job-queue": "0.0.85", "@workglow/storage": "0.0.85", "@workglow/util": "0.0.85" } }, "sha512-UvqABpt3ZqjK5iATc8YY8eRaIZ5vg9W78vH9/V2vVfEznkmNzJNjVeYajO69WrW3caJ2eXUptPB6Vkzft+A6Mw=="],
 
     "@workglow/tasks": ["@workglow/tasks@0.0.84", "", { "peerDependencies": { "@workglow/job-queue": "0.0.84", "@workglow/storage": "0.0.84", "@workglow/task-graph": "0.0.84", "@workglow/util": "0.0.84" } }, "sha512-IA+hNQ1nmFeNpycPkxSxTguluHyX6/3JSmJYv5bdisczGf0rZuJxaisoHsuOhvYBmmHpAbcs6QzqfCheOcnV+w=="],
 
@@ -601,6 +601,8 @@
     "@sagold/json-query/@sagold/json-pointer": ["@sagold/json-pointer@5.1.2", "", {}, "sha512-+wAhJZBXa6MNxRScg6tkqEbChEHMgVZAhTHVJ60Y7sbtXtu9XA49KfUkdWlS2x78D6H9nryiKePiYozumauPfA=="],
 
     "@supabase/realtime-js/ws": ["ws@8.18.3", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg=="],
+
+    "@workglow/cli/@workglow/task-graph": ["@workglow/task-graph@0.0.84", "", { "peerDependencies": { "@workglow/job-queue": "0.0.84", "@workglow/storage": "0.0.84", "@workglow/util": "0.0.84" } }, "sha512-8PmAmrhghBUlBGYWKEWy55SbUmAe+kilyxyvgysHxbJMY/kQXweGUei504Oh8BJhwHgvS1qnLm/NdmkJTJ4kZw=="],
 
     "cli-truncate/slice-ansi": ["slice-ansi@5.0.0", "", { "dependencies": { "ansi-styles": "^6.0.0", "is-fullwidth-code-point": "^4.0.0" } }, "sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ=="],
 
