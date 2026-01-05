@@ -37,7 +37,7 @@
     "fast-xml-parser": "^5.3.3",
     "html-entities": "^2.6.0",
     "pdf2json": "^3.2.2",
-    "typebox": "1.0.69",
+    "typebox": "1.0.73",
     "words-to-numbers": "^1.5.1",
     "xml2js": "^0.6.2"
   },

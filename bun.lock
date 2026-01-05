@@ -24,7 +24,7 @@
         "fast-xml-parser": "^5.3.3",
         "html-entities": "^2.6.0",
         "pdf2json": "^3.2.2",
-        "typebox": "1.0.69",
+        "typebox": "1.0.73",
         "words-to-numbers": "^1.5.1",
         "xml2js": "^0.6.2",
       },
@@ -554,7 +554,7 @@
 
     "type-fest": ["type-fest@4.41.0", "", {}, "sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA=="],
 
-    "typebox": ["typebox@1.0.69", "", {}, "sha512-FwCcidqIxCAXRHxT9UNwiuf0f/EgLGc09K78K1d39uTLwPPmntPVs4YHxmj53RJ340pDkuPBOhOGdzg7cBYX4Q=="],
+    "typebox": ["typebox@1.0.73", "", {}, "sha512-hZSgYMjem+50YuTZzw3XWKyxkDjixapRIAoKPr2ugrpssEwwWzSeowZufiOQNYefnYFtf9KUtYdcnNSj6ZXaSQ=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
