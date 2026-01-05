@@ -8,7 +8,7 @@
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
         "@workglow/cli": "0.0.84",
-        "@workglow/job-queue": "0.0.84",
+        "@workglow/job-queue": "0.0.85",
         "@workglow/sqlite": "0.0.84",
         "@workglow/storage": "0.0.84",
         "@workglow/task-graph": "0.0.84",
@@ -176,7 +176,7 @@
 
     "@workglow/cli": ["@workglow/cli@0.0.84", "", { "dependencies": { "@mediapipe/tasks-audio": "^0.10.22-rc.20250304", "@mediapipe/tasks-genai": "^0.10.22-rc.20250304", "@mediapipe/tasks-text": "^0.10.22-rc.20250304", "@mediapipe/tasks-vision": "^0.10.22-rc.20250304", "@sroussey/transformers": "3.8.2", "@types/react": "=18.3.12", "@workglow/ai": "0.0.84", "@workglow/ai-provider": "0.0.84", "@workglow/storage": "0.0.84", "@workglow/task-graph": "0.0.84", "@workglow/tasks": "0.0.84", "@workglow/test": "0.0.84", "@workglow/util": "0.0.84", "chalk": "^5.6.2", "commander": "^14.0.1", "is-unicode-supported": "^2.1.0", "react": "=18.3.1", "react-devtools-core": "=4.28.4", "react-reconciler": "=0.31.0", "retuink": "=1.1.5" }, "bin": { "@workglow/cli": "dist/workglow.js" } }, "sha512-BDchZHa6zjA7SlxxEPNFtyXl7g4/fM5nUyERttEcSyA7o/shkca2hzLaQErgcL0MVAoxND/u3yGRZjskURYAZA=="],
 
-    "@workglow/job-queue": ["@workglow/job-queue@0.0.84", "", { "peerDependencies": { "@workglow/storage": "0.0.84", "@workglow/util": "0.0.84" } }, "sha512-zZ3u8rqPfGfgw69BZRJWzY8oQh2zo9Dvrc2y55rqKDOntHM+jxAnkfKT1lF2zDBwCdqQqvkClnm3BUVR0VbVew=="],
+    "@workglow/job-queue": ["@workglow/job-queue@0.0.85", "", { "peerDependencies": { "@workglow/storage": "0.0.85", "@workglow/util": "0.0.85" } }, "sha512-aTPwhEMglwlUmSwAt0gwnlEiZofICUrRa2LIGjC0zwGpfv6Okt1728wnIio94D3uOTF8RB+GmM4eVc3sOyGXIg=="],
 
     "@workglow/sqlite": ["@workglow/sqlite@0.0.84", "", { "peerDependencies": { "@sqlite.org/sqlite-wasm": "^3.51.1-build2", "better-sqlite3": "^12.5.0" } }, "sha512-nu08WwHel6T2hHctPI+fD34UoyVbkEhN9OZpytjS0F7jLxRe6nH25Y2i8258sj4kqiw2+THweVbynme54rJIIQ=="],
 
