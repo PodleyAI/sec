@@ -8,9 +8,7 @@ import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph
 import { Static, TObject, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { query_all } from "../../util/db";
-import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
-import { sleep } from "@workglow/util";
 
 const FetchAndStoreFormsTaskInputSchema = () =>
   Type.Object({
@@ -83,20 +81,18 @@ export class FetchAndStoreFormsTask extends Task<
       }>(sql, { $cik: cik, $form: form });
     }
 
-    const wf = context.own(new Workflow());
-    for (const filing of filings) {
-      console.error(filing);
-      await sleep(0);
-      wf.pipe(
-        new ProcessAccessionDocFormTask({
-          cik: cik,
-          form: form,
-          accessionNumber: filing.accession_number,
-          fileName: filing.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, ""),
-        })
-      );
+    if (filings.length > 0) {
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 5 });
+      loop.pipe(new ProcessAccessionDocFormTask());
+      loop.endMap();
+      await wf.run({
+        cik: filings.map(() => cik),
+        form: filings.map(() => form),
+        accessionNumber: filings.map((f) => f.accession_number),
+        fileName: filings.map((f) => f.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, "")),
+      });
     }
-    const result = await wf.run();
     return { success: true };
   }
 }

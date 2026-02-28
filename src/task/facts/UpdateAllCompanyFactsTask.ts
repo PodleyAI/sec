@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, IWorkflow, pipe, Task } from "@workglow/task-graph";
+import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
 import { TObject, Type } from "typebox";
 import { query_all, query_run } from "../../util/db";
 import { parseDate } from "../../util/parseDate";
 import { FetchCompanyFactsTask } from "./FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "./StoreCompanyFactsTask";
-import { sleep } from "@workglow/util";
 
 export type UpdateAllCompanyFactsTaskInput = {};
 
@@ -39,11 +38,15 @@ export class UpdateAllCompanyFactsTask extends Task<
     input: UpdateAllCompanyFactsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllCompanyFactsTaskOutput> {
-    const needsUpating = query_all(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update 
-        JOIN processed_facts 
+    const needsUpating = query_all<{
+      cik: string;
+      last_update: string;
+      last_processed: string;
+    }>(`
+      SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update
+        JOIN processed_facts
           ON cik_last_update.cik = processed_facts.cik
-        WHERE cik_last_update.last_update > processed_facts.last_processed 
+        WHERE cik_last_update.last_update > processed_facts.last_processed
         ORDER BY cik_last_update.last_update DESC`);
     const needsUpatingCount = needsUpating?.length ?? 0;
 
@@ -52,75 +55,46 @@ export class UpdateAllCompanyFactsTask extends Task<
       last_update: string;
       last_processed: string;
     }>(`
-          SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update
-            LEFT JOIN processed_facts
-              ON cik_last_update.cik = processed_facts.cik
-            WHERE processed_facts.last_processed IS NULL
-            ORDER BY cik_last_update.last_update DESC`);
+      SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update
+        LEFT JOIN processed_facts
+          ON cik_last_update.cik = processed_facts.cik
+        WHERE processed_facts.last_processed IS NULL
+        ORDER BY cik_last_update.last_update DESC`);
     const needsProcessingCount = needsProcessing?.length ?? 0;
-    const totalCount = needsUpatingCount + needsProcessingCount;
 
     if (needsUpatingCount) {
-      const wf = context.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
-      for (let i = 0; i < needsUpatingCount; i++) {
-        const result = needsUpating[i];
-        try {
-          await wf.run({ cik: result.cik, date: result.last_update });
-        } catch (e) {
-          const { year, month, day } = parseDate(result.last_update);
-          query_run(
-            `INSERT OR REPLACE INTO processed_facts(cik,last_processed)
-            VALUES($cik,$last_processed)`,
-            {
-              $cik: result.cik,
-              $last_processed: `${year + 1}-${month}-${day}`,
-            }
-          );
-        }
-        await sleep(0);
-        context.updateProgress(
-          Math.ceil((i / totalCount) * 100),
-          `Processed ${i} of ${totalCount} company facts (updating)`
-        );
-      }
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 1 });
+      loop.pipe(fetchAndStoreFacts);
+      loop.endMap();
+      await wf.run({
+        cik: needsUpating.map((r) => r.cik),
+        date: needsUpating.map((r) => r.last_update),
+      });
     }
 
-    if (needsProcessing?.length) {
-      const BATCH_SIZE = 10;
-      const workflowsNumber = Math.min(needsProcessing.length, BATCH_SIZE);
-      const workflows: IWorkflow<any, any>[] = [];
-      for (let i = 0; i < workflowsNumber; i++) {
-        workflows.push(
-          context.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]))
-        );
-      }
-      for (let i = 0; i < needsProcessing.length; i += BATCH_SIZE) {
-        const batch = needsProcessing.slice(i, i + BATCH_SIZE);
-        const promises = [];
-        for (let j = 0; j < batch.length; j++) {
-          promises.push(
-            runWorkflow(workflows[j], {
-              cik: batch[j].cik,
-              date: batch[j].last_update,
-            })
-          );
-        }
-        await Promise.all(promises);
-        await sleep(0);
-        context.updateProgress(
-          Math.ceil(((i + needsUpatingCount) / totalCount) * 100),
-          `Processed ${i + needsUpatingCount} of ${totalCount} company facts (initial processing)`
-        );
-      }
+    if (needsProcessingCount) {
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 10 });
+      loop.pipe(fetchAndStoreFacts);
+      loop.endMap();
+      await wf.run({
+        cik: needsProcessing.map((r) => r.cik),
+        date: needsProcessing.map((r) => r.last_update),
+      });
     }
+
     return { success: true };
   }
 }
 
-async function runWorkflow(wf: IWorkflow<any, any>, input: { cik: string; date: string }) {
+async function fetchAndStoreFacts(
+  input: { cik: string; date: string },
+  ctx: IExecuteContext
+): Promise<{ success: boolean }> {
+  const pipeline = ctx.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
   try {
-    const result = await wf.run(input);
-    return result;
+    await pipeline.run({ cik: parseInt(input.cik), date: input.date });
   } catch (e) {
     const { year, month, day } = parseDate(input.date);
     query_run(
@@ -132,4 +106,5 @@ async function runWorkflow(wf: IWorkflow<any, any>, input: { cik: string; date: 
       }
     );
   }
+  return { success: true };
 }

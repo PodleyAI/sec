@@ -4,14 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  IExecuteContext,
-  GraphResult,
-  Task,
-  TaskGraph,
-  GRAPH_RESULT_ARRAY,
-} from "@workglow/task-graph";
-import { FetchQuarterlyIndexTask, FetchQuarterlyIndexTaskOutput } from "./FetchQuarterlyIndexTask";
+import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
+import { FetchQuarterlyIndexTask } from "./FetchQuarterlyIndexTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeDateTime } from "../../util/TypeBoxUtil";
 import { Static, TObject, Type } from "typebox";
@@ -91,29 +85,28 @@ export class FetchQuarterlyIndexRangeTask extends Task<
     const endYear = input.endYear ?? todayYear;
     const endQuarter = input.endQuarter ?? Math.ceil(todayMonth / 3);
 
-    const tasks = context.own(new TaskGraph());
-
     // from the date to the current date, fetch the quarterly index
     const quarters = (endYear - startYear) * 4 + (endQuarter - startQuarter);
+    const dates: string[] = [];
     for (let i = 0; i < quarters; i++) {
       const fetchYear = startYear + Math.floor(i / 4);
       const fetchMonth = (i % 4) * 3 + 1;
       const fetchDay = 1;
-      const date = `${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-${fetchDay
-        .toString()
-        .padStart(2, "0")}`;
-      const task = new FetchQuarterlyIndexTask({
-        date,
-      });
-      tasks.addTask(task);
+      dates.push(
+        `${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-${fetchDay.toString().padStart(2, "0")}`
+      );
     }
 
-    const results: GraphResult<FetchQuarterlyIndexTaskOutput, typeof GRAPH_RESULT_ARRAY> =
-      await tasks.run();
+    if (dates.length === 0) return { updateList: [] };
+
+    const wf = context.own(new Workflow());
+    const loop = wf.map({ preserveOrder: false });
+    loop.pipe(new FetchQuarterlyIndexTask());
+    loop.endMap();
+    const results = await wf.run({ date: dates });
 
     const updateList: Record<number, string> = {};
-    for (const result of results) {
-      const updateListQuarter = result.data.updateList;
+    for (const updateListQuarter of results.updateList as [number, string][][]) {
       for (const [cik, last_known_update] of updateListQuarter) {
         if (updateList[cik] === undefined || updateList[cik] < last_known_update) {
           updateList[cik] = last_known_update;

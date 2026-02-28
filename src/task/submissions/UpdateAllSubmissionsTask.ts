@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, IWorkflow, pipe, Task } from "@workglow/task-graph";
-import { sleep } from "@workglow/util";
+import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
 import { TObject, Type } from "typebox";
 import { processUpdateProcessing } from "./StoreSubmissionsTask";
 import { query_all } from "../../util/db";
@@ -39,11 +38,15 @@ export class UpdateAllSubmissionsTask extends Task<
     input: UpdateAllSubmissionsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllSubmissionsTaskOutput> {
-    const needsUpating = query_all(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_submissions.last_processed FROM cik_last_update 
-        JOIN processed_submissions 
+    const needsUpating = query_all<{
+      cik: string;
+      last_update: string;
+      last_processed: string;
+    }>(`
+      SELECT cik_last_update.cik, cik_last_update.last_update, processed_submissions.last_processed FROM cik_last_update
+        JOIN processed_submissions
           ON cik_last_update.cik = processed_submissions.cik
-        WHERE cik_last_update.last_update > processed_submissions.last_processed 
+        WHERE cik_last_update.last_update > processed_submissions.last_processed
         ORDER BY cik_last_update.last_update DESC`);
     const needsUpatingCount = needsUpating?.length ?? 0;
 
@@ -58,56 +61,42 @@ export class UpdateAllSubmissionsTask extends Task<
         WHERE processed_submissions.last_processed IS NULL
         ORDER BY cik_last_update.last_update DESC`);
     const needsInitialProcessingCount = needsInitialProcessing?.length ?? 0;
-    const totalCount = needsUpatingCount + needsInitialProcessingCount;
 
     if (needsUpatingCount) {
-      const wf = context.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
-      for (let i = 0; i < needsUpatingCount; i++) {
-        const result = needsUpating[i];
-        runWorkflow(wf, { cik: parseInt(result.cik), date: result.last_update });
-        context.updateProgress(
-          Math.ceil((i / totalCount) * 100),
-          `Processed ${i} of ${totalCount} submissions (updating)`
-        );
-      }
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 1 });
+      loop.pipe(fetchAndStoreSubmission);
+      loop.endMap();
+      await wf.run({
+        cik: needsUpating.map((r) => parseInt(r.cik)),
+        date: needsUpating.map((r) => r.last_update),
+      });
     }
 
     if (needsInitialProcessingCount) {
-      const BATCH_SIZE = 2;
-      const workflowsNumber = Math.min(needsInitialProcessingCount, BATCH_SIZE);
-      const workflows: IWorkflow<any, any>[] = [];
-      for (let i = 0; i < workflowsNumber; i++) {
-        workflows.push(context.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()])));
-      }
-      for (let i = 0; i < needsInitialProcessing.length; i += BATCH_SIZE) {
-        const batch = needsInitialProcessing.slice(i, i + BATCH_SIZE);
-        const promises = [];
-        for (let j = 0; j < batch.length; j++) {
-          promises.push(
-            runWorkflow(workflows[j], {
-              cik: parseInt(batch[j].cik),
-              date: batch[j].last_update,
-            })
-          );
-        }
-        await Promise.all(promises);
-        await sleep(0);
-        context.updateProgress(
-          Math.ceil(((i + needsUpatingCount) / totalCount) * 100),
-          `Processed ${i + needsUpatingCount} of ${totalCount} submissions (initial processing)`
-        );
-      }
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 2 });
+      loop.pipe(fetchAndStoreSubmission);
+      loop.endMap();
+      await wf.run({
+        cik: needsInitialProcessing.map((r) => parseInt(r.cik)),
+        date: needsInitialProcessing.map((r) => r.last_update),
+      });
     }
+
     return { success: true };
   }
 }
 
-async function runWorkflow(wf: IWorkflow<any, any>, input: { cik: number; date: string }) {
+async function fetchAndStoreSubmission(
+  input: { cik: number; date: string },
+  ctx: IExecuteContext
+): Promise<{ success: boolean }> {
+  const pipeline = ctx.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
   try {
-    const result = await wf.run(input);
-    processUpdateProcessing(input.cik, true);
-    return result;
+    await pipeline.run(input);
   } catch (e) {
     processUpdateProcessing(input.cik, false);
   }
+  return { success: true };
 }

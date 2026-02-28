@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task } from "@workglow/task-graph";
-import { sleep } from "@workglow/util";
+import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
 import { TObject, Type } from "typebox";
 import { query_all } from "../../util/db";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
@@ -48,27 +47,15 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     const needsInitialProcessingCount = missingForms?.length ?? 0;
 
     if (needsInitialProcessingCount) {
-      const BATCH_SIZE = 10;
-      for (let i = 0; i < missingForms.length; i += BATCH_SIZE) {
-        const batch = missingForms.slice(i, i + BATCH_SIZE);
-        const promises: Promise<any>[] = [];
-        for (let j = 0; j < batch.length; j++) {
-          const task = context.own(
-            new ProcessAccessionDocFormTask({
-              accessionNumber: batch[j].accession_number,
-              cik: parseInt(batch[j].cik),
-              form: batch[j].form,
-            })
-          );
-          promises.push(task.run());
-        }
-        await Promise.all(promises);
-        await sleep(0);
-        context.updateProgress(
-          Math.ceil(((i + missingForms.length) / missingForms.length) * 100),
-          `Processed ${i + missingForms.length} of ${missingForms.length} forms`
-        );
-      }
+      const wf = context.own(new Workflow());
+      const loop = wf.map({ concurrencyLimit: 10 });
+      loop.pipe(new ProcessAccessionDocFormTask());
+      loop.endMap();
+      await wf.run({
+        accessionNumber: missingForms.map((f) => f.accession_number),
+        cik: missingForms.map((f) => parseInt(f.cik)),
+        form: missingForms.map((f) => f.form),
+      });
     }
     return { success: true };
   }
