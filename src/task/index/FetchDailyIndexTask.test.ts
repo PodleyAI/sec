@@ -91,38 +91,31 @@ describe("FetchDailyIndexTask", () => {
 
   beforeAll(() => {
     (global as any).fetch = mockFetch;
-    
-    const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(SecJobQueueName);
-    
-    server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(
-      SecFetchJob,
-      {
-        queueName: SecJobQueueName,
-        storage: storage,
-        limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
-        pollIntervalMs: 1,
-      }
+
+    const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
+      SecJobQueueName
     );
-    
+
+    server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(SecFetchJob, {
+      queueName: SecJobQueueName,
+      storage,
+      limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
+      pollIntervalMs: 1,
+    });
+
     const client = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
-      storage: storage,
+      storage,
       queueName: SecJobQueueName,
     });
-    
+
     client.attach(server);
-    
-    getTaskQueueRegistry().registerQueue({
-      server: server,
-      client: client,
-      storage: storage,
-    });
-    
+
+    getTaskQueueRegistry().registerQueue({ server, client, storage });
     server.start();
   });
 
   afterAll(() => {
     (global as any).fetch = oldFetch;
-    server.stop();
     setTaskQueueRegistry(null);
   });
 
