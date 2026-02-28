@@ -12,15 +12,16 @@ import {
   Workflow,
   parallel,
 } from "@workglow/task-graph";
-import { TObject, Type } from "typebox";
+import { globalServiceRegistry } from "@workglow/util";
+import { Type } from "typebox";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
+import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { StoreSubmissionContactInfoTask } from "./StoreSubmissionContactInfoTask";
 import { StoreSubmissionEntityTask } from "./StoreSubmissionEntityTask";
 import { StoreSubmissionFilingsTask } from "./StoreSubmissionFilingsTask";
 import { StoreSubmissionSicTask } from "./StoreSubmissionSicTask";
 import { StoreSubmissionTickersTask } from "./StoreSubmissionTickersTask";
-import { query_run } from "../../util/db";
 
 export type StoreSubmissionsTaskInput = FetchSubmissionsOutput;
 
@@ -66,8 +67,8 @@ export class StoreSubmissionsTask extends Task<
         new StoreSubmissionTickersTask(input),
         new StoreSubmissionFilingsTask(input),
       ]),
-      function updateProcessing() {
-        processUpdateProcessing(cik, true);
+      async function updateProcessing() {
+        await processUpdateProcessing(cik, true);
         return { success: true };
       }
     );
@@ -76,14 +77,13 @@ export class StoreSubmissionsTask extends Task<
   }
 }
 
-export function processUpdateProcessing(cik: number, success: boolean): void {
-  query_run(
-    `INSERT OR REPLACE INTO processed_submissions(cik,last_processed,success)
-      VALUES($cik,$last_processed,$success)`,
-    {
-      $cik: cik,
-      $last_processed: todayYYYYdMMdDD(),
-      $success: success,
-    }
+export async function processUpdateProcessing(cik: number, success: boolean): Promise<void> {
+  const processedSubmissionsRepo = globalServiceRegistry.get(
+    PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
   );
+  await processedSubmissionsRepo.put({
+    cik,
+    last_processed: todayYYYYdMMdDD(),
+    success,
+  });
 }

@@ -5,9 +5,18 @@
  */
 
 import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
-import { TObject, Type } from "typebox";
-import { query_all, query_run } from "../../util/db";
+import { globalServiceRegistry } from "@workglow/util";
+import { Type } from "typebox";
 import { parseDate } from "../../util/parseDate";
+import {
+  CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+  type CikLastUpdateRepositoryStorage,
+} from "../../storage/processing/CikLastUpdateSchema";
+import {
+  PROCESSED_FACTS_REPOSITORY_TOKEN,
+  type ProcessedFacts,
+  type ProcessedFactsRepositoryStorage,
+} from "../../storage/processing/ProcessedFactsSchema";
 import { FetchCompanyFactsTask } from "./FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "./StoreCompanyFactsTask";
 
@@ -38,45 +47,44 @@ export class UpdateAllCompanyFactsTask extends Task<
     input: UpdateAllCompanyFactsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllCompanyFactsTaskOutput> {
-    const needsUpating = query_all<{
-      cik: string;
-      last_update: string;
-      last_processed: string;
-    }>(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update
-        JOIN processed_facts
-          ON cik_last_update.cik = processed_facts.cik
-        WHERE cik_last_update.last_update > processed_facts.last_processed
-        ORDER BY cik_last_update.last_update DESC`);
-    const needsUpatingCount = needsUpating?.length ?? 0;
+    const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
 
-    const needsProcessing = query_all<{
-      cik: string;
-      last_update: string;
-      last_processed: string;
-    }>(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_facts.last_processed FROM cik_last_update
-        LEFT JOIN processed_facts
-          ON cik_last_update.cik = processed_facts.cik
-        WHERE processed_facts.last_processed IS NULL
-        ORDER BY cik_last_update.last_update DESC`);
-    const needsProcessingCount = needsProcessing?.length ?? 0;
+    const allCikUpdates = (await cikLastUpdateRepo.getAll()) ?? [];
+    const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
 
-    if (needsUpatingCount) {
+    const processedMap = new Map<number, ProcessedFacts>();
+    for (const pf of allProcessedFacts) {
+      processedMap.set(pf.cik, pf);
+    }
+
+    const needsUpdating: { cik: number; last_update: string }[] = [];
+    const needsProcessing: { cik: number; last_update: string }[] = [];
+
+    for (const clu of allCikUpdates) {
+      const pf = processedMap.get(clu.cik);
+      if (!pf) {
+        needsProcessing.push({ cik: clu.cik, last_update: clu.last_update });
+      } else if (clu.last_update > pf.last_processed) {
+        needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+      }
+    }
+
+    if (needsUpdating.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 1 });
-      loop.pipe(fetchAndStoreFacts);
+      loop.pipe(fetchAndStoreFacts(processedFactsRepo));
       loop.endMap();
       await wf.run({
-        cik: needsUpating.map((r) => r.cik),
-        date: needsUpating.map((r) => r.last_update),
+        cik: needsUpdating.map((r) => r.cik),
+        date: needsUpdating.map((r) => r.last_update),
       });
     }
 
-    if (needsProcessingCount) {
+    if (needsProcessing.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 10 });
-      loop.pipe(fetchAndStoreFacts);
+      loop.pipe(fetchAndStoreFacts(processedFactsRepo));
       loop.endMap();
       await wf.run({
         cik: needsProcessing.map((r) => r.cik),
@@ -88,23 +96,21 @@ export class UpdateAllCompanyFactsTask extends Task<
   }
 }
 
-async function fetchAndStoreFacts(
-  input: { cik: string; date: string },
-  ctx: IExecuteContext
-): Promise<{ success: boolean }> {
-  const pipeline = ctx.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
-  try {
-    await pipeline.run({ cik: parseInt(input.cik), date: input.date });
-  } catch (e) {
-    const { year, month, day } = parseDate(input.date);
-    query_run(
-      `INSERT OR REPLACE INTO processed_facts(cik,last_processed)
-        VALUES($cik,$last_processed)`,
-      {
-        $cik: input.cik,
-        $last_processed: `${year + 1}-${month}-${day}`,
-      }
-    );
-  }
-  return { success: true };
+function fetchAndStoreFacts(
+  processedFactsRepo: ProcessedFactsRepositoryStorage
+): (input: { cik: number; date: string }, ctx: IExecuteContext) => Promise<{ success: boolean }> {
+  return async (input, ctx) => {
+    const pipeline = ctx.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
+    try {
+      await pipeline.run({ cik: input.cik, date: input.date });
+    } catch (e) {
+      const { year, month, day } = parseDate(input.date);
+      await processedFactsRepo.put({
+        cik: input.cik,
+        last_processed: `${year + 1}-${month}-${day}`,
+        success: false,
+      });
+    }
+    return { success: true };
+  };
 }

@@ -147,6 +147,31 @@ import {
   RegAEquityClassPrimaryKeyNames,
   RegAEquityClassSchema,
 } from "../storage/reg-a/RegAEquityClassSchema";
+import {
+  CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+  CikLastUpdatePrimaryKeyNames,
+  CikLastUpdateSchema,
+} from "../storage/processing/CikLastUpdateSchema";
+import {
+  PROCESSED_FACTS_REPOSITORY_TOKEN,
+  ProcessedFactsPrimaryKeyNames,
+  ProcessedFactsSchema,
+} from "../storage/processing/ProcessedFactsSchema";
+import {
+  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+  ProcessedSubmissionsPrimaryKeyNames,
+  ProcessedSubmissionsSchema,
+} from "../storage/processing/ProcessedSubmissionsSchema";
+import {
+  PROCESSED_FILINGS_REPOSITORY_TOKEN,
+  ProcessedFilingsPrimaryKeyNames,
+  ProcessedFilingsSchema,
+} from "../storage/processing/ProcessedFilingsSchema";
+import {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  CompanyFactsPrimaryKeyNames,
+  CompanyFactsSchema,
+} from "../storage/facts/CompanyFactsSchema";
 
 export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
@@ -368,6 +393,36 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(CrowdfundingHistorySchema, CrowdfundingHistoryPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
+  );
+
+  // Initialize Processing Tracking repositories
+  globalServiceRegistry.registerInstance(
+    CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(CikLastUpdateSchema, CikLastUpdatePrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_FACTS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ProcessedFactsSchema, ProcessedFactsPrimaryKeyNames, [
+      ["last_processed"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ProcessedSubmissionsSchema, ProcessedSubmissionsPrimaryKeyNames, [
+      ["last_processed"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_FILINGS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
+      ["last_processed", "success", "form"],
+    ])
+  );
+
+  // Initialize Company Facts repository
+  globalServiceRegistry.registerInstance(
+    COMPANY_FACTS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(CompanyFactsSchema, CompanyFactsPrimaryKeyNames, [["cik", "name"]])
   );
 
   // Initialize Change Log repository

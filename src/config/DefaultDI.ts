@@ -150,6 +150,31 @@ import {
   RegAEquityClassPrimaryKeyNames,
   RegAEquityClassSchema,
 } from "../storage/reg-a/RegAEquityClassSchema";
+import {
+  CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+  CikLastUpdatePrimaryKeyNames,
+  CikLastUpdateSchema,
+} from "../storage/processing/CikLastUpdateSchema";
+import {
+  PROCESSED_FACTS_REPOSITORY_TOKEN,
+  ProcessedFactsPrimaryKeyNames,
+  ProcessedFactsSchema,
+} from "../storage/processing/ProcessedFactsSchema";
+import {
+  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+  ProcessedSubmissionsPrimaryKeyNames,
+  ProcessedSubmissionsSchema,
+} from "../storage/processing/ProcessedSubmissionsSchema";
+import {
+  PROCESSED_FILINGS_REPOSITORY_TOKEN,
+  ProcessedFilingsPrimaryKeyNames,
+  ProcessedFilingsSchema,
+} from "../storage/processing/ProcessedFilingsSchema";
+import {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  CompanyFactsPrimaryKeyNames,
+  CompanyFactsSchema,
+} from "../storage/facts/CompanyFactsSchema";
 import { getDb } from "../util/db";
 
 export const DefaultDI = () => {
@@ -426,6 +451,59 @@ export const DefaultDI = () => {
       ["brand"],
       ["live"],
     ])
+  );
+
+  // ------------------------------ Processing Tracking --------------------------------
+  globalServiceRegistry.registerInstance(
+    CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+    new SqliteTabularStorage(
+      getDb(),
+      "cik_last_update",
+      CikLastUpdateSchema,
+      CikLastUpdatePrimaryKeyNames
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_FACTS_REPOSITORY_TOKEN,
+    new SqliteTabularStorage(
+      getDb(),
+      "processed_facts",
+      ProcessedFactsSchema,
+      ProcessedFactsPrimaryKeyNames,
+      [["last_processed"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+    new SqliteTabularStorage(
+      getDb(),
+      "processed_submissions",
+      ProcessedSubmissionsSchema,
+      ProcessedSubmissionsPrimaryKeyNames,
+      [["last_processed"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    PROCESSED_FILINGS_REPOSITORY_TOKEN,
+    new SqliteTabularStorage(
+      getDb(),
+      "processed_filings",
+      ProcessedFilingsSchema,
+      ProcessedFilingsPrimaryKeyNames,
+      [["last_processed", "success", "form"]]
+    )
+  );
+
+  // ------------------------------ Company Facts --------------------------------
+  globalServiceRegistry.registerInstance(
+    COMPANY_FACTS_REPOSITORY_TOKEN,
+    new SqliteTabularStorage(
+      getDb(),
+      "company_facts",
+      CompanyFactsSchema,
+      CompanyFactsPrimaryKeyNames,
+      [["cik", "name"]]
+    )
   );
 
   // ------------------------------ Reg-A Offerings --------------------------------

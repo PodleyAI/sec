@@ -6,10 +6,13 @@
 
 import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph";
 import { FetchUrlTaskOutput } from "@workglow/tasks";
+import { globalServiceRegistry } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
-import { query_get, query_run } from "../../util/db";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
+import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
@@ -73,24 +76,25 @@ export class ProcessAccessionDocFormTask extends Task<
   ): Promise<ProcessAccessionDocFormTaskOutput> {
     const { accessionNumber } = input;
     if (!accessionNumber) throw new TaskError("Invalid input");
-    let { cik, form, fileName } = input;
+    let cik = input.cik;
+    let form = input.form;
+    let fileName = input.fileName;
+    let filing_date: string | null | undefined;
+    let file_number: string | null | undefined;
 
-    let filing_date: string | undefined;
-    let file_number: string | undefined;
-
-    if (!input.cik || !input.form || !input.fileName) {
-      const sql = `SELECT cik, primary_doc, form, filing_date, file_number FROM filings WHERE accession_number = $accession_number`;
-      const filing = query_get<{
-        cik: number;
-        primary_doc: string;
-        form: string;
-        filing_date: string;
-        file_number: string;
-      }>(sql, { $accession_number: accessionNumber });
+    if (!cik || !form || !fileName) {
+      const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+      const filings = await filingRepo.search({ accession_number: accessionNumber });
+      const filing = filings?.[0];
       if (!filing) throw new TaskError("Filing not found");
-      ({ cik, form, filing_date, file_number } = filing);
+      cik = filing.cik;
+      form = filing.form ?? undefined;
+      filing_date = filing.filing_date;
+      file_number = filing.file_number;
       fileName = fileName ?? filing.primary_doc;
     }
+
+    const processedFilingsRepo = globalServiceRegistry.get(PROCESSED_FILINGS_REPOSITORY_TOKEN);
 
     const wf = context.own(new Workflow());
 
@@ -150,11 +154,12 @@ export class ProcessAccessionDocFormTask extends Task<
         return { result };
       },
       async function storeProcessedFiling() {
-        const sql = `INSERT INTO processed_filings (cik, form, accession_number) VALUES ($cik, $form, $accession_number)`;
-        query_run(sql, {
-          $cik: cik!,
-          $form: form!,
-          $accession_number: accessionNumber,
+        await processedFilingsRepo.put({
+          cik: cik!,
+          form: form!,
+          accession_number: accessionNumber,
+          last_processed: todayYYYYdMMdDD(),
+          success: true,
         });
         return { success: true };
       }

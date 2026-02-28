@@ -5,10 +5,10 @@
  */
 
 import { IExecuteContext, Task, TaskAbortedError } from "@workglow/task-graph";
-import { DataPortSchemaObject, sleep } from "@workglow/util";
-import { TObject, Type } from "typebox";
+import { DataPortSchemaObject, globalServiceRegistry, sleep } from "@workglow/util";
+import { Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
-import { query_run } from "../../util/db";
+import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { TypeSecDate, YYYYdMMdDD } from "../../util/parseDate";
 
 export type StoreCikLastUpdatedTaskOutput = {
@@ -47,6 +47,8 @@ export class StoreCikLastUpdatedTask extends Task<
     const updateList = input.updateList.filter(Boolean);
     if (!updateList || updateList.length === 0) return { success: false };
 
+    const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+
     const length = updateList.length;
     let progress = 0;
     let index = 0;
@@ -59,18 +61,12 @@ export class StoreCikLastUpdatedTask extends Task<
       const batch = updateList
         .slice(i * batchSize, (i + 1) * batchSize)
         .filter(Boolean)
-        .map(([cik, last_known_update]) => {
-          return {
-            $cik: cik,
-            $last_update: last_known_update,
-          };
-        });
+        .map(([cik, last_known_update]) => ({
+          cik,
+          last_update: last_known_update,
+        }));
 
-      query_run(
-        `INSERT OR REPLACE INTO cik_last_update(cik,last_update)
-          VALUES($cik,$last_update)`,
-        batch
-      );
+      await cikLastUpdateRepo.putBulk(batch);
       const newProgress = Math.round((index++ / length) * 1000) / 10;
       if (newProgress > progress) {
         context.updateProgress(newProgress);

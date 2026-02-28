@@ -5,9 +5,10 @@
  */
 
 import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph";
-import { Static, TObject, Type } from "typebox";
+import { globalServiceRegistry } from "@workglow/util";
+import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
-import { query_all } from "../../util/db";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const FetchAndStoreFormsTaskInputSchema = () =>
@@ -58,27 +59,13 @@ export class FetchAndStoreFormsTask extends Task<
   ): Promise<FetchAndStoreFormsTaskOutput> {
     const { cik, form, docid } = input;
     if (!cik || !form) throw new TaskError("Invalid input");
-    let sql;
-    let filings: {
-      cik: number;
-      accession_number: string;
-      primary_doc: string;
-    }[] = [];
+
+    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+
+    let filings = (await filingRepo.search({ cik, form })) ?? [];
 
     if (docid) {
-      sql = `SELECT cik, accession_number, primary_doc FROM filings WHERE cik = $cik AND form = $form AND accession_number = $docid`;
-      filings = query_all<{
-        cik: number;
-        accession_number: string;
-        primary_doc: string;
-      }>(sql, { $cik: cik, $form: form, $docid: docid });
-    } else {
-      sql = `SELECT cik, accession_number, primary_doc FROM filings WHERE cik = $cik AND form = $form`;
-      filings = query_all<{
-        cik: number;
-        accession_number: string;
-        primary_doc: string;
-      }>(sql, { $cik: cik, $form: form });
+      filings = filings.filter((f) => f.accession_number === docid);
     }
 
     if (filings.length > 0) {

@@ -5,9 +5,11 @@
  */
 
 import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@workglow/task-graph";
-import { TObject, Type } from "typebox";
+import { globalServiceRegistry } from "@workglow/util";
+import { Type } from "typebox";
 import { Factoid } from "../../sec/facts/CompanyFacts";
-import { query_run } from "../../util/db";
+import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
+import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 
 export type StoreCompanyFactsTaskInput = FetchCompanyFactsTaskOutput;
@@ -44,6 +46,9 @@ export class StoreCompanyFactsTask extends Task<
     const factsArray: Factoid[] = input.facts.filter((f) => !!f);
     if (!factsArray) throw new TaskError("No facts data to store");
 
+    const companyFactsRepo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
+    const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
+
     let progress = 0;
     const batchSize = 1000;
     const batches = Math.ceil(factsArray.length / batchSize);
@@ -54,28 +59,22 @@ export class StoreCompanyFactsTask extends Task<
       const batch = factsArray
         .slice(i * batchSize, (i + 1) * batchSize)
         .filter(Boolean)
-        .map((fact) => {
-          return {
-            $cik: fact.cik,
-            $grouping: fact.grouping,
-            $name: fact.name,
-            $filed_date: fact.filed_date,
-            $form: fact.form,
-            $val_unit: fact.val_unit,
-            $frame: fact.frame || null,
-            $accession_number: fact.accession_number,
-            $start_date: fact.start_date || null,
-            $end_date: fact.end_date || null,
-            $val: fact.val,
-            $fy: fact.fy,
-            $fp: fact.fp,
-          };
-        });
-      query_run(
-        `INSERT OR REPLACE INTO company_facts(cik,grouping,name,filed_date,form,val_unit,frame,accession_number,start_date,end_date,val,fy,fp)
-          VALUES($cik,$grouping,$name,$filed_date,$form,$val_unit,$frame,$accession_number,$start_date,$end_date,$val,$fy,$fp)`,
-        batch
-      );
+        .map((fact) => ({
+          cik: fact.cik,
+          grouping: fact.grouping,
+          name: fact.name,
+          filed_date: fact.filed_date,
+          form: fact.form,
+          val_unit: fact.val_unit,
+          frame: fact.frame || null,
+          accession_number: fact.accession_number,
+          start_date: fact.start_date || null,
+          end_date: fact.end_date || null,
+          val: fact.val,
+          fy: fact.fy,
+          fp: fact.fp,
+        }));
+      await companyFactsRepo.putBulk(batch);
       const newProgress = Math.round((i / batches) * 100);
       if (newProgress > progress) {
         // round numbers, so max 100 times
@@ -84,14 +83,11 @@ export class StoreCompanyFactsTask extends Task<
       }
     }
     if (input.date) {
-      query_run(
-        `INSERT OR REPLACE INTO processed_facts(cik,last_processed)
-        VALUES($cik,$last_processed)`,
-        {
-          $cik: input.cik,
-          $last_processed: input.date,
-        }
-      );
+      await processedFactsRepo.put({
+        cik: input.cik,
+        last_processed: input.date,
+        success: true,
+      });
     }
     return { success: true };
   }

@@ -5,9 +5,16 @@
  */
 
 import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
-import { TObject, Type } from "typebox";
+import { globalServiceRegistry } from "@workglow/util";
+import { Type } from "typebox";
 import { processUpdateProcessing } from "./StoreSubmissionsTask";
-import { query_all } from "../../util/db";
+import {
+  CIK_LAST_UPDATE_REPOSITORY_TOKEN,
+} from "../../storage/processing/CikLastUpdateSchema";
+import {
+  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+  type ProcessedSubmissions,
+} from "../../storage/processing/ProcessedSubmissionsSchema";
 import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { StoreSubmissionsTask } from "./StoreSubmissionsTask";
 
@@ -38,48 +45,49 @@ export class UpdateAllSubmissionsTask extends Task<
     input: UpdateAllSubmissionsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllSubmissionsTaskOutput> {
-    const needsUpating = query_all<{
-      cik: string;
-      last_update: string;
-      last_processed: string;
-    }>(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_submissions.last_processed FROM cik_last_update
-        JOIN processed_submissions
-          ON cik_last_update.cik = processed_submissions.cik
-        WHERE cik_last_update.last_update > processed_submissions.last_processed
-        ORDER BY cik_last_update.last_update DESC`);
-    const needsUpatingCount = needsUpating?.length ?? 0;
+    const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    const processedSubmissionsRepo = globalServiceRegistry.get(
+      PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
+    );
 
-    const needsInitialProcessing = query_all<{
-      cik: string;
-      last_update: string;
-      last_processed: string;
-    }>(`
-      SELECT cik_last_update.cik, cik_last_update.last_update, processed_submissions.last_processed FROM cik_last_update
-        LEFT JOIN processed_submissions
-          ON cik_last_update.cik = processed_submissions.cik
-        WHERE processed_submissions.last_processed IS NULL
-        ORDER BY cik_last_update.last_update DESC`);
-    const needsInitialProcessingCount = needsInitialProcessing?.length ?? 0;
+    const allCikUpdates = (await cikLastUpdateRepo.getAll()) ?? [];
+    const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
 
-    if (needsUpatingCount) {
+    const processedMap = new Map<number, ProcessedSubmissions>();
+    for (const ps of allProcessedSubmissions) {
+      processedMap.set(ps.cik, ps);
+    }
+
+    const needsUpdating: { cik: number; last_update: string }[] = [];
+    const needsInitialProcessing: { cik: number; last_update: string }[] = [];
+
+    for (const clu of allCikUpdates) {
+      const ps = processedMap.get(clu.cik);
+      if (!ps) {
+        needsInitialProcessing.push({ cik: clu.cik, last_update: clu.last_update });
+      } else if (clu.last_update > ps.last_processed) {
+        needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+      }
+    }
+
+    if (needsUpdating.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 1 });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({
-        cik: needsUpating.map((r) => parseInt(r.cik)),
-        date: needsUpating.map((r) => r.last_update),
+        cik: needsUpdating.map((r) => r.cik),
+        date: needsUpdating.map((r) => r.last_update),
       });
     }
 
-    if (needsInitialProcessingCount) {
+    if (needsInitialProcessing.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 2 });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({
-        cik: needsInitialProcessing.map((r) => parseInt(r.cik)),
+        cik: needsInitialProcessing.map((r) => r.cik),
         date: needsInitialProcessing.map((r) => r.last_update),
       });
     }
@@ -96,7 +104,7 @@ async function fetchAndStoreSubmission(
   try {
     await pipeline.run(input);
   } catch (e) {
-    processUpdateProcessing(input.cik, false);
+    await processUpdateProcessing(input.cik, false);
   }
   return { success: true };
 }

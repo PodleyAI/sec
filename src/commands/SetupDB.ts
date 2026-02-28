@@ -7,7 +7,7 @@
 import { runWorkflow } from "@workglow/cli";
 import { Workflow } from "@workglow/task-graph";
 import type { Command } from "commander";
-import { createDb } from "../util/db";
+import { setupAllDatabases } from "../config/setupAllDatabases";
 
 export function SetupDB(program: Command) {
   program
@@ -15,8 +15,8 @@ export function SetupDB(program: Command) {
     .description("setup the database")
     .action(async () => {
       const workflow = new Workflow();
-      workflow.pipe(function setupDb() {
-        createDb();
+      workflow.pipe(async function setupDb() {
+        await setupAllDatabases();
         return { success: true };
       });
       try {

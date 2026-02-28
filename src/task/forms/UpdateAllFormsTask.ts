@@ -5,8 +5,15 @@
  */
 
 import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
-import { TObject, Type } from "typebox";
-import { query_all } from "../../util/db";
+import { globalServiceRegistry } from "@workglow/util";
+import { Type } from "typebox";
+import {
+  FILING_REPOSITORY_TOKEN,
+  type Filing,
+} from "../../storage/filing/FilingSchema";
+import {
+  PROCESSED_FILINGS_REPOSITORY_TOKEN,
+} from "../../storage/processing/ProcessedFilingsSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 export type UpdateAllFormsTaskInput = {
@@ -35,26 +42,39 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     input: UpdateAllFormsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllFormsTaskOutput> {
-    const missingForms = query_all<{
-      cik: string;
-      form: string;
-      accession_number: string;
-    }>(`
-      SELECT filings.cik, filings.form, filings.accession_number FROM filings left join processed_filings on filings.cik = processed_filings.cik and filings.form = processed_filings.form
-        WHERE processed_filings.accession_number IS NULL
-        AND filings.form IN (${input.form.map((f) => `'${f}'`).join(",")})`);
+    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    const processedFilingsRepo = globalServiceRegistry.get(PROCESSED_FILINGS_REPOSITORY_TOKEN);
 
-    const needsInitialProcessingCount = missingForms?.length ?? 0;
+    const formSet = new Set(input.form);
 
-    if (needsInitialProcessingCount) {
+    // Get all filings matching requested forms
+    const allFilings: Filing[] = [];
+    for (const form of input.form) {
+      const filings = await filingRepo.search({ form });
+      if (filings) allFilings.push(...filings);
+    }
+
+    // Get all processed filings and build a set of processed keys
+    const allProcessed = (await processedFilingsRepo.getAll()) ?? [];
+    const processedSet = new Set<string>();
+    for (const pf of allProcessed) {
+      processedSet.add(`${pf.cik}:${pf.accession_number}`);
+    }
+
+    // Filter to unprocessed filings
+    const missingForms = allFilings.filter(
+      (f) => f.form && formSet.has(f.form) && !processedSet.has(`${f.cik}:${f.accession_number}`)
+    );
+
+    if (missingForms.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 10 });
       loop.pipe(new ProcessAccessionDocFormTask());
       loop.endMap();
       await wf.run({
         accessionNumber: missingForms.map((f) => f.accession_number),
-        cik: missingForms.map((f) => parseInt(f.cik)),
-        form: missingForms.map((f) => f.form),
+        cik: missingForms.map((f) => f.cik),
+        form: missingForms.map((f) => f.form!),
       });
     }
     return { success: true };
