@@ -206,8 +206,9 @@ describe("Form_1_Z storage test", () => {
         const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
 
         if (
-          form1Z.formData.summaryInfoOffering &&
-          form1Z.formData.summaryInfoOffering.length > 0
+          form1Z.formData.summaryInfoOffering?.some(
+            (item) => typeof item === "object" && item !== null
+          )
         ) {
           const cik = parseInt(form1Z.headerData.filerInfo.filer.issuerCredentials.cik);
 
