@@ -2,9 +2,7 @@ name: Build & Test
 
 on:
   push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref_name }}
