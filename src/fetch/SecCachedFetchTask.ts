@@ -99,7 +99,7 @@ export abstract class SecCachedFetchTask<
       } else {
         folderPath = path.join(process.cwd(), globalPath);
       }
-      this.config.outputCache = new SecFetchFileOutputCache({
+      this.runConfig.outputCache = new SecFetchFileOutputCache({
         folderPath: folderPath,
         inputToFileName: this.inputToFileName.bind(this),
       });

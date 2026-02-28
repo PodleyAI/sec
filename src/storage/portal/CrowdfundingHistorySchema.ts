@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -92,7 +92,7 @@ export type CrowdfundingHistory = Static<typeof CrowdfundingHistorySchema>;
  * Crowdfunding History repository storage type and primary key definitions
  */
 export const CrowdfundingHistoryPrimaryKeyNames = ["cik", "valid_from"] as const;
-export type CrowdfundingHistoryRepositoryStorage = TabularRepository<
+export type CrowdfundingHistoryRepositoryStorage = ITabularStorage<
   typeof CrowdfundingHistorySchema,
   typeof CrowdfundingHistoryPrimaryKeyNames,
   CrowdfundingHistory

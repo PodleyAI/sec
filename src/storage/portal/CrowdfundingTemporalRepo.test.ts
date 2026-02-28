@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test";
-import { InMemoryTabularRepository } from "@workglow/storage";
+import { InMemoryTabularStorage } from "@workglow/storage";
 import { CrowdfundingTemporalRepo } from "./CrowdfundingTemporalRepo";
 import { CrowdfundingRepo } from "./CrowdfundingRepo";
 import {
@@ -29,33 +29,33 @@ import {
 
 describe("CrowdfundingTemporalRepo", () => {
   let temporalRepo: CrowdfundingTemporalRepo;
-  let mockCrowdfundingRepo: InMemoryTabularRepository<
+  let mockCrowdfundingRepo: InMemoryTabularStorage<
     typeof CrowdfundingSchema,
     typeof CrowdfundingPrimaryKeyNames,
     Crowdfunding
   >;
-  let mockHistoryRepo: InMemoryTabularRepository<
+  let mockHistoryRepo: InMemoryTabularStorage<
     typeof CrowdfundingHistorySchema,
     typeof CrowdfundingHistoryPrimaryKeyNames,
     CrowdfundingHistory
   >;
-  let mockChangeLogRepo: InMemoryTabularRepository<
+  let mockChangeLogRepo: InMemoryTabularStorage<
     typeof ChangeLogSchema,
     typeof ChangeLogPrimaryKeyNames,
     ChangeLog
   >;
 
   beforeEach(() => {
-    mockCrowdfundingRepo = new InMemoryTabularRepository(
+    mockCrowdfundingRepo = new InMemoryTabularStorage(
       CrowdfundingSchema,
       CrowdfundingPrimaryKeyNames
     );
-    mockHistoryRepo = new InMemoryTabularRepository(
+    mockHistoryRepo = new InMemoryTabularStorage(
       CrowdfundingHistorySchema,
       CrowdfundingHistoryPrimaryKeyNames,
       ["cik", "file_number"]
     );
-    mockChangeLogRepo = new InMemoryTabularRepository(
+    mockChangeLogRepo = new InMemoryTabularStorage(
       ChangeLogSchema,
       ChangeLogPrimaryKeyNames,
       ["entity_type", "entity_id"]

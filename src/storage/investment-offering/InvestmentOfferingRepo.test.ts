@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InMemoryTabularRepository } from "@workglow/storage";
+import { InMemoryTabularStorage } from "@workglow/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
 import { InvestmentOfferingRepo } from "./InvestmentOfferingRepo";
 import {
@@ -27,7 +27,7 @@ describe("InvestmentOfferingRepo", () => {
 
   beforeEach(() => {
     // Create real in-memory repositories with appropriate indexes
-    investmentOfferingStorage = new InMemoryTabularRepository(
+    investmentOfferingStorage = new InMemoryTabularStorage(
       InvestmentOfferingSchema,
       InvestmentOfferingPrimaryKeyNames,
       [
@@ -41,7 +41,7 @@ describe("InvestmentOfferingRepo", () => {
       ]
     );
 
-    investmentOfferingHistoryStorage = new InMemoryTabularRepository(
+    investmentOfferingHistoryStorage = new InMemoryTabularStorage(
       InvestmentOfferingHistorySchema,
       InvestmentOfferingHistoryPrimaryKeyNames,
       [

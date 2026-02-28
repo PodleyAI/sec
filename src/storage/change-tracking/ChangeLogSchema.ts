@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -91,7 +91,7 @@ export type ChangeLog = Static<typeof ChangeLogSchema>;
  * Change Log repository storage type and primary key definitions
  */
 export const ChangeLogPrimaryKeyNames = ["change_id"] as const;
-export type ChangeLogRepositoryStorage = TabularRepository<
+export type ChangeLogRepositoryStorage = ITabularStorage<
   typeof ChangeLogSchema,
   typeof ChangeLogPrimaryKeyNames,
   ChangeLog

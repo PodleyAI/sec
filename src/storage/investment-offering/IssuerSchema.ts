@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -26,7 +26,7 @@ export type Issuer = Static<typeof IssuerSchema>;
  * Issuer repository storage type and primary key definitions
  */
 export const IssuerPrimaryKeyNames = ["cik", "issuer_cik"] as const;
-export type IssuerRepositoryStorage = TabularRepository<
+export type IssuerRepositoryStorage = ITabularStorage<
   typeof IssuerSchema,
   typeof IssuerPrimaryKeyNames,
   Issuer

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -98,7 +98,7 @@ export type InvestmentOffering = Static<typeof InvestmentOfferingSchema>;
  * Investment Offering repository storage type and primary key definitions
  */
 export const InvestmentOfferingPrimaryKeyNames = ["cik", "file_number"] as const;
-export type InvestmentOfferingRepositoryStorage = TabularRepository<
+export type InvestmentOfferingRepositoryStorage = ITabularStorage<
   typeof InvestmentOfferingSchema,
   typeof InvestmentOfferingPrimaryKeyNames,
   InvestmentOffering

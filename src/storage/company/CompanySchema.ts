@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -38,7 +38,7 @@ export type Company = Static<typeof CompanySchema>;
  * Company repository storage type and primary key definitions
  */
 export const CompanyPrimaryKeyNames = ["company_hash_id"] as const;
-export type CompanyRepositoryStorage = TabularRepository<
+export type CompanyRepositoryStorage = ITabularStorage<
   typeof CompanySchema,
   typeof CompanyPrimaryKeyNames,
   Company
@@ -78,7 +78,7 @@ export const CompanyEntityJunctionPrimaryKeyNames = [
   "relation_name",
   "cik",
 ] as const;
-export type CompanyEntityJunctionRepositoryStorage = TabularRepository<
+export type CompanyEntityJunctionRepositoryStorage = ITabularStorage<
   typeof CompaniesEntityJunctionSchema,
   typeof CompanyEntityJunctionPrimaryKeyNames,
   CompaniesEntityJunction
@@ -111,7 +111,7 @@ export const CompanyAddressJunctionPrimaryKeyNames = [
   "relation_name",
   "address_hash_id",
 ] as const;
-export type CompanyAddressJunctionRepositoryStorage = TabularRepository<
+export type CompanyAddressJunctionRepositoryStorage = ITabularStorage<
   typeof CompaniesAddressJunctionSchema,
   typeof CompanyAddressJunctionPrimaryKeyNames,
   CompaniesAddressJunction
@@ -144,7 +144,7 @@ export const CompanyPhoneJunctionPrimaryKeyNames = [
   "relation_name",
   "international_number",
 ] as const;
-export type CompanyPhoneJunctionRepositoryStorage = TabularRepository<
+export type CompanyPhoneJunctionRepositoryStorage = ITabularStorage<
   typeof CompanyPhoneJunctionSchema,
   typeof CompanyPhoneJunctionPrimaryKeyNames,
   CompanyPhoneJunction
@@ -183,7 +183,7 @@ export const CompanyPreviousNamesPrimaryKeyNames = [
   "previous_name",
   "name_type",
 ] as const;
-export type CompanyPreviousNamesRepositoryStorage = TabularRepository<
+export type CompanyPreviousNamesRepositoryStorage = ITabularStorage<
   typeof CompanyPreviousNamesSchema,
   typeof CompanyPreviousNamesPrimaryKeyNames,
   CompanyPreviousNames

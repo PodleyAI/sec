@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { InMemoryTabularRepository } from "@workglow/storage";
+import { InMemoryTabularStorage } from "@workglow/storage";
 import { AddressRepo } from "./AddressRepo";
 import type { Address } from "./AddressSchema";
 import { normalizeAddress, type AddressImport } from "./AddressNormalization";
@@ -19,12 +19,12 @@ import {
 
 describe("AddressRepo", () => {
   let addressRepo: AddressRepo;
-  let addressStorage: InMemoryTabularRepository<
+  let addressStorage: InMemoryTabularStorage<
     typeof AddressSchema,
     typeof AddressPrimaryKeyNames,
     Address
   >;
-  let addressJunctionStorage: InMemoryTabularRepository<
+  let addressJunctionStorage: InMemoryTabularStorage<
     typeof AddressesEntityJunctionSchema,
     typeof AddressJunctionPrimaryKeyNames,
     AddressesEntityJunction
@@ -42,13 +42,13 @@ describe("AddressRepo", () => {
   const mockAddress: Address = normalizeAddress(mockAddressImport)!;
 
   beforeEach(() => {
-    addressStorage = new InMemoryTabularRepository<
+    addressStorage = new InMemoryTabularStorage<
       typeof AddressSchema,
       typeof AddressPrimaryKeyNames,
       Address
     >(AddressSchema, AddressPrimaryKeyNames, ["city"]);
 
-    addressJunctionStorage = new InMemoryTabularRepository(
+    addressJunctionStorage = new InMemoryTabularStorage(
       AddressesEntityJunctionSchema,
       AddressJunctionPrimaryKeyNames,
       ["address_hash_id"]

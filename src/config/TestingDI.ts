@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InMemoryTabularRepository } from "@workglow/storage";
+import { InMemoryTabularStorage } from "@workglow/storage";
 import { globalServiceRegistry } from "@workglow/util";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -152,11 +152,11 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
   globalServiceRegistry.registerInstance(
     COMPANY_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CompanySchema, CompanyPrimaryKeyNames, ["company_name"])
+    new InMemoryTabularStorage(CompanySchema, CompanyPrimaryKeyNames, ["company_name"])
   );
   globalServiceRegistry.registerInstance(
     COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       CompaniesEntityJunctionSchema,
       CompanyEntityJunctionPrimaryKeyNames,
       [["relation_name"], ["cik"]]
@@ -164,7 +164,7 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       CompaniesAddressJunctionSchema,
       CompanyAddressJunctionPrimaryKeyNames,
       [["relation_name"], ["address_hash_id"]]
@@ -172,14 +172,14 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CompanyPhoneJunctionSchema, CompanyPhoneJunctionPrimaryKeyNames, [
+    new InMemoryTabularStorage(CompanyPhoneJunctionSchema, CompanyPhoneJunctionPrimaryKeyNames, [
       ["relation_name"],
       ["international_number"],
     ])
   );
   globalServiceRegistry.registerInstance(
     COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CompanyPreviousNamesSchema, CompanyPreviousNamesPrimaryKeyNames, [
+    new InMemoryTabularStorage(CompanyPreviousNamesSchema, CompanyPreviousNamesPrimaryKeyNames, [
       ["company_hash_id"],
       ["previous_name"],
     ])
@@ -188,11 +188,11 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Person repositories
   globalServiceRegistry.registerInstance(
     PERSON_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PersonSchema, PersonPrimaryKeyNames, ["first", "last"])
+    new InMemoryTabularStorage(PersonSchema, PersonPrimaryKeyNames, ["first", "last"])
   );
   globalServiceRegistry.registerInstance(
     PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       PersonsEntityJunctionSchema,
       PersonEntityJunctionPrimaryKeyNames,
       [["relation_name"], ["cik"]]
@@ -200,7 +200,7 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       PersonsAddressJunctionSchema,
       PersonAddressJunctionPrimaryKeyNames,
       [["relation_name"], ["address_hash_id"]]
@@ -208,14 +208,14 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PersonPhoneJunctionSchema, PersonPhoneJunctionPrimaryKeyNames, [
+    new InMemoryTabularStorage(PersonPhoneJunctionSchema, PersonPhoneJunctionPrimaryKeyNames, [
       ["relation_name"],
       ["international_number"],
     ])
   );
   globalServiceRegistry.registerInstance(
     PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PersonPreviousNamesSchema, PersonPreviousNamesPrimaryKeyNames, [
+    new InMemoryTabularStorage(PersonPreviousNamesSchema, PersonPreviousNamesPrimaryKeyNames, [
       ["person_hash_id"],
       ["previous_name"],
     ])
@@ -224,11 +224,11 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Address repositories
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(AddressSchema, AddressPrimaryKeyNames, ["city"])
+    new InMemoryTabularStorage(AddressSchema, AddressPrimaryKeyNames, ["city"])
   );
   globalServiceRegistry.registerInstance(
     ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(AddressesEntityJunctionSchema, AddressJunctionPrimaryKeyNames, [
+    new InMemoryTabularStorage(AddressesEntityJunctionSchema, AddressJunctionPrimaryKeyNames, [
       ["relation_name"],
       ["cik"],
     ])
@@ -237,11 +237,11 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Phone repositories
   globalServiceRegistry.registerInstance(
     PHONE_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PhoneSchema, PhonePrimaryKeyNames, [])
+    new InMemoryTabularStorage(PhoneSchema, PhonePrimaryKeyNames, [])
   );
   globalServiceRegistry.registerInstance(
     PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PhonesEntityJunctionSchema, PhoneEntityJunctionPrimaryKeyNames, [
+    new InMemoryTabularStorage(PhonesEntityJunctionSchema, PhoneEntityJunctionPrimaryKeyNames, [
       ["relation_name"],
       ["cik"],
     ])
@@ -250,14 +250,14 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Investment Offering repositories
   globalServiceRegistry.registerInstance(
     INVESTMENT_OFFERING_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(InvestmentOfferingSchema, InvestmentOfferingPrimaryKeyNames, [
+    new InMemoryTabularStorage(InvestmentOfferingSchema, InvestmentOfferingPrimaryKeyNames, [
       ["cik"],
       ["industry_group"],
     ])
   );
   globalServiceRegistry.registerInstance(
     INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       InvestmentOfferingHistorySchema,
       InvestmentOfferingHistoryPrimaryKeyNames,
       [["cik"], ["file_number"]]
@@ -265,34 +265,34 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     ISSUER_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(IssuerSchema, IssuerPrimaryKeyNames, [["cik"], ["issuer_cik"]])
+    new InMemoryTabularStorage(IssuerSchema, IssuerPrimaryKeyNames, [["cik"], ["issuer_cik"]])
   );
 
   // Initialize Entity repositories
   globalServiceRegistry.registerInstance(
     ENTITY_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(EntitySchema, EntityPrimaryKeyNames, [["name"], ["sic"]])
+    new InMemoryTabularStorage(EntitySchema, EntityPrimaryKeyNames, [["name"], ["sic"]])
   );
   globalServiceRegistry.registerInstance(
     ENTITY_TICKER_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(EntityTickerSchema, EntityTickerPrimaryKeyNames, [
+    new InMemoryTabularStorage(EntityTickerSchema, EntityTickerPrimaryKeyNames, [
       ["ticker", "exchange"],
       ["cik"],
     ])
   );
   globalServiceRegistry.registerInstance(
     SIC_CODE_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(SicCodeSchema, SicCodePrimaryKeyNames, [])
+    new InMemoryTabularStorage(SicCodeSchema, SicCodePrimaryKeyNames, [])
   );
   globalServiceRegistry.registerInstance(
     CIK_NAME_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CikNameSchema, CikNamePrimaryKeyNames, [["name"]])
+    new InMemoryTabularStorage(CikNameSchema, CikNamePrimaryKeyNames, [["name"]])
   );
 
   // Initialize Filing repositories
   globalServiceRegistry.registerInstance(
     FILING_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(FilingSchema, FilingPrimaryKeyNames, [
+    new InMemoryTabularStorage(FilingSchema, FilingPrimaryKeyNames, [
       ["form", "cik"],
       ["filing_date"],
       ["accession_number"],
@@ -302,7 +302,7 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Portal repositories
   globalServiceRegistry.registerInstance(
     PORTAL_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(PortalSchema, PortalPrimaryKeyNames, [
+    new InMemoryTabularStorage(PortalSchema, PortalPrimaryKeyNames, [
       ["name"],
       ["brand"],
       ["live"],
@@ -312,20 +312,20 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Reg-A repositories
   globalServiceRegistry.registerInstance(
     REGA_OFFERING_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(RegAOfferingSchema, RegAOfferingPrimaryKeyNames, [
+    new InMemoryTabularStorage(RegAOfferingSchema, RegAOfferingPrimaryKeyNames, [
       ["status", "tier"],
     ])
   );
   globalServiceRegistry.registerInstance(
     REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(RegAOfferingHistorySchema, RegAOfferingHistoryPrimaryKeyNames, [
+    new InMemoryTabularStorage(RegAOfferingHistorySchema, RegAOfferingHistoryPrimaryKeyNames, [
       ["cik", "file_number"],
       ["file_number"],
     ])
   );
   globalServiceRegistry.registerInstance(
     REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       RegAServiceProviderSchema,
       RegAServiceProviderPrimaryKeyNames,
       [["cik", "file_number"]]
@@ -333,13 +333,13 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(RegAFinancialDataSchema, RegAFinancialDataPrimaryKeyNames, [
+    new InMemoryTabularStorage(RegAFinancialDataSchema, RegAFinancialDataPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
   );
   globalServiceRegistry.registerInstance(
     REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
+    new InMemoryTabularStorage(RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
   );
@@ -347,13 +347,13 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Crowdfunding repositories
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CrowdfundingSchema, CrowdfundingPrimaryKeyNames, [
+    new InMemoryTabularStorage(CrowdfundingSchema, CrowdfundingPrimaryKeyNames, [
       ["portal_cik", "status", "state_jurisdiction"],
     ])
   );
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(
+    new InMemoryTabularStorage(
       CrowdfundingOfferingsSchema,
       CrowdfundingOfferingsPrimaryKeyNames,
       [["cik", "file_number"]]
@@ -361,11 +361,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CrowdfundingReportsSchema, CrowdfundingReportsPrimaryKeyNames, [])
+    new InMemoryTabularStorage(CrowdfundingReportsSchema, CrowdfundingReportsPrimaryKeyNames, [])
   );
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(CrowdfundingHistorySchema, CrowdfundingHistoryPrimaryKeyNames, [
+    new InMemoryTabularStorage(CrowdfundingHistorySchema, CrowdfundingHistoryPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
   );
@@ -373,7 +373,7 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Change Log repository
   globalServiceRegistry.registerInstance(
     CHANGE_LOG_REPOSITORY_TOKEN,
-    new InMemoryTabularRepository(ChangeLogSchema, ChangeLogPrimaryKeyNames, [
+    new InMemoryTabularStorage(ChangeLogSchema, ChangeLogPrimaryKeyNames, [
       ["entity_type", "entity_id"],
     ])
   );

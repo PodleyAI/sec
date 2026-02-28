@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
@@ -42,7 +42,7 @@ export type Address = Static<typeof AddressSchema>;
  * Address repository storage type and primary key definitions
  */
 export const AddressPrimaryKeyNames = ["address_hash_id"] as const;
-export type AddressRepositoryStorage = TabularRepository<
+export type AddressRepositoryStorage = ITabularStorage<
   typeof AddressSchema,
   typeof AddressPrimaryKeyNames,
   Address
@@ -76,7 +76,7 @@ export type AddressesEntityJunction = Static<typeof AddressesEntityJunctionSchem
  * Address junction repository storage type and primary key definitions
  */
 export const AddressJunctionPrimaryKeyNames = ["address_hash_id", "relation_name", "cik"] as const;
-export type AddressJunctionRepositoryStorage = TabularRepository<
+export type AddressJunctionRepositoryStorage = ITabularStorage<
   typeof AddressesEntityJunctionSchema,
   typeof AddressJunctionPrimaryKeyNames,
   AddressesEntityJunction

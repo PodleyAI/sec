@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -44,7 +44,7 @@ export const RegAFinancialDataPrimaryKeyNames = [
   "accession_number",
   "field_name",
 ] as const;
-export type RegAFinancialDataRepositoryStorage = TabularRepository<
+export type RegAFinancialDataRepositoryStorage = ITabularStorage<
   typeof RegAFinancialDataSchema,
   typeof RegAFinancialDataPrimaryKeyNames,
   RegAFinancialData

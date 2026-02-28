@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -61,7 +61,7 @@ export type Crowdfunding = Static<typeof CrowdfundingSchema>;
  * Crowdfunding repository storage type and primary key definitions
  */
 export const CrowdfundingPrimaryKeyNames = ["cik", "file_number"] as const;
-export type CrowdfundingRepositoryStorage = TabularRepository<
+export type CrowdfundingRepositoryStorage = ITabularStorage<
   typeof CrowdfundingSchema,
   typeof CrowdfundingPrimaryKeyNames,
   Crowdfunding
@@ -168,7 +168,7 @@ export type CrowdfundingOfferings = Static<typeof CrowdfundingOfferingsSchema>;
  * Crowdfunding Offerings repository storage type and primary key definitions
  */
 export const CrowdfundingOfferingsPrimaryKeyNames = ["cik", "file_number", "filing_date"] as const;
-export type CrowdfundingOfferingsRepositoryStorage = TabularRepository<
+export type CrowdfundingOfferingsRepositoryStorage = ITabularStorage<
   typeof CrowdfundingOfferingsSchema,
   typeof CrowdfundingOfferingsPrimaryKeyNames,
   CrowdfundingOfferings
@@ -218,7 +218,7 @@ export const CrowdfundingReportsPrimaryKeyNames = [
   "filing_date",
   "disclosure_name",
 ] as const;
-export type CrowdfundingReportsRepositoryStorage = TabularRepository<
+export type CrowdfundingReportsRepositoryStorage = ITabularStorage<
   typeof CrowdfundingReportsSchema,
   typeof CrowdfundingReportsPrimaryKeyNames,
   CrowdfundingReports

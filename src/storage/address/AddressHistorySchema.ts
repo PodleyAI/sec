@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 import { Static, Type } from "typebox";
@@ -53,7 +53,7 @@ export const AddressHistoryJunctionPrimaryKeyNames = [
   "cik",
   "valid_from",
 ] as const;
-export type AddressHistoryJunctionRepositoryStorage = TabularRepository<
+export type AddressHistoryJunctionRepositoryStorage = ITabularStorage<
   typeof AddressesEntityHistoryJunctionSchema,
   typeof AddressHistoryJunctionPrimaryKeyNames,
   AddressesEntityHistoryJunction

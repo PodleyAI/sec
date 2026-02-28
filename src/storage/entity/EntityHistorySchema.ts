@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 import { Static, Type } from "typebox";
@@ -81,7 +81,7 @@ export type EntityHistory = Static<typeof EntityHistorySchema>;
  * Entity History repository storage type and primary key definitions
  */
 export const EntityHistoryPrimaryKeyNames = ["cik", "valid_from"] as const;
-export type EntityHistoryRepositoryStorage = TabularRepository<
+export type EntityHistoryRepositoryStorage = ITabularStorage<
   typeof EntityHistorySchema,
   typeof EntityHistoryPrimaryKeyNames,
   EntityHistory

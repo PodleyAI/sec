@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -51,7 +51,7 @@ export type Phone = Static<typeof PhoneSchema>;
  * Phone repository storage type and primary key definitions
  */
 export const PhonePrimaryKeyNames = ["international_number"] as const;
-export type PhoneRepositoryStorage = TabularRepository<
+export type PhoneRepositoryStorage = ITabularStorage<
   typeof PhoneSchema,
   typeof PhonePrimaryKeyNames,
   Phone
@@ -86,7 +86,7 @@ export const PhoneEntityJunctionPrimaryKeyNames = [
   "relation_name",
   "cik",
 ] as const;
-export type PhoneEntityJunctionRepositoryStorage = TabularRepository<
+export type PhoneEntityJunctionRepositoryStorage = ITabularStorage<
   typeof PhonesEntityJunctionSchema,
   typeof PhoneEntityJunctionPrimaryKeyNames,
   PhonesEntityJunction

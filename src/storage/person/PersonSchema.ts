@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
+import type { ITabularStorage } from "@workglow/storage";
 import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeNullable } from "../../util/TypeBoxUtil";
@@ -51,7 +51,7 @@ export type Person = Static<typeof PersonSchema>;
  * Person repository storage type and primary key definitions
  */
 export const PersonPrimaryKeyNames = ["person_hash_id"] as const;
-export type PersonRepositoryStorage = TabularRepository<
+export type PersonRepositoryStorage = ITabularStorage<
   typeof PersonSchema,
   typeof PersonPrimaryKeyNames,
   Person
@@ -91,7 +91,7 @@ export const PersonEntityJunctionPrimaryKeyNames = [
   "relation_name",
   "cik",
 ] as const;
-export type PersonEntityJunctionRepositoryStorage = TabularRepository<
+export type PersonEntityJunctionRepositoryStorage = ITabularStorage<
   typeof PersonsEntityJunctionSchema,
   typeof PersonEntityJunctionPrimaryKeyNames,
   PersonsEntityJunction
@@ -124,7 +124,7 @@ export const PersonAddressJunctionPrimaryKeyNames = [
   "relation_name",
   "address_hash_id",
 ] as const;
-export type PersonAddressJunctionRepositoryStorage = TabularRepository<
+export type PersonAddressJunctionRepositoryStorage = ITabularStorage<
   typeof PersonsAddressJunctionSchema,
   typeof PersonAddressJunctionPrimaryKeyNames,
   PersonsAddressJunction
@@ -157,7 +157,7 @@ export const PersonPhoneJunctionPrimaryKeyNames = [
   "relation_name",
   "international_number",
 ] as const;
-export type PersonPhoneJunctionRepositoryStorage = TabularRepository<
+export type PersonPhoneJunctionRepositoryStorage = ITabularStorage<
   typeof PersonPhoneJunctionSchema,
   typeof PersonPhoneJunctionPrimaryKeyNames,
   PersonPhoneJunction
@@ -196,7 +196,7 @@ export const PersonPreviousNamesPrimaryKeyNames = [
   "previous_name",
   "name_type",
 ] as const;
-export type PersonPreviousNamesRepositoryStorage = TabularRepository<
+export type PersonPreviousNamesRepositoryStorage = ITabularStorage<
   typeof PersonPreviousNamesSchema,
   typeof PersonPreviousNamesPrimaryKeyNames,
   PersonPreviousNames

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SqliteTabularRepository } from "@workglow/storage";
+import { SqliteTabularStorage } from "@workglow/storage";
 import { globalServiceRegistry } from "@workglow/util";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -156,7 +156,7 @@ export const DefaultDI = () => {
   // ------------------------------ Addresses --------------------------------
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,
-    new SqliteTabularRepository<typeof AddressSchema, typeof AddressPrimaryKeyNames, Address>(
+    new SqliteTabularStorage<typeof AddressSchema, typeof AddressPrimaryKeyNames, Address>(
       getDb(),
       "addresses",
       AddressSchema,
@@ -166,7 +166,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository<
+    new SqliteTabularStorage<
       typeof AddressesEntityJunctionSchema,
       typeof AddressJunctionPrimaryKeyNames,
       AddressesEntityJunction
@@ -181,7 +181,7 @@ export const DefaultDI = () => {
   // ------------------------------ Persons --------------------------------
   globalServiceRegistry.registerInstance(
     PERSON_REPOSITORY_TOKEN,
-    new SqliteTabularRepository<typeof PersonSchema, typeof PersonPrimaryKeyNames, Person>(
+    new SqliteTabularStorage<typeof PersonSchema, typeof PersonPrimaryKeyNames, Person>(
       getDb(),
       "persons",
       PersonSchema,
@@ -191,7 +191,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "persons_entity_junction",
       PersonsEntityJunctionSchema,
@@ -201,7 +201,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "persons_address_junction",
       PersonsAddressJunctionSchema,
@@ -211,7 +211,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "persons_phone_junction",
       PersonPhoneJunctionSchema,
@@ -221,7 +221,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "persons_previous_names",
       PersonPreviousNamesSchema,
@@ -233,13 +233,13 @@ export const DefaultDI = () => {
   // ------------------------------ Companies --------------------------------
   globalServiceRegistry.registerInstance(
     COMPANY_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "companies", CompanySchema, CompanyPrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "companies", CompanySchema, CompanyPrimaryKeyNames, [
       ["company_name"],
     ])
   );
   globalServiceRegistry.registerInstance(
     COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "companies_entity_junction",
       CompaniesEntityJunctionSchema,
@@ -249,7 +249,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "companies_address_junction",
       CompaniesAddressJunctionSchema,
@@ -259,7 +259,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "companies_phone_junction",
       CompanyPhoneJunctionSchema,
@@ -269,7 +269,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "companies_previous_names",
       CompanyPreviousNamesSchema,
@@ -281,11 +281,11 @@ export const DefaultDI = () => {
   // ------------------------------ Phones --------------------------------
   globalServiceRegistry.registerInstance(
     PHONE_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "phones", PhoneSchema, PhonePrimaryKeyNames)
+    new SqliteTabularStorage(getDb(), "phones", PhoneSchema, PhonePrimaryKeyNames)
   );
   globalServiceRegistry.registerInstance(
     PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "phones_entity_junction",
       PhonesEntityJunctionSchema,
@@ -297,7 +297,7 @@ export const DefaultDI = () => {
   // ------------------------------ Investment Offerings --------------------------------
   globalServiceRegistry.registerInstance(
     INVESTMENT_OFFERING_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "investment_offerings",
       InvestmentOfferingSchema,
@@ -307,7 +307,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "investment_offerings_history",
       InvestmentOfferingHistorySchema,
@@ -319,7 +319,7 @@ export const DefaultDI = () => {
   // ------------------------------ Issuers --------------------------------
   globalServiceRegistry.registerInstance(
     ISSUER_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "issuers", IssuerSchema, IssuerPrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "issuers", IssuerSchema, IssuerPrimaryKeyNames, [
       ["issuer_cik", "cik"],
     ])
   );
@@ -327,14 +327,14 @@ export const DefaultDI = () => {
   // ------------------------------ Entities --------------------------------
   globalServiceRegistry.registerInstance(
     ENTITY_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "entities", EntitySchema, EntityPrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "entities", EntitySchema, EntityPrimaryKeyNames, [
       ["name"],
       ["sic"],
     ])
   );
   globalServiceRegistry.registerInstance(
     ENTITY_TICKER_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "entity_tickers",
       EntityTickerSchema,
@@ -344,11 +344,11 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     SIC_CODE_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "sic_code", SicCodeSchema, SicCodePrimaryKeyNames)
+    new SqliteTabularStorage(getDb(), "sic_code", SicCodeSchema, SicCodePrimaryKeyNames)
   );
   globalServiceRegistry.registerInstance(
     CIK_NAME_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "cik_names", CikNameSchema, CikNamePrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "cik_names", CikNameSchema, CikNamePrimaryKeyNames, [
       ["name"],
     ])
   );
@@ -356,7 +356,7 @@ export const DefaultDI = () => {
   // ------------------------------ Filings --------------------------------
   globalServiceRegistry.registerInstance(
     FILING_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "filings", FilingSchema, FilingPrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "filings", FilingSchema, FilingPrimaryKeyNames, [
       ["form", "cik"],
       ["filing_date"],
       ["accession_number"],
@@ -366,7 +366,7 @@ export const DefaultDI = () => {
   // ------------------------------ Crowdfunding --------------------------------
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "crowdfunding",
       CrowdfundingSchema,
@@ -376,7 +376,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "crowdfunding_offerings",
       CrowdfundingOfferingsSchema,
@@ -386,7 +386,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "crowdfunding_reports",
       CrowdfundingReportsSchema,
@@ -397,7 +397,7 @@ export const DefaultDI = () => {
   // ------------------------------ Crowdfunding History --------------------------------
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "crowdfunding_history",
       CrowdfundingHistorySchema,
@@ -409,7 +409,7 @@ export const DefaultDI = () => {
   // ------------------------------ Change Log --------------------------------
   globalServiceRegistry.registerInstance(
     CHANGE_LOG_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "change_log",
       ChangeLogSchema,
@@ -421,7 +421,7 @@ export const DefaultDI = () => {
   // ------------------------------ Portals --------------------------------
   globalServiceRegistry.registerInstance(
     PORTAL_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(getDb(), "portals", PortalSchema, PortalPrimaryKeyNames, [
+    new SqliteTabularStorage(getDb(), "portals", PortalSchema, PortalPrimaryKeyNames, [
       ["name"],
       ["brand"],
       ["live"],
@@ -431,7 +431,7 @@ export const DefaultDI = () => {
   // ------------------------------ Reg-A Offerings --------------------------------
   globalServiceRegistry.registerInstance(
     REGA_OFFERING_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "rega_offerings",
       RegAOfferingSchema,
@@ -441,7 +441,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "rega_offering_history",
       RegAOfferingHistorySchema,
@@ -451,7 +451,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "rega_service_providers",
       RegAServiceProviderSchema,
@@ -461,7 +461,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "rega_financial_data",
       RegAFinancialDataSchema,
@@ -471,7 +471,7 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
-    new SqliteTabularRepository(
+    new SqliteTabularStorage(
       getDb(),
       "rega_equity_classes",
       RegAEquityClassSchema,
