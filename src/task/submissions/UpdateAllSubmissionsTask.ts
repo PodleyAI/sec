@@ -50,7 +50,11 @@ export class UpdateAllSubmissionsTask extends Task<
       PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
     );
 
-    const allCikUpdates = (await cikLastUpdateRepo.getAll()) ?? [];
+    const allCikUpdates =
+      (await cikLastUpdateRepo.query(
+        {},
+        { orderBy: [{ column: "last_update", direction: "DESC" }] }
+      )) ?? [];
     const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
 
     const processedMap = new Map<number, ProcessedSubmissions>();

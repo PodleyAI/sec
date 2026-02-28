@@ -8,7 +8,7 @@ import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph
 import { globalServiceRegistry } from "@workglow/util";
 import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const FetchAndStoreFormsTaskInputSchema = () =>
@@ -62,10 +62,11 @@ export class FetchAndStoreFormsTask extends Task<
 
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
 
-    let filings = (await filingRepo.search({ cik, form })) ?? [];
-
+    let filings: Filing[];
     if (docid) {
-      filings = filings.filter((f) => f.accession_number === docid);
+      filings = (await filingRepo.search({ cik, accession_number: docid })) ?? [];
+    } else {
+      filings = (await filingRepo.search({ cik, form })) ?? [];
     }
 
     if (filings.length > 0) {

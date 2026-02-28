@@ -94,6 +94,10 @@ export class ProcessAccessionDocFormTask extends Task<
       fileName = fileName ?? filing.primary_doc;
     }
 
+    if (!form) {
+      throw new TaskError(`Filing ${accessionNumber} has no form type`);
+    }
+
     const processedFilingsRepo = globalServiceRegistry.get(PROCESSED_FILINGS_REPOSITORY_TOKEN);
 
     const wf = context.own(new Workflow());

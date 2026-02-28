@@ -49,13 +49,17 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
     // Get all filings matching requested forms
     const allFilings: Filing[] = [];
-    for (const form of input.form) {
+    for (const form of formSet) {
       const filings = await filingRepo.search({ form });
       if (filings) allFilings.push(...filings);
     }
 
-    // Get all processed filings and build a set of processed keys
-    const allProcessed = (await processedFilingsRepo.getAll()) ?? [];
+    // Get processed filings per form and build a set of processed keys
+    const allProcessed: { cik: number; accession_number: string }[] = [];
+    for (const form of formSet) {
+      const processed = await processedFilingsRepo.query({ form });
+      if (processed) allProcessed.push(...processed);
+    }
     const processedSet = new Set<string>();
     for (const pf of allProcessed) {
       processedSet.add(`${pf.cik}:${pf.accession_number}`);
@@ -75,6 +79,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
         accessionNumber: missingForms.map((f) => f.accession_number),
         cik: missingForms.map((f) => f.cik),
         form: missingForms.map((f) => f.form!),
+        fileName: missingForms.map((f) => f.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, "")),
       });
     }
     return { success: true };
