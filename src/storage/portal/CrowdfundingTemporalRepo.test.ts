@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test";
-import { InMemoryTabularRepository } from "@podley/storage";
+import { InMemoryTabularRepository } from "@workglow/storage";
 import { CrowdfundingTemporalRepo } from "./CrowdfundingTemporalRepo";
 import { CrowdfundingRepo } from "./CrowdfundingRepo";
 import {
