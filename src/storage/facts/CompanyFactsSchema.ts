@@ -71,7 +71,6 @@ export const CompanyFactsPrimaryKeyNames = [
   "grouping",
   "name",
   "accession_number",
-  "frame",
   "val_unit",
   "fy",
   "fp",
