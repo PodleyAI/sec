@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@podley/util";
+import { globalServiceRegistry } from "@workglow/util";
 import { CrowdfundingRepo } from "./CrowdfundingRepo";
 import { Crowdfunding } from "./CrowdfundingSchema";
 import {

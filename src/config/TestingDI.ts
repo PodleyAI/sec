@@ -108,10 +108,45 @@ import {
   CrowdfundingSchema,
 } from "../storage/portal/CrowdfundingSchema";
 import {
+  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+  CrowdfundingHistoryPrimaryKeyNames,
+  CrowdfundingHistorySchema,
+} from "../storage/portal/CrowdfundingHistorySchema";
+import {
+  CHANGE_LOG_REPOSITORY_TOKEN,
+  ChangeLogPrimaryKeyNames,
+  ChangeLogSchema,
+} from "../storage/change-tracking/ChangeLogSchema";
+import {
   PORTAL_REPOSITORY_TOKEN,
   PortalPrimaryKeyNames,
   PortalSchema,
 } from "../storage/portal/PortalSchema";
+import {
+  REGA_OFFERING_REPOSITORY_TOKEN,
+  RegAOfferingPrimaryKeyNames,
+  RegAOfferingSchema,
+} from "../storage/reg-a/RegAOfferingSchema";
+import {
+  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+  RegAOfferingHistoryPrimaryKeyNames,
+  RegAOfferingHistorySchema,
+} from "../storage/reg-a/RegAOfferingHistorySchema";
+import {
+  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+  RegAServiceProviderPrimaryKeyNames,
+  RegAServiceProviderSchema,
+} from "../storage/reg-a/RegAServiceProviderSchema";
+import {
+  REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
+  RegAFinancialDataPrimaryKeyNames,
+  RegAFinancialDataSchema,
+} from "../storage/reg-a/RegAFinancialDataSchema";
+import {
+  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+  RegAEquityClassPrimaryKeyNames,
+  RegAEquityClassSchema,
+} from "../storage/reg-a/RegAEquityClassSchema";
 
 export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
@@ -274,6 +309,41 @@ export function resetDependencyInjectionsForTesting() {
     ])
   );
 
+  // Initialize Reg-A repositories
+  globalServiceRegistry.registerInstance(
+    REGA_OFFERING_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(RegAOfferingSchema, RegAOfferingPrimaryKeyNames, [
+      ["status", "tier"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(RegAOfferingHistorySchema, RegAOfferingHistoryPrimaryKeyNames, [
+      ["cik", "file_number"],
+      ["file_number"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(
+      RegAServiceProviderSchema,
+      RegAServiceProviderPrimaryKeyNames,
+      [["cik", "file_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(RegAFinancialDataSchema, RegAFinancialDataPrimaryKeyNames, [
+      ["cik", "file_number"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
+      ["cik", "file_number"],
+    ])
+  );
+
   // Initialize Crowdfunding repositories
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPOSITORY_TOKEN,
@@ -292,5 +362,19 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
     new InMemoryTabularRepository(CrowdfundingReportsSchema, CrowdfundingReportsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(CrowdfundingHistorySchema, CrowdfundingHistoryPrimaryKeyNames, [
+      ["cik", "file_number"],
+    ])
+  );
+
+  // Initialize Change Log repository
+  globalServiceRegistry.registerInstance(
+    CHANGE_LOG_REPOSITORY_TOKEN,
+    new InMemoryTabularRepository(ChangeLogSchema, ChangeLogPrimaryKeyNames, [
+      ["entity_type", "entity_id"],
+    ])
   );
 }

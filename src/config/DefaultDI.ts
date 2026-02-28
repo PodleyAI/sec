@@ -109,12 +109,47 @@ import {
   CrowdfundingReportsSchema,
   CrowdfundingSchema,
 } from "../storage/portal/CrowdfundingSchema";
+import {
+  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+  CrowdfundingHistoryPrimaryKeyNames,
+  CrowdfundingHistorySchema,
+} from "../storage/portal/CrowdfundingHistorySchema";
+import {
+  CHANGE_LOG_REPOSITORY_TOKEN,
+  ChangeLogPrimaryKeyNames,
+  ChangeLogSchema,
+} from "../storage/change-tracking/ChangeLogSchema";
 import { Address } from "../storage/address/AddressSchema";
 import {
   PORTAL_REPOSITORY_TOKEN,
   PortalPrimaryKeyNames,
   PortalSchema,
 } from "../storage/portal/PortalSchema";
+import {
+  REGA_OFFERING_REPOSITORY_TOKEN,
+  RegAOfferingPrimaryKeyNames,
+  RegAOfferingSchema,
+} from "../storage/reg-a/RegAOfferingSchema";
+import {
+  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+  RegAOfferingHistoryPrimaryKeyNames,
+  RegAOfferingHistorySchema,
+} from "../storage/reg-a/RegAOfferingHistorySchema";
+import {
+  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+  RegAServiceProviderPrimaryKeyNames,
+  RegAServiceProviderSchema,
+} from "../storage/reg-a/RegAServiceProviderSchema";
+import {
+  REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
+  RegAFinancialDataPrimaryKeyNames,
+  RegAFinancialDataSchema,
+} from "../storage/reg-a/RegAFinancialDataSchema";
+import {
+  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+  RegAEquityClassPrimaryKeyNames,
+  RegAEquityClassSchema,
+} from "../storage/reg-a/RegAEquityClassSchema";
 import { getDb } from "../util/db";
 
 export const DefaultDI = () => {
@@ -359,6 +394,30 @@ export const DefaultDI = () => {
     )
   );
 
+  // ------------------------------ Crowdfunding History --------------------------------
+  globalServiceRegistry.registerInstance(
+    CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "crowdfunding_history",
+      CrowdfundingHistorySchema,
+      CrowdfundingHistoryPrimaryKeyNames,
+      [["cik", "file_number"]]
+    )
+  );
+
+  // ------------------------------ Change Log --------------------------------
+  globalServiceRegistry.registerInstance(
+    CHANGE_LOG_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "change_log",
+      ChangeLogSchema,
+      ChangeLogPrimaryKeyNames,
+      [["entity_type", "entity_id"]]
+    )
+  );
+
   // ------------------------------ Portals --------------------------------
   globalServiceRegistry.registerInstance(
     PORTAL_REPOSITORY_TOKEN,
@@ -367,5 +426,57 @@ export const DefaultDI = () => {
       ["brand"],
       ["live"],
     ])
+  );
+
+  // ------------------------------ Reg-A Offerings --------------------------------
+  globalServiceRegistry.registerInstance(
+    REGA_OFFERING_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "rega_offerings",
+      RegAOfferingSchema,
+      RegAOfferingPrimaryKeyNames,
+      [["status", "tier"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "rega_offering_history",
+      RegAOfferingHistorySchema,
+      RegAOfferingHistoryPrimaryKeyNames,
+      [["cik", "file_number"], ["file_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "rega_service_providers",
+      RegAServiceProviderSchema,
+      RegAServiceProviderPrimaryKeyNames,
+      [["cik", "file_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "rega_financial_data",
+      RegAFinancialDataSchema,
+      RegAFinancialDataPrimaryKeyNames,
+      [["cik", "file_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+    new SqliteTabularRepository(
+      getDb(),
+      "rega_equity_classes",
+      RegAEquityClassSchema,
+      RegAEquityClassPrimaryKeyNames,
+      [["cik", "file_number"]]
+    )
   );
 };
