@@ -8,9 +8,8 @@ import { getTaskQueueRegistry, setTaskQueueRegistry } from "@workglow/task-graph
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 import { TaskFailedError } from "@workglow/task-graph";
-import { FetchUrlTaskOutput } from "@workglow/tasks";
+import { FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
 import { JobQueueServer, JobQueueClient, EvenlySpacedRateLimiter } from "@workglow/job-queue";
-import { FetchUrlTaskInput } from "@workglow/tasks";
 import { SecFetchJob } from "../../fetch/SecFetchJob";
 import { SecJobQueueName } from "../../config/Constants";
 import { InMemoryQueueStorage } from "@workglow/storage";
@@ -95,14 +94,12 @@ describe("FetchDailyIndexTask", () => {
     const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
       SecJobQueueName
     );
-
     server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(SecFetchJob, {
       queueName: SecJobQueueName,
       storage,
       limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
       pollIntervalMs: 1,
     });
-
     const client = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
       storage,
       queueName: SecJobQueueName,
