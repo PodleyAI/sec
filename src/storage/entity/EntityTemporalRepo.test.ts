@@ -34,14 +34,14 @@ describe("EntityTemporalRepo", () => {
     mockEntityHistoryRepository = {
       get: mock(),
       put: mock(),
-      search: mock(),
+      query: mock(),
       getAll: mock(),
     };
 
     mockChangeLogRepository = {
       get: mock(),
       put: mock(),
-      search: mock(),
+      query: mock(),
       getAll: mock(),
     };
 
@@ -74,7 +74,7 @@ describe("EntityTemporalRepo", () => {
 
     it("should create new entity with initial history record", async () => {
       mockEntityRepo.getEntity.mockResolvedValue(undefined);
-      mockEntityHistoryRepository.search.mockResolvedValue([]);
+      mockEntityHistoryRepository.query.mockResolvedValue([]);
 
       await entityTemporalRepo.saveEntityWithHistory(testEntity, "10-K", "batch-123");
 
@@ -124,7 +124,7 @@ describe("EntityTemporalRepo", () => {
       };
 
       mockEntityRepo.getEntity.mockResolvedValue(existingEntity);
-      mockEntityHistoryRepository.search.mockResolvedValue([currentHistory]);
+      mockEntityHistoryRepository.query.mockResolvedValue([currentHistory]);
 
       await entityTemporalRepo.saveEntityWithHistory(testEntity, "10-K");
 
@@ -221,7 +221,7 @@ describe("EntityTemporalRepo", () => {
         },
       ];
 
-      mockEntityHistoryRepository.search.mockResolvedValue(history);
+      mockEntityHistoryRepository.query.mockResolvedValue(history);
 
       // Query for time in 2023
       const result = await entityTemporalRepo.getEntityAtTime(
@@ -246,7 +246,7 @@ describe("EntityTemporalRepo", () => {
     });
 
     it("should return undefined if no entity exists at time", async () => {
-      mockEntityHistoryRepository.search.mockResolvedValue([]);
+      mockEntityHistoryRepository.query.mockResolvedValue([]);
 
       const result = await entityTemporalRepo.getEntityAtTime(
         1234567,
@@ -316,7 +316,7 @@ describe("EntityTemporalRepo", () => {
         },
       ];
 
-      mockEntityHistoryRepository.search.mockResolvedValue(history);
+      mockEntityHistoryRepository.query.mockResolvedValue(history);
 
       const result = await entityTemporalRepo.getEntityHistory(1234567);
 
@@ -386,7 +386,7 @@ describe("EntityTemporalRepo", () => {
         },
       ];
 
-      mockEntityHistoryRepository.search.mockResolvedValue(history);
+      mockEntityHistoryRepository.query.mockResolvedValue(history);
 
       const result = await entityTemporalRepo.getEntitySicHistory(1234567);
 

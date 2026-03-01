@@ -41,14 +41,14 @@ export class PortalRepo implements PortalRepoOptions {
   }
 
   async getActivePortals(): Promise<Portal[]> {
-    return (await this.portalRepository.search({ live: true })) || [];
+    return (await this.portalRepository.query({ live: true })) || [];
   }
 
   async getPortalsByBrand(brand: string): Promise<Portal[]> {
-    return (await this.portalRepository.search({ brand })) || [];
+    return (await this.portalRepository.query({ brand })) || [];
   }
 
   async searchPortalsByName(name: string): Promise<Portal[]> {
-    return (await this.portalRepository.search({ name })) || [];
+    return (await this.portalRepository.query({ name })) || [];
   }
 }

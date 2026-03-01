@@ -187,7 +187,7 @@ describe("Form_C storage test", () => {
       });
 
       // Verify co-issuer relationships were created
-      const coIssuerRelations = await companyRepo.companyEntityJunctionRepository.search({
+      const coIssuerRelations = await companyRepo.companyEntityJunctionRepository.query({
         cik,
         relation_name: "form-c:co-issuer",
       });
@@ -212,7 +212,7 @@ describe("Form_C storage test", () => {
       });
 
       // The issuer signature should be stored
-      const signatureRelations = await personRepo.personEntityJunctionRepository.search({
+      const signatureRelations = await personRepo.personEntityJunctionRepository.query({
         cik,
         relation_name: "form-c:signature",
       });

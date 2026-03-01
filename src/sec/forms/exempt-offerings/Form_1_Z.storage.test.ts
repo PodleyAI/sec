@@ -109,11 +109,11 @@ describe("Form_1_Z storage test", () => {
       });
 
       // Check that signature persons/companies were stored
-      const personSignatures = await personRepo.personEntityJunctionRepository.search({
+      const personSignatures = await personRepo.personEntityJunctionRepository.query({
         cik,
         relation_name: "form-rega:signature",
       });
-      const companySignatures = await companyRepo.companyEntityJunctionRepository.search({
+      const companySignatures = await companyRepo.companyEntityJunctionRepository.query({
         cik,
         relation_name: "form-rega:signature",
       });
@@ -146,7 +146,7 @@ describe("Form_1_Z storage test", () => {
       expect(allPhones.length).toBeGreaterThan(0);
 
       // Verify issuer company was stored
-      const issuerRelations = await companyRepo.companyEntityJunctionRepository.search({
+      const issuerRelations = await companyRepo.companyEntityJunctionRepository.query({
         cik,
         relation_name: "form-rega:issuer",
       });

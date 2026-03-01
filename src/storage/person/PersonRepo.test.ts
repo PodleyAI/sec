@@ -74,7 +74,7 @@ describe("PersonRepo", () => {
       });
       expect(storedPerson).toEqual(normalizedPerson!);
 
-      const junctionRecords = await personJunctionStorage.search({
+      const junctionRecords = await personJunctionStorage.query({
         person_hash_id: normalizedPerson!.person_hash_id,
         relation_name: "form-z:something",
         cik: 123456,

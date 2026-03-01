@@ -50,7 +50,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     // Get all filings matching requested forms
     const allFilings: Filing[] = [];
     for (const form of formSet) {
-      const filings = await filingRepo.search({ form });
+      const filings = await filingRepo.query({ form });
       if (filings) allFilings.push(...filings);
     }
 

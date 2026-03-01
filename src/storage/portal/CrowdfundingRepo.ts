@@ -53,7 +53,7 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   }
 
   async searchCrowdfunding(criteria: Partial<Crowdfunding>): Promise<Crowdfunding[]> {
-    return (await this.crowdfundingRepository.search(criteria)) || [];
+    return (await this.crowdfundingRepository.query(criteria)) || [];
   }
 
   async getAllCrowdfunding(): Promise<Crowdfunding[]> {
@@ -61,15 +61,15 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   }
 
   async getCrowdfundingByCik(cik: number): Promise<Crowdfunding[]> {
-    return (await this.crowdfundingRepository.search({ cik })) || [];
+    return (await this.crowdfundingRepository.query({ cik })) || [];
   }
 
   async getCrowdfundingByPortalCik(portalCik: number): Promise<Crowdfunding[]> {
-    return (await this.crowdfundingRepository.search({ portal_cik: portalCik })) || [];
+    return (await this.crowdfundingRepository.query({ portal_cik: portalCik })) || [];
   }
 
   async getCrowdfundingByStatus(status: string): Promise<Crowdfunding[]> {
-    return (await this.crowdfundingRepository.search({ status })) || [];
+    return (await this.crowdfundingRepository.query({ status })) || [];
   }
 
   // Crowdfunding Offerings methods
@@ -92,7 +92,7 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   async searchCrowdfundingOfferings(
     criteria: Partial<CrowdfundingOfferings>
   ): Promise<CrowdfundingOfferings[]> {
-    return (await this.crowdfundingOfferingsRepository.search(criteria)) || [];
+    return (await this.crowdfundingOfferingsRepository.query(criteria)) || [];
   }
 
   async getAllCrowdfundingOfferings(): Promise<CrowdfundingOfferings[]> {
@@ -100,11 +100,11 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   }
 
   async getCrowdfundingOfferingsByCik(cik: number): Promise<CrowdfundingOfferings[]> {
-    return (await this.crowdfundingOfferingsRepository.search({ cik })) || [];
+    return (await this.crowdfundingOfferingsRepository.query({ cik })) || [];
   }
 
   async getCrowdfundingOfferingsByFileNumber(fileNumber: string): Promise<CrowdfundingOfferings[]> {
-    return (await this.crowdfundingOfferingsRepository.search({ file_number: fileNumber })) || [];
+    return (await this.crowdfundingOfferingsRepository.query({ file_number: fileNumber })) || [];
   }
 
   // Crowdfunding Reports methods
@@ -129,7 +129,7 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   async searchCrowdfundingReports(
     criteria: Partial<CrowdfundingReports>
   ): Promise<CrowdfundingReports[]> {
-    return (await this.crowdfundingReportsRepository.search(criteria)) || [];
+    return (await this.crowdfundingReportsRepository.query(criteria)) || [];
   }
 
   async getAllCrowdfundingReports(): Promise<CrowdfundingReports[]> {
@@ -137,11 +137,11 @@ export class CrowdfundingRepo implements CrowdfundingRepoOptions {
   }
 
   async getCrowdfundingReportsByCik(cik: number): Promise<CrowdfundingReports[]> {
-    return (await this.crowdfundingReportsRepository.search({ cik })) || [];
+    return (await this.crowdfundingReportsRepository.query({ cik })) || [];
   }
 
   async getCrowdfundingReportsByFileNumber(fileNumber: string): Promise<CrowdfundingReports[]> {
-    return (await this.crowdfundingReportsRepository.search({ file_number: fileNumber })) || [];
+    return (await this.crowdfundingReportsRepository.query({ file_number: fileNumber })) || [];
   }
 
   // Convenience methods

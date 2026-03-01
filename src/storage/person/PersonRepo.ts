@@ -153,7 +153,7 @@ export class PersonRepo implements PersonRepoOptions {
   }
 
   async getPersonsByEntity(cik: number): Promise<Person[]> {
-    const junctions = await this.personEntityJunctionRepository.search({ cik });
+    const junctions = await this.personEntityJunctionRepository.query({ cik });
     if (!junctions || junctions.length === 0) return [];
 
     const persons: Person[] = [];
@@ -167,7 +167,7 @@ export class PersonRepo implements PersonRepoOptions {
   }
 
   async getPersonsByEntityAndRelation(cik: number, relation_name: string): Promise<Person[]> {
-    const junctions = await this.personEntityJunctionRepository.search({ cik, relation_name });
+    const junctions = await this.personEntityJunctionRepository.query({ cik, relation_name });
     if (!junctions || junctions.length === 0) return [];
 
     const persons: Person[] = [];
@@ -190,6 +190,6 @@ export class PersonRepo implements PersonRepoOptions {
       return (await this.personRepository.getAll()) || [];
     }
 
-    return (await this.personRepository.search(searchCriteria)) || [];
+    return (await this.personRepository.query(searchCriteria)) || [];
   }
 }

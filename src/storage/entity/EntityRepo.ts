@@ -67,12 +67,12 @@ export class EntityRepo implements EntityRepoOptions {
   }
 
   async getCikByEntityName(name: string): Promise<number | undefined> {
-    const cikName = await this.cikNameRepository.search({ name });
+    const cikName = await this.cikNameRepository.query({ name });
     return cikName?.[0]?.cik;
   }
 
   async searchEntities(criteria: Partial<Entity>): Promise<Entity[]> {
-    return (await this.entityRepository.search(criteria)) || [];
+    return (await this.entityRepository.query(criteria)) || [];
   }
 
   async getAllEntities(): Promise<Entity[]> {
@@ -81,7 +81,7 @@ export class EntityRepo implements EntityRepoOptions {
 
   // Entity Ticker methods
   async getEntityTickers(cik: number): Promise<EntityTicker[]> {
-    return (await this.entityTickerRepository.search({ cik })) || [];
+    return (await this.entityTickerRepository.query({ cik })) || [];
   }
 
   async getEntityTicker(
@@ -97,7 +97,7 @@ export class EntityRepo implements EntityRepoOptions {
   }
 
   async searchEntityTickers(criteria: Partial<EntityTicker>): Promise<EntityTicker[]> {
-    return (await this.entityTickerRepository.search(criteria)) || [];
+    return (await this.entityTickerRepository.query(criteria)) || [];
   }
 
   async getAllEntityTickers(): Promise<EntityTicker[]> {
@@ -114,7 +114,7 @@ export class EntityRepo implements EntityRepoOptions {
   }
 
   async searchSicCodes(criteria: Partial<SicCode>): Promise<SicCode[]> {
-    return (await this.sicCodeRepository.search(criteria)) || [];
+    return (await this.sicCodeRepository.query(criteria)) || [];
   }
 
   async getAllSicCodes(): Promise<SicCode[]> {
@@ -131,15 +131,15 @@ export class EntityRepo implements EntityRepoOptions {
   }
 
   async getFilings(cik: number): Promise<Filing[]> {
-    return (await this.filingRepository.search({ cik })) || [];
+    return (await this.filingRepository.query({ cik })) || [];
   }
 
   async getFilingsByForm(cik: number, form: string): Promise<Filing[]> {
-    return (await this.filingRepository.search({ cik, form })) || [];
+    return (await this.filingRepository.query({ cik, form })) || [];
   }
 
   async searchFilings(criteria: Partial<Filing>): Promise<Filing[]> {
-    return (await this.filingRepository.search(criteria)) || [];
+    return (await this.filingRepository.query(criteria)) || [];
   }
 
   async getAllFilings(): Promise<Filing[]> {

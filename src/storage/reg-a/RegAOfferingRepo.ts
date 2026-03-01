@@ -79,11 +79,11 @@ export class RegAOfferingRepo {
   }
 
   async getOfferingsByCik(cik: number): Promise<RegAOffering[]> {
-    return (await this.offeringRepository.search({ cik })) || [];
+    return (await this.offeringRepository.query({ cik })) || [];
   }
 
   async getOfferingsByStatus(status: string): Promise<RegAOffering[]> {
-    return (await this.offeringRepository.search({ status })) || [];
+    return (await this.offeringRepository.query({ status })) || [];
   }
 
   // ================================
@@ -107,7 +107,7 @@ export class RegAOfferingRepo {
   }
 
   async getOfferingHistoriesByFileNumber(fileNumber: string): Promise<RegAOfferingHistory[]> {
-    return (await this.offeringHistoryRepository.search({ file_number: fileNumber })) || [];
+    return (await this.offeringHistoryRepository.query({ file_number: fileNumber })) || [];
   }
 
   // ================================
@@ -124,7 +124,7 @@ export class RegAOfferingRepo {
     accessionNumber: string
   ): Promise<RegAServiceProvider[]> {
     return (
-      (await this.serviceProviderRepository.search({
+      (await this.serviceProviderRepository.query({
         cik,
         file_number: fileNumber,
         accession_number: accessionNumber,
@@ -146,7 +146,7 @@ export class RegAOfferingRepo {
     accessionNumber: string
   ): Promise<RegAFinancialData[]> {
     return (
-      (await this.financialDataRepository.search({
+      (await this.financialDataRepository.query({
         cik,
         file_number: fileNumber,
         accession_number: accessionNumber,
@@ -168,7 +168,7 @@ export class RegAOfferingRepo {
     accessionNumber: string
   ): Promise<RegAEquityClass[]> {
     return (
-      (await this.equityClassRepository.search({
+      (await this.equityClassRepository.query({
         cik,
         file_number: fileNumber,
         accession_number: accessionNumber,

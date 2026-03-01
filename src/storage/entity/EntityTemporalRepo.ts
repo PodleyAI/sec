@@ -132,7 +132,7 @@ export class EntityTemporalRepo {
    * Get entity at a specific point in time
    */
   async getEntityAtTime(cik: number, timestamp: Date): Promise<Entity | undefined> {
-    const history = await this.entityHistoryRepository.search({ cik });
+    const history = await this.entityHistoryRepository.query({ cik });
 
     if (!history || history.length === 0) {
       return undefined;
@@ -158,7 +158,7 @@ export class EntityTemporalRepo {
    * Get entity history
    */
   async getEntityHistory(cik: number): Promise<EntityHistory[]> {
-    const history = await this.entityHistoryRepository.search({ cik });
+    const history = await this.entityHistoryRepository.query({ cik });
     return (
       history?.sort(
         (a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime()
@@ -170,7 +170,7 @@ export class EntityTemporalRepo {
    * Get changes for an entity
    */
   async getEntityChanges(cik: number): Promise<ChangeLog[]> {
-    const changes = await this.changeLogRepository.search({
+    const changes = await this.changeLogRepository.query({
       entity_type: "entity",
       entity_id: cik.toString(),
     });
@@ -185,7 +185,7 @@ export class EntityTemporalRepo {
    * Get current entity history record
    */
   private async getCurrentEntityHistory(cik: number): Promise<EntityHistory | undefined> {
-    const history = await this.entityHistoryRepository.search({
+    const history = await this.entityHistoryRepository.query({
       cik,
       valid_to: null,
     });

@@ -64,9 +64,9 @@ export class FetchAndStoreFormsTask extends Task<
 
     let filings: Filing[];
     if (docid) {
-      filings = (await filingRepo.search({ cik, accession_number: docid })) ?? [];
+      filings = (await filingRepo.query({ cik, accession_number: docid })) ?? [];
     } else {
-      filings = (await filingRepo.search({ cik, form })) ?? [];
+      filings = (await filingRepo.query({ cik, form })) ?? [];
     }
 
     if (filings.length > 0) {

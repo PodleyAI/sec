@@ -159,7 +159,7 @@ export class CompanyRepo implements CompanyRepoOptions {
   }
 
   public async getCompaniesByEntity(cik: number): Promise<Company[]> {
-    const junctions = await this.companyEntityJunctionRepository.search({ cik });
+    const junctions = await this.companyEntityJunctionRepository.query({ cik });
     if (!junctions || junctions.length === 0) return [];
 
     const companies: Company[] = [];
@@ -176,7 +176,7 @@ export class CompanyRepo implements CompanyRepoOptions {
     cik: number,
     relation_name: string
   ): Promise<Company[]> {
-    const junctions = await this.companyEntityJunctionRepository.search({ cik, relation_name });
+    const junctions = await this.companyEntityJunctionRepository.query({ cik, relation_name });
     if (!junctions || junctions.length === 0) return [];
 
     const companies: Company[] = [];
@@ -198,6 +198,6 @@ export class CompanyRepo implements CompanyRepoOptions {
       return (await this.companyRepository.getAll()) || [];
     }
 
-    return (await this.companyRepository.search(searchCriteria)) || [];
+    return (await this.companyRepository.query(searchCriteria)) || [];
   }
 }

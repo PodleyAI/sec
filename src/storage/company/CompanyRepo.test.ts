@@ -100,7 +100,7 @@ describe("CompanyRepo", () => {
       });
       expect(storedCompany).toEqual(normalizedCompany!);
 
-      const junctionRecords = await companyJunctionStorage.search({
+      const junctionRecords = await companyJunctionStorage.query({
         company_hash_id: normalizedCompany!.company_hash_id,
         relation_name: "form-z:something",
         cik: 123456,

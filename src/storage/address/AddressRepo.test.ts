@@ -92,7 +92,7 @@ describe("AddressRepo", () => {
       });
       expect(storedAddress).toEqual(mockAddress);
 
-      const junctionRecords = await addressJunctionStorage.search({
+      const junctionRecords = await addressJunctionStorage.query({
         address_hash_id: mockAddress.address_hash_id,
         relation_name: "business|address",
         cik: 123456,
@@ -154,7 +154,7 @@ describe("AddressRepo", () => {
       });
       expect(storedAddress).toEqual(mockAddress);
 
-      const junctionRecords = await addressJunctionStorage.search({
+      const junctionRecords = await addressJunctionStorage.query({
         address_hash_id: mockAddress.address_hash_id,
       });
       expect(junctionRecords).toBeDefined();
@@ -184,7 +184,7 @@ describe("AddressRepo", () => {
       });
       expect(storedAddress).toEqual(mockAddress);
 
-      const allJunctionRecords = await addressJunctionStorage.search({
+      const allJunctionRecords = await addressJunctionStorage.query({
         address_hash_id: mockAddress.address_hash_id,
       });
       expect(allJunctionRecords).toBeDefined();
@@ -204,7 +204,7 @@ describe("AddressRepo", () => {
 
       expect(retrievedAddress).toEqual(mockAddress);
 
-      const junctionRecords = await addressJunctionStorage.search({
+      const junctionRecords = await addressJunctionStorage.query({
         address_hash_id: mockAddress.address_hash_id,
       });
       expect(junctionRecords).toBeDefined();
@@ -238,7 +238,7 @@ describe("AddressRepo", () => {
       await addressRepo.saveAddress(mockAddressImport);
       await addressRepo.saveRelatedEntity(mockAddress.address_hash_id, "business|address", 789012);
 
-      const nyAddresses = await addressStorage.search({ city: "NEW YORK" });
+      const nyAddresses = await addressStorage.query({ city: "NEW YORK" });
 
       expect(nyAddresses).toBeDefined();
       expect(nyAddresses).toHaveLength(1);

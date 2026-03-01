@@ -142,7 +142,7 @@ export class CrowdfundingTemporalRepo {
     fileNumber: string,
     timestamp: Date
   ): Promise<Crowdfunding | undefined> {
-    const history = await this.crowdfundingHistoryRepository.search({
+    const history = await this.crowdfundingHistoryRepository.query({
       cik,
       file_number: fileNumber,
     });
@@ -171,7 +171,7 @@ export class CrowdfundingTemporalRepo {
    * Get crowdfunding history
    */
   async getCrowdfundingHistory(cik: number, fileNumber: string): Promise<CrowdfundingHistory[]> {
-    const history = await this.crowdfundingHistoryRepository.search({
+    const history = await this.crowdfundingHistoryRepository.query({
       cik,
       file_number: fileNumber,
     });
@@ -186,7 +186,7 @@ export class CrowdfundingTemporalRepo {
    * Get changes for a crowdfunding entity
    */
   async getCrowdfundingChanges(cik: number, fileNumber: string): Promise<ChangeLog[]> {
-    const changes = await this.changeLogRepository.search({
+    const changes = await this.changeLogRepository.query({
       entity_type: "crowdfunding",
       entity_id: `${cik}:${fileNumber}`,
     });
@@ -204,7 +204,7 @@ export class CrowdfundingTemporalRepo {
     cik: number,
     fileNumber: string
   ): Promise<CrowdfundingHistory | undefined> {
-    const history = await this.crowdfundingHistoryRepository.search({
+    const history = await this.crowdfundingHistoryRepository.query({
       cik,
       file_number: fileNumber,
       valid_to: null,

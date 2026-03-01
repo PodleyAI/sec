@@ -151,7 +151,7 @@ describe("Form_D comprehensive storage test", () => {
       expect(jordanParkCompany).toBeDefined();
 
       // Verify company-entity relationships were created
-      const companyRelations = await companyRepo.companyEntityJunctionRepository.search({ cik });
+      const companyRelations = await companyRepo.companyEntityJunctionRepository.query({ cik });
       expect(companyRelations?.length || 0).toBeGreaterThan(0);
     });
 
@@ -174,7 +174,7 @@ describe("Form_D comprehensive storage test", () => {
       });
 
       // Verify investment offering was stored
-      const offerings = await investmentOfferingRepo.investmentOfferingRepository.search({ cik });
+      const offerings = await investmentOfferingRepo.investmentOfferingRepository.query({ cik });
       expect(offerings?.length || 0).toBeGreaterThan(0);
 
       const offering = offerings?.[0];
@@ -182,7 +182,7 @@ describe("Form_D comprehensive storage test", () => {
       expect(offering?.is_equity_type).toBe(true);
 
       // Verify investment offering history was stored
-      const histories = await investmentOfferingRepo.investmentOfferingHistoryRepository.search({
+      const histories = await investmentOfferingRepo.investmentOfferingHistoryRepository.query({
         cik,
         accession_number: accessionNumber,
       });
@@ -220,7 +220,7 @@ describe("Form_D comprehensive storage test", () => {
       expect(sharlaLangston).toBeDefined();
 
       // Verify signature relationship was created
-      const signatureRelations = await personRepo.personEntityJunctionRepository.search({
+      const signatureRelations = await personRepo.personEntityJunctionRepository.query({
         cik,
         relation_name: "form-d:signature",
       });
@@ -266,13 +266,13 @@ describe("Form_D comprehensive storage test", () => {
       expect(robertAnderson?.crd).toBe("3101064");
 
       // Verify sales compensation relationships were created
-      const companyRelations = await companyRepo.companyEntityJunctionRepository.search({
+      const companyRelations = await companyRepo.companyEntityJunctionRepository.query({
         cik,
         relation_name: "form-d:sales-compensation",
       });
       expect(companyRelations?.length || 0).toBeGreaterThan(0);
 
-      const personRelations = await personRepo.personEntityJunctionRepository.search({
+      const personRelations = await personRepo.personEntityJunctionRepository.query({
         cik,
         relation_name: "form-d:sales-compensation",
       });
@@ -346,7 +346,7 @@ describe("Form_D comprehensive storage test", () => {
       expect(frankGhali?.last).toBe("Ghali");
 
       // Verify person-entity relationships
-      const personRelations = await personRepo.personEntityJunctionRepository.search({ cik });
+      const personRelations = await personRepo.personEntityJunctionRepository.query({ cik });
       expect(personRelations?.length || 0).toBe(6); // Original 5 + 1 signer
 
       // Verify addresses were linked to persons

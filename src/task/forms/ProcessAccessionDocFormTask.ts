@@ -84,7 +84,7 @@ export class ProcessAccessionDocFormTask extends Task<
 
     if (!cik || !form || !fileName) {
       const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-      const filings = await filingRepo.search({ accession_number: accessionNumber });
+      const filings = await filingRepo.query({ accession_number: accessionNumber });
       const filing = filings?.[0];
       if (!filing) throw new TaskError("Filing not found");
       cik = filing.cik;

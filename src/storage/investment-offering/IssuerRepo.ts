@@ -36,42 +36,42 @@ export class IssuerRepo implements IssuerRepoOptions {
    * Get all issuers for a given entity CIK
    */
   async getIssuersByCik(cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ cik })) || [];
+    return (await this.issuerRepository.query({ cik })) || [];
   }
 
   /**
    * Get all entities that have a specific issuer
    */
   async getEntitiesByIssuerCik(issuer_cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ issuer_cik })) || [];
+    return (await this.issuerRepository.query({ issuer_cik })) || [];
   }
 
   /**
    * Get primary issuers for a given entity CIK
    */
   async getPrimaryIssuersByCik(cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ cik, is_primary: true })) || [];
+    return (await this.issuerRepository.query({ cik, is_primary: true })) || [];
   }
 
   /**
    * Get all entities where the given issuer CIK is the primary issuer
    */
   async getEntitiesWithPrimaryIssuer(issuer_cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ issuer_cik, is_primary: true })) || [];
+    return (await this.issuerRepository.query({ issuer_cik, is_primary: true })) || [];
   }
 
   /**
    * Get secondary (non-primary) issuers for a given entity CIK
    */
   async getSecondaryIssuersByCik(cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ cik, is_primary: false })) || [];
+    return (await this.issuerRepository.query({ cik, is_primary: false })) || [];
   }
 
   /**
    * Get all entities where the given issuer CIK is a secondary issuer
    */
   async getEntitiesWithSecondaryIssuer(issuer_cik: number): Promise<Issuer[]> {
-    return (await this.issuerRepository.search({ issuer_cik, is_primary: false })) || [];
+    return (await this.issuerRepository.query({ issuer_cik, is_primary: false })) || [];
   }
 
   /**
@@ -125,7 +125,7 @@ export class IssuerRepo implements IssuerRepoOptions {
       return (await this.issuerRepository.getAll()) || [];
     }
 
-    return (await this.issuerRepository.search(searchCriteria)) || [];
+    return (await this.issuerRepository.query(searchCriteria)) || [];
   }
 
   async getAllIssuers(): Promise<Issuer[]> {

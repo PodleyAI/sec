@@ -75,7 +75,7 @@ export class PhoneRepo implements PhoneRepoOptions {
   }
 
   async getPhonesByEntity(cik: number): Promise<Phone[]> {
-    const junctions = await this.phoneEntityJunctionRepository.search({ cik });
+    const junctions = await this.phoneEntityJunctionRepository.query({ cik });
     if (!junctions || junctions.length === 0) return [];
 
     const phones: Phone[] = [];
@@ -89,7 +89,7 @@ export class PhoneRepo implements PhoneRepoOptions {
   }
 
   async getPhonesByEntityAndRelation(cik: number, relation_name: string): Promise<Phone[]> {
-    const junctions = await this.phoneEntityJunctionRepository.search({ cik, relation_name });
+    const junctions = await this.phoneEntityJunctionRepository.query({ cik, relation_name });
     if (!junctions || junctions.length === 0) return [];
 
     const phones: Phone[] = [];
@@ -111,6 +111,6 @@ export class PhoneRepo implements PhoneRepoOptions {
       return (await this.phoneRepository.getAll()) || [];
     }
 
-    return (await this.phoneRepository.search(searchCriteria)) || [];
+    return (await this.phoneRepository.query(searchCriteria)) || [];
   }
 }

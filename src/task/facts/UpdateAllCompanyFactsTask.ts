@@ -51,8 +51,7 @@ export class UpdateAllCompanyFactsTask extends Task<
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
 
     const allCikUpdates =
-      (await cikLastUpdateRepo.query(
-        {},
+      (await cikLastUpdateRepo.getAll(
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
     const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];

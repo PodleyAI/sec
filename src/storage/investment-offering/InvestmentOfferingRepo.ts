@@ -55,19 +55,19 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
   }
 
   async getInvestmentOfferingsByCik(cik: number): Promise<InvestmentOffering[]> {
-    return (await this.investmentOfferingRepository.search({ cik })) || [];
+    return (await this.investmentOfferingRepository.query({ cik })) || [];
   }
 
   async getInvestmentOfferingsByIndustryGroup(
     industry_group: string
   ): Promise<InvestmentOffering[]> {
-    return (await this.investmentOfferingRepository.search({ industry_group })) || [];
+    return (await this.investmentOfferingRepository.query({ industry_group })) || [];
   }
 
   async getInvestmentOfferingsByIndustrySubgroup(
     industry_subgroup: string
   ): Promise<InvestmentOffering[]> {
-    return (await this.investmentOfferingRepository.search({ industry_subgroup })) || [];
+    return (await this.investmentOfferingRepository.query({ industry_subgroup })) || [];
   }
 
   async getInvestmentOfferingsBySecurityType(
@@ -87,7 +87,7 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
   ): Promise<InvestmentOffering[]> {
     const searchCriteria: any = {};
     searchCriteria[securityTypeField] = value;
-    return (await this.investmentOfferingRepository.search(searchCriteria)) || [];
+    return (await this.investmentOfferingRepository.query(searchCriteria)) || [];
   }
 
   async searchInvestmentOfferings(
@@ -98,7 +98,7 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
       return (await this.investmentOfferingRepository.getAll()) || [];
     }
 
-    return (await this.investmentOfferingRepository.search(searchCriteria)) || [];
+    return (await this.investmentOfferingRepository.query(searchCriteria)) || [];
   }
 
   async getAllInvestmentOfferings(): Promise<InvestmentOffering[]> {
@@ -129,26 +129,26 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
   }
 
   async getInvestmentOfferingHistoriesByCik(cik: number): Promise<InvestmentOfferingHistory[]> {
-    return (await this.investmentOfferingHistoryRepository.search({ cik })) || [];
+    return (await this.investmentOfferingHistoryRepository.query({ cik })) || [];
   }
 
   async getInvestmentOfferingHistoriesByFileNumber(
     file_number: string
   ): Promise<InvestmentOfferingHistory[]> {
-    return (await this.investmentOfferingHistoryRepository.search({ file_number })) || [];
+    return (await this.investmentOfferingHistoryRepository.query({ file_number })) || [];
   }
 
   async getInvestmentOfferingHistoriesByCikAndFileNumber(
     cik: number,
     file_number: string
   ): Promise<InvestmentOfferingHistory[]> {
-    return (await this.investmentOfferingHistoryRepository.search({ cik, file_number })) || [];
+    return (await this.investmentOfferingHistoryRepository.query({ cik, file_number })) || [];
   }
 
   async getInvestmentOfferingHistoriesByAccessionNumber(
     accession_number: string
   ): Promise<InvestmentOfferingHistory[]> {
-    return (await this.investmentOfferingHistoryRepository.search({ accession_number })) || [];
+    return (await this.investmentOfferingHistoryRepository.query({ accession_number })) || [];
   }
 
   /**
@@ -210,7 +210,7 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
       return (await this.investmentOfferingHistoryRepository.getAll()) || [];
     }
 
-    return (await this.investmentOfferingHistoryRepository.search(searchCriteria)) || [];
+    return (await this.investmentOfferingHistoryRepository.query(searchCriteria)) || [];
   }
 
   async getAllInvestmentOfferingHistories(): Promise<InvestmentOfferingHistory[]> {

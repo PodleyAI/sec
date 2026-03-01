@@ -51,8 +51,7 @@ export class UpdateAllSubmissionsTask extends Task<
     );
 
     const allCikUpdates =
-      (await cikLastUpdateRepo.query(
-        {},
+      (await cikLastUpdateRepo.getAll(
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
     const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
