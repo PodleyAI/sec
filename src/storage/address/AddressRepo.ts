@@ -52,7 +52,7 @@ export class AddressRepo implements AddressRepoOptions {
   }
 
   async saveRelatedEntity(address_hash_id: string, relation_name: string, cik: number) {
-    this.addressJunctionRepository.put({
+    await this.addressJunctionRepository.put({
       address_hash_id,
       relation_name,
       cik,

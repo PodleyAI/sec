@@ -5,24 +5,24 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { describe, expect, it, beforeEach, mock } from "bun:test";
+import { afterEach, describe, expect, it, beforeEach, mock, spyOn } from "bun:test";
 import { EntityTemporalRepo } from "./EntityTemporalRepo";
 import { Entity } from "./EntitySchema";
 import { EntityHistory } from "./EntityHistorySchema";
-import { ChangeLog } from "../change-tracking/ChangeLogSchema";
-
-// Mock crypto.randomUUID
-global.crypto = {
-  randomUUID: mock(() => "test-uuid-" + Math.random()),
-} as any;
+// import { ChangeLog } from "../change-tracking/ChangeLogSchema";
 
 describe("EntityTemporalRepo", () => {
   let mockEntityRepo: any;
   let mockEntityHistoryRepository: any;
   let mockChangeLogRepository: any;
   let entityTemporalRepo: EntityTemporalRepo;
+  let randomUUIDSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
+    randomUUIDSpy = spyOn(crypto, "randomUUID").mockImplementation(
+      () => `test-uuid-${Math.random()}` as `${string}-${string}-${string}-${string}-${string}`
+    );
+
     // Reset mocks
     mockEntityRepo = {
       getEntity: mock(),
@@ -50,6 +50,10 @@ describe("EntityTemporalRepo", () => {
       entityHistoryRepository: mockEntityHistoryRepository,
       changeLogRepository: mockChangeLogRepository,
     });
+  });
+
+  afterEach(() => {
+    randomUUIDSpy.mockRestore();
   });
 
   describe("saveEntityWithHistory", () => {
