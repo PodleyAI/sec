@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
+import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
 import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
-import { processUpdateProcessing } from "./StoreSubmissionsTask";
 import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
 } from "../../storage/processing/CikLastUpdateSchema";
@@ -15,8 +14,7 @@ import {
   PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
   type ProcessedSubmissions,
 } from "../../storage/processing/ProcessedSubmissionsSchema";
-import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { StoreSubmissionsTask } from "./StoreSubmissionsTask";
+import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
 export type UpdateAllSubmissionsTaskInput = {};
 
@@ -98,18 +96,4 @@ export class UpdateAllSubmissionsTask extends Task<
 
     return { success: true };
   }
-}
-
-async function fetchAndStoreSubmission(
-  input: { cik: number; date: string },
-  ctx: IExecuteContext
-): Promise<{ success: boolean }> {
-  const pipeline = ctx.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
-  try {
-    await pipeline.run(input);
-  } catch (e) {
-    await processUpdateProcessing(input.cik, false);
-  }
-  // Per-item failures are recorded above; the map task itself always succeeds
-  return { success: true };
 }
