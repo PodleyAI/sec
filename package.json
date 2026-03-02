@@ -23,14 +23,14 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
-    "@workglow/cli": "0.0.106",
-    "@workglow/job-queue": "0.0.106",
-    "@workglow/dataset": "0.0.106",
-    "@workglow/sqlite": "0.0.106",
-    "@workglow/storage": "0.0.106",
-    "@workglow/task-graph": "0.0.106",
-    "@workglow/tasks": "0.0.106",
-    "@workglow/util": "0.0.106",
+    "@workglow/cli": "0.0.107",
+    "@workglow/job-queue": "0.0.107",
+    "@workglow/dataset": "0.0.107",
+    "@workglow/sqlite": "0.0.107",
+    "@workglow/storage": "0.0.107",
+    "@workglow/task-graph": "0.0.107",
+    "@workglow/tasks": "0.0.107",
+    "@workglow/util": "0.0.107",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
@@ -57,11 +57,5 @@
   "private": true,
   "peerDependencies": {
     "typescript": "^5.9.3"
-  },
-  "overrides": {
-    "@workglow/storage": "0.0.106",
-    "@workglow/task-graph": "0.0.106",
-    "@workglow/tasks": "0.0.106",
-    "@workglow/util": "0.0.106"
   }
 }

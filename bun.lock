@@ -8,14 +8,14 @@
         "@modelcontextprotocol/sdk": "^1.27.1",
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
-        "@workglow/cli": "0.0.106",
-        "@workglow/dataset": "0.0.106",
-        "@workglow/job-queue": "0.0.106",
-        "@workglow/sqlite": "0.0.106",
-        "@workglow/storage": "0.0.106",
-        "@workglow/task-graph": "0.0.106",
-        "@workglow/tasks": "0.0.106",
-        "@workglow/util": "0.0.106",
+        "@workglow/cli": "0.0.107",
+        "@workglow/dataset": "0.0.107",
+        "@workglow/job-queue": "0.0.107",
+        "@workglow/sqlite": "0.0.107",
+        "@workglow/storage": "0.0.107",
+        "@workglow/task-graph": "0.0.107",
+        "@workglow/tasks": "0.0.107",
+        "@workglow/util": "0.0.107",
         "awesome-phonenumber": "^7.8.0",
         "cheerio": "^1.2.0",
         "cheerio-json-mapper": "^1.0.4",
@@ -44,12 +44,6 @@
     "onnxruntime-node",
     "@sroussey/transformers",
   ],
-  "overrides": {
-    "@workglow/storage": "0.0.106",
-    "@workglow/task-graph": "0.0.106",
-    "@workglow/tasks": "0.0.106",
-    "@workglow/util": "0.0.106",
-  },
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.2.5", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-3NX/MpTdroi0aKz134A6RC2Gb2iXVECN4QaAXnvCIxxIm3C3AVB1mkUe8NaaiyvOpDfsrqWhYtj+Q6a62RrTsw=="],
 
@@ -247,25 +241,25 @@
 
     "@types/xml2js": ["@types/xml2js@0.4.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4YnrRemBShWRO2QjvUin8ESA41rH+9nQGLUGZV/1IDhi3SL9OhdpNC/MrulTWuptXKwhx/aDxE7toV0f/ypIXQ=="],
 
-    "@workglow/ai": ["@workglow/ai@0.0.105", "", { "peerDependencies": { "@workglow/dataset": "0.0.105", "@workglow/job-queue": "0.0.105", "@workglow/storage": "0.0.105", "@workglow/task-graph": "0.0.105", "@workglow/util": "0.0.105" } }, "sha512-Rk0ZueOwGarTQ+rH6lF6AcmrxLF2DBYWtoFygMrW5YG+VqH/D5HY8u2pvOBNZLFFFkfClvDeLxFOrG8GDPnOgg=="],
+    "@workglow/ai": ["@workglow/ai@0.0.107", "", { "peerDependencies": { "@workglow/dataset": "0.0.107", "@workglow/job-queue": "0.0.107", "@workglow/storage": "0.0.107", "@workglow/task-graph": "0.0.107", "@workglow/util": "0.0.107" } }, "sha512-d3HlX83l14MvpJt4EnL+6sbHu7BTfMit67AtQ4N7SVWsQgmARS9dNZnLlNjBkETrz9kX2ZQ5uIggMmUWKRAc/g=="],
 
-    "@workglow/ai-provider": ["@workglow/ai-provider@0.0.105", "", { "peerDependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.14", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@sroussey/transformers": "4.0.0-next.7", "@workglow/ai": "0.0.105", "@workglow/job-queue": "0.0.105", "@workglow/storage": "0.0.105", "@workglow/task-graph": "0.0.105", "@workglow/util": "0.0.105", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.25.0", "tiktoken": "^1.0.22" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/inference", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "@sroussey/transformers", "node-llama-cpp", "ollama", "openai", "tiktoken"] }, "sha512-aJ8YmQaq3G3qcbUT+CvtWrdP+2SzvptahmvP2XddNPJOcc7tAU26TmWoBaqVp7LFdZyERmgGhwFgdgE7Sh8OzQ=="],
+    "@workglow/ai-provider": ["@workglow/ai-provider@0.0.107", "", { "peerDependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.14", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@sroussey/transformers": "4.0.0-next.7", "@workglow/ai": "0.0.107", "@workglow/job-queue": "0.0.107", "@workglow/storage": "0.0.107", "@workglow/task-graph": "0.0.107", "@workglow/util": "0.0.107", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.25.0", "tiktoken": "^1.0.22" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/inference", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "@sroussey/transformers", "node-llama-cpp", "ollama", "openai", "tiktoken"] }, "sha512-2g8kTPg1BL41lHaaOPEYr6CLCFGmCr3lvAb18sJM1XsA66BcfDd1kvfcUMXhkknbQVoPuinrHHZ1nm8mo55fzA=="],
 
-    "@workglow/cli": ["@workglow/cli@0.0.106", "", { "dependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.14", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@sroussey/transformers": "4.0.0-next.7", "@types/react": "^19.2.14", "@workglow/ai": "0.0.105", "@workglow/ai-provider": "0.0.105", "@workglow/storage": "0.0.105", "@workglow/task-graph": "0.0.105", "@workglow/tasks": "0.0.105", "@workglow/util": "0.0.105", "chalk": "^5.6.2", "commander": "^14.0.3", "ink": "^6.8.0", "is-unicode-supported": "^2.1.0", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.25.0", "react": "^19.2.4", "react-devtools-core": "^7.0.1", "react-reconciler": "^0.33.0", "tiktoken": "^1.0.22" }, "bin": { "@workglow/cli": "dist/workglow.js" } }, "sha512-kr3dm4dgJaPjdRuOv0Q0cM0D+hGoj/Sn42SVQ7nuUH5sKMwtKsPokuHouC4jg+GC1vSdrXiTIkzHI3jkJfPNcg=="],
+    "@workglow/cli": ["@workglow/cli@0.0.107", "", { "dependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.14", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@sroussey/transformers": "4.0.0-next.7", "@types/react": "^19.2.14", "@workglow/ai": "0.0.107", "@workglow/ai-provider": "0.0.107", "@workglow/storage": "0.0.107", "@workglow/task-graph": "0.0.107", "@workglow/tasks": "0.0.107", "@workglow/util": "0.0.107", "chalk": "^5.6.2", "commander": "^14.0.3", "ink": "^6.8.0", "is-unicode-supported": "^2.1.0", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.25.0", "react": "^19.2.4", "react-devtools-core": "^7.0.1", "react-reconciler": "^0.33.0", "tiktoken": "^1.0.22" }, "bin": { "@workglow/cli": "dist/workglow.js" } }, "sha512-NJuMKRfocm5U27kftS/qol8BAaaB4V5TyAHrkH+nEbFeAKjM7HIDQfswqnZSKnVcy8T/ZHv4HSYtHskGBkulaA=="],
 
-    "@workglow/dataset": ["@workglow/dataset@0.0.106", "", { "peerDependencies": { "@workglow/storage": "0.0.105", "@workglow/util": "0.0.105" } }, "sha512-za38zFbZLE/n6fP6ZDTsvQNCu/CzjXU56VRVH8WCjlQT48E4ySFNYxqwgjiC9TKrHV0UUo65rhdLs2QYGQcjrg=="],
+    "@workglow/dataset": ["@workglow/dataset@0.0.107", "", { "peerDependencies": { "@workglow/storage": "0.0.107", "@workglow/util": "0.0.107" } }, "sha512-DlBurR8tTVo+kL/Q2K2k/UvaY0kPxJ5meiNxzIAdPylRv8SIvm+wpPzafWcv3EZ7GnJnPg6bdHPMU3/O0T1PrQ=="],
 
-    "@workglow/job-queue": ["@workglow/job-queue@0.0.106", "", { "peerDependencies": { "@workglow/storage": "0.0.105", "@workglow/util": "0.0.105" } }, "sha512-fS7Uj1JXDhvbVvOnpT4nO7xEBkNOSfp/yxme6L09/0XWeg7RHIFPUvY2vR5wYC0HvImf/CPg0eTTvXCIc1/NDQ=="],
+    "@workglow/job-queue": ["@workglow/job-queue@0.0.107", "", { "peerDependencies": { "@workglow/storage": "0.0.107", "@workglow/util": "0.0.107" } }, "sha512-yS7k3s7BP3ZaCVJzyJOZ/Z2FNbcBnnf2kzR8hSUXxcmYUW51FJSf9rZCSSWFS4uTMPIySTNN1vGUTKU1NE9tFA=="],
 
-    "@workglow/sqlite": ["@workglow/sqlite@0.0.106", "", { "peerDependencies": { "@sqlite.org/sqlite-wasm": "^3.51.2-build6", "better-sqlite3": "^12.6.2" } }, "sha512-RJelqKO44CfVYfF0mglQ6NkcgJDPnEJD7CjzZKxkwMAIeVOqGFS2JcIDn5HPOH6eHJ7ozmBY8fdWkolpGomm4g=="],
+    "@workglow/sqlite": ["@workglow/sqlite@0.0.107", "", { "peerDependencies": { "@sqlite.org/sqlite-wasm": "^3.51.2-build6", "better-sqlite3": "^12.6.2" } }, "sha512-jVtHfKe00ROtjyFLWuUQWqAlIEGRrPfHWwrnVi7w/dT/yODfLVTL6HyacVb/ChtCmOFPZS2VMNhhgDjLeZSjlg=="],
 
-    "@workglow/storage": ["@workglow/storage@0.0.106", "", { "peerDependencies": { "@supabase/supabase-js": "^2.98.0", "@workglow/sqlite": "0.0.105", "@workglow/util": "0.0.105", "pg": "^8.19.0" } }, "sha512-WMGFiWrnvjUED64ThLNvNpuqZmVBSjspjQC5TZzOrq6ndebXCQX4o+v816ui/PhhArJVSNlxP66X2yyq94NUIA=="],
+    "@workglow/storage": ["@workglow/storage@0.0.107", "", { "peerDependencies": { "@supabase/supabase-js": "^2.98.0", "@workglow/sqlite": "0.0.107", "@workglow/util": "0.0.107", "pg": "^8.19.0" } }, "sha512-8YU9ixTgHGLf6H19Qq/+/lbgst0eKY7cxBbU7bstdQMIRTpx8A/5c6bah3dQLsKwsJZ2BHqpIY9MrHhO5ZFr1A=="],
 
-    "@workglow/task-graph": ["@workglow/task-graph@0.0.106", "", { "peerDependencies": { "@workglow/job-queue": "0.0.105", "@workglow/storage": "0.0.105", "@workglow/util": "0.0.105" } }, "sha512-WjkNJhaYrfSjhlLkzZUo/mqEQ5vp3GeGZkA/0fk3rfLh10lT63wYhnfCdS58P1YoZ2j3uZkWdl2Sm/Wioe6HAg=="],
+    "@workglow/task-graph": ["@workglow/task-graph@0.0.107", "", { "peerDependencies": { "@workglow/job-queue": "0.0.107", "@workglow/storage": "0.0.107", "@workglow/util": "0.0.107" } }, "sha512-UgNVYvAm1icfps4pauDldPYMmgR7GCHcljMCFOLyQmqLPa4YFsMt1GIES7Mr5YaXjTE1/CHVPweXQuhhznXyGQ=="],
 
-    "@workglow/tasks": ["@workglow/tasks@0.0.106", "", { "dependencies": { "papaparse": "^5.5.3" }, "peerDependencies": { "@workglow/job-queue": "0.0.105", "@workglow/storage": "0.0.105", "@workglow/task-graph": "0.0.105", "@workglow/util": "0.0.105" } }, "sha512-WfF8Ci4JipVIfyRQxeQbr8X3s5sYdwdQXxjhJkvw0OZ5jnJt5f0ss8WuMePW0lH5eLjB9I2Vboo6ZhBOzQFqeA=="],
+    "@workglow/tasks": ["@workglow/tasks@0.0.107", "", { "dependencies": { "papaparse": "^5.5.3" }, "peerDependencies": { "@workglow/job-queue": "0.0.107", "@workglow/storage": "0.0.107", "@workglow/task-graph": "0.0.107", "@workglow/util": "0.0.107" } }, "sha512-1NilKVt7lMM0nTifGtEQCdNy0Gz3KR1suTi/jK5UFt8P4eGev+wpqInVvrFfBrEUJ5mmJWSWNjMJxn/hkPyYTA=="],
 
-    "@workglow/util": ["@workglow/util@0.0.106", "", { "dependencies": { "@sroussey/json-schema-library": "^10.5.3", "@sroussey/json-schema-to-ts": "3.1.4" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.27.1" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-9xt1LS/MSqLlbgrfu9ytPxC2IEyneozpVtQFMTxTiooWDGpL8uD6YfIExdjqi+V+7YMIUGWDga1j9kXiD+8UjA=="],
+    "@workglow/util": ["@workglow/util@0.0.107", "", { "dependencies": { "@sroussey/json-schema-library": "^10.5.3", "@sroussey/json-schema-to-ts": "3.1.4" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.27.1" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-VoIHZAY9INodlV/TWA/M6HboH9ouYP9pql29D/wlF7iZpYNr7vg3Mo3uONAG6hntI0zPykNfN+ncSkmxjPtZFA=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
