@@ -1,4 +1,6 @@
 {
+  "terminal.integrated.tabs.defaultColor": "terminal.ansiGreen",
+  "terminal.integrated.tabs.defaultIcon": "database",
   "editor.tabSize": 2,
   "editor.detectIndentation": false,
   "editor.stickyTabStops": true,
@@ -41,7 +43,6 @@
   "bun.debugTerminal.enabled": true,
   "markdown.extension.toc.levels": "2..6",
   "js/ts.implicitProjectConfig.target": "ESNext",
-  "typescript.tsdk": "./node_modules/typescript/lib",
   "[xml]": {
     "editor.defaultFormatter": "DotJoshJohnson.xml"
   }
