@@ -8,6 +8,8 @@ import { Command } from "commander";
 import { EnvToDI } from "../config/EnvToDI";
 import { BootstrapAllCikNames } from "./BootstrapAllCikNames";
 import { BootstrapCikLastUpdate } from "./BootstrapCikLastUpdate";
+import { BootstrapCompanyFacts } from "./BootstrapCompanyFacts";
+import { BootstrapDownload } from "./BootstrapDownload";
 import { BootstrapSubmissions } from "./BootstrapSubmissions";
 import { CompanyFacts } from "./CompanyFacts";
 import { CompanySubmissions } from "./Submissions";
@@ -36,6 +38,8 @@ export const AddCommands = (program: Command) => {
   AddDailyIndexCommands(program);
   BootstrapAllCikNames(program);
   BootstrapCikLastUpdate(program);
+  BootstrapCompanyFacts(program);
+  BootstrapDownload(program);
   BootstrapSubmissions(program);
   CompanyFacts(program);
   CompanySubmissions(program);
