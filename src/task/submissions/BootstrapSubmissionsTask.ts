@@ -4,16 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, pipe, Task, Workflow } from "@workglow/task-graph";
+import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
 import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { processUpdateProcessing } from "./StoreSubmissionsTask";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
-import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { StoreSubmissionsTask } from "./StoreSubmissionsTask";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
 export type BootstrapSubmissionsTaskInput = {};
 
@@ -74,23 +72,9 @@ export class BootstrapSubmissionsTask extends Task<
       loop.endMap();
       await wf.run({
         cik: unprocessedCiks,
-        date: unprocessedCiks.map(() => ""),
       });
     }
 
     return { success: true };
   }
-}
-
-async function fetchAndStoreSubmission(
-  input: { cik: number; date: string },
-  ctx: IExecuteContext
-): Promise<{ success: boolean }> {
-  const pipeline = ctx.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
-  try {
-    await pipeline.run(input);
-  } catch (e) {
-    await processUpdateProcessing(input.cik, false);
-  }
-  return { success: true };
 }
