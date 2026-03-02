@@ -47,28 +47,29 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
     const formSet = new Set(input.form);
 
-    // Get all filings matching requested forms
-    const allFilings: Filing[] = [];
-    for (const form of formSet) {
-      const filings = await filingRepo.query({ form });
-      if (filings) allFilings.push(...filings);
-    }
-
-    // Get processed filings per form and build a set of processed keys
-    const allProcessed: { cik: number; accession_number: string }[] = [];
+    // Build a set of already-processed (cik:accession_number) keys per form
+    const processedSet = new Set<string>();
     for (const form of formSet) {
       const processed = await processedFilingsRepo.query({ form });
-      if (processed) allProcessed.push(...processed);
-    }
-    const processedSet = new Set<string>();
-    for (const pf of allProcessed) {
-      processedSet.add(`${pf.cik}:${pf.accession_number}`);
+      if (processed) {
+        for (const pf of processed) {
+          processedSet.add(`${pf.cik}:${pf.accession_number}`);
+        }
+      }
     }
 
-    // Filter to unprocessed filings
-    const missingForms = allFilings.filter(
-      (f) => f.form && formSet.has(f.form) && !processedSet.has(`${f.cik}:${f.accession_number}`)
-    );
+    // Query filings per form and collect only unprocessed ones
+    const missingForms: Filing[] = [];
+    for (const form of formSet) {
+      const filings = await filingRepo.query({ form });
+      if (filings) {
+        for (const f of filings) {
+          if (!processedSet.has(`${f.cik}:${f.accession_number}`)) {
+            missingForms.push(f);
+          }
+        }
+      }
+    }
 
     if (missingForms.length) {
       const wf = context.own(new Workflow());

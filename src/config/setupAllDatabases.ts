@@ -51,6 +51,9 @@ import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSch
 /**
  * Calls setupDatabase() on all registered repository instances,
  * creating tables and indexes from their TypeBox schemas.
+ *
+ * NOTE: When adding a new repository token in DefaultDI.ts, you must also
+ * add its setupDatabase() call here or the table will not be created.
  */
 export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();

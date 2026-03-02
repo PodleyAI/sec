@@ -25,7 +25,7 @@ export type UpdateAllSubmissionsTaskOutput = {
 };
 
 /**
- * Task for storing company facts
+ * Task for fetching and storing submissions for all CIKs that need updating
  */
 export class UpdateAllSubmissionsTask extends Task<
   UpdateAllSubmissionsTaskInput,
@@ -51,7 +51,8 @@ export class UpdateAllSubmissionsTask extends Task<
     );
 
     const allCikUpdates =
-      (await cikLastUpdateRepo.getAll(
+      (await cikLastUpdateRepo.query(
+        {},
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
     const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
@@ -109,5 +110,6 @@ async function fetchAndStoreSubmission(
   } catch (e) {
     await processUpdateProcessing(input.cik, false);
   }
+  // Per-item failures are recorded above; the map task itself always succeeds
   return { success: true };
 }

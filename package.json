@@ -4,8 +4,8 @@
   "version": "0.0.5",
   "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
   "scripts": {
-    "bunset": "bunset && bun install && git push",
-    "publish": "bun bun run build && bun run test && bun run bunset",
+    "bunset": "bunset && git push",
+    "publish": "bun run build && bun run test && bun run bunset",
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/sec.ts",
     "dev-types": "tsc --watch --preserveWatchOutput",
@@ -23,13 +23,14 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
-    "@workglow/cli": "0.0.103",
-    "@workglow/job-queue": "0.0.103",
-    "@workglow/sqlite": "0.0.103",
-    "@workglow/storage": "0.0.103",
-    "@workglow/task-graph": "0.0.103",
-    "@workglow/tasks": "0.0.103",
-    "@workglow/util": "0.0.103",
+    "@workglow/cli": "0.0.106",
+    "@workglow/job-queue": "0.0.106",
+    "@workglow/dataset": "0.0.106",
+    "@workglow/sqlite": "0.0.106",
+    "@workglow/storage": "0.0.106",
+    "@workglow/task-graph": "0.0.106",
+    "@workglow/tasks": "0.0.106",
+    "@workglow/util": "0.0.106",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
@@ -47,7 +48,7 @@
   "devDependencies": {
     "@types/bun": "1.3.9",
     "@types/xml2js": "^0.4.14",
-    "bunset": "^1.0.2"
+    "bunset": "1.0.5"
   },
   "trustedDependencies": [
     "@sroussey/transformers",
@@ -56,5 +57,11 @@
   "private": true,
   "peerDependencies": {
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@workglow/storage": "0.0.106",
+    "@workglow/task-graph": "0.0.106",
+    "@workglow/tasks": "0.0.106",
+    "@workglow/util": "0.0.106"
   }
 }

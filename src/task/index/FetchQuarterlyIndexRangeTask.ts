@@ -8,7 +8,7 @@ import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
 import { FetchQuarterlyIndexTask } from "./FetchQuarterlyIndexTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeDateTime } from "../../util/TypeBoxUtil";
-import { Static, TObject, Type } from "typebox";
+import { Static, Type } from "typebox";
 
 // NOTE: ONLY PREVIOUS QUARTERS' master index are immutable, current one is not (though should switch to daily)
 
@@ -105,8 +105,9 @@ export class FetchQuarterlyIndexRangeTask extends Task<
     loop.endMap();
     const results = await wf.run({ date: dates });
 
+    // MapTask aggregates each iteration's output arrays into an array-of-arrays
     const updateList: Record<number, string> = {};
-    for (const updateListQuarter of results.updateList as [number, string][][]) {
+    for (const updateListQuarter of results.updateList as [cik: number, last_known_update: string][][]) {
       for (const [cik, last_known_update] of updateListQuarter) {
         if (updateList[cik] === undefined || updateList[cik] < last_known_update) {
           updateList[cik] = last_known_update;

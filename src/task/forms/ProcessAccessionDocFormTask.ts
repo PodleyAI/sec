@@ -169,8 +169,7 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     );
 
-    const result = await wf.run();
-    console.log(result);
+    await wf.run();
     return { success: true };
   }
 }

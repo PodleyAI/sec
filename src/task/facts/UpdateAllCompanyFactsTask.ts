@@ -51,7 +51,8 @@ export class UpdateAllCompanyFactsTask extends Task<
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
 
     const allCikUpdates =
-      (await cikLastUpdateRepo.getAll(
+      (await cikLastUpdateRepo.query(
+        {},
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
     const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
@@ -107,6 +108,8 @@ function fetchAndStoreFacts(
     try {
       await pipeline.run({ cik: input.cik, date: input.date });
     } catch (e) {
+      // Record failure with date bumped forward by one year so this CIK is skipped
+      // on subsequent runs until new data arrives with a later last_update date.
       const { year, month, day } = parseDate(input.date);
       await processedFactsRepo.put({
         cik: input.cik,
@@ -114,6 +117,7 @@ function fetchAndStoreFacts(
         success: false,
       });
     }
+    // Per-item failures are recorded above; the map task itself always succeeds
     return { success: true };
   };
 }
