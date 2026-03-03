@@ -111,9 +111,9 @@ describe("FetchDailyIndexTask", () => {
     server.start();
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     (global as any).fetch = oldFetch;
-    setTaskQueueRegistry(null);
+    await setTaskQueueRegistry(null);
   });
 
   // Dynamic tests for all available daily index files

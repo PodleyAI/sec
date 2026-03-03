@@ -11,4 +11,5 @@ AddCommands(program);
 
 await program.parseAsync(process.argv);
 
-getTaskQueueRegistry().stopQueues();
+await getTaskQueueRegistry().stopQueues();
+process.exitCode = 0;

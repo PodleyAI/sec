@@ -77,14 +77,14 @@ EnvToDI();
 describe("FetchQuarterlyIndexTask", () => {
   let db: any;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     (global as any).fetch = mockFetch;
-    setTaskQueueRegistry(null);
+    await setTaskQueueRegistry(null);
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     (global as any).fetch = oldFetch;
-    setTaskQueueRegistry(null);
+    await setTaskQueueRegistry(null);
   });
 
   // Dynamic tests for all available daily index files
