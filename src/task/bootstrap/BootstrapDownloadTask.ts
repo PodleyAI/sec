@@ -7,7 +7,7 @@
 import { IExecuteContext, Task } from "@workglow/task-graph";
 import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
-import { resolve, join } from "node:path";
+import { resolve, join, sep } from "node:path";
 import { mkdirSync, rmSync } from "node:fs";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { SecUserAgent } from "../../config/Constants";
@@ -51,6 +51,15 @@ export class BootstrapDownloadTask extends Task<
   ): Promise<BootstrapDownloadTaskOutput> {
     const rawDataFolder = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
     const targetDir = resolve(rawDataFolder, input.targetFolder);
+
+    // Ensure targetDir is within rawDataFolder to prevent path traversal
+    const safeBase = resolve(rawDataFolder) + sep;
+    if (!targetDir.startsWith(safeBase)) {
+      throw new Error(
+        `Invalid targetFolder "${input.targetFolder}": must resolve to a subdirectory of SEC_RAW_DATA_FOLDER`
+      );
+    }
+
     mkdirSync(targetDir, { recursive: true });
 
     const zipPath = join(rawDataFolder, `${input.targetFolder}.zip`);
@@ -73,7 +82,14 @@ export class BootstrapDownloadTask extends Task<
     await Bun.write(zipPath, response);
     console.log(`Download complete. Extracting to ${targetDir} ...`);
 
-    const proc = Bun.spawn(["unzip", "-o", zipPath, "-d", targetDir], {
+    const unzipPath = Bun.which("unzip");
+    if (!unzipPath) {
+      throw new Error(
+        `The "unzip" binary was not found. Please install it (e.g., "apt install unzip" on Debian/Ubuntu or "brew install unzip" on macOS) and try again.`
+      );
+    }
+
+    const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
       stdout: "inherit",
       stderr: "inherit",
     });

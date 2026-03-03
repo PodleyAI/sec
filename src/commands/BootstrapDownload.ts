@@ -25,8 +25,7 @@ export function BootstrapDownload(program: Command) {
     .description("download and extract bulk SEC data (submissions, companyfacts, or all)")
     .action(async (type: string) => {
       if (type !== "submissions" && type !== "companyfacts" && type !== "all") {
-        console.error(`Invalid type "${type}". Must be submissions, companyfacts, or all.`);
-        process.exit(1);
+        throw new Error(`Invalid type "${type}". Must be submissions, companyfacts, or all.`);
       }
 
       const types: (keyof typeof BULK_DOWNLOADS)[] =
