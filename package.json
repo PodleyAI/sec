@@ -51,7 +51,7 @@
     "bunset": "1.0.5"
   },
   "trustedDependencies": [
-    "@sroussey/transformers",
+    "@huggingface/transformers",
     "onnxruntime-node"
   ],
   "private": true,
