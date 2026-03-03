@@ -11,6 +11,7 @@ import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
 export type BootstrapCompanyFactsTaskInput = {};
@@ -70,6 +71,7 @@ export class BootstrapCompanyFactsTask extends Task<
       loop.endMap();
       await wf.run({
         cik: unprocessedCiks,
+        date: todayYYYYdMMdDD(),
       });
     }
 

@@ -16,14 +16,18 @@ export async function fetchAndStoreCompanyFacts(
   ctx: IExecuteContext
 ): Promise<{ success: boolean }> {
   const pipeline = ctx.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
+  let success = false;
   try {
     await pipeline.run(input);
+    success = true;
   } catch (e) {
+    // success remains false
+  } finally {
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
     await processedFactsRepo.put({
       cik: input.cik,
-      last_processed: todayYYYYdMMdDD(),
-      success: false,
+      last_processed: input.date ?? todayYYYYdMMdDD(),
+      success,
     });
   }
   // Per-item failures are recorded above; the map task itself always succeeds

@@ -12,4 +12,4 @@ AddCommands(program);
 await program.parseAsync(process.argv);
 
 await getTaskQueueRegistry().stopQueues();
-process.exit(0);
+process.exitCode = 0;
