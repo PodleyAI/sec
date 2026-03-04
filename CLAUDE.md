@@ -49,6 +49,13 @@ Set in `.env.local` (see `.env.test` for test defaults):
 - `SEC_RAW_DATA_FOLDER` — path to raw downloaded data
 - `SEC_DB_FOLDER` — path to SQLite database directory
 - `SEC_DB_NAME` — database name (default: `edgar`)
+- `SEC_DB_TYPE` — `"sqlite"` (default) or `"postgres"`
+- `SEC_PG_URL` — PostgreSQL connection string (takes precedence over individual PG vars)
+- `SEC_PG_HOST` — PostgreSQL host (default: `localhost`)
+- `SEC_PG_PORT` — PostgreSQL port (default: `5432`)
+- `SEC_PG_USER` — PostgreSQL user
+- `SEC_PG_PASSWORD` — PostgreSQL password
+- `SEC_PG_DATABASE` — PostgreSQL database name (default: `edgar`)
 
 ## TypeScript Conventions
 
