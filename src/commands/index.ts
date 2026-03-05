@@ -4,27 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Command } from "commander";
+import type { Command } from "commander";
 import { EnvToDI } from "../config/EnvToDI";
-import { BootstrapAllCikNames } from "./BootstrapAllCikNames";
-import { BootstrapCikLastUpdate } from "./BootstrapCikLastUpdate";
-import { BootstrapCompanyFacts } from "./BootstrapCompanyFacts";
-import { BootstrapDownload } from "./BootstrapDownload";
-import { BootstrapSubmissions } from "./BootstrapSubmissions";
-import { CompanyFacts } from "./CompanyFacts";
-import { CompanySubmissions } from "./Submissions";
-import { AddDailyIndexCommands } from "./DailyIndex";
-import { SetupDB } from "./SetupDB";
-import { UpdateAllCompanyFacts } from "./UpdateAllCompanyFacts";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 import { getTaskQueueRegistry } from "@workglow/task-graph";
-import { UpdateAllSubmissions } from "./UpdateAllSubmissions";
-import { Form } from "./Form";
-import { Doc } from "./Doc";
 import { DefaultDI } from "../config/DefaultDI";
-import { UpdateAllForms } from "./UpdateAllForms";
+import { addBootstrapCommands } from "../cli/groups/bootstrap";
+import { addSyncCommand } from "../cli/groups/sync";
+import { addUpdateCommands } from "../cli/groups/update";
+import { addFetchCommands } from "../cli/groups/fetch";
+import { addQueryCommands } from "../cli/groups/query";
+import { addDbCommands } from "../cli/groups/db";
 
-export const AddCommands = (program: Command) => {
+export const AddCommands = (program: Command): void => {
   EnvToDI();
   DefaultDI();
 
@@ -35,18 +27,10 @@ export const AddCommands = (program: Command) => {
   });
   SecJobQueueServer.start();
 
-  AddDailyIndexCommands(program);
-  BootstrapAllCikNames(program);
-  BootstrapCikLastUpdate(program);
-  BootstrapCompanyFacts(program);
-  BootstrapDownload(program);
-  BootstrapSubmissions(program);
-  CompanyFacts(program);
-  CompanySubmissions(program);
-  SetupDB(program);
-  UpdateAllCompanyFacts(program);
-  UpdateAllSubmissions(program);
-  UpdateAllForms(program);
-  Form(program);
-  Doc(program);
+  addBootstrapCommands(program);
+  addSyncCommand(program);
+  addUpdateCommands(program);
+  addFetchCommands(program);
+  addQueryCommands(program);
+  addDbCommands(program);
 };
