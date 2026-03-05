@@ -1,4 +1,6 @@
 import type { Command } from "commander";
+import { queryEntities } from "../queries/EntityQuery";
+import { renderTable } from "../output/TableRenderer";
 
 export function addQueryCommands(program: Command): void {
   const query = program
@@ -11,12 +13,38 @@ export function addQueryCommands(program: Command): void {
     .option("--cik <cik>", "Filter by CIK")
     .option("--sic <sic>", "Filter by SIC code")
     .option("--state <state>", "Filter by state")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
+    .option("--limit <n>", "Limit results", "25")
+    .option("--offset <n>", "Offset results", "0")
     .option("--sort <field>", "Sort by field")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async () => {
-      console.log("not yet implemented");
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, string>) => {
+      const limit = parseInt(options.limit);
+      const offset = parseInt(options.offset);
+      const result = await queryEntities({
+        search,
+        cik: options.cik ? parseInt(options.cik) : undefined,
+        sic: options.sic ? parseInt(options.sic) : undefined,
+        state: options.state,
+        limit,
+        offset,
+        sort: options.sort,
+      });
+
+      const columns = [
+        { key: "cik", header: "CIK", width: 10 },
+        { key: "name", header: "Name", width: 30 },
+        { key: "sic", header: "SIC", width: 6 },
+        { key: "state_incorporation", header: "State", width: 5 },
+      ];
+
+      console.log(
+        renderTable(result.rows as Record<string, unknown>[], columns, {
+          format: options.format as "table" | "csv" | "json",
+          total: result.total,
+          offset,
+          limit,
+        })
+      );
     });
 
   query
