@@ -15,6 +15,7 @@ import { addUpdateCommands } from "../cli/groups/update";
 import { addFetchCommands } from "../cli/groups/fetch";
 import { addQueryCommands } from "../cli/groups/query";
 import { addDbCommands } from "../cli/groups/db";
+import { addInitCommand } from "../cli/groups/init";
 
 export const AddCommands = (program: Command): void => {
   EnvToDI();
@@ -33,4 +34,5 @@ export const AddCommands = (program: Command): void => {
   addFetchCommands(program);
   addQueryCommands(program);
   addDbCommands(program);
+  addInitCommand(program);
 };
