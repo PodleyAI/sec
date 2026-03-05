@@ -10,43 +10,29 @@ A CLI tool for retrieving and storing SEC EDGAR filing data into a local SQLite 
 
 ### 0.1 Operational Workflow
 
-Shows the typical order of operations from initial setup through incremental updates.
+Shows the typical order of operations: interactive setup, bulk bootstrap, then daily sync.
 
 ```mermaid
 flowchart TD
-    SETUP["<b>setup-db</b><br>Create tables & indexes"]
+    INIT["<b>sec init</b><br>Interactive setup wizard"]
 
-    subgraph phase1["Phase 1 — Download & Index"]
-        BD["<b>bootstrap-download</b><br>submissions | companyfacts | ciks | all"]
-        BCL["<b>bootstrap-cik-last-update</b><br>Parse quarterly index files"]
+    subgraph bootstrap["sec bootstrap"]
+        BD["<b>Phase 1: Download</b><br>submissions.zip, companyfacts.zip, cik-lookup-data.txt"]
+        BI["<b>Phase 2: Ingest</b><br>CIK names, submissions, company facts"]
+        BF["<b>Phase 3: Process Forms</b><br>D, C, 1-A, 1-K, 1-Z"]
     end
 
-    subgraph phase2["Phase 2 — Bulk Ingest"]
-        BN["<b>bootstrap-all-cik-names</b><br>CIK → name mappings"]
-        BS["<b>bootstrap-submissions</b><br>Process downloaded submission JSONs"]
-        BCF["<b>bootstrap-company-facts</b><br>Process downloaded fact JSONs"]
+    subgraph sync["sec sync (daily)"]
+        DI["Fetch daily index"]
+        US["Update stale submissions"]
+        UF["Update stale company facts"]
+        PF["Process new form filings"]
     end
 
-    subgraph phase3["Phase 3 — Form Processing"]
-        UAF["<b>update-all-forms</b><br>Parse D, C, 1-A, etc."]
-    end
-
-    subgraph phase4["Phase 4 — Incremental Updates (daily)"]
-        DI["<b>daily-index</b><br>Fetch today's filing index"]
-        UAS["<b>update-all-submissions</b><br>Re-fetch changed CIKs"]
-        UACF["<b>update-all-company-facts</b><br>Re-fetch changed CIK facts"]
-        UAF2["<b>update-all-forms</b><br>Parse new filings"]
-    end
-
-    SETUP --> phase1
-    BD --> BS & BCF & BN
-    BCL --> UAS & UACF
-    phase1 --> phase2
-    BS --> UAF
-    phase2 --> phase3
-    phase3 --> phase4
-    DI --> UAS & UACF
-    UAS --> UAF2
+    INIT --> bootstrap
+    BD --> BI --> BF
+    bootstrap --> sync
+    DI --> US --> UF --> PF
 ```
 
 ### 0.2 Data Flow
@@ -74,7 +60,7 @@ flowchart LR
     subgraph tracking["Tracking Tables"]
         CLU["CIK Last Update"]
         PS["Processed Submissions"]
-        PF["Processed Facts"]
+        PFa["Processed Facts"]
         PFI["Processed Filings"]
     end
 
@@ -113,7 +99,7 @@ flowchart LR
 
     %% Facts pipeline
     RAW_F --> API_F
-    API_F --> FACTS & PF
+    API_F --> FACTS & PFa
 
     %% Form processing pipeline
     FIL -- "query by form type" --> API_D
@@ -121,122 +107,175 @@ flowchart LR
 
     %% Update dependencies
     CLU -. "compare timestamps" .-> PS
-    CLU -. "compare timestamps" .-> PF
+    CLU -. "compare timestamps" .-> PFa
     FIL -. "filter unprocessed" .-> PFI
 ```
 
 ### 0.3 Command → Data Mapping
 
-| Command                     | Reads                                  | Writes                                                                  |
-| --------------------------- | -------------------------------------- | ----------------------------------------------------------------------- |
-| `bootstrap-download`        | SEC bulk archives                      | Raw files (filesystem)                                                  |
-| `bootstrap-all-cik-names`   | Raw CIK file                           | CIK Names                                                               |
-| `bootstrap-cik-last-update` | SEC index files                        | CIK Last Update                                                         |
-| `bootstrap-submissions`     | Raw submission files                   | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions |
-| `bootstrap-company-facts`   | Raw fact files                         | Company Facts, Processed Facts                                          |
-| `submissions <cik>`         | SEC submissions API                    | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions |
-| `company-facts <cik>`       | SEC facts API                          | Company Facts, Processed Facts                                          |
-| `daily-index`               | SEC daily index                        | CIK Last Update                                                         |
-| `form <cik> <form>`         | Filings table, SEC filing docs         | Form-specific tables, Processed Filings                                 |
-| `update-all-submissions`    | CIK Last Update, Processed Submissions | Entity, Filings, Addresses, Phones, Tickers                             |
-| `update-all-company-facts`  | CIK Last Update, Processed Facts       | Company Facts                                                           |
-| `update-all-forms`          | Filings, Processed Filings             | Form-specific tables                                                    |
+| Command                    | Reads                                  | Writes                                                                  |
+| -------------------------- | -------------------------------------- | ----------------------------------------------------------------------- |
+| `sec bootstrap download`   | SEC bulk archives                      | Raw files (filesystem)                                                  |
+| `sec bootstrap ingest`     | Raw files (filesystem)                 | CIK Names, Entity, Filings, Addresses, Phones, Tickers, SIC, Company Facts, Processed Submissions, Processed Facts |
+| `sec bootstrap`            | Raw files + SEC APIs                   | All core + form tables                                                  |
+| `sec sync`                 | SEC daily index + APIs                 | CIK Last Update, Entity, Filings, Company Facts, Form tables            |
+| `sec update submissions`   | CIK Last Update, Processed Submissions | Entity, Filings, Addresses, Phones, Tickers                             |
+| `sec update facts`         | CIK Last Update, Processed Facts       | Company Facts                                                           |
+| `sec update forms`         | Filings, Processed Filings             | Form-specific tables                                                    |
+| `sec fetch submissions`    | SEC submissions API                    | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions |
+| `sec fetch facts`          | SEC facts API                          | Company Facts, Processed Facts                                          |
+| `sec fetch form`           | Filings table, SEC filing docs         | Form-specific tables, Processed Filings                                 |
+| `sec fetch doc`            | SEC filing document                    | Form-specific tables                                                    |
+| `sec query *`              | Database tables                        | _(read-only)_                                                           |
 
 ---
 
 ## 1. CLI Commands
 
-### 1.1 Database Setup
+### 1.1 Global Options
 
-#### `setup-db`
+All commands accept the following flags:
 
-Initialize all database tables and indexes. Must be run before any other command.
+| Flag            | Short | Description                                       |
+| --------------- | ----- | ------------------------------------------------- |
+| `--json`        |       | Output structured JSON to stdout                  |
+| `--verbose`     | `-v`  | Enable detailed log output                        |
+| `--dry-run`     |       | Show what would be done without making changes    |
+| `--no-color`    |       | Disable colored output                            |
+| `--concurrency` | `-c`  | Max parallel operations (default varies by command)|
 
 ---
 
-### 1.2 Bootstrap Commands
+### 1.2 Setup
 
-These commands populate the database from bulk SEC data.
+#### `sec init`
 
-#### `bootstrap-download <type>`
+Interactive setup wizard. Prompts for configuration values and writes `.env.local`.
+
+**Behavior:**
+
+1. Prompts for `SEC_RAW_DATA_FOLDER` (where to store downloaded bulk data)
+2. Prompts for database type (`sqlite` or `postgres`)
+3. If SQLite: prompts for `SEC_DB_FOLDER` and `SEC_DB_NAME`
+4. If Postgres: prompts for connection details (`SEC_PG_URL` or individual host/port/user/password/database)
+5. Writes answers to `.env.local`
+6. Runs `sec db setup` to create tables and indexes
+
+---
+
+### 1.3 Pipeline Commands
+
+High-level commands that orchestrate multiple steps.
+
+#### `sec bootstrap`
+
+Run the full bootstrap pipeline: download, ingest, and process forms.
+
+**Behavior:**
+
+1. **Phase 1 — Download:** Downloads `submissions.zip`, `companyfacts.zip`, and `cik-lookup-data.txt` to `SEC_RAW_DATA_FOLDER`
+2. **Phase 2 — Ingest:** Processes CIK names, submissions, and company facts from downloaded files
+3. **Phase 3 — Process Forms:** Parses all supported form types (D, C, 1-A, 1-K, 1-Z) from ingested filings
+
+Each phase runs to completion before the next begins. Progress is tracked so the command can be re-run to resume after interruption.
+
+#### `sec sync`
+
+Run the daily incremental update pipeline.
+
+**Behavior:**
+
+1. Fetches the daily filing index to discover which CIKs have new activity
+2. Updates stale submissions (CIKs with activity newer than last processing)
+3. Updates stale company facts
+4. Processes any new form filings
+
+---
+
+### 1.4 Bootstrap (Granular)
+
+Subcommands for running individual bootstrap phases.
+
+#### `sec bootstrap download`
 
 Download and extract bulk SEC data archives.
 
-| Argument | Required | Description                                          |
-| -------- | -------- | ---------------------------------------------------- |
-| `type`   | Yes      | One of: `submissions`, `companyfacts`, `ciks`, `all` |
+| Option   | Description                                                  |
+| -------- | ------------------------------------------------------------ |
+| `--type` | One of: `submissions`, `companyfacts`, `ciks`, `all` (default: `all`) |
 
 **Behavior:**
 
-- `submissions` → Downloads `https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip`, extracts to `SEC_RAW_DATA_FOLDER/submissions/`
-- `companyfacts` → Downloads `https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip`, extracts to `SEC_RAW_DATA_FOLDER/companyfacts/`
-- `ciks` → Downloads `https://www.sec.gov/Archives/edgar/cik-lookup-data.txt`, extracts to `SEC_RAW_DATA_FOLDER/ciks/`
-- `all` → Downloads both
+- `submissions` — Downloads `submissions.zip`, extracts to `SEC_RAW_DATA_FOLDER/submissions/`
+- `companyfacts` — Downloads `companyfacts.zip`, extracts to `SEC_RAW_DATA_FOLDER/companyfacts/`
+- `ciks` — Downloads `cik-lookup-data.txt` to `SEC_RAW_DATA_FOLDER/ciks/`
+- `all` — Downloads all three
 - Validates extracted paths to prevent directory traversal
 
-#### `bootstrap-all-cik-names`
+#### `sec bootstrap ingest`
 
-Fetch and store all company CIK-to-name mappings.
+Process downloaded bulk files into the database.
 
-**Behavior:**
-
-- Uses file from `SEC_RAW_DATA_FOLDER/ciks/`, see `bootstrap-download` command
-- Parses colon-delimited lines (`name:cik:`)
-- Stores each CIK-name pair in the database
-
-#### `bootstrap-cik-last-update [--year <year>] [--quarters <quarters>]`
-
-Build a table of when each CIK was last updated by parsing filing indexes.
-
-| Option     | Required | Description                                         |
-| ---------- | -------- | --------------------------------------------------- |
-| `year`     | No       | Specific year (1993+).                              |
-| `quarters` | No       | Specific how many quarters to fetch. Defaults to 1. |
+| Option   | Description                                                        |
+| -------- | ------------------------------------------------------------------ |
+| `--type` | One of: `ciknames`, `submissions`, `facts`, `all` (default: `all`) |
 
 **Behavior:**
 
-- If year provided: fetches quarterly indexes for all 4 quarters of that year
-- If quarters provided: fetches the specified number of previously quarters that include the current quarter
-- If neither year nor quarters provided: fetches the current quarter's index only
-- Parses pipe-delimited master index files to extract CIK update dates
-- Stores the most recent update date per CIK
-- Can only supply either year or quarters, not both.
-
-#### `bootstrap-submissions`
-
-Process pre-downloaded submission files from `SEC_RAW_DATA_FOLDER/submissions/`.
-
-| Option      | Required | Description        |
-| ----------- | -------- | ------------------ |
-| `concurent` | 2        | Concurrency limit. |
-
-**Behavior:**
-
-- Scans for `CIK{10-digit-padded}.json` files
-- Skips submissions already marked as processed
-- For each unprocessed CIK: fetches submission data and stores it (same as `submissions` command)
-- Concurrency limit: 2 by default, can be overridden with the `--concurent` option
-
-#### `bootstrap-company-facts`
-
-Process pre-downloaded company fact files from `SEC_RAW_DATA_FOLDER/companyfacts/`.
-
-**Behavior:**
-
-- Scans for `CIK{10-digit-padded}.json` files
-- Skips CIKs already marked as processed
-- For each unprocessed CIK: fetches facts and stores them (same as `company-facts` command)
-- Concurrency limit: 2
+- `ciknames` — Parses `cik-lookup-data.txt` (colon-delimited `name:cik:`) and stores CIK-name pairs
+- `submissions` — Scans `CIK{padded}.json` files, skips already-processed, stores entity + filing data
+- `facts` — Scans `CIK{padded}.json` fact files, skips already-processed, stores linearized XBRL facts
+- `all` — Runs all three in sequence
 
 ---
 
-### 1.3 Fetch Commands
+### 1.5 Update Commands
 
-These commands fetch and store data for individual entities.
+Incremental update commands for individual data domains.
 
-#### `submissions <cik>`
+#### `sec update submissions`
 
-Fetch and store all submission data for a company.
+Update submissions for all companies that have new filings.
+
+**Behavior:**
+
+1. Reads all CIK last-update timestamps
+2. Reads all processed-submissions timestamps
+3. Identifies CIKs with updates newer than last processing (or never processed)
+4. For each: fetches submission data from SEC API and stores it
+
+#### `sec update facts`
+
+Update XBRL facts for all companies that have new data.
+
+**Behavior:**
+
+1. Same comparison logic as `sec update submissions`
+2. For each stale CIK: fetches facts from SEC API and stores them
+
+#### `sec update forms`
+
+Process all unprocessed filings for supported form types.
+
+| Argument | Required | Description                                   |
+| -------- | -------- | --------------------------------------------- |
+| `forms`  | No       | Comma-separated form types (default: `D,C,1-A,1-K,1-Z`) |
+
+**Behavior:**
+
+1. Queries filings table for matching form types
+2. Filters out already-processed filings (via processed-filings table)
+3. For each: fetches document, parses form, stores data
+
+---
+
+### 1.6 Fetch Commands
+
+Low-level commands to fetch and store data for individual entities.
+
+#### `sec fetch submissions <cik>`
+
+Fetch and store all submission data for a single company.
 
 | Argument | Required | Description                 |
 | -------- | -------- | --------------------------- |
@@ -259,9 +298,9 @@ Fetch and store all submission data for a company.
    - All filing records
 5. Marks CIK as processed with current timestamp
 
-#### `company-facts <cik>`
+#### `sec fetch facts <cik>`
 
-Fetch and store XBRL financial facts for a company.
+Fetch and store XBRL financial facts for a single company.
 
 | Argument | Required | Description                 |
 | -------- | -------- | --------------------------- |
@@ -274,48 +313,34 @@ Fetch and store XBRL financial facts for a company.
 **Behavior:**
 
 1. Fetches from `https://data.sec.gov/api/xbrl/companyfacts/CIK{cik-padded}.json`
-2. Linearizes the nested facts structure (taxonomy → fact name → unit → data points) into flat records
+2. Linearizes the nested facts structure (taxonomy -> fact name -> unit -> data points) into flat records
 3. Stores in batches of 1,000 records
 4. Marks CIK facts as processed
 
-#### `daily-index [date]`
-
-Fetch a daily filing index and update CIK last-update timestamps.
-
-| Argument | Required | Description                                   |
-| -------- | -------- | --------------------------------------------- |
-| `date`   | No       | Date in YYYY-MM-DD format (defaults to today) |
-
-**Behavior:**
-
-- Fetches `https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{YYMMDD}.idx`
-- Parses pipe-delimited index: `CIK|Company Name|Form Type|Date Filed|Filename`
-- Extracts unique CIKs and updates their last-update timestamps
-
-#### `form <cik> <form> [docid]`
+#### `sec fetch form <cik> <form> [accession]`
 
 Parse and store specific form filings for a company.
 
-| Argument | Required | Description                          |
-| -------- | -------- | ------------------------------------ |
-| `cik`    | Yes      | Central Index Key                    |
-| `form`   | Yes      | Form type (e.g., `D`, `C`, `1-A`)    |
-| `docid`  | No       | Specific accession number to process |
+| Argument    | Required | Description                          |
+| ----------- | -------- | ------------------------------------ |
+| `cik`       | Yes      | Central Index Key                    |
+| `form`      | Yes      | Form type (e.g., `D`, `C`, `1-A`)   |
+| `accession` | No       | Specific accession number to process |
 
 **Behavior:**
 
 - Queries the filings table for matching CIK + form type
-- If `docid` provided, filters to that specific accession number
+- If `accession` provided, filters to that specific accession number
 - For each filing: fetches the primary document and parses it using the appropriate form parser
 - Stores extracted data and marks the filing as processed
 
-#### `doc <docid> [fileName]`
+#### `sec fetch doc <accession> [fileName]`
 
 Process a single accession document.
 
 | Argument   | Required | Description                         |
 | ---------- | -------- | ----------------------------------- |
-| `docid`    | Yes      | Accession number                    |
+| `accession`| Yes      | Accession number                    |
 | `fileName` | No       | Specific filename within the filing |
 
 **Behavior:**
@@ -326,48 +351,126 @@ Process a single accession document.
 
 ---
 
-### 1.4 Update Commands
+### 1.7 Query Commands
 
-These commands incrementally update existing data.
+Read-only commands for querying the database. All query commands support `--format` (`table`, `csv`, `json`; default: `table`) and `--limit`/`--offset` for pagination.
 
-#### `update-all-submissions`
+#### `sec query entities [cik]`
 
-Update submissions for all companies that have new filings.
+List or look up entities.
 
-**Behavior:**
+| Argument | Required | Description                       |
+| -------- | -------- | --------------------------------- |
+| `cik`    | No       | Specific CIK to look up          |
 
-1. Reads all CIK last-update timestamps
-2. Reads all processed-submissions timestamps
-3. Identifies:
-   - CIKs with updates but never processed → processes with concurrency 2
-   - CIKs with updates newer than last processing → processes with concurrency 1
-4. For each: runs the same fetch-and-store flow as `submissions`
+| Option             | Description                   |
+| ------------------ | ----------------------------- |
+| `--name <pattern>` | Filter by name (LIKE pattern) |
+| `--sic <code>`     | Filter by SIC code            |
+| `--state <code>`   | Filter by state of incorporation |
+| `--limit <n>`      | Max rows (default: 25)        |
+| `--offset <n>`     | Skip rows (default: 0)        |
+| `--format <fmt>`   | Output format: table, csv, json |
 
-#### `update-all-company-facts`
+#### `sec query filings [cik]`
 
-Update XBRL facts for all companies that have new data.
+List or look up filings.
 
-**Behavior:**
+| Argument | Required | Description              |
+| -------- | -------- | ------------------------ |
+| `cik`    | No       | Filter by entity CIK    |
 
-1. Same comparison logic as update-all-submissions
-2. Initial processing: concurrency 10
-3. Updates: concurrency 1
-4. For each: runs the same fetch-and-store flow as `company-facts`
+| Option             | Description                       |
+| ------------------ | --------------------------------- |
+| `--form <type>`    | Filter by form type               |
+| `--from <date>`    | Filing date start (YYYY-MM-DD)    |
+| `--to <date>`      | Filing date end (YYYY-MM-DD)      |
+| `--limit <n>`      | Max rows (default: 25)            |
+| `--offset <n>`     | Skip rows (default: 0)            |
+| `--format <fmt>`   | Output format: table, csv, json   |
 
-#### `update-all-forms <form>`
+#### `sec query offerings [cik]`
 
-Process all unprocessed filings for given form types.
+List Form D investment offerings.
 
-| Argument | Required | Description                                  |
-| -------- | -------- | -------------------------------------------- |
-| `form`   | Yes      | Comma-separated form types (e.g., `D,C,1-A`) |
+| Argument | Required | Description           |
+| -------- | -------- | --------------------- |
+| `cik`    | No       | Filter by issuer CIK  |
 
-**Behavior:**
+| Option                  | Description                   |
+| ----------------------- | ----------------------------- |
+| `--industry <group>`    | Filter by industry group      |
+| `--limit <n>`           | Max rows (default: 25)        |
+| `--offset <n>`          | Skip rows (default: 0)        |
+| `--format <fmt>`        | Output format: table, csv, json |
 
-1. Queries filings table for matching form types
-2. Filters out already-processed filings (via processed-filings table)
-3. Processes all remaining with concurrency 10
-4. For each: fetches document, parses form, stores data
+#### `sec query crowdfunding [cik]`
+
+List Regulation Crowdfunding (Form C) offerings.
+
+| Argument | Required | Description           |
+| -------- | -------- | --------------------- |
+| `cik`    | No       | Filter by issuer CIK  |
+
+| Option           | Description                     |
+| ---------------- | ------------------------------- |
+| `--limit <n>`    | Max rows (default: 25)          |
+| `--offset <n>`   | Skip rows (default: 0)          |
+| `--format <fmt>` | Output format: table, csv, json |
+
+#### `sec query facts <cik>`
+
+List XBRL financial facts for a company.
+
+| Argument | Required | Description                 |
+| -------- | -------- | --------------------------- |
+| `cik`    | Yes      | Central Index Key (numeric) |
+
+| Option             | Description                     |
+| ------------------ | ------------------------------- |
+| `--name <pattern>` | Filter by fact name             |
+| `--limit <n>`      | Max rows (default: 25)          |
+| `--offset <n>`     | Skip rows (default: 0)          |
+| `--format <fmt>`   | Output format: table, csv, json |
+
+#### `sec query persons [cik]`
+
+List persons extracted from form filings.
+
+| Argument | Required | Description              |
+| -------- | -------- | ------------------------ |
+| `cik`    | No       | Filter by related entity |
+
+| Option             | Description                     |
+| ------------------ | ------------------------------- |
+| `--name <pattern>` | Filter by person name           |
+| `--limit <n>`      | Max rows (default: 25)          |
+| `--offset <n>`     | Skip rows (default: 0)          |
+| `--format <fmt>`   | Output format: table, csv, json |
+
+---
+
+### 1.8 Database Management
+
+#### `sec db setup`
+
+Create all database tables and indexes. Automatically run by `sec init`; can be run independently.
+
+#### `sec db status`
+
+Show database connection info and whether tables exist.
+
+#### `sec db stats`
+
+Show row counts for all tables and processing progress.
+
+#### `sec db reset`
+
+Drop all tables and re-create them. Prompts for confirmation unless `--force` is passed.
+
+| Option    | Description                    |
+| --------- | ------------------------------ |
+| `--force` | Skip confirmation prompt       |
 
 ---
 
@@ -957,3 +1060,82 @@ Single SQLite file with these performance pragmas:
 - `journal_mode = OFF` — No journaling (fastest writes, no crash recovery)
 
 These settings optimize for bulk data ingestion, not concurrent access.
+
+---
+
+## 8. Output Behavior
+
+### 8.1 TTY Detection
+
+- **Interactive terminal (TTY):** Rich output including spinners, progress bars, colored text, and formatted tables.
+- **Piped / non-interactive:** Plain text output without ANSI escape codes, spinners, or progress bars. Suitable for scripting and log files.
+
+### 8.2 JSON Mode
+
+The `--json` flag forces structured JSON output to stdout for all commands. When active:
+
+- Pipeline commands (`bootstrap`, `sync`) emit a JSON summary on completion with counts of processed items and any errors.
+- Fetch commands emit the stored record(s) as JSON.
+- Query commands emit a JSON array of matching records.
+- Database management commands emit a JSON object with status/stats.
+- Progress and status messages are suppressed from stdout (errors still go to stderr).
+
+### 8.3 Verbose Mode
+
+The `--verbose` flag adds detailed log output including:
+
+- Individual fetch URLs and response status codes
+- Per-record processing details
+- Timing information for each phase
+
+Verbose output goes to stderr so it does not interfere with `--json` on stdout.
+
+### 8.4 Query Output Formats
+
+Query commands (`sec query *`) support three output formats via `--format`:
+
+| Format  | Description                                                |
+| ------- | ---------------------------------------------------------- |
+| `table` | Aligned columns with headers (default for TTY)             |
+| `csv`   | Comma-separated values with header row                     |
+| `json`  | JSON array of objects (same as `--json` for query commands) |
+
+### 8.5 Pagination
+
+List queries display a pagination footer showing the current range and total count:
+
+```
+Showing 1-25 of 1,042 results. Use --offset 25 to see more.
+```
+
+---
+
+## 9. Error Handling
+
+### 9.1 Exit Codes
+
+| Code | Meaning                                                                 |
+| ---- | ----------------------------------------------------------------------- |
+| `0`  | Success — all operations completed without error                        |
+| `1`  | Error — command failed (invalid arguments, database error, network failure) |
+| `2`  | Partial failure — some items processed successfully, others failed      |
+
+### 9.2 Error Output
+
+All error messages are written to stderr, never stdout. This ensures that `--json` output on stdout remains valid even when errors occur.
+
+Error messages include:
+
+- The operation that failed
+- The underlying error message
+- For fetch errors: the URL and HTTP status code
+
+### 9.3 Graceful Interruption (Ctrl+C)
+
+When the user presses Ctrl+C during a pipeline or batch operation:
+
+1. The current in-progress item finishes processing
+2. Progress is saved (processed-submissions, processed-facts, processed-filings tracking tables are updated)
+3. The process exits with code `2` (partial failure)
+
+This allows the command to be re-run to resume where it left off.
