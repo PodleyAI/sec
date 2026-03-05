@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { queryEntities } from "../queries/EntityQuery";
+import { queryFilings } from "../queries/FilingQuery";
 import { renderTable } from "../output/TableRenderer";
 
 export function addQueryCommands(program: Command): void {
@@ -57,8 +58,35 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results")
     .option("--offset <n>", "Offset results")
     .option("--format <format>", "Output format (table, json, csv)")
-    .action(async () => {
-      console.log("not yet implemented");
+    .action(async (search: string | undefined, options: Record<string, string>) => {
+      const limit = parseInt(options.limit ?? "25");
+      const offset = parseInt(options.offset ?? "0");
+      const result = await queryFilings({
+        search,
+        cik: options.cik ? parseInt(options.cik) : undefined,
+        form: options.form,
+        after: options.after,
+        before: options.before,
+        limit,
+        offset,
+      });
+
+      const columns = [
+        { key: "cik", header: "CIK", width: 10 },
+        { key: "accession_number", header: "Accession", width: 20 },
+        { key: "form", header: "Form", width: 8 },
+        { key: "filing_date", header: "Filed", width: 12 },
+        { key: "primary_doc", header: "Document", width: 25 },
+      ];
+
+      console.log(
+        renderTable(result.rows as Record<string, unknown>[], columns, {
+          format: options.format as "table" | "csv" | "json",
+          total: result.total,
+          offset,
+          limit,
+        })
+      );
     });
 
   query
