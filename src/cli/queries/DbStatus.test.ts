@@ -1,0 +1,62 @@
+import { beforeEach, describe, expect, it } from "bun:test";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { globalServiceRegistry } from "@workglow/util";
+import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
+import { getDbStatus, getDbStats } from "./DbStatus";
+
+describe("getDbStatus", () => {
+  beforeEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  it("returns zero counts for empty db", async () => {
+    const result = await getDbStatus();
+    expect(result.entityCount).toBe(0);
+    expect(result.filingCount).toBe(0);
+    expect(result.factsCount).toBe(0);
+    expect(result.processedSubmissions).toBe(0);
+    expect(result.processedFacts).toBe(0);
+    expect(result.processedFilings).toBe(0);
+  });
+
+  it("counts entities after insertion", async () => {
+    const repo = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+    await repo.put({
+      cik: 1318605,
+      name: "Tesla, Inc.",
+      type: null,
+      sic: 3711,
+      ein: null,
+      description: null,
+      website: null,
+      investor_website: null,
+      category: null,
+      fiscal_year: null,
+      state_incorporation: "TX",
+      state_incorporation_desc: null,
+    });
+
+    const result = await getDbStatus();
+    expect(result.entityCount).toBe(1);
+  });
+});
+
+describe("getDbStats", () => {
+  beforeEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  it("returns array of table stats", async () => {
+    const result = await getDbStats();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("each stat has table and rows properties", async () => {
+    const result = await getDbStats();
+    for (const stat of result) {
+      expect(typeof stat.table).toBe("string");
+      expect(typeof stat.rows).toBe("number");
+    }
+  });
+});
