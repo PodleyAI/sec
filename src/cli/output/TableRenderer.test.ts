@@ -1,0 +1,115 @@
+import { describe, expect, it } from "bun:test";
+import { renderTable } from "./TableRenderer";
+import type { ColumnDef, RenderOptions } from "./TableRenderer";
+
+const columns: ReadonlyArray<ColumnDef> = [
+  { key: "id", header: "ID", width: 6 },
+  { key: "name", header: "Name", width: 10 },
+  { key: "value", header: "Value", width: 8 },
+];
+
+const rows: ReadonlyArray<Record<string, unknown>> = [
+  { id: 1, name: "Alice", value: 100 },
+  { id: 2, name: "Bob", value: 200 },
+];
+
+describe("renderTable", () => {
+  describe("json format", () => {
+    it("returns valid parseable JSON matching input rows", () => {
+      const result = renderTable(rows, columns, { format: "json" });
+      const parsed = JSON.parse(result);
+      expect(parsed).toEqual(rows);
+    });
+
+    it("pretty-prints with 2-space indentation", () => {
+      const result = renderTable(rows, columns, { format: "json" });
+      expect(result).toBe(JSON.stringify(rows, null, 2));
+    });
+  });
+
+  describe("csv format", () => {
+    it("has correct header row", () => {
+      const result = renderTable(rows, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[0]).toBe("ID,Name,Value");
+    });
+
+    it("has correct data rows", () => {
+      const result = renderTable(rows, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe("1,Alice,100");
+      expect(lines[2]).toBe("2,Bob,200");
+    });
+
+    it("escapes values containing commas", () => {
+      const rowsWithComma = [{ id: 1, name: "Doe, Jane", value: 50 }];
+      const result = renderTable(rowsWithComma, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe('1,"Doe, Jane",50');
+    });
+
+    it("escapes values containing double quotes", () => {
+      const rowsWithQuote = [{ id: 1, name: 'Say "hi"', value: 50 }];
+      const result = renderTable(rowsWithQuote, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe('1,"Say ""hi""",50');
+    });
+
+    it("handles null and undefined values as empty strings", () => {
+      const rowsWithNull = [{ id: 1, name: null, value: undefined }];
+      const result = renderTable(rowsWithNull, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe("1,,");
+    });
+  });
+
+  describe("table format", () => {
+    it("contains header and data", () => {
+      const result = renderTable(rows, columns, { format: "table" });
+      expect(result).toContain("ID");
+      expect(result).toContain("Name");
+      expect(result).toContain("Alice");
+      expect(result).toContain("Bob");
+    });
+
+    it("has separator line between header and data", () => {
+      const result = renderTable(rows, columns, { format: "table" });
+      const lines = result.split("\n");
+      expect(lines[1]).toMatch(/^-+\s+-+\s+-+$/);
+    });
+
+    it("pads columns to specified width", () => {
+      const result = renderTable(rows, columns, { format: "table" });
+      const lines = result.split("\n");
+      // Header "ID" padded to width 6
+      expect(lines[0].startsWith("ID    ")).toBe(true);
+    });
+
+    it("truncates long values with ellipsis", () => {
+      const longRows = [{ id: 1, name: "VeryLongNameThatExceedsWidth", value: 42 }];
+      const result = renderTable(longRows, columns, { format: "table" });
+      expect(result).toContain("VeryLon...");
+    });
+
+    it("shows pagination footer when total is provided", () => {
+      const options: RenderOptions = { format: "table", total: 50, offset: 0, limit: 10 };
+      const result = renderTable(rows, columns, options);
+      expect(result).toContain("Showing 1-2 of 50 results");
+      expect(result).toContain("(use --offset 2 for next page)");
+    });
+
+    it("omits next page hint when all results are shown", () => {
+      const options: RenderOptions = { format: "table", total: 2, offset: 0, limit: 10 };
+      const result = renderTable(rows, columns, options);
+      expect(result).toContain("Showing 1-2 of 2 results");
+      expect(result).not.toContain("--offset");
+    });
+
+    it("calculates correct range with offset", () => {
+      const options: RenderOptions = { format: "table", total: 100, offset: 20, limit: 10 };
+      const result = renderTable(rows, columns, options);
+      expect(result).toContain("Showing 21-22 of 100 results");
+      expect(result).toContain("(use --offset 22 for next page)");
+    });
+  });
+});
