@@ -1,0 +1,108 @@
+import { globalServiceRegistry } from "@workglow/util";
+import {
+  ENTITY_REPOSITORY_TOKEN,
+} from "../../storage/entity/EntitySchema";
+import {
+  FILING_REPOSITORY_TOKEN,
+} from "../../storage/filing/FilingSchema";
+import {
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+} from "../../storage/facts/CompanyFactsSchema";
+import {
+  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+} from "../../storage/processing/ProcessedSubmissionsSchema";
+import {
+  PROCESSED_FACTS_REPOSITORY_TOKEN,
+} from "../../storage/processing/ProcessedFactsSchema";
+import {
+  PROCESSED_FILINGS_REPOSITORY_TOKEN,
+} from "../../storage/processing/ProcessedFilingsSchema";
+import {
+  INVESTMENT_OFFERING_REPOSITORY_TOKEN,
+} from "../../storage/investment-offering/InvestmentOfferingSchema";
+import {
+  CROWDFUNDING_REPOSITORY_TOKEN,
+} from "../../storage/portal/CrowdfundingSchema";
+import {
+  PERSON_REPOSITORY_TOKEN,
+} from "../../storage/person/PersonSchema";
+import {
+  ADDRESS_REPOSITORY_TOKEN,
+} from "../../storage/address/AddressSchema";
+import {
+  PHONE_REPOSITORY_TOKEN,
+} from "../../storage/phone/PhoneSchema";
+import {
+  COMPANY_REPOSITORY_TOKEN,
+} from "../../storage/company/CompanySchema";
+import {
+  PORTAL_REPOSITORY_TOKEN,
+} from "../../storage/portal/PortalSchema";
+import type { ServiceToken } from "@workglow/util";
+
+export interface DbStatusResult {
+  readonly entityCount: number;
+  readonly filingCount: number;
+  readonly factsCount: number;
+  readonly processedSubmissions: number;
+  readonly processedFacts: number;
+  readonly processedFilings: number;
+}
+
+export interface TableStat {
+  readonly table: string;
+  readonly rows: number;
+}
+
+async function countRows(token: ServiceToken<{ getAll(): Promise<unknown[]> }>): Promise<number> {
+  const repo = globalServiceRegistry.get(token);
+  const all = (await repo.getAll()) ?? [];
+  return all.length;
+}
+
+export async function getDbStatus(): Promise<DbStatusResult> {
+  const [entityCount, filingCount, factsCount, processedSubmissions, processedFacts, processedFilings] =
+    await Promise.all([
+      countRows(ENTITY_REPOSITORY_TOKEN as any),
+      countRows(FILING_REPOSITORY_TOKEN as any),
+      countRows(COMPANY_FACTS_REPOSITORY_TOKEN as any),
+      countRows(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any),
+      countRows(PROCESSED_FACTS_REPOSITORY_TOKEN as any),
+      countRows(PROCESSED_FILINGS_REPOSITORY_TOKEN as any),
+    ]);
+
+  return {
+    entityCount,
+    filingCount,
+    factsCount,
+    processedSubmissions,
+    processedFacts,
+    processedFilings,
+  };
+}
+
+const TABLE_TOKENS: ReadonlyArray<{
+  readonly table: string;
+  readonly token: ServiceToken<{ getAll(): Promise<unknown[]> }>;
+}> = [
+  { table: "entity", token: ENTITY_REPOSITORY_TOKEN as any },
+  { table: "filing", token: FILING_REPOSITORY_TOKEN as any },
+  { table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },
+  { table: "investment_offering", token: INVESTMENT_OFFERING_REPOSITORY_TOKEN as any },
+  { table: "crowdfunding", token: CROWDFUNDING_REPOSITORY_TOKEN as any },
+  { table: "person", token: PERSON_REPOSITORY_TOKEN as any },
+  { table: "address", token: ADDRESS_REPOSITORY_TOKEN as any },
+  { table: "phone", token: PHONE_REPOSITORY_TOKEN as any },
+  { table: "company", token: COMPANY_REPOSITORY_TOKEN as any },
+  { table: "portal", token: PORTAL_REPOSITORY_TOKEN as any },
+];
+
+export async function getDbStats(): Promise<TableStat[]> {
+  const results = await Promise.all(
+    TABLE_TOKENS.map(async ({ table, token }) => {
+      const rows = await countRows(token);
+      return { table, rows };
+    })
+  );
+  return results;
+}
