@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 import { runCommand } from "./runCommand";
 
 describe("runCommand", () => {
   afterEach(() => {
-    process.exitCode = undefined;
+    process.exitCode = 0;
+  });
+
+  afterAll(() => {
+    process.exitCode = 0;
   });
 
   it("returns 0 on success", async () => {
