@@ -16,6 +16,21 @@ export interface QueryResult<T> {
   readonly total: number;
 }
 
+const ENTITY_SORT_KEYS: ReadonlySet<string> = new Set([
+  "cik",
+  "name",
+  "type",
+  "sic",
+  "ein",
+  "description",
+  "website",
+  "investor_website",
+  "category",
+  "fiscal_year",
+  "state_incorporation",
+  "state_incorporation_desc",
+]);
+
 export async function queryEntities(params: EntityQueryParams): Promise<QueryResult<Entity>> {
   const repo = new EntityRepo();
   const limit = params.limit ?? 25;
@@ -61,6 +76,11 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
 
   // Sort
   if (params.sort) {
+    if (!ENTITY_SORT_KEYS.has(params.sort)) {
+      throw new Error(
+        `Invalid sort field "${params.sort}". Valid fields: ${[...ENTITY_SORT_KEYS].join(", ")}.`
+      );
+    }
     const sortKey = params.sort as keyof Entity;
     entities.sort((a, b) => {
       const aVal = a[sortKey];

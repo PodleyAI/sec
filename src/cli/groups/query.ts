@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { parseIntOption } from "../GlobalOptions";
 import { queryEntities } from "../queries/EntityQuery";
 import { queryFilings } from "../queries/FilingQuery";
 import { queryOfferings } from "../queries/OfferingQuery";
@@ -6,6 +7,16 @@ import { queryCrowdfunding } from "../queries/CrowdfundingQuery";
 import { queryFacts } from "../queries/FactsQuery";
 import { queryPersons } from "../queries/PersonQuery";
 import { renderTable } from "../output/TableRenderer";
+
+const FORMAT_CHOICES = ["table", "json", "csv"] as const;
+type OutputFormat = (typeof FORMAT_CHOICES)[number];
+
+function validateFormat(value: string): OutputFormat {
+  if (!FORMAT_CHOICES.includes(value as OutputFormat)) {
+    throw new Error(`Invalid --format "${value}". Must be one of: ${FORMAT_CHOICES.join(", ")}.`);
+  }
+  return value as OutputFormat;
+}
 
 export function addQueryCommands(program: Command): void {
   const query = program
@@ -18,21 +29,22 @@ export function addQueryCommands(program: Command): void {
     .option("--cik <cik>", "Filter by CIK")
     .option("--sic <sic>", "Filter by SIC code")
     .option("--state <state>", "Filter by state")
-    .option("--limit <n>", "Limit results", "25")
-    .option("--offset <n>", "Offset results", "0")
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--sort <field>", "Sort by field")
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, string>) => {
-      const limit = parseInt(options.limit);
-      const offset = parseInt(options.offset);
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryEntities({
         search,
-        cik: options.cik ? parseInt(options.cik) : undefined,
-        sic: options.sic ? parseInt(options.sic) : undefined,
-        state: options.state,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        sic: options.sic ? parseInt(options.sic as string, 10) : undefined,
+        state: options.state as string | undefined,
         limit,
         offset,
-        sort: options.sort,
+        sort: options.sort as string | undefined,
       });
 
       const columns = [
@@ -44,7 +56,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,
@@ -59,18 +71,19 @@ export function addQueryCommands(program: Command): void {
     .option("--form <form>", "Filter by form type")
     .option("--after <date>", "Filter filings after date")
     .option("--before <date>", "Filter filings before date")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async (search: string | undefined, options: Record<string, string>) => {
-      const limit = parseInt(options.limit ?? "25");
-      const offset = parseInt(options.offset ?? "0");
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryFilings({
         search,
-        cik: options.cik ? parseInt(options.cik) : undefined,
-        form: options.form,
-        after: options.after,
-        before: options.before,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        form: options.form as string | undefined,
+        after: options.after as string | undefined,
+        before: options.before as string | undefined,
         limit,
         offset,
       });
@@ -85,7 +98,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,
@@ -101,19 +114,20 @@ export function addQueryCommands(program: Command): void {
     .option("--exemption <exemption>", "Filter by exemption type")
     .option("--after <date>", "Filter after date")
     .option("--before <date>", "Filter before date")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async (search: string | undefined, options: Record<string, string>) => {
-      const limit = parseInt(options.limit ?? "25");
-      const offset = parseInt(options.offset ?? "0");
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryOfferings({
         search,
-        cik: options.cik ? parseInt(options.cik) : undefined,
-        industry: options.industry,
-        exemption: options.exemption,
-        after: options.after,
-        before: options.before,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        industry: options.industry as string | undefined,
+        exemption: options.exemption as string | undefined,
+        after: options.after as string | undefined,
+        before: options.before as string | undefined,
         limit,
         offset,
       });
@@ -127,7 +141,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,
@@ -142,18 +156,19 @@ export function addQueryCommands(program: Command): void {
     .option("--portal <portal>", "Filter by portal")
     .option("--after <date>", "Filter after date")
     .option("--before <date>", "Filter before date")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async (search: string | undefined, options: Record<string, string>) => {
-      const limit = parseInt(options.limit ?? "25");
-      const offset = parseInt(options.offset ?? "0");
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryCrowdfunding({
         search,
-        cik: options.cik ? parseInt(options.cik) : undefined,
-        portal: options.portal ? parseInt(options.portal) : undefined,
-        after: options.after,
-        before: options.before,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        portal: options.portal ? parseInt(options.portal as string, 10) : undefined,
+        after: options.after as string | undefined,
+        before: options.before as string | undefined,
         limit,
         offset,
       });
@@ -167,7 +182,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,
@@ -180,18 +195,19 @@ export function addQueryCommands(program: Command): void {
     .description("Query company facts")
     .option("--name <name>", "Filter by fact name")
     .option("--taxonomy <taxonomy>", "Filter by taxonomy")
-    .option("--year <year>", "Filter by year")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async (cik: string, options: Record<string, string>) => {
-      const limit = parseInt(options.limit ?? "25");
-      const offset = parseInt(options.offset ?? "0");
+    .option("--year <year>", "Filter by year", parseIntOption)
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (cik: string, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryFacts({
-        cik: parseInt(cik),
-        name: options.name,
-        taxonomy: options.taxonomy,
-        year: options.year ? parseInt(options.year) : undefined,
+        cik: parseInt(cik, 10),
+        name: options.name as string | undefined,
+        taxonomy: options.taxonomy as string | undefined,
+        year: options.year as number | undefined,
         limit,
         offset,
       });
@@ -207,7 +223,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,
@@ -220,16 +236,17 @@ export function addQueryCommands(program: Command): void {
     .description("Search persons in the database")
     .option("--cik <cik>", "Filter by CIK")
     .option("--role <role>", "Filter by role")
-    .option("--limit <n>", "Limit results")
-    .option("--offset <n>", "Offset results")
-    .option("--format <format>", "Output format (table, json, csv)")
-    .action(async (search: string | undefined, options: Record<string, string>) => {
-      const limit = parseInt(options.limit ?? "25");
-      const offset = parseInt(options.offset ?? "0");
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
       const result = await queryPersons({
         search,
-        cik: options.cik ? parseInt(options.cik) : undefined,
-        role: options.role,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        role: options.role as string | undefined,
         limit,
         offset,
       });
@@ -243,7 +260,7 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
-          format: options.format as "table" | "csv" | "json",
+          format,
           total: result.total,
           offset,
           limit,

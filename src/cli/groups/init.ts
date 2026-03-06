@@ -19,23 +19,27 @@ export interface InitConfig {
   readonly pgDatabase?: string;
 }
 
+function escapeEnvValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
 export function buildEnvConfig(config: InitConfig): string {
   const lines: string[] = [
-    `SEC_DB_TYPE="${config.dbType}"`,
-    `SEC_DB_FOLDER="${config.dbFolder}"`,
-    `SEC_DB_NAME="${config.dbName}"`,
-    `SEC_RAW_DATA_FOLDER="${config.rawDataFolder}"`,
+    `SEC_DB_TYPE="${escapeEnvValue(config.dbType)}"`,
+    `SEC_DB_FOLDER="${escapeEnvValue(config.dbFolder)}"`,
+    `SEC_DB_NAME="${escapeEnvValue(config.dbName)}"`,
+    `SEC_RAW_DATA_FOLDER="${escapeEnvValue(config.rawDataFolder)}"`,
   ];
 
   if (config.dbType === "postgres") {
     if (config.pgUrl) {
-      lines.push(`SEC_PG_URL="${config.pgUrl}"`);
+      lines.push(`SEC_PG_URL="${escapeEnvValue(config.pgUrl)}"`);
     } else {
-      if (config.pgHost) lines.push(`SEC_PG_HOST="${config.pgHost}"`);
-      if (config.pgPort) lines.push(`SEC_PG_PORT="${config.pgPort}"`);
-      if (config.pgUser) lines.push(`SEC_PG_USER="${config.pgUser}"`);
-      if (config.pgPassword) lines.push(`SEC_PG_PASSWORD="${config.pgPassword}"`);
-      if (config.pgDatabase) lines.push(`SEC_PG_DATABASE="${config.pgDatabase}"`);
+      if (config.pgHost) lines.push(`SEC_PG_HOST="${escapeEnvValue(config.pgHost)}"`);
+      if (config.pgPort) lines.push(`SEC_PG_PORT="${escapeEnvValue(config.pgPort)}"`);
+      if (config.pgUser) lines.push(`SEC_PG_USER="${escapeEnvValue(config.pgUser)}"`);
+      if (config.pgPassword) lines.push(`SEC_PG_PASSWORD="${escapeEnvValue(config.pgPassword)}"`);
+      if (config.pgDatabase) lines.push(`SEC_PG_DATABASE="${escapeEnvValue(config.pgDatabase)}"`);
     }
   }
 
@@ -116,8 +120,6 @@ export function addInitCommand(parent: Command): void {
             rawDataFolder,
             ...pgFields,
           };
-
-          rl.close();
 
           const envContent = buildEnvConfig(config);
           writeFileSync(envPath, envContent, "utf-8");
