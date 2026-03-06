@@ -1,10 +1,11 @@
-import { afterEach, afterAll, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 import { runCommand } from "./runCommand";
 
 describe("runCommand", () => {
   afterEach(() => {
     process.exitCode = 0;
   });
+
   afterAll(() => {
     process.exitCode = 0;
   });
