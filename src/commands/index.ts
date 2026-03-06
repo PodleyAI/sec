@@ -18,15 +18,24 @@ import { addDbCommands } from "../cli/groups/db";
 import { addInitCommand } from "../cli/groups/init";
 
 export const AddCommands = (program: Command): void => {
-  EnvToDI();
-  DefaultDI();
+  let diInitialized = false;
 
-  getTaskQueueRegistry().registerQueue({
-    server: SecJobQueueServer,
-    client: SecJobQueueClient,
-    storage: SecJobQueueStorage,
+  program.hook("preAction", (_thisCommand, actionCommand) => {
+    const commandName = actionCommand.name();
+    if (commandName === "init") return;
+    if (diInitialized) return;
+    diInitialized = true;
+
+    EnvToDI();
+    DefaultDI();
+
+    getTaskQueueRegistry().registerQueue({
+      server: SecJobQueueServer,
+      client: SecJobQueueClient,
+      storage: SecJobQueueStorage,
+    });
+    SecJobQueueServer.start();
   });
-  SecJobQueueServer.start();
 
   addBootstrapCommands(program);
   addSyncCommand(program);

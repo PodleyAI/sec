@@ -18,7 +18,6 @@
     "declarationMap": true,
     "types": ["@types/bun"],
     "outDir": "dist",
-    "baseUrl": "./src",
     "rootDir": "./src",
     "jsx": "react-jsx",
     "module": "preserve",
