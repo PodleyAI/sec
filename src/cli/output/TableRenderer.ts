@@ -71,12 +71,12 @@ function renderTextTable(
   if (options.total !== undefined) {
     const offset = options.offset ?? 0;
     const count = rows.length;
-    const start = offset + 1;
-    const end = offset + count;
+    const start = count === 0 ? 0 : offset + 1;
+    const end = count === 0 ? 0 : offset + count;
     lines.push("");
     lines.push(`Showing ${start}-${end} of ${options.total} results`);
 
-    if (end < options.total) {
+    if (count > 0 && end < options.total) {
       lines.push(`(use --offset ${end} for next page)`);
     }
   }
@@ -95,6 +95,8 @@ export function renderTable(
     case "csv":
       return renderCsv(rows, columns);
     case "table":
+      return renderTextTable(rows, columns, options);
+    default:
       return renderTextTable(rows, columns, options);
   }
 }

@@ -28,7 +28,7 @@ export function parseGlobalOptions(cmd: Command): GlobalOptions {
   };
 }
 
-function parseIntOption(value: string): number {
+export function parseIntOption(value: string): number {
   const parsed = parseInt(value, 10);
   if (isNaN(parsed)) {
     throw new Error(`"${value}" is not a valid number`);
