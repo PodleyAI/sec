@@ -5,13 +5,40 @@
  */
 
 import { Form } from "../Form";
+import { Form8K, Form8KSubmission, Form8KSubmissionSchema } from "./Form_8_K.schema";
 
 export class Form_8_K extends Form {
   static readonly name = "Form 8-K";
   static readonly description =
     "A report of unscheduled material events or corporate changes which could be of importance to the shareholders or to the SEC. Examples include acquisition, bankruptcy, resignation of directors, or a change in the fiscal year.";
   static readonly forms = ["8-K", "8-K/A"] as const;
+
+  static async parse(form: (typeof Form_8_K.forms)[number], xml: string): Promise<Form8K> {
+    if (!Form_8_K.forms.includes(form)) {
+      throw new Error(`Invalid form: ${form}`);
+    }
+
+    // 8-K primary documents can be HTML (most common) or structured XML.
+    // Detect XML vs HTML by checking for an XML declaration or edgarSubmission root.
+    const trimmed = xml.trimStart();
+    const isXml =
+      trimmed.startsWith("<?xml") ||
+      trimmed.startsWith("<edgarSubmission") ||
+      trimmed.startsWith("<EDGARSUBMISSION");
+
+    if (isXml) {
+      const parser = Form_8_K.getParser(Form8KSubmissionSchema);
+      const json = parser.parse(xml) as Form8KSubmission;
+      return json.edgarSubmission;
+    }
+
+    // For HTML primary documents, return a minimal result.
+    // Structured data (items, dates) is obtained from the filing index metadata.
+    return {};
+  }
 }
+
+export type { Form8K };
 
 export const Form_8_K_ITEMS: Record<string, string> = {
   "1.01": "Entry into a Material Definitive Agreement",

@@ -150,6 +150,11 @@ import {
   RegAEquityClassSchema,
 } from "../storage/reg-a/RegAEquityClassSchema";
 import {
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
+  Form8KEventPrimaryKeyNames,
+  Form8KEventSchema,
+} from "../storage/form-8k-event/Form8KEventSchema";
+import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
   CikLastUpdatePrimaryKeyNames,
   CikLastUpdateSchema,
@@ -488,6 +493,15 @@ export const DefaultDI = () => {
     REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
     createStorage("rega_equity_classes", RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
       ["cik", "file_number"],
+    ])
+  );
+
+  // ------------------------------ Form 8-K Events --------------------------------
+  globalServiceRegistry.registerInstance(
+    FORM_8K_EVENT_REPOSITORY_TOKEN,
+    createStorage("form_8k_events", Form8KEventSchema, Form8KEventPrimaryKeyNames, [
+      ["cik", "filing_date"],
+      ["item_code"],
     ])
   );
 };

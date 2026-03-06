@@ -19,6 +19,7 @@ import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
+import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({
@@ -81,6 +82,8 @@ export class ProcessAccessionDocFormTask extends Task<
     let fileName = input.fileName;
     let filing_date: string | null | undefined;
     let file_number: string | null | undefined;
+    let items: string | null | undefined;
+    let report_date: string | null | undefined;
 
     if (!cik || !form || !fileName) {
       const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -91,6 +94,8 @@ export class ProcessAccessionDocFormTask extends Task<
       form = filing.form ?? undefined;
       filing_date = filing.filing_date;
       file_number = filing.file_number;
+      items = filing.items;
+      report_date = filing.report_date;
       fileName = fileName ?? filing.primary_doc;
     }
 
@@ -152,6 +157,18 @@ export class ProcessAccessionDocFormTask extends Task<
           case "1-Z":
           case "1-Z/A":
             await processForm1Z({ ...storageArgs, form1Z: result });
+            break;
+          case "8-K":
+          case "8-K/A":
+            await processForm8K({
+              cik: cik!,
+              accession_number: accessionNumber,
+              filing_date: filing_date ?? "",
+              form: form!,
+              items,
+              report_date,
+              form8K: result,
+            });
             break;
         }
 

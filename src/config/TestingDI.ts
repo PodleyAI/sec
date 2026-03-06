@@ -172,6 +172,11 @@ import {
   CompanyFactsPrimaryKeyNames,
   CompanyFactsSchema,
 } from "../storage/facts/CompanyFactsSchema";
+import {
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
+  Form8KEventPrimaryKeyNames,
+  Form8KEventSchema,
+} from "../storage/form-8k-event/Form8KEventSchema";
 
 export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
@@ -430,6 +435,15 @@ export function resetDependencyInjectionsForTesting() {
     CHANGE_LOG_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(ChangeLogSchema, ChangeLogPrimaryKeyNames, [
       ["entity_type", "entity_id"],
+    ])
+  );
+
+  // Initialize Form 8-K Event repository
+  globalServiceRegistry.registerInstance(
+    FORM_8K_EVENT_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Form8KEventSchema, Form8KEventPrimaryKeyNames, [
+      ["cik", "filing_date"],
+      ["item_code"],
     ])
   );
 }
