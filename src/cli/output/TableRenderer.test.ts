@@ -111,5 +111,12 @@ describe("renderTable", () => {
       expect(result).toContain("Showing 21-22 of 100 results");
       expect(result).toContain("(use --offset 22 for next page)");
     });
+
+    it("shows 0-0 range when rows is empty but total is provided", () => {
+      const options: RenderOptions = { format: "table", total: 10, offset: 0, limit: 10 };
+      const result = renderTable([], columns, options);
+      expect(result).toContain("Showing 0-0 of 10 results");
+      expect(result).not.toContain("--offset");
+    });
   });
 });

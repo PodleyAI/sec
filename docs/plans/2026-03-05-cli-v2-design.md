@@ -32,9 +32,7 @@ Interactive wizard:
 5. Create directories
 6. Run `db setup`
 
-Detects existing `.env.local` and offers to reconfigure or skip. PostgreSQL path prompts for connection string or individual parameters. Validates database connectivity before writing config.
-
-When `--json` is passed: outputs config as JSON, no interactivity (for scripting). Non-zero exit if any step fails.
+Detects existing `.env.local` and warns before overwriting. PostgreSQL path prompts for connection string or individual parameters. Non-zero exit if any step fails.
 
 ### 1.2 Pipeline Commands
 

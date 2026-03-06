@@ -232,4 +232,15 @@ describe("queryEntities", () => {
     expect(result.rows.length).toBe(1);
     expect(result.rows[0].name).toBe("Apple Inc.");
   });
+
+  it("throws for invalid sort field", async () => {
+    expect(queryEntities({ sort: "nonexistent_field" })).rejects.toThrow(
+      'Invalid sort field "nonexistent_field"'
+    );
+  });
+
+  it("accepts valid sort fields without throwing", async () => {
+    const result = await queryEntities({ sort: "name" });
+    expect(result).toBeDefined();
+  });
 });

@@ -54,7 +54,9 @@ export interface TableStat {
   readonly rows: number;
 }
 
-async function countRows(token: ServiceToken<{ getAll(): Promise<unknown[]> }>): Promise<number> {
+async function countRows(
+  token: ServiceToken<{ getAll(): Promise<unknown[] | undefined> }>
+): Promise<number> {
   const repo = globalServiceRegistry.get(token);
   const all = (await repo.getAll()) ?? [];
   return all.length;
@@ -83,7 +85,7 @@ export async function getDbStatus(): Promise<DbStatusResult> {
 
 const TABLE_TOKENS: ReadonlyArray<{
   readonly table: string;
-  readonly token: ServiceToken<{ getAll(): Promise<unknown[]> }>;
+  readonly token: ServiceToken<{ getAll(): Promise<unknown[] | undefined> }>;
 }> = [
   { table: "entity", token: ENTITY_REPOSITORY_TOKEN as any },
   { table: "filing", token: FILING_REPOSITORY_TOKEN as any },

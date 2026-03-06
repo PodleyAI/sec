@@ -139,10 +139,10 @@ All commands accept the following flags:
 | Flag            | Short | Description                                       |
 | --------------- | ----- | ------------------------------------------------- |
 | `--json`        |       | Output structured JSON to stdout                  |
-| `--verbose`     | `-v`  | Enable detailed log output                        |
+| `--verbose`     |       | Enable detailed log output                        |
 | `--dry-run`     |       | Show what would be done without making changes    |
 | `--no-color`    |       | Disable colored output                            |
-| `--concurrency` | `-c`  | Max parallel operations (default varies by command)|
+| `--concurrency` |       | Max parallel operations (default varies by command)|
 
 ---
 
@@ -200,14 +200,14 @@ Subcommands for running individual bootstrap phases.
 
 Download and extract bulk SEC data archives.
 
-| Option   | Description                                                  |
+| Argument | Description                                                  |
 | -------- | ------------------------------------------------------------ |
-| `--type` | One of: `submissions`, `companyfacts`, `ciks`, `all` (default: `all`) |
+| `<type>` | One of: `submissions`, `facts`, `ciks`, `all` (default: `all`) |
 
 **Behavior:**
 
 - `submissions` — Downloads `submissions.zip`, extracts to `SEC_RAW_DATA_FOLDER/submissions/`
-- `companyfacts` — Downloads `companyfacts.zip`, extracts to `SEC_RAW_DATA_FOLDER/companyfacts/`
+- `facts` — Downloads `companyfacts.zip`, extracts to `SEC_RAW_DATA_FOLDER/facts/`
 - `ciks` — Downloads `cik-lookup-data.txt` to `SEC_RAW_DATA_FOLDER/ciks/`
 - `all` — Downloads all three
 - Validates extracted paths to prevent directory traversal
@@ -355,53 +355,59 @@ Process a single accession document.
 
 Read-only commands for querying the database. All query commands support `--format` (`table`, `csv`, `json`; default: `table`) and `--limit`/`--offset` for pagination.
 
-#### `sec query entities [cik]`
+#### `sec query entities [search]`
 
 List or look up entities.
 
-| Argument | Required | Description                       |
-| -------- | -------- | --------------------------------- |
-| `cik`    | No       | Specific CIK to look up          |
+| Argument | Required | Description                              |
+| -------- | -------- | ---------------------------------------- |
+| `search` | No       | Free-text search term to filter entities |
 
-| Option             | Description                   |
-| ------------------ | ----------------------------- |
-| `--name <pattern>` | Filter by name (LIKE pattern) |
-| `--sic <code>`     | Filter by SIC code            |
+| Option             | Description                      |
+| ------------------ | -------------------------------- |
+| `--cik <cik>`      | Filter by exact CIK              |
+| `--sic <code>`     | Filter by SIC code               |
 | `--state <code>`   | Filter by state of incorporation |
-| `--limit <n>`      | Max rows (default: 25)        |
-| `--offset <n>`     | Skip rows (default: 0)        |
-| `--format <fmt>`   | Output format: table, csv, json |
+| `--sort <field>`   | Sort by field name               |
+| `--limit <n>`      | Max rows (default: 25)           |
+| `--offset <n>`     | Skip rows (default: 0)           |
+| `--format <fmt>`   | Output format: table, csv, json  |
 
-#### `sec query filings [cik]`
+#### `sec query filings [search]`
 
 List or look up filings.
 
-| Argument | Required | Description              |
-| -------- | -------- | ------------------------ |
-| `cik`    | No       | Filter by entity CIK    |
+| Argument | Required | Description                               |
+| -------- | -------- | ----------------------------------------- |
+| `search` | No       | Free-text search term to filter filings   |
 
 | Option             | Description                       |
 | ------------------ | --------------------------------- |
+| `--cik <cik>`      | Filter by entity CIK              |
 | `--form <type>`    | Filter by form type               |
-| `--from <date>`    | Filing date start (YYYY-MM-DD)    |
-| `--to <date>`      | Filing date end (YYYY-MM-DD)      |
+| `--after <date>`   | Filing date start (YYYY-MM-DD)    |
+| `--before <date>`  | Filing date end (YYYY-MM-DD)      |
 | `--limit <n>`      | Max rows (default: 25)            |
 | `--offset <n>`     | Skip rows (default: 0)            |
 | `--format <fmt>`   | Output format: table, csv, json   |
 
-#### `sec query offerings [cik]`
+#### `sec query offerings [search]`
 
 List Form D investment offerings.
 
-| Argument | Required | Description           |
-| -------- | -------- | --------------------- |
-| `cik`    | No       | Filter by issuer CIK  |
+| Argument | Required | Description                                |
+| -------- | -------- | ------------------------------------------ |
+| `search` | No       | Free-text search term to filter offerings  |
 
-| Option                  | Description                   |
-| ----------------------- | ----------------------------- |
-| `--industry <group>`    | Filter by industry group      |
-| `--limit <n>`           | Max rows (default: 25)        |
-| `--offset <n>`          | Skip rows (default: 0)        |
+| Option                  | Description                    |
+| ----------------------- | ------------------------------ |
+| `--cik <cik>`           | Filter by issuer CIK           |
+| `--industry <group>`    | Filter by industry group       |
+| `--exemption <type>`    | Filter by exemption type       |
+| `--after <date>`        | Filter after date              |
+| `--before <date>`       | Filter before date             |
+| `--limit <n>`           | Max rows (default: 25)         |
+| `--offset <n>`          | Skip rows (default: 0)         |
 | `--format <fmt>`        | Output format: table, csv, json |
 
 #### `sec query crowdfunding [cik]`
@@ -466,11 +472,11 @@ Show row counts for all tables and processing progress.
 
 #### `sec db reset`
 
-Drop all tables and re-create them. Prompts for confirmation unless `--force` is passed.
+Drop all tables and re-create them. Prompts for confirmation unless `--confirm` is passed.
 
-| Option    | Description                    |
-| --------- | ------------------------------ |
-| `--force` | Skip confirmation prompt       |
+| Option      | Description                    |
+| ----------- | ------------------------------ |
+| `--confirm` | Skip confirmation prompt       |
 
 ---
 

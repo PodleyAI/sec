@@ -13,7 +13,6 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("submissions")
     .description("Update all submissions for all companies")
-    .option("--concurrency <n>", "Override default concurrency")
     .action(async () => {
       await runCommand(async () => {
         await runTasks(new UpdateAllSubmissionsTask());
@@ -23,7 +22,6 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("facts")
     .description("Update all company facts")
-    .option("--concurrency <n>", "Override default concurrency")
     .action(async () => {
       await runCommand(async () => {
         await runTasks(new UpdateAllCompanyFactsTask());
@@ -33,7 +31,6 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("forms <types>")
     .description("Update forms for all companies (comma-separated form types)")
-    .option("--concurrency <n>", "Override default concurrency")
     .action(async (types: string) => {
       await runCommand(async () => {
         const formTypes = types.split(",");
