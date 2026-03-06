@@ -18,21 +18,18 @@ export class Form_8_K extends Form {
       throw new Error(`Invalid form: ${form}`);
     }
 
-    // 8-K primary documents can be HTML (most common) or structured XML.
-    // Detect XML vs HTML by checking for an XML declaration or edgarSubmission root.
-    const trimmed = xml.trimStart();
-    const isXml =
-      trimmed.startsWith("<?xml") ||
-      trimmed.startsWith("<edgarSubmission") ||
-      trimmed.startsWith("<EDGARSUBMISSION");
+    // 8-K primary documents can be HTML/XHTML (most common) or structured XML
+    // with an edgarSubmission root element. Many HTML files start with <?xml>
+    // (inline XBRL), so we must check for the actual root element.
+    const hasEdgarSubmission = /\bedgarSubmission\b/i.test(xml.slice(0, 500));
 
-    if (isXml) {
+    if (hasEdgarSubmission) {
       const parser = Form_8_K.getParser(Form8KSubmissionSchema);
       const json = parser.parse(xml) as Form8KSubmission;
       return json.edgarSubmission;
     }
 
-    // For HTML primary documents, return a minimal result.
+    // For HTML/XHTML primary documents, return a minimal result.
     // Structured data (items, dates) is obtained from the filing index metadata.
     return {};
   }
