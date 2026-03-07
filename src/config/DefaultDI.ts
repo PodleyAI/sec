@@ -502,6 +502,7 @@ export const DefaultDI = () => {
     createStorage("form_8k_events", Form8KEventSchema, Form8KEventPrimaryKeyNames, [
       ["cik", "filing_date"],
       ["item_code"],
+      ["cik", "accession_number"],
     ])
   );
 };

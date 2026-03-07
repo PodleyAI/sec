@@ -85,19 +85,17 @@ export class ProcessAccessionDocFormTask extends Task<
     let items: string | null | undefined;
     let report_date: string | null | undefined;
 
-    if (!cik || !form || !fileName) {
-      const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-      const filings = await filingRepo.query({ accession_number: accessionNumber });
-      const filing = filings?.[0];
-      if (!filing) throw new TaskError("Filing not found");
-      cik = filing.cik;
-      form = filing.form ?? undefined;
-      filing_date = filing.filing_date;
-      file_number = filing.file_number;
-      items = filing.items;
-      report_date = filing.report_date;
-      fileName = fileName ?? filing.primary_doc;
-    }
+    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    const filings = await filingRepo.query({ accession_number: accessionNumber });
+    const filing = filings?.[0];
+    if (!filing) throw new TaskError("Filing not found");
+    if (!cik) cik = filing.cik;
+    if (!form) form = filing.form ?? undefined;
+    filing_date = filing.filing_date;
+    file_number = filing.file_number;
+    items = filing.items;
+    report_date = filing.report_date;
+    if (!fileName) fileName = filing.primary_doc;
 
     if (!form) {
       throw new TaskError(`Filing ${accessionNumber} has no form type`);

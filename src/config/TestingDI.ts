@@ -444,6 +444,7 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(Form8KEventSchema, Form8KEventPrimaryKeyNames, [
       ["cik", "filing_date"],
       ["item_code"],
+      ["cik", "accession_number"],
     ])
   );
 }
