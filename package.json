@@ -30,7 +30,7 @@
     "@workglow/storage": "0.0.109",
     "@workglow/task-graph": "0.0.109",
     "@workglow/tasks": "0.0.109",
-    "@workglow/util": "0.0.109",
+    "@workglow/util": "0.0.116",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
