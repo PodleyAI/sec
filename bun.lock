@@ -27,7 +27,7 @@
         "html-entities": "^2.6.0",
         "pdf2json": "^3.2.2",
         "pg": "^8.16.0",
-        "typebox": "1.1.5",
+        "typebox": "1.1.6",
         "words-to-numbers": "^1.5.1",
         "xml2js": "^0.6.2",
       },
@@ -865,7 +865,7 @@
 
     "type-is": ["type-is@2.0.1", "", { "dependencies": { "content-type": "^1.0.5", "media-typer": "^1.1.0", "mime-types": "^3.0.0" } }, "sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw=="],
 
-    "typebox": ["typebox@1.1.5", "", {}, "sha512-TBdiM4mSppvWdmRDK5PoocxrMOqGIU9TxmS9zdHH+k8S/+2SIaNlPfMlx3f6hISxma14t2yX7SRySg7+TYYT9w=="],
+    "typebox": ["typebox@1.1.6", "", {}, "sha512-O2iWCF+RboQfDqr6n83eOq0dKCjVchMWklKgdwKFeR01MGTskILHYEFi9n3lQvfuua4CtvG/EJEIg3P8H9eBcw=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
