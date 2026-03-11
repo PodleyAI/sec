@@ -1,7 +1,7 @@
 import { statusMessage } from "./output/Progress";
+import { isDryRun } from "./isDryRun";
 
 export interface RunCommandOptions {
-  readonly dryRun?: boolean;
   readonly onError?: (error: unknown) => void;
 }
 
@@ -9,12 +9,10 @@ export async function runCommand(
   action: () => Promise<void>,
   options?: RunCommandOptions
 ): Promise<number> {
-  if (options?.dryRun) {
-    process.exitCode = 0;
-    return 0;
-  }
-
   try {
+    if (isDryRun()) {
+      console.log(statusMessage("info", "Dry run — no data will be written"));
+    }
     await action();
     process.exitCode = 0;
     return 0;

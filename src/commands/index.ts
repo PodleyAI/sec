@@ -5,10 +5,13 @@
  */
 
 import type { Command } from "commander";
+import { globalServiceRegistry } from "@workglow/util";
 import { EnvToDI } from "../config/EnvToDI";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 import { getTaskQueueRegistry } from "@workglow/task-graph";
 import { DefaultDI } from "../config/DefaultDI";
+import { SEC_DRY_RUN } from "../config/tokens";
+import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addUpdateCommands } from "../cli/groups/update";
@@ -25,6 +28,9 @@ export const AddCommands = (program: Command): void => {
     if (commandName === "init") return;
     if (diInitialized) return;
     diInitialized = true;
+
+    const globalOpts = parseGlobalOptions(program);
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
 
     EnvToDI();
     DefaultDI();

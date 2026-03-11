@@ -51,12 +51,23 @@ describe("runCommand", () => {
     }
   });
 
-  it("skips execution in dry-run mode", async () => {
+  it("prints dry-run banner when SEC_DRY_RUN is set", async () => {
+    const { globalServiceRegistry } = await import("@workglow/util");
+    const { SEC_DRY_RUN } = await import("../config/tokens");
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
     const action = mock(() => Promise.resolve());
-    const code = await runCommand(action, { dryRun: true });
-    expect(code).toBe(0);
-    expect(process.exitCode).toBe(0);
-    expect(action).not.toHaveBeenCalled();
+    const origLog = console.log;
+    const logs: string[] = [];
+    console.log = (...args: unknown[]) => logs.push(args.join(" "));
+    try {
+      const code = await runCommand(action);
+      expect(code).toBe(0);
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(logs.some((l) => l.includes("Dry run"))).toBe(true);
+    } finally {
+      console.log = origLog;
+      globalServiceRegistry.registerInstance(SEC_DRY_RUN, false);
+    }
   });
 
   it("sets process.exitCode to 0 on success", async () => {

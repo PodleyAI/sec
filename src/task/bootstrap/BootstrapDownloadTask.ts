@@ -9,7 +9,7 @@ import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
 import { resolve, join, sep } from "node:path";
 import { mkdirSync, rmSync } from "node:fs";
-import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { SecUserAgent } from "../../config/Constants";
 
 export type BootstrapDownloadTaskInput = {
@@ -49,6 +49,9 @@ export class BootstrapDownloadTask extends Task<
     input: BootstrapDownloadTaskInput,
     context: IExecuteContext
   ): Promise<BootstrapDownloadTaskOutput> {
+    const dryRun =
+      globalServiceRegistry.has(SEC_DRY_RUN) && globalServiceRegistry.get(SEC_DRY_RUN);
+
     const rawDataFolder = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
     const targetDir = resolve(rawDataFolder, input.targetFolder);
 
@@ -58,6 +61,11 @@ export class BootstrapDownloadTask extends Task<
       throw new Error(
         `Invalid targetFolder "${input.targetFolder}": must resolve to a subdirectory of SEC_RAW_DATA_FOLDER`
       );
+    }
+
+    if (dryRun) {
+      console.log(`Would download ${input.url} to ${targetDir}`);
+      return { success: true };
     }
 
     mkdirSync(targetDir, { recursive: true });

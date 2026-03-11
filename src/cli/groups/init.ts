@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 
 export interface InitConfig {
@@ -62,6 +63,8 @@ export function addInitCommand(parent: Command): void {
     .command("init")
     .description("Interactive first-run setup wizard")
     .action(async () => {
+      const dryRun = parseGlobalOptions(parent).dryRun;
+
       await runCommand(async () => {
         const envPath = resolve(process.cwd(), ".env.local");
 
@@ -122,6 +125,16 @@ export function addInitCommand(parent: Command): void {
           };
 
           const envContent = buildEnvConfig(config);
+
+          if (dryRun) {
+            console.log(`Would write ${envPath}:`);
+            console.log(envContent);
+            console.log(`Would create directory: ${dbFolder}`);
+            console.log(`Would create directory: ${rawDataFolder}`);
+            console.log("Would create database tables.");
+            return;
+          }
+
           writeFileSync(envPath, envContent, "utf-8");
           console.log(`Wrote ${envPath}`);
 
