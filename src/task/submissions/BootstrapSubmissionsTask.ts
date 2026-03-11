@@ -13,7 +13,9 @@ import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
-export type BootstrapSubmissionsTaskInput = {};
+export interface BootstrapSubmissionsTaskInput {
+  readonly force?: boolean;
+}
 
 export type BootstrapSubmissionsTaskOutput = {
   success: boolean;
@@ -54,24 +56,29 @@ export class BootstrapSubmissionsTask extends Task<
       }
     }
 
-    const processedSubmissionsRepo = globalServiceRegistry.get(
-      PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
-    );
-    const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
-    const processedSet = new Set<number>();
-    for (const ps of allProcessedSubmissions) {
-      processedSet.add(ps.cik);
+    let ciksToProcess: number[];
+
+    if (input.force) {
+      ciksToProcess = ciks;
+    } else {
+      const processedSubmissionsRepo = globalServiceRegistry.get(
+        PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
+      );
+      const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
+      const processedSet = new Set<number>();
+      for (const ps of allProcessedSubmissions) {
+        processedSet.add(ps.cik);
+      }
+      ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
     }
 
-    const unprocessedCiks = ciks.filter((cik) => !processedSet.has(cik));
-
-    if (unprocessedCiks.length) {
+    if (ciksToProcess.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 2 });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({
-        cik: unprocessedCiks,
+        cik: ciksToProcess,
       });
     }
 

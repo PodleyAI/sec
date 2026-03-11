@@ -16,7 +16,9 @@ import {
 } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
-export type UpdateAllSubmissionsTaskInput = {};
+export interface UpdateAllSubmissionsTaskInput {
+  readonly force?: boolean;
+}
 
 export type UpdateAllSubmissionsTaskOutput = {
   success: boolean;
@@ -53,22 +55,29 @@ export class UpdateAllSubmissionsTask extends Task<
         {},
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
-    const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
-
-    const processedMap = new Map<number, ProcessedSubmissions>();
-    for (const ps of allProcessedSubmissions) {
-      processedMap.set(ps.cik, ps);
-    }
 
     const needsUpdating: { cik: number; last_update: string }[] = [];
     const needsInitialProcessing: { cik: number; last_update: string }[] = [];
 
-    for (const clu of allCikUpdates) {
-      const ps = processedMap.get(clu.cik);
-      if (!ps) {
-        needsInitialProcessing.push({ cik: clu.cik, last_update: clu.last_update });
-      } else if (clu.last_update > ps.last_processed) {
+    if (input.force) {
+      for (const clu of allCikUpdates) {
         needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+      }
+    } else {
+      const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
+
+      const processedMap = new Map<number, ProcessedSubmissions>();
+      for (const ps of allProcessedSubmissions) {
+        processedMap.set(ps.cik, ps);
+      }
+
+      for (const clu of allCikUpdates) {
+        const ps = processedMap.get(clu.cik);
+        if (!ps) {
+          needsInitialProcessing.push({ cik: clu.cik, last_update: clu.last_update });
+        } else if (clu.last_update > ps.last_processed) {
+          needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+        }
       }
     }
 

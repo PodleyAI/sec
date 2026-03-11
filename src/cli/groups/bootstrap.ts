@@ -29,6 +29,7 @@ export function addBootstrapCommands(program: Command): void {
     .option("--skip-download", "Skip the bulk download step", false)
     .option("--skip-ingest", "Skip the ingest step", false)
     .option("--skip-forms", "Skip the forms processing step", false)
+    .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
       await runCommand(async () => {
         if (!options.skipDownload) {
@@ -41,12 +42,12 @@ export function addBootstrapCommands(program: Command): void {
         if (!options.skipIngest) {
           const cikWf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
           await runWorkflow(cikWf);
-          await runTasks(new BootstrapSubmissionsTask());
-          await runTasks(new BootstrapCompanyFactsTask());
+          await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
+          await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
         }
 
         if (!options.skipForms) {
-          await runTasks(new UpdateAllFormsTask({ form: ["D", "C"] }));
+          await runTasks(new UpdateAllFormsTask({ form: ["D", "C"], force: options.force }));
         }
       });
     });
@@ -82,7 +83,8 @@ export function addBootstrapCommands(program: Command): void {
   bootstrap
     .command("ingest [domain]")
     .description("Ingest pre-downloaded SEC data (submissions, facts, cik-names, or all)")
-    .action(async (domain?: string) => {
+    .option("--force", "Reprocess all items, ignoring processed state", false)
+    .action(async (domain: string | undefined, options) => {
       await runCommand(async () => {
         const target = domain ?? "all";
 
@@ -92,11 +94,11 @@ export function addBootstrapCommands(program: Command): void {
         }
 
         if (target === "submissions" || target === "all") {
-          await runTasks(new BootstrapSubmissionsTask());
+          await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
         }
 
         if (target === "facts" || target === "all") {
-          await runTasks(new BootstrapCompanyFactsTask());
+          await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
         }
 
         if (

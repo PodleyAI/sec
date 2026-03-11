@@ -16,9 +16,10 @@ import {
 } from "../../storage/processing/ProcessedFilingsSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
-export type UpdateAllFormsTaskInput = {
-  form: string[];
-};
+export interface UpdateAllFormsTaskInput {
+  readonly form: string[];
+  readonly force?: boolean;
+}
 
 export type UpdateAllFormsTaskOutput = {
   success: boolean;
@@ -47,40 +48,53 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
     const formSet = new Set(input.form);
 
-    // Build a set of already-processed (cik:accession_number) keys per form
-    const processedSet = new Set<string>();
-    for (const form of formSet) {
-      const processed = await processedFilingsRepo.query({ form });
-      if (processed) {
-        for (const pf of processed) {
-          processedSet.add(`${pf.cik}:${pf.accession_number}`);
+    const formsToProcess: Filing[] = [];
+
+    if (input.force) {
+      // Reprocess all filings for requested forms
+      for (const form of formSet) {
+        const filings = await filingRepo.query({ form });
+        if (filings) {
+          for (const f of filings) {
+            formsToProcess.push(f);
+          }
         }
       }
-    }
+    } else {
+      // Build a set of already-processed (cik:accession_number) keys per form
+      const processedSet = new Set<string>();
+      for (const form of formSet) {
+        const processed = await processedFilingsRepo.query({ form });
+        if (processed) {
+          for (const pf of processed) {
+            processedSet.add(`${pf.cik}:${pf.accession_number}`);
+          }
+        }
+      }
 
-    // Query filings per form and collect only unprocessed ones
-    const missingForms: Filing[] = [];
-    for (const form of formSet) {
-      const filings = await filingRepo.query({ form });
-      if (filings) {
-        for (const f of filings) {
-          if (!processedSet.has(`${f.cik}:${f.accession_number}`)) {
-            missingForms.push(f);
+      // Query filings per form and collect only unprocessed ones
+      for (const form of formSet) {
+        const filings = await filingRepo.query({ form });
+        if (filings) {
+          for (const f of filings) {
+            if (!processedSet.has(`${f.cik}:${f.accession_number}`)) {
+              formsToProcess.push(f);
+            }
           }
         }
       }
     }
 
-    if (missingForms.length) {
+    if (formsToProcess.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 10 });
       loop.pipe(new ProcessAccessionDocFormTask());
       loop.endMap();
       await wf.run({
-        accessionNumber: missingForms.map((f) => f.accession_number),
-        cik: missingForms.map((f) => f.cik),
-        form: missingForms.map((f) => f.form!),
-        fileName: missingForms.map((f) => f.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, "")),
+        accessionNumber: formsToProcess.map((f) => f.accession_number),
+        cik: formsToProcess.map((f) => f.cik),
+        form: formsToProcess.map((f) => f.form!),
+        fileName: formsToProcess.map((f) => f.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, "")),
       });
     }
     return { success: true };
