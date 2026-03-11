@@ -14,9 +14,9 @@ import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
-export interface BootstrapCompanyFactsTaskInput {
+export type BootstrapCompanyFactsTaskInput = {
   readonly force?: boolean;
-}
+};
 
 export type BootstrapCompanyFactsTaskOutput = {
   success: boolean;

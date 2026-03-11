@@ -13,9 +13,9 @@ import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
-export interface BootstrapSubmissionsTaskInput {
+export type BootstrapSubmissionsTaskInput = {
   readonly force?: boolean;
-}
+};
 
 export type BootstrapSubmissionsTaskOutput = {
   success: boolean;

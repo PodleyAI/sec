@@ -16,10 +16,10 @@ import {
 } from "../../storage/processing/ProcessedFilingsSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
-export interface UpdateAllFormsTaskInput {
+export type UpdateAllFormsTaskInput = {
   readonly form: string[];
   readonly force?: boolean;
-}
+};
 
 export type UpdateAllFormsTaskOutput = {
   success: boolean;

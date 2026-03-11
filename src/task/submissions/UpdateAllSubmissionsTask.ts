@@ -16,9 +16,9 @@ import {
 } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
-export interface UpdateAllSubmissionsTaskInput {
+export type UpdateAllSubmissionsTaskInput = {
   readonly force?: boolean;
-}
+};
 
 export type UpdateAllSubmissionsTaskOutput = {
   success: boolean;

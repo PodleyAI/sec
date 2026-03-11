@@ -14,9 +14,9 @@ import {
 } from "../../storage/processing/ProcessedFactsSchema";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
-export interface UpdateAllCompanyFactsTaskInput {
+export type UpdateAllCompanyFactsTaskInput = {
   readonly force?: boolean;
-}
+};
 
 export type UpdateAllCompanyFactsTaskOutput = {
   success: boolean;
