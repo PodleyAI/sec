@@ -14,7 +14,9 @@ import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
-export type BootstrapCompanyFactsTaskInput = {};
+export type BootstrapCompanyFactsTaskInput = {
+  readonly force?: boolean;
+};
 
 export type BootstrapCompanyFactsTaskOutput = {
   success: boolean;
@@ -55,22 +57,27 @@ export class BootstrapCompanyFactsTask extends Task<
       }
     }
 
-    const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
-    const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
-    const processedSet = new Set<number>();
-    for (const pf of allProcessedFacts) {
-      processedSet.add(pf.cik);
+    let ciksToProcess: number[];
+
+    if (input.force) {
+      ciksToProcess = ciks;
+    } else {
+      const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
+      const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
+      const processedSet = new Set<number>();
+      for (const pf of allProcessedFacts) {
+        processedSet.add(pf.cik);
+      }
+      ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
     }
 
-    const unprocessedCiks = ciks.filter((cik) => !processedSet.has(cik));
-
-    if (unprocessedCiks.length) {
+    if (ciksToProcess.length) {
       const wf = context.own(new Workflow());
       const loop = wf.map({ concurrencyLimit: 2 });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();
       await wf.run({
-        cik: unprocessedCiks,
+        cik: ciksToProcess,
         date: todayYYYYdMMdDD(),
       });
     }

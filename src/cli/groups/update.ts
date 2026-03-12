@@ -13,28 +13,31 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("submissions")
     .description("Update all submissions for all companies")
-    .action(async () => {
+    .option("--force", "Reprocess all items, ignoring processed state", false)
+    .action(async (options) => {
       await runCommand(async () => {
-        await runTasks(new UpdateAllSubmissionsTask());
+        await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
       });
     });
 
   update
     .command("facts")
     .description("Update all company facts")
-    .action(async () => {
+    .option("--force", "Reprocess all items, ignoring processed state", false)
+    .action(async (options) => {
       await runCommand(async () => {
-        await runTasks(new UpdateAllCompanyFactsTask());
+        await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
       });
     });
 
   update
     .command("forms <types>")
     .description("Update forms for all companies (comma-separated form types)")
-    .action(async (types: string) => {
+    .option("--force", "Reprocess all items, ignoring processed state", false)
+    .action(async (types: string, options) => {
       await runCommand(async () => {
         const formTypes = types.split(",");
-        await runTasks(new UpdateAllFormsTask({ form: formTypes }));
+        await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
       });
     });
 }

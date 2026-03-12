@@ -14,7 +14,9 @@ import {
 } from "../../storage/processing/ProcessedFactsSchema";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
-export type UpdateAllCompanyFactsTaskInput = {};
+export type UpdateAllCompanyFactsTaskInput = {
+  readonly force?: boolean;
+};
 
 export type UpdateAllCompanyFactsTaskOutput = {
   success: boolean;
@@ -49,22 +51,29 @@ export class UpdateAllCompanyFactsTask extends Task<
         {},
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
-    const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
-
-    const processedMap = new Map<number, ProcessedFacts>();
-    for (const pf of allProcessedFacts) {
-      processedMap.set(pf.cik, pf);
-    }
 
     const needsUpdating: { cik: number; last_update: string }[] = [];
     const needsProcessing: { cik: number; last_update: string }[] = [];
 
-    for (const clu of allCikUpdates) {
-      const pf = processedMap.get(clu.cik);
-      if (!pf) {
-        needsProcessing.push({ cik: clu.cik, last_update: clu.last_update });
-      } else if (clu.last_update > pf.last_processed) {
+    if (input.force) {
+      for (const clu of allCikUpdates) {
         needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+      }
+    } else {
+      const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
+
+      const processedMap = new Map<number, ProcessedFacts>();
+      for (const pf of allProcessedFacts) {
+        processedMap.set(pf.cik, pf);
+      }
+
+      for (const clu of allCikUpdates) {
+        const pf = processedMap.get(clu.cik);
+        if (!pf) {
+          needsProcessing.push({ cik: clu.cik, last_update: clu.last_update });
+        } else if (clu.last_update > pf.last_processed) {
+          needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+        }
       }
     }
 
