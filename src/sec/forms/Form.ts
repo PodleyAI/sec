@@ -6,11 +6,9 @@
 
 // See https://www.sec.gov/files/edgar/filermanual/edgarfilermmanual-vol2-c3.pdf
 
+import { X2jOptions, XMLParser } from "fast-xml-parser";
 import type { TObject } from "typebox";
-import { Readable } from "node:stream";
 import { extractArrayPaths } from "./parse_util";
-import { X2jOptions } from "fast-xml-parser";
-import { XMLParser } from "fast-xml-parser";
 
 export abstract class Form {
   static readonly name: string;
@@ -34,7 +32,7 @@ export abstract class Form {
       parseTagValue: false,
       parseAttributeValue: false,
       isArray: (_name, jpath) => {
-        return paths.includes(jpath);
+        return typeof jpath === "string" && paths.includes(jpath);
       },
     };
     return new XMLParser(options);
