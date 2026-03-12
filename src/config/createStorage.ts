@@ -8,10 +8,11 @@ import type { ITabularStorage } from "@workglow/storage";
 import type { DataPortSchemaObject, FromSchema, TypedArraySchemaOptions } from "@workglow/util";
 import { PostgresTabularStorage, SqliteTabularStorage } from "@workglow/storage";
 import { globalServiceRegistry } from "@workglow/util";
-import { SEC_DB_TYPE, SEC_DRY_RUN } from "./tokens";
+import { SEC_DB_TYPE } from "./tokens";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { ReadOnlyTabularStorage } from "../storage/ReadOnlyTabularStorage";
+import { isDryRun } from "../cli/isDryRun";
 
 export function createStorage<
   Schema extends DataPortSchemaObject,
@@ -31,7 +32,7 @@ export function createStorage<
     storage = new SqliteTabularStorage(getDb(), table, schema, primaryKeyNames, indexes as any);
   }
 
-  if (globalServiceRegistry.has(SEC_DRY_RUN) && globalServiceRegistry.get(SEC_DRY_RUN)) {
+  if (isDryRun()) {
     return new ReadOnlyTabularStorage(storage) as unknown as ITabularStorage<
       Schema,
       PrimaryKeyNames,

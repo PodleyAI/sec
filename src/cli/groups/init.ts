@@ -3,9 +3,11 @@ import { createInterface } from "readline";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
+import { globalServiceRegistry } from "@workglow/util";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
+import { SEC_DRY_RUN } from "../../config/tokens";
 
 export interface InitConfig {
   readonly dbType: "sqlite" | "postgres";
@@ -64,6 +66,7 @@ export function addInitCommand(parent: Command): void {
     .description("Interactive first-run setup wizard")
     .action(async () => {
       const dryRun = parseGlobalOptions(parent).dryRun;
+      globalServiceRegistry.registerInstance(SEC_DRY_RUN, dryRun);
 
       await runCommand(async () => {
         const envPath = resolve(process.cwd(), ".env.local");
