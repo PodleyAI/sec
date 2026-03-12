@@ -3,8 +3,11 @@ import { createInterface } from "readline";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { homedir } from "os";
+import { globalServiceRegistry } from "@workglow/util";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
+import { SEC_DRY_RUN } from "../../config/tokens";
 
 export interface InitConfig {
   readonly dbType: "sqlite" | "postgres";
@@ -62,6 +65,9 @@ export function addInitCommand(parent: Command): void {
     .command("init")
     .description("Interactive first-run setup wizard")
     .action(async () => {
+      const dryRun = parseGlobalOptions(parent).dryRun;
+      globalServiceRegistry.registerInstance(SEC_DRY_RUN, dryRun);
+
       await runCommand(async () => {
         const envPath = resolve(process.cwd(), ".env.local");
 
@@ -122,6 +128,16 @@ export function addInitCommand(parent: Command): void {
           };
 
           const envContent = buildEnvConfig(config);
+
+          if (dryRun) {
+            console.log(`Would write ${envPath}:`);
+            console.log(envContent);
+            console.log(`Would create directory: ${dbFolder}`);
+            console.log(`Would create directory: ${rawDataFolder}`);
+            console.log("Would create database tables.");
+            return;
+          }
+
           writeFileSync(envPath, envContent, "utf-8");
           console.log(`Wrote ${envPath}`);
 
