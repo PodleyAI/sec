@@ -9,8 +9,8 @@
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
         "@workglow/cli": "0.0.117",
-        "@workglow/dataset": "0.0.114",
         "@workglow/job-queue": "0.0.117",
+        "@workglow/knowledge-base": "0.0.117",
         "@workglow/sqlite": "0.0.117",
         "@workglow/storage": "0.0.117",
         "@workglow/task-graph": "0.0.117",
@@ -250,8 +250,6 @@
     "@workglow/ai-provider": ["@workglow/ai-provider@0.0.117", "", { "peerDependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.15", "@huggingface/transformers": "4.0.0-next.6", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@workglow/ai": "0.0.117", "@workglow/job-queue": "0.0.117", "@workglow/storage": "0.0.117", "@workglow/task-graph": "0.0.117", "@workglow/util": "0.0.117", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.27.0", "tiktoken": "^1.0.22" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/inference", "@huggingface/transformers", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "node-llama-cpp", "ollama", "openai", "tiktoken"] }, "sha512-mQlnwRC/XRUKZMbvt4kbBBCgOO/7mZDVzb+8knIODzTfveBFHVaXqERX7R/e/YfpjK6g7gWj6SfC4vHCnIJOXA=="],
 
     "@workglow/cli": ["@workglow/cli@0.0.117", "", { "dependencies": { "@anthropic-ai/sdk": "^0.78.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.15", "@huggingface/transformers": "4.0.0-next.6", "@mediapipe/tasks-audio": "^0.10.32", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.32", "@mediapipe/tasks-vision": "^0.10.32", "@types/react": "^19.2.14", "@workglow/ai": "0.0.117", "@workglow/ai-provider": "0.0.117", "@workglow/storage": "0.0.117", "@workglow/task-graph": "0.0.117", "@workglow/tasks": "0.0.117", "@workglow/util": "0.0.117", "chalk": "^5.6.2", "commander": "^14.0.3", "ink": "^6.8.0", "is-unicode-supported": "^2.1.0", "node-llama-cpp": "^3.17.1", "ollama": "^0.6.3", "openai": "^6.27.0", "react": "^19.2.4", "react-devtools-core": "^7.0.1", "react-reconciler": "^0.33.0", "tiktoken": "^1.0.22" }, "bin": { "@workglow/cli": "dist/workglow.js" } }, "sha512-g/RkOq864ZN9X99aPiS6g4z9bJxRoERhiKwrLqjla5WYfCyXc84uClNcPU7r/GixgUH7XqNyIdGAcV9ExcG7qA=="],
-
-    "@workglow/dataset": ["@workglow/dataset@0.0.114", "", { "peerDependencies": { "@workglow/storage": "0.0.114", "@workglow/util": "0.0.114" } }, "sha512-mGCpjfwOnxWYgw9x85cTJR8W2enc22FqXn3avpvjvTRdDwzyIaiIS0y6qlBZIPFNWqFPh2MBu0Pliy1CY6SXOQ=="],
 
     "@workglow/job-queue": ["@workglow/job-queue@0.0.117", "", { "peerDependencies": { "@workglow/storage": "0.0.117", "@workglow/util": "0.0.117" } }, "sha512-A0QAO3RWupKaQEZCQCdE2PNmEKp/+i+U4bKBxuA+AC1EXeWpkUImRZPwnt8C91iRA4CUrS8T8B20wuH9v8p9AA=="],
 
