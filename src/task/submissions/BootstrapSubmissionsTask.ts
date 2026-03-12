@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type BootstrapSubmissionsTaskInput = {
   readonly force?: boolean;
@@ -70,6 +71,14 @@ export class BootstrapSubmissionsTask extends Task<
         processedSet.add(ps.cik);
       }
       ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
+    }
+
+    if (isDryRun()) {
+      const label = input.force ? "all" : "unprocessed";
+      console.log(
+        `Would bootstrap ${ciksToProcess.length} ${label} CIK submissions (${ciks.length} total)`
+      );
+      return { success: true };
     }
 
     if (ciksToProcess.length) {

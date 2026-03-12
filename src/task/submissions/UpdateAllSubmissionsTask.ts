@@ -15,6 +15,7 @@ import {
   type ProcessedSubmissions,
 } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type UpdateAllSubmissionsTaskInput = {
   readonly force?: boolean;
@@ -79,6 +80,19 @@ export class UpdateAllSubmissionsTask extends Task<
           needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
         }
       }
+    }
+
+    if (isDryRun()) {
+      if (input.force) {
+        console.log(
+          `Would update ${needsUpdating.length} submissions (force — reprocessing all)`
+        );
+      } else {
+        console.log(
+          `Would update ${needsUpdating.length} changed and ${needsInitialProcessing.length} new submissions`
+        );
+      }
+      return { success: true };
     }
 
     if (needsUpdating.length) {

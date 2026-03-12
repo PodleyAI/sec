@@ -3,6 +3,7 @@ import { isDryRun } from "./isDryRun";
 
 export interface RunCommandOptions {
   readonly onError?: (error: unknown) => void;
+  readonly force?: boolean;
 }
 
 export async function runCommand(
@@ -11,7 +12,8 @@ export async function runCommand(
 ): Promise<number> {
   try {
     if (isDryRun()) {
-      console.log(statusMessage("info", "Dry run — no data will be written"));
+      const suffix = options?.force ? " (force — all items will be reprocessed)" : "";
+      console.log(statusMessage("info", `Dry run${suffix} — no data will be written`));
     }
     await action();
     process.exitCode = 0;

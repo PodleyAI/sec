@@ -15,6 +15,7 @@ import {
   PROCESSED_FILINGS_REPOSITORY_TOKEN,
 } from "../../storage/processing/ProcessedFilingsSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type UpdateAllFormsTaskInput = {
   readonly form: string[];
@@ -83,6 +84,15 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
           }
         }
       }
+    }
+
+    if (isDryRun()) {
+      const forms = [...formSet].join(", ");
+      const label = input.force ? "all" : "unprocessed";
+      console.log(
+        `Would process ${formsToProcess.length} ${label} filings for forms: ${forms}`
+      );
+      return { success: true };
     }
 
     if (formsToProcess.length) {

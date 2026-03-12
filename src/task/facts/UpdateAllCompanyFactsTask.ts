@@ -13,6 +13,7 @@ import {
   type ProcessedFacts,
 } from "../../storage/processing/ProcessedFactsSchema";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type UpdateAllCompanyFactsTaskInput = {
   readonly force?: boolean;
@@ -75,6 +76,19 @@ export class UpdateAllCompanyFactsTask extends Task<
           needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
         }
       }
+    }
+
+    if (isDryRun()) {
+      if (input.force) {
+        console.log(
+          `Would update ${needsUpdating.length} company facts (force — reprocessing all)`
+        );
+      } else {
+        console.log(
+          `Would update ${needsUpdating.length} changed and ${needsProcessing.length} new company facts`
+        );
+      }
+      return { success: true };
     }
 
     if (needsUpdating.length) {

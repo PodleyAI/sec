@@ -13,6 +13,7 @@ import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/Proce
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type BootstrapCompanyFactsTaskInput = {
   readonly force?: boolean;
@@ -69,6 +70,14 @@ export class BootstrapCompanyFactsTask extends Task<
         processedSet.add(pf.cik);
       }
       ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
+    }
+
+    if (isDryRun()) {
+      const label = input.force ? "all" : "unprocessed";
+      console.log(
+        `Would bootstrap ${ciksToProcess.length} ${label} CIK company facts (${ciks.length} total)`
+      );
+      return { success: true };
     }
 
     if (ciksToProcess.length) {

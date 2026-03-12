@@ -15,9 +15,12 @@ export function addUpdateCommands(program: Command): void {
     .description("Update all submissions for all companies")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      await runCommand(async () => {
-        await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
-      });
+      await runCommand(
+        async () => {
+          await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
+        },
+        { force: options.force }
+      );
     });
 
   update
@@ -25,9 +28,12 @@ export function addUpdateCommands(program: Command): void {
     .description("Update all company facts")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      await runCommand(async () => {
-        await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
-      });
+      await runCommand(
+        async () => {
+          await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
+        },
+        { force: options.force }
+      );
     });
 
   update
@@ -35,9 +41,12 @@ export function addUpdateCommands(program: Command): void {
     .description("Update forms for all companies (comma-separated form types)")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (types: string, options) => {
-      await runCommand(async () => {
-        const formTypes = types.split(",");
-        await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
-      });
+      await runCommand(
+        async () => {
+          const formTypes = types.split(",");
+          await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
+        },
+        { force: options.force }
+      );
     });
 }

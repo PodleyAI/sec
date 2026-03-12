@@ -15,15 +15,18 @@ export function addSyncCommand(program: Command): void {
     .option("--forms <types>", "Comma-separated form types to process", "D,C,1-A,1-K,1-Z")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      await runCommand(async () => {
-        const indexFlow = pipe([new FetchDailyIndexTask({}), new StoreCikLastUpdatedTask()]);
-        await runTasks(indexFlow);
+      await runCommand(
+        async () => {
+          const indexFlow = pipe([new FetchDailyIndexTask({}), new StoreCikLastUpdatedTask()]);
+          await runTasks(indexFlow);
 
-        await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
-        await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
+          await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
+          await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
 
-        const formTypes = (options.forms as string).split(",");
-        await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
-      });
+          const formTypes = (options.forms as string).split(",");
+          await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
+        },
+        { force: options.force }
+      );
     });
 }

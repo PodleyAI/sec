@@ -38,6 +38,7 @@ Uses `@workglow/util`'s `globalServiceRegistry` with typed tokens. Production us
 ### Schema Pattern
 
 Schemas use TypeBox (v1, imported as `typebox`). Each storage module exports:
+
 - A TypeBox schema (e.g., `AddressSchema`)
 - Primary key name constants (e.g., `AddressPrimaryKeyNames`)
 - A DI token (e.g., `ADDRESS_REPOSITORY_TOKEN`)
@@ -46,6 +47,7 @@ Schemas use TypeBox (v1, imported as `typebox`). Each storage module exports:
 ### Environment Variables
 
 Set in `.env.local` (see `.env.test` for test defaults):
+
 - `SEC_RAW_DATA_FOLDER` — path to raw downloaded data
 - `SEC_DB_FOLDER` — path to SQLite database directory
 - `SEC_DB_NAME` — database name (default: `edgar`)
@@ -60,6 +62,7 @@ Set in `.env.local` (see `.env.test` for test defaults):
 ## TypeScript Conventions
 
 From `.cursor/rules/`:
+
 - Use **Bun** runtime, not Node.js (`bun test`, `bun run`, etc.)
 - **No default exports** (use named exports)
 - **No enums** — use `as const` objects instead

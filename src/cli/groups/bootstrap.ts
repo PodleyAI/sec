@@ -31,25 +31,28 @@ export function addBootstrapCommands(program: Command): void {
     .option("--skip-forms", "Skip the forms processing step", false)
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
-      await runCommand(async () => {
-        if (!options.skipDownload) {
-          for (const config of Object.values(BULK_DOWNLOADS)) {
-            const task = new BootstrapDownloadTask(config);
-            await runTasks(task);
+      await runCommand(
+        async () => {
+          if (!options.skipDownload) {
+            for (const config of Object.values(BULK_DOWNLOADS)) {
+              const task = new BootstrapDownloadTask(config);
+              await runTasks(task);
+            }
           }
-        }
 
-        if (!options.skipIngest) {
-          const cikWf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-          await runWorkflow(cikWf);
-          await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
-          await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
-        }
+          if (!options.skipIngest) {
+            const cikWf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
+            await runWorkflow(cikWf);
+            await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
+            await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
+          }
 
-        if (!options.skipForms) {
-          await runTasks(new UpdateAllFormsTask({ form: ["D", "C"], force: options.force }));
-        }
-      });
+          if (!options.skipForms) {
+            await runTasks(new UpdateAllFormsTask({ form: ["D", "C"], force: options.force }));
+          }
+        },
+        { force: options.force }
+      );
     });
 
   bootstrap
@@ -85,32 +88,35 @@ export function addBootstrapCommands(program: Command): void {
     .description("Ingest pre-downloaded SEC data (submissions, facts, cik-names, or all)")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (domain: string | undefined, options) => {
-      await runCommand(async () => {
-        const target = domain ?? "all";
+      await runCommand(
+        async () => {
+          const target = domain ?? "all";
 
-        if (target === "cik-names" || target === "all") {
-          const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-          await runWorkflow(wf);
-        }
+          if (target === "cik-names" || target === "all") {
+            const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
+            await runWorkflow(wf);
+          }
 
-        if (target === "submissions" || target === "all") {
-          await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
-        }
+          if (target === "submissions" || target === "all") {
+            await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
+          }
 
-        if (target === "facts" || target === "all") {
-          await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
-        }
+          if (target === "facts" || target === "all") {
+            await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
+          }
 
-        if (
-          target !== "all" &&
-          target !== "submissions" &&
-          target !== "facts" &&
-          target !== "cik-names"
-        ) {
-          throw new Error(
-            `Invalid domain "${target}". Must be submissions, facts, cik-names, or all.`
-          );
-        }
-      });
+          if (
+            target !== "all" &&
+            target !== "submissions" &&
+            target !== "facts" &&
+            target !== "cik-names"
+          ) {
+            throw new Error(
+              `Invalid domain "${target}". Must be submissions, facts, cik-names, or all.`
+            );
+          }
+        },
+        { force: options.force }
+      );
     });
 }
