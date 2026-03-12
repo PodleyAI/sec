@@ -6,11 +6,10 @@
 
 import { TaskInput, TaskOutput, TaskOutputRepository } from "@workglow/task-graph";
 import { FetchUrlTaskOutput } from "@workglow/tasks";
-import { globalServiceRegistry } from "@workglow/util";
 import { mkdirSync } from "node:fs";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { SEC_DRY_RUN } from "../config/tokens";
+import { isDryRun } from "../cli/isDryRun";
 import { secDate } from "../util/parseDate";
 import { YYYYdMMdDD } from "../util/parseDate";
 
@@ -68,7 +67,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
    * @param output The task output to save
    */
   async saveOutput(taskType: string, input: TaskInput, output: TaskOutput): Promise<void> {
-    if (globalServiceRegistry.has(SEC_DRY_RUN) && globalServiceRegistry.get(SEC_DRY_RUN)) {
+    if (isDryRun()) {
       return;
     }
     const filePath = path.join(this.folderPath, this.inputToFileName(input));

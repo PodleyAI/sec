@@ -9,8 +9,9 @@ import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
 import { resolve, join, sep } from "node:path";
 import { mkdirSync, rmSync } from "node:fs";
-import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { SecUserAgent } from "../../config/Constants";
+import { isDryRun } from "../../cli/isDryRun";
 
 export type BootstrapDownloadTaskInput = {
   readonly url: string;
@@ -49,8 +50,7 @@ export class BootstrapDownloadTask extends Task<
     input: BootstrapDownloadTaskInput,
     context: IExecuteContext
   ): Promise<BootstrapDownloadTaskOutput> {
-    const dryRun =
-      globalServiceRegistry.has(SEC_DRY_RUN) && globalServiceRegistry.get(SEC_DRY_RUN);
+    const dryRun = isDryRun();
 
     const rawDataFolder = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
     const targetDir = resolve(rawDataFolder, input.targetFolder);
