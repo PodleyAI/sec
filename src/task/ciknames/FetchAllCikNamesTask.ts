@@ -10,7 +10,7 @@ import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { SecFetchTask } from "../../fetch/SecFetchTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeSecDate } from "../../util/parseDate";
-import { DataPortSchemaObject } from "@workglow/util";
+import { DataPortSchemaObject } from "@workglow/util/schema";
 
 // NOTE: cik names are mutable, so we use date to break the cache
 

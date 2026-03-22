@@ -16,7 +16,7 @@ import {
 } from "../../util/parseDate";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { parse } from "csv-parse";
-import { DataPortSchemaObject } from "@workglow/util";
+import { DataPortSchemaObject } from "@workglow/util/schema";
 
 // NOTE: ONLY PREVIOUS QUARTYS master index are immutable, current one is not (though should switch to daily)
 

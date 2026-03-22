@@ -5,7 +5,7 @@
  */
 
 import type { ITabularStorage } from "@workglow/storage";
-import type { DataPortSchemaObject, FromSchema, TypedArraySchemaOptions } from "@workglow/util";
+import type { DataPortSchemaObject, FromSchema, TypedArraySchemaOptions } from "@workglow/util/schema";
 import { PostgresTabularStorage, SqliteTabularStorage } from "@workglow/storage";
 import { globalServiceRegistry } from "@workglow/util";
 import { SEC_DB_TYPE } from "./tokens";

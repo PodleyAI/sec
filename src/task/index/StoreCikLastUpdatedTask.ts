@@ -5,7 +5,8 @@
  */
 
 import { IExecuteContext, Task, TaskAbortedError } from "@workglow/task-graph";
-import { DataPortSchemaObject, globalServiceRegistry, sleep } from "@workglow/util";
+import { DataPortSchemaObject } from "@workglow/util/schema";
+import { globalServiceRegistry, sleep } from "@workglow/util";
 import { Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";

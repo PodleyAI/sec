@@ -19,6 +19,7 @@ Index (discover CIKs)
 **Goal:** Discover which companies (CIKs) have new filings.
 
 **CLI commands:**
+
 - `daily-index [date]` — fetch a single day's index
 - `quarterly-index [date]` — fetch a single quarter's index
 - `quarterly-index-range [start] [end]` — fetch a range of quarters
@@ -36,6 +37,7 @@ Index (discover CIKs)
 **Result:** The `cik_last_update` table now knows which CIKs have activity and when their most recent filing was.
 
 **Key files:**
+
 - `src/task/index/FetchDailyIndexTask.ts`
 - `src/task/index/FetchQuarterlyIndexTask.ts`
 - `src/task/index/StoreCikLastUpdatedTask.ts`
@@ -48,6 +50,7 @@ Index (discover CIKs)
 **Goal:** For each CIK with new activity, fetch its full company submission data (metadata + list of all filings).
 
 **CLI commands:**
+
 - `submissions <cik>` — fetch a single company's submissions
 - `update-all-submissions` — batch process all CIKs with new activity
 
@@ -74,6 +77,7 @@ Index (discover CIKs)
 **Result:** The `filings` table now contains a row for every filing by every active CIK, including the `form` type and `primary_doc` filename needed to fetch the actual document.
 
 **Key files:**
+
 - `src/task/submissions/FetchSubmissionsTask.ts`
 - `src/task/submissions/StoreSubmissionsTask.ts`
 - `src/task/submissions/StoreSubmissionFilingsTask.ts`
@@ -87,6 +91,7 @@ Index (discover CIKs)
 **Goal:** Fetch individual filing documents from SEC Archives, parse their XML/HTML content into structured data, and store the results.
 
 **CLI commands:**
+
 - `form <cik> <form> [docid]` — process forms for a single company
 - `update-all-forms <form1,form2,...>` — batch process all unprocessed filings of given form types
 
@@ -100,9 +105,11 @@ Index (discover CIKs)
 
    **Step 2 — Fetch the document:**
    `SecFetchAccessionDocTask` downloads the document from:
+
    ```
    https://www.sec.gov/Archives/edgar/data/{cik}/{accession-no-dashes}/{filename}
    ```
+
    Results are cached to disk (filings are immutable once submitted).
 
    **Step 3 — Parse and store:**
@@ -114,6 +121,7 @@ Index (discover CIKs)
 **Result:** Structured, normalized data from the filing is stored across multiple tables (entities, persons, companies, addresses, phones, investment offerings, etc.).
 
 **Key files:**
+
 - `src/task/forms/ProcessAccessionDocFormTask.ts`
 - `src/task/forms/SecFetchAccessionDocTask.ts`
 - `src/task/forms/FetchAndStoreFormsTask.ts`
@@ -134,6 +142,7 @@ src/sec/forms/all-forms.ts
 ```
 
 Each form category directory (e.g., `exempt-offerings/`, `insider-trading/`) exports:
+
 - A `FORM_NAMES_MAP` array of `[formName, FormClass]` tuples
 - A `FORM_NAMES` array of just the form name strings
 
@@ -148,11 +157,13 @@ The storage layer uses a **repository pattern** with TypeBox schemas for runtime
 ### Repository Pattern
 
 Each domain has:
+
 - **Schema** (`*Schema.ts`) — TypeBox schema defining the table structure, primary keys, and a DI token
 - **Repo** (`*Repo.ts`) — domain-specific class wrapping one or more repositories, providing save/query methods
 - **Normalization** (`*Normalization.ts`, optional) — functions to clean and standardize input data (e.g., address parsing, name splitting, hash generation)
 
 Repos get their underlying storage via dependency injection:
+
 - **Production:** `SqliteTabularRepository` registered in `src/config/DefaultDI.ts`
 - **Testing:** `InMemoryTabularRepository` registered in `src/config/TestingDI.ts`
 
@@ -189,7 +200,7 @@ Define the TypeBox schema that mirrors the XML structure of the SEC filing.
 // src/sec/forms/<category>/Form_X.schema.ts
 
 import { Type, Static } from "typebox";
-import { /* reusable types */ } from "../FormSchemaUtil";
+import {} from /* reusable types */ "../FormSchemaUtil";
 
 // Define sub-types for nested XML elements
 const SOME_NESTED_TYPE = Type.Object({
@@ -207,12 +218,13 @@ export type FormX = Static<typeof FormXSchema>;
 
 // XML wrapper schema (matches the root XML element)
 export const FormXSubmissionSchema = Type.Object({
-  edgarSubmission: FormXSchema,   // or whatever the root XML tag is
+  edgarSubmission: FormXSchema, // or whatever the root XML tag is
 });
 export type FormXSubmission = Static<typeof FormXSubmissionSchema>;
 ```
 
 **Key points:**
+
 - Use `Type.Array()` for elements that can repeat in XML — the base `Form` class uses `extractArrayPaths()` to automatically detect these from the schema and configure the XML parser's `isArray` callback
 - Use `Type.Optional()` for elements that may be absent
 - Import shared types from `FormSchemaUtil.ts` (e.g., `TRUE_FALSE_LIST`, `CIK_TYPE`, `STATE_COUNTRY_CODE`)
@@ -232,7 +244,7 @@ import { FormX, FormXSchema, FormXSubmission, FormXSubmissionSchema } from "./Fo
 export class Form_X extends Form {
   static readonly name = "Human-Readable Form Name";
   static readonly description = "Brief description of what this form is";
-  static readonly forms = ["X", "X/A"] as const;   // form name and amendment variant
+  static readonly forms = ["X", "X/A"] as const; // form name and amendment variant
 
   static async parse(form: (typeof Form_X.forms)[number], xml: string): Promise<FormX> {
     if (!Form_X.forms.includes(form)) {
@@ -250,6 +262,7 @@ export type { FormX };
 ```
 
 **How parsing works:**
+
 1. `Form.getParser(schema)` creates an `XMLParser` (from `fast-xml-parser`) configured with `isArray` callbacks derived from the TypeBox schema — any field defined as `Type.Array()` will be treated as an array even if the XML has only one element
 2. `parser.parse(xml)` converts XML to a plain JS object
 3. `Value.Convert(schema, obj)` uses TypeBox to coerce values to the correct types (e.g., string `"123"` to number `123`)
@@ -293,6 +306,7 @@ export async function processFormX({
 ```
 
 **Patterns from Form D:**
+
 - Instantiate repos as needed (they get their storage via DI)
 - Use `"form-x:role-name"` relation names for junction records to distinguish data sources
 - Detect companies in person fields with `hasCompanyEnding()` from `CompanyNormalization`
@@ -362,7 +376,7 @@ import { PersonRepo } from "../../../storage/person/PersonRepo";
 
 describe("Form_X", () => {
   beforeEach(() => {
-    resetDependencyInjectionsForTesting();   // resets all repos to in-memory
+    resetDependencyInjectionsForTesting(); // resets all repos to in-memory
   });
 
   it("should parse and store form data", async () => {

@@ -69,7 +69,10 @@ async function main(): Promise<void> {
     const result = await $`bun link ${packages}`;
     console.log(`✅ Successfully linked ${packages.length} package(s)`);
   } catch (error) {
-    console.error("❌ Failed to link packages:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "❌ Failed to link packages:",
+      error instanceof Error ? error.message : String(error)
+    );
     process.exit(1);
   }
 }

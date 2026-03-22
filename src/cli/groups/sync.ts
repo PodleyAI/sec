@@ -1,5 +1,5 @@
 import { runTasks, runWorkflow } from "@workglow/cli";
-import { pipe, Workflow } from "@workglow/task-graph";
+import { pipe } from "@workglow/task-graph";
 import type { Command } from "commander";
 import { FetchDailyIndexTask } from "../../task/index/FetchDailyIndexTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
@@ -18,7 +18,7 @@ export function addSyncCommand(program: Command): void {
       await runCommand(
         async () => {
           const indexFlow = pipe([new FetchDailyIndexTask({}), new StoreCikLastUpdatedTask()]);
-          await runTasks(indexFlow);
+          await runWorkflow(indexFlow);
 
           await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
           await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));

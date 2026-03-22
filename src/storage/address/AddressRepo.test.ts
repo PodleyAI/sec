@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { InMemoryTabularStorage } from "@workglow/storage";
-import { AddressRepo } from "./AddressRepo";
-import type { Address } from "./AddressSchema";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { normalizeAddress, type AddressImport } from "./AddressNormalization";
+import { AddressRepo } from "./AddressRepo";
 import {
-  AddressesEntityJunctionSchema,
-  AddressSchema,
-  AddressPrimaryKeyNames,
-  AddressJunctionPrimaryKeyNames,
   AddressesEntityJunction,
+  AddressesEntityJunctionSchema,
+  AddressJunctionPrimaryKeyNames,
+  AddressPrimaryKeyNames,
+  AddressSchema,
 } from "./AddressSchema";
+import type { Address } from "./AddressSchema";
 
 describe("AddressRepo", () => {
   let addressRepo: AddressRepo;
@@ -107,7 +107,7 @@ describe("AddressRepo", () => {
     });
 
     it("should throw error when normalizeAddress returns null", async () => {
-      expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
+      await expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 
@@ -118,7 +118,7 @@ describe("AddressRepo", () => {
     });
 
     it("should throw error when cleanAddress returns undefined", async () => {
-      expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
+      await expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"
       );
 

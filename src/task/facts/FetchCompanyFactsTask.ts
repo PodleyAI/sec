@@ -5,7 +5,7 @@
  */
 
 import { IExecuteContext, Task, TaskAbortedError } from "@workglow/task-graph";
-import { DataPortSchemaObject } from "@workglow/util";
+import { DataPortSchemaObject } from "@workglow/util/schema";
 import { Static, Type } from "typebox";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";

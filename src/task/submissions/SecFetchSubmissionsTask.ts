@@ -11,7 +11,7 @@ import {
   TypeSecCik,
 } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeOptionalSecDate } from "../../util/parseDate";
-import { DataPortSchemaObject } from "@workglow/util";
+import { DataPortSchemaObject } from "@workglow/util/schema";
 
 // NOTE: company submissions are mutable, so we need to pass in a date to break the cache
 
