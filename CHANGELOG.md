@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.8
+
+### Refactors
+
+#### Form
+
+- improve jpath type check in XML parsing options
+
+### Chores
+
+- update @workglow packages to version 0.0.125
+- update @workglow packages to version 0.0.124
+- update @workglow packages to version 0.0.123
+- update documentation and dependencies for CLI improvements
+- upgrade actions/setup-node to v6 in GitHub workflows
+- upgrade actions/checkout to v6 in GitHub workflows
+- update dependabot configuration to group @workglow packages
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.0.126
+- `csv-parse`: ^6.2.1
+- `fast-xml-parser`: ^5.5.9
+- `@types/bun`: 1.3.11
+
 ## 0.0.7
 
 ### Features

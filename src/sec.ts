@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { program } from "commander";
-import { getTaskQueueRegistry } from "workglow";
+import { getTaskQueueRegistry, Sqlite } from "workglow";
 import { applyGlobalOptions } from "./cli/GlobalOptions";
 import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
@@ -12,6 +12,11 @@ program
 
 applyGlobalOptions(program);
 AddCommands(program);
+
+const secDbType = process.env.SEC_DB_TYPE ?? "sqlite";
+if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
+  await Sqlite.init();
+}
 
 try {
   await program.parseAsync(process.argv);

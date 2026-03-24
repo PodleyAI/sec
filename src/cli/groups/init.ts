@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
 import { createInterface } from "readline";
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, Sqlite } from "workglow";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN } from "../../config/tokens";
 import { parseGlobalOptions } from "../GlobalOptions";
@@ -141,6 +141,10 @@ export function addInitCommand(parent: Command): void {
           process.env.SEC_DB_FOLDER = config.dbFolder;
           process.env.SEC_DB_NAME = config.dbName;
           process.env.SEC_RAW_DATA_FOLDER = config.rawDataFolder;
+
+          if (config.dbType === "sqlite" && typeof Sqlite.init === "function") {
+            await Sqlite.init();
+          }
 
           await setupAllDatabases();
           console.log("Database tables created.");

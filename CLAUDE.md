@@ -31,6 +31,10 @@ The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./
 - **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
 - **`src/util/`** — Database helpers (`db.ts` manages SQLite connection and prepared statement caching).
 
+### SQLite initialization
+
+`src/sec.ts` invokes **`Sqlite.init()`** when the installed `workglow` package defines it (`typeof Sqlite.init === "function"`), so newer Workglow releases load the SQLite binding before `getDb()` opens a database. Older `workglow` versions without `init` skip this step.
+
 ### Dependency Injection
 
 Uses the `workglow` package’s `globalServiceRegistry` with typed tokens. Production uses `SqliteTabularRepository`, tests use `InMemoryTabularRepository`. Call `resetDependencyInjectionsForTesting()` from `src/config/TestingDI.ts` in test setup.

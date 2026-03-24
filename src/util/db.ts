@@ -16,15 +16,12 @@ export function getDb(): Sqlite.Database {
     const dir = globalServiceRegistry.get(SEC_DB_FOLDER);
     mkdirSync(dir, { recursive: true });
     const location = path.join(dir, `${globalServiceRegistry.get(SEC_DB_NAME)}.sqlite`);
-    db = new Sqlite.Database(location, {
-      readwrite: true,
-      create: true,
-    });
-    db.run("PRAGMA synchronous = 0");
-    db.run("PRAGMA cache_size = 1000000");
-    db.run("PRAGMA locking_mode = EXCLUSIVE");
-    db.run("PRAGMA temp_store = MEMORY");
-    db.run("PRAGMA journal_mode = OFF");
+    db = new Sqlite.Database(location);
+    db.exec("PRAGMA synchronous = 0");
+    db.exec("PRAGMA cache_size = 1000000");
+    db.exec("PRAGMA locking_mode = EXCLUSIVE");
+    db.exec("PRAGMA temp_store = MEMORY");
+    db.exec("PRAGMA journal_mode = OFF");
   }
   return db;
 }

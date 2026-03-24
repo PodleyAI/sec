@@ -1,7 +1,7 @@
 {
   "name": "@workglow/sec",
   "type": "module",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
   "scripts": {
     "bunset": "bunset && git push",
@@ -23,8 +23,8 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
-    "workglow": "0.0.125",
-    "@workglow/cli": "0.0.125",
+    "workglow": "0.0.126",
+    "@workglow/cli": "0.0.126",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
@@ -52,6 +52,6 @@
   ],
   "private": true,
   "peerDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }
