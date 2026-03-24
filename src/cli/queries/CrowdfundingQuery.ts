@@ -1,6 +1,6 @@
+import { globalServiceRegistry } from "workglow";
 import type { Crowdfunding } from "../../storage/portal/CrowdfundingSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
-import { globalServiceRegistry } from "@workglow/util";
 import type { QueryResult } from "./EntityQuery";
 
 export interface CrowdfundingQueryParams {

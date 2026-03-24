@@ -1,14 +1,12 @@
-import { runTasks } from "@workglow/cli";
+import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
-import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
+import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runCommand } from "../runCommand";
 
 export function addUpdateCommands(program: Command): void {
-  const update = program
-    .command("update")
-    .description("Update all data for a given domain");
+  const update = program.command("update").description("Update all data for a given domain");
 
   update
     .command("submissions")
@@ -17,7 +15,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
+          await withCli(new UpdateAllSubmissionsTask({ force: options.force })).run();
         },
         { force: options.force }
       );
@@ -30,7 +28,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
+          await withCli(new UpdateAllCompanyFactsTask({ force: options.force })).run();
         },
         { force: options.force }
       );
@@ -44,7 +42,7 @@ export function addUpdateCommands(program: Command): void {
       await runCommand(
         async () => {
           const formTypes = types.split(",");
-          await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
+          await withCli(new UpdateAllFormsTask({ form: formTypes, force: options.force })).run();
         },
         { force: options.force }
       );

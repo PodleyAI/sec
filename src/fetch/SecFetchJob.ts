@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { JobQueueTaskConfig } from "@workglow/task-graph";
-import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
+import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput, JobQueueTaskConfig } from "workglow";
 import { SecUserAgent } from "../config/Constants";
 
 export class SecFetchJob<
   Input extends FetchUrlTaskInput = FetchUrlTaskInput,
-  Output = FetchUrlTaskOutput
+  Output = FetchUrlTaskOutput,
 > extends FetchUrlJob<Input, Output> {
   constructor(config: JobQueueTaskConfig & { input: Input }) {
     // Set SEC-specific headers

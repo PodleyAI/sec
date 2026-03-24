@@ -1,12 +1,18 @@
-import { runTasks, runWorkflow } from "@workglow/cli";
-import { pipe } from "@workglow/task-graph";
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
+import { pipe, type ITask, type IWorkflow } from "workglow";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
-import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
-import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { StoreCikNamesTask } from "../../task/ciknames/StoreCikNamesTask";
+import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
 import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
+import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 
 const BULK_DOWNLOADS = {
@@ -33,22 +39,30 @@ export function addBootstrapCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
+          const force = options.force ?? false;
+          const tasks: ITask[] = [];
           if (!options.skipDownload) {
-            for (const config of Object.values(BULK_DOWNLOADS)) {
-              const task = new BootstrapDownloadTask(config);
-              await runTasks(task);
-            }
+            tasks.push(
+              ...Object.values(BULK_DOWNLOADS).map((config) => new BootstrapDownloadTask(config))
+            );
           }
 
           if (!options.skipIngest) {
-            const cikWf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-            await runWorkflow(cikWf);
-            await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
-            await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
+            tasks.push(
+              new FetchAllCikNamesTask(),
+              new StoreCikNamesTask(),
+              new BootstrapSubmissionsTask({ force }),
+              new BootstrapCompanyFactsTask({ force })
+            );
           }
 
           if (!options.skipForms) {
-            await runTasks(new UpdateAllFormsTask({ form: ["D", "C"], force: options.force }));
+            tasks.push(new UpdateAllFormsTask({ form: ["D", "C"], force }));
+          }
+
+          if (tasks.length > 0) {
+            const wf = (pipe as (tasks: ITask[]) => IWorkflow)(tasks);
+            await withCli(wf).run();
           }
         },
         { force: options.force }
@@ -62,14 +76,12 @@ export function addBootstrapCommands(program: Command): void {
       await runCommand(async () => {
         if (type === "ciks") {
           const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-          await runWorkflow(wf);
+          await withCli(wf).run();
           return;
         }
 
         if (type !== "submissions" && type !== "facts" && type !== "all") {
-          throw new Error(
-            `Invalid type "${type}". Must be submissions, facts, ciks, or all.`
-          );
+          throw new Error(`Invalid type "${type}". Must be submissions, facts, ciks, or all.`);
         }
 
         const types: (keyof typeof BULK_DOWNLOADS)[] =
@@ -78,7 +90,7 @@ export function addBootstrapCommands(program: Command): void {
         for (const t of types) {
           const config = BULK_DOWNLOADS[t];
           const task = new BootstrapDownloadTask(config);
-          await runTasks(task);
+          await withCli(task).run();
         }
       });
     });
@@ -94,15 +106,15 @@ export function addBootstrapCommands(program: Command): void {
 
           if (target === "cik-names" || target === "all") {
             const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-            await runWorkflow(wf);
+            await withCli(wf).run();
           }
 
           if (target === "submissions" || target === "all") {
-            await runTasks(new BootstrapSubmissionsTask({ force: options.force }));
+            await withCli(new BootstrapSubmissionsTask({ force: options.force })).run();
           }
 
           if (target === "facts" || target === "all") {
-            await runTasks(new BootstrapCompanyFactsTask({ force: options.force }));
+            await withCli(new BootstrapCompanyFactsTask({ force: options.force })).run();
           }
 
           if (

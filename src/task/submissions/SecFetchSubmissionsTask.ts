@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Static, TObject, Type } from "typebox";
+import { Static, Type } from "typebox";
+import { DataPortSchemaObject } from "workglow";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import {
   FullCompanySubmissionSchema,
   TypeSecCik,
 } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeOptionalSecDate } from "../../util/parseDate";
-import { DataPortSchemaObject } from "@workglow/util/schema";
 
 // NOTE: company submissions are mutable, so we need to pass in a date to break the cache
 

@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Type } from "typebox";
 import {
   IExecuteContext,
   Task,
   TaskAbortedError,
   TaskError,
   Workflow,
+  globalServiceRegistry,
   parallel,
-} from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
-import { Type } from "typebox";
-import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
+} from "workglow";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
 import { StoreSubmissionContactInfoTask } from "./StoreSubmissionContactInfoTask";
 import { StoreSubmissionEntityTask } from "./StoreSubmissionEntityTask";

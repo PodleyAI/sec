@@ -52,7 +52,7 @@ describe("runCommand", () => {
   });
 
   it("prints dry-run banner when SEC_DRY_RUN is set", async () => {
-    const { globalServiceRegistry } = await import("@workglow/util");
+    const { globalServiceRegistry } = await import("workglow");
     const { SEC_DRY_RUN } = await import("../config/tokens");
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
     const action = mock(() => Promise.resolve());

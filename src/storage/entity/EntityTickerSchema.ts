@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITabularStorage } from "@workglow/storage";
-import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
+import type { ITabularStorage } from "workglow";
+import { createServiceToken } from "workglow";
 
 /**
  * Entity Ticker schema - represents stock tickers and exchanges for entities

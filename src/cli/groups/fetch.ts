@@ -1,19 +1,17 @@
-import { runTasks, runWorkflow } from "@workglow/cli";
-import { Workflow } from "@workglow/task-graph";
+import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
-import { FetchSubmissionsTask } from "../../task/submissions/FetchSubmissionsTask";
-import { StoreSubmissionsTask } from "../../task/submissions/StoreSubmissionsTask";
+import { Workflow } from "workglow";
 import { FetchCompanyFactsTask } from "../../task/facts/FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "../../task/facts/StoreCompanyFactsTask";
 import { FetchAndStoreFormsTask } from "../../task/forms/FetchAndStoreFormsTask";
 import { ProcessAccessionDocFormTask } from "../../task/forms/ProcessAccessionDocFormTask";
+import { FetchSubmissionsTask } from "../../task/submissions/FetchSubmissionsTask";
+import { StoreSubmissionsTask } from "../../task/submissions/StoreSubmissionsTask";
 import { secDate } from "../../util/parseDate";
 import { runCommand } from "../runCommand";
 
 export function addFetchCommands(program: Command): void {
-  const fetch = program
-    .command("fetch")
-    .description("Fetch data for a single entity");
+  const fetch = program.command("fetch").description("Fetch data for a single entity");
 
   fetch
     .command("submissions <cik>")
@@ -29,7 +27,7 @@ export function addFetchCommands(program: Command): void {
           }),
           new StoreSubmissionsTask()
         );
-        await runWorkflow(wf);
+        await withCli(wf).run();
       });
     });
 
@@ -47,7 +45,7 @@ export function addFetchCommands(program: Command): void {
           }),
           new StoreCompanyFactsTask()
         );
-        await runWorkflow(wf);
+        await withCli(wf).run();
       });
     });
 
@@ -61,7 +59,7 @@ export function addFetchCommands(program: Command): void {
           form,
           docid: accession,
         });
-        await runTasks(task);
+        await withCli(task).run();
       });
     });
 
@@ -74,7 +72,7 @@ export function addFetchCommands(program: Command): void {
           accessionNumber: accession,
           fileName: filename,
         });
-        await runTasks(task);
+        await withCli(task).run();
       });
     });
 }

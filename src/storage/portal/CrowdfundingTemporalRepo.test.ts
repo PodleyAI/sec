@@ -4,28 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, test, beforeEach } from "bun:test";
-import { InMemoryTabularStorage } from "@workglow/storage";
-import { CrowdfundingTemporalRepo } from "./CrowdfundingTemporalRepo";
-import { CrowdfundingRepo } from "./CrowdfundingRepo";
-import {
-  CrowdfundingHistory,
-  CrowdfundingHistoryRepositoryStorage,
-  CrowdfundingHistorySchema,
-  CrowdfundingHistoryPrimaryKeyNames,
-} from "./CrowdfundingHistorySchema";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { InMemoryTabularStorage } from "workglow";
 import {
   ChangeLog,
+  ChangeLogPrimaryKeyNames,
   ChangeLogRepositoryStorage,
   ChangeLogSchema,
-  ChangeLogPrimaryKeyNames,
 } from "../change-tracking/ChangeLogSchema";
 import {
+  CrowdfundingHistory,
+  CrowdfundingHistoryPrimaryKeyNames,
+  CrowdfundingHistoryRepositoryStorage,
+  CrowdfundingHistorySchema,
+} from "./CrowdfundingHistorySchema";
+import { CrowdfundingRepo } from "./CrowdfundingRepo";
+import {
   Crowdfunding,
+  CrowdfundingPrimaryKeyNames,
   CrowdfundingRepositoryStorage,
   CrowdfundingSchema,
-  CrowdfundingPrimaryKeyNames,
 } from "./CrowdfundingSchema";
+import { CrowdfundingTemporalRepo } from "./CrowdfundingTemporalRepo";
 
 describe("CrowdfundingTemporalRepo", () => {
   let temporalRepo: CrowdfundingTemporalRepo;
@@ -55,11 +55,10 @@ describe("CrowdfundingTemporalRepo", () => {
       CrowdfundingHistoryPrimaryKeyNames,
       ["cik", "file_number"]
     );
-    mockChangeLogRepo = new InMemoryTabularStorage(
-      ChangeLogSchema,
-      ChangeLogPrimaryKeyNames,
-      ["entity_type", "entity_id"]
-    );
+    mockChangeLogRepo = new InMemoryTabularStorage(ChangeLogSchema, ChangeLogPrimaryKeyNames, [
+      "entity_type",
+      "entity_id",
+    ]);
 
     const crowdfundingRepo = new CrowdfundingRepo({
       crowdfundingRepository: mockCrowdfundingRepo as unknown as CrowdfundingRepositoryStorage,

@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, TaskAbortedError } from "@workglow/task-graph";
-import { FetchAllCikNamesTask, FetchAllCikNamesTaskOutput } from "./FetchAllCikNamesTask";
 import { Type } from "typebox";
+import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
-import { DataPortSchemaObject } from "@workglow/util/schema";
+import { FetchAllCikNamesTask, FetchAllCikNamesTaskOutput } from "./FetchAllCikNamesTask";
 
 export type StoreCikNamesTaskOutput = {
   success: boolean;

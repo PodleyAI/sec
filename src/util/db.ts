@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Sqlite } from "@workglow/sqlite";
-import { globalServiceRegistry } from "@workglow/util";
 import { mkdirSync } from "fs";
 import path from "path";
+import { globalServiceRegistry, Sqlite } from "workglow";
 import { SEC_DB_FOLDER, SEC_DB_NAME } from "../config/tokens";
 
 let db: Sqlite.Database | null = null;

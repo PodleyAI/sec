@@ -5,20 +5,19 @@
  */
 
 import type { Command } from "commander";
-import { globalServiceRegistry } from "@workglow/util";
-import { EnvToDI } from "../config/EnvToDI";
-import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
-import { getTaskQueueRegistry } from "@workglow/task-graph";
-import { DefaultDI } from "../config/DefaultDI";
-import { SEC_DRY_RUN } from "../config/tokens";
+import { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
+import { addDbCommands } from "../cli/groups/db";
+import { addFetchCommands } from "../cli/groups/fetch";
+import { addInitCommand } from "../cli/groups/init";
+import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addUpdateCommands } from "../cli/groups/update";
-import { addFetchCommands } from "../cli/groups/fetch";
-import { addQueryCommands } from "../cli/groups/query";
-import { addDbCommands } from "../cli/groups/db";
-import { addInitCommand } from "../cli/groups/init";
+import { DefaultDI } from "../config/DefaultDI";
+import { EnvToDI } from "../config/EnvToDI";
+import { SEC_DRY_RUN } from "../config/tokens";
+import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;

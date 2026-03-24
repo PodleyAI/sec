@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
 import {
+  Address,
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
   AddressesEntityJunction,
@@ -14,6 +15,11 @@ import {
   AddressPrimaryKeyNames,
   AddressSchema,
 } from "../storage/address/AddressSchema";
+import {
+  CHANGE_LOG_REPOSITORY_TOKEN,
+  ChangeLogPrimaryKeyNames,
+  ChangeLogSchema,
+} from "../storage/change-tracking/ChangeLogSchema";
 import {
   CompaniesAddressJunctionSchema,
   CompaniesEntityJunctionSchema,
@@ -32,6 +38,11 @@ import {
   CompanySchema,
 } from "../storage/company/CompanySchema";
 import {
+  CIK_NAME_REPOSITORY_TOKEN,
+  CikNamePrimaryKeyNames,
+  CikNameSchema,
+} from "../storage/entity/CikNameSchema";
+import {
   ENTITY_REPOSITORY_TOKEN,
   EntityPrimaryKeyNames,
   EntitySchema,
@@ -47,10 +58,10 @@ import {
   SicCodeSchema,
 } from "../storage/entity/SicCodeSchema";
 import {
-  CIK_NAME_REPOSITORY_TOKEN,
-  CikNamePrimaryKeyNames,
-  CikNameSchema,
-} from "../storage/entity/CikNameSchema";
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  CompanyFactsPrimaryKeyNames,
+  CompanyFactsSchema,
+} from "../storage/facts/CompanyFactsSchema";
 import {
   FILING_REPOSITORY_TOKEN,
   FilingPrimaryKeyNames,
@@ -72,6 +83,7 @@ import {
   IssuerSchema,
 } from "../storage/investment-offering/IssuerSchema";
 import {
+  Person,
   PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
@@ -85,7 +97,6 @@ import {
   PersonPreviousNamesSchema,
   PersonPrimaryKeyNames,
   PersonsAddressJunctionSchema,
-  Person,
   PersonSchema,
   PersonsEntityJunctionSchema,
 } from "../storage/person/PersonSchema";
@@ -98,6 +109,11 @@ import {
   PhonesEntityJunctionSchema,
 } from "../storage/phone/PhoneSchema";
 import {
+  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+  CrowdfundingHistoryPrimaryKeyNames,
+  CrowdfundingHistorySchema,
+} from "../storage/portal/CrowdfundingHistorySchema";
+import {
   CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
   CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
   CROWDFUNDING_REPOSITORY_TOKEN,
@@ -109,46 +125,10 @@ import {
   CrowdfundingSchema,
 } from "../storage/portal/CrowdfundingSchema";
 import {
-  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
-  CrowdfundingHistoryPrimaryKeyNames,
-  CrowdfundingHistorySchema,
-} from "../storage/portal/CrowdfundingHistorySchema";
-import {
-  CHANGE_LOG_REPOSITORY_TOKEN,
-  ChangeLogPrimaryKeyNames,
-  ChangeLogSchema,
-} from "../storage/change-tracking/ChangeLogSchema";
-import { Address } from "../storage/address/AddressSchema";
-import {
   PORTAL_REPOSITORY_TOKEN,
   PortalPrimaryKeyNames,
   PortalSchema,
 } from "../storage/portal/PortalSchema";
-import {
-  REGA_OFFERING_REPOSITORY_TOKEN,
-  RegAOfferingPrimaryKeyNames,
-  RegAOfferingSchema,
-} from "../storage/reg-a/RegAOfferingSchema";
-import {
-  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
-  RegAOfferingHistoryPrimaryKeyNames,
-  RegAOfferingHistorySchema,
-} from "../storage/reg-a/RegAOfferingHistorySchema";
-import {
-  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
-  RegAServiceProviderPrimaryKeyNames,
-  RegAServiceProviderSchema,
-} from "../storage/reg-a/RegAServiceProviderSchema";
-import {
-  REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
-  RegAFinancialDataPrimaryKeyNames,
-  RegAFinancialDataSchema,
-} from "../storage/reg-a/RegAFinancialDataSchema";
-import {
-  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
-  RegAEquityClassPrimaryKeyNames,
-  RegAEquityClassSchema,
-} from "../storage/reg-a/RegAEquityClassSchema";
 import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
   CikLastUpdatePrimaryKeyNames,
@@ -160,20 +140,40 @@ import {
   ProcessedFactsSchema,
 } from "../storage/processing/ProcessedFactsSchema";
 import {
-  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
-  ProcessedSubmissionsPrimaryKeyNames,
-  ProcessedSubmissionsSchema,
-} from "../storage/processing/ProcessedSubmissionsSchema";
-import {
   PROCESSED_FILINGS_REPOSITORY_TOKEN,
   ProcessedFilingsPrimaryKeyNames,
   ProcessedFilingsSchema,
 } from "../storage/processing/ProcessedFilingsSchema";
 import {
-  COMPANY_FACTS_REPOSITORY_TOKEN,
-  CompanyFactsPrimaryKeyNames,
-  CompanyFactsSchema,
-} from "../storage/facts/CompanyFactsSchema";
+  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+  ProcessedSubmissionsPrimaryKeyNames,
+  ProcessedSubmissionsSchema,
+} from "../storage/processing/ProcessedSubmissionsSchema";
+import {
+  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+  RegAEquityClassPrimaryKeyNames,
+  RegAEquityClassSchema,
+} from "../storage/reg-a/RegAEquityClassSchema";
+import {
+  REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
+  RegAFinancialDataPrimaryKeyNames,
+  RegAFinancialDataSchema,
+} from "../storage/reg-a/RegAFinancialDataSchema";
+import {
+  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+  RegAOfferingHistoryPrimaryKeyNames,
+  RegAOfferingHistorySchema,
+} from "../storage/reg-a/RegAOfferingHistorySchema";
+import {
+  REGA_OFFERING_REPOSITORY_TOKEN,
+  RegAOfferingPrimaryKeyNames,
+  RegAOfferingSchema,
+} from "../storage/reg-a/RegAOfferingSchema";
+import {
+  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+  RegAServiceProviderPrimaryKeyNames,
+  RegAServiceProviderSchema,
+} from "../storage/reg-a/RegAServiceProviderSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -193,12 +193,9 @@ export const DefaultDI = () => {
       typeof AddressesEntityJunctionSchema,
       typeof AddressJunctionPrimaryKeyNames,
       AddressesEntityJunction
-    >(
-      "addresses_entity_junction",
-      AddressesEntityJunctionSchema,
-      AddressJunctionPrimaryKeyNames,
-      [["cik"]]
-    )
+    >("addresses_entity_junction", AddressesEntityJunctionSchema, AddressJunctionPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
   // ------------------------------ Persons --------------------------------
   globalServiceRegistry.registerInstance(
@@ -408,11 +405,7 @@ export const DefaultDI = () => {
   // ------------------------------ Portals --------------------------------
   globalServiceRegistry.registerInstance(
     PORTAL_REPOSITORY_TOKEN,
-    createStorage("portals", PortalSchema, PortalPrimaryKeyNames, [
-      ["name"],
-      ["brand"],
-      ["live"],
-    ])
+    createStorage("portals", PortalSchema, PortalPrimaryKeyNames, [["name"], ["brand"], ["live"]])
   );
 
   // ------------------------------ Processing Tracking --------------------------------

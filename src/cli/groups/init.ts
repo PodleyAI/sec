@@ -1,13 +1,13 @@
 import type { Command } from "commander";
-import { createInterface } from "readline";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
-import { resolve } from "path";
 import { homedir } from "os";
-import { globalServiceRegistry } from "@workglow/util";
+import { resolve } from "path";
+import { createInterface } from "readline";
+import { globalServiceRegistry } from "workglow";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { SEC_DRY_RUN } from "../../config/tokens";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
-import { SEC_DRY_RUN } from "../../config/tokens";
 
 export interface InitConfig {
   readonly dbType: "sqlite" | "postgres";
@@ -49,10 +49,7 @@ export function buildEnvConfig(config: InitConfig): string {
   return lines.join("\n") + "\n";
 }
 
-function prompt(
-  rl: ReturnType<typeof createInterface>,
-  question: string
-): Promise<string> {
+function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       resolve(answer.trim());
@@ -81,16 +78,13 @@ export function addInitCommand(parent: Command): void {
           const defaultDbFolder = resolve(homedir(), ".sec/data");
           const defaultRawFolder = resolve(homedir(), ".sec/raw");
 
-          const dbTypeAnswer = await prompt(
-            rl,
-            "Database type (sqlite or postgres) [sqlite]: "
-          );
+          const dbTypeAnswer = await prompt(rl, "Database type (sqlite or postgres) [sqlite]: ");
           const dbType = dbTypeAnswer === "postgres" ? "postgres" : "sqlite";
 
           const dbFolder =
             (await prompt(rl, `Database folder [${defaultDbFolder}]: `)) || defaultDbFolder;
 
-          const dbName = (await prompt(rl, 'Database name [edgar]: ')) || "edgar";
+          const dbName = (await prompt(rl, "Database name [edgar]: ")) || "edgar";
 
           const rawDataFolder =
             (await prompt(rl, `Raw data folder [${defaultRawFolder}]: `)) || defaultRawFolder;
@@ -98,22 +92,17 @@ export function addInitCommand(parent: Command): void {
           let pgFields: Partial<InitConfig> = {};
 
           if (dbType === "postgres") {
-            const useUrl = await prompt(
-              rl,
-              "Use a connection string? (y/n) [n]: "
-            );
+            const useUrl = await prompt(rl, "Use a connection string? (y/n) [n]: ");
 
             if (useUrl.toLowerCase() === "y") {
               const pgUrl = await prompt(rl, "PostgreSQL connection string: ");
               pgFields = { pgUrl };
             } else {
-              const pgHost =
-                (await prompt(rl, "PostgreSQL host [localhost]: ")) || "localhost";
+              const pgHost = (await prompt(rl, "PostgreSQL host [localhost]: ")) || "localhost";
               const pgPort = (await prompt(rl, "PostgreSQL port [5432]: ")) || "5432";
               const pgUser = await prompt(rl, "PostgreSQL user: ");
               const pgPassword = await prompt(rl, "PostgreSQL password: ");
-              const pgDatabase =
-                (await prompt(rl, "PostgreSQL database [edgar]: ")) || "edgar";
+              const pgDatabase = (await prompt(rl, "PostgreSQL database [edgar]: ")) || "edgar";
 
               pgFields = { pgHost, pgPort, pgUser, pgPassword, pgDatabase };
             }

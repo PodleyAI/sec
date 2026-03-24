@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, TaskAbortedError } from "@workglow/task-graph";
-import { DataPortSchemaObject } from "@workglow/util/schema";
 import { Static, Type } from "typebox";
+import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";

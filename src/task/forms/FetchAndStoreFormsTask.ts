@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
 import { Static, Type } from "typebox";
+import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";

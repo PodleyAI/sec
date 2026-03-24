@@ -33,7 +33,7 @@ The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./
 
 ### Dependency Injection
 
-Uses `@workglow/util`'s `globalServiceRegistry` with typed tokens. Production uses `SqliteTabularRepository`, tests use `InMemoryTabularRepository`. Call `resetDependencyInjectionsForTesting()` from `src/config/TestingDI.ts` in test setup.
+Uses the `workglow` package’s `globalServiceRegistry` with typed tokens. Production uses `SqliteTabularRepository`, tests use `InMemoryTabularRepository`. Call `resetDependencyInjectionsForTesting()` from `src/config/TestingDI.ts` in test setup.
 
 ### Schema Pattern
 

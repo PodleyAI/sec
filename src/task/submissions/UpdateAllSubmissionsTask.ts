@@ -4,18 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
-import {
-  CIK_LAST_UPDATE_REPOSITORY_TOKEN,
-} from "../../storage/processing/CikLastUpdateSchema";
+import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
+import { isDryRun } from "../../cli/isDryRun";
+import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import {
   PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
   type ProcessedSubmissions,
 } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
-import { isDryRun } from "../../cli/isDryRun";
 
 export type UpdateAllSubmissionsTaskInput = {
   readonly force?: boolean;
@@ -84,9 +81,7 @@ export class UpdateAllSubmissionsTask extends Task<
 
     if (isDryRun()) {
       if (input.force) {
-        console.log(
-          `Would update ${needsUpdating.length} submissions (force — reprocessing all)`
-        );
+        console.log(`Would update ${needsUpdating.length} submissions (force — reprocessing all)`);
       } else {
         console.log(
           `Would update ${needsUpdating.length} changed and ${needsInitialProcessing.length} new submissions`

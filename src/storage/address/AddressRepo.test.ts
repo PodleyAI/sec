@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InMemoryTabularStorage } from "@workglow/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
+import { InMemoryTabularStorage } from "workglow";
 import { normalizeAddress, type AddressImport } from "./AddressNormalization";
 import { AddressRepo } from "./AddressRepo";
+import type { Address } from "./AddressSchema";
 import {
   AddressesEntityJunction,
   AddressesEntityJunctionSchema,
@@ -15,7 +16,6 @@ import {
   AddressPrimaryKeyNames,
   AddressSchema,
 } from "./AddressSchema";
-import type { Address } from "./AddressSchema";
 
 describe("AddressRepo", () => {
   let addressRepo: AddressRepo;

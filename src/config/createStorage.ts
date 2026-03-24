@@ -4,15 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITabularStorage } from "@workglow/storage";
-import type { DataPortSchemaObject, FromSchema, TypedArraySchemaOptions } from "@workglow/util/schema";
-import { PostgresTabularStorage, SqliteTabularStorage } from "@workglow/storage";
-import { globalServiceRegistry } from "@workglow/util";
-import { SEC_DB_TYPE } from "./tokens";
+import type {
+  DataPortSchemaObject,
+  FromSchema,
+  ITabularStorage,
+  TypedArraySchemaOptions,
+} from "workglow";
+import { globalServiceRegistry, PostgresTabularStorage, SqliteTabularStorage } from "workglow";
+import { isDryRun } from "../cli/isDryRun";
+import { ReadOnlyTabularStorage } from "../storage/ReadOnlyTabularStorage";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
-import { ReadOnlyTabularStorage } from "../storage/ReadOnlyTabularStorage";
-import { isDryRun } from "../cli/isDryRun";
+import { SEC_DB_TYPE } from "./tokens";
 
 export function createStorage<
   Schema extends DataPortSchemaObject,
@@ -27,7 +30,13 @@ export function createStorage<
   const dbType = globalServiceRegistry.get(SEC_DB_TYPE);
   let storage: ITabularStorage<Schema, PrimaryKeyNames, Entity>;
   if (dbType === "postgres") {
-    storage = new PostgresTabularStorage(getPgPool(), table, schema, primaryKeyNames, indexes as any);
+    storage = new PostgresTabularStorage(
+      getPgPool(),
+      table,
+      schema,
+      primaryKeyNames,
+      indexes as any
+    );
   } else {
     storage = new SqliteTabularStorage(getDb(), table, schema, primaryKeyNames, indexes as any);
   }

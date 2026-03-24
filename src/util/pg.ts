@@ -5,8 +5,8 @@
  */
 
 import pg from "pg";
-import type { ServiceToken } from "@workglow/util";
-import { globalServiceRegistry } from "@workglow/util";
+import type { ServiceToken } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import {
   SEC_PG_DATABASE,
   SEC_PG_HOST,

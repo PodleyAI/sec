@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { globalServiceRegistry } from "@workglow/util";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { queryFilings } from "./FilingQuery";
 
@@ -60,12 +60,8 @@ describe("queryFilings", () => {
   });
 
   it("filters by date range (after)", async () => {
-    await repo.put(
-      makeFiling({ accession_number: "0001-26-001", filing_date: "2026-01-15" })
-    );
-    await repo.put(
-      makeFiling({ accession_number: "0001-26-002", filing_date: "2026-03-15" })
-    );
+    await repo.put(makeFiling({ accession_number: "0001-26-001", filing_date: "2026-01-15" }));
+    await repo.put(makeFiling({ accession_number: "0001-26-002", filing_date: "2026-03-15" }));
 
     const result = await queryFilings({ after: "2026-02-01" });
     expect(result.rows.length).toBe(1);
@@ -74,12 +70,8 @@ describe("queryFilings", () => {
   });
 
   it("filters by date range (before)", async () => {
-    await repo.put(
-      makeFiling({ accession_number: "0001-26-001", filing_date: "2026-01-15" })
-    );
-    await repo.put(
-      makeFiling({ accession_number: "0001-26-002", filing_date: "2026-03-15" })
-    );
+    await repo.put(makeFiling({ accession_number: "0001-26-001", filing_date: "2026-01-15" }));
+    await repo.put(makeFiling({ accession_number: "0001-26-002", filing_date: "2026-03-15" }));
 
     const result = await queryFilings({ before: "2026-02-01" });
     expect(result.rows.length).toBe(1);

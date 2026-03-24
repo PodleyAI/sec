@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
-import { CrowdfundingRepo } from "./CrowdfundingRepo";
-import { Crowdfunding } from "./CrowdfundingSchema";
-import {
-  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
-  CrowdfundingHistory,
-  CrowdfundingHistoryRepositoryStorage,
-} from "./CrowdfundingHistorySchema";
+import { globalServiceRegistry } from "workglow";
 import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLog,
   ChangeLogRepositoryStorage,
 } from "../change-tracking/ChangeLogSchema";
+import {
+  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+  CrowdfundingHistory,
+  CrowdfundingHistoryRepositoryStorage,
+} from "./CrowdfundingHistorySchema";
+import { CrowdfundingRepo } from "./CrowdfundingRepo";
+import { Crowdfunding } from "./CrowdfundingSchema";
 
 interface CrowdfundingTemporalRepoOptions {
   crowdfundingRepo?: CrowdfundingRepo;

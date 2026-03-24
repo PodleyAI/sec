@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITabularStorage } from "@workglow/storage";
-import { createServiceToken } from "@workglow/util";
+import type { ITabularStorage } from "workglow";
+import { createServiceToken } from "workglow";
 import { Static, Type } from "typebox";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 

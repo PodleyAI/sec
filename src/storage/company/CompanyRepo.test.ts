@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TabularRepository } from "@workglow/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
+import { TabularRepository } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { normalizeCompany } from "./CompanyNormalization";
 import { CompanyRepo } from "./CompanyRepo";
 import {
+  CompaniesAddressJunction,
   CompaniesAddressJunctionSchema,
+  CompaniesEntityJunction,
   CompaniesEntityJunctionSchema,
-  CompanyPhoneJunctionSchema,
-  CompanySchema,
+  Company,
   CompanyAddressJunctionPrimaryKeyNames,
   CompanyEntityJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionPrimaryKeyNames,
-  CompanyPrimaryKeyNames,
-  CompaniesEntityJunction,
-  CompaniesAddressJunction,
   CompanyPhoneJunction,
-  Company,
+  CompanyPhoneJunctionPrimaryKeyNames,
+  CompanyPhoneJunctionSchema,
+  CompanyPrimaryKeyNames,
+  CompanySchema,
 } from "./CompanySchema";
 
 describe("CompanyRepo", () => {

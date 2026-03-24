@@ -1,11 +1,11 @@
-import { runTasks, runWorkflow } from "@workglow/cli";
-import { pipe } from "@workglow/task-graph";
+import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
+import { pipe } from "workglow";
+import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
+import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
 import { FetchDailyIndexTask } from "../../task/index/FetchDailyIndexTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
-import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
 import { runCommand } from "../runCommand";
 
 export function addSyncCommand(program: Command): void {
@@ -18,13 +18,13 @@ export function addSyncCommand(program: Command): void {
       await runCommand(
         async () => {
           const indexFlow = pipe([new FetchDailyIndexTask({}), new StoreCikLastUpdatedTask()]);
-          await runWorkflow(indexFlow);
+          await withCli(indexFlow).run();
 
-          await runTasks(new UpdateAllSubmissionsTask({ force: options.force }));
-          await runTasks(new UpdateAllCompanyFactsTask({ force: options.force }));
+          await withCli(new UpdateAllSubmissionsTask({ force: options.force })).run();
+          await withCli(new UpdateAllCompanyFactsTask({ force: options.force })).run();
 
           const formTypes = (options.forms as string).split(",");
-          await runTasks(new UpdateAllFormsTask({ form: formTypes, force: options.force }));
+          await withCli(new UpdateAllFormsTask({ form: formTypes, force: options.force })).run();
         },
         { force: options.force }
       );

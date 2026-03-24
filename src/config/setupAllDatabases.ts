@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
-import { ADDRESS_JUNCTION_REPOSITORY_TOKEN, ADDRESS_REPOSITORY_TOKEN } from "../storage/address/AddressSchema";
+import { globalServiceRegistry } from "workglow";
+import {
+  ADDRESS_JUNCTION_REPOSITORY_TOKEN,
+  ADDRESS_REPOSITORY_TOKEN,
+} from "../storage/address/AddressSchema";
+import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
 import {
   COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
@@ -13,10 +17,11 @@ import {
   COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
   COMPANY_REPOSITORY_TOKEN,
 } from "../storage/company/CompanySchema";
+import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
-import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
+import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
@@ -28,25 +33,26 @@ import {
   PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
   PERSON_REPOSITORY_TOKEN,
 } from "../storage/person/PersonSchema";
-import { PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN, PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
+import {
+  PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
+  PHONE_REPOSITORY_TOKEN,
+} from "../storage/phone/PhoneSchema";
+import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../storage/portal/CrowdfundingHistorySchema";
 import {
   CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN,
   CROWDFUNDING_REPORTS_REPOSITORY_TOKEN,
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
-import { CROWDFUNDING_HISTORY_REPOSITORY_TOKEN } from "../storage/portal/CrowdfundingHistorySchema";
-import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
-import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
-import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
-import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFilingsSchema";
-import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../storage/facts/CompanyFactsSchema";
+import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
+import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
+import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinancialDataSchema";
+import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
+import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
+import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
 
 /**
  * Calls setupDatabase() on all registered repository instances,

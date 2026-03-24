@@ -1,4 +1,4 @@
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
 import { SEC_DRY_RUN } from "../config/tokens";
 
 export function isDryRun(): boolean {

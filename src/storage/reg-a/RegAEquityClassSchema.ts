@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITabularStorage } from "@workglow/storage";
-import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
+import type { ITabularStorage } from "workglow";
+import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
@@ -71,6 +71,4 @@ export type RegAEquityClassRepositoryStorage = ITabularStorage<
 >;
 
 export const REGA_EQUITY_CLASS_REPOSITORY_TOKEN =
-  createServiceToken<RegAEquityClassRepositoryStorage>(
-    "sec.storage.regAEquityClassRepository"
-  );
+  createServiceToken<RegAEquityClassRepositoryStorage>("sec.storage.regAEquityClassRepository");

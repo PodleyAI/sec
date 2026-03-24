@@ -4,9 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { JobQueueTaskConfig, TaskOutput } from "@workglow/task-graph";
-import { FetchUrlTask, FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
-import { Job, JobConstructorParam } from "@workglow/job-queue";
+import {
+  FetchUrlTask,
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  Job,
+  JobConstructorParam,
+  JobQueueTaskConfig,
+  TaskOutput,
+} from "workglow";
 import { SecJobQueueName, SecUserAgent } from "../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 
@@ -16,7 +22,7 @@ import { SecFetchJob } from "./SecFetchJob";
 export class SecFetchTask<
   Input extends FetchUrlTaskInput = FetchUrlTaskInput,
   Output extends TaskOutput = FetchUrlTaskOutput,
-  Config extends JobQueueTaskConfig = JobQueueTaskConfig
+  Config extends JobQueueTaskConfig = JobQueueTaskConfig,
 > extends FetchUrlTask<Input, Output, Config> {
   constructor(input: FetchUrlTaskInput = {} as FetchUrlTaskInput, config: Config = {} as Config) {
     config.queue = SecJobQueueName;
@@ -29,9 +35,8 @@ export class SecFetchTask<
     }
 
     super(input as Input, config);
-    this.jobClass = SecFetchJob as new (config: JobConstructorParam<Input, Output>) => Job<
-      Input,
-      Output
-    >;
+    this.jobClass = SecFetchJob as new (
+      config: JobConstructorParam<Input, Output>
+    ) => Job<Input, Output>;
   }
 }

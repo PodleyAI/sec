@@ -7,12 +7,14 @@
 import {
   CompositeLimiter,
   EvenlySpacedRateLimiter,
-  JobQueueServer,
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  InMemoryQueueStorage,
+  InMemoryRateLimiterStorage,
   JobQueueClient,
+  JobQueueServer,
   RateLimiter,
-} from "@workglow/job-queue";
-import { FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
-import { InMemoryQueueStorage, InMemoryRateLimiterStorage } from "@workglow/storage";
+} from "workglow";
 
 import { SecJobQueueName } from "../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";

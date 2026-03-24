@@ -4,32 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
 import {
-  REGA_OFFERING_REPOSITORY_TOKEN,
-  RegAOffering,
-  RegAOfferingRepositoryStorage,
-} from "./RegAOfferingSchema";
-import {
-  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
-  RegAOfferingHistory,
-  RegAOfferingHistoryRepositoryStorage,
-} from "./RegAOfferingHistorySchema";
-import {
-  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
-  RegAServiceProvider,
-  RegAServiceProviderRepositoryStorage,
-} from "./RegAServiceProviderSchema";
+  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
+  RegAEquityClass,
+  RegAEquityClassRepositoryStorage,
+} from "./RegAEquityClassSchema";
 import {
   REGA_FINANCIAL_DATA_REPOSITORY_TOKEN,
   RegAFinancialData,
   RegAFinancialDataRepositoryStorage,
 } from "./RegAFinancialDataSchema";
 import {
-  REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
-  RegAEquityClass,
-  RegAEquityClassRepositoryStorage,
-} from "./RegAEquityClassSchema";
+  REGA_OFFERING_HISTORY_REPOSITORY_TOKEN,
+  RegAOfferingHistory,
+  RegAOfferingHistoryRepositoryStorage,
+} from "./RegAOfferingHistorySchema";
+import {
+  REGA_OFFERING_REPOSITORY_TOKEN,
+  RegAOffering,
+  RegAOfferingRepositoryStorage,
+} from "./RegAOfferingSchema";
+import {
+  REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN,
+  RegAServiceProvider,
+  RegAServiceProviderRepositoryStorage,
+} from "./RegAServiceProviderSchema";
 
 interface RegAOfferingRepoOptions {
   offeringRepository?: RegAOfferingRepositoryStorage;

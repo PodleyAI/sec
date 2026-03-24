@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createServiceToken } from "@workglow/util";
+import { createServiceToken } from "workglow";
 
 export const SEC_RAW_DATA_FOLDER = createServiceToken<string>("sec.raw.data.folder");
 export const SEC_DB_FOLDER = createServiceToken<string>("sec.db.folder");

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
 import { Issuer, ISSUER_REPOSITORY_TOKEN, IssuerRepositoryStorage } from "./IssuerSchema";
 
 // Options for the IssuerRepo

@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
-import { getTaskQueueRegistry } from "@workglow/task-graph";
 import { program } from "commander";
-import { AddCommands } from "./commands";
+import { getTaskQueueRegistry } from "workglow";
 import { applyGlobalOptions } from "./cli/GlobalOptions";
+import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
 
 program

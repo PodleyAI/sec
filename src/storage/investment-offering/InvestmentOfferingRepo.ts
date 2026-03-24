@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
 import {
   INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
   InvestmentOfferingHistory,

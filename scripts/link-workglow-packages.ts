@@ -10,33 +10,29 @@ interface PackageJson {
 }
 
 /**
- * Extract all @workglow/* packages from package.json
+ * Packages to link for local Workglow development (see package.json).
  */
-function getWorkglowPackages(packageJsonPath: string): string[] {
+function getWorkglowLinkTargets(packageJsonPath: string): string[] {
   const packageJsonContent = fs.readFileSync(packageJsonPath, "utf8");
   const packageJson: PackageJson = JSON.parse(packageJsonContent);
 
   const packages: string[] = [];
 
-  // Check dependencies
-  if (packageJson.dependencies) {
-    for (const packageName of Object.keys(packageJson.dependencies)) {
-      if (packageName.startsWith("@workglow/")) {
-        packages.push(packageName);
+  const consider = (deps: Record<string, string> | undefined): void => {
+    if (!deps) {
+      return;
+    }
+    for (const name of Object.keys(deps)) {
+      if (name === "workglow" || name.startsWith("@workglow/")) {
+        packages.push(name);
       }
     }
-  }
+  };
 
-  // Check devDependencies
-  if (packageJson.devDependencies) {
-    for (const packageName of Object.keys(packageJson.devDependencies)) {
-      if (packageName.startsWith("@workglow/")) {
-        packages.push(packageName);
-      }
-    }
-  }
+  consider(packageJson.dependencies);
+  consider(packageJson.devDependencies);
 
-  return packages.sort();
+  return [...new Set(packages)].sort();
 }
 
 async function main(): Promise<void> {
@@ -47,14 +43,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const packages = getWorkglowPackages(packageJsonPath);
+  const packages = getWorkglowLinkTargets(packageJsonPath);
 
   if (packages.length === 0) {
-    console.log("No @workglow/* packages found in package.json");
+    console.log('No "workglow" or @workglow/* packages found in package.json');
     return;
   }
 
-  console.log(`Found ${packages.length} @workglow/* package(s) to link:`);
+  console.log(`Found ${packages.length} Workglow package(s) to link:`);
   packages.forEach((pkg) => console.log(`  - ${pkg}`));
   console.log();
 
@@ -66,7 +62,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const result = await $`bun link ${packages}`;
+    await $`bun link ${packages}`;
     console.log(`✅ Successfully linked ${packages.length} package(s)`);
   } catch (error) {
     console.error(

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { setTaskQueueRegistry, TaskFailedError } from "@workglow/task-graph";
 import { Glob } from "bun";
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { setTaskQueueRegistry, TaskFailedError } from "workglow";
 import { EnvToDI } from "../../config/EnvToDI";
 import { FetchQuarterlyIndexTask } from "./FetchQuarterlyIndexTask";
 

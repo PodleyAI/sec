@@ -5,19 +5,19 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { globalServiceRegistry } from "@workglow/util";
-import { EntityRepo } from "./EntityRepo";
-import { Entity } from "./EntitySchema";
-import {
-  ENTITY_HISTORY_REPOSITORY_TOKEN,
-  EntityHistory,
-  EntityHistoryRepositoryStorage,
-} from "./EntityHistorySchema";
+import { globalServiceRegistry } from "workglow";
 import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLog,
   ChangeLogRepositoryStorage,
 } from "../change-tracking/ChangeLogSchema";
+import {
+  ENTITY_HISTORY_REPOSITORY_TOKEN,
+  EntityHistory,
+  EntityHistoryRepositoryStorage,
+} from "./EntityHistorySchema";
+import { EntityRepo } from "./EntityRepo";
+import { Entity } from "./EntitySchema";
 
 interface EntityTemporalRepoOptions {
   entityRepo?: EntityRepo;

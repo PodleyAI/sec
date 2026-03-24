@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, pipe } from "@workglow/task-graph";
-import { processUpdateProcessing } from "./StoreSubmissionsTask";
+import { IExecuteContext, pipe } from "workglow";
 import { FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { StoreSubmissionsTask } from "./StoreSubmissionsTask";
+import { processUpdateProcessing, StoreSubmissionsTask } from "./StoreSubmissionsTask";
 
 export async function fetchAndStoreSubmission(
   input: { cik: number; date?: string },

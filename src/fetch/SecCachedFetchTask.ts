@@ -4,12 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, TaskConfig, TaskOutput } from "@workglow/task-graph";
-import { FetchUrlTaskInput, FetchUrlTaskOutput } from "@workglow/tasks";
-import { globalServiceRegistry } from "@workglow/util";
 import path from "node:path";
-import { YYYYdMMdDD } from "../util/parseDate";
+import {
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  globalServiceRegistry,
+  IExecuteContext,
+  TaskConfig,
+  TaskOutput,
+} from "workglow";
 import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
+import { YYYYdMMdDD } from "../util/parseDate";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 import { SecFetchTask } from "./SecFetchTask";
 
@@ -64,7 +69,7 @@ function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_t
 
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
-  O extends TaskOutput = FetchUrlTaskOutput
+  O extends TaskOutput = FetchUrlTaskOutput,
 > extends SecFetchTask<I & FetchUrlTaskInput, O> {
   static type = "SecCachedFetchTask";
   static category = "Hidden";

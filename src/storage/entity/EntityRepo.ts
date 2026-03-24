@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry } from "workglow";
+import { Filing, FILING_REPOSITORY_TOKEN, FilingRepositoryStorage } from "../filing/FilingSchema";
+import { CIK_NAME_REPOSITORY_TOKEN, CikNameRepositoryStorage } from "./CikNameSchema";
 import { Entity, ENTITY_REPOSITORY_TOKEN, EntityRepositoryStorage } from "./EntitySchema";
 import {
   ENTITY_TICKER_REPOSITORY_TOKEN,
@@ -12,8 +14,6 @@ import {
   EntityTickerRepositoryStorage,
 } from "./EntityTickerSchema";
 import { SIC_CODE_REPOSITORY_TOKEN, SicCode, SicCodeRepositoryStorage } from "./SicCodeSchema";
-import { CIK_NAME_REPOSITORY_TOKEN, CikNameRepositoryStorage } from "./CikNameSchema";
-import { Filing, FILING_REPOSITORY_TOKEN, FilingRepositoryStorage } from "../filing/FilingSchema";
 
 // Options for the EntityRepo
 interface EntityRepoOptions {

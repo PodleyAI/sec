@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { globalServiceRegistry } from "@workglow/util";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
 import { queryCrowdfunding } from "./CrowdfundingQuery";
 
@@ -63,12 +63,8 @@ describe("queryCrowdfunding", () => {
   });
 
   it("filters by date range", async () => {
-    await repo.put(
-      makeCrowdfunding({ file_number: "020-001", filing_date: "2026-01-15" })
-    );
-    await repo.put(
-      makeCrowdfunding({ file_number: "020-002", filing_date: "2026-03-15" })
-    );
+    await repo.put(makeCrowdfunding({ file_number: "020-001", filing_date: "2026-01-15" }));
+    await repo.put(makeCrowdfunding({ file_number: "020-002", filing_date: "2026-03-15" }));
 
     const result = await queryCrowdfunding({ after: "2026-02-01" });
     expect(result.rows.length).toBe(1);

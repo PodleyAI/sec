@@ -4,9 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, TaskAbortedError, TaskError } from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
+import {
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskAbortedError,
+  TaskError,
+} from "workglow";
 import { Factoid } from "../../sec/facts/CompanyFacts";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";

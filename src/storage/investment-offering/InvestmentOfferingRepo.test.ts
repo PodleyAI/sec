@@ -4,21 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InMemoryTabularStorage } from "@workglow/storage";
 import { beforeEach, describe, expect, it } from "bun:test";
-import { InvestmentOfferingRepo } from "./InvestmentOfferingRepo";
+import { InMemoryTabularStorage } from "workglow";
 import {
-  InvestmentOfferingSchema,
-  type InvestmentOffering,
-  InvestmentOfferingPrimaryKeyNames,
-  type InvestmentOfferingRepositoryStorage,
-} from "./InvestmentOfferingSchema";
-import {
+  InvestmentOfferingHistoryPrimaryKeyNames,
   InvestmentOfferingHistorySchema,
   type InvestmentOfferingHistory,
-  InvestmentOfferingHistoryPrimaryKeyNames,
   type InvestmentOfferingHistoryRepositoryStorage,
 } from "./InvestmentOfferingHistorySchema";
+import { InvestmentOfferingRepo } from "./InvestmentOfferingRepo";
+import {
+  InvestmentOfferingPrimaryKeyNames,
+  InvestmentOfferingSchema,
+  type InvestmentOffering,
+  type InvestmentOfferingRepositoryStorage,
+} from "./InvestmentOfferingSchema";
 
 describe("InvestmentOfferingRepo", () => {
   let investmentOfferingRepo: InvestmentOfferingRepo;
@@ -199,9 +199,8 @@ describe("InvestmentOfferingRepo", () => {
 
     describe("saveInvestmentOfferingHistory", () => {
       it("should save an investment offering history", async () => {
-        const result = await investmentOfferingRepo.saveInvestmentOfferingHistory(
-          mockOfferingHistory
-        );
+        const result =
+          await investmentOfferingRepo.saveInvestmentOfferingHistory(mockOfferingHistory);
 
         expect(result).toEqual(mockOfferingHistory);
 

@@ -1,6 +1,6 @@
+import { globalServiceRegistry } from "workglow";
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { globalServiceRegistry } from "@workglow/util";
 import type { QueryResult } from "./EntityQuery";
 
 export interface FilingQueryParams {

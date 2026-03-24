@@ -21,10 +21,6 @@
     "**/bun.lock": true,
     "**/*.tsbuildinfo": true
   },
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit"
-  },
-  "eslint.codeActionsOnSave.rules": null,
   "explorer.autoRevealExclude": {
     "data-out/**": true,
     "data-in/**": true
@@ -45,5 +41,9 @@
   "js/ts.implicitProjectConfig.target": "ESNext",
   "[xml]": {
     "editor.defaultFormatter": "DotJoshJohnson.xml"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
   }
 }

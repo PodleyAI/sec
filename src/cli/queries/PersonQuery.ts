@@ -1,6 +1,6 @@
+import { globalServiceRegistry } from "workglow";
 import type { Person } from "../../storage/person/PersonSchema";
 import { PERSON_REPOSITORY_TOKEN } from "../../storage/person/PersonSchema";
-import { globalServiceRegistry } from "@workglow/util";
 import type { QueryResult } from "./EntityQuery";
 
 export interface PersonQueryParams {
@@ -33,8 +33,7 @@ export async function queryPersons(params: PersonQueryParams): Promise<QueryResu
   if (params.role) {
     const roleLower = params.role.toLowerCase();
     persons = persons.filter(
-      (p) =>
-        p.title !== null && p.title !== undefined && p.title.toLowerCase().includes(roleLower)
+      (p) => p.title !== null && p.title !== undefined && p.title.toLowerCase().includes(roleLower)
     );
   }
 

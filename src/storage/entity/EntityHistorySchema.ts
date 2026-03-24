@@ -5,10 +5,10 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import type { ITabularStorage } from "@workglow/storage";
-import { createServiceToken } from "@workglow/util";
-import { TypeNullable } from "../../util/TypeBoxUtil";
 import { Static, Type } from "typebox";
+import type { ITabularStorage } from "workglow";
+import { createServiceToken } from "workglow";
+import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
  * Entity History schema - tracks changes to entity attributes over time

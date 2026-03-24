@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITabularStorage } from "@workglow/storage";
-import { createServiceToken } from "@workglow/util";
 import { Static, Type } from "typebox";
+import type { ITabularStorage } from "workglow";
+import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
@@ -27,7 +27,8 @@ export const RegAServiceProviderSchema = Type.Object({
   }),
   provider_type: Type.String({
     maxLength: 30,
-    description: "Type of provider: underwriter, sales_commission, finder, auditor, legal, promoter, blue_sky",
+    description:
+      "Type of provider: underwriter, sales_commission, finder, auditor, legal, promoter, blue_sky",
   }),
   provider_name: TypeNullable(
     Type.String({

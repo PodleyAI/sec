@@ -4,21 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, TaskError, Workflow } from "@workglow/task-graph";
-import { FetchUrlTaskOutput } from "@workglow/tasks";
-import { globalServiceRegistry } from "@workglow/util";
 import { Static, Type } from "typebox";
+import {
+  FetchUrlTaskOutput,
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskError,
+  Workflow,
+} from "workglow";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
+import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
+import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
+import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
+import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
+import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
-import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
-import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
-import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
-import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
-import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({

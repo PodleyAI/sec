@@ -1,44 +1,18 @@
-import { globalServiceRegistry } from "@workglow/util";
-import {
-  ENTITY_REPOSITORY_TOKEN,
-} from "../../storage/entity/EntitySchema";
-import {
-  FILING_REPOSITORY_TOKEN,
-} from "../../storage/filing/FilingSchema";
-import {
-  COMPANY_FACTS_REPOSITORY_TOKEN,
-} from "../../storage/facts/CompanyFactsSchema";
-import {
-  PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
-} from "../../storage/processing/ProcessedSubmissionsSchema";
-import {
-  PROCESSED_FACTS_REPOSITORY_TOKEN,
-} from "../../storage/processing/ProcessedFactsSchema";
-import {
-  PROCESSED_FILINGS_REPOSITORY_TOKEN,
-} from "../../storage/processing/ProcessedFilingsSchema";
-import {
-  INVESTMENT_OFFERING_REPOSITORY_TOKEN,
-} from "../../storage/investment-offering/InvestmentOfferingSchema";
-import {
-  CROWDFUNDING_REPOSITORY_TOKEN,
-} from "../../storage/portal/CrowdfundingSchema";
-import {
-  PERSON_REPOSITORY_TOKEN,
-} from "../../storage/person/PersonSchema";
-import {
-  ADDRESS_REPOSITORY_TOKEN,
-} from "../../storage/address/AddressSchema";
-import {
-  PHONE_REPOSITORY_TOKEN,
-} from "../../storage/phone/PhoneSchema";
-import {
-  COMPANY_REPOSITORY_TOKEN,
-} from "../../storage/company/CompanySchema";
-import {
-  PORTAL_REPOSITORY_TOKEN,
-} from "../../storage/portal/PortalSchema";
-import type { ServiceToken } from "@workglow/util";
+import type { ServiceToken } from "workglow";
+import { globalServiceRegistry } from "workglow";
+import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
+import { COMPANY_REPOSITORY_TOKEN } from "../../storage/company/CompanySchema";
+import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
+import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
+import { PERSON_REPOSITORY_TOKEN } from "../../storage/person/PersonSchema";
+import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
+import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
+import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
+import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
+import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
+import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 
 export interface DbStatusResult {
   readonly entityCount: number;
@@ -63,15 +37,21 @@ async function countRows(
 }
 
 export async function getDbStatus(): Promise<DbStatusResult> {
-  const [entityCount, filingCount, factsCount, processedSubmissions, processedFacts, processedFilings] =
-    await Promise.all([
-      countRows(ENTITY_REPOSITORY_TOKEN as any),
-      countRows(FILING_REPOSITORY_TOKEN as any),
-      countRows(COMPANY_FACTS_REPOSITORY_TOKEN as any),
-      countRows(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any),
-      countRows(PROCESSED_FACTS_REPOSITORY_TOKEN as any),
-      countRows(PROCESSED_FILINGS_REPOSITORY_TOKEN as any),
-    ]);
+  const [
+    entityCount,
+    filingCount,
+    factsCount,
+    processedSubmissions,
+    processedFacts,
+    processedFilings,
+  ] = await Promise.all([
+    countRows(ENTITY_REPOSITORY_TOKEN as any),
+    countRows(FILING_REPOSITORY_TOKEN as any),
+    countRows(COMPANY_FACTS_REPOSITORY_TOKEN as any),
+    countRows(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any),
+    countRows(PROCESSED_FACTS_REPOSITORY_TOKEN as any),
+    countRows(PROCESSED_FILINGS_REPOSITORY_TOKEN as any),
+  ]);
 
   return {
     entityCount,

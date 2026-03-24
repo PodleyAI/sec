@@ -1,6 +1,6 @@
+import { globalServiceRegistry } from "workglow";
 import type { CompanyFact } from "../../storage/facts/CompanyFactsSchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
-import { globalServiceRegistry } from "@workglow/util";
 import type { QueryResult } from "./EntityQuery";
 
 export interface FactsQueryParams {
@@ -18,8 +18,7 @@ export async function queryFacts(params: FactsQueryParams): Promise<QueryResult<
   const limit = params.limit ?? 25;
   const offset = params.offset ?? 0;
 
-  let facts: CompanyFact[] =
-    (await repo.query({ cik: params.cik } as Partial<CompanyFact>)) ?? [];
+  let facts: CompanyFact[] = (await repo.query({ cik: params.cik } as Partial<CompanyFact>)) ?? [];
 
   if (params.search) {
     const searchLower = params.search.toLowerCase();

@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, pipe } from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
+import { globalServiceRegistry, IExecuteContext, pipe } from "workglow";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { FetchCompanyFactsTask } from "./FetchCompanyFactsTask";

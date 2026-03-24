@@ -4,18 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IExecuteContext, Task, Workflow } from "@workglow/task-graph";
-import { globalServiceRegistry } from "@workglow/util";
 import { Type } from "typebox";
-import {
-  FILING_REPOSITORY_TOKEN,
-  type Filing,
-} from "../../storage/filing/FilingSchema";
-import {
-  PROCESSED_FILINGS_REPOSITORY_TOKEN,
-} from "../../storage/processing/ProcessedFilingsSchema";
-import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
+import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
+import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
+import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
+import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 export type UpdateAllFormsTaskInput = {
   readonly form: string[];
@@ -89,9 +83,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     if (isDryRun()) {
       const forms = [...formSet].join(", ");
       const label = input.force ? "all" : "unprocessed";
-      console.log(
-        `Would process ${formsToProcess.length} ${label} filings for forms: ${forms}`
-      );
+      console.log(`Would process ${formsToProcess.length} ${label} filings for forms: ${forms}`);
       return { success: true };
     }
 
