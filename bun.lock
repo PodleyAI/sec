@@ -22,7 +22,7 @@
         "pg": "^8.20.0",
         "typebox": "1.1.6",
         "words-to-numbers": "^1.5.1",
-        "workglow": "0.0.126",
+        "workglow": "0.1.0",
         "xml2js": "^0.6.2",
       },
       "devDependencies": {
@@ -219,9 +219,9 @@
 
     "@workglow/cli": ["@workglow/cli@0.0.126", "", { "dependencies": { "@anthropic-ai/sdk": "^0.80.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.15", "@huggingface/transformers": "4.0.0-next.8", "@inkjs/ui": "^2.0.0", "@workglow/ai": "0.0.126", "@workglow/ai-provider": "0.0.126", "@workglow/storage": "0.0.126", "@workglow/task-graph": "0.0.126", "@workglow/tasks": "0.0.126", "@workglow/util": "0.0.126", "chalk": "^5.6.2", "commander": "^14.0.3", "ink": "^6.8.0", "node-llama-cpp": "^3.18.1", "ollama": "^0.6.3", "openai": "^6.32.0", "react": "^19.2.4", "smol-toml": "^1.6.1", "tiktoken": "^1.0.22" }, "bin": { "@workglow/cli": "dist/workglow.js" } }, "sha512-qCziU0YjTOnF0fwokBSMBhEgsukrmmde4PKS+tViUibcMoaQHQDKaeu7w1T8VkbGrYWr4mD+ulX5l1vryB8yCA=="],
 
-    "@workglow/job-queue": ["@workglow/job-queue@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-K7ZQFI2mJND7oomBvOA7K+qLEciEm1TKFe/fAZYGH8LMUr2830XSZUj+NMQYtGuSY+bPYFP2Xq/idfSw3DRy6A=="],
+    "@workglow/job-queue": ["@workglow/job-queue@0.1.0", "", { "peerDependencies": { "@workglow/storage": "0.1.0", "@workglow/util": "0.1.0" } }, "sha512-54wHbFqbZakaFujhtKUh2Bn3ibiGIQ+2Pe5Uw2z0EmAnop6bwxDMrXogxNmZ61m0nf+wB+63oHyT8GPkPERUgg=="],
 
-    "@workglow/knowledge-base": ["@workglow/knowledge-base@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-Nalmb7kxFqRLiR7LH94pA4TE52r4w7vq5g57ndPOBU3dsChDQtEuYPkxAE8MUCxZzDX5iqSvkzIry2RxHou50g=="],
+    "@workglow/knowledge-base": ["@workglow/knowledge-base@0.1.0", "", { "peerDependencies": { "@workglow/storage": "0.1.0", "@workglow/util": "0.1.0" } }, "sha512-euMaEkiPsns6BwRgzNU6Rhr5TBgca+hl0keUSXI0hbB3dQ0OVAI6gIQfG5eQ5BXXDMO2WdSW60Rb6QFA6IR2Jg=="],
 
     "@workglow/storage": ["@workglow/storage@0.0.126", "", { "peerDependencies": { "@electric-sql/pglite": "^0.4.1", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@sqliteai/sqlite-vector": "^0.9.90", "@supabase/supabase-js": "^2.100.0", "@workglow/util": "0.0.126", "better-sqlite3": "^12.8.0", "pg": "^8.20.0" }, "optionalPeers": ["@electric-sql/pglite", "@sqlite.org/sqlite-wasm", "@sqliteai/sqlite-vector", "@supabase/supabase-js", "better-sqlite3", "pg"] }, "sha512-FoS49QphOm6OTA++uMeT/JpgO6iI0ANdAaaRDOf7txpgSLK3HbCWsEvNEH2S5ww0CtMPjUAPOQBdVevjUb+tgA=="],
 
@@ -817,7 +817,7 @@
 
     "words-to-numbers": ["words-to-numbers@1.5.1", "", { "dependencies": { "babel-runtime": "6.x.x", "clj-fuzzy": "^0.3.2", "its-set": "^1.1.5" } }, "sha512-uvz7zSCKmmA7o5f5zp4Z5l24RQhy6HSNu10URhNxQWv1I82RsFaZX3qD07RLFUMJsCV38oAuaca13AvhO+9yGw=="],
 
-    "workglow": ["workglow@0.0.126", "", { "dependencies": { "@workglow/ai": "0.0.126", "@workglow/ai-provider": "0.0.126", "@workglow/job-queue": "0.0.126", "@workglow/knowledge-base": "0.0.126", "@workglow/storage": "0.0.126", "@workglow/task-graph": "0.0.126", "@workglow/tasks": "0.0.126", "@workglow/util": "0.0.126", "tslog": "^4.9.3" }, "peerDependencies": { "@anthropic-ai/sdk": "^0.80.0", "@google/generative-ai": "^0.24.1", "@huggingface/transformers": "4.0.0-next.8", "@mediapipe/tasks-audio": "^0.10.34", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.34", "@mediapipe/tasks-vision": "^0.10.34", "@modelcontextprotocol/sdk": "^1.27.1", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@supabase/supabase-js": "^2.100.0", "better-sqlite3": "^12.8.0", "node-llama-cpp": "^3.18.1", "ollama": "^0.6.3", "openai": "^6.32.0", "pg": "^8.20.0" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/transformers", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "@sqlite.org/sqlite-wasm", "@supabase/supabase-js", "better-sqlite3", "node-llama-cpp", "ollama", "openai", "pg"] }, "sha512-VKS76MEKaBOunrAUUEWQ8oT5+/PkB2lS4AiIqj0BaLPZRXfeh6k4lrl9XmRLyXdw1OvkW/0JObissnRhB5VJzg=="],
+    "workglow": ["workglow@0.1.0", "", { "dependencies": { "@workglow/ai": "0.1.0", "@workglow/ai-provider": "0.1.0", "@workglow/job-queue": "0.1.0", "@workglow/knowledge-base": "0.1.0", "@workglow/storage": "0.1.0", "@workglow/task-graph": "0.1.0", "@workglow/tasks": "0.1.0", "@workglow/util": "0.1.0", "tslog": "^4.9.3" }, "peerDependencies": { "@anthropic-ai/sdk": "^0.80.0", "@google/generative-ai": "^0.24.1", "@huggingface/transformers": "^4.0.0", "@mediapipe/tasks-audio": "^0.10.34", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.34", "@mediapipe/tasks-vision": "^0.10.34", "@modelcontextprotocol/sdk": "^1.29.0", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@supabase/supabase-js": "^2.101.1", "better-sqlite3": "^12.8.0", "node-llama-cpp": "^3.18.1", "ollama": "^0.6.3", "openai": "^6.33.0", "pg": "^8.20.0" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/transformers", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "@sqlite.org/sqlite-wasm", "@supabase/supabase-js", "better-sqlite3", "node-llama-cpp", "ollama", "openai", "pg"] }, "sha512-xdtZwTAeAp/nliN4ONENFZuBdm9aehTcWOq9GjiIMfnvr2HLUltU5aGfge4OtUdClry7YSEqXahlJA8zwVcVog=="],
 
     "wrap-ansi": ["wrap-ansi@9.0.2", "", { "dependencies": { "ansi-styles": "^6.2.1", "string-width": "^7.0.0", "strip-ansi": "^7.1.0" } }, "sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww=="],
 
@@ -850,6 +850,24 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.1", "", { "peerDependencies": { "zod": "^3.25 || ^4" } }, "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA=="],
 
     "@sagold/json-query/@sagold/json-pointer": ["@sagold/json-pointer@5.1.2", "", {}, "sha512-+wAhJZBXa6MNxRScg6tkqEbChEHMgVZAhTHVJ60Y7sbtXtu9XA49KfUkdWlS2x78D6H9nryiKePiYozumauPfA=="],
+
+    "@workglow/ai/@workglow/job-queue": ["@workglow/job-queue@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-K7ZQFI2mJND7oomBvOA7K+qLEciEm1TKFe/fAZYGH8LMUr2830XSZUj+NMQYtGuSY+bPYFP2Xq/idfSw3DRy6A=="],
+
+    "@workglow/ai/@workglow/knowledge-base": ["@workglow/knowledge-base@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-Nalmb7kxFqRLiR7LH94pA4TE52r4w7vq5g57ndPOBU3dsChDQtEuYPkxAE8MUCxZzDX5iqSvkzIry2RxHou50g=="],
+
+    "@workglow/ai-provider/@workglow/job-queue": ["@workglow/job-queue@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-K7ZQFI2mJND7oomBvOA7K+qLEciEm1TKFe/fAZYGH8LMUr2830XSZUj+NMQYtGuSY+bPYFP2Xq/idfSw3DRy6A=="],
+
+    "@workglow/job-queue/@workglow/storage": ["@workglow/storage@0.1.0", "", { "peerDependencies": { "@electric-sql/pglite": "^0.4.2", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@sqliteai/sqlite-vector": "^0.9.90", "@supabase/supabase-js": "^2.101.1", "@workglow/util": "0.1.0", "better-sqlite3": "^12.8.0", "pg": "^8.20.0" }, "optionalPeers": ["@electric-sql/pglite", "@sqlite.org/sqlite-wasm", "@sqliteai/sqlite-vector", "@supabase/supabase-js", "better-sqlite3", "pg"] }, "sha512-tu4xwJyXFRYWtfNpXt6y8zOWhwcHFhvHRmYPbpeXNnGYskhz3MclRNay7vd1BCfVICED41G9OW8T669poQUrZA=="],
+
+    "@workglow/job-queue/@workglow/util": ["@workglow/util@0.1.0", "", { "dependencies": { "@sroussey/json-schema-library": "^11.0.0", "@sroussey/json-schema-to-ts": "3.1.4" } }, "sha512-NhBK8UV0ApsmI6J9Mh7oBz2FFP2iBnJzLVN3zlLlbTdIP8RY2/54ul792LWCUB0nDPVsPJ2a9PkbhPonjbxiRQ=="],
+
+    "@workglow/knowledge-base/@workglow/storage": ["@workglow/storage@0.1.0", "", { "peerDependencies": { "@electric-sql/pglite": "^0.4.2", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@sqliteai/sqlite-vector": "^0.9.90", "@supabase/supabase-js": "^2.101.1", "@workglow/util": "0.1.0", "better-sqlite3": "^12.8.0", "pg": "^8.20.0" }, "optionalPeers": ["@electric-sql/pglite", "@sqlite.org/sqlite-wasm", "@sqliteai/sqlite-vector", "@supabase/supabase-js", "better-sqlite3", "pg"] }, "sha512-tu4xwJyXFRYWtfNpXt6y8zOWhwcHFhvHRmYPbpeXNnGYskhz3MclRNay7vd1BCfVICED41G9OW8T669poQUrZA=="],
+
+    "@workglow/knowledge-base/@workglow/util": ["@workglow/util@0.1.0", "", { "dependencies": { "@sroussey/json-schema-library": "^11.0.0", "@sroussey/json-schema-to-ts": "3.1.4" } }, "sha512-NhBK8UV0ApsmI6J9Mh7oBz2FFP2iBnJzLVN3zlLlbTdIP8RY2/54ul792LWCUB0nDPVsPJ2a9PkbhPonjbxiRQ=="],
+
+    "@workglow/task-graph/@workglow/job-queue": ["@workglow/job-queue@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-K7ZQFI2mJND7oomBvOA7K+qLEciEm1TKFe/fAZYGH8LMUr2830XSZUj+NMQYtGuSY+bPYFP2Xq/idfSw3DRy6A=="],
+
+    "@workglow/tasks/@workglow/job-queue": ["@workglow/job-queue@0.0.126", "", { "peerDependencies": { "@workglow/storage": "0.0.126", "@workglow/util": "0.0.126" } }, "sha512-K7ZQFI2mJND7oomBvOA7K+qLEciEm1TKFe/fAZYGH8LMUr2830XSZUj+NMQYtGuSY+bPYFP2Xq/idfSw3DRy6A=="],
 
     "cliui/string-width": ["string-width@4.2.3", "", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
 
@@ -896,6 +914,18 @@
     "stdout-update/string-width": ["string-width@7.2.0", "", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
 
     "whatwg-encoding/iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "workglow/@workglow/ai": ["@workglow/ai@0.1.0", "", { "peerDependencies": { "@workglow/job-queue": "0.1.0", "@workglow/knowledge-base": "0.1.0", "@workglow/storage": "0.1.0", "@workglow/task-graph": "0.1.0", "@workglow/util": "0.1.0" } }, "sha512-QSWMvziaD6zxUlr+GfIzwL6sO+wmgCBZAz/stMliC4nZWVlavh0s/KU2b8dcGMdnRql18bDpHGaKZDjknunhnQ=="],
+
+    "workglow/@workglow/ai-provider": ["@workglow/ai-provider@0.1.0", "", { "peerDependencies": { "@anthropic-ai/sdk": "^0.80.0", "@google/generative-ai": "^0.24.1", "@huggingface/inference": "^4.13.15", "@huggingface/transformers": "^4.0.0", "@mediapipe/tasks-audio": "^0.10.34", "@mediapipe/tasks-genai": "^0.10.26", "@mediapipe/tasks-text": "^0.10.34", "@mediapipe/tasks-vision": "^0.10.34", "@workglow/ai": "0.1.0", "@workglow/job-queue": "0.1.0", "@workglow/storage": "0.1.0", "@workglow/task-graph": "0.1.0", "@workglow/util": "0.1.0", "js-tiktoken": "^1.0.16", "node-llama-cpp": "^3.18.1", "ollama": "^0.6.3", "openai": "^6.33.0", "tiktoken": "^1.0.22" }, "optionalPeers": ["@anthropic-ai/sdk", "@google/generative-ai", "@huggingface/inference", "@huggingface/transformers", "@mediapipe/tasks-audio", "@mediapipe/tasks-genai", "@mediapipe/tasks-text", "@mediapipe/tasks-vision", "js-tiktoken", "node-llama-cpp", "ollama", "openai", "tiktoken"] }, "sha512-tWsvJatgxjMuiXCFZcGzTor7QO3Jmi45xuFocm2YRvP1bBlx4F/Ho8Oyz+l4Exj8kgQreo9rXMxVgnJudwViGg=="],
+
+    "workglow/@workglow/storage": ["@workglow/storage@0.1.0", "", { "peerDependencies": { "@electric-sql/pglite": "^0.4.2", "@sqlite.org/sqlite-wasm": "^3.51.2-build8", "@sqliteai/sqlite-vector": "^0.9.90", "@supabase/supabase-js": "^2.101.1", "@workglow/util": "0.1.0", "better-sqlite3": "^12.8.0", "pg": "^8.20.0" }, "optionalPeers": ["@electric-sql/pglite", "@sqlite.org/sqlite-wasm", "@sqliteai/sqlite-vector", "@supabase/supabase-js", "better-sqlite3", "pg"] }, "sha512-tu4xwJyXFRYWtfNpXt6y8zOWhwcHFhvHRmYPbpeXNnGYskhz3MclRNay7vd1BCfVICED41G9OW8T669poQUrZA=="],
+
+    "workglow/@workglow/task-graph": ["@workglow/task-graph@0.1.0", "", { "peerDependencies": { "@workglow/job-queue": "0.1.0", "@workglow/storage": "0.1.0", "@workglow/util": "0.1.0" } }, "sha512-ekXoGvXsoXgIYCfj3E5PQT/6GCIT9uT8pbznoRe+Rj8Z496QeUn49AxArsFU2ArqkMlxXSfhP5dgixBJ3O/EBg=="],
+
+    "workglow/@workglow/tasks": ["@workglow/tasks@0.1.0", "", { "dependencies": { "papaparse": "^5.5.3" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "@workglow/job-queue": "0.1.0", "@workglow/storage": "0.1.0", "@workglow/task-graph": "0.1.0", "@workglow/util": "0.1.0" } }, "sha512-mj+xOjYeQbyOu71/8wBf4EFR8rmwA42UdOHiDmJf63llfquZSdBv4TQSkQB4ur09GhF7TStQjooItbylEecyOg=="],
+
+    "workglow/@workglow/util": ["@workglow/util@0.1.0", "", { "dependencies": { "@sroussey/json-schema-library": "^11.0.0", "@sroussey/json-schema-to-ts": "3.1.4" } }, "sha512-NhBK8UV0ApsmI6J9Mh7oBz2FFP2iBnJzLVN3zlLlbTdIP8RY2/54ul792LWCUB0nDPVsPJ2a9PkbhPonjbxiRQ=="],
 
     "wrap-ansi/string-width": ["string-width@7.2.0", "", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
 
