@@ -22,8 +22,10 @@ export function addFetchCommands(program: Command): void {
         const wf = new Workflow();
         wf.pipe(
           new FetchSubmissionsTask({
-            cik: parseInt(cik),
-            date: options.date ? secDate(options.date) : undefined,
+            defaults: {
+              cik: parseInt(cik),
+              date: options.date ? secDate(options.date) : undefined,
+            },
           }),
           new StoreSubmissionsTask()
         );
@@ -40,8 +42,10 @@ export function addFetchCommands(program: Command): void {
         const wf = new Workflow();
         wf.pipe(
           new FetchCompanyFactsTask({
-            cik: parseInt(cik),
-            date: options.date ? secDate(options.date) : undefined,
+            defaults: {
+              cik: parseInt(cik),
+              date: options.date ? secDate(options.date) : undefined,
+            },
           }),
           new StoreCompanyFactsTask()
         );
@@ -54,12 +58,11 @@ export function addFetchCommands(program: Command): void {
     .description("Fetch and store a specific form for a company")
     .action(async (cik: string, form: string, accession?: string) => {
       await runCommand(async () => {
-        const task = new FetchAndStoreFormsTask({
+        await withCli(new FetchAndStoreFormsTask()).run({
           cik: parseInt(cik),
           form,
           docid: accession,
         });
-        await withCli(task).run();
       });
     });
 
@@ -68,11 +71,10 @@ export function addFetchCommands(program: Command): void {
     .description("Process a specific accession document")
     .action(async (accession: string, filename?: string) => {
       await runCommand(async () => {
-        const task = new ProcessAccessionDocFormTask({
+        await withCli(new ProcessAccessionDocFormTask()).run({
           accessionNumber: accession,
           fileName: filename,
         });
-        await withCli(task).run();
       });
     });
 }

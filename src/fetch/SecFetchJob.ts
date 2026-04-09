@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput, JobQueueTaskConfig } from "workglow";
+import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput, JobConstructorParam } from "workglow";
 import { SecUserAgent } from "../config/Constants";
 
 export class SecFetchJob<
   Input extends FetchUrlTaskInput = FetchUrlTaskInput,
   Output = FetchUrlTaskOutput,
 > extends FetchUrlJob<Input, Output> {
-  constructor(config: JobQueueTaskConfig & { input: Input }) {
-    // Set SEC-specific headers
-    config.input.headers = {
+  constructor(config: JobConstructorParam<Input, Output>) {
+    const input = { ...config.input };
+    input.headers = {
       "User-Agent": SecUserAgent,
-      ...config.input.headers,
+      ...input.headers,
     };
-    super(config);
+    super({ ...config, input });
   }
 }

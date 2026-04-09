@@ -15,7 +15,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await withCli(new UpdateAllSubmissionsTask({ force: options.force })).run();
+          await withCli(new UpdateAllSubmissionsTask()).run({ force: options.force });
         },
         { force: options.force }
       );
@@ -28,7 +28,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await withCli(new UpdateAllCompanyFactsTask({ force: options.force })).run();
+          await withCli(new UpdateAllCompanyFactsTask()).run({ force: options.force });
         },
         { force: options.force }
       );
@@ -42,7 +42,7 @@ export function addUpdateCommands(program: Command): void {
       await runCommand(
         async () => {
           const formTypes = types.split(",");
-          await withCli(new UpdateAllFormsTask({ form: formTypes, force: options.force })).run();
+          await withCli(new UpdateAllFormsTask()).run({ form: formTypes, force: options.force });
         },
         { force: options.force }
       );

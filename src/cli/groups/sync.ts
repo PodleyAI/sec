@@ -17,14 +17,16 @@ export function addSyncCommand(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          const indexFlow = pipe([new FetchDailyIndexTask({}), new StoreCikLastUpdatedTask()]);
+          const indexFlow = pipe([new FetchDailyIndexTask(), new StoreCikLastUpdatedTask()]);
           await withCli(indexFlow).run();
 
-          await withCli(new UpdateAllSubmissionsTask({ force: options.force })).run();
-          await withCli(new UpdateAllCompanyFactsTask({ force: options.force })).run();
+          await withCli(new UpdateAllSubmissionsTask()).run({ force: options.force });
+          await withCli(new UpdateAllCompanyFactsTask()).run({
+            force: options.force,
+          });
 
           const formTypes = (options.forms as string).split(",");
-          await withCli(new UpdateAllFormsTask({ form: formTypes, force: options.force })).run();
+          await withCli(new UpdateAllFormsTask()).run({ form: formTypes, force: options.force });
         },
         { force: options.force }
       );

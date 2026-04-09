@@ -89,9 +89,10 @@ export abstract class SecCachedFetchTask<
 
   constructor(input: I, config: Partial<TaskConfig> = {}) {
     super(input as I & FetchUrlTaskInput, config);
-    if (!(input as FetchUrlTaskInput).response_type) {
-      const response_type = guessResponseType(this.inputToUrl(input), input as FetchUrlTaskInput);
-      (input as FetchUrlTaskInput).response_type = response_type;
+    const fetchInput = this.defaults as FetchUrlTaskInput & I;
+    if (!fetchInput.response_type) {
+      const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
+      fetchInput.response_type = response_type;
       (this.defaults as FetchUrlTaskInput).response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
     }
@@ -111,7 +112,7 @@ export abstract class SecCachedFetchTask<
     }
   }
 
-  execute(input: I & FetchUrlTaskInput, executeConfig: IExecuteContext): Promise<O | undefined> {
+  async execute(input: I & FetchUrlTaskInput, executeConfig: IExecuteContext): Promise<O> {
     const url = this.inputToUrl(input);
     const response_type = guessResponseType(url, input);
 
@@ -121,6 +122,6 @@ export abstract class SecCachedFetchTask<
       response_type: response_type,
     };
 
-    return super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig);
+    return (await super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig)) as O;
   }
 }

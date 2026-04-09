@@ -132,8 +132,8 @@ describe("FetchDailyIndexTask", () => {
     if (isErrorFile) {
       it(`should fail to get the daily index for ${date}`, async () => {
         try {
-          const task = new FetchDailyIndexTask({ date });
-          await task.run();
+          const task = new FetchDailyIndexTask();
+          await task.run({ date });
           expect.unreachable("This should not be reached");
         } catch (error: any) {
           expect(error).toBeInstanceOf(TaskFailedError);
@@ -141,7 +141,7 @@ describe("FetchDailyIndexTask", () => {
       });
     } else {
       it(`should get the daily index for ${date}`, async () => {
-        const results = await new FetchDailyIndexTask({ date }).run();
+        const results = await new FetchDailyIndexTask().run({ date });
         expect(results.updateList.length).toBeGreaterThan(100);
         expect(results.updateList[0][1]).toEqual(date);
       });

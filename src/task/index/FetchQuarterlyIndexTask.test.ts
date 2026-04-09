@@ -101,8 +101,8 @@ describe("FetchQuarterlyIndexTask", () => {
     if (isErrorFile) {
       it(`should fail to get the quarterly index for ${date}`, async () => {
         try {
-          const task = new FetchQuarterlyIndexTask({ date: generatedDate });
-          await task.run();
+          const task = new FetchQuarterlyIndexTask();
+          await task.run({ date: generatedDate });
           expect.unreachable("This should not be reached");
         } catch (error: any) {
           expect(error).toBeInstanceOf(TaskFailedError);
@@ -110,7 +110,7 @@ describe("FetchQuarterlyIndexTask", () => {
       });
     } else {
       it(`should get the quarterly index for ${date}`, async () => {
-        const results = await new FetchQuarterlyIndexTask({ date: generatedDate }).run();
+        const results = await new FetchQuarterlyIndexTask().run({ date: generatedDate });
         expect(results.updateList.length).toBeGreaterThan(100);
       });
     }

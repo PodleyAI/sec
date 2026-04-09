@@ -43,7 +43,12 @@ export function addBootstrapCommands(program: Command): void {
           const tasks: ITask[] = [];
           if (!options.skipDownload) {
             tasks.push(
-              ...Object.values(BULK_DOWNLOADS).map((config) => new BootstrapDownloadTask(config))
+              ...Object.values(BULK_DOWNLOADS).map(
+                (c) =>
+                  new BootstrapDownloadTask({
+                    defaults: { url: c.url, targetFolder: c.targetFolder },
+                  })
+              )
             );
           }
 
@@ -51,13 +56,13 @@ export function addBootstrapCommands(program: Command): void {
             tasks.push(
               new FetchAllCikNamesTask(),
               new StoreCikNamesTask(),
-              new BootstrapSubmissionsTask({ force }),
-              new BootstrapCompanyFactsTask({ force })
+              new BootstrapSubmissionsTask({ defaults: { force } }),
+              new BootstrapCompanyFactsTask({ defaults: { force } })
             );
           }
 
           if (!options.skipForms) {
-            tasks.push(new UpdateAllFormsTask({ form: ["D", "C"], force }));
+            tasks.push(new UpdateAllFormsTask({ defaults: { form: ["D", "C"], force } }));
           }
 
           if (tasks.length > 0) {
@@ -89,7 +94,9 @@ export function addBootstrapCommands(program: Command): void {
 
         for (const t of types) {
           const config = BULK_DOWNLOADS[t];
-          const task = new BootstrapDownloadTask(config);
+          const task = new BootstrapDownloadTask({
+            defaults: { url: config.url, targetFolder: config.targetFolder },
+          });
           await withCli(task).run();
         }
       });
@@ -110,11 +117,15 @@ export function addBootstrapCommands(program: Command): void {
           }
 
           if (target === "submissions" || target === "all") {
-            await withCli(new BootstrapSubmissionsTask({ force: options.force })).run();
+            await withCli(
+              new BootstrapSubmissionsTask({ defaults: { force: options.force } })
+            ).run();
           }
 
           if (target === "facts" || target === "all") {
-            await withCli(new BootstrapCompanyFactsTask({ force: options.force })).run();
+            await withCli(
+              new BootstrapCompanyFactsTask({ defaults: { force: options.force } })
+            ).run();
           }
 
           if (

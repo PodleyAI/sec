@@ -61,11 +61,11 @@ export class StoreSubmissionsTask extends Task<
     const workflow = context.own(new Workflow());
     workflow.pipe(
       parallel([
-        new StoreSubmissionSicTask(input),
-        new StoreSubmissionEntityTask(input),
-        new StoreSubmissionContactInfoTask(input),
-        new StoreSubmissionTickersTask(input),
-        new StoreSubmissionFilingsTask(input),
+        new StoreSubmissionSicTask({ defaults: input }),
+        new StoreSubmissionEntityTask({ defaults: input }),
+        new StoreSubmissionContactInfoTask({ defaults: input }),
+        new StoreSubmissionTickersTask({ defaults: input }),
+        new StoreSubmissionFilingsTask({ defaults: input }),
       ]),
       async function updateProcessing() {
         await processUpdateProcessing(cik, true);

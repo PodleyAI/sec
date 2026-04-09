@@ -6,15 +6,12 @@
 
 import {
   FetchUrlTask,
+  FetchUrlTaskConfig,
   FetchUrlTaskInput,
   FetchUrlTaskOutput,
-  Job,
-  JobConstructorParam,
-  JobQueueTaskConfig,
   TaskOutput,
 } from "workglow";
 import { SecJobQueueName, SecUserAgent } from "../config/Constants";
-import { SecFetchJob } from "./SecFetchJob";
 
 /**
  * SEC-specific fetch task
@@ -22,21 +19,20 @@ import { SecFetchJob } from "./SecFetchJob";
 export class SecFetchTask<
   Input extends FetchUrlTaskInput = FetchUrlTaskInput,
   Output extends TaskOutput = FetchUrlTaskOutput,
-  Config extends JobQueueTaskConfig = JobQueueTaskConfig,
+  Config extends FetchUrlTaskConfig = FetchUrlTaskConfig,
 > extends FetchUrlTask<Input, Output, Config> {
   constructor(input: FetchUrlTaskInput = {} as FetchUrlTaskInput, config: Config = {} as Config) {
-    config.queue = SecJobQueueName;
-    input.queue = SecJobQueueName;
-
-    if (input.headers) {
-      input.headers["User-Agent"] = SecUserAgent;
+    const defaults: FetchUrlTaskInput = { ...input };
+    if (defaults.headers) {
+      defaults.headers = { ...defaults.headers, "User-Agent": SecUserAgent };
     } else {
-      input.headers = { "User-Agent": SecUserAgent };
+      defaults.headers = { "User-Agent": SecUserAgent };
     }
 
-    super(input as Input, config);
-    this.jobClass = SecFetchJob as new (
-      config: JobConstructorParam<Input, Output>
-    ) => Job<Input, Output>;
+    super({
+      ...config,
+      queue: SecJobQueueName,
+      defaults: defaults as Partial<Input>,
+    });
   }
 }
