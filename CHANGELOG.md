@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.9
+
+### Chores
+
+- update @workglow packages to version 0.2.0
+
+### Updated Dependencies
+
+- `workglow`: 0.2.0
+- `@workglow/cli`: 0.2.0
+
 ## 0.0.8
 
 ### Refactors
