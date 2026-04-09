@@ -36,7 +36,7 @@
     "html-entities": "^2.6.0",
     "pdf2json": "^3.2.2",
     "pg": "^8.20.0",
-    "typebox": "1.1.6",
+    "typebox": "1.1.23",
     "words-to-numbers": "^1.5.1",
     "xml2js": "^0.6.2"
   },
