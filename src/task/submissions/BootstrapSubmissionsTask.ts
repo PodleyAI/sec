@@ -34,6 +34,12 @@ export class BootstrapSubmissionsTask extends Task<
   static readonly category = "SEC";
   static readonly cacheable = false;
 
+  public static inputSchema() {
+    return Type.Object({
+      force: Type.Optional(Type.Boolean()),
+    });
+  }
+
   public static outputSchema() {
     return Type.Object({
       success: Type.Boolean(),
@@ -47,7 +53,24 @@ export class BootstrapSubmissionsTask extends Task<
     const rawDataFolder = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
     const submissionsDir = resolve(rawDataFolder, "submissions");
 
-    const files = await readdir(submissionsDir);
+    let files: string[];
+    try {
+      files = await readdir(submissionsDir);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") {
+        if (isDryRun()) {
+          console.log(
+            `Would bootstrap CIK submissions after bulk data populates ${submissionsDir}`
+          );
+          return { success: true };
+        }
+        throw new Error(
+          `Submissions directory not found: ${submissionsDir}. Run bootstrap (with download) or \`bootstrap download submissions\` first.`
+        );
+      }
+      throw e;
+    }
     const ciks: number[] = [];
     for (const file of files) {
       const match = CIK_FILE_PATTERN.exec(file);

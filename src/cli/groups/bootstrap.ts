@@ -46,6 +46,7 @@ export function addBootstrapCommands(program: Command): void {
               ...Object.values(BULK_DOWNLOADS).map(
                 (c) =>
                   new BootstrapDownloadTask({
+                    title: `Download ${c.targetFolder}`,
                     defaults: { url: c.url, targetFolder: c.targetFolder },
                   })
               )

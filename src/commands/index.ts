@@ -22,7 +22,7 @@ import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fet
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
 
-  program.hook("preAction", (_thisCommand, actionCommand) => {
+  program.hook("preAction", async (_thisCommand, actionCommand) => {
     const commandName = actionCommand.name();
     if (commandName === "init") return;
     if (diInitialized) return;
@@ -39,7 +39,10 @@ export const AddCommands = (program: Command): void => {
       client: SecJobQueueClient,
       storage: SecJobQueueStorage,
     });
-    SecJobQueueServer.start();
+    // Must await: otherwise a fast command can finish and stopQueues() while start() is
+    // still in fixupJobs(); stop() then completes before workers start, and start()
+    // resumes and leaves workers running — process never exits (e.g. `sec db status`).
+    await SecJobQueueServer.start();
   });
 
   addBootstrapCommands(program);

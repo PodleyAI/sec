@@ -28,6 +28,13 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
   static readonly category = "SEC";
   static readonly cacheable = false;
 
+  public static inputSchema() {
+    return Type.Object({
+      form: Type.Array(Type.String()),
+      force: Type.Optional(Type.Boolean()),
+    });
+  }
+
   public static outputSchema() {
     return Type.Object({
       success: Type.Boolean(),

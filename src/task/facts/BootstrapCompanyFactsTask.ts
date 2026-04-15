@@ -35,6 +35,12 @@ export class BootstrapCompanyFactsTask extends Task<
   static readonly category = "SEC";
   static readonly cacheable = false;
 
+  public static inputSchema() {
+    return Type.Object({
+      force: Type.Optional(Type.Boolean()),
+    });
+  }
+
   public static outputSchema() {
     return Type.Object({
       success: Type.Boolean(),
@@ -48,7 +54,25 @@ export class BootstrapCompanyFactsTask extends Task<
     const rawDataFolder = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
     const companyfactsDir = resolve(rawDataFolder, "companyfacts");
 
-    const files = await readdir(companyfactsDir);
+    let files: string[];
+    try {
+      files = await readdir(companyfactsDir);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") {
+        if (isDryRun()) {
+          console.log(
+            `Would bootstrap CIK company facts after bulk data populates ${companyfactsDir}`
+          );
+          return { success: true };
+        }
+        throw new Error(
+          `Company facts directory not found: ${companyfactsDir}. Run bootstrap (with download) or \`bootstrap download facts\` first.`
+        );
+      }
+      throw e;
+    }
+
     const ciks: number[] = [];
     for (const file of files) {
       const match = CIK_FILE_PATTERN.exec(file);
