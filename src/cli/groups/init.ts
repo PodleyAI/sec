@@ -4,6 +4,8 @@ import { homedir } from "os";
 import { resolve } from "path";
 import { createInterface } from "readline";
 import { globalServiceRegistry, Sqlite } from "workglow";
+import { DefaultDI } from "../../config/DefaultDI";
+import { EnvToDI } from "../../config/EnvToDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN } from "../../config/tokens";
 import { parseGlobalOptions } from "../GlobalOptions";
@@ -142,9 +144,11 @@ export function addInitCommand(parent: Command): void {
           process.env.SEC_DB_NAME = config.dbName;
           process.env.SEC_RAW_DATA_FOLDER = config.rawDataFolder;
 
+          EnvToDI();
           if (config.dbType === "sqlite" && typeof Sqlite.init === "function") {
             await Sqlite.init();
           }
+          DefaultDI();
 
           await setupAllDatabases();
           console.log("Database tables created.");
