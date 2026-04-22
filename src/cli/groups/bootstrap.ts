@@ -9,7 +9,6 @@ import type { Command } from "commander";
 import { pipe, type ITask, type IWorkflow } from "workglow";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
-import { StoreCikNamesTask } from "../../task/ciknames/StoreCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
 import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
@@ -56,7 +55,6 @@ export function addBootstrapCommands(program: Command): void {
           if (!options.skipIngest) {
             tasks.push(
               new FetchAllCikNamesTask(),
-              new StoreCikNamesTask(),
               new BootstrapSubmissionsTask({ defaults: { force } }),
               new BootstrapCompanyFactsTask({ defaults: { force } })
             );
@@ -81,8 +79,7 @@ export function addBootstrapCommands(program: Command): void {
     .action(async (type: string) => {
       await runCommand(async () => {
         if (type === "ciks") {
-          const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-          await withCli(wf).run();
+          await withCli(new FetchAllCikNamesTask()).run();
           return;
         }
 
@@ -113,8 +110,7 @@ export function addBootstrapCommands(program: Command): void {
           const target = domain ?? "all";
 
           if (target === "cik-names" || target === "all") {
-            const wf = pipe([new FetchAllCikNamesTask(), new StoreCikNamesTask()]);
-            await withCli(wf).run();
+            await withCli(new FetchAllCikNamesTask()).run();
           }
 
           if (target === "submissions" || target === "all") {

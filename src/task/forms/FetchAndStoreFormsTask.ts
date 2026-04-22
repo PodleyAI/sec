@@ -70,7 +70,7 @@ export class FetchAndStoreFormsTask extends Task<
 
     if (filings.length > 0) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 5 });
+      const loop = wf.map({ concurrencyLimit: 5, maxIterations: filings.length });
       loop.pipe(new ProcessAccessionDocFormTask());
       loop.endMap();
       await wf.run({

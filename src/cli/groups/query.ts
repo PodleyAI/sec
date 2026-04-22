@@ -1,12 +1,13 @@
 import type { Command } from "commander";
 import { parseIntOption } from "../GlobalOptions";
+import { renderTable } from "../output/TableRenderer";
+import { queryCiks } from "../queries/CikQuery";
+import { queryCrowdfunding } from "../queries/CrowdfundingQuery";
 import { queryEntities } from "../queries/EntityQuery";
+import { queryFacts } from "../queries/FactsQuery";
 import { queryFilings } from "../queries/FilingQuery";
 import { queryOfferings } from "../queries/OfferingQuery";
-import { queryCrowdfunding } from "../queries/CrowdfundingQuery";
-import { queryFacts } from "../queries/FactsQuery";
 import { queryPersons } from "../queries/PersonQuery";
-import { renderTable } from "../output/TableRenderer";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
@@ -19,9 +20,46 @@ function validateFormat(value: string): OutputFormat {
 }
 
 export function addQueryCommands(program: Command): void {
-  const query = program
-    .command("query")
-    .description("Query stored SEC data");
+  const query = program.command("query").description("Query stored SEC data");
+
+  query
+    .command("cik <name>")
+    .description("Find CIK numbers by company name (searches the SEC cik_name list)")
+    .option("--exact", "Require exact case-insensitive name match", false)
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (name: string, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
+      const result = await queryCiks({
+        name,
+        exact: Boolean(options.exact),
+        limit,
+        offset,
+      });
+
+      const columns = [
+        { key: "cik", header: "CIK", width: 10 },
+        { key: "name", header: "Name", width: 60 },
+      ];
+
+      console.log(
+        renderTable(result.rows as Record<string, unknown>[], columns, {
+          format,
+          total: result.total,
+          offset,
+          limit,
+        })
+      );
+
+      if (result.tableEmpty && format === "table") {
+        console.log(
+          "\nThe cik_names table is empty. Run `sec bootstrap ingest cik-names` to populate it."
+        );
+      }
+    });
 
   query
     .command("entities [search]")

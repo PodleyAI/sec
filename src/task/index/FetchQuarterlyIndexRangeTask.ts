@@ -100,7 +100,7 @@ export class FetchQuarterlyIndexRangeTask extends Task<
     if (dates.length === 0) return { updateList: [] };
 
     const wf = context.own(new Workflow());
-    const loop = wf.map({ preserveOrder: false });
+    const loop = wf.map({ preserveOrder: false, maxIterations: dates.length });
     loop.pipe(new FetchQuarterlyIndexTask());
     loop.endMap();
     const results = await wf.run({ date: dates });

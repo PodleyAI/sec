@@ -105,7 +105,7 @@ export class BootstrapSubmissionsTask extends Task<
 
     if (ciksToProcess.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 2 });
+      const loop = wf.map({ concurrencyLimit: 2, maxIterations: ciksToProcess.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({

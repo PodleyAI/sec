@@ -92,7 +92,7 @@ export class UpdateAllCompanyFactsTask extends Task<
 
     if (needsUpdating.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 1 });
+      const loop = wf.map({ concurrencyLimit: 1, maxIterations: needsUpdating.length });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();
       await wf.run({
@@ -103,7 +103,7 @@ export class UpdateAllCompanyFactsTask extends Task<
 
     if (needsProcessing.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 10 });
+      const loop = wf.map({ concurrencyLimit: 10, maxIterations: needsProcessing.length });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();
       await wf.run({

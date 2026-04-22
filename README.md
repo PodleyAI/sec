@@ -55,6 +55,15 @@ You can retrieve and process this file using the following:
 ./src/sec.ts bootstrap-all-cik-names
 ```
 
+Once the CIK name list is ingested, you can look up a company's CIK by (partial) name:
+
+```bash
+./src/sec.ts query cik "apple"
+./src/sec.ts query cik "APPLE INC." --exact
+```
+
+Results are ranked exact-match first, then prefix, then substring, with shorter names ahead of longer ones.
+
 ## Indexes: Quarterly, and Daily
 
 The SEC publishes `txt` index files listing all submitted filings. Each entry includes:

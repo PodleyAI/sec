@@ -32,6 +32,7 @@ import {
   FOREIGN_REGISTRATION_FORM_NAMES,
   FOREIGN_REGISTRATION_FORM_NAMES_MAP,
 } from "./foreign-registration-statements";
+import { Form, type FormConstructor } from "./Form";
 import { INSIDER_TRADING_FORM_NAMES, INSIDER_TRADING_FORM_NAMES_MAP } from "./insider-trading";
 import {
   INVESTMENT_COMPANY_FORM_NAMES,
@@ -72,7 +73,6 @@ import {
   TRUST_INDENTURE_ACT_FORM_NAMES,
   TRUST_INDENTURE_ACT_FORM_NAMES_MAP,
 } from "./trust-indenture-act";
-import { FormConstructor } from "./Form";
 
 // Combine all form names into a single array
 export const ALL_FORM_NAMES = [
@@ -137,3 +137,16 @@ const ALL_FORMS_MAP_ARRAY = [
 ] as const;
 
 export const ALL_FORMS_MAP = new Map<string, FormConstructor>(ALL_FORMS_MAP_ARRAY);
+
+/**
+ * True when the form is registered in {@link ALL_FORMS_MAP} and the class
+ * overrides {@link Form.parse} (i.e. not the default stub that throws
+ * "Parsing not implemented for …").
+ */
+export function isFormParsingSupported(form: string): boolean {
+  const formCls = ALL_FORMS_MAP.get(form);
+  if (formCls === undefined) {
+    return false;
+  }
+  return formCls.parse !== Form.parse;
+}

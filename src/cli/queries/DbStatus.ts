@@ -2,6 +2,7 @@ import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
 import { COMPANY_REPOSITORY_TOKEN } from "../../storage/company/CompanySchema";
+import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -28,12 +29,14 @@ export interface TableStat {
   readonly rows: number;
 }
 
-async function countRows(
-  token: ServiceToken<{ getAll(): Promise<unknown[] | undefined> }>
-): Promise<number> {
+/**
+ * Counts rows in a repository via the storage `size()` method rather than
+ * loading every entity with `getAll()`. `cik_names` in particular has ~1M rows,
+ * so `getAll()` would be both slow and memory-hungry.
+ */
+async function countRows(token: ServiceToken<{ size(): Promise<number> }>): Promise<number> {
   const repo = globalServiceRegistry.get(token);
-  const all = (await repo.getAll()) ?? [];
-  return all.length;
+  return await repo.size();
 }
 
 export async function getDbStatus(): Promise<DbStatusResult> {
@@ -65,8 +68,9 @@ export async function getDbStatus(): Promise<DbStatusResult> {
 
 const TABLE_TOKENS: ReadonlyArray<{
   readonly table: string;
-  readonly token: ServiceToken<{ getAll(): Promise<unknown[] | undefined> }>;
+  readonly token: ServiceToken<{ size(): Promise<number> }>;
 }> = [
+  { table: "cik_names", token: CIK_NAME_REPOSITORY_TOKEN as any },
   { table: "entity", token: ENTITY_REPOSITORY_TOKEN as any },
   { table: "filing", token: FILING_REPOSITORY_TOKEN as any },
   { table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },

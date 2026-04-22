@@ -92,7 +92,7 @@ export class UpdateAllSubmissionsTask extends Task<
 
     if (needsUpdating.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 1 });
+      const loop = wf.map({ concurrencyLimit: 1, maxIterations: needsUpdating.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({
@@ -103,7 +103,7 @@ export class UpdateAllSubmissionsTask extends Task<
 
     if (needsInitialProcessing.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 2 });
+      const loop = wf.map({ concurrencyLimit: 2, maxIterations: needsInitialProcessing.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
       await wf.run({
