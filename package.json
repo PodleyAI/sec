@@ -24,7 +24,7 @@
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
     "workglow": "0.2.14",
-    "@workglow/cli": "0.2.14",
+    "@workglow/cli": "0.2.31",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
