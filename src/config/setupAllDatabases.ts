@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
@@ -18,6 +19,7 @@ import {
   COMPANY_REPOSITORY_TOKEN,
 } from "../storage/company/CompanySchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
+import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { ENTITY_TICKER_REPOSITORY_TOKEN } from "../storage/entity/EntityTickerSchema";
 import { SIC_CODE_REPOSITORY_TOKEN } from "../storage/entity/SicCodeSchema";
@@ -64,6 +66,7 @@ import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegASer
 export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
@@ -80,6 +83,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ISSUER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ENTITY_TICKER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SIC_CODE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN).setupDatabase();

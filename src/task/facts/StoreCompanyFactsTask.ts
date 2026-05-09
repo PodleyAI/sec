@@ -5,13 +5,7 @@
  */
 
 import { Type } from "typebox";
-import {
-  globalServiceRegistry,
-  IExecuteContext,
-  Task,
-  TaskAbortedError,
-  TaskError,
-} from "workglow";
+import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { Factoid } from "../../sec/facts/CompanyFacts";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
@@ -49,10 +43,20 @@ export class StoreCompanyFactsTask extends Task<
     context: IExecuteContext
   ): Promise<StoreCompanyFactsTaskOutput> {
     const factsArray: Factoid[] = input.facts.filter((f) => !!f);
-    if (!factsArray) throw new TaskError("No facts data to store");
 
     const companyFactsRepo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
+
+    if (factsArray.length === 0) {
+      if (input.date) {
+        await processedFactsRepo.put({
+          cik: input.cik,
+          last_processed: input.date,
+          success: true,
+        });
+      }
+      return { success: true };
+    }
 
     let progress = 0;
     const batchSize = 1000;

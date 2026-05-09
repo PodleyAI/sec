@@ -5,11 +5,15 @@
  */
 
 import { mkdirSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FetchUrlTaskOutput, TaskInput, TaskOutput, TaskOutputRepository } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
 import { secDate, YYYYdMMdDD } from "../util/parseDate";
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
 
 interface SecFetchFileOutputCacheOptions {
   folderPath: string;
@@ -37,6 +41,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     } else if (response_type === "text") {
       return output.text;
     } else if (response_type === "blob") {
+      // writeFile cannot consume a Blob directly; convert to a Buffer.
       return output.blob;
     } else {
       console.warn(`Unknown response type: ${response_type}, assuming text`);
@@ -53,7 +58,9 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
       result.text = data.toString();
     }
     if (response_type === "blob") {
-      result.blob = data as Blob;
+      // readFile returns a Buffer; wrap it back into a Blob so downstream
+      // consumers see the same shape they wrote.
+      result.blob = data instanceof Blob ? data : new Blob([data]);
     }
     return result;
   }
@@ -68,11 +75,30 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     if (isDryRun()) {
       return;
     }
+    const responseType = input.response_type as string;
     const filePath = path.join(this.folderPath, this.inputToFileName(input));
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, this.outputSerializer(output, input.response_type as string), {
-      encoding: input.response_type !== "blob" ? "utf-8" : "binary",
-    });
+
+    // Write to a unique tmp file then atomically rename so an interrupted
+    // write never produces a truncated cache entry, and so two concurrent
+    // writers cannot interleave bytes targeting the same key.
+    const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now().toString(36)}.${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    let serialized = this.outputSerializer(output, responseType);
+    if (responseType === "blob" && serialized instanceof Blob) {
+      serialized = Buffer.from(await serialized.arrayBuffer());
+    }
+    try {
+      await writeFile(tmpPath, serialized, {
+        encoding: responseType !== "blob" ? "utf-8" : "binary",
+      });
+      await rename(tmpPath, filePath);
+    } catch (error) {
+      // best-effort cleanup; ignore if the tmp file was never created
+      await unlink(tmpPath).catch(() => undefined);
+      throw error;
+    }
     this.emit("output_saved", taskType);
   }
 
@@ -90,7 +116,9 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     try {
       if (inputs.date) {
         const stats = await stat(filePath);
-        // if the file was created a day before the date, return undefined
+        // The cache entry is fresh only if it was written on or after the
+        // input date; older mtimes mean SEC may have published newer data
+        // since the entry was cached.
         const fileDate = secDate(new Date(stats.mtime));
         const inputDate = secDate(inputs.date);
         if (fileDate < inputDate) {
@@ -103,7 +131,14 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
         this.emit("output_retrieved", taskType);
         return this.outputDeserializer(data, inputs.response_type as string);
       }
-    } catch (error) {}
+    } catch (error) {
+      // ENOENT is the expected "cache miss" path; surface anything else so
+      // permission/disk/format errors aren't silently swallowed.
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return undefined;
+      }
+      throw error;
+    }
     return undefined;
   }
 

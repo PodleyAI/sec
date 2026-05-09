@@ -18,12 +18,16 @@ export abstract class Form {
     throw new Error(`Parsing not implemented for ${form}`);
   }
 
-  private static _arrayPaths = new Map<string, string[]>();
+  // Keyed by the subclass constructor itself rather than `this.name`, since
+  // multiple Form subclasses set `name` to a human-readable description and
+  // collisions there would silently return another form's array paths.
+  private static _arrayPaths = new WeakMap<Function, string[]>();
   protected static getParser(schema: TObject): XMLParser {
-    if (!this._arrayPaths.has(this.name)) {
-      this._arrayPaths.set(this.name, extractArrayPaths(schema));
+    let paths = this._arrayPaths.get(this);
+    if (!paths) {
+      paths = extractArrayPaths(schema);
+      this._arrayPaths.set(this, paths);
     }
-    const paths = this._arrayPaths.get(this.name)!;
 
     const options: Partial<X2jOptions> = {
       ignoreAttributes: true,

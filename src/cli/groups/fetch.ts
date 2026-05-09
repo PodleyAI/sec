@@ -13,6 +13,14 @@ import { secDate } from "../../util/parseDate";
 import { renderTable } from "../output/TableRenderer";
 import { runCommand } from "../runCommand";
 
+function parseCikArg(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid CIK "${value}": must be a positive integer`);
+  }
+  return parsed;
+}
+
 async function listAvailableFormTypesForCik(cik: number): Promise<void> {
   const entityRepo = new EntityRepo();
   const filings = await entityRepo.getFilings(cik);
@@ -62,7 +70,7 @@ export function addFetchCommands(program: Command): void {
         wf.pipe(
           new FetchSubmissionsTask({
             defaults: {
-              cik: parseInt(cik),
+              cik: parseCikArg(cik),
               date: options.date ? secDate(options.date) : undefined,
             },
           }),
@@ -82,7 +90,7 @@ export function addFetchCommands(program: Command): void {
         wf.pipe(
           new FetchCompanyFactsTask({
             defaults: {
-              cik: parseInt(cik),
+              cik: parseCikArg(cik),
               date: options.date ? secDate(options.date) : undefined,
             },
           }),
@@ -99,7 +107,7 @@ export function addFetchCommands(program: Command): void {
     )
     .action(async (cik: string, form?: string, accession?: string) => {
       await runCommand(async () => {
-        const cikNum = parseInt(cik, 10);
+        const cikNum = parseCikArg(cik);
         if (form === undefined) {
           await listAvailableFormTypesForCik(cikNum);
           return;

@@ -16,6 +16,8 @@ export async function fetchAndStoreSubmission(
   try {
     await pipeline.run(input);
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`Failed to fetch/store submission for CIK ${input.cik}: ${message}`);
     await processUpdateProcessing(input.cik, false);
   }
   // Per-item failures are recorded above; the map task itself always succeeds

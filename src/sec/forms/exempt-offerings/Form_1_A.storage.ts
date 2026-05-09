@@ -5,10 +5,23 @@
  */
 
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { US_STATE_CODE_ARRAY } from "../../../storage/address/AddressSchemaCodes";
 import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+
+const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
+
+/**
+ * EDGAR's `stateOrCountry` field stores either a 2-char US state code (e.g.
+ * "NY") or a 2-char ISO country code (e.g. "GB"). Both are 2 characters wide,
+ * so the country can only be inferred from set membership, not from length.
+ */
+function resolveCountryCode(stateOrCountry: string | undefined | null): string | undefined {
+  if (!stateOrCountry) return undefined;
+  return US_STATE_CODE_SET.has(stateOrCountry) ? "US" : stateOrCountry;
+}
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
@@ -63,7 +76,7 @@ async function processIssuer(cik: number, form1A: Form1A): Promise<void> {
   // Issuer phone
   const phone = await phoneRepo.savePhone({
     phone_raw: issuerInfo.phoneNumber,
-    country_code: issuerInfo.stateOrCountry?.length === 2 ? "US" : issuerInfo.stateOrCountry,
+    country_code: resolveCountryCode(issuerInfo.stateOrCountry),
   });
   await phoneRepo.saveRelatedEntity(phone.international_number, RELATION_TYPE_REGA_ISSUER, cik);
   await companyRepo.saveRelatedPhone(

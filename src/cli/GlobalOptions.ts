@@ -5,7 +5,6 @@ export interface GlobalOptions {
   readonly verbose: boolean;
   readonly dryRun: boolean;
   readonly color: boolean;
-  readonly concurrency: number | undefined;
 }
 
 export function applyGlobalOptions(program: Command): Command {
@@ -13,8 +12,7 @@ export function applyGlobalOptions(program: Command): Command {
     .option("--json", "Force JSON output", false)
     .option("--verbose", "Show detailed logs", false)
     .option("--dry-run", "Show what would happen without changes", false)
-    .option("--no-color", "Disable colored output")
-    .option("--concurrency <n>", "Override default concurrency", parseIntOption);
+    .option("--no-color", "Disable colored output");
 }
 
 export function parseGlobalOptions(cmd: Command): GlobalOptions {
@@ -24,7 +22,6 @@ export function parseGlobalOptions(cmd: Command): GlobalOptions {
     verbose: opts.verbose ?? false,
     dryRun: opts.dryRun ?? false,
     color: opts.color ?? true,
-    concurrency: opts.concurrency,
   };
 }
 

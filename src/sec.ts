@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 
 import { program } from "commander";
-import { getTaskQueueRegistry, Sqlite } from "workglow";
+import { getTaskQueueRegistry } from "workglow";
 import { applyGlobalOptions } from "./cli/GlobalOptions";
 import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
+import { closeDb } from "./util/db";
+import { closePgPool } from "./util/pg";
 
 program
   .version("2.0.0")
@@ -12,11 +14,6 @@ program
 
 applyGlobalOptions(program);
 AddCommands(program);
-
-const secDbType = process.env.SEC_DB_TYPE ?? "sqlite";
-if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
-  await Sqlite.init();
-}
 
 try {
   await program.parseAsync(process.argv);
@@ -26,6 +23,8 @@ try {
     process.exit(1);
   }
   throw e;
+} finally {
+  await getTaskQueueRegistry().stopQueues();
+  closeDb();
+  await closePgPool();
 }
-
-await getTaskQueueRegistry().stopQueues();

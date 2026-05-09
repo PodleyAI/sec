@@ -6,6 +6,11 @@
 
 import { globalServiceRegistry } from "workglow";
 import {
+  ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
+  AddressesEntityHistoryJunctionSchema,
+  AddressHistoryJunctionPrimaryKeyNames,
+} from "../storage/address/AddressHistorySchema";
+import {
   Address,
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
@@ -42,6 +47,11 @@ import {
   CikNamePrimaryKeyNames,
   CikNameSchema,
 } from "../storage/entity/CikNameSchema";
+import {
+  ENTITY_HISTORY_REPOSITORY_TOKEN,
+  EntityHistoryPrimaryKeyNames,
+  EntityHistorySchema,
+} from "../storage/entity/EntityHistorySchema";
 import {
   ENTITY_REPOSITORY_TOKEN,
   EntityPrimaryKeyNames,
@@ -197,6 +207,15 @@ export const DefaultDI = () => {
       ["cik"],
     ])
   );
+  globalServiceRegistry.registerInstance(
+    ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
+    createStorage(
+      "addresses_entity_history_junction",
+      AddressesEntityHistoryJunctionSchema,
+      AddressHistoryJunctionPrimaryKeyNames,
+      [["cik"]]
+    )
+  );
   // ------------------------------ Persons --------------------------------
   globalServiceRegistry.registerInstance(
     PERSON_REPOSITORY_TOKEN,
@@ -331,6 +350,12 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     ENTITY_REPOSITORY_TOKEN,
     createStorage("entities", EntitySchema, EntityPrimaryKeyNames, [["name"], ["sic"]])
+  );
+  globalServiceRegistry.registerInstance(
+    ENTITY_HISTORY_REPOSITORY_TOKEN,
+    createStorage("entities_history", EntityHistorySchema, EntityHistoryPrimaryKeyNames, [
+      ["valid_to"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     ENTITY_TICKER_REPOSITORY_TOKEN,
