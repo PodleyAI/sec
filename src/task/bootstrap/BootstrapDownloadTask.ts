@@ -82,8 +82,8 @@ export class BootstrapDownloadTask extends Task<
     });
 
     const fetched = await fetchJob.execute(fetchJob.input, {
-      signal: executeContext.signal,
-      updateProgress: executeContext.updateProgress.bind(executeContext),
+      signal: context.signal,
+      updateProgress: context.updateProgress.bind(context),
     });
 
     if (!fetched.blob) {
@@ -96,7 +96,7 @@ export class BootstrapDownloadTask extends Task<
       console.log(`Download size: ~${sizeMB} MB`);
     }
 
-    await Bun.write(zipPath, fetched.blob);
+    await Bun.write(zipPath, fetched.blob as Blob);
     console.log(`Download complete. Extracting to ${targetDir} ...`);
 
     const unzipPath = Bun.which("unzip");
