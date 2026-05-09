@@ -8,8 +8,20 @@ import { Glob } from "bun";
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { setTaskQueueRegistry, TaskFailedError } from "workglow";
+import {
+  EvenlySpacedRateLimiter,
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  getTaskQueueRegistry,
+  InMemoryQueueStorage,
+  JobQueueClient,
+  JobQueueServer,
+  setTaskQueueRegistry,
+  TaskFailedError,
+} from "workglow";
+import { SecJobQueueName } from "../../config/Constants";
 import { EnvToDI } from "../../config/EnvToDI";
+import { SecFetchJob } from "../../fetch/SecFetchJob";
 import { FetchQuarterlyIndexTask } from "./FetchQuarterlyIndexTask";
 
 // Get all daily index files using glob pattern
@@ -75,15 +87,34 @@ const oldFetch = global.fetch;
 
 EnvToDI();
 describe("FetchQuarterlyIndexTask", () => {
-  let db: any;
+  let server: JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>;
 
-  beforeAll(async () => {
+  beforeAll(() => {
     (global as any).fetch = mockFetch;
-    await setTaskQueueRegistry(null);
+
+    const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
+      SecJobQueueName
+    );
+    server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(SecFetchJob, {
+      queueName: SecJobQueueName,
+      storage,
+      limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
+      pollIntervalMs: 1,
+    });
+    const client = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
+      storage,
+      queueName: SecJobQueueName,
+    });
+
+    client.attach(server);
+
+    getTaskQueueRegistry().registerQueue({ server, client, storage });
+    server.start();
   });
 
   afterAll(async () => {
     (global as any).fetch = oldFetch;
+    await server.stop();
     await setTaskQueueRegistry(null);
   });
 

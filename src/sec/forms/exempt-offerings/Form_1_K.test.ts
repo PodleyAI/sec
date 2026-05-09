@@ -1,5 +1,5 @@
 //    *******************************************************************************
-//    *   PODLEY.AI: Your Agentic AI library                                        *
+//    *   Workglow: SEC example                                                     *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
@@ -9,7 +9,6 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { Form_1_K } from "./Form_1_K";
-import type { Form1K } from "./Form_1_K.schema";
 
 describe("Form_1_K parsing test", () => {
   describe("Form 1-K parsing with all mock data", () => {

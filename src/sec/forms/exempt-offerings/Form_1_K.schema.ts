@@ -1,25 +1,24 @@
 //    *******************************************************************************
-//    *   PODLEY.AI: Your Agentic AI library                                        *
+//    *   Workglow: SEC example                                                     *
 //    *                                                                             *
 //    *   Copyright Steven Roussey <sroussey@gmail.com>                             *
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { Type, Static } from "typebox";
+import { Static, Type } from "typebox";
+import { STATE_COUNTRY_CODE } from "../../../storage/address/AddressSchema";
 import {
-  TRUE_FALSE_LIST,
+  CIK_TYPE,
+  EMAIL_TYPE,
+  ENTITY_NAME_TYPE,
+  PHONE_NUMBER_TYPE,
+  SCHEMA_VERSION_TYPE,
+  STREET_TYPE,
   STRING_150_TYPE,
   STRING_255_TYPE,
-  ENTITY_NAME_TYPE,
-  CIK_TYPE,
-  SCHEMA_VERSION_TYPE,
-  PHONE_NUMBER_TYPE,
-  EMAIL_TYPE,
-  STREET_TYPE,
-  CITY_TYPE,
+  TRUE_FALSE_LIST,
   ZIP_CODE_TYPE,
 } from "../FormSchemaUtil";
-import { STATE_COUNTRY_CODE } from "../../../storage/address/AddressSchema";
 
 export const SUBMISSION_TYPE = Type.Union([Type.Literal("1-K"), Type.Literal("1-K/A")]);
 

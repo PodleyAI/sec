@@ -7,10 +7,11 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { Type } from "typebox";
+import type { FetchUrlTaskInput } from "workglow";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
-import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { SecFetchJob } from "../../fetch/SecFetchJob";
 
 export type BootstrapDownloadTaskInput = {
   readonly url: string;
@@ -72,21 +73,30 @@ export class BootstrapDownloadTask extends Task<
     const zipPath = join(rawDataFolder, `${input.targetFolder}.zip`);
 
     console.log(`Downloading ${input.url} ...`);
-    const response = await fetch(input.url, {
-      headers: { "User-Agent": SecUserAgent },
+
+    const fetchJob = new SecFetchJob({
+      input: {
+        url: input.url,
+        response_type: "blob",
+      } satisfies FetchUrlTaskInput,
     });
 
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    const fetched = await fetchJob.execute(fetchJob.input, {
+      signal: executeContext.signal,
+      updateProgress: executeContext.updateProgress.bind(executeContext),
+    });
+
+    if (!fetched.blob) {
+      throw new Error("SEC fetch returned no blob body");
     }
 
-    const contentLength = response.headers.get("Content-Length");
-    if (contentLength) {
-      const sizeMB = (parseInt(contentLength, 10) / (1024 * 1024)).toFixed(0);
+    const len = fetched.metadata?.headers?.["content-length"];
+    if (len) {
+      const sizeMB = (parseInt(len, 10) / (1024 * 1024)).toFixed(0);
       console.log(`Download size: ~${sizeMB} MB`);
     }
 
-    await Bun.write(zipPath, response);
+    await Bun.write(zipPath, fetched.blob);
     console.log(`Download complete. Extracting to ${targetDir} ...`);
 
     const unzipPath = Bun.which("unzip");
