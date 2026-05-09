@@ -59,4 +59,93 @@ describe("SecFetchJob", () => {
       server.stop();
     }
   });
+
+  describe("retry behavior", () => {
+    it("retries on 429 honoring Retry-After and eventually succeeds", async () => {
+      let attempts = 0;
+      const server = Bun.serve({
+        port: 0,
+        fetch() {
+          attempts++;
+          if (attempts < 3) {
+            return new Response("rate limited", {
+              status: 429,
+              headers: { "Retry-After": "0" },
+            });
+          }
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        },
+      });
+      try {
+        const url = `http://127.0.0.1:${server.port}/x.json`;
+        const job = new SecFetchJob({
+          input: { url, response_type: "json" } satisfies FetchUrlTaskInput,
+        });
+        const out = await job.execute(job.input, {
+          signal: new AbortController().signal,
+          updateProgress: async () => {},
+        });
+        expect(attempts).toBe(3);
+        expect((out as { json?: { ok?: boolean } }).json?.ok).toBe(true);
+      } finally {
+        server.stop();
+      }
+    }, 15_000);
+
+    it("retries on 5xx and ultimately surfaces the error", async () => {
+      let attempts = 0;
+      const server = Bun.serve({
+        port: 0,
+        fetch() {
+          attempts++;
+          return new Response("boom", { status: 503 });
+        },
+      });
+      try {
+        const url = `http://127.0.0.1:${server.port}/x.json`;
+        const job = new SecFetchJob({
+          input: { url, response_type: "json" } satisfies FetchUrlTaskInput,
+        });
+        await expect(
+          job.execute(job.input, {
+            signal: new AbortController().signal,
+            updateProgress: async () => {},
+          })
+        ).rejects.toBeDefined();
+        // Retried at least once before giving up.
+        expect(attempts).toBeGreaterThan(1);
+      } finally {
+        server.stop();
+      }
+    }, 30_000);
+
+    it("does not retry on 404 (non-retriable) and fails fast", async () => {
+      let attempts = 0;
+      const server = Bun.serve({
+        port: 0,
+        fetch() {
+          attempts++;
+          return new Response("not found", { status: 404 });
+        },
+      });
+      try {
+        const url = `http://127.0.0.1:${server.port}/missing.json`;
+        const job = new SecFetchJob({
+          input: { url, response_type: "json" } satisfies FetchUrlTaskInput,
+        });
+        await expect(
+          job.execute(job.input, {
+            signal: new AbortController().signal,
+            updateProgress: async () => {},
+          })
+        ).rejects.toBeDefined();
+        expect(attempts).toBe(1);
+      } finally {
+        server.stop();
+      }
+    }, 10_000);
+  });
 });

@@ -25,8 +25,12 @@ const RELATION_TYPE_SIGNATURE = "form-c:signature";
  */
 function parseCikSafely(raw: string | undefined | null): number {
   if (!raw) return 0;
-  const parsed = Number.parseInt(String(raw).trim(), 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  const trimmed = String(raw).trim();
+  // Require all digits — parseInt would accept "123abc" as 123, which is a
+  // plausible but wrong CIK.
+  if (!/^\d+$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**

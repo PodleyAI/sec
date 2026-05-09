@@ -26,20 +26,25 @@ import { InvestmentOffering } from "../../../storage/investment-offering/Investm
 import { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 
 /**
- * Coerce a numeric-shaped string into a finite integer or null. Used for
- * EDGAR-emitted strings that may carry stray whitespace or non-digit cruft;
- * `parseInt` would silently turn those into `NaN` and store junk.
+ * Coerce a numeric-shaped string into a finite integer or null. EDGAR-emitted
+ * strings can carry stray whitespace or non-digit cruft; `parseInt` would
+ * silently swallow trailing junk (e.g. "123abc" → 123). We require the entire
+ * trimmed value to be digits (with an optional leading sign) before parsing.
  */
-function parseIntegerOrNull(raw: string | undefined | null): number | null {
+function parseIntegerOrNull(raw: string | number | undefined | null): number | null {
   if (raw === undefined || raw === null || raw === "") return null;
-  const parsed = Number.parseInt(String(raw).trim(), 10);
+  const trimmed = String(raw).trim();
+  if (!/^-?\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseCikSafely(raw: string | number | undefined | null): number {
   if (raw === undefined || raw === null) return 0;
-  const parsed = Number.parseInt(String(raw).trim(), 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  const trimmed = String(raw).trim();
+  if (!/^\d+$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 // relation types for form-d

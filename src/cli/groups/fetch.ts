@@ -14,7 +14,13 @@ import { renderTable } from "../output/TableRenderer";
 import { runCommand } from "../runCommand";
 
 function parseCikArg(value: string): number {
-  const parsed = Number.parseInt(value, 10);
+  // Require an all-digit string. parseInt would silently accept "123abc" as
+  // 123 and produce a plausible-looking but wrong CIK.
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(`Invalid CIK "${value}": must be a positive integer`);
+  }
+  const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`Invalid CIK "${value}": must be a positive integer`);
   }

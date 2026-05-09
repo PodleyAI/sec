@@ -15,16 +15,31 @@ program
 applyGlobalOptions(program);
 AddCommands(program);
 
+let primaryError: unknown;
 try {
   await program.parseAsync(process.argv);
 } catch (e) {
+  primaryError = e;
   if (e instanceof SecCliConfigurationError) {
     console.error(e.message);
-    process.exit(1);
+    process.exitCode = 1;
   }
-  throw e;
 } finally {
-  await getTaskQueueRegistry().stopQueues();
-  closeDb();
-  await closePgPool();
+  // Run shutdown via allSettled so a crashing cleanup step can't mask the
+  // primary command failure or skip later cleanup. process.exit() would
+  // bypass this block entirely, so we use exitCode + rethrow instead.
+  const cleanups = await Promise.allSettled([
+    getTaskQueueRegistry().stopQueues(),
+    Promise.resolve().then(() => closeDb()),
+    closePgPool(),
+  ]);
+  for (const result of cleanups) {
+    if (result.status === "rejected") {
+      console.error("Cleanup error:", result.reason);
+    }
+  }
+}
+
+if (primaryError !== undefined && !(primaryError instanceof SecCliConfigurationError)) {
+  throw primaryError;
 }
