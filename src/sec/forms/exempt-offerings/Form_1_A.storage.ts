@@ -5,10 +5,43 @@
  */
 
 import { AddressRepo } from "../../../storage/address/AddressRepo";
+import {
+  COUNTRY_STATE_CODE_ARRAY,
+  US_STATE_CODE_ARRAY,
+} from "../../../storage/address/AddressSchemaCodes";
 import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+
+const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
+
+// SEC's stateOrCountry field uses SEC-specific 2-char codes for non-US
+// countries (e.g. "B3" = Albania). PhoneSchema.country_code is documented as
+// ISO 3166-1 alpha-2 and gets passed to phone parsing as a regionCode, so we
+// have to translate. Map SEC code → ISO; also accept already-ISO inputs.
+const SEC_CODE_TO_ISO = new Map<string, string>(
+  COUNTRY_STATE_CODE_ARRAY.map(([iso, secCode]) => [secCode as string, iso as string])
+);
+const ISO_CODE_SET = new Set<string>(COUNTRY_STATE_CODE_ARRAY.map(([iso]) => iso as string));
+
+/**
+ * Resolve EDGAR's `stateOrCountry` field to an ISO 3166-1 alpha-2 country
+ * code. US state codes resolve to "US"; SEC country codes are mapped to ISO;
+ * inputs that are already ISO pass through. Returns undefined when nothing
+ * matches so PhoneRepo can fall back to its own defaults rather than
+ * receiving a bogus regionCode.
+ */
+function resolveCountryCode(stateOrCountry: string | undefined | null): string | undefined {
+  if (!stateOrCountry) return undefined;
+  const code = stateOrCountry.trim().toUpperCase();
+  if (!code) return undefined;
+  if (US_STATE_CODE_SET.has(code)) return "US";
+  const iso = SEC_CODE_TO_ISO.get(code);
+  if (iso) return iso;
+  if (ISO_CODE_SET.has(code)) return code;
+  return undefined;
+}
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
@@ -63,7 +96,7 @@ async function processIssuer(cik: number, form1A: Form1A): Promise<void> {
   // Issuer phone
   const phone = await phoneRepo.savePhone({
     phone_raw: issuerInfo.phoneNumber,
-    country_code: issuerInfo.stateOrCountry?.length === 2 ? "US" : issuerInfo.stateOrCountry,
+    country_code: resolveCountryCode(issuerInfo.stateOrCountry),
   });
   await phoneRepo.saveRelatedEntity(phone.international_number, RELATION_TYPE_REGA_ISSUER, cik);
   await companyRepo.saveRelatedPhone(

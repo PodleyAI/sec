@@ -74,7 +74,9 @@ export class FetchCompanyFactsTask extends Task<
     context: IExecuteContext
   ): Promise<FetchCompanyFactsTaskOutput> {
     const cik = input.cik;
-    if (!cik) return { facts: [], cik: 0 };
+    if (!cik) {
+      return { facts: [], cik: 0, date: input.date ? secDate(input.date) : undefined };
+    }
 
     this._secFetch ??= context.own(new SecFetchCompanyFactsTask(input));
     this._secFetch.setDefaults(input);

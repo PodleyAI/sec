@@ -1,8 +1,9 @@
 import type { Command } from "commander";
+import { resetAllDatabases } from "../../config/resetAllDatabases";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { runCommand } from "../runCommand";
-import { getDbStatus, getDbStats } from "../queries/DbStatus";
 import { renderTable } from "../output/TableRenderer";
+import { getDbStats, getDbStatus } from "../queries/DbStatus";
+import { runCommand } from "../runCommand";
 
 export function addDbCommands(program: Command): void {
   const db = program.command("db").description("Database management commands");
@@ -67,6 +68,10 @@ export function addDbCommands(program: Command): void {
         process.exitCode = 1;
         return;
       }
-      console.log("not yet implemented");
+      await runCommand(async () => {
+        await resetAllDatabases();
+        await setupAllDatabases();
+        console.log("Database reset complete.");
+      });
     });
 }

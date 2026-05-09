@@ -20,7 +20,7 @@ export const InvestmentOfferingHistorySchema = Type.Object({
     description: "SEC file number for the offering",
   }),
   accession_number: Type.String({
-    maxLength: 10,
+    maxLength: 20,
     description: "SEC accession number for the specific filing",
   }),
   minimum_investment_accepted: TypeNullable(

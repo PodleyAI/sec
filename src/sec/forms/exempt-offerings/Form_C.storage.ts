@@ -11,36 +11,26 @@ import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import { CrowdfundingTemporalRepo } from "../../../storage/portal/CrowdfundingTemporalRepo";
 import type { Crowdfunding, CrowdfundingOfferings, CrowdfundingReports } from "../../../storage/portal/CrowdfundingSchema";
+import { isBadPersonField } from "../../../types/edgar/bad-data";
 import type { FormC } from "./Form_C.schema";
 
 const RELATION_TYPE_ISSUER = "form-c:issuer";
 const RELATION_TYPE_CO_ISSUER = "form-c:co-issuer";
 const RELATION_TYPE_SIGNATURE = "form-c:signature";
 
-function isBadPersonField(field: string | undefined): boolean {
-  const baddies = [
-    "n/a",
-    "na",
-    "none",
-    "(none)",
-    "[none]",
-    "-",
-    "--",
-    "---",
-    "----",
-    ".",
-    "..",
-    "...",
-    "....",
-    "_",
-    "__",
-    "___",
-    "____",
-  ];
-  if (!field) return true;
-  const fieldLower = String(field).toLowerCase().trim();
-  if (baddies.includes(fieldLower)) return true;
-  return false;
+/**
+ * Coerce a CIK-shaped string into a non-negative integer, or 0 if the input is
+ * missing/non-numeric. EDGAR occasionally emits non-digit cruft (whitespace,
+ * stray punctuation) that `parseInt` would silently turn into `NaN`.
+ */
+function parseCikSafely(raw: string | undefined | null): number {
+  if (!raw) return 0;
+  const trimmed = String(raw).trim();
+  // Require all digits — parseInt would accept "123abc" as 123, which is a
+  // plausible but wrong CIK.
+  if (!/^\d+$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -307,7 +297,7 @@ export async function processFormC({
     state_jurisdiction: issuer.legalStatus?.jurisdictionOrganization ?? "",
     date_incorporation: issuer.legalStatus?.dateIncorporation ?? "",
     url: issuer.issuerWebsite ?? "",
-    portal_cik: issuerInfo.commissionCik ? parseInt(issuerInfo.commissionCik) : 0,
+    portal_cik: parseCikSafely(issuerInfo.commissionCik),
     status: determineStatus(submissionType),
   };
 

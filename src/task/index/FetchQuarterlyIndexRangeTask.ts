@@ -85,16 +85,16 @@ export class FetchQuarterlyIndexRangeTask extends Task<
     const endYear = input.endYear ?? todayYear;
     const endQuarter = input.endQuarter ?? Math.ceil(todayMonth / 3);
 
-    // from the date to the current date, fetch the quarterly index
-    const quarters = (endYear - startYear) * 4 + (endQuarter - startQuarter);
+    // Walk every quarter inclusive of both endpoints, anchored on the actual
+    // startQuarter. The previous form both undercounted by one and ignored
+    // startQuarter, so a range like (2022 Q2 .. 2022 Q4) would emit Q1 dates.
     const dates: string[] = [];
-    for (let i = 0; i < quarters; i++) {
+    const startIndex = startQuarter - 1; // 0..3
+    const endIndex = (endYear - startYear) * 4 + (endQuarter - 1);
+    for (let i = startIndex; i <= endIndex; i++) {
       const fetchYear = startYear + Math.floor(i / 4);
       const fetchMonth = (i % 4) * 3 + 1;
-      const fetchDay = 1;
-      dates.push(
-        `${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-${fetchDay.toString().padStart(2, "0")}`
-      );
+      dates.push(`${fetchYear}-${fetchMonth.toString().padStart(2, "0")}-01`);
     }
 
     if (dates.length === 0) return { updateList: [] };

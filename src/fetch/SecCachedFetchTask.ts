@@ -89,22 +89,23 @@ export abstract class SecCachedFetchTask<
 
   constructor(input: I, config: Partial<TaskConfig> = {}) {
     super(input as I & FetchUrlTaskInput, config);
+
+    // response_type drives both Workglow's fetch handling and the file-cache
+    // serializer. We resolve it once here, after super() has populated
+    // `defaults`/`runInputData`, so that downstream `execute()` calls and
+    // any cache lookups see a consistent value.
     const fetchInput = this.defaults as FetchUrlTaskInput & I;
     if (!fetchInput.response_type) {
       const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
       fetchInput.response_type = response_type;
-      (this.defaults as FetchUrlTaskInput).response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
     }
 
     if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
       const globalPath = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
-      let folderPath;
-      if (globalPath.startsWith("/")) {
-        folderPath = path.join(globalPath);
-      } else {
-        folderPath = path.join(process.cwd(), globalPath);
-      }
+      const folderPath = globalPath.startsWith("/")
+        ? path.join(globalPath)
+        : path.join(process.cwd(), globalPath);
       this.runConfig.outputCache = new SecFetchFileOutputCache({
         folderPath: folderPath,
         inputToFileName: this.inputToFileName.bind(this),

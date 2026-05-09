@@ -20,7 +20,8 @@ export async function fetchAndStoreCompanyFacts(
     await pipeline.run(input);
     success = true;
   } catch (e) {
-    // success remains false
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`Failed to fetch/store company facts for CIK ${input.cik}: ${message}`);
   } finally {
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
     await processedFactsRepo.put({

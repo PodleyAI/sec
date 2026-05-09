@@ -18,7 +18,6 @@ describe("GlobalOptions", () => {
       expect(help).toContain("--verbose");
       expect(help).toContain("--dry-run");
       expect(help).toContain("--no-color");
-      expect(help).toContain("--concurrency <n>");
     });
 
     it("returns the program for chaining", () => {
@@ -37,7 +36,6 @@ describe("GlobalOptions", () => {
       expect(opts.verbose).toBe(false);
       expect(opts.dryRun).toBe(false);
       expect(opts.color).toBe(true);
-      expect(opts.concurrency).toBeUndefined();
     });
   });
 
@@ -66,15 +64,9 @@ describe("GlobalOptions", () => {
       expect(parseGlobalOptions(program).color).toBe(false);
     });
 
-    it("parses --concurrency with a number", () => {
-      const program = createProgram();
-      program.parse(["--concurrency", "4"], { from: "user" });
-      expect(parseGlobalOptions(program).concurrency).toBe(4);
-    });
-
     it("parses all flags together", () => {
       const program = createProgram();
-      program.parse(["--json", "--verbose", "--dry-run", "--no-color", "--concurrency", "8"], {
+      program.parse(["--json", "--verbose", "--dry-run", "--no-color"], {
         from: "user",
       });
       const opts = parseGlobalOptions(program);
@@ -82,12 +74,6 @@ describe("GlobalOptions", () => {
       expect(opts.verbose).toBe(true);
       expect(opts.dryRun).toBe(true);
       expect(opts.color).toBe(false);
-      expect(opts.concurrency).toBe(8);
-    });
-
-    it("throws on invalid concurrency value", () => {
-      const program = createProgram();
-      expect(() => program.parse(["--concurrency", "abc"], { from: "user" })).toThrow();
     });
   });
 });

@@ -6,6 +6,11 @@
 
 import { InMemoryTabularStorage, globalServiceRegistry } from "workglow";
 import {
+  ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
+  AddressesEntityHistoryJunctionSchema,
+  AddressHistoryJunctionPrimaryKeyNames,
+} from "../storage/address/AddressHistorySchema";
+import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
   AddressJunctionPrimaryKeyNames,
@@ -40,6 +45,11 @@ import {
   CikNamePrimaryKeyNames,
   CikNameSchema,
 } from "../storage/entity/CikNameSchema";
+import {
+  ENTITY_HISTORY_REPOSITORY_TOKEN,
+  EntityHistoryPrimaryKeyNames,
+  EntityHistorySchema,
+} from "../storage/entity/EntityHistorySchema";
 import {
   ENTITY_REPOSITORY_TOKEN,
   EntityPrimaryKeyNames,
@@ -255,6 +265,14 @@ export function resetDependencyInjectionsForTesting() {
       ["cik"],
     ])
   );
+  globalServiceRegistry.registerInstance(
+    ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      AddressesEntityHistoryJunctionSchema,
+      AddressHistoryJunctionPrimaryKeyNames,
+      [["cik"]]
+    )
+  );
 
   // Initialize Phone repositories
   globalServiceRegistry.registerInstance(
@@ -294,6 +312,10 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     ENTITY_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(EntitySchema, EntityPrimaryKeyNames, [["name"], ["sic"]])
+  );
+  globalServiceRegistry.registerInstance(
+    ENTITY_HISTORY_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(EntityHistorySchema, EntityHistoryPrimaryKeyNames, [["valid_to"]])
   );
   globalServiceRegistry.registerInstance(
     ENTITY_TICKER_REPOSITORY_TOKEN,

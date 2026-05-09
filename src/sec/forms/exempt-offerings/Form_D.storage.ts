@@ -12,6 +12,7 @@ import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
+import { isBadPersonField } from "../../../types/edgar/bad-data";
 import {
   FormD,
   INDEFINITE,
@@ -23,6 +24,28 @@ import {
 } from "./Form_D.schema";
 import { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
 import { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
+
+/**
+ * Coerce a numeric-shaped string into a finite integer or null. EDGAR-emitted
+ * strings can carry stray whitespace or non-digit cruft; `parseInt` would
+ * silently swallow trailing junk (e.g. "123abc" → 123). We require the entire
+ * trimmed value to be digits (with an optional leading sign) before parsing.
+ */
+function parseIntegerOrNull(raw: string | number | undefined | null): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const trimmed = String(raw).trim();
+  if (!/^-?\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseCikSafely(raw: string | number | undefined | null): number {
+  if (raw === undefined || raw === null) return 0;
+  const trimmed = String(raw).trim();
+  if (!/^\d+$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // relation types for form-d
 const RELATION_TYPE_ISSUER = "form-d:issuer";
@@ -73,10 +96,12 @@ async function processOffering(
     accession_number,
     minimum_investment_accepted: offering.minimumInvestmentAccepted,
     total_offering_amount:
-      amounts.totalOfferingAmount === INDEFINITE ? null : parseInt(amounts.totalOfferingAmount),
+      amounts.totalOfferingAmount === INDEFINITE
+        ? null
+        : parseIntegerOrNull(amounts.totalOfferingAmount),
     total_amount_sold: amounts.totalAmountSold,
     total_remaining:
-      amounts.totalRemaining === INDEFINITE ? null : parseInt(amounts.totalRemaining),
+      amounts.totalRemaining === INDEFINITE ? null : parseIntegerOrNull(amounts.totalRemaining),
     investor_count: offering.investors.totalNumberAlreadyInvested,
     non_accredited_count: offering.investors.numberNonAccreditedInvestors || null,
   };
@@ -172,38 +197,6 @@ async function processSalesCompensationRecipient(cik: number, recipient: any): P
   }
 }
 
-function isBadPersonField(field: string | undefined): boolean {
-  const baddies = [
-    "n/a",
-    "na",
-    "Managing Member",
-    "(entity)",
-    "[entity]",
-    "entity",
-    "none",
-    "(none)",
-    "[none]",
-    "-",
-    "--",
-    "---",
-    "----",
-    ".",
-    "..",
-    "...",
-    "....",
-    "_",
-    "__",
-    "___",
-    "____",
-    "a Delaware limited liability company",
-  ];
-  if (!field) return true;
-  const fieldLower = String(field).toLowerCase().trim();
-  if (baddies.includes(fieldLower)) return true;
-
-  return false;
-}
-
 async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boolean): Promise<void> {
   // Repository instances
   const companyRepo = new CompanyRepo();
@@ -223,7 +216,7 @@ async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boole
 
   // Save the issuer record only if it's not a self-reference
   // (primary issuer typically has the same CIK as the filing entity)
-  const issuerCik = parseInt(issuer.cik.toString());
+  const issuerCik = parseCikSafely(issuer.cik);
   if (issuerCik !== cik) {
     const issuerRecord = {
       cik,

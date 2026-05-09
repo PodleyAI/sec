@@ -17,11 +17,20 @@ export function getDb(): Sqlite.Database {
     mkdirSync(dir, { recursive: true });
     const location = path.join(dir, `${globalServiceRegistry.get(SEC_DB_NAME)}.sqlite`);
     db = new Sqlite.Database(location);
-    db.exec("PRAGMA synchronous = 0");
+    // WAL + synchronous=NORMAL keeps durability across crashes while still
+    // allowing concurrent readers; the previous OFF/0 combination meant any
+    // crash mid-write could leave the database irrecoverable.
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA synchronous = NORMAL");
     db.exec("PRAGMA cache_size = 1000000");
-    db.exec("PRAGMA locking_mode = EXCLUSIVE");
     db.exec("PRAGMA temp_store = MEMORY");
-    db.exec("PRAGMA journal_mode = OFF");
   }
   return db;
+}
+
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
 }

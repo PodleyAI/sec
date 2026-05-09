@@ -4,8 +4,137 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FetchUrlJob, FetchUrlTaskInput, FetchUrlTaskOutput, JobConstructorParam } from "workglow";
+import {
+  FetchUrlJob,
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  IJobExecuteContext,
+  JobConstructorParam,
+} from "workglow";
 import { SecUserAgent } from "../config/Constants";
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return fallback;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+// Retry/timeout knobs are tunable via env so deployers can tighten or loosen
+// behaviour without a rebuild. Invalid values fall back to the defaults.
+const MAX_FETCH_ATTEMPTS = readPositiveIntEnv("SEC_FETCH_MAX_ATTEMPTS", 4);
+const INITIAL_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_INITIAL_BACKOFF_MS", 1_000);
+const MAX_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_MAX_BACKOFF_MS", 30_000);
+const DEFAULT_TIMEOUT_MS = readPositiveIntEnv("SEC_FETCH_TIMEOUT_MS", 60_000);
+
+interface MaybeHttpError {
+  status?: number;
+  statusCode?: number;
+  response?: { status?: number; headers?: Record<string, string> | Headers };
+  headers?: Record<string, string> | Headers;
+  retryAfter?: number;
+  retryable?: boolean;
+  retryDate?: Date;
+  message?: string;
+  name?: string;
+}
+
+function getStatus(error: MaybeHttpError): number | undefined {
+  return error.status ?? error.statusCode ?? error.response?.status;
+}
+
+function isRetriableError(error: unknown): boolean {
+  if (error === null || typeof error !== "object") return false;
+  const e = error as MaybeHttpError;
+
+  // Workglow wraps transient HTTP failures (429/5xx, network errors) as
+  // RetryableJobError with `retryable: true`. Trust that flag when present.
+  // (Don't rely on `instanceof Error` here — RetryableJobError can fail that
+  // check across module/realm boundaries even when the prototype chain ends
+  // at a real Error.)
+  if (e.retryable === true || e.name === "RetryableJobError") return true;
+  if (e.name === "PermanentJobError" || e.retryable === false) return false;
+
+  const status = getStatus(e);
+  if (status !== undefined) {
+    return status === 408 || status === 429 || status >= 500;
+  }
+  const message = typeof e.message === "string" ? e.message : "";
+  // Status pulled out of the message as a last resort — workglow's HTTP error
+  // surfaces "...: <status> <reason>" without exposing a numeric field.
+  const msgStatus = message.match(/:\s*(\d{3})\s/)?.[1];
+  if (msgStatus) {
+    const code = Number(msgStatus);
+    if (code === 408 || code === 429 || code >= 500) return true;
+  }
+  // Network-level failures (ECONNRESET, ETIMEDOUT, ENOTFOUND, fetch aborts that
+  // weren't user-driven, etc.) all surface as plain Errors with no status.
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code && /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/.test(code)) {
+    return true;
+  }
+  return /network|timeout|fetch failed|socket hang up/i.test(message);
+}
+
+function readHeader(
+  headers: Record<string, string> | Headers | undefined,
+  name: string
+): string | undefined {
+  if (!headers) return undefined;
+  if (typeof (headers as Headers).get === "function") {
+    return (headers as Headers).get(name) ?? undefined;
+  }
+  const lower = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers as Record<string, string>)) {
+    if (key.toLowerCase() === lower) return value;
+  }
+  return undefined;
+}
+
+function getRetryAfterMs(error: MaybeHttpError): number | undefined {
+  // Workglow's RetryableJobError exposes a parsed `retryDate`; prefer that.
+  if (error.retryDate instanceof Date && !Number.isNaN(error.retryDate.getTime())) {
+    return Math.max(0, error.retryDate.getTime() - Date.now());
+  }
+  const fromHeader = readHeader(error.response?.headers ?? error.headers, "Retry-After");
+  const raw = error.retryAfter ?? fromHeader;
+  if (raw === undefined) return undefined;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, raw * 1000);
+  }
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) return Math.max(0, numeric * 1000);
+  const dateMs = Date.parse(String(raw));
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return undefined;
+}
+
+function backoffDelay(attempt: number): number {
+  const exponent = Math.min(attempt, 10);
+  const base = Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
+  // Jitter to avoid lockstep retries when many jobs fail at once.
+  return Math.floor(base * (0.5 + Math.random() * 0.5));
+}
+
+function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
+  const live = signals.filter((s): s is AbortSignal => Boolean(s));
+  if (live.length === 0) return new AbortController().signal;
+  if (live.length === 1) return live[0];
+  if (typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any === "function") {
+    return (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any(live);
+  }
+  const controller = new AbortController();
+  for (const s of live) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      break;
+    }
+    s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
+}
 
 export class SecFetchJob<
   Input extends FetchUrlTaskInput = FetchUrlTaskInput,
@@ -19,4 +148,58 @@ export class SecFetchJob<
     };
     super({ ...config, input });
   }
+
+  async execute(input: Input, context: IJobExecuteContext): Promise<Output> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
+      // Per-attempt timeout. Use an AbortController + setTimeout so we can
+      // clearTimeout() on success: AbortSignal.timeout() leaves an
+      // uncancellable timer alive, which accumulates in a high-throughput
+      // queue. We still combine with the caller's signal so external aborts
+      // win.
+      const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
+      const timeoutHandle =
+        timeoutController && DEFAULT_TIMEOUT_MS > 0
+          ? setTimeout(() => timeoutController.abort(new Error("SEC fetch timed out")), DEFAULT_TIMEOUT_MS)
+          : undefined;
+      const signal = combineSignals([context.signal, timeoutController?.signal]);
+
+      try {
+        return (await super.execute(input, { ...context, signal })) as Output;
+      } catch (error) {
+        lastError = error;
+        if (context.signal.aborted) throw error;
+        if (!isRetriableError(error) || attempt === MAX_FETCH_ATTEMPTS - 1) throw error;
+        const retryAfter = getRetryAfterMs(error as MaybeHttpError);
+        const delay = retryAfter ?? backoffDelay(attempt);
+        await sleepWithAbort(delay, context.signal);
+      } finally {
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      }
+    }
+    throw lastError;
+  }
+}
+
+/**
+ * Sleep for `ms` or reject if `signal` aborts. Always detaches its abort
+ * listener on resolve/reject so we don't leak listeners on long-lived signals.
+ */
+function sleepWithAbort(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason ?? new Error("aborted"));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason ?? new Error("aborted"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }

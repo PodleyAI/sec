@@ -5,7 +5,7 @@
  */
 
 import type { Command } from "commander";
-import { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
+import { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addDbCommands } from "../cli/groups/db";
@@ -27,6 +27,13 @@ export const AddCommands = (program: Command): void => {
     if (commandName === "init") return;
     if (diInitialized) return;
     diInitialized = true;
+
+    // Load the SQLite native binding only for commands that may open the DB,
+    // not for `init`, `--help`, `--version`, or any pure-CLI invocation.
+    const secDbType = process.env.SEC_DB_TYPE ?? "sqlite";
+    if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
+      await Sqlite.init();
+    }
 
     const globalOpts = parseGlobalOptions(program);
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);

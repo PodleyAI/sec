@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 
 import { program } from "commander";
-import { getTaskQueueRegistry, Sqlite } from "workglow";
+import { getTaskQueueRegistry } from "workglow";
 import { applyGlobalOptions } from "./cli/GlobalOptions";
 import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
+import { closeDb } from "./util/db";
+import { closePgPool } from "./util/pg";
 
 program
   .version("2.0.0")
@@ -13,19 +15,31 @@ program
 applyGlobalOptions(program);
 AddCommands(program);
 
-const secDbType = process.env.SEC_DB_TYPE ?? "sqlite";
-if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
-  await Sqlite.init();
-}
-
+let primaryError: unknown;
 try {
   await program.parseAsync(process.argv);
 } catch (e) {
+  primaryError = e;
   if (e instanceof SecCliConfigurationError) {
     console.error(e.message);
-    process.exit(1);
+    process.exitCode = 1;
   }
-  throw e;
+} finally {
+  // Run shutdown via allSettled so a crashing cleanup step can't mask the
+  // primary command failure or skip later cleanup. process.exit() would
+  // bypass this block entirely, so we use exitCode + rethrow instead.
+  const cleanups = await Promise.allSettled([
+    getTaskQueueRegistry().stopQueues(),
+    Promise.resolve().then(() => closeDb()),
+    closePgPool(),
+  ]);
+  for (const result of cleanups) {
+    if (result.status === "rejected") {
+      console.error("Cleanup error:", result.reason);
+    }
+  }
 }
 
-await getTaskQueueRegistry().stopQueues();
+if (primaryError !== undefined && !(primaryError instanceof SecCliConfigurationError)) {
+  throw primaryError;
+}

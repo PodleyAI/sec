@@ -39,7 +39,6 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("--verbose");
     expect(output).toContain("--dry-run");
     expect(output).toContain("--no-color");
-    expect(output).toContain("--concurrency");
   });
 
   it("should show version 2.0.0", async () => {
