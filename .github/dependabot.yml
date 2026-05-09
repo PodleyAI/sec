@@ -13,3 +13,7 @@ updates:
       workglow:
         patterns:
           - "@workglow/*"
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
