@@ -23,7 +23,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sroussey/parse-address": "^2.4.2",
     "@sroussey/parse-full-name": "^2.0.0",
-    "workglow": "0.2.32",
+    "workglow": "0.2.34",
     "@workglow/cli": "0.2.32",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
