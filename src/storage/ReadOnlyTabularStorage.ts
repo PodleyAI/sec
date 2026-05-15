@@ -21,7 +21,7 @@ import type {
 
 /**
  * Wraps an {@link ITabularStorage} and silently no-ops all write operations.
- * Read operations (get, getAll, query, getBulk, records, pages, size) are
+ * Read operations (get, getAll, query, getBulk, getOffsetPage, records, pages, size) are
  * forwarded to the underlying storage so that dry-run commands can still
  * inspect existing data.
  */
@@ -72,8 +72,12 @@ export class ReadOnlyTabularStorage<
     return this.inner.count(criteria);
   }
 
-  getBulk(offset: number, limit: number): Promise<Entity[] | undefined> {
-    return this.inner.getBulk(offset, limit);
+  getBulk(keys: readonly PrimaryKey[]): Promise<Entity[]> {
+    return this.inner.getBulk(keys);
+  }
+
+  getOffsetPage(offset: number, limit: number): Promise<Entity[] | undefined> {
+    return this.inner.getOffsetPage(offset, limit);
   }
 
   getPage(request?: PageRequest<Entity>): Promise<Page<Entity>> {
