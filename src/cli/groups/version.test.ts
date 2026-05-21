@@ -73,4 +73,42 @@ describe("sec version CLI", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("status --format json returns raw semver in next, with separate coverage flag", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const seed = await runCli(
+        ["version", "seed-test", "extractor", "D", "next", "2.1.0"],
+        dir
+      );
+      expect(seed.exitCode).toBe(0);
+
+      const status = await runCli(["version", "status", "--format", "json"], dir);
+      expect(status.exitCode).toBe(0);
+      const parsed = JSON.parse(status.stdout);
+      expect(parsed).toHaveLength(1);
+      // JSON output is raw data — semver only, no presentation suffix.
+      expect(parsed[0].next).toBe("2.1.0");
+      expect(parsed[0].next_coverage_complete).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("status rejects an unsupported --format value", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const status = await runCli(["version", "status", "--format", "yaml"], dir);
+      expect(status.exitCode).not.toBe(0);
+      expect(status.stderr + status.stdout).toMatch(/Invalid --format/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

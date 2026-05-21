@@ -7,12 +7,10 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
 export const ExtractorRunSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key" }),
   accession_number: Type.String({
     maxLength: 20,
     description: "SEC accession number",

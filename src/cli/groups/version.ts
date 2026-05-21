@@ -37,6 +37,8 @@ function assertComponentSlot(s: string): asserts s is ComponentSlot {
   }
 }
 
+const SUPPORTED_STATUS_FORMATS = ["table", "json"] as const;
+
 export function addVersionCommands(program: Command): void {
   const version = program
     .command("version")
@@ -48,6 +50,12 @@ export function addVersionCommands(program: Command): void {
     .option("--format <format>", "Output format (table, json)", "table")
     .action(async (options: Record<string, string>) => {
       await runCommand(async () => {
+        if (!(SUPPORTED_STATUS_FORMATS as readonly string[]).includes(options.format)) {
+          throw new Error(
+            `Invalid --format '${options.format}'. Expected one of: ${SUPPORTED_STATUS_FORMATS.join(", ")}`
+          );
+        }
+
         const rows = await getVersionStatus();
 
         if (options.format === "json") {
@@ -60,9 +68,21 @@ export function addVersionCommands(program: Command): void {
           return;
         }
 
+        // Decorate `next` for the table view only. JSON consumers get raw
+        // semver in `next` plus the boolean `next_coverage_complete` flag.
+        const tableRows = rows.map((r) => ({
+          ...r,
+          next:
+            r.next === "—"
+              ? r.next
+              : r.next_coverage_complete
+                ? `${r.next} (ready)`
+                : `${r.next} (in progress)`,
+        }));
+
         console.log(
           renderTable(
-            rows as unknown as ReadonlyArray<Record<string, unknown>>,
+            tableRows as unknown as ReadonlyArray<Record<string, unknown>>,
             [
               { key: "component_kind", header: "Kind", width: 10 },
               { key: "component_id", header: "Id", width: 24 },

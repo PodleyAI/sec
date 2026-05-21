@@ -47,9 +47,7 @@ export async function getVersionStatus(): Promise<VersionStatusRow[]> {
     } else if (row.slot === "next") {
       grouped.set(key, {
         ...acc,
-        next: row.coverage_complete
-          ? `${row.semver} (ready)`
-          : `${row.semver} (in progress)`,
+        next: row.semver,
         next_coverage_complete: row.coverage_complete,
       });
     }
