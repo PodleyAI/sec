@@ -160,6 +160,16 @@ import {
   ProcessedSubmissionsSchema,
 } from "../storage/processing/ProcessedSubmissionsSchema";
 import {
+  COMPONENT_VERSION_REPOSITORY_TOKEN,
+  ComponentVersionPrimaryKeyNames,
+  ComponentVersionSchema,
+} from "../storage/versioning/ComponentVersionSchema";
+import {
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  ExtractorRunPrimaryKeyNames,
+  ExtractorRunSchema,
+} from "../storage/versioning/ExtractorRunSchema";
+import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClassPrimaryKeyNames,
   RegAEquityClassSchema,
@@ -458,6 +468,30 @@ export const DefaultDI = () => {
     createStorage("processed_filings", ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
       ["last_processed", "success", "form"],
     ])
+  );
+
+  // ------------------------------ Versioning -----------------------------------
+  globalServiceRegistry.registerInstance(
+    COMPONENT_VERSION_REPOSITORY_TOKEN,
+    createStorage(
+      "component_versions",
+      ComponentVersionSchema,
+      ComponentVersionPrimaryKeyNames,
+      [["component_kind", "component_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    EXTRACTOR_RUN_REPOSITORY_TOKEN,
+    createStorage(
+      "extractor_runs",
+      ExtractorRunSchema,
+      ExtractorRunPrimaryKeyNames,
+      [
+        ["cik", "accession_number"],
+        ["extractor_id", "extractor_version"],
+        ["form", "extractor_version"],
+      ]
+    )
   );
 
   // ------------------------------ Company Facts --------------------------------
