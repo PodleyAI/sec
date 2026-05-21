@@ -24,20 +24,24 @@ export interface StartDevArgs extends BaseArgs {
   /** Required for major bumps (the snapshot count); null for minor/patch. */
   readonly targetCount: number | null;
   readonly notes: string | null;
+  readonly dryRun?: boolean;
 }
 
 export interface PromoteArgs extends BaseArgs {
   readonly runs: ExtractorRunRepo;
   readonly force: boolean;
   readonly notes: string | null;
+  readonly dryRun?: boolean;
 }
 
 export interface RollbackArgs extends BaseArgs {
   readonly notes: string | null;
+  readonly dryRun?: boolean;
 }
 
 export interface DropNextArgs extends BaseArgs {
   readonly notes: string | null;
+  readonly dryRun?: boolean;
 }
 
 function assertRegistered(kind: ComponentKind, id: string): void {
@@ -70,6 +74,7 @@ export async function startDev(args: StartDevArgs): Promise<void> {
   if (progressionError) throw new Error(progressionError);
 
   if (bump === "patch") {
+    if (args.dryRun) return;
     // No next slot. Update current in place; log a single "promote" event.
     const fromSemver = current.semver;
     const startedAt = new Date().toISOString();
@@ -99,6 +104,8 @@ export async function startDev(args: StartDevArgs): Promise<void> {
       `major bump requires non-negative targetCount (got ${targetCount})`
     );
   }
+
+  if (args.dryRun) return;
 
   await reg.putSlot({
     component_kind: kind,
@@ -143,6 +150,8 @@ export async function promote(args: PromoteArgs): Promise<void> {
       );
     }
   }
+
+  if (args.dryRun) return;
 
   // Slot rotation (non-atomic by design — workglow's storage doesn't expose
   // transactions; the spec's single-operator assumption makes this safe).
@@ -190,6 +199,8 @@ export async function rollback(args: RollbackArgs): Promise<void> {
   const current = await reg.getCurrent(kind, id);
   if (!current) throw new Error(`No current slot for ${kind} '${id}'.`);
 
+  if (args.dryRun) return;
+
   // Swap by clearing both and re-writing with swapped slot values.
   await reg.clearSlot(kind, id, "previous");
   await reg.clearSlot(kind, id, "current");
@@ -220,6 +231,8 @@ export async function dropNext(args: DropNextArgs): Promise<void> {
 
   const next = await reg.getNext(kind, id);
   if (!next) throw new Error(`No next slot for ${kind} '${id}'. Nothing to drop.`);
+
+  if (args.dryRun) return;
 
   await reg.clearSlot(kind, id, "next");
 

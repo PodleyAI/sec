@@ -195,6 +195,41 @@ describe("ceremonies.startDev", () => {
       })
     ).rejects.toThrow(/no extractor registered/i);
   });
+
+  it("dry-run validates inputs but does not write", async () => {
+    const { reg, events } = buildDeps();
+
+    // Invalid bump progression should still throw even with dryRun.
+    await expect(
+      startDev({
+        reg,
+        events,
+        kind: "extractor",
+        id: "D",
+        semver: "2.1.0", // major bump can't reset to .1
+        bump: "major",
+        targetCount: 0,
+        notes: null,
+        dryRun: true,
+      })
+    ).rejects.toThrow(/reset minor/i);
+
+    // Valid input with dryRun=true should NOT write the next slot or log.
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: "dry run",
+      dryRun: true,
+    });
+    expect(await reg.getNext("extractor", "D")).toBeUndefined();
+    const evts = await events.listForComponent("extractor", "D");
+    expect(evts).toHaveLength(0);
+  });
 });
 
 describe("ceremonies.promote", () => {
@@ -328,6 +363,39 @@ describe("ceremonies.promote", () => {
       notes: null,
     });
     expect((await reg.getCurrent("extractor", "D"))?.semver).toBe("1.1.0");
+  });
+
+  it("after promote, getActiveSlot returns the new current (not the next that was promoted)", async () => {
+    const { reg, events, runs } = buildDeps();
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+
+    // Before promote: getActiveSlot should return next.
+    const { getActiveSlot } = await import("./getActiveSlot");
+    const beforePromote = await getActiveSlot(reg, "extractor", "D");
+    expect(beforePromote).toEqual({ slot: "next", semver: "2.0.0" });
+
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "extractor",
+      id: "D",
+      force: true,
+      notes: null,
+    });
+
+    // After promote: next is empty, so getActiveSlot returns current at 2.0.0.
+    const afterPromote = await getActiveSlot(reg, "extractor", "D");
+    expect(afterPromote).toEqual({ slot: "current", semver: "2.0.0" });
   });
 });
 

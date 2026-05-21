@@ -28,6 +28,7 @@ import { renderTable } from "../output/TableRenderer";
 import { getVersionCoverage } from "../queries/VersionCoverage";
 import { getVersionHistory } from "../queries/VersionHistory";
 import { getVersionStatus } from "../queries/VersionStatus";
+import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 
 function assertComponentKind(s: string): asserts s is ComponentKind {
@@ -54,14 +55,27 @@ function assertFormat(s: string): asserts s is "table" | "json" {
 }
 
 /**
- * For a major-bump start-dev, snapshot the count of filings handled by this
- * extractor. The result is stored on the next-slot row and acts as the
+ * For a major-bump extractor start-dev, snapshot the count of filings
+ * handled by this extractor. Stored on the next-slot row; used as the
  * promote-gate denominator.
+ *
+ * TODO(PR4): this is extractor-specific. When resolvers gain a major
+ * dev-cycle, they will need their own kind-aware snapshot strategy
+ * (count of observations? count of canonical identities? TBD). Add a
+ * dispatch table keyed on ComponentKind here when PR4 lands.
  */
-async function snapshotTargetCount(extractorId: string): Promise<number> {
+async function snapshotTargetCount(
+  kind: ComponentKind,
+  id: string
+): Promise<number> {
+  if (kind !== "extractor") {
+    throw new Error(
+      `snapshotTargetCount: kind '${kind}' is not yet supported; only 'extractor' has a snapshot strategy. Add resolver support in PR4.`
+    );
+  }
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const forms = Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, eid]) => eid === extractorId)
+    .filter(([, eid]) => eid === id)
     .map(([form]) => form);
   let total = 0;
   for (const form of forms) {
@@ -192,7 +206,6 @@ export function addVersionCommands(program: Command): void {
     .description("Begin a dev cycle for a component (or apply a patch in place)")
     .requiredOption("--bump <type>", "Bump type: major, minor, or patch")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .option("--dry-run", "Print what would happen; commit nothing", false)
     .action(
       async (
         kind: string,
@@ -204,12 +217,6 @@ export function addVersionCommands(program: Command): void {
           assertComponentKind(kind);
           const bumpArg = options.bump as string;
           assertBump(bumpArg);
-          if (options.dryRun) {
-            console.log(
-              `(dry-run) start-dev ${kind} ${id} ${semver} --bump ${bumpArg}`
-            );
-            return;
-          }
           const reg = new VersionRegistry(
             globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
           );
@@ -217,11 +224,12 @@ export function addVersionCommands(program: Command): void {
             globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
           );
           const targetCount =
-            bumpArg === "major" ? await snapshotTargetCount(id) : null;
+            bumpArg === "major" ? await snapshotTargetCount(kind, id) : null;
           const notes =
             typeof options.notes === "string" && options.notes !== ""
               ? options.notes
               : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
           await startDevCeremony({
             reg,
             events,
@@ -231,8 +239,15 @@ export function addVersionCommands(program: Command): void {
             bump: bumpArg,
             targetCount,
             notes,
+            dryRun,
           });
-          if (bumpArg === "patch") {
+          if (dryRun) {
+            console.log(
+              `(dry-run) start-dev ${kind} ${id} ${semver} --bump ${bumpArg} would succeed${
+                targetCount !== null ? ` (would snapshot target_count=${targetCount})` : ""
+              }`
+            );
+          } else if (bumpArg === "patch") {
             console.log(`Patched ${kind}:${id} → ${semver} (in place)`);
           } else {
             console.log(
@@ -251,15 +266,10 @@ export function addVersionCommands(program: Command): void {
     .description("Promote the next slot to current (slot rotation)")
     .option("--force", "Bypass the major-bump coverage gate", false)
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .option("--dry-run", "Print what would happen; commit nothing", false)
     .action(
       async (kind: string, id: string, options: Record<string, boolean | string>) => {
         await runCommand(async () => {
           assertComponentKind(kind);
-          if (options.dryRun) {
-            console.log(`(dry-run) promote ${kind} ${id}`);
-            return;
-          }
           const reg = new VersionRegistry(
             globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
           );
@@ -273,6 +283,7 @@ export function addVersionCommands(program: Command): void {
             typeof options.notes === "string" && options.notes !== ""
               ? options.notes
               : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
           await promoteCeremony({
             reg,
             events,
@@ -281,8 +292,13 @@ export function addVersionCommands(program: Command): void {
             id,
             force: options.force === true,
             notes,
+            dryRun,
           });
-          console.log(`Promoted ${kind}:${id}`);
+          console.log(
+            dryRun
+              ? `(dry-run) promote ${kind} ${id} would succeed`
+              : `Promoted ${kind}:${id}`
+          );
         });
       }
     );
@@ -292,15 +308,10 @@ export function addVersionCommands(program: Command): void {
     .command("rollback <kind> <id>")
     .description("Swap current and previous slots")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .option("--dry-run", "Print what would happen; commit nothing", false)
     .action(
       async (kind: string, id: string, options: Record<string, boolean | string>) => {
         await runCommand(async () => {
           assertComponentKind(kind);
-          if (options.dryRun) {
-            console.log(`(dry-run) rollback ${kind} ${id}`);
-            return;
-          }
           const reg = new VersionRegistry(
             globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
           );
@@ -311,14 +322,20 @@ export function addVersionCommands(program: Command): void {
             typeof options.notes === "string" && options.notes !== ""
               ? options.notes
               : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
           await rollbackCeremony({
             reg,
             events,
             kind,
             id,
             notes,
+            dryRun,
           });
-          console.log(`Rolled back ${kind}:${id}`);
+          console.log(
+            dryRun
+              ? `(dry-run) rollback ${kind} ${id} would succeed`
+              : `Rolled back ${kind}:${id}`
+          );
         });
       }
     );
@@ -328,15 +345,10 @@ export function addVersionCommands(program: Command): void {
     .command("drop-next <kind> <id>")
     .description("Discard the in-flight dev cycle (clear the next slot)")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .option("--dry-run", "Print what would happen; commit nothing", false)
     .action(
       async (kind: string, id: string, options: Record<string, boolean | string>) => {
         await runCommand(async () => {
           assertComponentKind(kind);
-          if (options.dryRun) {
-            console.log(`(dry-run) drop-next ${kind} ${id}`);
-            return;
-          }
           const reg = new VersionRegistry(
             globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
           );
@@ -347,14 +359,20 @@ export function addVersionCommands(program: Command): void {
             typeof options.notes === "string" && options.notes !== ""
               ? options.notes
               : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
           await dropNextCeremony({
             reg,
             events,
             kind,
             id,
             notes,
+            dryRun,
           });
-          console.log(`Dropped next slot for ${kind}:${id}`);
+          console.log(
+            dryRun
+              ? `(dry-run) drop-next ${kind} ${id} would succeed`
+              : `Dropped next slot for ${kind}:${id}`
+          );
         });
       }
     );

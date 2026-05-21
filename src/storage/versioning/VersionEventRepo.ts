@@ -18,6 +18,12 @@ import type {
  * The repo assumes single-process invocation (matches the CLI's existing
  * single-operator assumption). Two concurrent recordEvent calls could
  * theoretically race on id assignment; not a realistic concern for this CLI.
+ *
+ * Note: ids are assigned via storage.size() + 1. This is correct for an
+ * append-only log but breaks if any consumer ever deletes rows from this
+ * table (a delete-then-insert sequence will reuse the deleted id). PR3
+ * never deletes events; future code that wants to garbage-collect old
+ * audit rows MUST migrate to a stable id source (e.g. UUIDs) first.
  */
 export class VersionEventRepo {
   constructor(private readonly storage: VersionEventRepositoryStorage) {}
