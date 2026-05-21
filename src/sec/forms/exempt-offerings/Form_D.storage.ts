@@ -244,16 +244,28 @@ async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boole
     console.warn(`Failed to save address for issuer ${companyName}:`, issuer.issuerAddress, error);
   }
 
-  const phone = await phoneRepo.savePhone({
-    phone_raw: issuer.issuerPhoneNumber,
-    country_code,
-  });
-  await phoneRepo.saveRelatedEntity(phone.international_number, relationName, cik);
-  await companyRepo.saveRelatedPhone(
-    phone.international_number,
-    relationName,
-    company.company_hash_id
-  );
+  // EDGAR phone numbers are user-entered and routinely malformed (e.g. UK
+  // numbers like "44(0) 20 7493 2462" with no country code). Treat
+  // normalization failures the same way we treat address failures above:
+  // warn and continue so one bad field doesn't drop the whole filing.
+  try {
+    const phone = await phoneRepo.savePhone({
+      phone_raw: issuer.issuerPhoneNumber,
+      country_code,
+    });
+    await phoneRepo.saveRelatedEntity(phone.international_number, relationName, cik);
+    await companyRepo.saveRelatedPhone(
+      phone.international_number,
+      relationName,
+      company.company_hash_id
+    );
+  } catch (error) {
+    console.warn(
+      `Failed to save phone for issuer ${companyName}:`,
+      issuer.issuerPhoneNumber,
+      error
+    );
+  }
 
   if (issuer.issuerPreviousNameList && "previousName" in issuer.issuerPreviousNameList) {
     for (const prevName of issuer.issuerPreviousNameList.previousName || []) {
