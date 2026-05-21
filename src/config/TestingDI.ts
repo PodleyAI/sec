@@ -443,14 +443,11 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Versioning repositories
   globalServiceRegistry.registerInstance(
     COMPONENT_VERSION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(ComponentVersionSchema, ComponentVersionPrimaryKeyNames, [
-      ["component_kind", "component_id"],
-    ])
+    new InMemoryTabularStorage(ComponentVersionSchema, ComponentVersionPrimaryKeyNames, [])
   );
   globalServiceRegistry.registerInstance(
     EXTRACTOR_RUN_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(ExtractorRunSchema, ExtractorRunPrimaryKeyNames, [
-      ["cik", "accession_number"],
       ["extractor_id", "extractor_version"],
       ["form", "extractor_version"],
     ])
