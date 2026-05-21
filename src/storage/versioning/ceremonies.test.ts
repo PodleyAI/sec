@@ -135,6 +135,34 @@ describe("ceremonies.startDev", () => {
     ).rejects.toThrow(/next slot already exists.*drop-next/i);
   });
 
+  it("rejects patch start-dev when next slot already exists", async () => {
+    const { reg, events } = buildDeps();
+    // Start a major dev cycle in flight.
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 42,
+      notes: null,
+    });
+    // Now try a patch — should be rejected.
+    await expect(
+      startDev({
+        reg,
+        events,
+        kind: "extractor",
+        id: "D",
+        semver: "1.0.1",
+        bump: "patch",
+        targetCount: null,
+        notes: null,
+      })
+    ).rejects.toThrow(/next slot already exists.*drop-next/i);
+  });
+
   it("rejects start-dev with invalid bump progression", async () => {
     const { reg, events } = buildDeps();
     // current is 1.0.0; major bump must go to 2.0.0, not 2.1.0

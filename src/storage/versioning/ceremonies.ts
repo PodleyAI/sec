@@ -57,17 +57,13 @@ export async function startDev(args: StartDevArgs): Promise<void> {
     );
   }
 
-  // For major/minor bumps, reject if a next slot already exists BEFORE
-  // validating progression. (The progression check uses current.semver as
-  // the base; if next exists, the user has likely already moved on and the
-  // caller should drop-next first regardless of the proposed semver.)
-  if (bump !== "patch") {
-    const existingNext = await reg.getNext(kind, id);
-    if (existingNext) {
-      throw new Error(
-        `next slot already exists for ${kind} '${id}' (at ${existingNext.semver}). drop-next first.`
-      );
-    }
+  // Reject any new dev cycle (including patches) while one is in flight.
+  // Operators must drop-next or complete the existing cycle first.
+  const existingNext = await reg.getNext(kind, id);
+  if (existingNext) {
+    throw new Error(
+      `next slot already exists for ${kind} '${id}' (at ${existingNext.semver}). drop-next first.`
+    );
   }
 
   const progressionError = validateBumpProgression(current.semver, semver, bump);
@@ -97,14 +93,7 @@ export async function startDev(args: StartDevArgs): Promise<void> {
     return;
   }
 
-  // Major or minor: populate next slot.
-  const existingNext = await reg.getNext(kind, id);
-  if (existingNext) {
-    throw new Error(
-      `next slot already exists for ${kind} '${id}' (at ${existingNext.semver}). drop-next first.`
-    );
-  }
-
+  // Major-only: validate target_count.
   if (bump === "major" && (targetCount === null || targetCount < 0)) {
     throw new Error(
       `major bump requires non-negative targetCount (got ${targetCount})`
@@ -155,10 +144,10 @@ export async function promote(args: PromoteArgs): Promise<void> {
     }
   }
 
-  // Slot rotation:
-  // 1. Drop existing previous (if any).
-  // 2. Clear current's key, then rewrite into previous slot.
-  // 3. Clear next's key, then rewrite into current slot.
+  // Slot rotation (non-atomic by design — workglow's storage doesn't expose
+  // transactions; the spec's single-operator assumption makes this safe).
+  // Sequence: drop existing previous -> clear current -> write current as previous
+  // -> clear next -> write next as current.
   const previous = await reg.getPrevious(kind, id);
   if (previous) {
     await reg.clearSlot(kind, id, "previous");
