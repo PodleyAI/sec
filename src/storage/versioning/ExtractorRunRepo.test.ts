@@ -5,9 +5,15 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { globalServiceRegistry } from "workglow";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { globalServiceRegistry, Sqlite } from "workglow";
+import { DefaultDI } from "../../config/DefaultDI";
+import { EnvToDI } from "../../config/EnvToDI";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { closeDb } from "../../util/db";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { ExtractorRunRepo } from "./ExtractorRunRepo";
 
@@ -232,5 +238,89 @@ describe("ExtractorRunRepo", () => {
       "1.0.0"
     );
     expect(unprocessed).toEqual(filings);
+  });
+});
+
+// Verifies that listFilingsWithoutSuccessfulRun's boolean-criteria query
+// (`{ extractor_id, extractor_version, success: true }`) actually works
+// against SQLite. The in-memory tests above all pass, but PR2 never
+// exercised the production code path against the real SqliteTabularStorage
+// — and SQLite stores booleans as 0/1, so the query coercion needed to be
+// proven, not assumed.
+describe("ExtractorRunRepo with SQLite backend", () => {
+  let tmpDir: string;
+  const savedEnv: Record<string, string | undefined> = {};
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    closeDb();
+    tmpDir = mkdtempSync(join(tmpdir(), "sec-extractor-runs-sqlite-"));
+    savedEnv.SEC_DB_TYPE = process.env.SEC_DB_TYPE;
+    savedEnv.SEC_DB_FOLDER = process.env.SEC_DB_FOLDER;
+    savedEnv.SEC_DB_NAME = process.env.SEC_DB_NAME;
+    process.env.SEC_DB_TYPE = "sqlite";
+    process.env.SEC_DB_FOLDER = tmpDir;
+    process.env.SEC_DB_NAME = "edgar";
+
+    // Load the SQLite native binding (mirrors src/commands/index.ts).
+    if (typeof Sqlite.init === "function") {
+      await Sqlite.init();
+    }
+
+    // Re-init DI with sqlite-backed repos.
+    EnvToDI();
+    DefaultDI();
+    await setupAllDatabases();
+  });
+
+  afterEach(() => {
+    closeDb();
+    resetDependencyInjectionsForTesting();
+    rmSync(tmpDir, { recursive: true, force: true });
+    for (const key of ["SEC_DB_TYPE", "SEC_DB_FOLDER", "SEC_DB_NAME"] as const) {
+      if (savedEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedEnv[key];
+      }
+    }
+  });
+
+  it("listFilingsWithoutSuccessfulRun works against SQLite (boolean criteria)", async () => {
+    const repo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    await repo.recordRun({
+      cik: 2000000,
+      accession_number: "0002000000-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: false,
+      error: "boom",
+    });
+    const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
+      [
+        { cik: 1000000, accession_number: "0001000000-25-000001" },
+        { cik: 2000000, accession_number: "0002000000-25-000001" },
+        { cik: 3000000, accession_number: "0003000000-25-000001" },
+      ],
+      "D",
+      "1.0.0"
+    );
+    expect(unprocessed.map((f) => f.cik).sort((a, b) => a - b)).toEqual([
+      2000000, 3000000,
+    ]);
   });
 });

@@ -185,7 +185,7 @@ export class ProcessAccessionDocFormTask extends Task<
           }
 
           await runRepo.recordRun({
-            cik: cik! as unknown as number,
+            cik: cik!,
             accession_number: accessionNumber,
             form: form!,
             extractor_id: extractorId,
@@ -198,7 +198,7 @@ export class ProcessAccessionDocFormTask extends Task<
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           await runRepo.recordRun({
-            cik: cik! as unknown as number,
+            cik: cik!,
             accession_number: accessionNumber,
             form: form!,
             extractor_id: extractorId,

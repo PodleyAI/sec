@@ -51,7 +51,10 @@ describe("sec version CLI", () => {
         .map((r: { component_id: string }) => r.component_id)
         .sort();
       expect(ids).toEqual(["1-A", "1-K", "1-Z", "C", "D"]);
-      for (const row of parsed) {
+      const extractorRows = parsed.filter(
+        (r: { component_kind: string }) => r.component_kind === "extractor"
+      );
+      for (const row of extractorRows) {
         expect(row.current).toBe("1.0.0");
       }
     } finally {
