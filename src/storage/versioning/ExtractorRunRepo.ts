@@ -8,6 +8,7 @@ import type {
   ExtractorRun,
   ExtractorRunRepositoryStorage,
 } from "./ExtractorRunSchema";
+import { semverMajorMinorPrefix } from "./semver";
 
 export interface FilingKey {
   readonly cik: number;
@@ -93,21 +94,31 @@ export class ExtractorRunRepo {
     extractor_version: string,
     form?: string
   ): Promise<T[]> {
+    // Patch-ceremony reading-side gating (PR3 spec D7): match on major.minor
+    // prefix so a row at "1.0.0" satisfies the gate for any "1.0.x" current.
+    // A row at "1.1.0" or "2.0.0" does NOT satisfy a "1.0.x" gate.
+    const prefix = semverMajorMinorPrefix(extractor_version);
+
+    // Workglow's tabular query doesn't expose LIKE/prefix matching today, so
+    // we narrow with the available criteria (extractor_id, success, optionally
+    // form) and post-filter on extractor_version in memory. Cost is the same
+    // O(N-successful-rows) as before — see the scale-note JSDoc above.
     const successful =
       form === undefined
         ? await this.storage.query({
             extractor_id,
-            extractor_version,
             success: true,
           })
         : await this.storage.query({
             extractor_id,
-            extractor_version,
             success: true,
             form,
           });
+
     const successfulKeys = new Set(
-      (successful ?? []).map((r) => `${r.cik}::${r.accession_number}`)
+      (successful ?? [])
+        .filter((r) => r.extractor_version.startsWith(prefix))
+        .map((r) => `${r.cik}::${r.accession_number}`)
     );
     return filings.filter(
       (f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`)
