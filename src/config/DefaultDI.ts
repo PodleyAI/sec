@@ -189,6 +189,11 @@ import {
   ExtractorRunPrimaryKeyNames,
   ExtractorRunSchema,
 } from "../storage/versioning/ExtractorRunSchema";
+import {
+  VERSION_EVENT_REPOSITORY_TOKEN,
+  VersionEventPrimaryKeyNames,
+  VersionEventSchema,
+} from "../storage/versioning/VersionEventSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -470,6 +475,15 @@ export const DefaultDI = () => {
       ["extractor_id", "extractor_version"],
       ["form", "extractor_version"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    VERSION_EVENT_REPOSITORY_TOKEN,
+    createStorage(
+      "version_events",
+      VersionEventSchema,
+      VersionEventPrimaryKeyNames,
+      [["component_kind", "component_id", "at_timestamp"]]
+    )
   );
 
   // ------------------------------ Company Facts --------------------------------

@@ -56,6 +56,7 @@ import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSch
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
+import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 
 /**
  * Truncates every registered repository. Used by `sec db reset --confirm`
@@ -105,5 +106,6 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
 }
