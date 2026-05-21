@@ -25,6 +25,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/Com
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
@@ -114,13 +115,14 @@ export class ProcessAccessionDocFormTask extends Task<
     const versionRegistry = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
-    const currentVersion = await versionRegistry.getCurrent("extractor", extractorId);
-    if (!currentVersion) {
+    const activeSlot = await getActiveSlot(versionRegistry, "extractor", extractorId);
+    if (!activeSlot) {
       throw new TaskError(
-        `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
+        `No active slot for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
       );
     }
-    const extractorVersion = currentVersion.semver;
+    const extractorVersion = activeSlot.semver;
+    const slotAtRun = activeSlot.slot;
 
     const runRepo = new ExtractorRunRepo(
       globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
@@ -201,7 +203,7 @@ export class ProcessAccessionDocFormTask extends Task<
               form: form!,
               extractor_id: extractorId,
               extractor_version: extractorVersion,
-              slot_at_run: "current",
+              slot_at_run: slotAtRun,
               success: true,
               error: null,
             });
@@ -214,7 +216,7 @@ export class ProcessAccessionDocFormTask extends Task<
               form: form!,
               extractor_id: extractorId,
               extractor_version: extractorVersion,
-              slot_at_run: "current",
+              slot_at_run: slotAtRun,
               success: false,
               error: message.slice(0, 4096),
             });

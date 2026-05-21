@@ -12,6 +12,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/Com
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
@@ -62,10 +63,9 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     const formSet = new Set(input.form);
     const formsToProcess: Filing[] = [];
 
-    // Cache version lookups per extractor_id — multiple form variants
-    // (e.g. "C", "C/A", "C-W"…) share one extractor, so the version is the
-    // same across them. Avoids redundant component_versions queries.
-    const versionCache = new Map<string, string>();
+    // Cache active-slot lookups per extractor_id. Active slot is "next if a
+    // dev cycle is in flight, else current" — see getActiveSlot.
+    const slotCache = new Map<string, { slot: "current" | "next"; semver: string }>();
 
     for (const form of formSet) {
       const extractorId = formToExtractorId(form);
@@ -75,17 +75,18 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
         );
         continue;
       }
-      let extractorVersion = versionCache.get(extractorId);
-      if (extractorVersion === undefined) {
-        const current = await versionRegistry.getCurrent("extractor", extractorId);
-        if (!current) {
+      let active = slotCache.get(extractorId);
+      if (active === undefined) {
+        const resolved = await getActiveSlot(versionRegistry, "extractor", extractorId);
+        if (!resolved) {
           throw new Error(
-            `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
+            `No active slot for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
           );
         }
-        extractorVersion = current.semver;
-        versionCache.set(extractorId, extractorVersion);
+        active = resolved;
+        slotCache.set(extractorId, active);
       }
+      const extractorVersion = active.semver;
 
       const filings = (await filingRepo.query({ form })) ?? [];
       const unprocessed = await runRepo.listFilingsWithoutSuccessfulRun(

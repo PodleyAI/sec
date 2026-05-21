@@ -85,6 +85,6 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
         { accessionNumber: "0001234567-25-000001" },
         { own: <T>(x: T): T => x } as any
       )
-    ).rejects.toThrow(/No current version.*extractor.*D/i);
+    ).rejects.toThrow(/No active slot.*extractor.*D/i);
   });
 });
