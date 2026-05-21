@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001929818</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>7491 KLINE DRIVE</street1>
+      <city>ARVADA</city>
+      <stateOrCountry>CO</stateOrCountry>
+      <zipCode>80005</zipCode>
+      <phoneNumber>720-739-3009</phoneNumber>
+      <issuedSecuritiesTitle>Class A Units</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>EvolveX Equity Fund LLC</issuerName>
+      <cik>0001929818</cik>
+      <jurisdictionOrganization>CO</jurisdictionOrganization>
+      <irsNum>87-1153667</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

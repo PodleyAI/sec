@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001690824</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Global Pharma Labs, Inc.</issuerName>
+      <street1>433 Estudillo Avenue, Suite 206</street1>
+      <city>SAN LEANDRO</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>94577</zipCode>
+      <phone>925-876-8832</phone>
+      <commissionFileNumber>024-10653</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-13-2017</offeringQualificationDate>
+      <offeringCommenceDate>02-13-2017</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>30000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>54400</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>54400.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>CrowdVest Securities, LLC</underwrittenSpName>
+      <underwriterFees>5000.00</underwriterFees>
+      <auditorSpName>M&amp;K CPAS PLLC</auditorSpName>
+      <auditorFees>5000.00</auditorFees>
+      <crdNumberBrokerDealer>000288827</crdNumberBrokerDealer>
+      <issuerNetProceeds>54400.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-10653</certificationFileNumber>
+      <approxRecordHolders>1</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001690824</cik>
+      <regulationIssuerName1>Global Pharma Labs, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Global Pharma Labs, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Sylvester L. Crawford</signatureBy>
+      <date>05-28-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001989522</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>1 WORLD TRADE CENTER</street1>
+      <street2>57TH FLOOR</street2>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10007</zipCode>
+      <phoneNumber>203-518-5172</phoneNumber>
+      <issuedSecuritiesTitle>Series 326 Class A Ordinary Shares, Series 356 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 361 Class A Ordinary Shares, Series 363 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 366 Class A Ordinary Shares, Series 367 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 368 Class A Ordinary Shares, Series 376 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 380 Class A Ordinary Shares, Series 381 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 383 Class A Ordinary Shares, Series 385 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 387 Class A Ordinary Shares, Series 389 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 391 Class A Ordinary Shares, Series 392 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 393 Class A Ordinary Shares, Series 395 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 403 Class A Ordinary Shares, Series 404 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 405 Class A Ordinary Shares, Series 407 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 412 Class A Ordinary Shares, Series 416 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 418 Class A Ordinary Shares, Series 419 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 422 Class A Ordinary Shares, Series 424 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 425 Class A Ordinary Shares, Series 426 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 427 Class A Ordinary Shares, Series 428 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 433 Class A Ordinary Shares, Series 434 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 435 Class A Ordinary Shares, Series 437 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 440 Class A Ordinary Shares, Series 448 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 450 Class A Ordinary Shares, Series 454 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 455 Class A Ordinary Shares, Series 457 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 458 Class A Ordinary Shares, Series 459 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 460 Class A Ordinary Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Masterworks Vault 4, LLC</issuerName>
+      <cik>0001989522</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>93-2751431</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

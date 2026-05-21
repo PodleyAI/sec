@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns1:edgarSubmission xmlns:ns1="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <ns1:headerData>
+    <ns1:submissionType>1-K/A</ns1:submissionType>
+    <ns1:filerInfo>
+      <ns1:liveTestFlag>LIVE</ns1:liveTestFlag>
+      <ns1:filer>
+        <ns1:issuerCredentials>
+          <ns1:cik>0001818643</ns1:cik>
+          <ns1:ccc>XXXXXXXX</ns1:ccc>
+        </ns1:issuerCredentials>
+        <ns1:fileNumber>24R-00540</ns1:fileNumber>
+      </ns1:filer>
+      <ns1:flags>
+        <ns1:shellCompanyFlag>N</ns1:shellCompanyFlag>
+        <ns1:successorFilingFlag>N</ns1:successorFilingFlag>
+      </ns1:flags>
+      <ns1:reportingPeriod>12-31-2023</ns1:reportingPeriod>
+    </ns1:filerInfo>
+  </ns1:headerData>
+  <ns1:formData>
+    <ns1:item1>
+      <ns1:formIndication>Annual Report</ns1:formIndication>
+      <ns1:fiscalYearEnd>12-31-2023</ns1:fiscalYearEnd>
+      <ns1:street1>18575 Jamboree Road</ns1:street1>
+      <ns1:street2>Suite 830</ns1:street2>
+      <ns1:city>Irvine</ns1:city>
+      <ns1:stateOrCountry>CA</ns1:stateOrCountry>
+      <ns1:zipCode>92612</ns1:zipCode>
+      <ns1:phoneNumber>303-376-9778</ns1:phoneNumber>
+      <ns1:issuedSecuritiesTitle>Regulation A - Unsecured 9.0% Bonds</ns1:issuedSecuritiesTitle>
+    </ns1:item1>
+    <ns1:item1Info>
+      <ns1:issuerName>Phoenix Energy One, LLC</ns1:issuerName>
+      <ns1:cik>0001818643</ns1:cik>
+      <ns1:jurisdictionOrganization>DE</ns1:jurisdictionOrganization>
+      <ns1:irsNum>83-4526672</ns1:irsNum>
+    </ns1:item1Info>
+    <ns1:item2>
+      <ns1:regArule257>false</ns1:regArule257>
+    </ns1:item2>
+    <ns1:summaryInfo>
+      <ns1:commissionFileNumber>024-11723</ns1:commissionFileNumber>
+      <ns1:offeringQualificationDate>03-29-2024</ns1:offeringQualificationDate>
+      <ns1:offeringCommenceDate>03-29-2024</ns1:offeringCommenceDate>
+      <ns1:qualifiedSecuritiesSold>31657</ns1:qualifiedSecuritiesSold>
+      <ns1:offeringSecuritiesSold>31657</ns1:offeringSecuritiesSold>
+      <ns1:pricePerSecurity>1000.0000</ns1:pricePerSecurity>
+      <ns1:aggregrateOfferingPrice>31657000.00</ns1:aggregrateOfferingPrice>
+      <ns1:aggregrateOfferingPriceHolders>0.00</ns1:aggregrateOfferingPriceHolders>
+      <ns1:underwrittenSpName>Dalmore Group, LLC</ns1:underwrittenSpName>
+      <ns1:underwriterFees>1424565.00</ns1:underwriterFees>
+      <ns1:crdNumberBrokerDealer>136352</ns1:crdNumberBrokerDealer>
+      <ns1:issuerNetProceeds>30232435.00</ns1:issuerNetProceeds>
+    </ns1:summaryInfo>
+  </ns1:formData>
+</ns1:edgarSubmission>

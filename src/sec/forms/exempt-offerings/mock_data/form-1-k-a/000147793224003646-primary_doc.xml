@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns2="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001620704</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00024</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>8236 Remmet Avenue</street1>
+      <city>Canoga Park</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>91304</zipCode>
+      <phoneNumber>818-349-2870</phoneNumber>
+      <issuedSecuritiesTitle>Common Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>MED-X, Inc.</issuerName>
+      <cik>0001620704</cik>
+      <jurisdictionOrganization>NV</jurisdictionOrganization>
+      <irsNum>46-5473113</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

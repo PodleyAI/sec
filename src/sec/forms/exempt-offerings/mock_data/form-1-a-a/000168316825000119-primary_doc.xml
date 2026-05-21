@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001748169</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-12546</offeringFileNumber>
+      </filer>
+      <flags>
+        <sinceLastFiling>true</sinceLastFiling>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Gin &amp; Luck Inc.</issuerName>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <yearIncorporation>2017</yearIncorporation>
+      <cik>0001748169</cik>
+      <sicCode>5810</sicCode>
+      <irsNum>83-0906953</irsNum>
+      <fullTimeEmployees>109</fullTimeEmployees>
+      <partTimeEmployees>34</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>3756 W. AVENUE 40</street1>
+      <street2>SUITE K #278</street2>
+      <city>LOS ANGELES</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>90065</zipCode>
+      <phoneNumber>213-613-0464</phoneNumber>
+      <connectionName>Robin Sosnow, Esq.</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>39035.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>1373430.00</accountsReceivable>
+      <propertyPlantEquipment>2850236.00</propertyPlantEquipment>
+      <totalAssets>11719842.00</totalAssets>
+      <accountsPayable>1560217.00</accountsPayable>
+      <longTermDebt>5993099.00</longTermDebt>
+      <totalLiabilities>9840536.00</totalLiabilities>
+      <totalStockholderEquity>1879306.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>11719842.00</totalLiabilitiesAndEquity>
+      <totalRevenues>14511172.00</totalRevenues>
+      <costAndExpensesApplToRevenues>3331160.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>534503.00</depreciationAndAmortization>
+      <netIncome>-3511286.00</netIncome>
+      <earningsPerShareBasic>-0.25</earningsPerShareBasic>
+      <earningsPerShareDiluted>-0.25</earningsPerShareDiluted>
+      <nameAuditor>SetApart Accountancy Corp.</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Class A Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>9999999</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Class B Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>3025002</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Class C Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>1068220</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series A Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>3061653</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series B Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>6847022</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series C-1 Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>1636647</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series C-2 Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>754095</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>N/A</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000N/A</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>N</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>4991574</securitiesOffered>
+      <outstandingSecurities>1636647</outstandingSecurities>
+      <pricePerSecurity>1.8104</pricePerSecurity>
+      <issuerAggregateOffering>9353238.32</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>9353238.32</totalAggregateOffering>
+      <underwritersServiceProviderName>Dealmaker Securities LLC</underwritersServiceProviderName>
+      <underwritersFees>390000.00</underwritersFees>
+      <salesCommissionsServiceProviderName>Dealmaker Securities LLC</salesCommissionsServiceProviderName>
+      <salesCommissionsServiceProviderFees>420895.73</salesCommissionsServiceProviderFees>
+      <auditorServiceProviderName>SetApart Accountancy Corp.</auditorServiceProviderName>
+      <auditorFees>50000.00</auditorFees>
+      <legalServiceProviderName>Sosnow &amp; Associates PLLC; Weinberger &amp; Logan PC</legalServiceProviderName>
+      <legalFees>75000.00</legalFees>
+      <blueSkyServiceProviderName>GlobalOne Filings</blueSkyServiceProviderName>
+      <blueSkyFees>20000.00</blueSkyFees>
+      <brokerDealerCrdNumber>000315324</brokerDealerCrdNumber>
+      <estimatedNetAmount>8471049.50</estimatedNetAmount>
+      <clarificationResponses>Sales Commissions may be lower due to the amount of securities ultimately sold. Additionally, 3.5% of investor funds will be utilized for covering transaction processing fees.</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedSame>true</jurisdictionsOfSecOfferedSame>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A1</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A2</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A3</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A4</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A5</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A6</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A7</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A8</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A9</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>B0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>Z4</issueJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AK</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AZ</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AR</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CO</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>DE</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>FL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>GA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>HI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ID</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>KS</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>KY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>LA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ME</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MD</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MS</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MO</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NE</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NV</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NH</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NJ</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NM</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ND</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OH</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OK</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OR</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>PA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>RI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>SC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>SD</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>TN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>TX</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>UT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>VT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>VA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WV</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>DC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>PR</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A0</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A1</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A2</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A3</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A4</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A5</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A6</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A7</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A8</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>A9</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>B0</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>Z4</dealersJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Gin &amp; Luck Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Series C-1 Preferred Stock &amp; Series B Preferred Stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>1885983</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>Series C-1 Preferred Stock - $2,963,051.20 ($1.81044 per share), Series B Preferred Stock - $226,721.22 ($0.9093 per share)</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Series C-1 Preferred Stock - Section 4(a)(6), Section 3(a)(9), and Regulation D, Rule 506(c) &amp; Series B Preferred Stock - Regulation D, Rule 506(b)</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

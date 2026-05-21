@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001811112</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>09-30-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>09-30-2024</fiscalYearEnd>
+      <street1>PO BOX 10026 PACIFIC CENTRE SOUTH, 25TH</street1>
+      <street2>700 WEST GEORGIA STREET</street2>
+      <city>VANCOUVER</city>
+      <stateOrCountry>A1</stateOrCountry>
+      <zipCode>V7Y 1B3</zipCode>
+      <phoneNumber>1-888-377-4225</phoneNumber>
+      <issuedSecuritiesTitle>Common Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Shackelford Pharma Inc.</issuerName>
+      <cik>0001811112</cik>
+      <jurisdictionOrganization>A1</jurisdictionOrganization>
+      <irsNum>00-0000000</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

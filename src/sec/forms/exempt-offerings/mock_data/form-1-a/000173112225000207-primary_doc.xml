@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001837774</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Global Innovative Platforms Inc.</issuerName>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <yearIncorporation>2020</yearIncorporation>
+      <cik>0001837774</cik>
+      <sicCode>3821</sicCode>
+      <irsNum>85-3816149</irsNum>
+      <fullTimeEmployees>0</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>149 JAMES PLACE</street1>
+      <city>ORLANDO</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>32751</zipCode>
+      <phoneNumber>321-230-3739</phoneNumber>
+      <connectionName>Stephen M. Fleming</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>148509.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>0.00</propertyPlantEquipment>
+      <totalAssets>148509.00</totalAssets>
+      <accountsPayable>14407.00</accountsPayable>
+      <longTermDebt>0.00</longTermDebt>
+      <totalLiabilities>14407.00</totalLiabilities>
+      <totalStockholderEquity>134051.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>148509.00</totalLiabilitiesAndEquity>
+      <totalRevenues>0.00</totalRevenues>
+      <costAndExpensesApplToRevenues>120467.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>0.00</depreciationAndAmortization>
+      <netIncome>-120467.00</netIncome>
+      <earningsPerShareBasic>-0.03</earningsPerShareBasic>
+      <earningsPerShareDiluted>-0.03</earningsPerShareDiluted>
+      <nameAuditor>M. S. Madhava Rao, Chartered Accountant.</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>39211241</outstandingCommonEquity>
+      <commonCusipEquity>37960M101</commonCusipEquity>
+      <publiclyTradedCommonEquity>OTC Markets Pink Current Information</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>N/A</preferredEquityClassName>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>N/A</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>Y</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>1400000</securitiesOffered>
+      <outstandingSecurities>39111241</outstandingSecurities>
+      <pricePerSecurity>0.5000</pricePerSecurity>
+      <issuerAggregateOffering>700000.00</issuerAggregateOffering>
+      <securityHolderAggegate>4146138.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.50</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>4846138.50</totalAggregateOffering>
+      <auditorServiceProviderName>M. S Madhava Rao, Chartered Accountant</auditorServiceProviderName>
+      <auditorFees>5000.00</auditorFees>
+      <legalServiceProviderName>Fleming PLLC.</legalServiceProviderName>
+      <legalFees>25000.00</legalFees>
+      <blueSkyServiceProviderName>State Regulators</blueSkyServiceProviderName>
+      <blueSkyFees>2500.00</blueSkyFees>
+      <estimatedNetAmount>667500.00</estimatedNetAmount>
+      <clarificationResponses>The issuer is paying all expenses of the offering; the issuer will receive estimated net proceeds of $667,500.00; the Selling stockholders will receive estimated net proceeds of $4,146,138.00.</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A1</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A2</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A3</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A4</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A5</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A6</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A7</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A8</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A9</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>B0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>Z4</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Global Innovative Platforms Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>11901129</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$718,762 which was based on valuation established by Board.</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Section 4(a)(2) and/or Regulation D.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

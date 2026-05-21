@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001810007</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>600 Peachtree St. NE</street1>
+      <street2>Suite 810</street2>
+      <city>ATLANTA</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30308</zipCode>
+      <phoneNumber>404-850-9225</phoneNumber>
+      <issuedSecuritiesTitle>PROMISSORY NOTES</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Groundfloor Yield LLC</issuerName>
+      <cik>0001810007</cik>
+      <jurisdictionOrganization>GA</jurisdictionOrganization>
+      <irsNum>46-3414189</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

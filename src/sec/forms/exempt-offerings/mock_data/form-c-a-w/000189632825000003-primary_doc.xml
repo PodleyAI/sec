@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc">
+  <headerData>
+    <submissionType>C/A-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001896328</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-35592</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>CGB Green Liberty Notes LLC</nameOfIssuer>
+      </issuerInfo>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>CGB Green Liberty Notes LLC</issuer>
+        <issuerSignature>Bryan Garcia  </issuerSignature>
+        <issuerTitle>President and CEO  </issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Bryan Garcia  </personSignature>
+          <personTitle>President and CEO  </personTitle>
+          <signatureDate>03-10-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Bert Hunter  </personSignature>
+          <personTitle>Executive Vice President and Chief Investment Officer  </personTitle>
+          <signatureDate>03-10-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Brian Farnen  </personSignature>
+          <personTitle>General Counsel and Chief Legal Officer  </personTitle>
+          <signatureDate>03-10-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Mackey Dykes  </personSignature>
+          <personTitle>Vice President of Financing Programs  </personTitle>
+          <signatureDate>03-10-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

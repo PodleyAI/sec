@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001919847</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Software Effective Solutions, Corp.</issuerName>
+      <street1>6500 River Place Blvd</street1>
+      <street2>Building 7, Suite 250</street2>
+      <city>Austin</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>78730</zipCode>
+      <phone>512-554-3736</phone>
+      <commissionFileNumber>024-12408</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>03-20-2024</offeringQualificationDate>
+      <offeringCommenceDate>03-20-2024</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>150000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>11700642</offeringSecuritiesSold>
+      <pricePerSecurity>0.0300</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>351019.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Newlan Law Firm</legalSpName>
+      <legalSpName>PLLC</legalSpName>
+      <legalFees>10000.00</legalFees>
+      <blueSkySpName>State Regulators</blueSkySpName>
+      <blueSkyFees>230.00</blueSkyFees>
+      <issuerNetProceeds>340789.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12408</certificationFileNumber>
+      <approxRecordHolders>40</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001919847</cik>
+      <regulationIssuerName1>Software Effective Solutions, Corp.</regulationIssuerName1>
+      <regulationIssuerName2>Software Effective Solutions, Corp.</regulationIssuerName2>
+      <signatureBy>/s/ Jose Gabriel Diaz</signatureBy>
+      <date>03-17-2025</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

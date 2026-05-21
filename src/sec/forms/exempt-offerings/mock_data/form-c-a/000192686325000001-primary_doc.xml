@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C/A</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001926863</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-34374</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <isAmendment>false</isAmendment>
+      <natureOfAmendment>Mid-Campaign Bonus Perks were added to the Form to provide investors that invest within a specified time frame additional bonus shares that were not offered before.</natureOfAmendment>
+      <issuerInfo>
+        <nameOfIssuer>BELLA RIO CONSULTING, INC</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>IL</jurisdictionOrganization>
+          <dateIncorporation>06-29-2015</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>400 RIVERSIDE RD</com:street1>
+          <com:city>BELVIDERE</com:city>
+          <com:stateOrCountry>IL</com:stateOrCountry>
+          <com:zipCode>61008</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.rocknvodkas.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+      <companyName>DEALMAKER SECURITIES LLC</companyName>
+      <commissionCik>0001872856</commissionCik>
+      <commissionFileNumber>008-70756</commissionFileNumber>
+      <crdNumber>000315324</crdNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>The intermediary will obtain 8.5% of all cash raised in the form of fees.</compensationAmount>
+      <financialInterest>A $2,000.00 monthly fee will be paid by the issuer to the intermediary for the utilization of their services and platform.</financialInterest>
+      <securityOfferedType>Other</securityOfferedType>
+      <securityOfferedOtherDesc>Preferred Series B</securityOfferedOtherDesc>
+      <noOfSecurityOffered>2416</noOfSecurityOffered>
+      <price>4.00000</price>
+      <priceDeterminationMethod>Pre-Money Valuation as Determined by the Company.</priceDeterminationMethod>
+      <offeringAmount>10002.24</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>At Issuer's Discretion.</descOverSubscription>
+      <maximumOfferingAmount>2953236.00</maximumOfferingAmount>
+      <deadlineDate>06-27-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>7.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>174046.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>392291.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>170465.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>365334.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>0.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>23191.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>29351.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>48.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>0.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>244575.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>333212.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>166510.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>283969.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>43941.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>21984.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>795222.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>402443.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>BELLA RIO CONSULTING, INC</issuer>
+        <issuerSignature>Jandell Manguerra</issuerSignature>
+        <issuerTitle>Executive Administrator</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Andy Roiniotis</personSignature>
+          <personTitle>Vice President, Director, and Principal Accounting Officer </personTitle>
+          <signatureDate>02-06-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Isabelle Roiniotis</personSignature>
+          <personTitle>President and Director</personTitle>
+          <signatureDate>02-06-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

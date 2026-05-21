@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc">
+  <headerData>
+    <submissionType>C-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002036674</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-34747</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>AJAI ROBOTICS INC</nameOfIssuer>
+      </issuerInfo>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>AJAI ROBOTICS INC</issuer>
+        <issuerSignature>/s/ Srinivas Iyer</issuerSignature>
+        <issuerTitle>Director, CEO, Principal Executive Officer</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>/s/ Srinivas Iyer</personSignature>
+          <personTitle>Director, CEO, Principal Executive Officer</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Christian Huff</personSignature>
+          <personTitle>Contract CFO, Principal Accounting Officer</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Ajay Sunkara</personSignature>
+          <personTitle>President</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Srikanth Ramamurthy</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Vijay Kodali</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Massimo Noja</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>02-21-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

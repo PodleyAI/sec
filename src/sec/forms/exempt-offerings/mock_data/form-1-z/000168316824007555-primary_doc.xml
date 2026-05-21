@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001434601</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>The Marquie Group, Inc.</issuerName>
+      <street1>7901 4th Street North</street1>
+      <street2>Suite 4887</street2>
+      <city>ST. PETERSBURG</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33702</zipCode>
+      <phone>8003513021</phone>
+      <commissionFileNumber>024-10992</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-28-2019</offeringQualificationDate>
+      <offeringCommenceDate>08-28-2019</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>1333333333</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>105000000</offeringSecuritiesSold>
+      <pricePerSecurity>0.0075</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>Michael T Studer CPA P.C.</auditorSpName>
+      <auditorFees>5000.00</auditorFees>
+      <legalSpName>Eilers Law Group P.A.</legalSpName>
+      <legalFees>25000.00</legalFees>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-10992</certificationFileNumber>
+      <approxRecordHolders>2276</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001434601</cik>
+      <regulationIssuerName1>Marquie Group, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Marquie Group, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Mark Angell</signatureBy>
+      <date>11-01-2024</date>
+      <title>President/CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001867925</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00809</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>9570 West Pico Boulevard</street1>
+      <city>Los Angeles</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>90035</zipCode>
+      <phoneNumber>310-746-1400</phoneNumber>
+      <issuedSecuritiesTitle>Common Interests</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Skybound Holdings LLC</issuerName>
+      <cik>0001867925</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>81-4711413</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

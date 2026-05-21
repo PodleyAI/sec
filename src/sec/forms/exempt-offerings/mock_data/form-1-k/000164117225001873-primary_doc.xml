@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001979634</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>1 WORLD TRADE CENTER</street1>
+      <street2>57TH FLOOR</street2>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10007</zipCode>
+      <phoneNumber>203-518-5172</phoneNumber>
+      <issuedSecuritiesTitle>Series 301 Class A Ordinary Shares, Series 302 Class A Ordinary Shares, Series 303 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 304 Class A Ordinary Shares, Series 305 Class A Ordinary Shares, Series 306 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 307 Class A Ordinary Shares, Series 308 Class A Ordinary Shares, Series 310 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 311 Class A Ordinary Shares, Series 312 Class A Ordinary Shares, Series 313 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 314 Class A Ordinary Shares, Series 317 Class A Ordinary Shares, Series 321 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 324 Class A Ordinary Shares, Series 328 Class A Ordinary Shares, Series 331 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 333 Class A Ordinary Shares, Series 335 Class A Ordinary Shares, Series 341 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 342 Class A Ordinary Shares, Series 347 Class A Ordinary Shares, Series 364 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 378 Class A Ordinary Shares, Series 379 Class A Ordinary Shares, Series 382 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 394 Class A Ordinary Shares, Series 397 Class A Ordinary Shares, Series 399 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 401 Class A Ordinary Shares, Series 402 Class A Ordinary Shares, Series 406 Class A Ordinary Shares,</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Series 408 Class A Ordinary Shares, Series 409 Class A Ordinary Shares, Series 410 Class A Ordinary Shares, Series 461 Class A Ordinary Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Masterworks Vault 2, LLC</issuerName>
+      <cik>0001979634</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>93-1570482</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

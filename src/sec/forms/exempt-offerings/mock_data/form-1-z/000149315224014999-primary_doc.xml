@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001568628</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Bioquest Corp.</issuerName>
+      <street1>4570 Campus Drive</street1>
+      <city>Newport Beach</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92660</zipCode>
+      <phone>7149784425</phone>
+      <commissionFileNumber>024-11348</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>11-27-2020</offeringQualificationDate>
+      <offeringCommenceDate>11-30-2020</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>5000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>2.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>900000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>Haynie &amp; Company</auditorSpName>
+      <auditorFees>35000.00</auditorFees>
+      <legalSpName>Law Office of Andrew Coldicutt</legalSpName>
+      <legalFees>15000.00</legalFees>
+      <blueSkySpName>Various States</blueSkySpName>
+      <blueSkyFees>3000.00</blueSkyFees>
+      <issuerNetProceeds>4900000.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11348</certificationFileNumber>
+      <approxRecordHolders>202</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001568628</cik>
+      <regulationIssuerName1>BioQuest, Corp.,</regulationIssuerName1>
+      <regulationIssuerName2>BioQuest, Corp.,</regulationIssuerName2>
+      <signatureBy>/s/ Thomas Hemingway</signatureBy>
+      <date>04-17-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

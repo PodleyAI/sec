@@ -1,0 +1,357 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D/A</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001963055</cik>
+        <entityName>17Capital Strategic Lending Fund 6 EUR SCSp</entityName>
+        <issuerAddress>
+            <street1>412F, ROUTE D'ESCH</street1>
+            <city>LUXEMBOURG</city>
+            <stateOrCountry>N4</stateOrCountry>
+            <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+            <zipCode>L-1471</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>44 (0)20 7493 2462</issuerPhoneNumber>
+        <jurisdictionOfInc>LUXEMBOURG</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Other</entityType>
+        <entityTypeOtherDesc>LUXEMBOURG SOCIETE EN COMMANDITE SPECIALE (SCSP)</entityTypeOtherDesc>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2022</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <issuerList>
+        <issuer>
+            <cik>0001963518</cik>
+            <entityName>17Capital Strategic Lending Fund 6 USD SCSp</entityName>
+            <issuerAddress>
+                <street1>412F, ROUTE D'ESCH</street1>
+                <city>LUXEMBOURG</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </issuerAddress>
+            <issuerPhoneNumber>44 (0)20 7493 2462</issuerPhoneNumber>
+            <jurisdictionOfInc>LUXEMBOURG</jurisdictionOfInc>
+            <issuerPreviousNameList>
+                <value>None</value>
+            </issuerPreviousNameList>
+            <edgarPreviousNameList>
+                <value>None</value>
+            </edgarPreviousNameList>
+            <entityType>Other</entityType>
+            <entityTypeOtherDesc>LUXEMBOURG SOCIETE EN COMMANDITE SPECIALE (SCSP)</entityTypeOtherDesc>
+            <yearOfInc>
+                <withinFiveYears>true</withinFiveYears>
+                <value>2022</value>
+            </yearOfInc>
+        </issuer>
+        <issuer>
+            <cik>0001963047</cik>
+            <entityName>17Capital Strategic Lending Fund 6 Partners Fund Feeder SCSp</entityName>
+            <issuerAddress>
+                <street1>412F, ROUTE D'ESCH</street1>
+                <city>LUXEMBOURG</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </issuerAddress>
+            <issuerPhoneNumber>44 (0)20 7493 2462</issuerPhoneNumber>
+            <jurisdictionOfInc>LUXEMBOURG</jurisdictionOfInc>
+            <issuerPreviousNameList>
+                <value>None</value>
+            </issuerPreviousNameList>
+            <edgarPreviousNameList>
+                <value>None</value>
+            </edgarPreviousNameList>
+            <entityType>Other</entityType>
+            <entityTypeOtherDesc>LUXEMBOURG SOCIETE EN COMMANDITE SPECIALE (SCSP)</entityTypeOtherDesc>
+            <yearOfInc>
+                <withinFiveYears>true</withinFiveYears>
+                <value>2022</value>
+            </yearOfInc>
+        </issuer>
+    </issuerList>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>N/A</firstName>
+                <lastName>17 CAPITAL LLP</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>N/A</firstName>
+                <lastName>17CAPITAL FUND 6 LUXEMBOURG GP S.A R.L.</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, ROUTE D'ESCH</street1>
+                <city>LUXEMBOURG</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>GENERAL PARTNER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>PIERRE-ANTOINE</firstName>
+                <lastName>DE SELANCY</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>MANAGING PARTNER OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>AUGUSTIN</firstName>
+                <lastName>DUHAMEL</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>MANAGING PARTNER OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>EMAD</firstName>
+                <lastName>SHAHIN</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>PARTNER AND GENERAL COUNSEL OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>FOKKE</firstName>
+                <lastName>LUCAS</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>PARTNER OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>DAVID</firstName>
+                <lastName>WILSON</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>PARTNER OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>JACK</firstName>
+                <lastName>MATHEW</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>CHIEF COMPLIANCE OFFICER OF THE PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>DANE</firstName>
+                <lastName>GRAHAM</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>ALMACK HOUSE</street1>
+                <street2>28 KING STREET</street2>
+                <city>LONDON</city>
+                <stateOrCountry>X0</stateOrCountry>
+                <stateOrCountryDescription>UNITED KINGDOM</stateOrCountryDescription>
+                <zipCode>SW1Y 6QW</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>PARTNER OF PORTFOLIO MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>N/A</firstName>
+                <lastName>ALTER DOMUS MANAGEMENT COMPANY S.A.</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>15 BOULEVARD F.W. RAIFFEISEN</street1>
+                <city>LUXEMBOURG</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-2411</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>ALTERNATIVE INVESTMENT FUND MANAGER</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Private Equity Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>true</isAmendment>
+                <previousAccessionNumber>0001963055-24-000001</previousAccessionNumber>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2023-02-03</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>61864050</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse>ALL OFFERING AND SALES AMOUNTS IN ITEMS 13 AND 14 INCLUDE US SALES ONLY.</clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>5</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>17Capital Strategic Lending Fund 6 EUR SCSp</issuerName>
+                <signatureName>JACK MATHEW</signatureName>
+                <nameOfSigner>JACK MATHEW</nameOfSigner>
+                <signatureTitle>CHIEF COMPLIANCE OFFICER OF THE PORTFOLIO MANAGER</signatureTitle>
+                <signatureDate>2025-01-13</signatureDate>
+            </signature>
+            <signature>
+                <issuerName>17Capital Strategic Lending Fund 6 USD SCSp</issuerName>
+                <signatureName>JACK MATHEW</signatureName>
+                <nameOfSigner>JACK MATHEW</nameOfSigner>
+                <signatureTitle>CHIEF COMPLIANCE OFFICER OF THE PORTFOLIO MANAGER</signatureTitle>
+                <signatureDate>2025-01-13</signatureDate>
+            </signature>
+            <signature>
+                <issuerName>17Capital Strategic Lending Fund 6 Partners Fund Feeder SCSp</issuerName>
+                <signatureName>JACK MATHEW</signatureName>
+                <nameOfSigner>JACK MATHEW</nameOfSigner>
+                <signatureTitle>CHIEF COMPLIANCE OFFICER OF THE PORTFOLIO MANAGER</signatureTitle>
+                <signatureDate>2025-01-13</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

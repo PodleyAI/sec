@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001880431</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Vocodia Holdings Corp</issuerName>
+      <jurisdictionOrganization>WY</jurisdictionOrganization>
+      <yearIncorporation>2021</yearIncorporation>
+      <cik>0001880431</cik>
+      <sicCode>7371</sicCode>
+      <irsNum>86-3519415</irsNum>
+      <fullTimeEmployees>2</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>7781 NW Beacon Square Blvd</street1>
+      <street2>Unit 102-V64</street2>
+      <city>BOCA RATON</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33487</zipCode>
+      <phoneNumber>561-484-5234</phoneNumber>
+      <connectionName>Jonathan Leinwand</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>1216.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>50155.00</accountsReceivable>
+      <propertyPlantEquipment>20499.00</propertyPlantEquipment>
+      <totalAssets>492452.00</totalAssets>
+      <accountsPayable>2005345.00</accountsPayable>
+      <longTermDebt>114119.00</longTermDebt>
+      <totalLiabilities>2443947.00</totalLiabilities>
+      <totalStockholderEquity>-1951495.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>492452.00</totalLiabilitiesAndEquity>
+      <totalRevenues>50156.00</totalRevenues>
+      <costAndExpensesApplToRevenues>74062.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>170862.00</depreciationAndAmortization>
+      <netIncome>-1330682.00</netIncome>
+      <earningsPerShareBasic>0.00</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.00</earningsPerShareDiluted>
+      <nameAuditor>Pipara &amp; Co LLP</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>300213026</outstandingCommonEquity>
+      <commonCusipEquity>92891Q101</commonCusipEquity>
+      <publiclyTradedCommonEquity>OTC Markets</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series A Preferred</preferredEquityClassName>
+      <outstandingPreferredEquity>4000000</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>None</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>N/A</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>Y</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>15048000000</securitiesOffered>
+      <outstandingSecurities>300213026</outstandingSecurities>
+      <issuerAggregateOffering>7500000.00</issuerAggregateOffering>
+      <securityHolderAggegate>24000.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>7524000.00</totalAggregateOffering>
+      <auditorServiceProviderName>Rosenberg Rich Baker Berman, P.A.</auditorServiceProviderName>
+      <auditorFees>5000.00</auditorFees>
+      <legalServiceProviderName>Jonathan D. Leinwand, P.A.</legalServiceProviderName>
+      <legalFees>25000.00</legalFees>
+      <blueSkyServiceProviderName>Jonathan D. Leinwand, P.A.</blueSkyServiceProviderName>
+      <blueSkyFees>2500.00</blueSkyFees>
+      <estimatedNetAmount>7450000.00</estimatedNetAmount>
+      <clarificationResponses>Includes costs for accounting, state filing fees, Edgarization, and transfer agent fees</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A1</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A2</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A3</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A4</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A5</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A6</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A7</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A8</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A9</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>B0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>Z4</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <unregisteredSecurities>
+      <ifUnregsiteredNone>true</ifUnregsiteredNone>
+    </unregisteredSecurities>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption/>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

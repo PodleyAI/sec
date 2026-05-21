@@ -24,6 +24,7 @@ import {
 } from "./Form_D.schema";
 import { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
 import { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
+import { parseCikSafely } from "../../../util/parseCik";
 
 /**
  * Coerce a numeric-shaped string into a finite integer or null. EDGAR-emitted
@@ -37,14 +38,6 @@ function parseIntegerOrNull(raw: string | number | undefined | null): number | n
   if (!/^-?\d+$/.test(trimmed)) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseCikSafely(raw: string | number | undefined | null): number {
-  if (raw === undefined || raw === null) return 0;
-  const trimmed = String(raw).trim();
-  if (!/^\d+$/.test(trimmed)) return 0;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 // relation types for form-d
@@ -244,16 +237,27 @@ async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boole
     console.warn(`Failed to save address for issuer ${companyName}:`, issuer.issuerAddress, error);
   }
 
-  const phone = await phoneRepo.savePhone({
-    phone_raw: issuer.issuerPhoneNumber,
-    country_code,
-  });
-  await phoneRepo.saveRelatedEntity(phone.international_number, relationName, cik);
-  await companyRepo.saveRelatedPhone(
-    phone.international_number,
-    relationName,
-    company.company_hash_id
-  );
+  // EDGAR phone numbers are user-entered and routinely malformed (e.g. UK
+  // numbers like "44(0) 20 7493 2462" with no country code). Treat
+  // normalization failures the same way we treat address failures above:
+  // warn and continue so one bad field doesn't drop the whole filing.
+  try {
+    const phone = await phoneRepo.savePhone({
+      phone_raw: issuer.issuerPhoneNumber,
+      country_code,
+    });
+    await phoneRepo.saveRelatedEntity(phone.international_number, relationName, cik);
+    await companyRepo.saveRelatedPhone(
+      phone.international_number,
+      relationName,
+      company.company_hash_id
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `Failed to save phone "${issuer.issuerPhoneNumber}" for issuer ${companyName}: ${message}`
+    );
+  }
 
   if (issuer.issuerPreviousNameList && "previousName" in issuer.issuerPreviousNameList) {
     for (const prevName of issuer.issuerPreviousNameList.previousName || []) {

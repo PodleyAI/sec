@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001751259</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>5 Generation Bakers, LLC</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Limited Liability Company</legalStatusForm>
+          <jurisdictionOrganization>PA</jurisdictionOrganization>
+          <dateIncorporation>06-12-2009</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>1100 CHARTIERS AVENUE</com:street1>
+          <com:city>MCKEES ROCKS</com:city>
+          <com:stateOrCountry>PA</com:stateOrCountry>
+          <com:zipCode>15136</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>www.jennyleeswirlbread.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+      <companyName>Honeycomb Portal LLC</companyName>
+      <commissionCik>0001705726</commissionCik>
+      <commissionFileNumber>007-00119</commissionFileNumber>
+      <crdNumber>289015</crdNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>Applied at marginal rate based upon amount of total offering: up to $100,000 = 8.5%, $100,001 - $207,000 = 7.5%. Platform Fee corresponding to selected level of service. 3% investment fee capped at $50.</compensationAmount>
+      <financialInterest>None</financialInterest>
+      <securityOfferedType>Debt</securityOfferedType>
+      <price>1.00000</price>
+      <priceDeterminationMethod>Pro-rated portion of the total principal</priceDeterminationMethod>
+      <offeringAmount>100000.00</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>First-come, first-served basis</overSubscriptionAllocationType>
+      <maximumOfferingAmount>207000.00</maximumOfferingAmount>
+      <deadlineDate>04-30-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>45.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>3203061.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>3162942.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>89235.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>54319.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>513586.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>410702.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>754111.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>1002761.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>4148787.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>4101884.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>5132906.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>3756697.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>3390355.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>2438278.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>18352.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-197476.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A0</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A1</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A2</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A3</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A4</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A5</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A6</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A7</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A8</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>A9</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>B0</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>Z4</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>5 Generation Bakers, LLC</issuer>
+        <issuerSignature>Scott Baker</issuerSignature>
+        <issuerTitle>President</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Scott Baker</personSignature>
+          <personTitle>President</personTitle>
+          <signatureDate>03-03-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

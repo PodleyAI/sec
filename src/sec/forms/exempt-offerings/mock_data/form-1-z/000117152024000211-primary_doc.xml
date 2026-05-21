@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001762400</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>LiveCare, Inc.</issuerName>
+      <street1>1500 East Venice Avenue</street1>
+      <street2>Suite 411</street2>
+      <city>Venice</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>34292</zipCode>
+      <phone>941-225-6699</phone>
+      <commissionFileNumber>024-10975</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>05-16-2019</offeringQualificationDate>
+      <offeringCommenceDate>06-01-2019</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>10000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>7882000</offeringSecuritiesSold>
+      <pricePerSecurity>1.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>7882000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>N/A</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>N/A</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersSpName>N/A</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Malone Bailey, TAAD</auditorSpName>
+      <auditorFees>50000.00</auditorFees>
+      <legalSpName>Brannelly Law</legalSpName>
+      <legalFees>20000.00</legalFees>
+      <promoterSpName>N/A</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>N/A</blueSkySpName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <issuerNetProceeds>7812000.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <certificationFileNumber>024-10975</certificationFileNumber>
+      <approxRecordHolders>349</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001762400</cik>
+      <regulationIssuerName1>LiveCare, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>LiveCare, Inc.</regulationIssuerName2>
+      <signatureBy>Max Rockwell</signatureBy>
+      <date>05-23-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

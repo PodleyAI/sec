@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001776073</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>CBD Life Sciences Inc.</issuerName>
+      <street1>10953 N. Frank Lloyd Wright Blvd</street1>
+      <street2>Suite 108</street2>
+      <city>Scottdale</city>
+      <stateOrCountry>AZ</stateOrCountry>
+      <zipCode>85259</zipCode>
+      <phone>480-410-6780</phone>
+      <commissionFileNumber>024-11968</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-18-2022</offeringQualificationDate>
+      <offeringCommenceDate>08-18-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>25000000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>0.0001</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Newlan Law Firm, PLLC</legalSpName>
+      <legalFees>10000.00</legalFees>
+      <blueSkySpName>State Regulators</blueSkySpName>
+      <blueSkyFees>2500.00</blueSkyFees>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11968</certificationFileNumber>
+      <approxRecordHolders>91</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001776073</cik>
+      <regulationIssuerName1>CBD Life Sciences, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>CBD Life Sciences, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Lisa Nelson</signatureBy>
+      <date>05-01-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

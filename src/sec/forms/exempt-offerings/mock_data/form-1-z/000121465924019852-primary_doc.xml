@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001981561</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>REAL STREET BUILD-TO-RENT FUND I, LLC</issuerName>
+      <street1>9200 NW 39th Avenue, Suite 130-1002</street1>
+      <city>GAINESVILLE</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>32606</zipCode>
+      <phone>307-228-4628</phone>
+      <commissionFileNumber>024-12346</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-12-2024</offeringQualificationDate>
+      <offeringCommenceDate>01-12-2024</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>25000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>1000.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>Netshares Financial Services</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>Netshares Financial Services</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersSpName>None</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Assurance Dimensions</auditorSpName>
+      <auditorFees>3500.00</auditorFees>
+      <legalSpName>David LeGrand</legalSpName>
+      <legalFees>1032.76</legalFees>
+      <promoterSpName>None</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>Agile Legal</blueSkySpName>
+      <blueSkyFees>4535.00</blueSkyFees>
+      <crdNumberBrokerDealer>000307532</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Units</securitiesClassTitle>
+      <certificationFileNumber>024-12346</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001981561</cik>
+      <regulationIssuerName1>REAL STREET BUILD-TO-RENT FUND I, LLC</regulationIssuerName1>
+      <regulationIssuerName2>REAL STREET BUILD-TO-RENT FUND I, LLC</regulationIssuerName2>
+      <signatureBy>Gregory Stula</signatureBy>
+      <date>12-02-2024</date>
+      <title>CEO and manager of the Manager of the Issuer, Real Street Capital Manager, LLC</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

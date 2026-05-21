@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001973160</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>GEMZ Corp. NV</issuerName>
+      <street1>2180 N. Park Avenue #200</street1>
+      <city>Winter Park</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>32789</zipCode>
+      <phone>407-674-9444</phone>
+      <commissionFileNumber>024-12239</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-07-2023</offeringQualificationDate>
+      <offeringCommenceDate>08-07-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>2000000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>665000000</offeringSecuritiesSold>
+      <pricePerSecurity>0.0002</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>175000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Newlan Law Firm, PLLC</legalSpName>
+      <legalFees>15000.00</legalFees>
+      <blueSkySpName>State Regulators</blueSkySpName>
+      <blueSkyFees>1500.00</blueSkyFees>
+      <issuerNetProceeds>158500.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12239</certificationFileNumber>
+      <approxRecordHolders>1718</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001973160</cik>
+      <regulationIssuerName1>GEMZ Corp. NV</regulationIssuerName1>
+      <regulationIssuerName2>GEMZ Corp. NV</regulationIssuerName2>
+      <signatureBy>/s/ Stephen W. Carnes</signatureBy>
+      <date>12-09-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

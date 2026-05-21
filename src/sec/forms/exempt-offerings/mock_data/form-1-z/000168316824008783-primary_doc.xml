@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001505032</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Emerging Fuels Technology, Inc.</issuerName>
+      <street1>6024 S. 116th East Avenue</street1>
+      <city>TULSA</city>
+      <stateOrCountry>OK</stateOrCountry>
+      <zipCode>74146</zipCode>
+      <phone>918-286-6802</phone>
+      <commissionFileNumber>024-11598</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>09-26-2023</offeringQualificationDate>
+      <offeringCommenceDate>09-26-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>20833333</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>85849</offeringSecuritiesSold>
+      <pricePerSecurity>3.6000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>309034.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>Dalmore</underwrittenSpName>
+      <underwriterFees>3090.00</underwriterFees>
+      <auditorSpName>M&amp;K CPAs PLLC</auditorSpName>
+      <auditorFees>46500.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP/Covey Law Firm, PLLC</legalSpName>
+      <legalFees>90000.00</legalFees>
+      <crdNumberBrokerDealer>000136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>169449.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Non-Voting Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11598</certificationFileNumber>
+      <approxRecordHolders>91</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001505032</cik>
+      <regulationIssuerName1>Emerging Fuels Technology, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Emerging Fuels Technology, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Ken Agee</signatureBy>
+      <date>12-17-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

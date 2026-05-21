@@ -2,9 +2,19 @@ import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
 import { Workflow } from "workglow";
 import { isFormParsingSupported } from "../../sec/forms/all-forms";
+import {
+  EXEMPT_OFFERING_FORM_CODES,
+  type ExemptOfferingFormCode,
+} from "../../sec/forms/exempt-offerings/form-slugs";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
 import { FetchCompanyFactsTask } from "../../task/facts/FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "../../task/facts/StoreCompanyFactsTask";
+import {
+  DEFAULT_FIXTURES_PER_FORM,
+  fetchFixtures,
+  parseFormCodes,
+  parseQuarterStrings,
+} from "../../task/fixtures/fetchFixtures";
 import { FetchAndStoreFormsTask } from "../../task/forms/FetchAndStoreFormsTask";
 import { ProcessAccessionDocFormTask } from "../../task/forms/ProcessAccessionDocFormTask";
 import { FetchSubmissionsTask } from "../../task/submissions/FetchSubmissionsTask";
@@ -137,4 +147,47 @@ export function addFetchCommands(program: Command): void {
         });
       });
     });
+
+  fetch
+    .command("fixtures [forms...]")
+    .description(
+      "Download real EDGAR filings for the exempt-offering forms into mock_data/ (development tooling for the test fixture set)"
+    )
+    .option(
+      `-c, --count <n>`,
+      `Max fixtures to download per form (default ${DEFAULT_FIXTURES_PER_FORM})`,
+      (v) => Number(v)
+    )
+    .option(
+      "-q, --quarter <quarter>",
+      "Quarter to source from (YYYYQn). Repeatable.",
+      (v, prev: string[]) => [...prev, v],
+      [] as string[]
+    )
+    .option(
+      "--list",
+      "Print accessions that would be downloaded without fetching them"
+    )
+    .action(
+      async (
+        forms: string[],
+        options: { count?: number; quarter: string[]; list?: boolean }
+      ) => {
+        await runCommand(async () => {
+          const formCodes: ExemptOfferingFormCode[] =
+            forms.length > 0 ? parseFormCodes(forms) : [...EXEMPT_OFFERING_FORM_CODES];
+          const quarters = options.quarter.length > 0 ? parseQuarterStrings(options.quarter) : undefined;
+          const result = await fetchFixtures({
+            forms: formCodes,
+            count: options.count,
+            quarters,
+            listOnly: options.list,
+            log: (msg) => console.log(msg),
+          });
+          console.log(
+            `Done. downloaded=${result.downloaded} failed=${result.failed} skipped=${result.skipped}`
+          );
+        });
+      }
+    );
 }

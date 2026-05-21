@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns1:edgarSubmission xmlns:ns1="http://www.sec.gov/edgar/rega/onezfiler">
+  <ns1:headerData>
+    <ns1:submissionType>1-Z</ns1:submissionType>
+    <ns1:filerInfo>
+      <ns1:liveTestFlag>LIVE</ns1:liveTestFlag>
+      <ns1:filer>
+        <ns1:issuerCredentials>
+          <ns1:cik>0001693656</ns1:cik>
+          <ns1:ccc>XXXXXXXX</ns1:ccc>
+        </ns1:issuerCredentials>
+      </ns1:filer>
+      <ns1:flags>
+        <ns1:successorFilingFlag>N</ns1:successorFilingFlag>
+      </ns1:flags>
+    </ns1:filerInfo>
+  </ns1:headerData>
+  <ns1:formData>
+    <ns1:item1>
+      <ns1:issuerName>Hiro Systems PBC</ns1:issuerName>
+      <ns1:street1>101 W. 23RD ST. STE 224</ns1:street1>
+      <ns1:city>New York</ns1:city>
+      <ns1:stateOrCountry>NY</ns1:stateOrCountry>
+      <ns1:zipCode>10011</ns1:zipCode>
+      <ns1:phone>212-634-4254</ns1:phone>
+      <ns1:commissionFileNumber>024-11033</ns1:commissionFileNumber>
+    </ns1:item1>
+    <ns1:summaryInfoOffering>
+      <ns1:offeringQualificationDate>07-10-2019</ns1:offeringQualificationDate>
+      <ns1:offeringCommenceDate>07-11-2019</ns1:offeringCommenceDate>
+      <ns1:offeringSecuritiesQualifiedSold>180333333</ns1:offeringSecuritiesQualifiedSold>
+      <ns1:offeringSecuritiesSold>85114827</ns1:offeringSecuritiesSold>
+      <ns1:portionSecuritiesSoldIssuer>15500000.00</ns1:portionSecuritiesSoldIssuer>
+      <ns1:portionSecuritiesSoldSecurityholders>0.00</ns1:portionSecuritiesSoldSecurityholders>
+      <ns1:auditorSpName>WithumSmith+Brown, PC</ns1:auditorSpName>
+      <ns1:auditorFees>250000.00</ns1:auditorFees>
+      <ns1:legalSpName>Wilson Sonsini Goodrich &amp; Rosati, P.C.</ns1:legalSpName>
+      <ns1:legalFees>1500000.00</ns1:legalFees>
+    </ns1:summaryInfoOffering>
+    <ns1:certificationSuspension>
+      <ns1:securitiesClassTitle>As previously disclosed, the Company believes it is no longer required to file reports pursuant to Regulation A with respect to the Stacks Tokens.</ns1:securitiesClassTitle>
+      <ns1:certificationFileNumber>024-11033</ns1:certificationFileNumber>
+      <ns1:approxRecordHolders>0</ns1:approxRecordHolders>
+    </ns1:certificationSuspension>
+    <ns1:signatureTab>
+      <ns1:cik>0001693656</ns1:cik>
+      <ns1:regulationIssuerName1>Hiro Systems PBC</ns1:regulationIssuerName1>
+      <ns1:regulationIssuerName2>Hiro Systems PBC</ns1:regulationIssuerName2>
+      <ns1:signatureBy>/s/ Alex Miller</ns1:signatureBy>
+      <ns1:date>01-08-2025</ns1:date>
+      <ns1:title>Chief Executive Officer</ns1:title>
+    </ns1:signatureTab>
+  </ns1:formData>
+</ns1:edgarSubmission>

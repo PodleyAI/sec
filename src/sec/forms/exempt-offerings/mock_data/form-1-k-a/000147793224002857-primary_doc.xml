@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns2="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001882616</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00504</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>18909 NE 29th Avenue</street1>
+      <city>Aventura</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33180</zipCode>
+      <phoneNumber>310-777-0255</phoneNumber>
+      <issuedSecuritiesTitle>Class A Interests (Unit)</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Cardone REIT I, LLC</issuerName>
+      <cik>0001882616</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>87-1814422</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11674</commissionFileNumber>
+      <offeringQualificationDate>10-29-2021</offeringQualificationDate>
+      <offeringCommenceDate>10-29-2021</offeringCommenceDate>
+      <qualifiedSecuritiesSold>75000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>74911</offeringSecuritiesSold>
+      <pricePerSecurity>1000.0000</pricePerSecurity>
+      <aggregrateOfferingPrice>74911000.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Kaufman, Rossin &amp; Co, P.A.</auditorSpName>
+      <auditorFees>139275.00</auditorFees>
+      <legalSpName>Dodson Robinette PLLC</legalSpName>
+      <legalFees>54833.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>Fund Compliance Services</blueSkySpName>
+      <blueSkyFees>33000.00</blueSkyFees>
+      <issuerNetProceeds>74683892.00</issuerNetProceeds>
+      <clarificationResponses/>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

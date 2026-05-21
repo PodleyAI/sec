@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001613895</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Bemax, Inc.</issuerName>
+      <street1>625 Silver Oak Drive</street1>
+      <city>Dallas</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30132</zipCode>
+      <phone>404-991-3518</phone>
+      <commissionFileNumber>024-11606</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>09-08-2023</offeringQualificationDate>
+      <offeringCommenceDate>09-11-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>10000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>15117666</offeringSecuritiesSold>
+      <pricePerSecurity>0.0053</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>85400.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <issuerNetProceeds>85400.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <certificationFileNumber>024-11606</certificationFileNumber>
+      <approxRecordHolders>46</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001613895</cik>
+      <regulationIssuerName1>Bemax, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Bemax, Inc.</regulationIssuerName2>
+      <signatureBy>Taiwo Aimasiko</signatureBy>
+      <date>12-09-2024</date>
+      <title>CEO/PRESIDENT</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

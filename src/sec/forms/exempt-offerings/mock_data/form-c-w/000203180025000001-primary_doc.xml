@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc">
+  <headerData>
+    <submissionType>C-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002031800</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-34946</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Dance Media Publications Holdings, LLC</nameOfIssuer>
+      </issuerInfo>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Dance Media Publications Holdings, LLC</issuer>
+        <issuerSignature>Laurie S. Silvers</issuerSignature>
+        <issuerTitle>Manager</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Laurie S. Silvers</personSignature>
+          <personTitle>Manager of the Managing Member of the Issuer</personTitle>
+          <signatureDate>10-22-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Mitchell Rubenstein</personSignature>
+          <personTitle>Manager of the Managing Member of the Issuer</personTitle>
+          <signatureDate>10-22-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>David R. Silvers</personSignature>
+          <personTitle>Manager of the Managing Member of the Issuer</personTitle>
+          <signatureDate>10-22-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Carolyn L. Rubenstein</personSignature>
+          <personTitle>Manager of the Managing Member of the Issuer</personTitle>
+          <signatureDate>10-22-2024</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

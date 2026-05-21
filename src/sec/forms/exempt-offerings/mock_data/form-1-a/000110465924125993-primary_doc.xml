@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001627282</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>CaliberCos Inc.</issuerName>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <yearIncorporation>2014</yearIncorporation>
+      <cik>0001627282</cik>
+      <sicCode>6282</sicCode>
+      <irsNum>47-2426901</irsNum>
+      <fullTimeEmployees>80</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>8901 E. Mountain View Rd. Ste. 150</street1>
+      <city>Scottsdale</city>
+      <stateOrCountry>AZ</stateOrCountry>
+      <zipCode>85258</zipCode>
+      <phoneNumber>480-295-7600</phoneNumber>
+      <connectionName>Thomas Poletti</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>3805000.00</cashEquivalents>
+      <investmentSecurities>3338000.00</investmentSecurities>
+      <accountsReceivable>36598000.00</accountsReceivable>
+      <propertyPlantEquipment>207128000.00</propertyPlantEquipment>
+      <totalAssets>299432000.00</totalAssets>
+      <accountsPayable>20622000.00</accountsPayable>
+      <longTermDebt>117736000.00</longTermDebt>
+      <totalLiabilities>233414000.00</totalLiabilities>
+      <totalStockholderEquity>66018000.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>299432000.00</totalLiabilitiesAndEquity>
+      <totalRevenues>90937000.00</totalRevenues>
+      <costAndExpensesApplToRevenues>108750000.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>550000.00</depreciationAndAmortization>
+      <netIncome>-12703000.00</netIncome>
+      <earningsPerShareBasic>-0.63</earningsPerShareBasic>
+      <earningsPerShareDiluted>-0.63</earningsPerShareDiluted>
+      <nameAuditor>Deloitte</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Class A Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>15056356</outstandingCommonEquity>
+      <commonCusipEquity>13000T109</commonCusipEquity>
+      <publiclyTradedCommonEquity>The Nasdaq Stock Market LLC</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Class B Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>7416414</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>000000N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Common Warrants</commonEquityClassName>
+      <outstandingCommonEquity>23200</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>000000N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>RSUs</commonEquityClassName>
+      <outstandingCommonEquity>5094382</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>000000N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series A Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>100000</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>000000N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>Convertible Notes</debtSecuritiesClassName>
+      <outstandingDebtSecurities>168295</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000N/A</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>000000N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>Y</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>800000</securitiesOffered>
+      <outstandingSecurities>0</outstandingSecurities>
+      <pricePerSecurity>25.0000</pricePerSecurity>
+      <issuerAggregateOffering>20000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>20000000.00</totalAggregateOffering>
+      <salesCommissionsServiceProviderName>ARKap Markets, LLC.</salesCommissionsServiceProviderName>
+      <salesCommissionsServiceProviderFees>1400000.00</salesCommissionsServiceProviderFees>
+      <auditorServiceProviderName>Deloitte &amp; Touche, LLP</auditorServiceProviderName>
+      <auditorFees>50000.00</auditorFees>
+      <legalServiceProviderName>Manatt, Phelps &amp; Phillips, LLP</legalServiceProviderName>
+      <legalFees>150000.00</legalFees>
+      <estimatedNetAmount>18400000.00</estimatedNetAmount>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A1</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A2</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A3</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A4</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A5</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A6</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A7</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A8</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A9</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>B0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>Z4</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>CaliberCos Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Series A Preferred</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>100000</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>2,000,000</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <securitiesIssued>
+      <securitiesIssuerName>CaliberCos Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Stock Warrants</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>23200</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>0</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Rule 506(c)</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

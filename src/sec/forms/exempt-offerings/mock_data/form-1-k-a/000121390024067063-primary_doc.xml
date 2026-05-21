@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001723517</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00171</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>537 Peachtree Street NE</street1>
+      <city>Atlanta</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30308</zipCode>
+      <phoneNumber>470-475-1035</phoneNumber>
+      <issuedSecuritiesTitle>Common Units</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>UC Asset Limited Partnership</issuerName>
+      <cik>0001723517</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>30-0912782</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

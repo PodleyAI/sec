@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001691249</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>7118 South Kanner Highway</street1>
+      <city>STUART</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>34997</zipCode>
+      <phoneNumber>407-395-4283</phoneNumber>
+      <issuedSecuritiesTitle>Common</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>The iRemedy Healthcare Companies, Inc.</issuerName>
+      <cik>0001691249</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>26-0255855</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

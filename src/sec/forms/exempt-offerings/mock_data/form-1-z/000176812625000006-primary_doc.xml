@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001768126</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <successorFileNumber>24R-00102</successorFileNumber>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>Y</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>RSE Archive, LLC</issuerName>
+      <street1>46 HOWARD ST</street1>
+      <street2>STE 215</street2>
+      <city>NEW YORK</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>10013</zipCode>
+      <phone>2127293820</phone>
+      <commissionFileNumber>024-11967</commissionFileNumber>
+      <commissionFileNumber>024-11057</commissionFileNumber>
+    </item1>
+    <certificationSuspension>
+      <securitiesClassTitle>All series membership interests of RSE Archive, LLC</securitiesClassTitle>
+      <certificationFileNumber>024-11967</certificationFileNumber>
+      <certificationFileNumber>024-11057</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001768126</cik>
+      <regulationIssuerName1>RSE Archive, LLC</regulationIssuerName1>
+      <regulationIssuerName2>RSE Archive, LLC</regulationIssuerName2>
+      <signatureBy>Christopher Bruno</signatureBy>
+      <date>01-08-2025</date>
+      <title>CEO, Rally Holdings LLC, its managing member</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

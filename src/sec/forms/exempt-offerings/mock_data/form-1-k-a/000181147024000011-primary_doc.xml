@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001811470</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00395</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>52 MAIN STREET</street1>
+      <city>CHESTER</city>
+      <stateOrCountry>CT</stateOrCountry>
+      <zipCode>06412</zipCode>
+      <phoneNumber>860-316-7466</phoneNumber>
+      <issuedSecuritiesTitle>Class A Investor Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Energea Portfolio 2 LLC</issuerName>
+      <cik>0001811470</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>84-4611704</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11259</commissionFileNumber>
+      <offeringQualificationDate>08-13-2020</offeringQualificationDate>
+      <offeringCommenceDate>07-02-2020</offeringCommenceDate>
+      <qualifiedSecuritiesSold>75000000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>14241631</offeringSecuritiesSold>
+      <pricePerSecurity>0.9000</pricePerSecurity>
+      <aggregrateOfferingPrice>11923332.92</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <underwrittenSpName>N/A</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>N/A</salesCommissionsSpName>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersSpName>N/A</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Whittlesey PC and Mahoney Sabol</auditorSpName>
+      <auditorFees>15000.00</auditorFees>
+      <legalSpName>Goodwin Procter LLP</legalSpName>
+      <legalFees>47913.63</legalFees>
+      <promoterSpName>N/A</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>States Securities Division</blueSkySpName>
+      <blueSkyFees>8998.84</blueSkyFees>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

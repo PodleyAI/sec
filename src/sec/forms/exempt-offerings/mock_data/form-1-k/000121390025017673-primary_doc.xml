@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001671132</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>3811 AIRPORT PULLING ROAD NORTH</street1>
+      <street2>SUITE 203</street2>
+      <city>NAPLES</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>34105</zipCode>
+      <phoneNumber>18332277683</phoneNumber>
+      <issuedSecuritiesTitle>Common Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>MUSIC LICENSING, INC</issuerName>
+      <cik>0001671132</cik>
+      <jurisdictionOrganization>NV</jurisdictionOrganization>
+      <irsNum>32-0769697</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

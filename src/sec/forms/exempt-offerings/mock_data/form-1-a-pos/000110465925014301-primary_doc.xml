@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A POS</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001588504</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-12013</offeringFileNumber>
+      </filer>
+      <flags>
+        <sinceLastFiling>true</sinceLastFiling>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>GROUNDFLOOR FINANCE INC.</issuerName>
+      <jurisdictionOrganization>GA</jurisdictionOrganization>
+      <yearIncorporation>2013</yearIncorporation>
+      <cik>0001588504</cik>
+      <sicCode>6199</sicCode>
+      <irsNum>46-3414189</irsNum>
+      <fullTimeEmployees>85</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>1201 Peachtree St NE</street1>
+      <street2>Suite 1104-400</street2>
+      <city>ATLANTA</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30361</zipCode>
+      <phoneNumber>404-850-9225</phoneNumber>
+      <connectionName>Nick Bhargava</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>6249581.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>264875442.00</accountsReceivable>
+      <propertyPlantEquipment>3456826.00</propertyPlantEquipment>
+      <totalAssets>336542473.00</totalAssets>
+      <accountsPayable>16255720.00</accountsPayable>
+      <longTermDebt>277755138.00</longTermDebt>
+      <totalLiabilities>328217954.00</totalLiabilities>
+      <totalStockholderEquity>8324519.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>336542473.00</totalLiabilitiesAndEquity>
+      <totalRevenues>30262609.00</totalRevenues>
+      <costAndExpensesApplToRevenues>-2527040.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>1865081.00</depreciationAndAmortization>
+      <netIncome>-4524750.00</netIncome>
+      <earningsPerShareBasic>-1.90</earningsPerShareBasic>
+      <earningsPerShareDiluted>-1.90</earningsPerShareDiluted>
+      <nameAuditor>Cherry Bekaert LLP</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>2400565</outstandingCommonEquity>
+      <commonCusipEquity>000000N/A</commonCusipEquity>
+      <publiclyTradedCommonEquity>N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series Seed</preferredEquityClassName>
+      <outstandingPreferredEquity>554038</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series A</preferredEquityClassName>
+      <outstandingPreferredEquity>747373</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series B</preferredEquityClassName>
+      <outstandingPreferredEquity>441940</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series B-2</preferredEquityClassName>
+      <outstandingPreferredEquity>189270</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Series B-3</preferredEquityClassName>
+      <outstandingPreferredEquity>52369</outstandingPreferredEquity>
+      <preferredCusipEquity>000000N/A</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>Convertible Promissory Notes</debtSecuritiesClassName>
+      <outstandingDebtSecurities>247315</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000N/A</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Other(describe)</securitiesOfferedTypes>
+      <securitiesOfferedOtherDesc>Limited Recourse Obligation (LRO), a limited debt obligation of the issuer</securitiesOfferedOtherDesc>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>Y</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>1048501</securitiesOffered>
+      <outstandingSecurities>0</outstandingSecurities>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <issuerAggregateOffering>10485010.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>17763198.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>7500000.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>35748208.00</totalAggregateOffering>
+      <legalServiceProviderName>Manatt Phelps; Robbins Ross</legalServiceProviderName>
+      <legalFees>50000.00</legalFees>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Groundfloor Real Estate LLC.</securitiesIssuerName>
+      <securitiesIssuerTitle>LROs</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>50948440</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$50,948,440; fair market value</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Regulation D</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

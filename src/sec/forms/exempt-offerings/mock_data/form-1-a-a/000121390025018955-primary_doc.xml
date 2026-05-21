@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001468492</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-12572</offeringFileNumber>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>HeartSciences Inc.</issuerName>
+      <jurisdictionOrganization>TX</jurisdictionOrganization>
+      <yearIncorporation>2007</yearIncorporation>
+      <cik>0001468492</cik>
+      <sicCode>3842</sicCode>
+      <irsNum>26-1344466</irsNum>
+      <fullTimeEmployees>15</fullTimeEmployees>
+      <partTimeEmployees>1</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>550 RESERVE STREET, SUITE 360</street1>
+      <city>SOUTHLAKE</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>76092</zipCode>
+      <phoneNumber>682-237-7781</phoneNumber>
+      <connectionName>Jonathan Shechter, Esq.</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>4052120.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>77069.00</propertyPlantEquipment>
+      <totalAssets>7777241.00</totalAssets>
+      <accountsPayable>857364.00</accountsPayable>
+      <longTermDebt>2416270.00</longTermDebt>
+      <totalLiabilities>3760520.00</totalLiabilities>
+      <totalStockholderEquity>4016721.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>7777241.00</totalLiabilitiesAndEquity>
+      <totalRevenues>0.00</totalRevenues>
+      <costAndExpensesApplToRevenues>0.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>24079.00</depreciationAndAmortization>
+      <netIncome>-4134607.00</netIncome>
+      <earningsPerShareBasic>-4.88</earningsPerShareBasic>
+      <earningsPerShareDiluted>-4.88</earningsPerShareDiluted>
+      <nameAuditor>Haskell &amp; White LLP</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>947821</outstandingCommonEquity>
+      <commonCusipEquity>42254E302</commonCusipEquity>
+      <publiclyTradedCommonEquity>The Nasdaq Capital Market LLC</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>IPO Warrants</commonEquityClassName>
+      <outstandingCommonEquity>17250</outstandingCommonEquity>
+      <commonCusipEquity>42254E112</commonCusipEquity>
+      <publiclyTradedCommonEquity>The Nasdaq Capital Market LLC</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Other Warrants</commonEquityClassName>
+      <outstandingCommonEquity>41805</outstandingCommonEquity>
+      <commonCusipEquity>000000000</commonCusipEquity>
+      <publiclyTradedCommonEquity>N/A</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Convertible Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>380440</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>N/A</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <securitiesOfferedTypes>Option, warrant or other right to acquire another security</securitiesOfferedTypes>
+      <securitiesOfferedTypes>Security to be acquired upon exercise of option, warrant or other right to acquire security</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>Y</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>4285714</securitiesOffered>
+      <outstandingSecurities>0</outstandingSecurities>
+      <pricePerSecurity>3.5000</pricePerSecurity>
+      <issuerAggregateOffering>15000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>15000000.00</totalAggregateOffering>
+      <salesCommissionsServiceProviderName>Digital Offering, LLC</salesCommissionsServiceProviderName>
+      <salesCommissionsServiceProviderFees>1050000.00</salesCommissionsServiceProviderFees>
+      <auditorServiceProviderName>Haskell &amp; White LLP</auditorServiceProviderName>
+      <auditorFees>25000.00</auditorFees>
+      <legalServiceProviderName>Foley Shechter Ablovatskiy LLP /Bevilacqua PLLC</legalServiceProviderName>
+      <legalFees>145000.00</legalFees>
+      <brokerDealerCrdNumber>000166401</brokerDealerCrdNumber>
+      <estimatedNetAmount>13780000.00</estimatedNetAmount>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedSame>true</jurisdictionsOfSecOfferedSame>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AK</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AZ</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>AR</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CO</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>CT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>DE</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>FL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>GA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>HI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ID</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IL</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>IA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>KS</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>KY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>LA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ME</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MD</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MS</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MO</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>MT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NE</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NV</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NH</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NJ</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NM</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>NC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>ND</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OH</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OK</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>OR</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>PA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>RI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>SC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>SD</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>TN</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>TX</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>UT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>VT</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>VA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WA</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WV</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WI</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>WY</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>DC</dealersJuridicationSecuritiesOffering>
+      <dealersJuridicationSecuritiesOffering>PR</dealersJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>HeartSciences Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Warrants</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>2500</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>2,500 shares of Common Stock at an exercise price of $5.15 per share. Valued at approximately $10,046 using Black Scholes valuation method.</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Section 4(a)(2) of the Securities Act, including Rule 506(b) of Regulation D promulgated thereunder.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

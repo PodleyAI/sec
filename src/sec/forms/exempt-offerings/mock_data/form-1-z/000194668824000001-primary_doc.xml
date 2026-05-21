@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001946688</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>DNALabs Canada Inc.</issuerName>
+      <street1>1920 Yonge Street</street1>
+      <street2>Suite 200</street2>
+      <city>Toronto</city>
+      <stateOrCountry>A6</stateOrCountry>
+      <zipCode>M4S 3E2</zipCode>
+      <phone>5612356881</phone>
+      <commissionFileNumber>024-11994</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>10-21-2022</offeringQualificationDate>
+      <offeringCommenceDate>10-21-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>1111111</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>9349</offeringSecuritiesSold>
+      <pricePerSecurity>9.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>84141.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>Dalmore Group</underwrittenSpName>
+      <underwriterFees>27841.41</underwriterFees>
+      <auditorSpName>Daszkal Bolton LLC</auditorSpName>
+      <auditorSpName>Cohn Reznick LLC</auditorSpName>
+      <auditorFees>56000.00</auditorFees>
+      <legalSpName>Kendall A. Almerico PA</legalSpName>
+      <legalFees>15000.00</legalFees>
+      <crdNumberBrokerDealer>136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>55799.59</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Non-Voting Class B Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11994</certificationFileNumber>
+      <approxRecordHolders>37</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001946688</cik>
+      <regulationIssuerName1>DNALabs Canada Inc.</regulationIssuerName1>
+      <regulationIssuerName2>DNALabs Canada Inc.</regulationIssuerName2>
+      <signatureBy>Moni Lustig</signatureBy>
+      <date>04-16-2024</date>
+      <title>President, Chief Executive Officer and Director, Principal executive officer, Principal financial officer, Principal accounting officer,</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

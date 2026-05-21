@@ -1,0 +1,224 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001717274</cik>
+        <entityName>#TNM SMALL GUY RECORDS INC.</entityName>
+        <issuerAddress>
+            <street1>411 West 1 Street</street1>
+            <street2>#1050</street2>
+            <city>Sanford</city>
+            <stateOrCountry>FL</stateOrCountry>
+            <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+            <zipCode>32771</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>7178108896</issuerPhoneNumber>
+        <jurisdictionOfInc>PENNSYLVANIA</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <overFiveYears>true</overFiveYears>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Lafosha</firstName>
+                <lastName>Meadows</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1819 Landing Drive</street1>
+                <street2>Apt B</street2>
+                <city>Sanford</city>
+                <stateOrCountry>FL</stateOrCountry>
+                <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+                <zipCode>32771</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Treasurer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Frank</firstName>
+                <lastName>Rego</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>40 Jesse Dr</street1>
+                <city>Portsmouth</city>
+                <stateOrCountry>RI</stateOrCountry>
+                <stateOrCountryDescription>RHODE ISLAND</stateOrCountryDescription>
+                <zipCode>02871-1504</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Vice President</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Cassandra</firstName>
+                <lastName>James</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>7860 W Commercial Blvd</street1>
+                <street2>Ste 200 PMB 572</street2>
+                <city>Lauderhill</city>
+                <stateOrCountry>FL</stateOrCountry>
+                <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+                <zipCode>33351</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Secretary</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Lady</firstName>
+                <middleName>Rayne</middleName>
+                <lastName>McCloud ISNI: 0000-0004-5988-7574</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>362 Canbana View Way</street1>
+                <city>Sanford</city>
+                <stateOrCountry>FL</stateOrCountry>
+                <stateOrCountryDescription>FLORIDA</stateOrCountryDescription>
+                <zipCode>32771</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>President</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Doniyelle</firstName>
+                <lastName>Leonard</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1032 15th Street NW</street1>
+                <street2>#357</street2>
+                <city>Washington</city>
+                <stateOrCountry>DC</stateOrCountry>
+                <stateOrCountryDescription>DISTRICT OF COLUMBIA</stateOrCountryDescription>
+                <zipCode>20005</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>COO</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Business Services</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$1 - $1,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06c</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <yetToOccur>true</yetToOccur>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>true</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isDebtType>true</isDebtType>
+            <isOptionToAcquireType>true</isOptionToAcquireType>
+            <isSecurityToBeAcquiredType>true</isSecurityToBeAcquiredType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>5000</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Frank Rego</recipientName>
+                <recipientCRDNumber>None</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>40 Jesse Dr</street1>
+                    <city>Portsmouth</city>
+                    <stateOrCountry>RI</stateOrCountry>
+                    <stateOrCountryDescription>RHODE ISLAND</stateOrCountryDescription>
+                    <zipCode>02871-1504</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>DE</state>
+                    <description>DELAWARE</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                    <state>RI</state>
+                    <description>RHODE ISLAND</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>false</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>250000000</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>250000000</totalRemaining>
+            <clarificationOfResponse>The amounts listed correspond to the total offering for Class B shares, priced at $25 per share. This offering aims to raise funds for operational growth and strategic initiatives within #TNM Small Guy Records Inc.</clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>true</hasNonAccreditedInvestors>
+            <numberNonAccreditedInvestors>0</numberNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>7500000</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>12500000</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </findersFees>
+            <clarificationOfResponse>The estimated sales commissions and finders' fees range from $7,500,000 to 12,500,000, equating to 3 to 5 percent of the total offering amount of $250 million. These estimates are grounded in industry standards.</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>943000</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse>In determining the total compensation of 943,000 for executive payments, please note that this amount reflects all projected salaries and bonuses. This includes unforeseen expenses, such as payroll taxes and a contingency fund for future hiring needs.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>#TNM SMALL GUY RECORDS INC.</issuerName>
+                <signatureName>Felicia McCloud</signatureName>
+                <nameOfSigner>Felicia McCloud</nameOfSigner>
+                <signatureTitle>President</signatureTitle>
+                <signatureDate>2024-12-02</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>
