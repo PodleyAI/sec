@@ -1,0 +1,239 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001690080</cik>
+        <entityName>180 Life Sciences Corp.</entityName>
+        <issuerAddress>
+            <street1>3000 EL CAMINO REAL</street1>
+            <street2>BLDG. 4, SUITE 200</street2>
+            <city>PALO ALTO</city>
+            <stateOrCountry>CA</stateOrCountry>
+            <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+            <zipCode>94306</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>650-507-0669</issuerPhoneNumber>
+        <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <previousName>KBL Merger Corp. IV</previousName>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <previousName>KBL MERGER CORP. IV</previousName>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <overFiveYears>true</overFiveYears>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Blair</firstName>
+                <lastName>Jordan</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o 180 Life Sciences Corp.</street1>
+                <street2>3000 El Camino Real, Bldg. 4, Suite 200</street2>
+                <city>Palo Alto</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>94306</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Stephen</firstName>
+                <lastName>Shoemaker</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o 180 Life Sciences Corp.</street1>
+                <street2>3000 El Camino Real, Bldg. 4, Suite 200</street2>
+                <city>Palo Alto</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>94306</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Ryan</firstName>
+                <lastName>Smith</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o 180 Life Sciences Corp.</street1>
+                <street2>3000 El Camino Real, Bldg. 4, Suite 200</street2>
+                <city>Palo Alto</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>94306</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Lawrence</firstName>
+                <lastName>Steinman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o 180 Life Sciences Corp.</street1>
+                <street2>3000 El Camino Real, Bldg. 4, Suite 200</street2>
+                <city>Palo Alto</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>94306</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Jay</firstName>
+                <lastName>Goodman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>c/o 180 Life Sciences Corp.</street1>
+                <street2>3000 El Camino Real, Bldg. 4, Suite 200</street2>
+                <city>Palo Alto</city>
+                <stateOrCountry>CA</stateOrCountry>
+                <stateOrCountryDescription>CALIFORNIA</stateOrCountryDescription>
+                <zipCode>94306</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Other</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2024-12-30</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isOptionToAcquireType>true</isOptionToAcquireType>
+            <isSecurityToBeAcquiredType>true</isSecurityToBeAcquiredType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>Maxim Group LLC</recipientName>
+                <recipientCRDNumber>000120708</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>300 PARK AVENUE</street1>
+                    <street2>16TH FLOOR</street2>
+                    <city>NEW YORK</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>10022</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>CA</state>
+                    <description>CALIFORNIA</description>
+                    <state>CT</state>
+                    <description>CONNECTICUT</description>
+                    <state>FL</state>
+                    <description>FLORIDA</description>
+                    <state>NV</state>
+                    <description>NEVADA</description>
+                    <state>NJ</state>
+                    <description>NEW JERSEY</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>true</foreignSolicitation>
+            </recipient>
+            <recipient>
+                <recipientName>A.G.P./Alliance Global Partners</recipientName>
+                <recipientCRDNumber>000008361</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>590 MADISON AVENUE, 28TH FOOR</street1>
+                    <city>NEW YORK</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>10022</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>true</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>2892000</totalOfferingAmount>
+            <totalAmountSold>2892000</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse>Represents total gross proceeds received by the company in connection with a registered direct offering of shares of common stock and a concurrent private placement of common stock purchase warrants.</clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>5</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>223169</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>180 Life Sciences Corp.</issuerName>
+                <signatureName>/s/ Blair Jordan</signatureName>
+                <nameOfSigner>Blair Jordan</nameOfSigner>
+                <signatureTitle>Interim Chief Executive Officer</signatureTitle>
+                <signatureDate>2025-01-10</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>
