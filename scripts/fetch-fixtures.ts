@@ -36,12 +36,12 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
 import { SEC_RAW_DATA_FOLDER } from "../src/config/tokens";
-import { SecFetchTask } from "../src/fetch/SecFetchTask";
 import {
   SecJobQueueClient,
   SecJobQueueServer,
   SecJobQueueStorage,
 } from "../src/fetch/SecJobQueue";
+import { SecFetchAccessionDocTask } from "../src/task/forms/SecFetchAccessionDocTask";
 import {
   FetchQuarterlyFormIdxTask,
   type QuarterlyFormIdxRow,
@@ -70,33 +70,39 @@ const FORM_SLUGS: Record<string, string> = {
 };
 
 const DEFAULT_FORMS = Object.keys(FORM_SLUGS);
+const DEFAULT_FIXTURE_COUNT = 50;
 
 interface CliArgs {
-  forms: string[];
+  forms: readonly string[];
   count: number;
-  quarters: string[];
+  quarters: readonly string[];
   list: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     forms: [...DEFAULT_FORMS],
-    count: 50,
+    count: DEFAULT_FIXTURE_COUNT,
     quarters: defaultQuarters(),
     list: false,
+  };
+  const takeValue = (flag: string, i: number): string => {
+    const value = argv[i];
+    if (value === undefined) throw new Error(`Missing value for ${flag}`);
+    return value;
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--form") {
-      args.forms = [argv[++i]];
+      args.forms = [takeValue(a, ++i)];
     } else if (a === "--forms") {
-      args.forms = argv[++i].split(",").map((s) => s.trim());
+      args.forms = takeValue(a, ++i).split(",").map((s) => s.trim());
     } else if (a === "--count") {
-      args.count = Number(argv[++i]);
+      args.count = Number(takeValue(a, ++i));
     } else if (a === "--quarter") {
-      args.quarters = [argv[++i]];
+      args.quarters = [takeValue(a, ++i)];
     } else if (a === "--quarters") {
-      args.quarters = argv[++i].split(",").map((s) => s.trim());
+      args.quarters = takeValue(a, ++i).split(",").map((s) => s.trim());
     } else if (a === "--list") {
       args.list = true;
     } else if (a === "--help" || a === "-h") {
@@ -188,10 +194,6 @@ export function accessionWithoutDashes(accession: string): string {
   return accession.replace(/-/g, "");
 }
 
-export function primaryDocUrl(cik: number, accession: string): string {
-  return `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionWithoutDashes(accession)}/primary_doc.xml`;
-}
-
 export function fixturePath(formType: string, accession: string): string {
   const slug = FORM_SLUGS[formType];
   if (!slug) throw new Error(`No slug for form type ${formType}`);
@@ -210,9 +212,9 @@ function existingFixtureAccessions(formType: string): Set<string> {
 }
 
 interface FetchPlan {
-  formType: string;
-  toFetch: QuarterlyFormIdxRow[];
-  skipped: number;
+  readonly formType: string;
+  readonly toFetch: readonly QuarterlyFormIdxRow[];
+  readonly skipped: number;
 }
 
 function buildPlan(
@@ -239,14 +241,19 @@ function buildPlan(
 
 /**
  * Fetch a single primary_doc.xml through the SEC job queue. The queue
- * server handles rate limiting and retries; we just await the result.
+ * server handles rate limiting and retries; SecFetchAccessionDocTask also
+ * persists each successful response under SEC_RAW_DATA_FOLDER (when set),
+ * so re-running this script against the same accessions is free.
  * Returns null when SEC serves something that isn't an XML body (some
  * filings have no primary_doc.xml -- e.g. HTML-only withdrawal forms).
  */
 async function fetchPrimaryDoc(row: QuarterlyFormIdxRow): Promise<string | null> {
   const acc = accessionFromFileName(row.fileName);
-  const url = primaryDocUrl(row.cik, acc);
-  const task = new SecFetchTask({ url, response_type: "text" });
+  const task = new SecFetchAccessionDocTask({
+    cik: row.cik,
+    accessionNumber: acc,
+    fileName: "primary_doc.xml",
+  });
   let result;
   try {
     result = await task.run();

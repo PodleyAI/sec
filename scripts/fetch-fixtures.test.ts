@@ -17,7 +17,6 @@ import {
   accessionFromFileName,
   accessionWithoutDashes,
   fixturePath,
-  primaryDocUrl,
 } from "./fetch-fixtures";
 
 describe("fetch-fixtures helpers", () => {
@@ -34,14 +33,6 @@ describe("fetch-fixtures helpers", () => {
 
     it("strips dashes for the URL-style accession", () => {
       expect(accessionWithoutDashes("0001062993-25-001035")).toBe("000106299325001035");
-    });
-  });
-
-  describe("primaryDocUrl", () => {
-    it("composes the canonical primary_doc.xml URL", () => {
-      expect(primaryDocUrl(1959708, "0001062993-25-001035")).toBe(
-        "https://www.sec.gov/Archives/edgar/data/1959708/000106299325001035/primary_doc.xml"
-      );
     });
   });
 
