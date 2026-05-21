@@ -37,14 +37,10 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("forms <types>")
     .description("Update forms for all companies (comma-separated form types)")
-    .option("--force", "Reprocess all items, ignoring processed state", false)
-    .action(async (types: string, options) => {
-      await runCommand(
-        async () => {
-          const formTypes = types.split(",");
-          await withCli(new UpdateAllFormsTask()).run({ form: formTypes, force: options.force });
-        },
-        { force: options.force }
-      );
+    .action(async (types: string) => {
+      await runCommand(async () => {
+        const formTypes = types.split(",");
+        await withCli(new UpdateAllFormsTask()).run({ form: formTypes });
+      });
     });
 }
