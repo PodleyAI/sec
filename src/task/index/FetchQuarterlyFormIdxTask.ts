@@ -26,11 +26,11 @@ import { parseDate, secDate, TypeOptionalSecDate, YYYYdMMdDD } from "../../util/
  */
 
 export interface QuarterlyFormIdxRow {
-  formType: string;
-  companyName: string;
-  cik: number;
-  dateFiled: YYYYdMMdDD;
-  fileName: string;
+  readonly formType: string;
+  readonly companyName: string;
+  readonly cik: number;
+  readonly dateFiled: YYYYdMMdDD;
+  readonly fileName: string;
 }
 
 export type FetchQuarterlyFormIdxTaskInput = {
@@ -157,20 +157,15 @@ export class FetchQuarterlyFormIdxTask extends Task<
     context: IExecuteContext
   ): Promise<FetchQuarterlyFormIdxTaskOutput> {
     const date = input.date ? secDate(input.date) : secDate(new Date());
+    if (context.signal?.aborted) throw new TaskAbortedError();
     const secFetch = context.own(new SecFetchQuarterlyFormIdxTask({ date }));
     const secData = await secFetch.run();
     const text = secData.text ?? "";
-
+    if (context.signal?.aborted) throw new TaskAbortedError();
     // form.idx is fixed-width (not pipe-delimited like master.idx), so the
-    // task body parses it with a dedicated splitter. We still honour abort
-    // signals between progress reports so a slow run can be cancelled.
+    // task body parses it with a dedicated splitter.
     const rows = parseQuarterlyFormIdx(text);
-    const reportEvery = Math.max(1, Math.floor(rows.length / 20));
-    for (let i = 0; i < rows.length; i += reportEvery) {
-      if (context.signal?.aborted) throw new TaskAbortedError();
-      const pct = Math.round((i / Math.max(rows.length, 1)) * 100);
-      context.updateProgress(pct, `parsed ${i}/${rows.length}`);
-    }
+    context.updateProgress(100, `parsed ${rows.length} rows`);
     return { rows };
   }
 }

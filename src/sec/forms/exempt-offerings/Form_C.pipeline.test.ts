@@ -5,16 +5,10 @@
  */
 
 /**
- * End-to-end pipeline test for Form C (Regulation Crowdfunding).
- *
- * Walks every XML fixture under `mock_data/form-c/`, parses it through
- * Form_C, processes it through processFormC, then queries the repos to
- * verify the round trip: issuer name from XML lands in CompanyRepo, CIK
- * lands in CrowdfundingRepo, filing flows through the temporal store, etc.
- *
- * Existing tests already exercise the parser and call the storage routines;
- * this file's job is the *semantic* round trip -- catching cases where data
- * silently disappears between the parser and the queryable repos.
+ * Round-trip pipeline test for Form C (Reg-CF): XML -> parse -> store ->
+ * query the repos. The sibling `.test.ts` and `.storage.test.ts` files
+ * cover parser shape and the storage call; this one verifies parsed
+ * fields are actually reachable through the queryable repos.
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
@@ -135,7 +129,7 @@ describe("Form_C pipeline", () => {
     // status discriminator in Form_C.storage.determineStatus actually reaches
     // the persisted row.
     const files = listFixtureFiles("form-c-w");
-    if (files.length === 0) return; // not all checkouts have W fixtures yet
+    if (files.length === 0) return;
     const file = files[0];
     const xml = readFixture("form-c-w", file);
     const formC = await Form_C.parse("C-W", xml);

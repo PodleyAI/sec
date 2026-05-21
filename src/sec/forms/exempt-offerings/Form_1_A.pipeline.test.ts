@@ -5,9 +5,8 @@
  */
 
 /**
- * End-to-end pipeline test for Form 1-A (Reg-A Offering Statement). Walks
- * every XML fixture under `mock_data/form-1-a/`, parses, stores, and then
- * queries the repos to verify the round trip.
+ * Round-trip pipeline test for Form 1-A (Reg-A Offering Statement):
+ * XML -> parse -> store -> query the repos.
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";

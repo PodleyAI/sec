@@ -5,9 +5,8 @@
  */
 
 /**
- * End-to-end pipeline test for Form D (Notice of Sales of Unregistered
- * Securities). Walks every XML fixture under `mock_data/form-d/`, parses,
- * stores, and verifies the parsed data is reachable through the repos.
+ * Round-trip pipeline test for Form D (Notice of Sales of Unregistered
+ * Securities): XML -> parse -> store -> query the repos.
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
