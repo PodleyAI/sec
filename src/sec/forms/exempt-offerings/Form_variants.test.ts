@@ -24,79 +24,85 @@ import { Form_C } from "./Form_C";
 import { Form_D } from "./Form_D";
 import { listFixtureFiles, readFixture, runPipeline } from "./pipeline-test-util";
 
-interface VariantCase {
-  slug: string;
-  formCode: string;
-  parse: (xml: string) => Promise<unknown>;
-  // Form D puts submissionType at the top level; everything else nests it
-  // under headerData. This extractor abstracts over that difference.
-  extractSubmissionType: (parsed: any) => string | undefined;
-  // Some EDGAR XSDs normalize submissionType to a slightly different code
-  // than the form.idx code. When the parsed submissionType might legitimately
-  // differ from `formCode`, set `submissionTypeMatcher` to a regex.
-  submissionTypeMatcher?: RegExp;
+interface ParsedSubmission {
+  readonly headerData?: { readonly submissionType?: string };
+  readonly submissionType?: string;
 }
 
-const headerSubmissionType = (parsed: any): string | undefined =>
-  parsed?.headerData?.submissionType;
-const topLevelSubmissionType = (parsed: any): string | undefined => parsed?.submissionType;
+interface VariantCase {
+  readonly slug: string;
+  readonly formCode: string;
+  readonly parse: (xml: string) => Promise<ParsedSubmission>;
+  // Form D puts submissionType at the top level; everything else nests it
+  // under headerData. The extractor abstracts over that difference.
+  readonly extractSubmissionType: (parsed: ParsedSubmission) => string | undefined;
+  // Most variants get an exact-match regex; only C/A allows the alternates
+  // (C/A, C/A-W) because EDGAR sometimes writes back C/A-W for what was
+  // tagged C/A in the index. Default is `^${escape(formCode)}$`.
+  readonly submissionTypeMatcher?: RegExp;
+}
 
-const VARIANTS: VariantCase[] = [
+const headerSubmissionType = (parsed: ParsedSubmission): string | undefined =>
+  parsed.headerData?.submissionType;
+const topLevelSubmissionType = (parsed: ParsedSubmission): string | undefined =>
+  parsed.submissionType;
+
+function exactMatcher(formCode: string): RegExp {
+  // Anchor the form code with regex metachars escaped (the form codes contain
+  // "/" and " " which are inert, but escaping is safer if we add more later).
+  return new RegExp("^" + formCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$");
+}
+
+const VARIANTS: readonly VariantCase[] = [
   {
     slug: "form-c-a",
     formCode: "C/A",
-    parse: (xml) => Form_C.parse("C/A", xml),
+    parse: (xml) => Form_C.parse("C/A", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
+    // C/A fixtures occasionally re-tag themselves as C/A-W mid-amendment.
     submissionTypeMatcher: /^C\/A/,
   },
   {
     slug: "form-c-w",
     formCode: "C-W",
-    parse: (xml) => Form_C.parse("C-W", xml),
+    parse: (xml) => Form_C.parse("C-W", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^C-W$/,
   },
   {
     slug: "form-c-a-w",
     formCode: "C/A-W",
-    parse: (xml) => Form_C.parse("C/A-W", xml),
+    parse: (xml) => Form_C.parse("C/A-W", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^C\/A-W$/,
   },
   {
     slug: "form-d-a",
     formCode: "D/A",
-    parse: (xml) => Form_D.parse("D/A", xml),
+    parse: (xml) => Form_D.parse("D/A", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: topLevelSubmissionType,
-    submissionTypeMatcher: /^D\/A$/,
   },
   {
     slug: "form-1-a-a",
     formCode: "1-A/A",
-    parse: (xml) => Form_1_A.parse("1-A/A", xml),
+    parse: (xml) => Form_1_A.parse("1-A/A", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^1-A\/A$/,
   },
   {
     slug: "form-1-a-pos",
     formCode: "1-A POS",
-    parse: (xml) => Form_1_A.parse("1-A POS", xml),
+    parse: (xml) => Form_1_A.parse("1-A POS", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^1-A POS$/,
   },
   {
     slug: "form-1-k-a",
     formCode: "1-K/A",
-    parse: (xml) => Form_1_K.parse("1-K/A", xml),
+    parse: (xml) => Form_1_K.parse("1-K/A", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^1-K\/A$/,
   },
   {
     slug: "form-1-z-a",
     formCode: "1-Z/A",
-    parse: (xml) => Form_1_Z.parse("1-Z/A", xml),
+    parse: (xml) => Form_1_Z.parse("1-Z/A", xml) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
-    submissionTypeMatcher: /^1-Z\/A$/,
   },
 ];
 
@@ -136,10 +142,9 @@ describe("Form variants", () => {
         expect(summary.succeeded).toBe(files.length);
       });
 
-      it(`returns a submissionType matching ${variant.submissionTypeMatcher}`, async () => {
+      const matcher = variant.submissionTypeMatcher ?? exactMatcher(variant.formCode);
+      it(`returns a submissionType matching ${matcher}`, async () => {
         if (files.length === 0) return;
-        const matcher = variant.submissionTypeMatcher;
-        if (!matcher) return;
         // Spot-check the first 5 fixtures for the right submissionType.
         const sample = files.slice(0, Math.min(5, files.length));
         for (const file of sample) {
