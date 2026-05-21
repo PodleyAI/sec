@@ -5,9 +5,8 @@
  */
 
 /**
- * End-to-end pipeline test for Form 1-Z (Reg-A exit report). Walks every XML
- * fixture under `mock_data/form-1-z/`, parses, stores, and verifies the
- * stored data is reachable via the repos.
+ * Round-trip pipeline test for Form 1-Z (Reg-A exit report):
+ * XML -> parse -> store -> query the repos.
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
@@ -101,12 +100,12 @@ describe("Form_1_Z pipeline", () => {
   it("creates offering-history rows when the 1-Z carries summary offerings", async () => {
     const ingested = await ingestAll();
     const histories = (await regARepo.offeringHistoryRepository.getAll()) || [];
-    // 1-Z (exit report) is allowed to omit `summaryInfoOffering`, so not
-    // every fixture produces a history row. We assert there is *some*
-    // history (pipeline writes when data is present) and that the count
-    // never exceeds the fixture count by an unreasonable factor.
+    // 1-Z (exit report) is allowed to omit `summaryInfoOffering`. Each
+    // filing that includes it writes at most one history row, keyed on
+    // (cik, file_number, accession_number) -- the test uses a distinct
+    // file_number per filing, so collisions can't inflate the count.
     expect(histories.length).toBeGreaterThan(0);
-    expect(histories.length).toBeLessThanOrEqual(ingested.length * 10);
+    expect(histories.length).toBeLessThanOrEqual(ingested.length);
   });
 
   it("links the issuer company back to its CIK", async () => {

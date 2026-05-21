@@ -5,9 +5,8 @@
  */
 
 /**
- * End-to-end pipeline test for Form 1-K (Reg-A annual report). Walks every
- * XML fixture under `mock_data/form-1-k/`, parses, stores, and verifies
- * the parsed data lands in the repos.
+ * Round-trip pipeline test for Form 1-K (Reg-A annual report):
+ * XML -> parse -> store -> query the repos.
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
@@ -104,11 +103,12 @@ describe("Form_1_K pipeline", () => {
     const ingested = await ingestAll();
     const histories = (await regARepo.offeringHistoryRepository.getAll()) || [];
     // 1-K is an annual report; many filings have no `summaryInfo` because
-    // the offering already closed, so the history table can be sparse. We
-    // assert it's populated *at all* (proves the pipeline writes histories
-    // when there is data) and never exceeds the filing count.
+    // the offering already closed, so the history table is sparse. The
+    // upper bound is one row per filing (processOfferingHistory writes at
+    // most one row per summaryInfo entry, keyed on (cik, file_number,
+    // accession_number) -- and we use a distinct file_number per filing).
     expect(histories.length).toBeGreaterThan(0);
-    expect(histories.length).toBeLessThanOrEqual(ingested.length * 5);
+    expect(histories.length).toBeLessThanOrEqual(ingested.length);
   });
 
   it("links the issuer back to the filing CIK in the company junction", async () => {
