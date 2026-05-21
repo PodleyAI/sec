@@ -181,6 +181,16 @@ import {
   RegAServiceProviderPrimaryKeyNames,
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
+import {
+  COMPONENT_VERSION_REPOSITORY_TOKEN,
+  ComponentVersionPrimaryKeyNames,
+  ComponentVersionSchema,
+} from "../storage/versioning/ComponentVersionSchema";
+import {
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  ExtractorRunPrimaryKeyNames,
+  ExtractorRunSchema,
+} from "../storage/versioning/ExtractorRunSchema";
 
 export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
@@ -427,6 +437,19 @@ export function resetDependencyInjectionsForTesting() {
     PROCESSED_FILINGS_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
       ["last_processed", "success", "form"],
+    ])
+  );
+
+  // Initialize Versioning repositories
+  globalServiceRegistry.registerInstance(
+    COMPONENT_VERSION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ComponentVersionSchema, ComponentVersionPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    EXTRACTOR_RUN_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ExtractorRunSchema, ExtractorRunPrimaryKeyNames, [
+      ["extractor_id", "extractor_version"],
+      ["form", "extractor_version"],
     ])
   );
 

@@ -184,6 +184,16 @@ import {
   RegAServiceProviderPrimaryKeyNames,
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
+import {
+  COMPONENT_VERSION_REPOSITORY_TOKEN,
+  ComponentVersionPrimaryKeyNames,
+  ComponentVersionSchema,
+} from "../storage/versioning/ComponentVersionSchema";
+import {
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  ExtractorRunPrimaryKeyNames,
+  ExtractorRunSchema,
+} from "../storage/versioning/ExtractorRunSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -457,6 +467,19 @@ export const DefaultDI = () => {
     PROCESSED_FILINGS_REPOSITORY_TOKEN,
     createStorage("processed_filings", ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
       ["last_processed", "success", "form"],
+    ])
+  );
+
+  // ------------------------------ Versioning -----------------------------------
+  globalServiceRegistry.registerInstance(
+    COMPONENT_VERSION_REPOSITORY_TOKEN,
+    createStorage("component_versions", ComponentVersionSchema, ComponentVersionPrimaryKeyNames)
+  );
+  globalServiceRegistry.registerInstance(
+    EXTRACTOR_RUN_REPOSITORY_TOKEN,
+    createStorage("extractor_runs", ExtractorRunSchema, ExtractorRunPrimaryKeyNames, [
+      ["extractor_id", "extractor_version"],
+      ["form", "extractor_version"],
     ])
   );
 
