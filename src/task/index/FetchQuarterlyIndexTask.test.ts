@@ -89,8 +89,15 @@ EnvToDI();
 describe("FetchQuarterlyIndexTask", () => {
   let server: JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     (global as any).fetch = mockFetch;
+
+    // Reset the registry first so we don't conflict with a sibling test file
+    // (FetchDailyIndexTask.test.ts) that registers the same SecJobQueueName.
+    // Bun shares module state across test files when they run in the same
+    // worker, and the workglow registry throws "Queue already exists" on a
+    // second registration of the same name.
+    await setTaskQueueRegistry(null);
 
     const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
       SecJobQueueName
