@@ -1,0 +1,41 @@
+/**
+ * @license
+ * Copyright 2025 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export const EXTRACTOR_IDS = ["D", "C", "1-A", "1-K", "1-Z"] as const;
+export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
+
+/**
+ * Maps every supported SEC form symbol (including amendment / withdrawal
+ * variants) to the canonical extractor id that handles it. The right-hand
+ * values match component_versions.component_id rows seeded by
+ * bootstrapExtractorVersions().
+ */
+export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
+  D: "D",
+  "D/A": "D",
+  C: "C",
+  "C/A": "C",
+  "C-W": "C",
+  "C-U": "C",
+  "C-U-W": "C",
+  "C/A-W": "C",
+  "C-AR": "C",
+  "C-AR-W": "C",
+  "C-AR/A": "C",
+  "C-AR/A-W": "C",
+  "C-TR": "C",
+  "C-TR-W": "C",
+  "1-A": "1-A",
+  "1-A/A": "1-A",
+  "1-K": "1-K",
+  "1-K/A": "1-K",
+  "1-Z": "1-Z",
+  "1-Z/A": "1-Z",
+};
+
+export function formToExtractorId(form: string): ExtractorId | undefined {
+  return FORM_TO_EXTRACTOR_ID[form];
+}
