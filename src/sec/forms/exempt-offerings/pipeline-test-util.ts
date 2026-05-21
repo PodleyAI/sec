@@ -14,8 +14,10 @@
 
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { accessionFromFixtureName } from "../../../util/accession";
 import { parseCikSafely } from "../../../util/parseCik";
 
+export { accessionFromFixtureName };
 export { parseCikSafely as safeCikToInt };
 
 export function fixtureDir(slug: string): string {
@@ -30,17 +32,6 @@ export function listFixtureFiles(slug: string): string[] {
 
 export function readFixture(slug: string, file: string): string {
   return readFileSync(join(fixtureDir(slug), file), "utf-8");
-}
-
-/**
- * Reinsert dashes into a fixture filename's accession. Fixtures are stored
- * as e.g. `000123456725000001-primary_doc.xml` (dashes stripped); the
- * canonical EDGAR form is `0001234567-25-000001` (10-2-6).
- */
-export function accessionFromFixtureName(file: string): string {
-  const noDashes = file.replace(/-primary_doc\.xml$/, "");
-  if (!/^\d{18}$/.test(noDashes)) return noDashes;
-  return `${noDashes.slice(0, 10)}-${noDashes.slice(10, 12)}-${noDashes.slice(12, 18)}`;
 }
 
 /**
