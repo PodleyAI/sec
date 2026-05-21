@@ -117,7 +117,7 @@ export class ProcessAccessionDocFormTask extends Task<
     const currentVersion = await versionRegistry.getCurrent("extractor", extractorId);
     if (!currentVersion) {
       throw new TaskError(
-        `No current version for extractor '${extractorId}'. Did you run bootstrapExtractorVersions()?`
+        `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
       );
     }
     const extractorVersion = currentVersion.semver;
@@ -136,10 +136,10 @@ export class ProcessAccessionDocFormTask extends Task<
       }),
       async function processForm(fetchOutput: FetchUrlTaskOutput) {
         const { text } = fetchOutput;
-        const formCls = ALL_FORMS_MAP.get(form!);
-        if (!formCls) throw new TaskError("Form not found");
 
         try {
+          const formCls = ALL_FORMS_MAP.get(form!);
+          if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
           const parsed = await formCls.parse(form!, text!);
           const storageArgs = {
             cik: cik!,

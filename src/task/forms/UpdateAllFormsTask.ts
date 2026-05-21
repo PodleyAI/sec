@@ -62,6 +62,11 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     const formSet = new Set(input.form);
     const formsToProcess: Filing[] = [];
 
+    // Cache version lookups per extractor_id — multiple form variants
+    // (e.g. "C", "C/A", "C-W"…) share one extractor, so the version is the
+    // same across them. Avoids redundant component_versions queries.
+    const versionCache = new Map<string, string>();
+
     for (const form of formSet) {
       const extractorId = formToExtractorId(form);
       if (!extractorId) {
@@ -70,18 +75,24 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
         );
         continue;
       }
-      const current = await versionRegistry.getCurrent("extractor", extractorId);
-      if (!current) {
-        throw new Error(
-          `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
-        );
+      let extractorVersion = versionCache.get(extractorId);
+      if (extractorVersion === undefined) {
+        const current = await versionRegistry.getCurrent("extractor", extractorId);
+        if (!current) {
+          throw new Error(
+            `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
+          );
+        }
+        extractorVersion = current.semver;
+        versionCache.set(extractorId, extractorVersion);
       }
 
       const filings = (await filingRepo.query({ form })) ?? [];
       const unprocessed = await runRepo.listFilingsWithoutSuccessfulRun(
         filings,
         extractorId,
-        current.semver
+        extractorVersion,
+        form
       );
       for (const f of unprocessed) {
         formsToProcess.push(f);

@@ -239,6 +239,57 @@ describe("ExtractorRunRepo", () => {
     );
     expect(unprocessed).toEqual(filings);
   });
+
+  it("listFilingsWithoutSuccessfulRun with form filter narrows the successful set", async () => {
+    const repo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    // Filing A: successful at form="D"
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    // Filing B: successful at form="D/A" (same extractor "D", different form variant)
+    await repo.recordRun({
+      cik: 2000000,
+      accession_number: "0002000000-25-000001",
+      form: "D/A",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+
+    // Without the form filter, both filings count as done.
+    const noFilter = await repo.listFilingsWithoutSuccessfulRun(
+      [
+        { cik: 1000000, accession_number: "0001000000-25-000001" },
+        { cik: 2000000, accession_number: "0002000000-25-000001" },
+      ],
+      "D",
+      "1.0.0"
+    );
+    expect(noFilter).toEqual([]);
+
+    // With form="D", only the D-form success row counts; Filing B looks unprocessed.
+    const dOnly = await repo.listFilingsWithoutSuccessfulRun(
+      [
+        { cik: 1000000, accession_number: "0001000000-25-000001" },
+        { cik: 2000000, accession_number: "0002000000-25-000001" },
+      ],
+      "D",
+      "1.0.0",
+      "D"
+    );
+    expect(dOnly.map((f) => f.cik)).toEqual([2000000]);
+  });
 });
 
 // Verifies that listFilingsWithoutSuccessfulRun's boolean-criteria query

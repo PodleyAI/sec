@@ -70,17 +70,30 @@ export class ExtractorRunRepo {
    * Given a list of candidate filings, returns those WITHOUT a successful
    * run for the given (extractor_id, extractor_version). A failed run
    * still counts as "unprocessed" — it should be retried.
+   *
+   * When `form` is provided, the successful-runs query is narrowed to that
+   * exact form symbol. Recommended when the caller is iterating one form
+   * variant at a time — keeps the in-memory result set bounded.
    */
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,
     extractor_id: string,
-    extractor_version: string
+    extractor_version: string,
+    form?: string
   ): Promise<T[]> {
-    const successful = await this.storage.query({
-      extractor_id,
-      extractor_version,
-      success: true,
-    });
+    const successful =
+      form === undefined
+        ? await this.storage.query({
+            extractor_id,
+            extractor_version,
+            success: true,
+          })
+        : await this.storage.query({
+            extractor_id,
+            extractor_version,
+            success: true,
+            form,
+          });
     const successfulKeys = new Set(
       (successful ?? []).map((r) => `${r.cik}::${r.accession_number}`)
     );
