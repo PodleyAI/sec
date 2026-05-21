@@ -35,7 +35,7 @@ export function addDbCommands(program: Command): void {
         console.log(`  Company Facts:         ${fmt(status.factsCount)}`);
         console.log(`  Processed Submissions: ${fmt(status.processedSubmissions)}`);
         console.log(`  Processed Facts:       ${fmt(status.processedFacts)}`);
-        console.log(`  Processed Filings:     ${fmt(status.processedFilings)}`);
+        console.log(`  Extractor Runs:        ${fmt(status.extractorRuns)}`);
       });
     });
 

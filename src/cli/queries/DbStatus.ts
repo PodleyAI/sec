@@ -12,8 +12,8 @@ import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
-import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 
 export interface DbStatusResult {
   readonly entityCount: number;
@@ -21,7 +21,7 @@ export interface DbStatusResult {
   readonly factsCount: number;
   readonly processedSubmissions: number;
   readonly processedFacts: number;
-  readonly processedFilings: number;
+  readonly extractorRuns: number;
 }
 
 export interface TableStat {
@@ -46,14 +46,14 @@ export async function getDbStatus(): Promise<DbStatusResult> {
     factsCount,
     processedSubmissions,
     processedFacts,
-    processedFilings,
+    extractorRuns,
   ] = await Promise.all([
     countRows(ENTITY_REPOSITORY_TOKEN as any),
     countRows(FILING_REPOSITORY_TOKEN as any),
     countRows(COMPANY_FACTS_REPOSITORY_TOKEN as any),
     countRows(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any),
     countRows(PROCESSED_FACTS_REPOSITORY_TOKEN as any),
-    countRows(PROCESSED_FILINGS_REPOSITORY_TOKEN as any),
+    countRows(EXTRACTOR_RUN_REPOSITORY_TOKEN as any),
   ]);
 
   return {
@@ -62,7 +62,7 @@ export async function getDbStatus(): Promise<DbStatusResult> {
     factsCount,
     processedSubmissions,
     processedFacts,
-    processedFilings,
+    extractorRuns,
   };
 }
 
@@ -81,6 +81,7 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "phone", token: PHONE_REPOSITORY_TOKEN as any },
   { table: "company", token: COMPANY_REPOSITORY_TOKEN as any },
   { table: "portal", token: PORTAL_REPOSITORY_TOKEN as any },
+  { table: "extractor_runs", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
 ];
 
 export async function getDbStats(): Promise<TableStat[]> {
