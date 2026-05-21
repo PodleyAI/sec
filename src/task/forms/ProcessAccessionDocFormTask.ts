@@ -21,8 +21,11 @@ import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
-import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
@@ -103,7 +106,25 @@ export class ProcessAccessionDocFormTask extends Task<
       throw new TaskError(`Filing ${accessionNumber} has no form type`);
     }
 
-    const processedFilingsRepo = globalServiceRegistry.get(PROCESSED_FILINGS_REPOSITORY_TOKEN);
+    const extractorId = formToExtractorId(form);
+    if (!extractorId) {
+      throw new TaskError(`No extractor registered for form '${form}'`);
+    }
+
+    const versionRegistry = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    const currentVersion = await versionRegistry.getCurrent("extractor", extractorId);
+    if (!currentVersion) {
+      throw new TaskError(
+        `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
+      );
+    }
+    const extractorVersion = currentVersion.semver;
+
+    const runRepo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
 
     const wf = context.own(new Workflow());
 
@@ -113,63 +134,99 @@ export class ProcessAccessionDocFormTask extends Task<
         accessionNumber: accessionNumber,
         fileName: fileName!,
       }),
-      async function processForm(input: FetchUrlTaskOutput) {
-        const { text } = input;
-        const formCls = ALL_FORMS_MAP.get(form!);
-        if (!formCls) throw new TaskError("Form not found");
-        const result = await formCls.parse(form!, text!);
+      async function processForm(fetchOutput: FetchUrlTaskOutput) {
+        const { text } = fetchOutput;
 
-        const storageArgs = {
-          cik: cik!,
-          file_number: file_number ?? "",
-          accession_number: accessionNumber,
-          filing_date: filing_date ?? "",
-          primary_doc: fileName!,
-        };
+        let parseError: unknown = undefined;
+        try {
+          const formCls = ALL_FORMS_MAP.get(form!);
+          if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
+          const parsed = await formCls.parse(form!, text!);
+          const storageArgs = {
+            cik: cik!,
+            file_number: file_number ?? "",
+            accession_number: accessionNumber,
+            filing_date: filing_date ?? "",
+            primary_doc: fileName!,
+          };
 
-        switch (form) {
-          case "D":
-          case "D/A":
-            await processFormD({ ...storageArgs, formD: result });
-            break;
-          case "C":
-          case "C/A":
-          case "C-W":
-          case "C-U":
-          case "C-U-W":
-          case "C/A-W":
-          case "C-AR":
-          case "C-AR-W":
-          case "C-AR/A":
-          case "C-AR/A-W":
-          case "C-TR":
-          case "C-TR-W":
-            await processFormC({ ...storageArgs, formC: result });
-            break;
-          case "1-A":
-          case "1-A/A":
-            await processForm1A({ ...storageArgs, form1A: result });
-            break;
-          case "1-K":
-          case "1-K/A":
-            await processForm1K({ ...storageArgs, form1K: result });
-            break;
-          case "1-Z":
-          case "1-Z/A":
-            await processForm1Z({ ...storageArgs, form1Z: result });
-            break;
+          switch (form) {
+            case "D":
+            case "D/A":
+              await processFormD({ ...storageArgs, formD: parsed });
+              break;
+            case "C":
+            case "C/A":
+            case "C-W":
+            case "C-U":
+            case "C-U-W":
+            case "C/A-W":
+            case "C-AR":
+            case "C-AR-W":
+            case "C-AR/A":
+            case "C-AR/A-W":
+            case "C-TR":
+            case "C-TR-W":
+              await processFormC({ ...storageArgs, formC: parsed });
+              break;
+            case "1-A":
+            case "1-A/A":
+              await processForm1A({ ...storageArgs, form1A: parsed });
+              break;
+            case "1-K":
+            case "1-K/A":
+              await processForm1K({ ...storageArgs, form1K: parsed });
+              break;
+            case "1-Z":
+            case "1-Z/A":
+              await processForm1Z({ ...storageArgs, form1Z: parsed });
+              break;
+            default:
+              throw new TaskError(`Form '${form}' has no storage handler`);
+          }
+        } catch (err) {
+          parseError = err;
         }
 
-        return { result };
-      },
-      async function storeProcessedFiling() {
-        await processedFilingsRepo.put({
-          cik: cik!,
-          form: form!,
-          accession_number: accessionNumber,
-          last_processed: todayYYYYdMMdDD(),
-          success: true,
-        });
+        // Record the run outcome. Failures here are logged but don't change the
+        // visible parse outcome — the original parse error (if any) is rethrown
+        // below. This ensures the operator sees the real cause when both layers
+        // fail, and prevents a DB hiccup during the success-recording from
+        // overwriting a real successful row with a misleading failure row.
+        try {
+          if (parseError === undefined) {
+            await runRepo.recordRun({
+              cik: cik!,
+              accession_number: accessionNumber,
+              form: form!,
+              extractor_id: extractorId,
+              extractor_version: extractorVersion,
+              slot_at_run: "current",
+              success: true,
+              error: null,
+            });
+          } else {
+            const message =
+              parseError instanceof Error ? parseError.message : String(parseError);
+            await runRepo.recordRun({
+              cik: cik!,
+              accession_number: accessionNumber,
+              form: form!,
+              extractor_id: extractorId,
+              extractor_version: extractorVersion,
+              slot_at_run: "current",
+              success: false,
+              error: message.slice(0, 4096),
+            });
+          }
+        } catch (recordErr) {
+          console.error(
+            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
+            recordErr
+          );
+        }
+
+        if (parseError !== undefined) throw parseError;
         return { success: true };
       }
     );

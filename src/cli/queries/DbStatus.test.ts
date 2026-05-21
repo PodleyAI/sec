@@ -16,7 +16,7 @@ describe("getDbStatus", () => {
     expect(result.factsCount).toBe(0);
     expect(result.processedSubmissions).toBe(0);
     expect(result.processedFacts).toBe(0);
-    expect(result.processedFilings).toBe(0);
+    expect(result.extractorRuns).toBe(0);
   });
 
   it("counts entities after insertion", async () => {

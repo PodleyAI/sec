@@ -35,15 +35,28 @@ async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
 }
 
 describe("sec version CLI", () => {
-  it("status prints empty message when no components are registered", async () => {
+  it("status shows the bootstrapped extractors after a fresh db setup", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       const setup = await runCli(["db", "setup"], dir);
       expect(setup.exitCode).toBe(0);
 
-      const status = await runCli(["version", "status"], dir);
+      const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
-      expect(status.stdout).toContain("No components registered");
+      const parsed = JSON.parse(status.stdout);
+      // PR2 wires bootstrapExtractorVersions() into db setup; expect the
+      // five extractor ids registered at 1.0.0 in the current slot.
+      const ids = parsed
+        .filter((r: { component_kind: string }) => r.component_kind === "extractor")
+        .map((r: { component_id: string }) => r.component_id)
+        .sort();
+      expect(ids).toEqual(["1-A", "1-K", "1-Z", "C", "D"]);
+      const extractorRows = parsed.filter(
+        (r: { component_kind: string }) => r.component_kind === "extractor"
+      );
+      for (const row of extractorRows) {
+        expect(row.current).toBe("1.0.0");
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -64,11 +77,14 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      expect(parsed).toHaveLength(1);
-      expect(parsed[0].component_id).toBe("D");
-      expect(parsed[0].current).toBe("1.0.0");
-      expect(parsed[0].previous).toBe("—");
-      expect(parsed[0].next).toBe("—");
+      // After PR2 bootstrap, status lists all five extractors; locate "D".
+      const dRow = parsed.find(
+        (r: { component_id: string }) => r.component_id === "D"
+      );
+      expect(dRow).toBeDefined();
+      expect(dRow.current).toBe("1.0.0");
+      expect(dRow.previous).toBe("—");
+      expect(dRow.next).toBe("—");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -89,10 +105,14 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      expect(parsed).toHaveLength(1);
+      // After PR2 bootstrap, status lists all five extractors; locate "D".
+      const dRow = parsed.find(
+        (r: { component_id: string }) => r.component_id === "D"
+      );
+      expect(dRow).toBeDefined();
       // JSON output is raw data — semver only, no presentation suffix.
-      expect(parsed[0].next).toBe("2.1.0");
-      expect(parsed[0].next_coverage_complete).toBe(false);
+      expect(dRow.next).toBe("2.1.0");
+      expect(dRow.next_coverage_complete).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

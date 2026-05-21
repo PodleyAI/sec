@@ -150,11 +150,6 @@ import {
   ProcessedFactsSchema,
 } from "../storage/processing/ProcessedFactsSchema";
 import {
-  PROCESSED_FILINGS_REPOSITORY_TOKEN,
-  ProcessedFilingsPrimaryKeyNames,
-  ProcessedFilingsSchema,
-} from "../storage/processing/ProcessedFilingsSchema";
-import {
   PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
   ProcessedSubmissionsPrimaryKeyNames,
   ProcessedSubmissionsSchema,
@@ -462,12 +457,6 @@ export const DefaultDI = () => {
       ProcessedSubmissionsPrimaryKeyNames,
       [["last_processed"]]
     )
-  );
-  globalServiceRegistry.registerInstance(
-    PROCESSED_FILINGS_REPOSITORY_TOKEN,
-    createStorage("processed_filings", ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
-      ["last_processed", "success", "form"],
-    ])
   );
 
   // ------------------------------ Versioning -----------------------------------

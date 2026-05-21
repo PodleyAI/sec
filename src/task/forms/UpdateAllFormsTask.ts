@@ -8,12 +8,15 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
-import { PROCESSED_FILINGS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFilingsSchema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 export type UpdateAllFormsTaskInput = {
   readonly form: string[];
-  readonly force?: boolean;
 };
 
 export type UpdateAllFormsTaskOutput = {
@@ -21,7 +24,11 @@ export type UpdateAllFormsTaskOutput = {
 };
 
 /**
- * Task for storing company forms of a given type
+ * Schedules ProcessAccessionDocFormTask for every filing of the requested
+ * form types that does not yet have a successful extractor_runs row at the
+ * current extractor version. Re-processing existing rows requires a
+ * version bump (PR3's `sec version start-dev` / `promote`); there is no
+ * --force escape hatch.
  */
 export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllFormsTaskOutput> {
   static readonly type = "UpdateAllFormsTask";
@@ -31,7 +38,6 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
   public static inputSchema() {
     return Type.Object({
       form: Type.Array(Type.String()),
-      force: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -46,51 +52,58 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     context: IExecuteContext
   ): Promise<UpdateAllFormsTaskOutput> {
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    const processedFilingsRepo = globalServiceRegistry.get(PROCESSED_FILINGS_REPOSITORY_TOKEN);
+    const runRepo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    const versionRegistry = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
 
     const formSet = new Set(input.form);
-
     const formsToProcess: Filing[] = [];
 
-    if (input.force) {
-      // Reprocess all filings for requested forms
-      for (const form of formSet) {
-        const filings = await filingRepo.query({ form });
-        if (filings) {
-          for (const f of filings) {
-            formsToProcess.push(f);
-          }
-        }
+    // Cache version lookups per extractor_id — multiple form variants
+    // (e.g. "C", "C/A", "C-W"…) share one extractor, so the version is the
+    // same across them. Avoids redundant component_versions queries.
+    const versionCache = new Map<string, string>();
+
+    for (const form of formSet) {
+      const extractorId = formToExtractorId(form);
+      if (!extractorId) {
+        console.warn(
+          `update-forms: form '${form}' has no registered extractor; skipping`
+        );
+        continue;
       }
-    } else {
-      // Build a set of already-processed (cik:accession_number) keys per form
-      const processedSet = new Set<string>();
-      for (const form of formSet) {
-        const processed = await processedFilingsRepo.query({ form });
-        if (processed) {
-          for (const pf of processed) {
-            processedSet.add(`${pf.cik}:${pf.accession_number}`);
-          }
+      let extractorVersion = versionCache.get(extractorId);
+      if (extractorVersion === undefined) {
+        const current = await versionRegistry.getCurrent("extractor", extractorId);
+        if (!current) {
+          throw new Error(
+            `No current version for extractor '${extractorId}'. Run 'sec db setup' to bootstrap.`
+          );
         }
+        extractorVersion = current.semver;
+        versionCache.set(extractorId, extractorVersion);
       }
 
-      // Query filings per form and collect only unprocessed ones
-      for (const form of formSet) {
-        const filings = await filingRepo.query({ form });
-        if (filings) {
-          for (const f of filings) {
-            if (!processedSet.has(`${f.cik}:${f.accession_number}`)) {
-              formsToProcess.push(f);
-            }
-          }
-        }
+      const filings = (await filingRepo.query({ form })) ?? [];
+      const unprocessed = await runRepo.listFilingsWithoutSuccessfulRun(
+        filings,
+        extractorId,
+        extractorVersion,
+        form
+      );
+      for (const f of unprocessed) {
+        formsToProcess.push(f);
       }
     }
 
     if (isDryRun()) {
       const forms = [...formSet].join(", ");
-      const label = input.force ? "all" : "unprocessed";
-      console.log(`Would process ${formsToProcess.length} ${label} filings for forms: ${forms}`);
+      console.log(
+        `Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}`
+      );
       return { success: true };
     }
 

@@ -147,11 +147,6 @@ import {
   ProcessedFactsSchema,
 } from "../storage/processing/ProcessedFactsSchema";
 import {
-  PROCESSED_FILINGS_REPOSITORY_TOKEN,
-  ProcessedFilingsPrimaryKeyNames,
-  ProcessedFilingsSchema,
-} from "../storage/processing/ProcessedFilingsSchema";
-import {
   PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
   ProcessedSubmissionsPrimaryKeyNames,
   ProcessedSubmissionsSchema,
@@ -431,12 +426,6 @@ export function resetDependencyInjectionsForTesting() {
     PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(ProcessedSubmissionsSchema, ProcessedSubmissionsPrimaryKeyNames, [
       ["last_processed"],
-    ])
-  );
-  globalServiceRegistry.registerInstance(
-    PROCESSED_FILINGS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(ProcessedFilingsSchema, ProcessedFilingsPrimaryKeyNames, [
-      ["last_processed", "success", "form"],
     ])
   );
 
