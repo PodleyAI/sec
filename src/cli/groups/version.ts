@@ -119,6 +119,7 @@ export function addVersionCommands(program: Command): void {
           bump_type: null,
           started_at: new Date().toISOString(),
           coverage_complete: slot !== "next",
+          target_count: null,
         });
         console.log(`Seeded ${kind}:${id} slot=${slot} semver=${semver}`);
       });

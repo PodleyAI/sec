@@ -34,6 +34,7 @@ export async function bootstrapExtractorVersions(): Promise<void> {
       bump_type: null,
       started_at: startedAt,
       coverage_complete: true,
+      target_count: null,
     });
   }
 }
