@@ -68,6 +68,23 @@ export class ExtractorRunRepo {
   }
 
   /**
+   * Counts successful runs for a specific (extractor_id, extractor_version).
+   * Used by the major-promote coverage gate. Exact-match (not major.minor
+   * prefix) because the gate measures actual production at the new version.
+   */
+  async countSuccessfulAtVersion(
+    extractor_id: string,
+    extractor_version: string
+  ): Promise<number> {
+    const rows = await this.storage.query({
+      extractor_id,
+      extractor_version,
+      success: true,
+    });
+    return rows?.length ?? 0;
+  }
+
+  /**
    * Given a list of candidate filings, returns those WITHOUT a successful
    * run for the given (extractor_id, extractor_version). A failed run
    * still counts as "unprocessed" — it should be retried.
