@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import {
   EXTRACTOR_IDS,
   FORM_TO_EXTRACTOR_ID,
@@ -66,5 +67,17 @@ describe("extractorIds", () => {
     expect(seen.has("D/A")).toBe(true);
     expect(seen.has("C-AR/A-W")).toBe(true);
     expect(seen.has("1-Z/A")).toBe(true);
+  });
+});
+
+describe("extractorIds + ALL_FORMS_MAP invariant", () => {
+  it("every form in FORM_TO_EXTRACTOR_ID is registered in ALL_FORMS_MAP", () => {
+    const missing: string[] = [];
+    for (const form of Object.keys(FORM_TO_EXTRACTOR_ID)) {
+      if (!ALL_FORMS_MAP.has(form)) {
+        missing.push(form);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });

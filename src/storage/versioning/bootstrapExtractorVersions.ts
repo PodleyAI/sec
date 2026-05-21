@@ -12,6 +12,10 @@ import { VersionRegistry } from "./VersionRegistry";
 /**
  * Idempotently seeds component_versions.current = 1.0.0 for every known
  * extractor id. Existing current slots are left untouched.
+ *
+ * Assumes single-process invocation. Concurrent first-time bootstraps from
+ * two processes are not coordinated and could write duplicate rows; not a
+ * realistic concern for the single-process CLI.
  */
 export async function bootstrapExtractorVersions(): Promise<void> {
   const reg = new VersionRegistry(

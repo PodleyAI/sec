@@ -28,12 +28,12 @@ export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
   async recordRun(
-    row: Omit<ExtractorRun, "ran_at"> & { ran_at?: string }
+    row: Omit<ExtractorRun, "ran_at">
   ): Promise<void> {
     await this.storage.put({
       ...row,
-      ran_at: row.ran_at ?? new Date().toISOString(),
-    });
+      ran_at: new Date().toISOString(),
+    } as ExtractorRun);
   }
 
   async findRun(
@@ -82,6 +82,10 @@ export class ExtractorRunRepo {
    * acceptable because the data set is small in absolute terms; a future
    * plan should switch to a streaming or anti-join (WHERE NOT EXISTS) query
    * once the data set grows.
+   *
+   * In PR2, the only production caller (UpdateAllFormsTask) always passes
+   * `form`. The no-form path is retained for PR3's coverage queries which
+   * may need to count across an extractor's variants.
    */
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,
