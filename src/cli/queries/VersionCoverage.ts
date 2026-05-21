@@ -60,7 +60,19 @@ export async function getVersionCoverage(
     };
   }
 
-  const target = next.target_count ?? 0;
+  if (next.target_count === null) {
+    return {
+      component_kind: kind,
+      component_id: id,
+      status: "invalid state: missing target_count (major bump requires snapshot)",
+      next_semver: next.semver,
+      bump_type: next.bump_type,
+      target_count: null,
+      successful_count: null,
+      percent: null,
+    };
+  }
+  const target = next.target_count;
   const successful = await runs.countSuccessfulAtVersion(id, next.semver);
   const percent = target === 0 ? 100 : Math.round((successful / target) * 10000) / 100;
 

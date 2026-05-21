@@ -118,8 +118,13 @@ export class ExtractorRunRepo {
 
     // Workglow's tabular query doesn't expose LIKE/prefix matching today, so
     // we narrow with the available criteria (extractor_id, success, optionally
-    // form) and post-filter on extractor_version in memory. Cost is the same
-    // O(N-successful-rows) as before — see the scale-note JSDoc above.
+    // form) and post-filter on extractor_version in memory. Note: with patch
+    // ceremony (PR3 D7), the criteria no longer constrains extractor_version,
+    // so the worst-case successful-set spans ALL versions for this extractor
+    // (1.0.0, 1.0.1, 1.1.0, 2.0.0, ...). For a long-lived extractor with many
+    // versions and many filings, this set can grow substantially. See the
+    // scale-note JSDoc above; a streaming/anti-join migration is the
+    // documented long-term fix.
     const successful =
       form === undefined
         ? await this.storage.query({

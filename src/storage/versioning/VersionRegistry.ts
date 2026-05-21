@@ -66,6 +66,15 @@ export class VersionRegistry {
         `VersionRegistry: target_count is only meaningful for bump_type='major' (got ${row.target_count} with bump_type=${row.bump_type})`
       );
     }
+    if (
+      row.slot === "next" &&
+      row.bump_type === "major" &&
+      row.target_count === null
+    ) {
+      throw new Error(
+        `VersionRegistry: major bump in next slot requires non-null target_count (got null on ${row.component_kind}:${row.component_id})`
+      );
+    }
     await this.storage.put(row);
   }
 

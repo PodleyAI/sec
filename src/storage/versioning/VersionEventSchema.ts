@@ -18,7 +18,8 @@ export type VersionEventType = (typeof VERSION_EVENT_TYPES)[number];
 
 export const VersionEventSchema = Type.Object({
   id: Type.Integer({
-    description: "Auto-incrementing primary key",
+    description:
+      "Sequential primary key, assigned by VersionEventRepo on insert via storage.size() + 1. The table is append-only by design; see VersionEventRepo JSDoc for the no-delete invariant.",
   }),
   component_kind: Type.Union(
     [Type.Literal("extractor"), Type.Literal("resolver")],

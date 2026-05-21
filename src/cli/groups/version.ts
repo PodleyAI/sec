@@ -63,6 +63,13 @@ function assertFormat(s: string): asserts s is "table" | "json" {
  * dev-cycle, they will need their own kind-aware snapshot strategy
  * (count of observations? count of canonical identities? TBD). Add a
  * dispatch table keyed on ComponentKind here when PR4 lands.
+ *
+ * TODO(perf): currently loads all filings into memory via filingRepo.query()
+ * just to count them. For Form D at projected scale (hundreds of thousands
+ * of filings) this is ~100MB transient. A filtered-count helper on the
+ * tabular storage or a paged-iteration counter would be cheaper. Acceptable
+ * for v1 because start-dev is a rare manual ceremony; revisit if it becomes
+ * a routine operation.
  */
 async function snapshotTargetCount(
   kind: ComponentKind,

@@ -142,7 +142,12 @@ export async function promote(args: PromoteArgs): Promise<void> {
 
   // Major coverage gate.
   if (next.bump_type === "major" && !force) {
-    const target = next.target_count ?? 0;
+    if (next.target_count === null) {
+      throw new Error(
+        `${kind} '${id}' next slot has bump_type='major' but target_count is null — invalid state. Drop-next and re-run start-dev.`
+      );
+    }
+    const target = next.target_count;
     const successful = await runs.countSuccessfulAtVersion(id, next.semver);
     if (successful < target) {
       throw new Error(
