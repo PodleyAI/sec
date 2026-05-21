@@ -5,51 +5,37 @@
  */
 
 /**
- * Helpers shared by the per-form `*.pipeline.test.ts` files. These tests load
- * every XML fixture from `mock_data/<form-slug>/`, run it through the form
- * parser and the corresponding `processFormX` storage routine, then issue
- * real queries against the repos to verify the parsed XML survives the
- * full pipeline.
- *
- * The point of these tests is to catch round-trip regressions: schema drift,
- * normalization that drops fields, repos that silently swallow rows. They are
- * deliberately separate from the existing `.test.ts` and `.storage.test.ts`
- * files so we don't disturb their assertion shape.
+ * Helpers shared by the per-form `*.pipeline.test.ts` round-trip tests.
+ * Each pipeline test parses every fixture, stores it, then queries the
+ * repos to verify the parsed XML survives the full pipeline. These
+ * helpers cover the bits every form has in common (fixture I/O,
+ * accession derivation, all-or-fail iteration).
  */
 
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { parseCikSafely } from "../../../util/parseCik";
 
-/**
- * Returns the absolute path to a `mock_data/<slug>/` directory containing
- * XML fixtures.
- */
+export { parseCikSafely as safeCikToInt };
+
 export function fixtureDir(slug: string): string {
   return join(__dirname, "mock_data", slug);
 }
 
-/**
- * Lists every `*-primary_doc.xml` file in a fixture directory, sorted by
- * filename for determinism.
- */
 export function listFixtureFiles(slug: string): string[] {
   return readdirSync(fixtureDir(slug))
     .filter((f) => f.endsWith("-primary_doc.xml"))
     .sort();
 }
 
-/**
- * Reads a fixture file's contents as UTF-8.
- */
 export function readFixture(slug: string, file: string): string {
   return readFileSync(join(fixtureDir(slug), file), "utf-8");
 }
 
 /**
- * Derives the bare accession number ("0001234567-25-000001"-style) from a
- * fixture filename like "000123456725000001-primary_doc.xml". The fixture
- * filenames omit the dashes, so we reinsert them in the canonical
- * 10-2-6 format.
+ * Reinsert dashes into a fixture filename's accession. Fixtures are stored
+ * as e.g. `000123456725000001-primary_doc.xml` (dashes stripped); the
+ * canonical EDGAR form is `0001234567-25-000001` (10-2-6).
  */
 export function accessionFromFixtureName(file: string): string {
   const noDashes = file.replace(/-primary_doc\.xml$/, "");
@@ -58,62 +44,50 @@ export function accessionFromFixtureName(file: string): string {
 }
 
 /**
- * Generates a stable synthetic `file_number` from the accession number when
- * a fixture doesn't carry one. EDGAR's file numbers look like "020-12345"
- * (SEC office prefix + 5+ digits), so we follow that shape. Pipeline tests
- * use these to disambiguate offerings stored against the same CIK.
+ * Synthesize an EDGAR-shaped `file_number` ("020-NNNNN", SEC office prefix
+ * + 5+ digits) from an accession. Real file numbers live in the EDGAR
+ * submission JSON, not in the fixture XML, so pipeline tests need a stable
+ * stand-in to disambiguate offerings stored against the same CIK.
  */
 export function deriveFileNumber(accessionNumber: string): string {
   const digits = accessionNumber.replace(/\D/g, "").slice(-7);
   return `020-${digits.padStart(5, "0")}`;
 }
 
-/**
- * Pipeline runner: applies `process` to every fixture under `slug`, with the
- * supplied per-fixture function. Collects successes and failures and returns
- * a summary the caller can assert against.
- *
- * Errors thrown by `process` are caught per-fixture so a single bad filing
- * doesn't abort the run -- pipeline tests want to see the overall shape of
- * what made it through, not just the first failure.
- */
 export interface PipelineSummary {
-  total: number;
-  succeeded: number;
-  failed: number;
-  errors: Array<{ file: string; error: string }>;
+  readonly total: number;
+  readonly succeeded: number;
+  readonly failed: number;
+  readonly errors: ReadonlyArray<{ readonly file: string; readonly error: string }>;
 }
 
+/**
+ * Walks every fixture under `slug`, applying `process`. Per-fixture errors
+ * are captured (not rethrown) so the summary reflects the full set rather
+ * than aborting on the first failure.
+ */
 export async function runPipeline(
   slug: string,
   process: (file: string, xml: string) => Promise<void>
 ): Promise<PipelineSummary> {
   const files = listFixtureFiles(slug);
-  const summary: PipelineSummary = {
-    total: files.length,
-    succeeded: 0,
-    failed: 0,
-    errors: [],
-  };
+  let succeeded = 0;
+  const errors: Array<{ file: string; error: string }> = [];
   for (const file of files) {
     const xml = readFixture(slug, file);
     try {
       await process(file, xml);
-      summary.succeeded++;
+      succeeded++;
     } catch (err) {
-      summary.failed++;
-      summary.errors.push({
-        file,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      errors.push({ file, error: err instanceof Error ? err.message : String(err) });
     }
   }
-  return summary;
+  return { total: files.length, succeeded, failed: errors.length, errors };
 }
 
 /**
- * Asserts a pipeline summary has 100% success and dumps the first few errors
- * if not, so a failing test message is actionable.
+ * Throws when any fixture failed; includes the first few error messages so
+ * a red test gives an actionable hint rather than just a count.
  */
 export function assertAllSucceeded(summary: PipelineSummary): void {
   if (summary.failed === 0) return;
@@ -124,15 +98,3 @@ export function assertAllSucceeded(summary: PipelineSummary): void {
   );
 }
 
-/**
- * Normalizes a CIK-shaped string to a non-negative integer. Mirrors the
- * `parseCikSafely` helper inside Form_C.storage / Form_D.storage so tests
- * compute the same int the storage layer uses.
- */
-export function safeCikToInt(raw: string | number | undefined | null): number {
-  if (raw === undefined || raw === null) return 0;
-  const trimmed = String(raw).trim();
-  if (!/^\d+$/.test(trimmed)) return 0;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
