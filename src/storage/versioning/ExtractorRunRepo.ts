@@ -10,7 +10,7 @@ import type {
 } from "./ExtractorRunSchema";
 
 export interface FilingKey {
-  readonly cik: string;
+  readonly cik: number;
   readonly accession_number: string;
 }
 
@@ -37,7 +37,7 @@ export class ExtractorRunRepo {
   }
 
   async findRun(
-    cik: string,
+    cik: number,
     accession_number: string,
     extractor_id: string,
     extractor_version: string
@@ -52,7 +52,7 @@ export class ExtractorRunRepo {
   }
 
   async hasSuccessfulRun(
-    cik: string,
+    cik: number,
     accession_number: string,
     extractor_id: string,
     extractor_version: string

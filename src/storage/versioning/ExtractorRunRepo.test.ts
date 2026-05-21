@@ -12,7 +12,7 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { ExtractorRunRepo } from "./ExtractorRunRepo";
 
 const FILING = {
-  cik: "1234567",
+  cik: 1234567,
   accession_number: "0001234567-25-000001",
   form: "D",
 };
@@ -157,7 +157,7 @@ describe("ExtractorRunRepo", () => {
     );
     // Mark filing A as successful at 1.0.0
     await repo.recordRun({
-      cik: "1000000",
+      cik: 1000000,
       accession_number: "0001000000-25-000001",
       form: "D",
       extractor_id: "D",
@@ -168,7 +168,7 @@ describe("ExtractorRunRepo", () => {
     });
     // Mark filing B as failed at 1.0.0 (still counts as "unprocessed")
     await repo.recordRun({
-      cik: "2000000",
+      cik: 2000000,
       accession_number: "0002000000-25-000001",
       form: "D",
       extractor_id: "D",
@@ -180,9 +180,9 @@ describe("ExtractorRunRepo", () => {
     // Filing C has no run row at all
 
     const filings = [
-      { cik: "1000000", accession_number: "0001000000-25-000001" },
-      { cik: "2000000", accession_number: "0002000000-25-000001" },
-      { cik: "3000000", accession_number: "0003000000-25-000001" },
+      { cik: 1000000, accession_number: "0001000000-25-000001" },
+      { cik: 2000000, accession_number: "0002000000-25-000001" },
+      { cik: 3000000, accession_number: "0003000000-25-000001" },
     ];
 
     const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
@@ -191,7 +191,9 @@ describe("ExtractorRunRepo", () => {
       "1.0.0"
     );
 
-    expect(unprocessed.map((f) => f.cik).sort()).toEqual(["2000000", "3000000"]);
+    expect(unprocessed.map((f) => f.cik).sort((a, b) => a - b)).toEqual([
+      2000000, 3000000,
+    ]);
   });
 
   it("listFilingsWithoutSuccessfulRun returns empty when all filings are done", async () => {
@@ -199,7 +201,7 @@ describe("ExtractorRunRepo", () => {
       globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
     );
     await repo.recordRun({
-      cik: "1000000",
+      cik: 1000000,
       accession_number: "0001000000-25-000001",
       form: "D",
       extractor_id: "D",
@@ -209,7 +211,7 @@ describe("ExtractorRunRepo", () => {
       error: null,
     });
     const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
-      [{ cik: "1000000", accession_number: "0001000000-25-000001" }],
+      [{ cik: 1000000, accession_number: "0001000000-25-000001" }],
       "D",
       "1.0.0"
     );
@@ -221,8 +223,8 @@ describe("ExtractorRunRepo", () => {
       globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
     );
     const filings = [
-      { cik: "1000000", accession_number: "a" },
-      { cik: "2000000", accession_number: "b" },
+      { cik: 1000000, accession_number: "a" },
+      { cik: 2000000, accession_number: "b" },
     ];
     const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
       filings,
