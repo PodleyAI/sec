@@ -14,6 +14,7 @@ import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
 import { addUpdateCommands } from "../cli/groups/update";
+import { addVersionCommands } from "../cli/groups/version";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { SEC_DRY_RUN } from "../config/tokens";
@@ -59,4 +60,5 @@ export const AddCommands = (program: Command): void => {
   addQueryCommands(program);
   addDbCommands(program);
   addInitCommand(program);
+  addVersionCommands(program);
 };
