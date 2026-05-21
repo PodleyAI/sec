@@ -137,6 +137,7 @@ export class ProcessAccessionDocFormTask extends Task<
       async function processForm(fetchOutput: FetchUrlTaskOutput) {
         const { text } = fetchOutput;
 
+        let parseError: unknown = undefined;
         try {
           const formCls = ALL_FORMS_MAP.get(form!);
           if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
@@ -183,32 +184,50 @@ export class ProcessAccessionDocFormTask extends Task<
             default:
               throw new TaskError(`Form '${form}' has no storage handler`);
           }
-
-          await runRepo.recordRun({
-            cik: cik!,
-            accession_number: accessionNumber,
-            form: form!,
-            extractor_id: extractorId,
-            extractor_version: extractorVersion,
-            slot_at_run: "current",
-            success: true,
-            error: null,
-          });
-          return { success: true };
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          await runRepo.recordRun({
-            cik: cik!,
-            accession_number: accessionNumber,
-            form: form!,
-            extractor_id: extractorId,
-            extractor_version: extractorVersion,
-            slot_at_run: "current",
-            success: false,
-            error: message.slice(0, 4096),
-          });
-          throw err;
+          parseError = err;
         }
+
+        // Record the run outcome. Failures here are logged but don't change the
+        // visible parse outcome — the original parse error (if any) is rethrown
+        // below. This ensures the operator sees the real cause when both layers
+        // fail, and prevents a DB hiccup during the success-recording from
+        // overwriting a real successful row with a misleading failure row.
+        try {
+          if (parseError === undefined) {
+            await runRepo.recordRun({
+              cik: cik!,
+              accession_number: accessionNumber,
+              form: form!,
+              extractor_id: extractorId,
+              extractor_version: extractorVersion,
+              slot_at_run: "current",
+              success: true,
+              error: null,
+            });
+          } else {
+            const message =
+              parseError instanceof Error ? parseError.message : String(parseError);
+            await runRepo.recordRun({
+              cik: cik!,
+              accession_number: accessionNumber,
+              form: form!,
+              extractor_id: extractorId,
+              extractor_version: extractorVersion,
+              slot_at_run: "current",
+              success: false,
+              error: message.slice(0, 4096),
+            });
+          }
+        } catch (recordErr) {
+          console.error(
+            `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
+            recordErr
+          );
+        }
+
+        if (parseError !== undefined) throw parseError;
+        return { success: true };
       }
     );
 

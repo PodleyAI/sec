@@ -74,6 +74,14 @@ export class ExtractorRunRepo {
    * When `form` is provided, the successful-runs query is narrowed to that
    * exact form symbol. Recommended when the caller is iterating one form
    * variant at a time — keeps the in-memory result set bounded.
+   *
+   * Scale note: this method materializes the full set of successful runs
+   * for the requested (extractor_id, extractor_version[, form]) tuple into
+   * an in-memory Set. At Form D's projected size (hundreds of thousands of
+   * filings), the result set can reach ~100-200 MB. For PR2 this is
+   * acceptable because the data set is small in absolute terms; a future
+   * plan should switch to a streaming or anti-join (WHERE NOT EXISTS) query
+   * once the data set grows.
    */
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,

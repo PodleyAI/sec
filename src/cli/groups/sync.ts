@@ -15,6 +15,11 @@ export function addSyncCommand(program: Command): void {
     .option("--forms <types>", "Comma-separated form types to process", "D,C,1-A,1-K,1-Z")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
+      if (options.force) {
+        console.warn(
+          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version' once PR3 lands)."
+        );
+      }
       await runCommand(
         async () => {
           const indexFlow = pipe([new FetchDailyIndexTask(), new StoreCikLastUpdatedTask()]);
@@ -26,7 +31,7 @@ export function addSyncCommand(program: Command): void {
           });
 
           const formTypes = (options.forms as string).split(",");
-          await withCli(new UpdateAllFormsTask()).run({ form: formTypes, force: options.force });
+          await withCli(new UpdateAllFormsTask()).run({ form: formTypes });
         },
         { force: options.force }
       );

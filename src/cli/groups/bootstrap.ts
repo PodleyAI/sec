@@ -36,6 +36,11 @@ export function addBootstrapCommands(program: Command): void {
     .option("--skip-forms", "Skip the forms processing step", false)
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
+      if (options.force) {
+        console.warn(
+          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version' once PR3 lands)."
+        );
+      }
       await runCommand(
         async () => {
           const force = options.force ?? false;
@@ -61,7 +66,7 @@ export function addBootstrapCommands(program: Command): void {
           }
 
           if (!options.skipForms) {
-            tasks.push(new UpdateAllFormsTask({ defaults: { form: ["D", "C"], force } }));
+            tasks.push(new UpdateAllFormsTask({ defaults: { form: ["D", "C"] } }));
           }
 
           if (tasks.length > 0) {
