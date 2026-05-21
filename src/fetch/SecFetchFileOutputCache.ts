@@ -153,4 +153,8 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
   async clearOlderThan(olderThanInMs: number): Promise<void> {
     return undefined;
   }
+
+  isDurable(): boolean {
+    return true;
+  }
 }

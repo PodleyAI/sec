@@ -73,7 +73,7 @@ export abstract class SecCachedFetchTask<
 > extends SecFetchTask<I & FetchUrlTaskInput, O> {
   static type = "SecCachedFetchTask";
   static category = "Hidden";
-  static cacheable = true;
+  static cachePolicy = { kind: "deterministic" } as const;
   static immutable = false;
 
   static inputSchema() {

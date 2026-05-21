@@ -8,7 +8,7 @@
   "editor.formatOnPaste": false,
   "editor.formatOnType": false,
   "editor.formatOnSave": true,
-  "eslint.format.enable": true,
+  "eslint.format.enable": false,
   "files.exclude": {
     // "**/dist": true,
     // "**/build": true,
@@ -28,12 +28,12 @@
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "typescript.format.enable": true,
+  "typescript.format.enable": false,
   "typescript.disableAutomaticTypeAcquisition": false,
   "typescript.preferences.importModuleSpecifier": "relative",
   "html.format.enable": true,
   "json.format.enable": true,
-  "javascript.format.enable": true,
+  "javascript.format.enable": false,
   "editor.wordWrapColumn": 100,
   "prettier.printWidth": 100,
   "bun.debugTerminal.enabled": true,
@@ -44,6 +44,6 @@
   },
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "explicit"
+    "source.organizeImports": "always"
   }
 }
