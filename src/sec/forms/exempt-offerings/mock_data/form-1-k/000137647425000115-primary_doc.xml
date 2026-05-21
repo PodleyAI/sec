@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:nms2="http://www.sec.gov/edgar/common" xmlns:nms3="http://www.sec.gov/edgar/statecodes" xmlns:nms4="http://www.sec.gov/edgar/regacommon" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001988874</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>09-30-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>09-30-2024</fiscalYearEnd>
+      <street1>400 West Poleline Road</street1>
+      <city>Rexburg</city>
+      <stateOrCountry>ID</stateOrCountry>
+      <zipCode>83440</zipCode>
+      <phoneNumber>949-383-0056</phoneNumber>
+      <issuedSecuritiesTitle>Common Shares</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Casa Shares Assets, LLC</issuerName>
+      <cik>0001988874</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>00-0000000</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

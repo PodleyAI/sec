@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001791929</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>DISCOUNT PRINT USA, INC.</issuerName>
+      <jurisdictionOrganization>WY</jurisdictionOrganization>
+      <yearIncorporation>2019</yearIncorporation>
+      <cik>0001791929</cik>
+      <sicCode>2750</sicCode>
+      <irsNum>84-2125667</irsNum>
+      <fullTimeEmployees>0</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>5125 W OQUENDO ROAD #9</street1>
+      <street2>STE 103</street2>
+      <city>LAS VEGAS</city>
+      <stateOrCountry>NV</stateOrCountry>
+      <zipCode>89118</zipCode>
+      <phoneNumber>702-527-3536</phoneNumber>
+      <connectionName>Jeff Turner, Esq.</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>5530.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>19723.00</propertyPlantEquipment>
+      <totalAssets>78420.00</totalAssets>
+      <accountsPayable>196959.00</accountsPayable>
+      <longTermDebt>11586.00</longTermDebt>
+      <totalLiabilities>450222.00</totalLiabilities>
+      <totalStockholderEquity>-371802.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>78420.00</totalLiabilitiesAndEquity>
+      <totalRevenues>169811.00</totalRevenues>
+      <costAndExpensesApplToRevenues>39950.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>0.00</depreciationAndAmortization>
+      <netIncome>-38825.00</netIncome>
+      <earningsPerShareBasic>0.00</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.00</earningsPerShareDiluted>
+      <nameAuditor>Pinnacle Accountancy Group of Utah, a dba of Heaton &amp; Company, PLLC</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>597962505</outstandingCommonEquity>
+      <commonCusipEquity>25472D107</commonCusipEquity>
+      <publiclyTradedCommonEquity>OTC Markets Pink Sheets</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>5000</outstandingPreferredEquity>
+      <preferredCusipEquity>n/a</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>n/a</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+      <certifyIfBadActor>false</certifyIfBadActor>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier1</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>1699714520</securitiesOffered>
+      <outstandingSecurities>597962505</outstandingSecurities>
+      <pricePerSecurity>0.0010</pricePerSecurity>
+      <issuerAggregateOffering>1000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>699714.52</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>1699714.52</totalAggregateOffering>
+      <legalServiceProviderName>JDT Legal, PLLC</legalServiceProviderName>
+      <legalFees>15000.00</legalFees>
+      <blueSkyServiceProviderName>Various</blueSkyServiceProviderName>
+      <blueSkyFees>10000.00</blueSkyFees>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <jurisdictionsOfSecOfferedSame>false</jurisdictionsOfSecOfferedSame>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <unregisteredSecurities>
+      <ifUnregsiteredNone>false</ifUnregsiteredNone>
+    </unregisteredSecurities>
+    <securitiesIssued>
+      <securitiesIssuerName>Discount Print USA, Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>28933</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$28,933 - Partial conversion of outstanding convertible promissory notes</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Section 4(a)(2)</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001917993</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Growth Stalk Holdings Corp</issuerName>
+      <street1>11991 N Highway 99</street1>
+      <city>Seminole</city>
+      <stateOrCountry>OK</stateOrCountry>
+      <zipCode>74868</zipCode>
+      <phone>405-456-0207</phone>
+      <commissionFileNumber>024-11847</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>11-18-2022</offeringQualificationDate>
+      <offeringCommenceDate>11-18-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>25000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>690000</offeringSecuritiesSold>
+      <pricePerSecurity>0.2000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>138000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>GreenGrowth CPAs (Prior Auditor)</auditorSpName>
+      <auditorFees>23930.00</auditorFees>
+      <legalSpName>Milan Saha, Esq (Prior Securities Counsel)</legalSpName>
+      <legalFees>6500.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyFees>0.00</blueSkyFees>
+      <issuerNetProceeds>107570.00</issuerNetProceeds>
+      <clarificationResponses/>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <certificationFileNumber>024-11847</certificationFileNumber>
+      <approxRecordHolders>61</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001917993</cik>
+      <regulationIssuerName1>Growth Stalk Holdings Corp</regulationIssuerName1>
+      <regulationIssuerName2>Growth Stalk Holdings Corp</regulationIssuerName2>
+      <signatureBy>/s/ Joseph Babiak</signatureBy>
+      <date>09-09-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

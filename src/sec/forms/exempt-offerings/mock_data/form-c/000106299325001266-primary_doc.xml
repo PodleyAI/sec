@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001930002</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Azure Printed Homes, Inc.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>03-28-2022</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>18101 S. FIGUEROA ST</com:street1>
+          <com:city>GARDENA</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>90248</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://azureprintedhomes.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>Y</isCoIssuer>
+      <coIssuers>
+        <coIssuerInfo>
+          <nameOfCoIssuer>Azure Printed Homes Reg CF Investors SPV, LLC</nameOfCoIssuer>
+          <coIssuerLegalStatus>
+            <legalStatusForm>Limited Liability Company</legalStatusForm>
+            <jurisdictionOrganization>DE</jurisdictionOrganization>
+            <dateIncorporation>12-12-2024</dateIncorporation>
+          </coIssuerLegalStatus>
+          <coIssuerAddress>
+            <com:street1>18101 S. FIGUEROA ST</com:street1>
+            <com:city>GARDENA</com:city>
+            <com:stateOrCountry>CA</com:stateOrCountry>
+            <com:zipCode>90248</com:zipCode>
+          </coIssuerAddress>
+        </coIssuerInfo>
+      </coIssuers>
+      <companyName>DEALMAKER SECURITIES LLC</companyName>
+      <commissionCik>0001872856</commissionCik>
+      <commissionFileNumber>008-70756</commissionFileNumber>
+      <crdNumber>000315324</crdNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>As compensation for the services provided by DealMaker Securities LLC, the Issuer is required to pay to DealMaker Securities LLC a fee consisting of an eight and one-half percent (8.5%) cash commission based on the dollar amount of the Securities sold.</compensationAmount>
+      <financialInterest>None</financialInterest>
+      <securityOfferedType>Other</securityOfferedType>
+      <securityOfferedOtherDesc>Class B Common Stock</securityOfferedOtherDesc>
+      <noOfSecurityOffered>1554</noOfSecurityOffered>
+      <price>6.25000</price>
+      <offeringAmount>10003.88</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>At the Company's discretion</descOverSubscription>
+      <maximumOfferingAmount>4200005.25</maximumOfferingAmount>
+      <deadlineDate>06-26-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>21.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>2384402.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>545881.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>385537.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>59225.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>86638.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>112448.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>159957.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>437608.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>4974666.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>1654377.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>4278762.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>3977272.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>1646333.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>3223046.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-1200042.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-818193.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Azure Printed Homes, Inc.</issuer>
+        <issuerSignature>/s/Ross Maguire</issuerSignature>
+        <issuerTitle>Chief Executive Officer</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>/s/ Ross Maguire</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-30-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Aron R. Eidelman</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-30-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>/s/ Yuri Eidelman</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-30-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

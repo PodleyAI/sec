@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001878379</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>404 AVE CONSTITUCION</street1>
+      <street2>#208</street2>
+      <city>SAN JUAN</city>
+      <stateOrCountry>PR</stateOrCountry>
+      <zipCode>00901</zipCode>
+      <phoneNumber>800-305-5310</phoneNumber>
+      <issuedSecuritiesTitle>Unsecured Bonds</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>USA OPPORTUNITY INCOME ONE, INC</issuerName>
+      <cik>0001878379</cik>
+      <jurisdictionOrganization>PR</jurisdictionOrganization>
+      <irsNum>66-0985204</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

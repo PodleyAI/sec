@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001800055</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Special Financial Report for the fiscal year</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>14269 Danielson St</street1>
+      <city>Poway</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92064</zipCode>
+      <phoneNumber>619-344-0291</phoneNumber>
+      <issuedSecuritiesTitle>Nonvoting Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>CalTier Inc.</issuerName>
+      <cik>0001800055</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>88-1458737</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

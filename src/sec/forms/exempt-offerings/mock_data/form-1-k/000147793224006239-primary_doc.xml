@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns2="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001861089</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>12636 High Bluff Drive, Suite 400</street1>
+      <city>San Diego</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92130</zipCode>
+      <phoneNumber>888-322-4368</phoneNumber>
+      <issuedSecuritiesTitle>Common Stock, par value $0.001</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>ANDREW ARROYO REAL ESTATE INC.</issuerName>
+      <cik>0001861089</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>85-2103542</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001104023</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Gemxx Corp.</issuerName>
+      <street1>2300 West Sahara Avenue</street1>
+      <street2>Suite 800</street2>
+      <city>Las Vegas</city>
+      <stateOrCountry>NV</stateOrCountry>
+      <zipCode>89102</zipCode>
+      <phone>702-930-1815</phone>
+      <commissionFileNumber>024-11922</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-30-2023</offeringQualificationDate>
+      <offeringCommenceDate>01-30-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>19205419</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>0.4000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>DealMaker Securities LLC</underwrittenSpName>
+      <underwriterFees>19164.38</underwriterFees>
+      <auditorSpName>Harish Belwal</auditorSpName>
+      <auditorFees>5000.00</auditorFees>
+      <legalSpName>McMurdo Law Group, LLC</legalSpName>
+      <legalSpName>Newlan Law Firm, PLLC</legalSpName>
+      <legalFees>12500.00</legalFees>
+      <blueSkySpName>State Regulators</blueSkySpName>
+      <blueSkyFees>750.00</blueSkyFees>
+      <crdNumberBrokerDealer>315324</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11922</certificationFileNumber>
+      <approxRecordHolders>875</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001104023</cik>
+      <regulationIssuerName1>Gemxx Corp.</regulationIssuerName1>
+      <regulationIssuerName2>Gemxx Corp.</regulationIssuerName2>
+      <signatureBy>Richard Clowater</signatureBy>
+      <date>05-28-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

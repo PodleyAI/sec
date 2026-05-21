@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0002062360</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Niihara International, Inc.</issuerName>
+      <jurisdictionOrganization>CA</jurisdictionOrganization>
+      <yearIncorporation>2023</yearIncorporation>
+      <cik>0002062360</cik>
+      <sicCode>2834</sicCode>
+      <irsNum>93-3234050</irsNum>
+      <fullTimeEmployees>1</fullTimeEmployees>
+      <partTimeEmployees>1</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>24 Covered Wagon Ln</street1>
+      <city>Rolling Hills Estates</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>90274</zipCode>
+      <phoneNumber>310-430-9496</phoneNumber>
+      <connectionName>Steve Gribben</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>2328020.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>0.00</propertyPlantEquipment>
+      <totalAssets>2328020.00</totalAssets>
+      <accountsPayable>12651.00</accountsPayable>
+      <longTermDebt>3022446.00</longTermDebt>
+      <totalLiabilities>3035097.00</totalLiabilities>
+      <totalStockholderEquity>-707077.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>2328020.00</totalLiabilitiesAndEquity>
+      <totalRevenues>24.00</totalRevenues>
+      <costAndExpensesApplToRevenues>627113.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>0.00</depreciationAndAmortization>
+      <netIncome>-627089.00</netIncome>
+      <earningsPerShareBasic>-0.00</earningsPerShareBasic>
+      <earningsPerShareDiluted>-0.00</earningsPerShareDiluted>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Shares</commonEquityClassName>
+      <outstandingCommonEquity>145167494</outstandingCommonEquity>
+      <commonCusipEquity>000000000</commonCusipEquity>
+      <publiclyTradedCommonEquity>NA</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>NA</preferredEquityClassName>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>NA</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>NA</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>NA</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier1</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Unaudited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>N</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>10000000</securitiesOffered>
+      <outstandingSecurities>145167494</outstandingSecurities>
+      <pricePerSecurity>2.0000</pricePerSecurity>
+      <issuerAggregateOffering>20000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>20000000.00</totalAggregateOffering>
+      <underwritersServiceProviderName>NA</underwritersServiceProviderName>
+      <underwritersFees>0.00</underwritersFees>
+      <salesCommissionsServiceProviderName>NA</salesCommissionsServiceProviderName>
+      <salesCommissionsServiceProviderFees>0.00</salesCommissionsServiceProviderFees>
+      <findersFeesServiceProviderName>NA</findersFeesServiceProviderName>
+      <finderFeesFee>0.00</finderFeesFee>
+      <auditorServiceProviderName>NA</auditorServiceProviderName>
+      <auditorFees>0.00</auditorFees>
+      <legalServiceProviderName>NA</legalServiceProviderName>
+      <legalFees>0.00</legalFees>
+      <promotersServiceProviderName>NA</promotersServiceProviderName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyServiceProviderName>NA</blueSkyServiceProviderName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <estimatedNetAmount>20000000.00</estimatedNetAmount>
+      <clarificationResponses>*Legal fees have already been paid by the Issuer prior to this Offering</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Niihara International, Inc.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Shares</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>145167494</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>The securities above were sold for $0.0001/share or $4,516.74 in total.</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Section 4(a)2 of the Securities Act was relied upon. All subscribers were accredited.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

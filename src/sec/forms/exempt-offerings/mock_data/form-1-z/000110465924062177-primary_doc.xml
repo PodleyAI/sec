@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001962911</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>INFINITY BANCORP</issuerName>
+      <street1>6 HUTTON CENTRE</street1>
+      <street2>SUITE 100</street2>
+      <city>SANTA ANA</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92707</zipCode>
+      <phone>657-223-1000</phone>
+      <commissionFileNumber>024-12158</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>05-02-2023</offeringQualificationDate>
+      <offeringCommenceDate>12-06-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>800000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>380000</offeringSecuritiesSold>
+      <pricePerSecurity>12.5000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>4750000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>Crowe LLP</auditorSpName>
+      <auditorFees>47300.00</auditorFees>
+      <legalSpName>Richard E. Knecht</legalSpName>
+      <legalFees>25000.00</legalFees>
+      <issuerNetProceeds>4639100.00</issuerNetProceeds>
+      <clarificationResponses>Net proceeds is $4,750,000 less (a) fees from above of $72,300, (b) for EDGAR services of $26,100, (c) $2,500 filing fee paid to California DFPI, and (d) $10,000 estimated cost to be paid to Continental to issue the shares.</clarificationResponses>
+    </summaryInfoOffering>
+    <signatureTab>
+      <cik>0001962911</cik>
+      <regulationIssuerName1>INFINITY BANCORP</regulationIssuerName1>
+      <regulationIssuerName2>INFINITY BANCORP</regulationIssuerName2>
+      <signatureBy>/s/ Allison Duncan</signatureBy>
+      <date>05-16-2024</date>
+      <title>Chief Financial Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

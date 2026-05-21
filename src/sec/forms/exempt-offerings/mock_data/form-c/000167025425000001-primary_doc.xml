@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001957350</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>true</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Bespoken Spirits Inc.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <legalStatusOtherDesc/>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>09-26-2018</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>101 W. Loudon Ave</com:street1>
+          <com:street2>Suite 136</com:street2>
+          <com:city>Lexington</com:city>
+          <com:stateOrCountry>KY</com:stateOrCountry>
+          <com:zipCode>40508</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.bespokenspirits.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>Y</isCoIssuer>
+      <coIssuers>
+        <coIssuerInfo>
+          <nameOfCoIssuer>Bespoken spirits I, a series of Wefunder SPV, LLC</nameOfCoIssuer>
+          <coIssuerLegalStatus>
+            <legalStatusForm>Limited Liability Company</legalStatusForm>
+            <legalStatusOtherDesc/>
+            <jurisdictionOrganization>DE</jurisdictionOrganization>
+            <dateIncorporation>01-02-2025</dateIncorporation>
+          </coIssuerLegalStatus>
+          <coIssuerAddress>
+            <com:street1>4104 24TH ST</com:street1>
+            <com:street2>PMB 8113</com:street2>
+            <com:city>San Francisco</com:city>
+            <com:stateOrCountry>CA</com:stateOrCountry>
+            <com:zipCode>94114</com:zipCode>
+          </coIssuerAddress>
+          <coIssuerWebsite>https://wefunder.com/</coIssuerWebsite>
+        </coIssuerInfo>
+      </coIssuers>
+      <companyName>Wefunder Portal LLC</companyName>
+      <commissionCik>0001670254</commissionCik>
+      <commissionFileNumber>007-00033</commissionFileNumber>
+      <crdNumber>283503</crdNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>7.9% of the offering amount upon a successful fundraise, and be entitled to reimbursement for out-of-pocket third party expenses it pays or incurs on behalf of the Issuer in connection with the offering.</compensationAmount>
+      <financialInterest>No</financialInterest>
+      <securityOfferedType>Preferred Stock</securityOfferedType>
+      <securityOfferedOtherDesc/>
+      <noOfSecurityOffered>101277</noOfSecurityOffered>
+      <price>0.49370</price>
+      <priceDeterminationMethod>Dividing pre-money valuation $34,000,000.00 by number of shares outstanding on fully diluted basis.</priceDeterminationMethod>
+      <offeringAmount>50000.00</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>As determined by the issuer
+</descOverSubscription>
+      <maximumOfferingAmount>1235000.00</maximumOfferingAmount>
+      <deadlineDate>04-30-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>13</currentEmployees>
+      <totalAssetMostRecentFiscalYear>2771873.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>5827956.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>236350.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>4638811.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>457027.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>244908.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>810191.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>380307.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>316517.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>1048707.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>396329.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>579658.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>297536.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-8342211.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-5194503.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>B5</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GU</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>1V</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Bespoken Spirits Inc.</issuer>
+        <issuerSignature>Scott Savage</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Scott Savage</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>12-23-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Alan Hawse</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>12-24-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Thurman Rodgers</personSignature>
+          <personTitle>Chairman</personTitle>
+          <signatureDate>12-28-2024</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Joseph Fortune</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-01-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

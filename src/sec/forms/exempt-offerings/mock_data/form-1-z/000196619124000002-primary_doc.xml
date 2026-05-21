@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001966191</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>ETX Park Fund #2, LLC</issuerName>
+      <street1>203 East Main, Suite 200</street1>
+      <city>Nacogdoches</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>75961</zipCode>
+      <phone>9362501475</phone>
+      <commissionFileNumber>024-12222</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-23-2024</offeringQualificationDate>
+      <offeringCommenceDate>02-23-2024</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>73000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>100.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <auditorFees>0.00</auditorFees>
+      <legalFees>0.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyFees>0.00</blueSkyFees>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Membership Interests</securitiesClassTitle>
+      <certificationFileNumber>024-12222</certificationFileNumber>
+      <approxRecordHolders>0</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001966191</cik>
+      <regulationIssuerName1>ETX Park Fund #2, LLC</regulationIssuerName1>
+      <regulationIssuerName2>ETX Park Fund #2, LLC</regulationIssuerName2>
+      <signatureBy>Brent D. Beal</signatureBy>
+      <date>09-24-2024</date>
+      <title>Chief Executive Officer of the Company</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

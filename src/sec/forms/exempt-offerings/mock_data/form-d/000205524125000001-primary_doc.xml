@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002055241</cik>
+        <entityName>16000 East Elm Partners LLC</entityName>
+        <issuerAddress>
+            <street1>1 E ARMOUR BLVD</street1>
+            <street2>SUITE 250</street2>
+            <city>KANSAS CITY</city>
+            <stateOrCountry>MO</stateOrCountry>
+            <stateOrCountryDescription>MISSOURI</stateOrCountryDescription>
+            <zipCode>64111</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>8163025940</issuerPhoneNumber>
+        <jurisdictionOfInc>MISSOURI</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Liability Company</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2021</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Logan</firstName>
+                <lastName>Freeman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1 E Armour Blvd</street1>
+                <street2>Suite 150</street2>
+                <city>Kansas City</city>
+                <stateOrCountry>MO</stateOrCountry>
+                <stateOrCountryDescription>MISSOURI</stateOrCountryDescription>
+                <zipCode>64111</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Cory</firstName>
+                <lastName>Tuck</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1 E Armour Blvd</street1>
+                <street2>Suite 150</street2>
+                <city>Kansas City</city>
+                <stateOrCountry>MO</stateOrCountry>
+                <stateOrCountryDescription>MISSOURI</stateOrCountryDescription>
+                <zipCode>64111</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Parker</firstName>
+                <lastName>Webb</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>1 E Armour Blvd</street1>
+                <street2>Suite 150</street2>
+                <city>Kansas City</city>
+                <stateOrCountry>MO</stateOrCountry>
+                <stateOrCountryDescription>MISSOURI</stateOrCountryDescription>
+                <zipCode>64111</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Residential</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2021-03-26</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>25000</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>225000</totalOfferingAmount>
+            <totalAmountSold>0</totalAmountSold>
+            <totalRemaining>225000</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>0</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>16000 East Elm Partners LLC</issuerName>
+                <signatureName>Natalia Ojeda</signatureName>
+                <nameOfSigner>Natalia Ojeda</nameOfSigner>
+                <signatureTitle>By POA from Parker Webb, Manager</signatureTitle>
+                <signatureDate>2025-03-04</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

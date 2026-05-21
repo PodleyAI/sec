@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001510524</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>GRAYSTONE COMPANY, INC.</issuerName>
+      <street1>150 S. Pine Island Road Suite 300</street1>
+      <city>Plantation</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33324</zipCode>
+      <phone>6308621811</phone>
+      <commissionFileNumber>024-11421</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-24-2021</offeringQualificationDate>
+      <offeringCommenceDate>02-24-2021</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>200000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>22000000</offeringSecuritiesSold>
+      <pricePerSecurity>0.0245</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>540000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <auditorSpName>BF Borgers</auditorSpName>
+      <auditorFees>10000.00</auditorFees>
+      <legalSpName>Laura Anthony</legalSpName>
+      <legalFees>30000.00</legalFees>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11421</certificationFileNumber>
+      <approxRecordHolders>79</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001510524</cik>
+      <regulationIssuerName1>GRAYSTONE COMPANY, INC.</regulationIssuerName1>
+      <regulationIssuerName2>GRAYSTONE COMPANY, INC.</regulationIssuerName2>
+      <signatureBy>/s/ Jeff Anderson</signatureBy>
+      <date>04-11-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

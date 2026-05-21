@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001560823</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>McGinley Orthopaedic Innovations, Inc.</issuerName>
+      <street1>234 East 1st Street</street1>
+      <city>casper</city>
+      <stateOrCountry>WY</stateOrCountry>
+      <zipCode>82601</zipCode>
+      <phone>3073156403</phone>
+      <commissionFileNumber>024-11959</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>09-13-2022</offeringQualificationDate>
+      <offeringCommenceDate>09-13-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>7619047</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>2231628</offeringSecuritiesSold>
+      <pricePerSecurity>5.2500</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>3084385.56</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <salesCommissionsSpName>Rialto Markets</salesCommissionsSpName>
+      <salesCommissionsFee>41717.97</salesCommissionsFee>
+      <blueSkySpName>Rialto markets state filing fees</blueSkySpName>
+      <blueSkyFees>13000.00</blueSkyFees>
+      <issuerNetProceeds>3029667.59</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class A Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11959</certificationFileNumber>
+      <approxRecordHolders>297</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001560823</cik>
+      <regulationIssuerName1>McGinley Orthopaedic Innovations, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>McGinley Orthopaedic Innovations, Inc.</regulationIssuerName2>
+      <signatureBy>Dr. Joseph McGinley</signatureBy>
+      <date>04-15-2024</date>
+      <title>President, Treasurer, Secretary</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

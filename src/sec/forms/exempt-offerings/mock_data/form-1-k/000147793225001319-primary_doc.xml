@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns2="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001830909</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>10-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>10-31-2024</fiscalYearEnd>
+      <street1>440 N Wolfe RD M/S 215</street1>
+      <city>Sunnyvale</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>94085</zipCode>
+      <phoneNumber>415-651-3467</phoneNumber>
+      <issuedSecuritiesTitle>Series B Preferred Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>6D BYTES INC.</issuerName>
+      <cik>0001830909</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>81-0838517</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

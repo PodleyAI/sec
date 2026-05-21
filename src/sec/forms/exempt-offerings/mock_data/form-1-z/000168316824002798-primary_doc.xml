@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001944139</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Dimicron Inc.</issuerName>
+      <street1>1186 SOUTH 1680 WEST</street1>
+      <city>OREM</city>
+      <stateOrCountry>UT</stateOrCountry>
+      <zipCode>84058</zipCode>
+      <phone>801-221-4591</phone>
+      <commissionFileNumber>024-12001</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-24-2023</offeringQualificationDate>
+      <offeringCommenceDate>01-24-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>2608695</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>66533</offeringSecuritiesSold>
+      <pricePerSecurity>5.7500</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>14999996.25</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>0</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>DealMaker Securities LLC</salesCommissionsSpName>
+      <salesCommissionsFee>3825.65</salesCommissionsFee>
+      <findersSpName>0</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Larson and Company</auditorSpName>
+      <auditorFees>75000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP</legalSpName>
+      <legalFees>60000.00</legalFees>
+      <promoterSpName>0</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>0</blueSkySpName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <crdNumberBrokerDealer>000315324</crdNumberBrokerDealer>
+      <issuerNetProceeds>243739.10</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Non-Voting Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12001</certificationFileNumber>
+      <approxRecordHolders>175</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001944139</cik>
+      <regulationIssuerName1>Dimicron Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Dimicron Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Alan S. Layton</signatureBy>
+      <date>04-29-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

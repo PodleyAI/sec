@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001384365</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>RAADR, INC.</issuerName>
+      <street1>7950 East Redfield Road</street1>
+      <street2>Unit 210</street2>
+      <city>Scottsdale</city>
+      <stateOrCountry>AZ</stateOrCountry>
+      <zipCode>85260</zipCode>
+      <phone>602-501-3836</phone>
+      <commissionFileNumber>024-11519</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>09-01-2021</offeringQualificationDate>
+      <offeringCommenceDate>09-17-2021</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>3062500000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>1337866381</offeringSecuritiesSold>
+      <pricePerSecurity>0.0006</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>835158.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Eilers Law Group P.A.</legalSpName>
+      <legalSpName>Newlan Law Firm PLLC</legalSpName>
+      <legalFees>20000.00</legalFees>
+      <blueSkySpName>State Regulators</blueSkySpName>
+      <blueSkyFees>5000.00</blueSkyFees>
+      <issuerNetProceeds>815138.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11519</certificationFileNumber>
+      <approxRecordHolders>50</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001384365</cik>
+      <regulationIssuerName1>RAADR, INC.</regulationIssuerName1>
+      <regulationIssuerName2>RAADR, INC.</regulationIssuerName2>
+      <signatureBy>/s/ Jacob DiMartino</signatureBy>
+      <date>09-17-2024</date>
+      <title>CEO</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

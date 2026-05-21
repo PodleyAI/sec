@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001672227</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>SMART RX SYSTEMS INC</issuerName>
+      <street1>18540 N. DALE MABRY HWY</street1>
+      <city>LUTZ</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33548</zipCode>
+      <phone>813-374-3565</phone>
+      <commissionFileNumber>024-11384</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-09-2022</offeringQualificationDate>
+      <offeringCommenceDate>01-16-2024</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>50000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>0</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>0.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>Andes Capital Group, LLC</underwrittenSpName>
+      <underwriterFees>10000.00</underwriterFees>
+      <salesCommissionsSpName>Castle Placement, LLC</salesCommissionsSpName>
+      <salesCommissionsFee>20000.00</salesCommissionsFee>
+      <crdNumberBrokerDealer>000139212</crdNumberBrokerDealer>
+      <issuerNetProceeds>0.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Series REG A Non-Voting Preferred Stock; Class REG A Super-Voting Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11384</certificationFileNumber>
+      <approxRecordHolders>33</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001672227</cik>
+      <regulationIssuerName1>SMART RX SYSTEMS INC</regulationIssuerName1>
+      <regulationIssuerName2>SMART RX SYSTEMS INC</regulationIssuerName2>
+      <signatureBy>/s/Santu Rohatgi</signatureBy>
+      <date>09-27-2024</date>
+      <title>Chairman of the Board and President</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

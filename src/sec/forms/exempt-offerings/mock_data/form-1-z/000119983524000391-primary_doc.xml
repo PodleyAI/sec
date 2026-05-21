@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0000841533</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>SADDLE RANCH MEDIA, INC</issuerName>
+      <street1>19200 VON KARMAN AVE.</street1>
+      <street2>STE 400 IRVINE</street2>
+      <city>IRVINE</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92612</zipCode>
+      <phone>949-212-1898</phone>
+      <commissionFileNumber>024-12093</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>02-09-2023</offeringQualificationDate>
+      <offeringCommenceDate>12-09-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>1500000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>1500000000</offeringSecuritiesSold>
+      <pricePerSecurity>0.0002</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>375000.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>375000.00</portionSecuritiesSoldSecurityholders>
+      <legalSpName>Stout Law Group,PA</legalSpName>
+      <legalFees>10000.00</legalFees>
+      <issuerNetProceeds>365000.00</issuerNetProceeds>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12093</certificationFileNumber>
+      <approxRecordHolders>498</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0000841533</cik>
+      <regulationIssuerName1>SADDLE RANCH MEDIA, INC.</regulationIssuerName1>
+      <regulationIssuerName2>SADDLE RANCH MEDIA, INC.</regulationIssuerName2>
+      <signatureBy>Max Chin Li</signatureBy>
+      <date>08-23-2024</date>
+      <title>CEO, President and Director</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

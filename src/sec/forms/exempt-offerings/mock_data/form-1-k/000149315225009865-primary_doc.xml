@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001786471</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>5818 El Camino Real</street1>
+      <city>Carlsbad</city>
+      <stateOrCountry>CA</stateOrCountry>
+      <zipCode>92008</zipCode>
+      <phoneNumber>858-371-3151</phoneNumber>
+      <issuedSecuritiesTitle>Class B Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Aptera Motors Corp.</issuerName>
+      <cik>0001786471</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>83-4079594</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+    <summaryInfo>
+      <commissionFileNumber>024-11479</commissionFileNumber>
+      <offeringQualificationDate>05-19-2021</offeringQualificationDate>
+      <offeringCommenceDate>05-19-2021</offeringCommenceDate>
+      <qualifiedSecuritiesSold>14000000</qualifiedSecuritiesSold>
+      <offeringSecuritiesSold>12630689</offeringSecuritiesSold>
+      <pricePerSecurity>8.0200</pricePerSecurity>
+      <aggregrateOfferingPrice>101297126.00</aggregrateOfferingPrice>
+      <aggregrateOfferingPriceHolders>0.00</aggregrateOfferingPriceHolders>
+      <underwrittenSpName>Dalmore Group, LLC / OpenDeal Broker LLC</underwrittenSpName>
+      <underwriterFees>1012971.00</underwriterFees>
+      <auditorSpName>dbbMcKennon</auditorSpName>
+      <auditorFees>150000.00</auditorFees>
+      <legalSpName>CrowdCheck Law LLP/ Sheppard Mullin</legalSpName>
+      <legalFees>90000.00</legalFees>
+      <blueSkySpName>Various State Fees</blueSkySpName>
+      <blueSkyFees>80000.00</blueSkyFees>
+      <crdNumberBrokerDealer>000136352</crdNumberBrokerDealer>
+      <issuerNetProceeds>99964154.00</issuerNetProceeds>
+      <clarificationResponses>The offering was open for three years. The amounts in this form reflect all three years. Price per security is the avg price over the period.</clarificationResponses>
+    </summaryInfo>
+  </formData>
+</edgarSubmission>

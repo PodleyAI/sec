@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-Z</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001973742</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Worldwide Stages, Inc.</issuerName>
+      <street1>5000 Northfield Lane</street1>
+      <city>Spring Hill</city>
+      <stateOrCountry>TN</stateOrCountry>
+      <zipCode>37174</zipCode>
+      <phone>615-341-5900</phone>
+      <commissionFileNumber>024-12301</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>08-10-2023</offeringQualificationDate>
+      <offeringCommenceDate>08-10-2023</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>7500000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>3870</offeringSecuritiesSold>
+      <pricePerSecurity>10.0000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>30960.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>7740.00</portionSecuritiesSoldSecurityholders>
+      <underwrittenSpName>-</underwrittenSpName>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsSpName>Dalmore Group, LLC</salesCommissionsSpName>
+      <salesCommissionsFee>387.00</salesCommissionsFee>
+      <findersSpName>-</findersSpName>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Fruci &amp; Associates II, PLLC</auditorSpName>
+      <auditorFees>40000.00</auditorFees>
+      <legalSpName>Nelson Mullins Riley &amp; Scarborough</legalSpName>
+      <legalFees>132500.00</legalFees>
+      <promoterSpName>-</promoterSpName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkySpName>Guarrd, Inc.</blueSkySpName>
+      <blueSkyFees>4750.00</blueSkyFees>
+      <crdNumberBrokerDealer>000154559</crdNumberBrokerDealer>
+      <issuerNetProceeds>25900.40</issuerNetProceeds>
+      <clarificationResponses>Net proceeds represents amount received by issuer ($30,960) after subtracting its share of commissions ($309.60) and blue sky compliance costs ($4,750).</clarificationResponses>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Class B Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-12301</certificationFileNumber>
+      <approxRecordHolders>15</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001973742</cik>
+      <regulationIssuerName1>Worldwide Stages, Inc.</regulationIssuerName1>
+      <regulationIssuerName2>Worldwide Stages, Inc.</regulationIssuerName2>
+      <signatureBy>/s/ Kelly Frey, Sr.</signatureBy>
+      <date>12-31-2024</date>
+      <title>Chief Executive Officer</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

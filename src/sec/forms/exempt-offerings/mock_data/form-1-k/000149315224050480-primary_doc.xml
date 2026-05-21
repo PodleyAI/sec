@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001874979</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>1315 Manufacturing Street</street1>
+      <city>Dallas</city>
+      <stateOrCountry>TX</stateOrCountry>
+      <zipCode>75207</zipCode>
+      <phoneNumber>972-445-7320</phoneNumber>
+      <issuedSecuritiesTitle>Cityfunds I, LLC Series Austin; Cityfunds I, LLC Series Dallas; Cityfunds I, LLC Series Miami; Cityfunds I, LLC Series Tampa; Cityfunds I, LLC Series Denver; Cityfunds I, LLC Series Houston; Cityfunds I, LLC Series Phoenix;</issuedSecuritiesTitle>
+      <issuedSecuritiesTitle>Cityfunds I, LLC Series Los Angeles; Cityfunds I, LLC Series Nashville; Cityfunds I, LLC Series Las Vegas</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Cityfunds I, LLC</issuerName>
+      <cik>0001874979</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>83-3672902</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

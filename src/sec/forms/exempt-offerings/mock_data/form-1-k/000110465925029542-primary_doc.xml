@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001694600</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2024</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2024</fiscalYearEnd>
+      <street1>1201 Peachtree St. NE</street1>
+      <street2>Suite 1104-400</street2>
+      <city>ATLANTA</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30361</zipCode>
+      <phoneNumber>404-850-9225</phoneNumber>
+      <issuedSecuritiesTitle>LIMITED RECOURSE OBLIGATIONS</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>GROUNDFLOOR REAL ESTATE 1, LLC</issuerName>
+      <cik>0001694600</cik>
+      <jurisdictionOrganization>GA</jurisdictionOrganization>
+      <irsNum>81-4730288</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>
