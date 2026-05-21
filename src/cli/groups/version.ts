@@ -17,6 +17,7 @@ import {
   rollback as rollbackCeremony,
   startDev as startDevCeremony,
 } from "../../storage/versioning/ceremonies";
+import { isRegisteredComponent } from "../../storage/versioning/componentRegistry";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -224,6 +225,22 @@ export function addVersionCommands(program: Command): void {
           assertComponentKind(kind);
           const bumpArg = options.bump as string;
           assertBump(bumpArg);
+          if (!isRegisteredComponent(kind, id)) {
+            throw new Error(`No ${kind} registered: '${id}'`);
+          }
+          // For non-patch bumps, fail-fast if a dev cycle is already in flight
+          // — saves the snapshotTargetCount filing-set materialization.
+          if (bumpArg !== "patch") {
+            const regCheck = new VersionRegistry(
+              globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+            );
+            const existingNext = await regCheck.getNext(kind, id);
+            if (existingNext) {
+              throw new Error(
+                `next slot already exists for ${kind} '${id}' (at ${existingNext.semver}). drop-next first.`
+              );
+            }
+          }
           const reg = new VersionRegistry(
             globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
           );

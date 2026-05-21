@@ -365,6 +365,56 @@ describe("ceremonies.promote", () => {
     expect((await reg.getCurrent("extractor", "D"))?.semver).toBe("1.1.0");
   });
 
+  it("dry-run validates but writes nothing", async () => {
+    const { reg, events, runs } = buildDeps();
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+    const beforeEvents = await events.listForComponent("extractor", "D");
+
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "extractor",
+      id: "D",
+      force: true,
+      notes: null,
+      dryRun: true,
+    });
+
+    // No slot rotation.
+    expect((await reg.getCurrent("extractor", "D"))?.semver).toBe("1.0.0");
+    expect((await reg.getNext("extractor", "D"))?.semver).toBe("2.0.0");
+    expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
+    // No new event logged.
+    const afterEvents = await events.listForComponent("extractor", "D");
+    expect(afterEvents).toHaveLength(beforeEvents.length);
+  });
+
+  it("dry-run promote still throws on missing next slot", async () => {
+    const { reg, events, runs } = buildDeps();
+    await expect(
+      promote({
+        reg,
+        events,
+        runs,
+        kind: "extractor",
+        id: "D",
+        force: false,
+        notes: null,
+        dryRun: true,
+      })
+    ).rejects.toThrow(/no next slot/i);
+  });
+
   it("after promote, getActiveSlot returns the new current (not the next that was promoted)", async () => {
     const { reg, events, runs } = buildDeps();
     await startDev({
@@ -453,6 +503,47 @@ describe("ceremonies.rollback", () => {
       })
     ).rejects.toThrow(/no previous slot/i);
   });
+
+  it("dry-run validates but writes nothing", async () => {
+    const { reg, events, runs } = buildDeps();
+    // Set up: start-dev → promote → so previous=1.0.0, current=2.0.0.
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "extractor",
+      id: "D",
+      force: true,
+      notes: null,
+    });
+    const beforeEvents = await events.listForComponent("extractor", "D");
+
+    await rollback({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      notes: null,
+      dryRun: true,
+    });
+
+    // Slots unchanged.
+    expect((await reg.getCurrent("extractor", "D"))?.semver).toBe("2.0.0");
+    expect((await reg.getPrevious("extractor", "D"))?.semver).toBe("1.0.0");
+    // No new event.
+    const afterEvents = await events.listForComponent("extractor", "D");
+    expect(afterEvents).toHaveLength(beforeEvents.length);
+  });
 });
 
 describe("ceremonies.dropNext", () => {
@@ -501,5 +592,35 @@ describe("ceremonies.dropNext", () => {
         notes: null,
       })
     ).rejects.toThrow(/no next slot/i);
+  });
+
+  it("dry-run validates but writes nothing", async () => {
+    const { reg, events } = buildDeps();
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+    const beforeEvents = await events.listForComponent("extractor", "D");
+
+    await dropNext({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      notes: null,
+      dryRun: true,
+    });
+
+    // Next slot unchanged.
+    expect((await reg.getNext("extractor", "D"))?.semver).toBe("2.0.0");
+    // No new event.
+    const afterEvents = await events.listForComponent("extractor", "D");
+    expect(afterEvents).toHaveLength(beforeEvents.length);
   });
 });
