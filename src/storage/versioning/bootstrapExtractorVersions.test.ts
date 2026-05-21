@@ -62,6 +62,7 @@ describe("bootstrapExtractorVersions", () => {
       bump_type: null,
       started_at: "2026-05-22T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
 
     await bootstrapExtractorVersions();

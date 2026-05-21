@@ -8,6 +8,7 @@ import type {
   ExtractorRun,
   ExtractorRunRepositoryStorage,
 } from "./ExtractorRunSchema";
+import { semverMajorMinorPrefix } from "./semver";
 
 export interface FilingKey {
   readonly cik: number;
@@ -67,6 +68,23 @@ export class ExtractorRunRepo {
   }
 
   /**
+   * Counts successful runs for a specific (extractor_id, extractor_version).
+   * Used by the major-promote coverage gate. Exact-match (not major.minor
+   * prefix) because the gate measures actual production at the new version.
+   */
+  async countSuccessfulAtVersion(
+    extractor_id: string,
+    extractor_version: string
+  ): Promise<number> {
+    const rows = await this.storage.query({
+      extractor_id,
+      extractor_version,
+      success: true,
+    });
+    return rows?.length ?? 0;
+  }
+
+  /**
    * Given a list of candidate filings, returns those WITHOUT a successful
    * run for the given (extractor_id, extractor_version). A failed run
    * still counts as "unprocessed" — it should be retried.
@@ -93,21 +111,36 @@ export class ExtractorRunRepo {
     extractor_version: string,
     form?: string
   ): Promise<T[]> {
+    // Patch-ceremony reading-side gating (PR3 spec D7): match on major.minor
+    // prefix so a row at "1.0.0" satisfies the gate for any "1.0.x" current.
+    // A row at "1.1.0" or "2.0.0" does NOT satisfy a "1.0.x" gate.
+    const prefix = semverMajorMinorPrefix(extractor_version);
+
+    // Workglow's tabular query doesn't expose LIKE/prefix matching today, so
+    // we narrow with the available criteria (extractor_id, success, optionally
+    // form) and post-filter on extractor_version in memory. Note: with patch
+    // ceremony (PR3 D7), the criteria no longer constrains extractor_version,
+    // so the worst-case successful-set spans ALL versions for this extractor
+    // (1.0.0, 1.0.1, 1.1.0, 2.0.0, ...). For a long-lived extractor with many
+    // versions and many filings, this set can grow substantially. See the
+    // scale-note JSDoc above; a streaming/anti-join migration is the
+    // documented long-term fix.
     const successful =
       form === undefined
         ? await this.storage.query({
             extractor_id,
-            extractor_version,
             success: true,
           })
         : await this.storage.query({
             extractor_id,
-            extractor_version,
             success: true,
             form,
           });
+
     const successfulKeys = new Set(
-      (successful ?? []).map((r) => `${r.cik}::${r.accession_number}`)
+      (successful ?? [])
+        .filter((r) => r.extractor_version.startsWith(prefix))
+        .map((r) => `${r.cik}::${r.accession_number}`)
     );
     return filings.filter(
       (f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`)

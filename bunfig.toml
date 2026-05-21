@@ -1,1 +1,9 @@
 install.linker = "isolated"
+
+[test]
+# Multi-spawn CLI integration tests (e.g. version.test.ts, forceWarning.test.ts)
+# each fire 2-5 sequential `bun src/sec.ts` subprocesses; each spawn pays the
+# DI bootstrap cost (~1s locally, slower on CI runners). The default 5000ms
+# was triggering flakes on the busiest tests; 30s gives generous headroom
+# across all environments without slowing the common case.
+timeout = 30000

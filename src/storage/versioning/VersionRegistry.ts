@@ -56,6 +56,25 @@ export class VersionRegistry {
         `VersionRegistry: coverage_complete must be true for ${row.slot} slot (got false on ${row.component_kind}:${row.component_id})`
       );
     }
+    if (row.target_count !== null && row.slot !== "next") {
+      throw new Error(
+        `VersionRegistry: target_count must be null for ${row.slot} slot (got ${row.target_count} on ${row.component_kind}:${row.component_id})`
+      );
+    }
+    if (row.target_count !== null && row.bump_type !== "major") {
+      throw new Error(
+        `VersionRegistry: target_count is only meaningful for bump_type='major' (got ${row.target_count} with bump_type=${row.bump_type})`
+      );
+    }
+    if (
+      row.slot === "next" &&
+      row.bump_type === "major" &&
+      row.target_count === null
+    ) {
+      throw new Error(
+        `VersionRegistry: major bump in next slot requires non-null target_count (got null on ${row.component_kind}:${row.component_id})`
+      );
+    }
     await this.storage.put(row);
   }
 

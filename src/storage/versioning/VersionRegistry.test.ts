@@ -57,6 +57,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     const cur = await reg.getCurrent("extractor", "D");
     expect(cur?.semver).toBe("1.0.0");
@@ -77,6 +78,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-20T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "extractor",
@@ -86,6 +88,7 @@ describe("VersionRegistry", () => {
       bump_type: "major",
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "extractor",
@@ -95,6 +98,7 @@ describe("VersionRegistry", () => {
       bump_type: "minor",
       started_at: "2026-05-21T01:00:00Z",
       coverage_complete: false,
+      target_count: null,
     });
 
     expect((await reg.getPrevious("extractor", "D"))?.semver).toBe("1.0.0");
@@ -114,6 +118,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "extractor",
@@ -123,6 +128,7 @@ describe("VersionRegistry", () => {
       bump_type: "minor",
       started_at: "2026-05-21T01:00:00Z",
       coverage_complete: false,
+      target_count: null,
     });
 
     await reg.clearSlot("extractor", "D", "next");
@@ -143,6 +149,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "resolver",
@@ -152,6 +159,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
 
     const all = await reg.listAll();
@@ -175,6 +183,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "resolver",
@@ -184,6 +193,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
 
     const extractors = await reg.listByKind("extractor");
@@ -207,6 +217,7 @@ describe("VersionRegistry", () => {
         bump_type: null,
         started_at: "2026-05-21T00:00:00Z",
         coverage_complete: true,
+        target_count: null,
       })
     ).rejects.toThrow(/invalid semver/);
   });
@@ -224,6 +235,7 @@ describe("VersionRegistry", () => {
         bump_type: null,
         started_at: "2026-05-21T00:00:00Z",
         coverage_complete: false,
+        target_count: null,
       })
     ).rejects.toThrow(/coverage_complete must be true/);
   });
@@ -240,6 +252,7 @@ describe("VersionRegistry", () => {
       bump_type: "minor",
       started_at: "2026-05-21T01:00:00Z",
       coverage_complete: false,
+      target_count: null,
     });
     expect((await reg.getNext("extractor", "D"))?.coverage_complete).toBe(false);
   });
@@ -256,6 +269,7 @@ describe("VersionRegistry", () => {
       bump_type: null,
       started_at: "2026-05-21T00:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     await reg.putSlot({
       component_kind: "extractor",
@@ -265,6 +279,7 @@ describe("VersionRegistry", () => {
       bump_type: "patch",
       started_at: "2026-05-21T02:00:00Z",
       coverage_complete: true,
+      target_count: null,
     });
     const row = await reg.getCurrent("extractor", "D");
     expect(row?.semver).toBe("1.0.1");

@@ -186,6 +186,11 @@ import {
   ExtractorRunPrimaryKeyNames,
   ExtractorRunSchema,
 } from "../storage/versioning/ExtractorRunSchema";
+import {
+  VERSION_EVENT_REPOSITORY_TOKEN,
+  VersionEventPrimaryKeyNames,
+  VersionEventSchema,
+} from "../storage/versioning/VersionEventSchema";
 
 export function resetDependencyInjectionsForTesting() {
   // Initialize Company repositories
@@ -439,6 +444,12 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(ExtractorRunSchema, ExtractorRunPrimaryKeyNames, [
       ["extractor_id", "extractor_version"],
       ["form", "extractor_version"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    VERSION_EVENT_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(VersionEventSchema, VersionEventPrimaryKeyNames, [
+      ["component_kind", "component_id", "at_timestamp"],
     ])
   );
 

@@ -55,6 +55,10 @@ export const ComponentVersionSchema = Type.Object({
     description:
       "Whether the next slot has 100% coverage. Always true for current/previous. Gate for major-promote.",
   }),
+  target_count: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()], {
+    description:
+      "Snapshot of filings handled by this extractor at start-dev time. Populated only on next-slot rows with bump_type='major'; null elsewhere. Denominator for the major-promote coverage gate.",
+  }),
 });
 
 export type ComponentVersion = Static<typeof ComponentVersionSchema>;

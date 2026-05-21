@@ -290,6 +290,66 @@ describe("ExtractorRunRepo", () => {
     );
     expect(dOnly.map((f) => f.cik)).toEqual([2000000]);
   });
+
+  it("listFilingsWithoutSuccessfulRun treats patch versions as equivalent (1.0.0 row counts for 1.0.1 gate)", async () => {
+    const repo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    // Filing was processed at version 1.0.0.
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+
+    // After a patch bump to 1.0.1, the same filing should NOT show as unprocessed.
+    const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
+      [{ cik: 1000000, accession_number: "0001000000-25-000001" }],
+      "D",
+      "1.0.1",
+      "D"
+    );
+    expect(unprocessed).toEqual([]);
+  });
+
+  it("listFilingsWithoutSuccessfulRun does NOT count rows across major.minor boundary", async () => {
+    const repo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+
+    // Gate at 1.1.0 (minor bump) — old 1.0.0 row should NOT count.
+    const afterMinor = await repo.listFilingsWithoutSuccessfulRun(
+      [{ cik: 1000000, accession_number: "0001000000-25-000001" }],
+      "D",
+      "1.1.0",
+      "D"
+    );
+    expect(afterMinor).toHaveLength(1);
+
+    // Gate at 2.0.0 (major bump) — also shouldn't count.
+    const afterMajor = await repo.listFilingsWithoutSuccessfulRun(
+      [{ cik: 1000000, accession_number: "0001000000-25-000001" }],
+      "D",
+      "2.0.0",
+      "D"
+    );
+    expect(afterMajor).toHaveLength(1);
+  });
 });
 
 // Verifies that listFilingsWithoutSuccessfulRun's boolean-criteria query
