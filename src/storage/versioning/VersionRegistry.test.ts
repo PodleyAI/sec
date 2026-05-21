@@ -40,9 +40,9 @@ describe("VersionRegistry", () => {
     const reg = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
-    expect(await reg.getCurrent("extractor", "D")).toBeUndefined();
-    expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
-    expect(await reg.getNext("extractor", "D")).toBeUndefined();
+    expect(await reg.getCurrent("extractor", "unbootstrapped-form")).toBeUndefined();
+    expect(await reg.getPrevious("extractor", "unbootstrapped-form")).toBeUndefined();
+    expect(await reg.getNext("extractor", "unbootstrapped-form")).toBeUndefined();
   });
 
   it("round-trips a single slot via putSlot/getCurrent", async () => {
@@ -137,7 +137,7 @@ describe("VersionRegistry", () => {
     );
     await reg.putSlot({
       component_kind: "extractor",
-      component_id: "D",
+      component_id: "test-extractor",
       slot: "current",
       semver: "1.0.0",
       bump_type: null,
@@ -146,7 +146,7 @@ describe("VersionRegistry", () => {
     });
     await reg.putSlot({
       component_kind: "resolver",
-      component_id: "person",
+      component_id: "test-resolver",
       slot: "current",
       semver: "1.0.0",
       bump_type: null,
@@ -155,8 +155,11 @@ describe("VersionRegistry", () => {
     });
 
     const all = await reg.listAll();
-    expect(all).toHaveLength(2);
-    const kinds = all.map((r) => r.component_kind).sort();
+    const testRows = all.filter(
+      (r) => r.component_id === "test-extractor" || r.component_id === "test-resolver"
+    );
+    expect(testRows).toHaveLength(2);
+    const kinds = testRows.map((r) => r.component_kind).sort();
     expect(kinds).toEqual(["extractor", "resolver"]);
   });
 
@@ -166,7 +169,7 @@ describe("VersionRegistry", () => {
     );
     await reg.putSlot({
       component_kind: "extractor",
-      component_id: "D",
+      component_id: "test-extractor",
       slot: "current",
       semver: "1.0.0",
       bump_type: null,
@@ -175,7 +178,7 @@ describe("VersionRegistry", () => {
     });
     await reg.putSlot({
       component_kind: "resolver",
-      component_id: "person",
+      component_id: "test-resolver",
       slot: "current",
       semver: "1.0.0",
       bump_type: null,
@@ -184,8 +187,11 @@ describe("VersionRegistry", () => {
     });
 
     const extractors = await reg.listByKind("extractor");
-    expect(extractors).toHaveLength(1);
-    expect(extractors[0].component_id).toBe("D");
+    const testExtractors = extractors.filter((r) => r.component_id === "test-extractor");
+    expect(testExtractors).toHaveLength(1);
+    expect(testExtractors[0].component_id).toBe("test-extractor");
+    // And the bootstrap rows are also there
+    expect(extractors.length).toBeGreaterThanOrEqual(6); // 5 bootstrapped + 1 test
   });
 
   it("rejects putSlot with malformed semver", async () => {
