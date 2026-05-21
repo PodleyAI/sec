@@ -267,9 +267,13 @@ describe("Form_1_A parsing test", () => {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
         const form1A = await Form_1_A.parse("1-A", xmlContent);
 
-        // Test jurisdiction of organization
+        // Test jurisdiction of organization. EDGAR uses 2-char state/country
+        // codes: US states are two letters (CA, NY), foreign jurisdictions are
+        // letter+digit (A1=British Columbia, N4=Luxembourg, etc.).
         if (form1A.formData.employeesInfo[0].jurisdictionOrganization) {
-          expect(form1A.formData.employeesInfo[0].jurisdictionOrganization).toMatch(/^[A-Z]{2}$/);
+          expect(form1A.formData.employeesInfo[0].jurisdictionOrganization).toMatch(
+            /^[A-Z][A-Z0-9]$/
+          );
         }
 
         // Test state or country in issuer info

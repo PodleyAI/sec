@@ -258,10 +258,12 @@ describe("Form_1_K parsing test", () => {
           expect(form1K.formData.item1.stateOrCountry).toMatch(/^[A-Z0-9]{2}$/);
         }
 
-        // Test jurisdiction of organization in item1Info
+        // Test jurisdiction of organization in item1Info. EDGAR uses 2-char
+        // codes: US states are two letters (CA, NY), foreign jurisdictions
+        // are letter+digit (A1=British Columbia, N4=Luxembourg, etc.).
         form1K.formData.item1Info.forEach((info) => {
           if (info.jurisdictionOrganization) {
-            expect(info.jurisdictionOrganization).toMatch(/^[A-Z]{2}$/);
+            expect(info.jurisdictionOrganization).toMatch(/^[A-Z][A-Z0-9]$/);
           }
         });
       }
