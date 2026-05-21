@@ -13,6 +13,10 @@ import type {
 
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
+/**
+ * Validates MAJOR.MINOR.PATCH semver strings. Pre-release suffixes
+ * (e.g. "1.0.0-alpha") and build metadata are intentionally unsupported in v1.
+ */
 export function isValidSemver(s: string): boolean {
   return SEMVER_RE.test(s);
 }
@@ -42,6 +46,16 @@ export class VersionRegistry {
   }
 
   async putSlot(row: ComponentVersion): Promise<void> {
+    if (!isValidSemver(row.semver)) {
+      throw new Error(
+        `VersionRegistry: invalid semver '${row.semver}' for ${row.component_kind}:${row.component_id} slot=${row.slot}`
+      );
+    }
+    if (row.slot !== "next" && !row.coverage_complete) {
+      throw new Error(
+        `VersionRegistry: coverage_complete must be true for ${row.slot} slot (got false on ${row.component_kind}:${row.component_id})`
+      );
+    }
     await this.storage.put(row);
   }
 

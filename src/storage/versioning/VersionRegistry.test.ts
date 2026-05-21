@@ -187,4 +187,90 @@ describe("VersionRegistry", () => {
     expect(extractors).toHaveLength(1);
     expect(extractors[0].component_id).toBe("D");
   });
+
+  it("rejects putSlot with malformed semver", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    await expect(
+      reg.putSlot({
+        component_kind: "extractor",
+        component_id: "D",
+        slot: "current",
+        semver: "not-a-version",
+        bump_type: null,
+        started_at: "2026-05-21T00:00:00Z",
+        coverage_complete: true,
+      })
+    ).rejects.toThrow(/invalid semver/);
+  });
+
+  it("rejects putSlot when current slot has coverage_complete=false", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    await expect(
+      reg.putSlot({
+        component_kind: "extractor",
+        component_id: "D",
+        slot: "current",
+        semver: "1.0.0",
+        bump_type: null,
+        started_at: "2026-05-21T00:00:00Z",
+        coverage_complete: false,
+      })
+    ).rejects.toThrow(/coverage_complete must be true/);
+  });
+
+  it("allows putSlot for next slot with coverage_complete=false", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    await reg.putSlot({
+      component_kind: "extractor",
+      component_id: "D",
+      slot: "next",
+      semver: "2.1.0",
+      bump_type: "minor",
+      started_at: "2026-05-21T01:00:00Z",
+      coverage_complete: false,
+    });
+    expect((await reg.getNext("extractor", "D"))?.coverage_complete).toBe(false);
+  });
+
+  it("putSlot overwrites the same slot on second call", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    await reg.putSlot({
+      component_kind: "extractor",
+      component_id: "D",
+      slot: "current",
+      semver: "1.0.0",
+      bump_type: null,
+      started_at: "2026-05-21T00:00:00Z",
+      coverage_complete: true,
+    });
+    await reg.putSlot({
+      component_kind: "extractor",
+      component_id: "D",
+      slot: "current",
+      semver: "1.0.1",
+      bump_type: "patch",
+      started_at: "2026-05-21T02:00:00Z",
+      coverage_complete: true,
+    });
+    const row = await reg.getCurrent("extractor", "D");
+    expect(row?.semver).toBe("1.0.1");
+    expect(row?.bump_type).toBe("patch");
+  });
+
+  it("clearSlot on a slot that doesn't exist is a no-op", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    // Should not throw
+    await reg.clearSlot("extractor", "D", "next");
+    expect(await reg.getNext("extractor", "D")).toBeUndefined();
+  });
 });
