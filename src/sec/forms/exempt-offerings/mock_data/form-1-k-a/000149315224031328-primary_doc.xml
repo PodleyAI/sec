@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001790320</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00300</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>4145 Wagon Trail Avenue</street1>
+      <city>Las Vegas</city>
+      <stateOrCountry>NV</stateOrCountry>
+      <zipCode>89118</zipCode>
+      <phoneNumber>702-960-7778</phoneNumber>
+      <issuedSecuritiesTitle>Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Mystic Holdings Inc.</issuerName>
+      <cik>0001790320</cik>
+      <jurisdictionOrganization>NV</jurisdictionOrganization>
+      <irsNum>81-3431472</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

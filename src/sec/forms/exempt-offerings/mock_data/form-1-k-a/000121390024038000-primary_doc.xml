@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001920508</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00684</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>5242 Port Royal Road</street1>
+      <street2>#1785</street2>
+      <city>North Springfield</city>
+      <stateOrCountry>VA</stateOrCountry>
+      <zipCode>22151</zipCode>
+      <phoneNumber>703-988-2054</phoneNumber>
+      <issuedSecuritiesTitle>Class A Preferred Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>CWS Investments Inc</issuerName>
+      <cik>0001920508</cik>
+      <jurisdictionOrganization>VA</jurisdictionOrganization>
+      <irsNum>88-0822121</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>false</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

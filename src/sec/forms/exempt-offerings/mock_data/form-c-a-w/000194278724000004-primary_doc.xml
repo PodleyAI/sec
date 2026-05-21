@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc">
+  <headerData>
+    <submissionType>C/A-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001942787</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-30899</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Auxiliary Cord, LLC</nameOfIssuer>
+      </issuerInfo>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Auxiliary Cord, LLC</issuer>
+        <issuerSignature>Tosha Wilson</issuerSignature>
+        <issuerTitle>Managing Member</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Tosha Wilson</personSignature>
+          <personTitle>Managing Member</personTitle>
+          <signatureDate>04-23-2024</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

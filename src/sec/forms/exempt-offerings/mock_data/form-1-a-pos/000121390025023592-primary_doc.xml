@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A POS</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0000927719</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-10818</offeringFileNumber>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Delhi Bank Corp.</issuerName>
+      <jurisdictionOrganization>NY</jurisdictionOrganization>
+      <yearIncorporation>1994</yearIncorporation>
+      <cik>0000927719</cik>
+      <sicCode>6021</sicCode>
+      <irsNum>14-1777653</irsNum>
+      <fullTimeEmployees>39</fullTimeEmployees>
+      <partTimeEmployees>4</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>124 Main Street</street1>
+      <city>Delhi</city>
+      <stateOrCountry>NY</stateOrCountry>
+      <zipCode>13753</zipCode>
+      <phoneNumber>855-413-3544</phoneNumber>
+      <connectionName>Abby E. Brown, Esq.</connectionName>
+      <industryGroup>Banking</industryGroup>
+      <cashEquivalents>11428.00</cashEquivalents>
+      <investmentSecurities>70550.00</investmentSecurities>
+      <loans>256051.00</loans>
+      <propertyAndEquipment>4325.00</propertyAndEquipment>
+      <totalAssets>368113.00</totalAssets>
+      <accountsPayable>4979.00</accountsPayable>
+      <deposits>335171.00</deposits>
+      <longTermDebt>23.00</longTermDebt>
+      <totalLiabilities>340175.00</totalLiabilities>
+      <totalStockholderEquity>27939.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>368113.00</totalLiabilitiesAndEquity>
+      <totalInterestIncome>12839.00</totalInterestIncome>
+      <totalInterestExpenses>5252.00</totalInterestExpenses>
+      <depreciationAndAmortization>581.00</depreciationAndAmortization>
+      <netIncome>1707.00</netIncome>
+      <earningsPerShareBasic>0.50</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.50</earningsPerShareDiluted>
+      <nameAuditor>Baker Tilly US, LLP</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common Stock</commonEquityClassName>
+      <outstandingCommonEquity>3403625</outstandingCommonEquity>
+      <commonCusipEquity>246694103</commonCusipEquity>
+      <publiclyTradedCommonEquity>OTC Markets</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>Preferred Stock</preferredEquityClassName>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>None</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>None</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>None</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier1</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>Y</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>N</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>489809</securitiesOffered>
+      <outstandingSecurities>3403625</outstandingSecurities>
+      <pricePerSecurity>20.9500</pricePerSecurity>
+      <issuerAggregateOffering>10261498.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>1046951.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>11308449.00</totalAggregateOffering>
+      <underwritersServiceProviderName>None</underwritersServiceProviderName>
+      <underwritersFees>0.00</underwritersFees>
+      <salesCommissionsServiceProviderName>None</salesCommissionsServiceProviderName>
+      <salesCommissionsServiceProviderFees>0.00</salesCommissionsServiceProviderFees>
+      <findersFeesServiceProviderName>None</findersFeesServiceProviderName>
+      <finderFeesFee>0.00</finderFeesFee>
+      <auditorServiceProviderName>Baker Tilly US, LLP</auditorServiceProviderName>
+      <auditorFees>5000.00</auditorFees>
+      <legalServiceProviderName>Squire Patton Boggs (US) LLP</legalServiceProviderName>
+      <legalFees>40000.00</legalFees>
+      <promotersServiceProviderName>None</promotersServiceProviderName>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyServiceProviderName>None</blueSkyServiceProviderName>
+      <blueSkyFees>0.00</blueSkyFees>
+      <estimatedNetAmount>11263449.00</estimatedNetAmount>
+      <clarificationResponses>Delhi Bank Corp. is offering its stockholders shares of its common stock through a Dividend Reinvestment and Optional Cash Purchase Plan.</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Delhi Bank Corp.</securitiesIssuerName>
+      <securitiesIssuerTitle>Common Stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>51151</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$1,046,951. Based on offering price.</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Exempt offering under Regulation A pursuant to a qualified offering statement.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

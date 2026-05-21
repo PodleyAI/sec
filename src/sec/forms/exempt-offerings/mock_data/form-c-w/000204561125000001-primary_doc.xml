@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc">
+  <headerData>
+    <submissionType>C-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002045611</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-35307</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Northern Ireland Enterprises, LLC</nameOfIssuer>
+      </issuerInfo>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Northern Ireland Enterprises, LLC</issuer>
+        <issuerSignature>/s/ JAY KUDLA</issuerSignature>
+        <issuerTitle>FOUNDER &amp; PRESIDENT</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>/s/ JAY KUDLA</personSignature>
+          <personTitle>FOUNDER &amp; PRESIDENT</personTitle>
+          <signatureDate>03-28-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

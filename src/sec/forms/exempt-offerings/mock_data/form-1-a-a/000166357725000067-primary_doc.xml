@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001122993</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-12392</offeringFileNumber>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>BROOKMOUNT EXPLORATIONS INC</issuerName>
+      <jurisdictionOrganization>NV</jurisdictionOrganization>
+      <yearIncorporation>1999</yearIncorporation>
+      <cik>0001122993</cik>
+      <sicCode>1400</sicCode>
+      <irsNum>98-0201259</irsNum>
+      <fullTimeEmployees>30</fullTimeEmployees>
+      <partTimeEmployees>100</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>1 EAST LIBERTY</street1>
+      <street2>Suite 500</street2>
+      <city>Reno</city>
+      <stateOrCountry>NV</stateOrCountry>
+      <zipCode>89501</zipCode>
+      <phoneNumber>410-825-3930</phoneNumber>
+      <connectionName>Joe Laxague, Esq.</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>109000.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>25397000.00</accountsReceivable>
+      <propertyPlantEquipment>8029000.00</propertyPlantEquipment>
+      <totalAssets>49138000.00</totalAssets>
+      <accountsPayable>473000.00</accountsPayable>
+      <longTermDebt>235000.00</longTermDebt>
+      <totalLiabilities>1664000.00</totalLiabilities>
+      <totalStockholderEquity>47474000.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>49138000.00</totalLiabilitiesAndEquity>
+      <totalRevenues>15110000.00</totalRevenues>
+      <costAndExpensesApplToRevenues>5045000.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>195000.00</depreciationAndAmortization>
+      <netIncome>7537000.00</netIncome>
+      <earningsPerShareBasic>0.00</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.00</earningsPerShareDiluted>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Common stock</commonEquityClassName>
+      <outstandingCommonEquity>136475869</outstandingCommonEquity>
+      <commonCusipEquity>114270200</commonCusipEquity>
+      <publiclyTradedCommonEquity>OTC Markets</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <preferredEquityClassName>N/A</preferredEquityClassName>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+      <preferredCusipEquity>000000000</preferredCusipEquity>
+      <publiclyTradedPreferredEquity>N/A</publiclyTradedPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <debtSecuritiesClassName>N/A</debtSecuritiesClassName>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+      <cusipDebtSecurities>000000000</cusipDebtSecurities>
+      <publiclyTradedDebtSecurities>N/A</publiclyTradedDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier1</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Unaudited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>Y</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>Y</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>38750000</securitiesOffered>
+      <outstandingSecurities>136475869</outstandingSecurities>
+      <pricePerSecurity>0.0200</pricePerSecurity>
+      <issuerAggregateOffering>2000000.00</issuerAggregateOffering>
+      <securityHolderAggegate>500000.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>0.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>2500000.00</totalAggregateOffering>
+      <legalServiceProviderName>The Crone Law Group, P.C.</legalServiceProviderName>
+      <legalFees>10000.00</legalFees>
+      <blueSkyServiceProviderName>The Crone Law Group, P.C.</blueSkyServiceProviderName>
+      <blueSkyFees>1000.00</blueSkyFees>
+      <clarificationResponses>Price per security ($0.02) is an estimation</clarificationResponses>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A1</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A2</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A3</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A4</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A5</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A6</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A7</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A8</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>A9</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>B0</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>Z4</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <securitiesIssued>
+      <securitiesIssuerName>Brookmount Explorations Inc</securitiesIssuerName>
+      <securitiesIssuerTitle>Convertible notes; common stock</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>39229996</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$207,500 for convertible notes; $450,000 for private offering of common stock..</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Section 4(a)(2) of the Securities Act; all convertible notes and conversion shares issued to a single investor in a private offering. Rule 506(b) for common stock.</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,218 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D/A</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0002009020</cik>
+        <entityName>17Capital Credit 2 EUR Feeder SCSp</entityName>
+        <issuerAddress>
+            <street1>412F, ROUTE D'ESCH</street1>
+            <city>LUXEMBOURG</city>
+            <stateOrCountry>N4</stateOrCountry>
+            <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+            <zipCode>L-1471</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>44(0) 20 7493 2462</issuerPhoneNumber>
+        <jurisdictionOfInc>LUXEMBOURG</jurisdictionOfInc>
+        <issuerPreviousNameList>
+            <value>None</value>
+        </issuerPreviousNameList>
+        <edgarPreviousNameList>
+            <value>None</value>
+        </edgarPreviousNameList>
+        <entityType>Limited Partnership</entityType>
+        <yearOfInc>
+            <withinFiveYears>true</withinFiveYears>
+            <value>2023</value>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>N/A</firstName>
+                <lastName>17Capital Credit 2 Luxembourg GP S.a r.l</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Promoter</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>The general partner of the Issuer (the &quot;General Partner&quot;)</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Andrej</firstName>
+                <lastName>Grossmann</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the General Partner of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Oliver</firstName>
+                <lastName>Pritchard</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the General Partner of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Godfrey</firstName>
+                <lastName>Abel</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the General Partner of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>N/A</firstName>
+                <lastName>AyersRock.Lux</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the General Partner of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Pauline</firstName>
+                <lastName>Chatin</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>412F, Route d'Esch</street1>
+                <city>Luxembourg</city>
+                <stateOrCountry>N4</stateOrCountry>
+                <stateOrCountryDescription>LUXEMBOURG</stateOrCountryDescription>
+                <zipCode>L-1471</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification>Manager of the General Partner of the Issuer</relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Pooled Investment Fund</industryGroupType>
+            <investmentFundInfo>
+                <investmentFundType>Private Equity Fund</investmentFundType>
+                <is40Act>false</is40Act>
+            </investmentFundInfo>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>Decline to Disclose</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+            <item>3C</item>
+            <item>3C.1</item>
+            <item>3C.7</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>true</isAmendment>
+                <previousAccessionNumber>0002009020-24-000001</previousAccessionNumber>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2024-01-26</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isEquityType>true</isEquityType>
+            <isPooledInvestmentFundType>true</isPooledInvestmentFundType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList></salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>Indefinite</totalOfferingAmount>
+            <totalAmountSold>409663000</totalAmountSold>
+            <totalRemaining>Indefinite</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>15</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </findersFees>
+            <clarificationOfResponse></clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+                <isEstimate>true</isEstimate>
+            </grossProceedsUsed>
+            <clarificationOfResponse>As detailed in the Issuer's confidential offering materials, 17 Capital LLP is entitled to an annual management fee, certain affiliates of 17 Capital LLP are entitled to receive carried interest and the General Partner is entitled to a GP share.</clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>17Capital Credit 2 EUR Feeder SCSp</issuerName>
+                <signatureName>Andrej Grossmann</signatureName>
+                <nameOfSigner>Andrej Grossmann</nameOfSigner>
+                <signatureTitle>Manager of General Partner</signatureTitle>
+                <signatureDate>2025-01-15</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>

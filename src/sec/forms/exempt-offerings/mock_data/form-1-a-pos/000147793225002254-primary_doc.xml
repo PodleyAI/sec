@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/oneafiler" xmlns:ns0="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-A POS</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001915521</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <offeringFileNumber>024-12283</offeringFileNumber>
+      </filer>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <employeesInfo>
+      <issuerName>Cardone Non Accredited Fund, LLC</issuerName>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <yearIncorporation>2022</yearIncorporation>
+      <cik>0001915521</cik>
+      <sicCode>6500</sicCode>
+      <irsNum>87-4745769</irsNum>
+      <fullTimeEmployees>0</fullTimeEmployees>
+      <partTimeEmployees>0</partTimeEmployees>
+    </employeesInfo>
+    <issuerInfo>
+      <street1>18909 NE 29TH AVE</street1>
+      <city>Aventura</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>33180</zipCode>
+      <phoneNumber>310-777-0255</phoneNumber>
+      <connectionName>Jonathan Sabo</connectionName>
+      <industryGroup>Other</industryGroup>
+      <cashEquivalents>3418425.00</cashEquivalents>
+      <investmentSecurities>0.00</investmentSecurities>
+      <accountsReceivable>0.00</accountsReceivable>
+      <propertyPlantEquipment>0.00</propertyPlantEquipment>
+      <totalAssets>32184888.00</totalAssets>
+      <accountsPayable>0.00</accountsPayable>
+      <longTermDebt>0.00</longTermDebt>
+      <totalLiabilities>6800023.00</totalLiabilities>
+      <totalStockholderEquity>25384864.00</totalStockholderEquity>
+      <totalLiabilitiesAndEquity>32184888.00</totalLiabilitiesAndEquity>
+      <totalRevenues>154688.00</totalRevenues>
+      <costAndExpensesApplToRevenues>70678.00</costAndExpensesApplToRevenues>
+      <depreciationAndAmortization>0.00</depreciationAndAmortization>
+      <netIncome>189346.00</netIncome>
+      <earningsPerShareBasic>0.75</earningsPerShareBasic>
+      <earningsPerShareDiluted>0.75</earningsPerShareDiluted>
+      <nameAuditor>Kaufman, Rossin &amp; Co. P.A.</nameAuditor>
+    </issuerInfo>
+    <commonEquity>
+      <commonEquityClassName>Class A</commonEquityClassName>
+      <outstandingCommonEquity>479761</outstandingCommonEquity>
+      <commonCusipEquity>None</commonCusipEquity>
+      <publiclyTradedCommonEquity>None</publiclyTradedCommonEquity>
+    </commonEquity>
+    <commonEquity>
+      <commonEquityClassName>Class B</commonEquityClassName>
+      <outstandingCommonEquity>1000</outstandingCommonEquity>
+      <commonCusipEquity>None</commonCusipEquity>
+      <publiclyTradedCommonEquity>None</publiclyTradedCommonEquity>
+    </commonEquity>
+    <preferredEquity>
+      <outstandingPreferredEquity>0</outstandingPreferredEquity>
+    </preferredEquity>
+    <debtSecurities>
+      <outstandingDebtSecurities>0</outstandingDebtSecurities>
+    </debtSecurities>
+    <issuerEligibility>
+      <certifyIfTrue>true</certifyIfTrue>
+    </issuerEligibility>
+    <applicationRule262>
+      <certifyIfNotDisqualified>true</certifyIfNotDisqualified>
+      <certifyIfBadActor>false</certifyIfBadActor>
+    </applicationRule262>
+    <summaryInfo>
+      <indicateTier1Tier2Offering>Tier2</indicateTier1Tier2Offering>
+      <financialStatementAuditStatus>Audited</financialStatementAuditStatus>
+      <securitiesOfferedTypes>Equity (common or preferred stock)</securitiesOfferedTypes>
+      <offerDelayedContinuousFlag>Y</offerDelayedContinuousFlag>
+      <offeringYearFlag>N</offeringYearFlag>
+      <offeringAfterQualifFlag>N</offeringAfterQualifFlag>
+      <offeringBestEffortsFlag>Y</offeringBestEffortsFlag>
+      <solicitationProposedOfferingFlag>N</solicitationProposedOfferingFlag>
+      <resaleSecuritiesAffiliatesFlag>N</resaleSecuritiesAffiliatesFlag>
+      <securitiesOffered>749750</securitiesOffered>
+      <outstandingSecurities>479761</outstandingSecurities>
+      <pricePerSecurity>100.0000</pricePerSecurity>
+      <issuerAggregateOffering>27023900.00</issuerAggregateOffering>
+      <securityHolderAggegate>0.00</securityHolderAggegate>
+      <qualificationOfferingAggregate>47951100.00</qualificationOfferingAggregate>
+      <concurrentOfferingAggregate>0.00</concurrentOfferingAggregate>
+      <totalAggregateOffering>74975000.00</totalAggregateOffering>
+      <underwritersFees>0.00</underwritersFees>
+      <salesCommissionsServiceProviderFees>0.00</salesCommissionsServiceProviderFees>
+      <finderFeesFee>0.00</finderFeesFee>
+      <auditorServiceProviderName>Kaufman, Rossin &amp; Co., P.A</auditorServiceProviderName>
+      <auditorFees>40000.00</auditorFees>
+      <legalServiceProviderName>Dodson Robinette PLLC</legalServiceProviderName>
+      <legalFees>45000.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyServiceProviderName>Fund Compliance Services LLC</blueSkyServiceProviderName>
+      <blueSkyFees>45000.00</blueSkyFees>
+      <estimatedNetAmount>74845000.00</estimatedNetAmount>
+      <clarificationResponses/>
+    </summaryInfo>
+    <juridictionSecuritiesOffered>
+      <jurisdictionsOfSecOfferedNone>true</jurisdictionsOfSecOfferedNone>
+      <issueJuridicationSecuritiesOffering>AK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>AZ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>CT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>DE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>FL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>GA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>HI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ID</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IL</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>IN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>KY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>LA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ME</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MO</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MS</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>MT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>ND</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NE</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NJ</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NM</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>NY</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OH</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OK</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>OR</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>PA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>RI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SC</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>SD</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TN</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>TX</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>UT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>VT</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WA</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WI</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WV</issueJuridicationSecuritiesOffering>
+      <issueJuridicationSecuritiesOffering>WY</issueJuridicationSecuritiesOffering>
+    </juridictionSecuritiesOffered>
+    <unregisteredSecurities>
+      <ifUnregsiteredNone>false</ifUnregsiteredNone>
+    </unregisteredSecurities>
+    <securitiesIssued>
+      <securitiesIssuerName>Cardone Non Accredited Fund, LLC</securitiesIssuerName>
+      <securitiesIssuerTitle>Class A Units</securitiesIssuerTitle>
+      <securitiesIssuedTotalAmount>479511</securitiesIssuedTotalAmount>
+      <securitiesPrincipalHolderAmount>0</securitiesPrincipalHolderAmount>
+      <securitiesIssuedAggregateAmount>$47,951,100 Class A Units sold at $100 per Unit</securitiesIssuedAggregateAmount>
+    </securitiesIssued>
+    <unregisteredSecuritiesAct>
+      <securitiesActExcemption>Regulation A</securitiesActExcemption>
+    </unregisteredSecuritiesAct>
+  </formData>
+</edgarSubmission>

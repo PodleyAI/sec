@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onezfiler">
+  <headerData>
+    <submissionType>1-Z/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001788151</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00967</fileNumber>
+      </filer>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <issuerName>Link Group International Inc</issuerName>
+      <street1>3255 Lawrenceville RD P-147</street1>
+      <city>Suwanee</city>
+      <stateOrCountry>GA</stateOrCountry>
+      <zipCode>30024</zipCode>
+      <phone>404-496-8434</phone>
+      <commissionFileNumber>024-11370</commissionFileNumber>
+    </item1>
+    <summaryInfoOffering>
+      <offeringQualificationDate>01-26-2022</offeringQualificationDate>
+      <offeringCommenceDate>01-26-2022</offeringCommenceDate>
+      <offeringSecuritiesQualifiedSold>3000000</offeringSecuritiesQualifiedSold>
+      <offeringSecuritiesSold>151000</offeringSecuritiesSold>
+      <pricePerSecurity>0.5000</pricePerSecurity>
+      <portionSecuritiesSoldIssuer>75500.00</portionSecuritiesSoldIssuer>
+      <portionSecuritiesSoldSecurityholders>0.00</portionSecuritiesSoldSecurityholders>
+      <underwriterFees>0.00</underwriterFees>
+      <salesCommissionsFee>0.00</salesCommissionsFee>
+      <findersFees>0.00</findersFees>
+      <auditorSpName>Michael T. Studer CPA</auditorSpName>
+      <auditorFees>9000.00</auditorFees>
+      <legalSpName>Jackson Morris, ESQ of Tampa Florida</legalSpName>
+      <legalFees>10000.00</legalFees>
+      <promotersFees>0.00</promotersFees>
+      <blueSkyFees>0.00</blueSkyFees>
+      <issuerNetProceeds>56500.00</issuerNetProceeds>
+      <clarificationResponses/>
+    </summaryInfoOffering>
+    <certificationSuspension>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <certificationFileNumber>024-11370</certificationFileNumber>
+      <approxRecordHolders>21</approxRecordHolders>
+    </certificationSuspension>
+    <signatureTab>
+      <cik>0001788151</cik>
+      <regulationIssuerName1>Link Group International Inc</regulationIssuerName1>
+      <regulationIssuerName2>Link Group International Inc</regulationIssuerName2>
+      <signatureBy>Gye Eun Choi</signatureBy>
+      <date>10-17-2024</date>
+      <title>President</title>
+    </signatureTab>
+  </formData>
+</edgarSubmission>

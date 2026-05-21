@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001832987</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00471</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>211 W 24TH STREET</street1>
+      <street2>406</street2>
+      <city>NORFOLK</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>23517</zipCode>
+      <phoneNumber>757-900-2322</phoneNumber>
+      <issuedSecuritiesTitle>Class C Common Stock</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Armed Forces Brewing Company, Inc.</issuerName>
+      <cik>0001832987</cik>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <irsNum>84-3443086</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/rega/onekfiler" xmlns:ns1="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>1-K/A</submissionType>
+    <filerInfo>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <filer>
+        <issuerCredentials>
+          <cik>0001661166</cik>
+          <ccc>XXXXXXXX</ccc>
+        </issuerCredentials>
+        <fileNumber>24R-00100</fileNumber>
+      </filer>
+      <flags>
+        <shellCompanyFlag>N</shellCompanyFlag>
+        <successorFilingFlag>N</successorFilingFlag>
+      </flags>
+      <reportingPeriod>12-31-2023</reportingPeriod>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <item1>
+      <formIndication>Annual Report</formIndication>
+      <fiscalYearEnd>12-31-2023</fiscalYearEnd>
+      <street1>301 E. Pine Street</street1>
+      <street2>Suite 850</street2>
+      <city>Orlando</city>
+      <stateOrCountry>FL</stateOrCountry>
+      <zipCode>32801</zipCode>
+      <phoneNumber>407-486-9234</phoneNumber>
+      <issuedSecuritiesTitle>Reg A 1,2,3,5, year bonds</issuedSecuritiesTitle>
+    </item1>
+    <item1Info>
+      <issuerName>Legion Capital Corp</issuerName>
+      <cik>0001661166</cik>
+      <jurisdictionOrganization>FL</jurisdictionOrganization>
+      <irsNum>47-3751122</irsNum>
+    </item1Info>
+    <item2>
+      <regArule257>true</regArule257>
+    </item2>
+  </formData>
+</edgarSubmission>
