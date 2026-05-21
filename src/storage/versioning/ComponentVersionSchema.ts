@@ -8,6 +8,19 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 
+// Helper to derive a Type.Union of literals from a const string tuple.
+// We use a runtime `as any` because TypeBox's TUnion typing on dynamic
+// literal arrays loses precision; the Static<> output is still correct.
+function literalUnion<T extends readonly string[]>(
+  values: T,
+  options?: { description?: string }
+) {
+  return Type.Union(
+    values.map((v) => Type.Literal(v)),
+    options as any
+  ) as any;
+}
+
 export const COMPONENT_KINDS = ["extractor", "resolver"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 
@@ -18,36 +31,29 @@ export const BUMP_TYPES = ["major", "minor", "patch"] as const;
 export type BumpType = (typeof BUMP_TYPES)[number];
 
 export const ComponentVersionSchema = Type.Object({
-  component_kind: Type.Union(
-    [Type.Literal("extractor"), Type.Literal("resolver")],
-    { description: "Which subsystem this component belongs to" }
-  ),
+  component_kind: literalUnion(COMPONENT_KINDS, {
+    description: "Which subsystem this component belongs to",
+  }),
   component_id: Type.String({
     maxLength: 64,
     description:
       "Form symbol (e.g. 'D', '1-A') for extractors, or domain name ('person', 'company') for resolvers",
   }),
-  slot: Type.Union(
-    [Type.Literal("previous"), Type.Literal("current"), Type.Literal("next")],
-    { description: "Which of the three slots this row occupies" }
-  ),
+  slot: literalUnion(COMPONENT_SLOTS, {
+    description: "Which of the three slots this row occupies",
+  }),
   semver: Type.String({
     maxLength: 32,
     description:
       "Semantic version, e.g. '2.1.0'. Validation enforced by VersionRegistry, not schema.",
   }),
   bump_type: Type.Union(
-    [
-      Type.Literal("major"),
-      Type.Literal("minor"),
-      Type.Literal("patch"),
-      Type.Null(),
-    ],
+    [...BUMP_TYPES.map((v) => Type.Literal(v)), Type.Null()],
     {
       description:
         "Declared bump type for the next→current transition. Null on initial seed.",
     }
-  ),
+  ) as any,
   started_at: Type.String({
     description: "ISO 8601 timestamp when this slot was populated",
   }),
