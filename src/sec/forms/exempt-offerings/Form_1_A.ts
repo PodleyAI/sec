@@ -11,7 +11,10 @@ import { Form1A, Form1ASchema, Form1ASubmission, Form1ASubmissionSchema } from "
 export class Form_1_A extends Form {
   static readonly name = "Reg-A Offering Statement";
   static readonly description = "Reg-A Offering Statement";
-  static readonly forms = ["1-A", "1-A/A", "1", "1/A"] as const;
+  // "1-A POS" is a post-qualification amendment that reuses the Reg-A
+  // edgarSubmission schema. The withdrawal variant 1-A-W is filed as HTML
+  // only (no XML primary doc) and is intentionally excluded here.
+  static readonly forms = ["1-A", "1-A/A", "1-A POS", "1", "1/A"] as const;
 
   static async parse(form: (typeof Form_1_A.forms)[number], xml: string): Promise<Form1A> {
     if (!Form_1_A.forms.includes(form)) {

@@ -17,13 +17,14 @@ export class Form_C extends Form {
     if (!Form_C.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }
-    if (form === "C" || form === "C/A") {
-      const parser = Form_C.getParser(FormCSubmissionSchema);
-      const json = parser.parse(xml) as FormCSubmission;
-      const rawFormC = json.edgarSubmission;
-      const formC = Value.Convert(FormCSchema, rawFormC);
-      return formC as FormC;
-    }
-    throw new Error(`Invalid form: ${form} [not implemented]`);
+    // C, C/A, C-W, C/A-W all share the same EDGAR formc namespace. Withdrawal
+    // variants carry a stripped-down formData (issuer name + signatures only)
+    // but Value.Convert is lenient about missing optional fields, so one
+    // parse path handles every variant.
+    const parser = Form_C.getParser(FormCSubmissionSchema);
+    const json = parser.parse(xml) as FormCSubmission;
+    const rawFormC = json.edgarSubmission;
+    const formC = Value.Convert(FormCSchema, rawFormC);
+    return formC as FormC;
   }
 }
