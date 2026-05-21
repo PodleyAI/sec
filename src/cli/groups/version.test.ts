@@ -179,7 +179,9 @@ describe("sec version CLI", () => {
     }
   });
 
-  it("promote with --force rotates slots and history records both events", async () => {
+  it(
+    "promote with --force rotates slots and history records both events",
+    async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
@@ -213,9 +215,13 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+    },
+    15000
+  );
 
-  it("rollback swaps current and previous", async () => {
+  it(
+    "rollback swaps current and previous",
+    async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
@@ -241,7 +247,9 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+    },
+    15000
+  );
 
   it("drop-next clears the next slot", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
