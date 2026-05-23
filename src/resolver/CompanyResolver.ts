@@ -16,6 +16,11 @@ interface CompanyResolverOptions {
   activeResolverVersion: string;
 }
 
+/**
+ * Matches a CompanyObservation to an existing canonical company or creates one.
+ * Resolution cascade: CIK → CRD number → normalized name. Throws if none is available.
+ * Delegates alias indirection to CanonicalCompanyAliasRepo.
+ */
 export class CompanyResolver {
   constructor(private opts: CompanyResolverOptions) {}
 

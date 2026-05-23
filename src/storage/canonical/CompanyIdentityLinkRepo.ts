@@ -15,6 +15,10 @@ interface CompanyIdentityLinkRepoOptions {
   companyIdentityLinkRepository?: CompanyIdentityLinkRepositoryStorage;
 }
 
+/**
+ * Links company observation rows to canonical company rows at a specific
+ * `resolver_version`. The composite primary key is `(observation_id, resolver_version)`.
+ */
 export class CompanyIdentityLinkRepo {
   private repo: CompanyIdentityLinkRepositoryStorage;
 

@@ -20,6 +20,27 @@ bun test src/path/to/file.test.ts  # Run a single test file
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
+### PR4 CLI additions
+
+```bash
+# Run the resolver over all observations for a given kind
+sec resolve --kind person --resolver-version 1.0.0 --all
+sec resolve --kind company --resolver-version 1.0.0 --all
+
+# Alias management (person; same flags for company)
+sec canonical person alias "<from-name>" "<into-name>" --reason "merged duplicate"
+sec canonical person alias-remove "<name>"
+sec canonical person alias-list
+sec canonical person alias-list --orphans     # names whose target no longer exists
+
+# Coverage and cleanup
+sec version coverage --kind resolver --id person
+sec version coverage --kind resolver --id company
+sec version drop-previous --kind resolver --id person
+sec version drop-previous --kind resolver --id company
+sec version drop-previous --kind extractor --id <extractor-id>
+```
+
 ## Architecture
 
 ### Layered Structure
@@ -27,11 +48,37 @@ The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./
 - **`src/commands/`** — Commander CLI command definitions. Each command wires up tasks and invokes them.
 - **`src/task/`** — Workglow task graph tasks (fetch, store, process). Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
-- **`src/storage/`** — Repository pattern persistence layer. Each domain (entity, filing, address, company, person, phone, investment-offering, portal) has schemas, repos, and normalization logic. Uses junction tables for many-to-many relationships. All entities are linked via CIK (Central Index Key).
+- **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
+  - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.
+  - **`observation/`** — one row per entity mention extracted from a filing, keyed by `(extractor_id, accession_number, observation_index)`. `PersonObservationRepo` and `CompanyObservationRepo` live here. Legacy `person/`, `company/`, and `phone/` tables were replaced by this tier.
+  - **`canonical/`** — deduplicated canonical entities (`CanonicalPersonRepo`, `CanonicalCompanyRepo`) with UUID IDs, plus alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) and identity-link tables (`PersonIdentityLinkRepo`, `CompanyIdentityLinkRepo`) that join observation rows to canonical rows at a specific `resolver_version`. Junction tables for address/phone co-occurrence also live here.
+  - **`versioning/`** — `VersionRegistry`, slot ceremonies (`startDev`, `promote`, `rollback`, `dropNext`, `dropPrevious`), extractor run tracking, and semver helpers.
 - **`src/fetch/`** — SEC-specific fetch tasks with caching and job queue integration.
 - **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, `DefaultDI.ts` registers SQLite-backed repos, `TestingDI.ts` registers in-memory repos.
 - **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
 - **`src/util/`** — Database helpers (`db.ts` manages SQLite connection and prepared statement caching).
+
+### Observations & Resolvers
+
+PR4 introduced an observation/canonical/resolver tier on top of raw form storage. Design spec: `/home/user/prd/docs/superpowers/specs/2026-05-22-sec-versioning-pr4-observation-design.md`.
+
+**Four tiers in order:**
+
+1. **Observation** (`src/storage/observation/`) — raw entity mentions extracted from filings. One row per `(extractor_id, accession_number, observation_index)`.
+2. **Canonical** (`src/storage/canonical/`) — deduplicated entities with stable UUID IDs. Created once per resolver version; alias tables redirect merged IDs.
+3. **Identity link** (`src/storage/canonical/*IdentityLinkRepo`) — join table from `observation_id` + `resolver_version` → `canonical_*_id`. Written inline during extraction.
+4. **Junction** (`src/storage/canonical/Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence tables associating canonical entities with addresses/phones at a given resolver version.
+
+**`EntityObserver`** (`src/resolver/EntityObserver.ts`) — form storage modules call `observePerson()` / `observeCompany()` on this shared helper instead of writing person/company rows directly. It normalizes the claim, upserts the observation, calls the resolver, writes the identity link, and records address/phone junctions in one step.
+
+**`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — resolution algorithms. For persons: CIK fast-path, then normalized-name + issuer-CIK fallback. For companies: CIK → CRD → normalized-name cascade. Both create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
+
+**`VersionRegistry` and slot ceremonies** (`src/storage/versioning/`) — each extractor and resolver has three slots: `previous`, `current`, `next`. Ceremonies:
+- `startDev` — opens a new dev cycle (populates `next`; patch bumps update `current` in place).
+- `promote` — rotates `next → current → previous`. Major bumps enforce a coverage gate.
+- `rollback` — swaps `previous` and `current`.
+- `dropNext` — discards an in-flight cycle.
+- `dropPrevious` — clears the previous slot and purges associated data (extractor runs or resolver identity-link/canonical rows).
 
 ### SQLite initialization
 

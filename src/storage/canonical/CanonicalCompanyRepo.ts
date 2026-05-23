@@ -15,6 +15,11 @@ interface CanonicalCompanyRepoOptions {
   canonicalCompanyRepository?: CanonicalCompanyRepositoryStorage;
 }
 
+/**
+ * Manages canonical_company rows. Lookup methods are scoped by `resolver_version`
+ * so multiple resolver versions can coexist. CompanyResolver uses the CIK → CRD →
+ * normalized-name cascade via `findByResolverAnd*` methods.
+ */
 export class CanonicalCompanyRepo {
   private repo: CanonicalCompanyRepositoryStorage;
 

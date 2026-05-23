@@ -16,6 +16,11 @@ interface PersonResolverOptions {
   activeResolverVersion: string;
 }
 
+/**
+ * Matches a PersonObservation to an existing canonical person or creates one.
+ * Resolution order: CIK fast-path, then normalized-name + issuer-CIK fallback.
+ * Delegates alias indirection to CanonicalPersonAliasRepo.
+ */
 export class PersonResolver {
   constructor(private opts: PersonResolverOptions) {}
 

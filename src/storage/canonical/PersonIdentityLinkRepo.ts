@@ -15,6 +15,10 @@ interface PersonIdentityLinkRepoOptions {
   personIdentityLinkRepository?: PersonIdentityLinkRepositoryStorage;
 }
 
+/**
+ * Links person observation rows to canonical person rows at a specific
+ * `resolver_version`. The composite primary key is `(observation_id, resolver_version)`.
+ */
 export class PersonIdentityLinkRepo {
   private repo: PersonIdentityLinkRepositoryStorage;
 
