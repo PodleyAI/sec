@@ -4,20 +4,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import { CrowdfundingTemporalRepo } from "../../../storage/portal/CrowdfundingTemporalRepo";
-import type { Crowdfunding, CrowdfundingOfferings, CrowdfundingReports } from "../../../storage/portal/CrowdfundingSchema";
+import type {
+  Crowdfunding,
+  CrowdfundingOfferings,
+  CrowdfundingReports,
+} from "../../../storage/portal/CrowdfundingSchema";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import type { FormC } from "./Form_C.schema";
 import { parseCikSafely } from "../../../util/parseCik";
+import { EntityObserver } from "../../../resolver/EntityObserver";
+import { PersonResolver } from "../../../resolver/PersonResolver";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 
-const RELATION_TYPE_ISSUER = "form-c:issuer";
-const RELATION_TYPE_CO_ISSUER = "form-c:co-issuer";
-const RELATION_TYPE_SIGNATURE = "form-c:signature";
+interface FormCStorageContext {
+  readonly accession_number: string;
+  readonly extractor_id: "C";
+  readonly extractor_version: string;
+  readonly observer: EntityObserver;
+}
 
 /**
  * Parse a compensation/financial interest string to extract a percentage and detail text.
@@ -29,14 +53,12 @@ function parsePercentAndDetail(raw: string | undefined): {
 } {
   if (!raw) return { percent: null, detail: null };
   const trimmed = raw.trim();
-  // Try to extract a percentage value
   const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*%/);
   if (match) {
     const pct = parseFloat(match[1]) / 100;
     const rest = trimmed.slice(match[0].length).trim();
     return { percent: pct, detail: rest || null };
   }
-  // No percentage found, treat entire string as detail
   return { percent: null, detail: trimmed || null };
 }
 
@@ -49,62 +71,55 @@ function determineStatus(submissionType: string): string {
   return "active";
 }
 
-async function processIssuer(cik: number, formC: FormC): Promise<void> {
-  const companyRepo = new CompanyRepo();
+async function processIssuer(
+  cik: number,
+  formC: FormC,
+  ctx: FormCStorageContext,
+  index: number
+): Promise<void> {
   const addressRepo = new AddressRepo();
-
   const issuerInfo = formC.formData.issuerInformation.issuerInfo;
-  const company = await companyRepo.saveCompany(issuerInfo.nameOfIssuer);
-  await companyRepo.saveRelatedEntity(company.company_hash_id, RELATION_TYPE_ISSUER, cik, [
-    "Issuer",
-  ]);
 
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
   if (issuerInfo.issuerAddress) {
     try {
-      const address = await addressRepo.saveAddress(issuerInfo.issuerAddress);
-      await addressRepo.saveRelatedEntity(address.address_hash_id, RELATION_TYPE_ISSUER, cik);
-      await companyRepo.saveRelatedAddress(
-        company.company_hash_id,
-        RELATION_TYPE_ISSUER,
-        address.address_hash_id
-      );
+      addr = await addressRepo.saveAddress(issuerInfo.issuerAddress);
     } catch (error) {
-      console.warn(
-        `Failed to save address for Form C issuer ${issuerInfo.nameOfIssuer}:`,
-        error
-      );
+      console.warn(`Failed to save address for Form C issuer ${issuerInfo.nameOfIssuer}:`, error);
     }
   }
+
+  await ctx.observer.observeCompany({
+    accession_number: ctx.accession_number,
+    extractor_id: ctx.extractor_id,
+    extractor_version: ctx.extractor_version,
+    observation_index: index,
+    cik,
+    name: issuerInfo.nameOfIssuer,
+    address_id: addr?.address_hash_id ?? null,
+    source_context: JSON.stringify({ relation: "form-c:issuer" }),
+  });
 }
 
-async function processCoIssuers(cik: number, formC: FormC): Promise<void> {
+async function processCoIssuers(
+  cik: number,
+  formC: FormC,
+  ctx: FormCStorageContext,
+  startIndex: number
+): Promise<void> {
   const coIssuers = formC.formData.issuerInformation.coIssuers?.coIssuerInfo;
   if (!coIssuers) return;
 
-  const companyRepo = new CompanyRepo();
   const addressRepo = new AddressRepo();
 
-  for (const coIssuer of coIssuers) {
+  for (let i = 0; i < coIssuers.length; i++) {
+    const coIssuer = coIssuers[i];
     if (!coIssuer.nameOfCoIssuer) continue;
 
-    const company = await companyRepo.saveCompany(coIssuer.nameOfCoIssuer);
-    await companyRepo.saveRelatedEntity(company.company_hash_id, RELATION_TYPE_CO_ISSUER, cik, [
-      "Co-Issuer",
-    ]);
-
+    let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
     if (coIssuer.coIssuerAddress) {
       try {
-        const address = await addressRepo.saveAddress(coIssuer.coIssuerAddress);
-        await addressRepo.saveRelatedEntity(
-          address.address_hash_id,
-          RELATION_TYPE_CO_ISSUER,
-          cik
-        );
-        await companyRepo.saveRelatedAddress(
-          company.company_hash_id,
-          RELATION_TYPE_CO_ISSUER,
-          address.address_hash_id
-        );
+        addr = await addressRepo.saveAddress(coIssuer.coIssuerAddress);
       } catch (error) {
         console.warn(
           `Failed to save address for Form C co-issuer ${coIssuer.nameOfCoIssuer}:`,
@@ -112,41 +127,62 @@ async function processCoIssuers(cik: number, formC: FormC): Promise<void> {
         );
       }
     }
+
+    await ctx.observer.observeCompany({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: startIndex + i,
+      cik: null,
+      name: coIssuer.nameOfCoIssuer,
+      address_id: addr?.address_hash_id ?? null,
+      source_context: JSON.stringify({ relation: "form-c:co-issuer" }),
+    });
   }
 }
 
-async function processSignatures(cik: number, formC: FormC): Promise<void> {
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
+async function processSignatures(
+  cik: number,
+  formC: FormC,
+  ctx: FormCStorageContext,
+  startIndex: number
+): Promise<void> {
   const signatureInfo = formC.formData.signatureInfo;
 
-  // Issuer signature
+  // Issuer signature at startIndex (100)
   const issuerSig = signatureInfo.issuerSignature;
   if (issuerSig.issuerSignature && !isBadPersonField(issuerSig.issuerSignature)) {
     const sigName = issuerSig.issuerSignature;
     const titles = [issuerSig.issuerTitle || "Signer"];
 
     if (hasCompanyEnding(sigName)) {
-      const company = await companyRepo.saveCompany(sigName);
-      await companyRepo.saveRelatedEntity(
-        company.company_hash_id,
-        RELATION_TYPE_SIGNATURE,
-        cik,
-        titles
-      );
+      await ctx.observer.observeCompany({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: startIndex,
+        cik: null,
+        name: sigName,
+        source_context: JSON.stringify({ relation: "form-c:signature", titles }),
+      });
     } else {
-      const person = await personRepo.savePerson({ name: sigName });
-      await personRepo.saveRelatedEntity(
-        person.person_hash_id,
-        RELATION_TYPE_SIGNATURE,
-        cik,
-        titles
-      );
+      await ctx.observer.observePerson({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: startIndex,
+        source_filing_issuer_cik: cik,
+        last_name: sigName,
+        title: titles[0] ?? null,
+        relationship: "form-c:signature",
+        source_context: JSON.stringify({ relation: "form-c:signature", titles }),
+      });
     }
   }
 
-  // Signature persons
+  // Signature persons at startIndex + 1, startIndex + 2, ...
   if (signatureInfo.signaturePersons?.signaturePerson) {
+    let idx = startIndex + 1;
     for (const sp of signatureInfo.signaturePersons.signaturePerson) {
       if (isBadPersonField(sp.personSignature)) continue;
 
@@ -154,22 +190,29 @@ async function processSignatures(cik: number, formC: FormC): Promise<void> {
       const titles = [sp.personTitle || "Signer"];
 
       if (hasCompanyEnding(sigName)) {
-        const company = await companyRepo.saveCompany(sigName);
-        await companyRepo.saveRelatedEntity(
-          company.company_hash_id,
-          RELATION_TYPE_SIGNATURE,
-          cik,
-          titles
-        );
+        await ctx.observer.observeCompany({
+          accession_number: ctx.accession_number,
+          extractor_id: ctx.extractor_id,
+          extractor_version: ctx.extractor_version,
+          observation_index: idx,
+          cik: null,
+          name: sigName,
+          source_context: JSON.stringify({ relation: "form-c:signature", titles }),
+        });
       } else {
-        const person = await personRepo.savePerson({ name: sigName });
-        await personRepo.saveRelatedEntity(
-          person.person_hash_id,
-          RELATION_TYPE_SIGNATURE,
-          cik,
-          titles
-        );
+        await ctx.observer.observePerson({
+          accession_number: ctx.accession_number,
+          extractor_id: ctx.extractor_id,
+          extractor_version: ctx.extractor_version,
+          observation_index: idx,
+          source_filing_issuer_cik: cik,
+          last_name: sigName,
+          title: titles[0] ?? null,
+          relationship: "form-c:signature",
+          source_context: JSON.stringify({ relation: "form-c:signature", titles }),
+        });
       }
+      idx++;
     }
   }
 }
@@ -268,6 +311,67 @@ export async function processFormC({
   primary_doc: string;
   formC: FormC;
 }): Promise<void> {
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+
+  const [personSlot, companySlot] = await Promise.all([
+    getActiveSlot(versionRegistry, "resolver", "person"),
+    getActiveSlot(versionRegistry, "resolver", "company"),
+  ]);
+
+  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
+  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+
+  const extractor_version = "1.0.0";
+
+  const personObservationRepo = new PersonObservationRepo();
+  const companyObservationRepo = new CompanyObservationRepo();
+  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
+  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
+  const canonicalPersonRepo = new CanonicalPersonRepo();
+  const canonicalCompanyRepo = new CanonicalCompanyRepo();
+  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
+  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
+  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
+  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
+  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
+  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+
+  const personResolver = new PersonResolver({
+    canonicalPersonRepo,
+    canonicalPersonAliasRepo,
+    activeResolverVersion: activeResolverPersonVersion,
+  });
+
+  const companyResolver = new CompanyResolver({
+    canonicalCompanyRepo,
+    canonicalCompanyAliasRepo,
+    activeResolverVersion: activeResolverCompanyVersion,
+  });
+
+  const observer = new EntityObserver({
+    personObservationRepo,
+    companyObservationRepo,
+    personIdentityLinkRepo,
+    companyIdentityLinkRepo,
+    personResolver,
+    companyResolver,
+    canonicalPersonAddressRepo,
+    canonicalPersonPhoneRepo,
+    canonicalCompanyAddressRepo,
+    canonicalCompanyPhoneRepo,
+    activeResolverPersonVersion,
+    activeResolverCompanyVersion,
+  });
+
+  const ctx: FormCStorageContext = {
+    accession_number,
+    extractor_id: "C",
+    extractor_version,
+    observer,
+  };
+
   const temporalRepo = new CrowdfundingTemporalRepo();
 
   const issuerInfo = formC.formData.issuerInformation;
@@ -288,9 +392,14 @@ export async function processFormC({
   };
 
   await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
-  await processIssuer(cik, formC);
-  await processCoIssuers(cik, formC);
+
+  // Issuers: index 0 (issuer), 1+ (co-issuers)
+  await processIssuer(cik, formC, ctx, 0);
+  await processCoIssuers(cik, formC, ctx, 1);
+
   await processOfferingInfo(cik, file_number, filing_date, formC);
   await processAnnualReportDisclosures(cik, file_number, filing_date, formC);
-  await processSignatures(cik, formC);
+
+  // Signatures: index 100 (issuer signature), 101+ (signature persons)
+  await processSignatures(cik, formC, ctx, 100);
 }

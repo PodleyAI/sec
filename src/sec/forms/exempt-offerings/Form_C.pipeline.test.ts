@@ -13,11 +13,11 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import { CrowdfundingTemporalRepo } from "../../../storage/portal/CrowdfundingTemporalRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { Form_C } from "./Form_C";
 import { processFormC } from "./Form_C.storage";
 import {
@@ -42,18 +42,15 @@ interface IngestedFixture {
 const FIXTURE_SLUG = "form-c";
 
 describe("Form_C pipeline", () => {
-  let companyRepo: CompanyRepo;
   let crowdfundingRepo: CrowdfundingRepo;
   let temporalRepo: CrowdfundingTemporalRepo;
-  let personRepo: PersonRepo;
   let addressRepo: AddressRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
+    await setupAllDatabases();
     crowdfundingRepo = new CrowdfundingRepo();
     temporalRepo = new CrowdfundingTemporalRepo();
-    personRepo = new PersonRepo();
     addressRepo = new AddressRepo();
   });
 
@@ -111,7 +108,7 @@ describe("Form_C pipeline", () => {
 
   it("stores at least one company row per ingested filing", async () => {
     const ingested = await ingestAll();
-    const allCompanies = (await companyRepo.companyRepository.getAll()) || [];
+    const allCompanies = await new CompanyObservationRepo().listAll();
     // Each filing produces at least one issuer company + (often) co-issuers
     // and signature persons. At minimum we expect one company per filing.
     expect(allCompanies.length).toBeGreaterThanOrEqual(ingested.length);
@@ -176,25 +173,24 @@ describe("Form_C pipeline", () => {
   it("indexes each ingested company under its CIK", async () => {
     const ingested = await ingestAll();
     // Pick five filings at evenly spaced indices and verify the issuer
-    // company is reachable through getCompaniesByEntity(cik). This proves
-    // the (company_hash_id, cik, relation) junction is being written.
-    //
-    // CompanyRepo.saveCompany normalizes names (capitalization, trailing
-    // ", Inc." removal, etc.), so we compare against the same normalized
-    // form that the repo would have stored.
+    // company observation is reachable by accession_number and has the
+    // expected CIK and name.
+    const companyObsRepo = new CompanyObservationRepo();
+    const allObs = await companyObsRepo.listAll();
     const step = Math.max(1, Math.floor(ingested.length / 5));
     let checked = 0;
     let found = 0;
     for (let i = 0; i < ingested.length && checked < 5; i += step) {
       const f = ingested[i];
       checked++;
-      const expected = companyRepo.normalizeCompanyName(f.issuerName);
-      const companies = await companyRepo.getCompaniesByEntity(f.cik);
-      if (
-        companies.some((c) => c.company_name === expected || c.company_name === f.issuerName)
-      ) {
-        found++;
-      }
+      const match = allObs.find(
+        (o) =>
+          o.accession_number === f.accession &&
+          o.cik === f.cik &&
+          o.name === f.issuerName &&
+          o.observation_index === 0
+      );
+      if (match) found++;
     }
     expect(found).toBeGreaterThanOrEqual(Math.floor(checked * 0.8));
   });
