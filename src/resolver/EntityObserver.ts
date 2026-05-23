@@ -18,36 +18,36 @@ import type { PersonResolver } from "./PersonResolver";
 import type { CompanyResolver } from "./CompanyResolver";
 
 export interface PersonClaim {
-  accession_number: string;
-  extractor_id: string;
-  extractor_version: string;
-  observation_index: number;
-  source_filing_issuer_cik?: number | null;
-  cik?: number | null;
-  first_name?: string | null;
-  middle_name?: string | null;
-  last_name?: string | null;
-  suffix?: string | null;
-  title?: string | null;
-  relationship?: string | null;
-  address_id?: string | null;
-  international_number?: string | null;
-  source_context?: string | null;
+  readonly accession_number: string;
+  readonly extractor_id: string;
+  readonly extractor_version: string;
+  readonly observation_index: number;
+  readonly source_filing_issuer_cik?: number | null;
+  readonly cik?: number | null;
+  readonly first_name?: string | null;
+  readonly middle_name?: string | null;
+  readonly last_name?: string | null;
+  readonly suffix?: string | null;
+  readonly title?: string | null;
+  readonly relationship?: string | null;
+  readonly address_id?: string | null;
+  readonly international_number?: string | null;
+  readonly source_context?: string | null;
 }
 
 export interface CompanyClaim {
-  accession_number: string;
-  extractor_id: string;
-  extractor_version: string;
-  observation_index: number;
-  cik?: number | null;
-  crd_number?: string | null;
-  name?: string | null;
-  jurisdiction?: string | null;
-  entity_type?: string | null;
-  address_id?: string | null;
-  international_number?: string | null;
-  source_context?: string | null;
+  readonly accession_number: string;
+  readonly extractor_id: string;
+  readonly extractor_version: string;
+  readonly observation_index: number;
+  readonly cik?: number | null;
+  readonly crd_number?: string | null;
+  readonly name?: string | null;
+  readonly jurisdiction?: string | null;
+  readonly entity_type?: string | null;
+  readonly address_id?: string | null;
+  readonly international_number?: string | null;
+  readonly source_context?: string | null;
 }
 
 interface EntityObserverOptions {
@@ -71,7 +71,7 @@ interface EntityObserverOptions {
  * pipeline so each form storage module doesn't repeat it.
  */
 export class EntityObserver {
-  constructor(private opts: EntityObserverOptions) {}
+  constructor(private readonly opts: EntityObserverOptions) {}
 
   async observePerson(
     claim: PersonClaim
@@ -83,6 +83,8 @@ export class EntityObserver {
     const normalized = fullName
       ? normalizePerson({ name: fullName, cik: claim.cik ?? undefined })
       : undefined;
+
+    const now = new Date().toISOString();
 
     // Upsert observation row
     const upserted = await this.opts.personObservationRepo.upsertByNaturalKey({
@@ -105,7 +107,7 @@ export class EntityObserver {
       raw_address_id: claim.address_id ?? null,
       raw_phone_id: claim.international_number ?? null,
       source_context: claim.source_context ?? null,
-      created_at: new Date().toISOString(),
+      created_at: now,
     });
 
     // Resolve to canonical person
@@ -119,7 +121,7 @@ export class EntityObserver {
     );
 
     // Record address and phone junctions
-    const seen_at = new Date().toISOString();
+    const seen_at = now;
     if (claim.address_id) {
       await this.opts.canonicalPersonAddressRepo.recordObservation({
         canonical_person_id,
@@ -144,6 +146,7 @@ export class EntityObserver {
     claim: CompanyClaim
   ): Promise<{ canonical_company_id: string; observation_id: number }> {
     const normalized_name = claim.name ? normalizeCompanyName(claim.name) : null;
+    const now = new Date().toISOString();
 
     // Upsert observation row
     const upserted = await this.opts.companyObservationRepo.upsertByNaturalKey({
@@ -160,7 +163,7 @@ export class EntityObserver {
       raw_address_id: claim.address_id ?? null,
       raw_phone_id: claim.international_number ?? null,
       source_context: claim.source_context ?? null,
-      created_at: new Date().toISOString(),
+      created_at: now,
     });
 
     // Resolve to canonical company
@@ -174,7 +177,7 @@ export class EntityObserver {
     );
 
     // Record address and phone junctions
-    const seen_at = new Date().toISOString();
+    const seen_at = now;
     if (claim.address_id) {
       await this.opts.canonicalCompanyAddressRepo.recordObservation({
         canonical_company_id,
