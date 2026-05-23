@@ -54,6 +54,24 @@ import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinan
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
+import {
+  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+} from "../storage/canonical/CanonicalAliasSchemas";
+import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
+import {
+  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
+} from "../storage/canonical/CanonicalJunctionSchemas";
+import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalPersonSchema";
+import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/CompanyIdentityLinkSchema";
+import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
+import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
+import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { getDb } from "../util/db";
 import { bootstrapExtractorVersions } from "../storage/versioning/bootstrapExtractorVersions";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -109,5 +127,21 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
+  const db = getDb();
+  for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
+    db.exec(ddl);
+  }
   await bootstrapExtractorVersions();
 }
