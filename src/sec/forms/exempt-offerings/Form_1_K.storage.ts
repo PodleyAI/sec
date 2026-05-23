@@ -6,10 +6,6 @@
 
 import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import {
-  COUNTRY_STATE_CODE_ARRAY,
-  US_STATE_CODE_ARRAY,
-} from "../../../storage/address/AddressSchemaCodes";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
@@ -33,31 +29,6 @@ import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalC
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
-
-const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
-
-const SEC_CODE_TO_ISO = new Map<string, string>(
-  COUNTRY_STATE_CODE_ARRAY.map(([iso, secCode]) => [secCode as string, iso as string])
-);
-const ISO_CODE_SET = new Set<string>(COUNTRY_STATE_CODE_ARRAY.map(([iso]) => iso as string));
-
-/**
- * Resolve EDGAR's `stateOrCountry` field to an ISO 3166-1 alpha-2 country
- * code. US state codes resolve to "US"; SEC country codes are mapped to ISO;
- * inputs that are already ISO pass through. Returns undefined when nothing
- * matches so PhoneRepo can fall back to its own defaults rather than
- * receiving a bogus regionCode.
- */
-function resolveCountryCode(stateOrCountry: string | undefined | null): string | undefined {
-  if (!stateOrCountry) return undefined;
-  const code = stateOrCountry.trim().toUpperCase();
-  if (!code) return undefined;
-  if (US_STATE_CODE_SET.has(code)) return "US";
-  const iso = SEC_CODE_TO_ISO.get(code);
-  if (iso) return iso;
-  if (ISO_CODE_SET.has(code)) return code;
-  return undefined;
-}
 
 interface Form1KStorageContext {
   readonly accession_number: string;
@@ -88,7 +59,7 @@ async function processIssuer(
       zipCode: item1.zipCode,
     });
   } catch (error) {
-    console.warn(`Failed to save address for Form 1-K issuer:`, error);
+    console.warn(`Failed to save address for Form 1-K issuer (CIK ${cik}):`, error);
   }
 
   // Process each issuer in item1Info
