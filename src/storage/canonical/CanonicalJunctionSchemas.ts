@@ -11,7 +11,7 @@ import { createServiceToken } from "workglow";
 /**
  * Canonical-person ↔ address junction, tagged by resolver_version.
  * `observation_count` is incremented every time an observation contributes
- * the same `(canonical_person_id, address_id)` pair under the same
+ * the same `(canonical_person_id, address_hash_id)` pair under the same
  * resolver_version; used downstream as a primary-address heuristic.
  *
  * Address rows themselves live in the existing `address` table; this
@@ -19,7 +19,7 @@ import { createServiceToken } from "workglow";
  */
 export const CanonicalPersonAddressSchema = Type.Object({
   canonical_person_id: Type.String({ maxLength: 36 }),
-  address_id: Type.String({ maxLength: 64 }),
+  address_hash_id: Type.String({ maxLength: 64 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({
     minimum: 1,
@@ -31,7 +31,7 @@ export const CanonicalPersonAddressSchema = Type.Object({
 export type CanonicalPersonAddress = Static<typeof CanonicalPersonAddressSchema>;
 export const CanonicalPersonAddressPrimaryKeyNames = [
   "canonical_person_id",
-  "address_id",
+  "address_hash_id",
   "resolver_version",
 ] as const;
 export type CanonicalPersonAddressRepositoryStorage = ITabularStorage<
@@ -51,7 +51,7 @@ export const CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN =
  */
 export const CanonicalPersonPhoneSchema = Type.Object({
   canonical_person_id: Type.String({ maxLength: 36 }),
-  international_number: Type.String({ maxLength: 32 }),
+  international_number: Type.String({ maxLength: 20 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),
@@ -76,7 +76,7 @@ export const CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN =
 /** Canonical-company ↔ address junction. */
 export const CanonicalCompanyAddressSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
-  address_id: Type.String({ maxLength: 64 }),
+  address_hash_id: Type.String({ maxLength: 64 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),
@@ -85,7 +85,7 @@ export const CanonicalCompanyAddressSchema = Type.Object({
 export type CanonicalCompanyAddress = Static<typeof CanonicalCompanyAddressSchema>;
 export const CanonicalCompanyAddressPrimaryKeyNames = [
   "canonical_company_id",
-  "address_id",
+  "address_hash_id",
   "resolver_version",
 ] as const;
 export type CanonicalCompanyAddressRepositoryStorage = ITabularStorage<
@@ -101,7 +101,7 @@ export const CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN =
 /** Canonical-company ↔ phone junction. */
 export const CanonicalCompanyPhoneSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
-  international_number: Type.String({ maxLength: 32 }),
+  international_number: Type.String({ maxLength: 20 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),

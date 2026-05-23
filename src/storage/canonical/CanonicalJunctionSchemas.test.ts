@@ -18,7 +18,7 @@ describe("CanonicalPersonAddressSchema", () => {
     expect(
       Value.Check(CanonicalPersonAddressSchema, {
         canonical_person_id: "550e8400-e29b-41d4-a716-446655440000",
-        address_id: "addr-abc-123",
+        address_hash_id: "addr-abc-123",
         resolver_version: "1.0.0",
         observation_count: 3,
         first_seen_at: "2026-05-22T00:00:00.000Z",
@@ -31,7 +31,7 @@ describe("CanonicalPersonAddressSchema", () => {
     expect(
       Value.Check(CanonicalPersonAddressSchema, {
         canonical_person_id: "550e8400-e29b-41d4-a716-446655440000",
-        address_id: "addr-abc-123",
+        address_hash_id: "addr-abc-123",
         resolver_version: "1.0.0",
         observation_count: 0,
         first_seen_at: "2026-05-22T00:00:00.000Z",
@@ -61,7 +61,7 @@ describe("CanonicalCompanyAddressSchema", () => {
     expect(
       Value.Check(CanonicalCompanyAddressSchema, {
         canonical_company_id: "750e8400-e29b-41d4-a716-446655440000",
-        address_id: "addr-corp-1",
+        address_hash_id: "addr-corp-1",
         resolver_version: "1.0.0",
         observation_count: 5,
         first_seen_at: "2026-05-22T00:00:00.000Z",
