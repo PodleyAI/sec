@@ -72,7 +72,8 @@ import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { getDb } from "../util/db";
-import { bootstrapExtractorVersions } from "../storage/versioning/bootstrapExtractorVersions";
+import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
+import { SEC_DB_FOLDER } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -139,9 +140,11 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  const db = getDb();
-  for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
-    db.exec(ddl);
+  if (globalServiceRegistry.has(SEC_DB_FOLDER)) {
+    const db = getDb();
+    for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
+      db.exec(ddl);
+    }
   }
-  await bootstrapExtractorVersions();
+  await bootstrapComponentVersions();
 }
