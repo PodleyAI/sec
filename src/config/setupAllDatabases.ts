@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, Sqlite } from "workglow";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -86,6 +86,11 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEve
  * add its setupDatabase() call here or the table will not be created.
  */
 export async function setupAllDatabases(): Promise<void> {
+  // Load the SQLite native binding before any repo opens a database. Guarded
+  // because older workglow releases ship without Sqlite.init.
+  if (typeof Sqlite.init === "function") {
+    await Sqlite.init();
+  }
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
