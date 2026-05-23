@@ -24,23 +24,6 @@ import {
   ChangeLogSchema,
 } from "../storage/change-tracking/ChangeLogSchema";
 import {
-  COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  COMPANY_REPOSITORY_TOKEN,
-  CompaniesAddressJunctionSchema,
-  CompaniesEntityJunctionSchema,
-  CompanyAddressJunctionPrimaryKeyNames,
-  CompanyEntityJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionSchema,
-  CompanyPreviousNamesPrimaryKeyNames,
-  CompanyPreviousNamesSchema,
-  CompanyPrimaryKeyNames,
-  CompanySchema,
-} from "../storage/company/CompanySchema";
-import {
   CIK_NAME_REPOSITORY_TOKEN,
   CikNamePrimaryKeyNames,
   CikNameSchema,
@@ -90,23 +73,6 @@ import {
   IssuerPrimaryKeyNames,
   IssuerSchema,
 } from "../storage/investment-offering/IssuerSchema";
-import {
-  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  PERSON_REPOSITORY_TOKEN,
-  PersonAddressJunctionPrimaryKeyNames,
-  PersonEntityJunctionPrimaryKeyNames,
-  PersonPhoneJunctionPrimaryKeyNames,
-  PersonPhoneJunctionSchema,
-  PersonPreviousNamesPrimaryKeyNames,
-  PersonPreviousNamesSchema,
-  PersonPrimaryKeyNames,
-  PersonSchema,
-  PersonsAddressJunctionSchema,
-  PersonsEntityJunctionSchema,
-} from "../storage/person/PersonSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -245,76 +211,6 @@ import {
 } from "../storage/versioning/VersionEventSchema";
 
 export function resetDependencyInjectionsForTesting() {
-  // Initialize Company repositories
-  globalServiceRegistry.registerInstance(
-    COMPANY_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CompanySchema, CompanyPrimaryKeyNames, ["company_name"])
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(
-      CompaniesEntityJunctionSchema,
-      CompanyEntityJunctionPrimaryKeyNames,
-      [["relation_name"], ["cik"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(
-      CompaniesAddressJunctionSchema,
-      CompanyAddressJunctionPrimaryKeyNames,
-      [["relation_name"], ["address_hash_id"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CompanyPhoneJunctionSchema, CompanyPhoneJunctionPrimaryKeyNames, [
-      ["relation_name"],
-      ["international_number"],
-    ])
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CompanyPreviousNamesSchema, CompanyPreviousNamesPrimaryKeyNames, [
-      ["company_hash_id"],
-      ["previous_name"],
-    ])
-  );
-
-  // Initialize Person repositories
-  globalServiceRegistry.registerInstance(
-    PERSON_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonSchema, PersonPrimaryKeyNames, ["first", "last"])
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonsEntityJunctionSchema, PersonEntityJunctionPrimaryKeyNames, [
-      ["relation_name"],
-      ["cik"],
-    ])
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonsAddressJunctionSchema, PersonAddressJunctionPrimaryKeyNames, [
-      ["relation_name"],
-      ["address_hash_id"],
-    ])
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonPhoneJunctionSchema, PersonPhoneJunctionPrimaryKeyNames, [
-      ["relation_name"],
-      ["international_number"],
-    ])
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonPreviousNamesSchema, PersonPreviousNamesPrimaryKeyNames, [
-      ["person_hash_id"],
-      ["previous_name"],
-    ])
-  );
-
   // Initialize Address repositories
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,

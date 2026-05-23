@@ -26,23 +26,6 @@ import {
   ChangeLogSchema,
 } from "../storage/change-tracking/ChangeLogSchema";
 import {
-  CompaniesAddressJunctionSchema,
-  CompaniesEntityJunctionSchema,
-  COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  COMPANY_REPOSITORY_TOKEN,
-  CompanyAddressJunctionPrimaryKeyNames,
-  CompanyEntityJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionSchema,
-  CompanyPreviousNamesPrimaryKeyNames,
-  CompanyPreviousNamesSchema,
-  CompanyPrimaryKeyNames,
-  CompanySchema,
-} from "../storage/company/CompanySchema";
-import {
   CIK_NAME_REPOSITORY_TOKEN,
   CikNamePrimaryKeyNames,
   CikNameSchema,
@@ -92,24 +75,6 @@ import {
   IssuerPrimaryKeyNames,
   IssuerSchema,
 } from "../storage/investment-offering/IssuerSchema";
-import {
-  Person,
-  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  PERSON_REPOSITORY_TOKEN,
-  PersonAddressJunctionPrimaryKeyNames,
-  PersonEntityJunctionPrimaryKeyNames,
-  PersonPhoneJunctionPrimaryKeyNames,
-  PersonPhoneJunctionSchema,
-  PersonPreviousNamesPrimaryKeyNames,
-  PersonPreviousNamesSchema,
-  PersonPrimaryKeyNames,
-  PersonsAddressJunctionSchema,
-  PersonSchema,
-  PersonsEntityJunctionSchema,
-} from "../storage/person/PersonSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -278,95 +243,6 @@ export const DefaultDI = () => {
       [["cik"]]
     )
   );
-  // ------------------------------ Persons --------------------------------
-  globalServiceRegistry.registerInstance(
-    PERSON_REPOSITORY_TOKEN,
-    createStorage<typeof PersonSchema, typeof PersonPrimaryKeyNames, Person>(
-      "persons",
-      PersonSchema,
-      PersonPrimaryKeyNames,
-      [["last", "first"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_entity_junction",
-      PersonsEntityJunctionSchema,
-      PersonEntityJunctionPrimaryKeyNames,
-      [["cik"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_address_junction",
-      PersonsAddressJunctionSchema,
-      PersonAddressJunctionPrimaryKeyNames,
-      [["address_hash_id"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_phone_junction",
-      PersonPhoneJunctionSchema,
-      PersonPhoneJunctionPrimaryKeyNames,
-      [["international_number"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_previous_names",
-      PersonPreviousNamesSchema,
-      PersonPreviousNamesPrimaryKeyNames,
-      [["person_hash_id"], ["previous_name"]]
-    )
-  );
-
-  // ------------------------------ Companies --------------------------------
-  globalServiceRegistry.registerInstance(
-    COMPANY_REPOSITORY_TOKEN,
-    createStorage("companies", CompanySchema, CompanyPrimaryKeyNames, [["company_name"]])
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_entity_junction",
-      CompaniesEntityJunctionSchema,
-      CompanyEntityJunctionPrimaryKeyNames,
-      [["cik"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_address_junction",
-      CompaniesAddressJunctionSchema,
-      CompanyAddressJunctionPrimaryKeyNames,
-      [["address_hash_id"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_phone_junction",
-      CompanyPhoneJunctionSchema,
-      CompanyPhoneJunctionPrimaryKeyNames,
-      [["international_number"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_previous_names",
-      CompanyPreviousNamesSchema,
-      CompanyPreviousNamesPrimaryKeyNames,
-      [["company_hash_id"], ["previous_name"]]
-    )
-  );
-
   // ------------------------------ Phones --------------------------------
   globalServiceRegistry.registerInstance(
     PHONE_REPOSITORY_TOKEN,

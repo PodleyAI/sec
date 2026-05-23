@@ -11,13 +11,6 @@ import {
   ADDRESS_REPOSITORY_TOKEN,
 } from "../storage/address/AddressSchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
-import {
-  COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  COMPANY_REPOSITORY_TOKEN,
-} from "../storage/company/CompanySchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
 import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
@@ -28,13 +21,6 @@ import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
-import {
-  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  PERSON_REPOSITORY_TOKEN,
-} from "../storage/person/PersonSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -94,16 +80,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(INVESTMENT_OFFERING_REPOSITORY_TOKEN).setupDatabase();

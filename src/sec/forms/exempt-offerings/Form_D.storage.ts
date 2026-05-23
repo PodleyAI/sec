@@ -6,15 +6,10 @@
 
 import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
-import {
-  generateCompanyHash,
-  hasCompanyEnding,
-  normalizeCompanyName,
-} from "../../../storage/company/CompanyNormalization";
+import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { INDEFINITE } from "./Form_D.schema";
@@ -206,7 +201,6 @@ async function processIssuer(
   ctx: FormDStorageContext,
   index: number
 ): Promise<void> {
-  const companyRepo = new CompanyRepo();
   const addressRepo = new AddressRepo();
   const phoneRepo = new PhoneRepo();
   const issuerRepo = new IssuerRepo();
@@ -262,20 +256,6 @@ async function processIssuer(
     }),
   });
 
-  const normalizedName = normalizeCompanyName(companyName);
-  const companyHashId = normalizedName ? generateCompanyHash(normalizedName) : generateCompanyHash(companyName);
-
-  if (issuer.issuerPreviousNameList && "previousName" in issuer.issuerPreviousNameList) {
-    for (const prevName of issuer.issuerPreviousNameList.previousName || []) {
-      await companyRepo.savePreviousName(companyHashId, prevName, "issuer", "Form D");
-    }
-  }
-
-  if (issuer.edgarPreviousNameList && "previousName" in issuer.edgarPreviousNameList) {
-    for (const prevName of issuer.edgarPreviousNameList.previousName || []) {
-      await companyRepo.savePreviousName(companyHashId, prevName, "edgar", "Form D");
-    }
-  }
 }
 
 function isCompanyInPersonField(person: RelatedPerson): boolean {

@@ -1,13 +1,11 @@
 import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
-import { COMPANY_REPOSITORY_TOKEN } from "../../storage/company/CompanySchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
-import { PERSON_REPOSITORY_TOKEN } from "../../storage/person/PersonSchema";
 import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
@@ -76,10 +74,8 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },
   { table: "investment_offering", token: INVESTMENT_OFFERING_REPOSITORY_TOKEN as any },
   { table: "crowdfunding", token: CROWDFUNDING_REPOSITORY_TOKEN as any },
-  { table: "person", token: PERSON_REPOSITORY_TOKEN as any },
   { table: "address", token: ADDRESS_REPOSITORY_TOKEN as any },
   { table: "phone", token: PHONE_REPOSITORY_TOKEN as any },
-  { table: "company", token: COMPANY_REPOSITORY_TOKEN as any },
   { table: "portal", token: PORTAL_REPOSITORY_TOKEN as any },
   { table: "extractor_runs", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
 ];

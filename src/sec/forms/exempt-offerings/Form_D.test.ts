@@ -13,7 +13,6 @@ import { processFormD } from "./Form_D.storage";
 // Import all repository schemas and types
 
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
@@ -23,7 +22,6 @@ import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_D comprehensive storage test", () => {
-  let companyRepo: CompanyRepo;
   let addressRepo: AddressRepo;
   let phoneRepo: PhoneRepo;
   let investmentOfferingRepo: InvestmentOfferingRepo;
@@ -34,7 +32,6 @@ describe("Form_D comprehensive storage test", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
-    companyRepo = new CompanyRepo();
     addressRepo = new AddressRepo();
     phoneRepo = new PhoneRepo();
     investmentOfferingRepo = new InvestmentOfferingRepo();
@@ -114,8 +111,6 @@ describe("Form_D comprehensive storage test", () => {
       const allOfferingHistories =
         (await investmentOfferingRepo.investmentOfferingHistoryRepository.getAll())?.length || 0;
       const allIssuers = (await issuerRepo.issuerRepository.getAll())?.length || 0;
-      const allCompanyPreviousNames =
-        (await companyRepo.companyPreviousNamesRepository.getAll())?.length || 0;
 
       // Verify we have data in each repository. The fixture set grows over
       // time as we pull more real filings from EDGAR, so assert relative
@@ -128,7 +123,6 @@ describe("Form_D comprehensive storage test", () => {
       expect(allAddresses).toBeGreaterThan(0);
       expect(allPhones).toBeGreaterThan(0);
       expect(allIssuers).toBeGreaterThanOrEqual(0); // some filings have no related issuers
-      expect(allCompanyPreviousNames).toBeGreaterThanOrEqual(0);
     });
 
     it("should handle company entities in person fields correctly", async () => {
@@ -263,45 +257,6 @@ describe("Form_D comprehensive storage test", () => {
         }
       });
       expect(robertAnderson).toBeDefined();
-    });
-
-    it("should store previous names correctly", async () => {
-      // Test a file that has previous names
-      const xmlContent = readFileSync(
-        join(__dirname, "mock_data", "form-d", "000175724718000001-primary_doc.xml"),
-        "utf-8"
-      );
-
-      const formD = await Form_D.parse("D", xmlContent);
-      const accessionNumber = "000175724718000001";
-      const cik = parseInt(formD.primaryIssuer.cik);
-
-      await processFormD({
-        cik,
-        file_number: `file-${accessionNumber}`,
-        accession_number: accessionNumber,
-        primary_doc: "000175724718000001-primary_doc.xml",
-        formD,
-      });
-
-      // Check if previous names were stored for companies
-      const allCompanyPreviousNames = await companyRepo.companyPreviousNamesRepository.getAll();
-      expect(allCompanyPreviousNames?.length || 0).toBeGreaterThan(0);
-
-      // Find a specific previous name
-      const jordanParkPrevName = allCompanyPreviousNames?.find((prev) =>
-        prev.previous_name.includes("Jordan Park Private Capital I L.P.")
-      );
-      expect(jordanParkPrevName).toBeDefined();
-      expect(jordanParkPrevName?.name_type).toBe("issuer");
-      expect(jordanParkPrevName?.source).toBe("Form D");
-
-      // Check for additional issuer previous names
-      const additionalIssuerPrevName = allCompanyPreviousNames?.find((prev) =>
-        prev.previous_name.includes("Jordan Park Private Capital 1-A L.P.")
-      );
-      expect(additionalIssuerPrevName).toBeDefined();
-      expect(additionalIssuerPrevName?.name_type).toBe("issuer");
     });
 
     it("should store related persons and their relationships correctly", async () => {

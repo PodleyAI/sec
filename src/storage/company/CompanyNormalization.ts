@@ -4,11 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Company } from "./CompanySchema";
-
 export type CompanyImport = {
   company_name: string;
   country_code?: string;
+  cik?: number | null;
+  crd?: string | null;
+};
+
+export type Company = {
+  company_hash_id: string;
+  company_name: string;
+  country_code?: string | null;
+  suffix?: string | null;
   cik?: number | null;
   crd?: string | null;
 };

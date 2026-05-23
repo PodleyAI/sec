@@ -5,10 +5,23 @@
  */
 
 import { parseFullName } from "@sroussey/parse-full-name";
-import { Person } from "./PersonSchema";
 
 export type PersonImport = {
   name: string;
+  cik?: number | null;
+  crd?: string | null;
+};
+
+export type Person = {
+  person_hash_id: string;
+  first: string;
+  middle: string | null;
+  last: string;
+  suffix: string | null;
+  title: string | null;
+  nick: string | null;
+  dob?: string | null;
+  notes?: string | null;
   cik?: number | null;
   crd?: string | null;
 };
