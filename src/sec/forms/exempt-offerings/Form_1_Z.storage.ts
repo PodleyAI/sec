@@ -221,6 +221,8 @@ async function processSignatures(
         observation_index: startIndex + idx,
         cik: null,
         name: signerName,
+        address_id: null,
+        international_number: null,
         source_context: JSON.stringify({ relation: "form-1z:signature", titles }),
       });
     } else {
