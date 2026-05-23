@@ -13,3 +13,6 @@ packages/ngraph/
 .env.local
 sec-data/
 sec-db/
+
+# Local worktrees for subagent-driven development
+.worktrees/
