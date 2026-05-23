@@ -105,6 +105,22 @@ export class ExtractorRunRepo {
    * `form`. The no-form path is retained for PR3's coverage queries which
    * may need to count across an extractor's variants.
    */
+  async deleteForExtractorVersion(
+    extractor_id: string,
+    extractor_version: string
+  ): Promise<number> {
+    const rows = (await this.storage.query({ extractor_id, extractor_version })) ?? [];
+    for (const r of rows) {
+      await this.storage.delete({
+        cik: r.cik,
+        accession_number: r.accession_number,
+        extractor_id: r.extractor_id,
+        extractor_version: r.extractor_version,
+      });
+    }
+    return rows.length;
+  }
+
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,
     extractor_id: string,

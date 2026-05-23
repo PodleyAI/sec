@@ -13,6 +13,7 @@ export const VERSION_EVENT_TYPES = [
   "promote",
   "rollback",
   "drop-next",
+  "drop-previous",
 ] as const;
 export type VersionEventType = (typeof VERSION_EVENT_TYPES)[number];
 
@@ -35,6 +36,7 @@ export const VersionEventSchema = Type.Object({
       Type.Literal("promote"),
       Type.Literal("rollback"),
       Type.Literal("drop-next"),
+      Type.Literal("drop-previous"),
     ],
     { description: "Ceremony that produced this event" }
   ),
