@@ -26,9 +26,12 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/Version
 import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { renderTable } from "../output/TableRenderer";
+import { computeResolverCoverage } from "../queries/ResolverCoverage";
 import { getVersionCoverage } from "../queries/VersionCoverage";
 import { getVersionHistory } from "../queries/VersionHistory";
 import { getVersionStatus } from "../queries/VersionStatus";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import type { ResolverId } from "../../resolver/resolverIds";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 
@@ -192,6 +195,21 @@ export function addVersionCommands(program: Command): void {
       await runCommand(async () => {
         assertComponentKind(kind);
         assertFormat(options.format);
+        if (kind === "resolver") {
+          const versionRegistry = new VersionRegistry(
+            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+          );
+          const slot = await getActiveSlot(versionRegistry, "resolver", id);
+          if (!slot) {
+            console.error(`No active slot for resolver:${id}`);
+            process.exit(1);
+          }
+          const result = await computeResolverCoverage(id as ResolverId, slot.semver);
+          console.log(
+            `resolver:${result.kind}@${result.resolver_version}: ${result.numerator}/${result.denominator} (${(result.fraction * 100).toFixed(1)}%)`
+          );
+          return;
+        }
         const result = await getVersionCoverage(kind, id);
         if (options.format === "json") {
           console.log(JSON.stringify(result, null, 2));

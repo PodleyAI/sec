@@ -299,6 +299,22 @@ describe("sec version CLI", () => {
     }
   });
 
+  it("coverage resolver person shows coverage fraction", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(["version", "coverage", "resolver", "person"], dir);
+      expect(result.exitCode).toBe(0);
+      // Output: "resolver:person@1.0.0: 0/0 (0.0%)" — no observations seeded
+      expect(result.stdout).toContain("resolver:person@");
+      expect(result.stdout).toContain("0/0");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects start-dev for an unknown extractor id", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
