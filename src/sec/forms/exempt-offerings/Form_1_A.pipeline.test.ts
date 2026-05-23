@@ -11,7 +11,8 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { Form_1_A } from "./Form_1_A";
 import { processForm1A } from "./Form_1_A.storage";
@@ -38,12 +39,11 @@ interface IngestedFixture {
 const FIXTURE_SLUG = "form-1-a";
 
 describe("Form_1_A pipeline", () => {
-  let companyRepo: CompanyRepo;
   let regARepo: RegAOfferingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
+    await setupAllDatabases();
     regARepo = new RegAOfferingRepo();
   });
 
@@ -124,8 +124,9 @@ describe("Form_1_A pipeline", () => {
     expect(matched).toBeGreaterThanOrEqual(Math.floor(checked * 0.8));
   });
 
-  it("links the issuer company back to its CIK via the entity junction", async () => {
+  it("links the issuer company back to its CIK via the observation tier", async () => {
     const ingested = await ingestAll();
+    const allCompanyObs = await new CompanyObservationRepo().listAll();
     const step = Math.max(1, Math.floor(ingested.length / 5));
     let checked = 0;
     let found = 0;
@@ -133,11 +134,10 @@ describe("Form_1_A pipeline", () => {
       const f = ingested[i];
       if (!f.issuerName) continue;
       checked++;
-      const expected = companyRepo.normalizeCompanyName(f.issuerName);
-      const companies = await companyRepo.getCompaniesByEntity(f.cik);
-      if (
-        companies.some((c) => c.company_name === expected || c.company_name === f.issuerName)
-      ) {
+      const issuerObs = allCompanyObs.filter(
+        (o) => o.accession_number === f.accession && o.observation_index === 0
+      );
+      if (issuerObs.some((o) => o.cik !== null && Number(o.cik) === f.cik)) {
         found++;
       }
     }

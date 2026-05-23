@@ -10,20 +10,20 @@ import { join } from "path";
 import { Form_1_A } from "./Form_1_A";
 import { processForm1A } from "./Form_1_A.storage";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_1_A storage test", () => {
-  let companyRepo: CompanyRepo;
   let addressRepo: AddressRepo;
   let phoneRepo: PhoneRepo;
   let regARepo: RegAOfferingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
+    await setupAllDatabases();
     addressRepo = new AddressRepo();
     phoneRepo = new PhoneRepo();
     regARepo = new RegAOfferingRepo();
@@ -86,8 +86,8 @@ describe("Form_1_A storage test", () => {
       const allHistories = (await regARepo.offeringHistoryRepository.getAll()) || [];
       expect(allHistories.length).toBeGreaterThan(0);
 
-      // Verify companies were created
-      const allCompanies = (await companyRepo.companyRepository.getAll()) || [];
+      // Verify companies were stored via observation tier
+      const allCompanies = await new CompanyObservationRepo().listAll();
       expect(allCompanies.length).toBeGreaterThan(0);
     });
 
