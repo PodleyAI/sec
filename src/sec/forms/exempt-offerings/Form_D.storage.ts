@@ -17,17 +17,17 @@ import {
 } from "../../../storage/company/CompanyNormalization";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
-import {
+import { INDEFINITE } from "./Form_D.schema";
+import type {
   FormD,
-  INDEFINITE,
   Issuer,
   OfferingData,
   RelatedPerson,
   Signature,
   SignatureBlock,
 } from "./Form_D.schema";
-import { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
-import { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
+import type { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
+import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { parseCikSafely } from "../../../util/parseCik";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
@@ -69,10 +69,11 @@ function parseIntegerOrNull(raw: string | number | undefined | null): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function safeCall<T>(fn: () => Promise<T>): Promise<T | null> {
+async function safeCall<T>(fn: () => Promise<T>, context: string): Promise<T | null> {
   try {
     return await fn();
-  } catch {
+  } catch (error) {
+    console.warn(context, error);
     return null;
   }
 }
@@ -164,7 +165,10 @@ async function processSalesCompensationRecipient(
   const cleanCRD = recipientCRD && recipientCRD.toLowerCase() !== "none" ? recipientCRD : null;
 
   const addr = recipient.recipientAddress
-    ? await safeCall(() => addressRepo.saveAddress(recipient.recipientAddress))
+    ? await safeCall(
+        () => addressRepo.saveAddress(recipient.recipientAddress),
+        `Failed to save address for sales compensation recipient ${recipient.recipientName}:`
+      )
     : null;
 
   if (hasCompanyEnding(recipientName)) {
