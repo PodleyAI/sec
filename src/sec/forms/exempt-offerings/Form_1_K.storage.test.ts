@@ -9,23 +9,20 @@ import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { Form_1_K } from "./Form_1_K";
 import { processForm1K } from "./Form_1_K.storage";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_1_K storage test", () => {
-  let companyRepo: CompanyRepo;
   let addressRepo: AddressRepo;
-  let phoneRepo: PhoneRepo;
   let regARepo: RegAOfferingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
+    await setupAllDatabases();
     addressRepo = new AddressRepo();
-    phoneRepo = new PhoneRepo();
     regARepo = new RegAOfferingRepo();
   });
 
@@ -87,6 +84,10 @@ describe("Form_1_K storage test", () => {
       for (const offering of allOfferings) {
         expect(offering.status).toBe("reporting");
       }
+
+      // Verify companies were stored via observation tier
+      const allCompanies = await new CompanyObservationRepo().listAll();
+      expect(allCompanies.length).toBeGreaterThan(0);
     });
 
     it("should store offering history with correct data", async () => {
@@ -153,7 +154,7 @@ describe("Form_1_K storage test", () => {
       }
     });
 
-    it("should store issuer address and phone from item1", async () => {
+    it("should store issuer address from item1", async () => {
       const mockDataDir = join(__dirname, "mock_data", "form-1-k");
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
@@ -173,9 +174,6 @@ describe("Form_1_K storage test", () => {
 
       const allAddresses = (await addressRepo.addressRepository.getAll()) || [];
       expect(allAddresses.length).toBeGreaterThan(0);
-
-      const allPhones = (await phoneRepo.phoneRepository.getAll()) || [];
-      expect(allPhones.length).toBeGreaterThan(0);
     });
   });
 });

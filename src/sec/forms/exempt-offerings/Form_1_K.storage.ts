@@ -4,59 +4,111 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import {
+  COUNTRY_STATE_CODE_ARRAY,
+  US_STATE_CODE_ARRAY,
+} from "../../../storage/address/AddressSchemaCodes";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
-import {
-  extractServiceProviders,
-  RELATION_TYPE_REGA_ISSUER,
-  RELATION_TYPE_REGA_SERVICE_PROVIDER,
-} from "./RegA_shared";
+import { extractServiceProviders } from "./RegA_shared";
 import type { Form1K } from "./Form_1_K.schema";
+import { EntityObserver } from "../../../resolver/EntityObserver";
+import { PersonResolver } from "../../../resolver/PersonResolver";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 
-async function processIssuer(cik: number, form1K: Form1K): Promise<void> {
-  const companyRepo = new CompanyRepo();
+const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
+
+const SEC_CODE_TO_ISO = new Map<string, string>(
+  COUNTRY_STATE_CODE_ARRAY.map(([iso, secCode]) => [secCode as string, iso as string])
+);
+const ISO_CODE_SET = new Set<string>(COUNTRY_STATE_CODE_ARRAY.map(([iso]) => iso as string));
+
+/**
+ * Resolve EDGAR's `stateOrCountry` field to an ISO 3166-1 alpha-2 country
+ * code. US state codes resolve to "US"; SEC country codes are mapped to ISO;
+ * inputs that are already ISO pass through. Returns undefined when nothing
+ * matches so PhoneRepo can fall back to its own defaults rather than
+ * receiving a bogus regionCode.
+ */
+function resolveCountryCode(stateOrCountry: string | undefined | null): string | undefined {
+  if (!stateOrCountry) return undefined;
+  const code = stateOrCountry.trim().toUpperCase();
+  if (!code) return undefined;
+  if (US_STATE_CODE_SET.has(code)) return "US";
+  const iso = SEC_CODE_TO_ISO.get(code);
+  if (iso) return iso;
+  if (ISO_CODE_SET.has(code)) return code;
+  return undefined;
+}
+
+interface Form1KStorageContext {
+  readonly accession_number: string;
+  readonly extractor_id: "1-K";
+  readonly extractor_version: string;
+  readonly observer: EntityObserver;
+}
+
+async function processIssuer(
+  cik: number,
+  form1K: Form1K,
+  ctx: Form1KStorageContext,
+  startIndex: number
+): Promise<void> {
   const addressRepo = new AddressRepo();
-  const phoneRepo = new PhoneRepo();
 
   const item1Info = form1K.formData.item1Info;
   const item1 = form1K.formData.item1;
 
-  // Process each issuer in item1Info
-  for (const issuer of item1Info) {
-    if (!issuer.issuerName) continue;
-
-    const company = await companyRepo.saveCompany(issuer.issuerName);
-    await companyRepo.saveRelatedEntity(
-      company.company_hash_id,
-      RELATION_TYPE_REGA_ISSUER,
-      cik,
-      ["Issuer"]
-    );
-  }
-
-  // Use item1 for address and phone (shared across all issuers)
+  // Save the shared address from item1 once
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
   try {
-    const address = await addressRepo.saveAddress({
+    addr = await addressRepo.saveAddress({
       street1: item1.street1,
       street2: item1.street2,
       city: item1.city,
       stateOrCountry: item1.stateOrCountry,
       zipCode: item1.zipCode,
     });
-    await addressRepo.saveRelatedEntity(address.address_hash_id, RELATION_TYPE_REGA_ISSUER, cik);
   } catch (error) {
     console.warn(`Failed to save address for Form 1-K issuer:`, error);
   }
 
-  const phone = await phoneRepo.savePhone({
-    phone_raw: item1.phoneNumber,
-    country_code: item1.stateOrCountry?.length === 2 ? "US" : item1.stateOrCountry,
-  });
-  await phoneRepo.saveRelatedEntity(phone.international_number, RELATION_TYPE_REGA_ISSUER, cik);
+  // Process each issuer in item1Info
+  let index = startIndex;
+  for (const issuer of item1Info) {
+    if (!issuer.issuerName) continue;
+
+    await ctx.observer.observeCompany({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: index,
+      cik,
+      name: issuer.issuerName,
+      address_id: addr?.address_hash_id ?? null,
+      international_number: null,
+      source_context: JSON.stringify({ relation: "form-1k:issuer" }),
+    });
+    index++;
+  }
 }
 
 async function processOfferingHistory(
@@ -64,13 +116,15 @@ async function processOfferingHistory(
   file_number: string,
   accession_number: string,
   filing_date: string,
-  form1K: Form1K
+  form1K: Form1K,
+  ctx: Form1KStorageContext,
+  startIndex: number
 ): Promise<void> {
   const regARepo = new RegAOfferingRepo();
-  const companyRepo = new CompanyRepo();
   const summaryInfoArr = form1K.formData.summaryInfo;
   if (!summaryInfoArr) return;
 
+  let providerIdx = 0;
   for (const summaryInfo of summaryInfoArr) {
     // Use the commission file number from summary if available, otherwise fall back
     const offeringFileNumber = summaryInfo.commissionFileNumber ?? file_number;
@@ -112,13 +166,21 @@ async function processOfferingHistory(
       });
 
       if (provider.name) {
-        const company = await companyRepo.saveCompany(provider.name);
-        await companyRepo.saveRelatedEntity(
-          company.company_hash_id,
-          RELATION_TYPE_REGA_SERVICE_PROVIDER,
-          cik,
-          [provider.type]
-        );
+        await ctx.observer.observeCompany({
+          accession_number: ctx.accession_number,
+          extractor_id: ctx.extractor_id,
+          extractor_version: ctx.extractor_version,
+          observation_index: startIndex + providerIdx,
+          cik: null,
+          name: provider.name,
+          address_id: null,
+          international_number: null,
+          source_context: JSON.stringify({
+            relation: "form-1k:service-provider",
+            providerType: provider.type,
+          }),
+        });
+        providerIdx++;
       }
     }
   }
@@ -139,8 +201,68 @@ export async function processForm1K({
   primary_doc: string;
   form1K: Form1K;
 }): Promise<void> {
-  const regARepo = new RegAOfferingRepo();
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
 
+  const [personSlot, companySlot] = await Promise.all([
+    getActiveSlot(versionRegistry, "resolver", "person"),
+    getActiveSlot(versionRegistry, "resolver", "company"),
+  ]);
+
+  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
+  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+
+  const extractor_version = "1.0.0";
+
+  const personObservationRepo = new PersonObservationRepo();
+  const companyObservationRepo = new CompanyObservationRepo();
+  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
+  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
+  const canonicalPersonRepo = new CanonicalPersonRepo();
+  const canonicalCompanyRepo = new CanonicalCompanyRepo();
+  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
+  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
+  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
+  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
+  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
+  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+
+  const personResolver = new PersonResolver({
+    canonicalPersonRepo,
+    canonicalPersonAliasRepo,
+    activeResolverVersion: activeResolverPersonVersion,
+  });
+
+  const companyResolver = new CompanyResolver({
+    canonicalCompanyRepo,
+    canonicalCompanyAliasRepo,
+    activeResolverVersion: activeResolverCompanyVersion,
+  });
+
+  const observer = new EntityObserver({
+    personObservationRepo,
+    companyObservationRepo,
+    personIdentityLinkRepo,
+    companyIdentityLinkRepo,
+    personResolver,
+    companyResolver,
+    canonicalPersonAddressRepo,
+    canonicalPersonPhoneRepo,
+    canonicalCompanyAddressRepo,
+    canonicalCompanyPhoneRepo,
+    activeResolverPersonVersion,
+    activeResolverCompanyVersion,
+  });
+
+  const ctx: Form1KStorageContext = {
+    accession_number,
+    extractor_id: "1-K",
+    extractor_version,
+    observer,
+  };
+
+  const regARepo = new RegAOfferingRepo();
   const item1Info = form1K.formData.item1Info;
   const primaryIssuer = item1Info[0];
 
@@ -160,6 +282,6 @@ export async function processForm1K({
 
   await regARepo.saveOffering(offering);
 
-  await processIssuer(cik, form1K);
-  await processOfferingHistory(cik, file_number, accession_number, filing_date, form1K);
+  await processIssuer(cik, form1K, ctx, 0);
+  await processOfferingHistory(cik, file_number, accession_number, filing_date, form1K, ctx, 100);
 }
