@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import {
   COUNTRY_STATE_CODE_ARRAY,
   US_STATE_CODE_ARRAY,
 } from "../../../storage/address/AddressSchemaCodes";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
 const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
@@ -42,6 +41,7 @@ function resolveCountryCode(stateOrCountry: string | undefined | null): string |
   if (ISO_CODE_SET.has(code)) return code;
   return undefined;
 }
+
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
@@ -49,43 +49,51 @@ import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialData
 import type { RegAEquityClass } from "../../../storage/reg-a/RegAEquityClassSchema";
 import {
   extractServiceProviders,
-  RELATION_TYPE_REGA_ISSUER,
   RELATION_TYPE_REGA_SERVICE_PROVIDER,
-  RELATION_TYPE_REGA_CONNECTION,
 } from "./RegA_shared";
 import type { Form1A } from "./Form_1_A.schema";
+import { EntityObserver } from "../../../resolver/EntityObserver";
+import { PersonResolver } from "../../../resolver/PersonResolver";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 
-async function processIssuer(cik: number, form1A: Form1A): Promise<void> {
-  const companyRepo = new CompanyRepo();
+interface Form1AStorageContext {
+  readonly accession_number: string;
+  readonly extractor_id: "1-A";
+  readonly extractor_version: string;
+  readonly observer: EntityObserver;
+}
+
+async function processIssuer(cik: number, form1A: Form1A, ctx: Form1AStorageContext): Promise<void> {
   const addressRepo = new AddressRepo();
   const phoneRepo = new PhoneRepo();
 
   const employeesInfo = form1A.formData.employeesInfo[0];
   const issuerInfo = form1A.formData.issuerInfo;
 
-  const company = await companyRepo.saveCompany(employeesInfo.issuerName);
-  await companyRepo.saveRelatedEntity(
-    company.company_hash_id,
-    RELATION_TYPE_REGA_ISSUER,
-    cik,
-    ["Issuer"]
-  );
-
-  // Issuer address
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
   try {
-    const address = await addressRepo.saveAddress({
+    addr = await addressRepo.saveAddress({
       street1: issuerInfo.street1,
       street2: issuerInfo.street2,
       city: issuerInfo.city,
       stateOrCountry: issuerInfo.stateOrCountry,
       zipCode: issuerInfo.zipCode,
     });
-    await addressRepo.saveRelatedEntity(address.address_hash_id, RELATION_TYPE_REGA_ISSUER, cik);
-    await companyRepo.saveRelatedAddress(
-      company.company_hash_id,
-      RELATION_TYPE_REGA_ISSUER,
-      address.address_hash_id
-    );
   } catch (error) {
     console.warn(
       `Failed to save address for Form 1-A issuer ${employeesInfo.issuerName}:`,
@@ -93,128 +101,96 @@ async function processIssuer(cik: number, form1A: Form1A): Promise<void> {
     );
   }
 
-  // Issuer phone
-  const phone = await phoneRepo.savePhone({
-    phone_raw: issuerInfo.phoneNumber,
-    country_code: resolveCountryCode(issuerInfo.stateOrCountry),
+  let phone: Awaited<ReturnType<typeof phoneRepo.savePhone>> | null = null;
+  try {
+    phone = await phoneRepo.savePhone({
+      phone_raw: issuerInfo.phoneNumber,
+      country_code: resolveCountryCode(issuerInfo.stateOrCountry),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `Failed to save phone "${issuerInfo.phoneNumber}" for issuer ${employeesInfo.issuerName}: ${message}`
+    );
+  }
+
+  await ctx.observer.observeCompany({
+    accession_number: ctx.accession_number,
+    extractor_id: ctx.extractor_id,
+    extractor_version: ctx.extractor_version,
+    observation_index: 0,
+    cik,
+    name: employeesInfo.issuerName,
+    address_id: addr?.address_hash_id ?? null,
+    international_number: phone?.international_number ?? null,
+    source_context: JSON.stringify({ relation: "form-1-a:issuer" }),
   });
-  await phoneRepo.saveRelatedEntity(phone.international_number, RELATION_TYPE_REGA_ISSUER, cik);
-  await companyRepo.saveRelatedPhone(
-    phone.international_number,
-    RELATION_TYPE_REGA_ISSUER,
-    company.company_hash_id
-  );
 }
 
-async function processConnection(cik: number, form1A: Form1A): Promise<void> {
+async function processConnection(cik: number, form1A: Form1A, ctx: Form1AStorageContext): Promise<void> {
   const issuerInfo = form1A.formData.issuerInfo;
   if (!issuerInfo.connectionName) return;
 
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
   const addressRepo = new AddressRepo();
   const phoneRepo = new PhoneRepo();
 
   const connectionName = issuerInfo.connectionName;
 
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
+  if (issuerInfo.connectionStreet1) {
+    try {
+      addr = await addressRepo.saveAddress({
+        street1: issuerInfo.connectionStreet1,
+        street2: issuerInfo.connectionStreet2,
+        city: issuerInfo.connectionCity,
+        stateOrCountry: issuerInfo.connectionStateOrCountry,
+        zipCode: issuerInfo.connectionZipCode,
+      });
+    } catch (error) {
+      console.warn(`Failed to save connection address for ${connectionName}:`, error);
+    }
+  }
+
+  let phone: Awaited<ReturnType<typeof phoneRepo.savePhone>> | null = null;
+  if (issuerInfo.connectionPhoneNumber) {
+    try {
+      phone = await phoneRepo.savePhone({
+        phone_raw: issuerInfo.connectionPhoneNumber,
+        country_code: "US",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `Failed to save phone "${issuerInfo.connectionPhoneNumber}" for connection ${connectionName}: ${message}`
+      );
+    }
+  }
+
   if (hasCompanyEnding(connectionName)) {
-    const company = await companyRepo.saveCompany(connectionName);
-    await companyRepo.saveRelatedEntity(
-      company.company_hash_id,
-      RELATION_TYPE_REGA_CONNECTION,
-      cik,
-      ["Connection"]
-    );
-
-    if (issuerInfo.connectionStreet1) {
-      try {
-        const address = await addressRepo.saveAddress({
-          street1: issuerInfo.connectionStreet1,
-          street2: issuerInfo.connectionStreet2,
-          city: issuerInfo.connectionCity,
-          stateOrCountry: issuerInfo.connectionStateOrCountry,
-          zipCode: issuerInfo.connectionZipCode,
-        });
-        await addressRepo.saveRelatedEntity(
-          address.address_hash_id,
-          RELATION_TYPE_REGA_CONNECTION,
-          cik
-        );
-        await companyRepo.saveRelatedAddress(
-          company.company_hash_id,
-          RELATION_TYPE_REGA_CONNECTION,
-          address.address_hash_id
-        );
-      } catch (error) {
-        console.warn(`Failed to save connection address for ${connectionName}:`, error);
-      }
-    }
-
-    if (issuerInfo.connectionPhoneNumber) {
-      const phone = await phoneRepo.savePhone({
-        phone_raw: issuerInfo.connectionPhoneNumber,
-        country_code: "US",
-      });
-      await phoneRepo.saveRelatedEntity(
-        phone.international_number,
-        RELATION_TYPE_REGA_CONNECTION,
-        cik
-      );
-      await companyRepo.saveRelatedPhone(
-        phone.international_number,
-        RELATION_TYPE_REGA_CONNECTION,
-        company.company_hash_id
-      );
-    }
+    await ctx.observer.observeCompany({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: 100,
+      cik: null,
+      name: connectionName,
+      address_id: addr?.address_hash_id ?? null,
+      international_number: phone?.international_number ?? null,
+      source_context: JSON.stringify({ relation: "form-1-a:connection" }),
+    });
   } else {
-    const person = await personRepo.savePerson({ name: connectionName });
-    await personRepo.saveRelatedEntity(
-      person.person_hash_id,
-      RELATION_TYPE_REGA_CONNECTION,
-      cik,
-      ["Connection"]
-    );
-
-    if (issuerInfo.connectionStreet1) {
-      try {
-        const address = await addressRepo.saveAddress({
-          street1: issuerInfo.connectionStreet1,
-          street2: issuerInfo.connectionStreet2,
-          city: issuerInfo.connectionCity,
-          stateOrCountry: issuerInfo.connectionStateOrCountry,
-          zipCode: issuerInfo.connectionZipCode,
-        });
-        await addressRepo.saveRelatedEntity(
-          address.address_hash_id,
-          RELATION_TYPE_REGA_CONNECTION,
-          cik
-        );
-        await personRepo.saveRelatedAddress(
-          person.person_hash_id,
-          RELATION_TYPE_REGA_CONNECTION,
-          address.address_hash_id
-        );
-      } catch (error) {
-        console.warn(`Failed to save connection address for ${connectionName}:`, error);
-      }
-    }
-
-    if (issuerInfo.connectionPhoneNumber) {
-      const phone = await phoneRepo.savePhone({
-        phone_raw: issuerInfo.connectionPhoneNumber,
-        country_code: "US",
-      });
-      await phoneRepo.saveRelatedEntity(
-        phone.international_number,
-        RELATION_TYPE_REGA_CONNECTION,
-        cik
-      );
-      await personRepo.saveRelatedPhone(
-        phone.international_number,
-        RELATION_TYPE_REGA_CONNECTION,
-        person.person_hash_id
-      );
-    }
+    await ctx.observer.observePerson({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: 100,
+      source_filing_issuer_cik: cik,
+      last_name: connectionName,
+      title: "Connection",
+      relationship: "form-1-a:connection",
+      address_id: addr?.address_hash_id ?? null,
+      source_context: JSON.stringify({ relation: "form-1-a:connection" }),
+    });
   }
 }
 
@@ -222,14 +198,15 @@ async function processServiceProviders(
   cik: number,
   file_number: string,
   accession_number: string,
-  form1A: Form1A
+  form1A: Form1A,
+  ctx: Form1AStorageContext
 ): Promise<void> {
   const regARepo = new RegAOfferingRepo();
-  const companyRepo = new CompanyRepo();
 
   const summaryInfo = form1A.formData.summaryInfo;
   const providers = extractServiceProviders(summaryInfo as Record<string, unknown>, "1-A");
 
+  let providerIndex = 200;
   for (const provider of providers) {
     await regARepo.saveServiceProvider({
       cik,
@@ -242,13 +219,20 @@ async function processServiceProviders(
     });
 
     if (provider.name) {
-      const company = await companyRepo.saveCompany(provider.name);
-      await companyRepo.saveRelatedEntity(
-        company.company_hash_id,
-        RELATION_TYPE_REGA_SERVICE_PROVIDER,
-        cik,
-        [provider.type]
-      );
+      await ctx.observer.observeCompany({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: providerIndex,
+        cik: null,
+        name: provider.name,
+        address_id: null,
+        source_context: JSON.stringify({
+          relation: RELATION_TYPE_REGA_SERVICE_PROVIDER,
+          provider_type: provider.type,
+        }),
+      });
+      providerIndex++;
     }
   }
 }
@@ -367,6 +351,67 @@ export async function processForm1A({
   primary_doc: string;
   form1A: Form1A;
 }): Promise<void> {
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+
+  const [personSlot, companySlot] = await Promise.all([
+    getActiveSlot(versionRegistry, "resolver", "person"),
+    getActiveSlot(versionRegistry, "resolver", "company"),
+  ]);
+
+  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
+  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+
+  const extractor_version = "1.0.0";
+
+  const personObservationRepo = new PersonObservationRepo();
+  const companyObservationRepo = new CompanyObservationRepo();
+  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
+  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
+  const canonicalPersonRepo = new CanonicalPersonRepo();
+  const canonicalCompanyRepo = new CanonicalCompanyRepo();
+  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
+  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
+  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
+  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
+  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
+  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+
+  const personResolver = new PersonResolver({
+    canonicalPersonRepo,
+    canonicalPersonAliasRepo,
+    activeResolverVersion: activeResolverPersonVersion,
+  });
+
+  const companyResolver = new CompanyResolver({
+    canonicalCompanyRepo,
+    canonicalCompanyAliasRepo,
+    activeResolverVersion: activeResolverCompanyVersion,
+  });
+
+  const observer = new EntityObserver({
+    personObservationRepo,
+    companyObservationRepo,
+    personIdentityLinkRepo,
+    companyIdentityLinkRepo,
+    personResolver,
+    companyResolver,
+    canonicalPersonAddressRepo,
+    canonicalPersonPhoneRepo,
+    canonicalCompanyAddressRepo,
+    canonicalCompanyPhoneRepo,
+    activeResolverPersonVersion,
+    activeResolverCompanyVersion,
+  });
+
+  const ctx: Form1AStorageContext = {
+    accession_number,
+    extractor_id: "1-A",
+    extractor_version,
+    observer,
+  };
+
   const regARepo = new RegAOfferingRepo();
   const summaryInfo = form1A.formData.summaryInfo;
   const employeesInfo = form1A.formData.employeesInfo[0];
@@ -409,9 +454,9 @@ export async function processForm1A({
 
   await regARepo.saveOfferingHistory(history);
 
-  await processIssuer(cik, form1A);
-  await processConnection(cik, form1A);
-  await processServiceProviders(cik, file_number, accession_number, form1A);
+  await processIssuer(cik, form1A, ctx);
+  await processConnection(cik, form1A, ctx);
+  await processServiceProviders(cik, file_number, accession_number, form1A, ctx);
   await processFinancialData(cik, file_number, accession_number, form1A);
   await processEquityClasses(cik, file_number, accession_number, form1A);
 }
