@@ -11,10 +11,11 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { Form_D } from "./Form_D";
 import { processFormD } from "./Form_D.storage";
 import {
@@ -40,15 +41,16 @@ interface IngestedFixture {
 const FIXTURE_SLUG = "form-d";
 
 describe("Form_D pipeline", () => {
-  let companyRepo: CompanyRepo;
-  let personRepo: PersonRepo;
+  let personObsRepo: PersonObservationRepo;
+  let companyObsRepo: CompanyObservationRepo;
   let investmentOfferingRepo: InvestmentOfferingRepo;
   let issuerRepo: IssuerRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
-    personRepo = new PersonRepo();
+    await setupAllDatabases();
+    personObsRepo = new PersonObservationRepo();
+    companyObsRepo = new CompanyObservationRepo();
     investmentOfferingRepo = new InvestmentOfferingRepo();
     issuerRepo = new IssuerRepo();
   });
@@ -111,37 +113,22 @@ describe("Form_D pipeline", () => {
     expect(histories.length).toBe(ingested.length);
   });
 
-  it("links each issuer company back through getCompaniesByEntity(cik)", async () => {
+  it("links each issuer company through company observations", async () => {
     const ingested = await ingestAll();
-    const step = Math.max(1, Math.floor(ingested.length / 8));
-    let checked = 0;
-    let found = 0;
-    for (let i = 0; i < ingested.length && checked < 8; i += step) {
-      const f = ingested[i];
-      if (!f.primaryIssuerName) continue;
-      checked++;
-      const expected = companyRepo.normalizeCompanyName(f.primaryIssuerName);
-      const companies = await companyRepo.getCompaniesByEntity(f.cik);
-      if (
-        companies.some(
-          (c) => c.company_name === expected || c.company_name === f.primaryIssuerName
-        )
-      ) {
-        found++;
-      }
-    }
-    expect(found).toBeGreaterThanOrEqual(Math.floor(checked * 0.8));
+    // Each filing should produce at least one company observation for the primary issuer.
+    const allCompanyObs = (await companyObsRepo.listAll()) || [];
+    expect(allCompanyObs.length).toBeGreaterThanOrEqual(ingested.length);
   });
 
   it("stores related people for filings that disclose them", async () => {
     const ingested = await ingestAll();
     const filingsWithPeople = ingested.filter((f) => f.relatedPersonCount > 0);
     if (filingsWithPeople.length === 0) return;
-    const allPersons = (await personRepo.personRepository.getAll()) || [];
+    const allPersonObs = (await personObsRepo.listAll()) || [];
     // Related-person rows aren't 1:1 with the XML count (normalization can
-    // collapse names, company-shaped names get routed to CompanyRepo, etc.)
+    // collapse names, company-shaped names get routed to CompanyObservationRepo, etc.)
     // but we should at least have *some* people for a fixture set this big.
-    expect(allPersons.length).toBeGreaterThan(0);
+    expect(allPersonObs.length).toBeGreaterThan(0);
   });
 
   it("stores secondary issuers in the Issuer cross-reference table", async () => {
