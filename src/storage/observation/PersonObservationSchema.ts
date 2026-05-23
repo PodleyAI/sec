@@ -54,7 +54,7 @@ export const PersonObservationSchema = Type.Object({
   title: TypeNullable(Type.String({ maxLength: 256 })),
   relationship: TypeNullable(Type.String({ maxLength: 64 })),
   raw_address_id: TypeNullable(Type.String({ maxLength: 64 })),
-  raw_phone_id: TypeNullable(Type.String({ maxLength: 32 })),
+  raw_phone_id: TypeNullable(Type.String({ maxLength: 20 })),
   source_context: TypeNullable(
     Type.String({
       description:
