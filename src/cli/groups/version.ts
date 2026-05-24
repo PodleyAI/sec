@@ -13,6 +13,7 @@ import {
 } from "../../storage/versioning/ComponentVersionSchema";
 import {
   dropNext as dropNextCeremony,
+  dropPrevious as dropPreviousCeremony,
   promote as promoteCeremony,
   rollback as rollbackCeremony,
   startDev as startDevCeremony,
@@ -414,6 +415,48 @@ export function addVersionCommands(program: Command): void {
             dryRun
               ? `(dry-run) drop-next ${kind} ${id} would succeed`
               : `Dropped next slot for ${kind}:${id}`
+          );
+        });
+      }
+    );
+
+  // drop-previous
+  version
+    .command("drop-previous <kind> <id>")
+    .description("Clear the previous slot and purge associated data")
+    .option("--notes <text>", "Optional notes for the audit log", "")
+    .action(
+      async (kind: string, id: string, options: Record<string, boolean | string>) => {
+        await runCommand(async () => {
+          assertComponentKind(kind);
+          const reg = new VersionRegistry(
+            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+          );
+          const events = new VersionEventRepo(
+            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+          );
+          const notes =
+            typeof options.notes === "string" && options.notes !== ""
+              ? options.notes
+              : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
+          const runs =
+            kind === "extractor"
+              ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
+              : undefined;
+          await dropPreviousCeremony({
+            reg,
+            events,
+            kind,
+            id,
+            notes,
+            dryRun,
+            runs,
+          });
+          console.log(
+            dryRun
+              ? `(dry-run) drop-previous ${kind} ${id} would succeed`
+              : `Dropped previous slot for ${kind}:${id}`
           );
         });
       }

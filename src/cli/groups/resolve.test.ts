@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach } from "bun:test";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
+import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
+import { PersonResolver } from "../../resolver/PersonResolver";
+import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,6 +39,51 @@ async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
     exitCode,
   };
 }
+
+describe("resolve in-process with seeded data", () => {
+  beforeEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  it("resolves a seeded PersonObservation and writes an identity link", async () => {
+    const RESOLVER_VERSION = "1.0.0";
+    const obsRepo = new PersonObservationRepo();
+    const linkRepo = new PersonIdentityLinkRepo();
+    const canonRepo = new CanonicalPersonRepo();
+    const aliasRepo = new CanonicalPersonAliasRepo();
+
+    // Insert a test observation
+    const obs = await obsRepo.upsertByNaturalKey({
+      accession_number: "0001234567-25-000001",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      source_filing_issuer_cik: 9999,
+      normalized_first: "john",
+      normalized_last: "doe",
+      created_at: new Date().toISOString(),
+    });
+
+    // Run resolver
+    const resolver = new PersonResolver({
+      canonicalPersonRepo: canonRepo,
+      canonicalPersonAliasRepo: aliasRepo,
+      activeResolverVersion: RESOLVER_VERSION,
+    });
+    const canonical_person_id = await resolver.resolve(obs);
+    expect(typeof canonical_person_id).toBe("string");
+    expect(canonical_person_id.length).toBeGreaterThan(0);
+
+    // Write identity link
+    await linkRepo.upsert(obs.observation_id, RESOLVER_VERSION, canonical_person_id);
+
+    // Assert link row was written
+    const links = await linkRepo.listAll();
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    expect(links[0].canonical_person_id).toBe(canonical_person_id);
+    expect(links[0].resolver_version).toBe(RESOLVER_VERSION);
+  });
+});
 
 describe("sec resolve CLI", () => {
   it("resolve --kind person --version 1.0.0 --all processes person observations", async () => {

@@ -75,6 +75,14 @@ export class CanonicalPersonRepo {
     await this.repo.delete({ canonical_person_id });
   }
 
+  async deleteForResolverVersion(resolver_version: string): Promise<number> {
+    const rows = (await this.repo.query({ resolver_version })) ?? [];
+    for (const r of rows) {
+      await this.repo.delete({ canonical_person_id: r.canonical_person_id });
+    }
+    return rows.length;
+  }
+
   async listAll(): Promise<CanonicalPerson[]> {
     return (await this.repo.getAll()) ?? [];
   }

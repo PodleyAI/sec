@@ -70,6 +70,14 @@ export class CanonicalCompanyRepo {
     await this.repo.delete({ canonical_company_id });
   }
 
+  async deleteForResolverVersion(resolver_version: string): Promise<number> {
+    const rows = (await this.repo.query({ resolver_version })) ?? [];
+    for (const r of rows) {
+      await this.repo.delete({ canonical_company_id: r.canonical_company_id });
+    }
+    return rows.length;
+  }
+
   async listAll(): Promise<CanonicalCompany[]> {
     return (await this.repo.getAll()) ?? [];
   }

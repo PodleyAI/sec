@@ -61,9 +61,9 @@ export class CompanyResolver {
         canonical_company_id: candidate_id,
         resolver_version: this.opts.activeResolverVersion,
         display_name: obs.name,
-        cik: key_kind === "cik" ? obs.cik : null,
-        crd_number: key_kind === "crd" ? obs.crd_number : null,
-        normalized_name: key_kind === "name" ? obs.normalized_name : null,
+        cik: obs.cik ?? null,
+        crd_number: obs.crd_number ?? null,
+        normalized_name: obs.normalized_name ?? null,
         created_at: new Date().toISOString(),
       };
       await this.opts.canonicalCompanyRepo.create(fresh);

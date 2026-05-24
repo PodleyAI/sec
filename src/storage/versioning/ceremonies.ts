@@ -344,14 +344,7 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
       await linkRepo.deleteForResolverVersion(previous.semver);
       await junctionAddr.deleteForResolverVersion(previous.semver);
       await junctionPhone.deleteForResolverVersion(previous.semver);
-      // Delete canonical rows at previous semver that have no remaining links.
-      const previousCanonicals = await canonRepo.listForResolverVersion(previous.semver);
-      for (const c of previousCanonicals) {
-        const remaining = await linkRepo.listForCanonical(c.canonical_person_id, previous.semver);
-        if (remaining.length === 0) {
-          await canonRepo.deleteById(c.canonical_person_id);
-        }
-      }
+      await canonRepo.deleteForResolverVersion(previous.semver);
     } else {
       const linkRepo = new CompanyIdentityLinkRepo();
       const junctionAddr = new CanonicalCompanyAddressRepo();
@@ -360,13 +353,7 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
       await linkRepo.deleteForResolverVersion(previous.semver);
       await junctionAddr.deleteForResolverVersion(previous.semver);
       await junctionPhone.deleteForResolverVersion(previous.semver);
-      const previousCanonicals = await canonRepo.listForResolverVersion(previous.semver);
-      for (const c of previousCanonicals) {
-        const remaining = await linkRepo.listForCanonical(c.canonical_company_id, previous.semver);
-        if (remaining.length === 0) {
-          await canonRepo.deleteById(c.canonical_company_id);
-        }
-      }
+      await canonRepo.deleteForResolverVersion(previous.semver);
     }
   }
 

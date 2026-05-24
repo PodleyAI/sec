@@ -34,11 +34,11 @@ sec canonical person alias-list
 sec canonical person alias-list --orphans     # names whose target no longer exists
 
 # Coverage and cleanup
-sec version coverage --kind resolver --id person
-sec version coverage --kind resolver --id company
-sec version drop-previous --kind resolver --id person
-sec version drop-previous --kind resolver --id company
-sec version drop-previous --kind extractor --id <extractor-id>
+sec version coverage resolver person
+sec version coverage resolver company
+sec version drop-previous resolver person
+sec version drop-previous resolver company
+sec version drop-previous extractor <extractor-id>
 ```
 
 ## Architecture
