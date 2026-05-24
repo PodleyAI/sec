@@ -8,7 +8,7 @@ import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { SecFetchTask } from "../../fetch/SecFetchTask";
-import { getDb } from "../../util/db";
+import { createCikNameBulkWriter } from "../../storage/entity/cikNameBulkWriter";
 import { TypeSecDate } from "../../util/parseDate";
 
 // NOTE: cik names are mutable, so we use date to break the cache
@@ -110,27 +110,24 @@ export class FetchAllCikNamesTask extends Task<
     const lines = secText.split("\n");
     const totalLines = lines.length;
 
-    // The SqliteTabularStorage `putBulk` path does one prepared statement and one
-    // event emit per row, which is untenable for ~1M rows. We use the underlying
-    // sqlite handle to run a single prepared `INSERT OR REPLACE` inside a
-    // transaction per batch, which is ~100x faster and keeps the UI responsive.
-    const db = getDb();
-    const stmt = db.prepare<[number, string], unknown>(
-      "INSERT OR REPLACE INTO `cik_names` (`cik`, `name`) VALUES (?, ?)"
-    );
-    const insertBatch = db.transaction((rows: ReadonlyArray<{ cik: number; name: string }>) => {
-      for (const row of rows) {
-        stmt.run(row.cik, row.name);
-      }
-    });
+    // The generic `ITabularStorage.putBulk` path does one round-trip and one
+    // event emit per row, which is untenable for the ~1M rows in this feed.
+    // The bulk writer picks a backend-specific fast path: a single
+    // `INSERT OR REPLACE` transaction for SQLite, multi-row parameterised
+    // `INSERT ... ON CONFLICT` for Postgres. Tests fall back to the
+    // repository's `putBulk` against the in-memory backend.
+    //
+    // The previous version reached into `getDb()` unconditionally, which
+    // silently wrote rows into a SQLite file even when SEC_DB_TYPE=postgres.
+    const writer = createCikNameBulkWriter();
 
     let batch: { cik: number; name: string }[] = [];
     let totalStored = 0;
     let lastReportedProgress = -1;
 
-    const flush = (): void => {
+    const flush = async (): Promise<void> => {
       if (batch.length === 0) return;
-      insertBatch(batch);
+      await writer.writeBatch(batch);
       totalStored += batch.length;
       batch = [];
     };
@@ -143,7 +140,7 @@ export class FetchAllCikNamesTask extends Task<
       if (parsed !== null) {
         batch.push(parsed);
         if (batch.length >= BATCH_SIZE) {
-          flush();
+          await flush();
           // Yield to the event loop so the CLI progress UI can repaint and any
           // pending abort signal is observed promptly.
           await new Promise<void>((resolve) => setImmediate(resolve));
@@ -156,8 +153,12 @@ export class FetchAllCikNamesTask extends Task<
         lastReportedProgress = newProgress;
       }
     }
-    flush();
-    context.updateProgress(100, `stored ${totalStored} rows`);
+    try {
+      await flush();
+      context.updateProgress(100, `stored ${totalStored} rows`);
+    } finally {
+      await writer.close();
+    }
 
     return { success: true, count: totalStored };
   }

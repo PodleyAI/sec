@@ -84,6 +84,8 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 
 `src/sec.ts` invokes **`Sqlite.init()`** when the installed `workglow` package defines it (`typeof Sqlite.init === "function"`), so newer Workglow releases load the SQLite binding before `getDb()` opens a database. Older `workglow` versions without `init` skip this step.
 
+**`getDb()` is SQLite-only.** It throws `SecCliConfigurationError` when `SEC_DB_TYPE !== "sqlite"` to prevent the silent data divergence that occurred before (`getDb()` would open a stray SQLite file even under Postgres, and rows written through it never reached the configured backend). Tasks that need a raw SQL fast path beyond what `ITabularStorage` exposes must branch on `SEC_DB_TYPE` themselves — see `src/storage/entity/cikNameBulkWriter.ts` for the pattern (SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise → repository `putBulk` for tests).
+
 ### Dependency Injection
 
 Uses the `workglow` package’s `globalServiceRegistry` with typed tokens. Production uses `SqliteTabularRepository`, tests use `InMemoryTabularRepository`. Call `resetDependencyInjectionsForTesting()` from `src/config/TestingDI.ts` in test setup.

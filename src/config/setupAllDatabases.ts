@@ -59,7 +59,7 @@ import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/Com
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
-import { SEC_DB_FOLDER } from "./tokens";
+import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -121,7 +121,13 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
-  if (globalServiceRegistry.has(SEC_DB_FOLDER)) {
+  // View DDL is created here only on the SQLite path; the Postgres backend
+  // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
+  // isn't sqlite). Tests use the in-memory backend where views don't apply.
+  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
+    ? globalServiceRegistry.get(SEC_DB_TYPE)
+    : "sqlite";
+  if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER)) {
     const db = getDb();
     for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
       db.exec(ddl);
