@@ -68,22 +68,19 @@ export class StoreSubmissionFilingsTask extends Task<
       filings_array = input.filings;
     }
     const filings = objectOfArraysAsArrayOfObjects(filings_array);
-    let index = 0;
-    let progress = 0;
     const entityRepo = new EntityRepo();
-    for (const filing of filings) {
+
+    // Companies with many filings emit thousands of rows per submission.
+    // Per-row `put()` was O(N) round-trips and dominated ingest time on
+    // Postgres. Chunked putBulk amortises the round-trip and the workglow
+    // event emit overhead.
+    const BATCH_SIZE = 500;
+    let progress = 0;
+    for (let start = 0; start < filings.length; start += BATCH_SIZE) {
       if (context.signal.aborted) {
         throw new TaskAbortedError();
       }
-      const newProgress = Math.round((index++ / filings.length) * 10) * 10; // much faster than if we give up time for ui
-      if (newProgress > progress) {
-        context.updateProgress(newProgress);
-        progress = newProgress;
-        await sleep(0);
-      }
-
-      // Transform the Filing from API format to database schema format
-      const filingData: Filing = {
+      const batch: Filing[] = filings.slice(start, start + BATCH_SIZE).map((filing) => ({
         cik,
         accession_number: filing.accessionNumber,
         filing_date: filing.filingDate,
@@ -99,8 +96,15 @@ export class StoreSubmissionFilingsTask extends Task<
         is_inline_xbrl: filing.isInlineXBRL || null,
         items: filing.items || null,
         act: filing.act || null,
-      };
-      await entityRepo.saveFiling(filingData);
+      }));
+      await entityRepo.saveFilingsBulk(batch);
+
+      const newProgress = Math.round(((start + batch.length) / filings.length) * 10) * 10;
+      if (newProgress > progress) {
+        context.updateProgress(newProgress);
+        progress = newProgress;
+        await sleep(0);
+      }
     }
 
     return { success: true };
