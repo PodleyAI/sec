@@ -166,7 +166,13 @@ export const removeEndings = (name: string) => {
 
 const canonicalEndings = (name: string) => {
   for (const [regexp, canonical] of CANONICAL_ENDINGS) {
-    name = name.replace(new RegExp(`\b${regexp}\b`, "i"), canonical);
+    // String-concat the word boundaries: inside a template literal, `\b` is
+    // the backspace character (U+0008), not a word-boundary escape. The
+    // previous template-literal form silently no-op'd against every
+    // ordinary input — only matching strings that contain literal backspace
+    // bytes — so canonicalisations like "L.L.C." → "LLC" never fired here
+    // and only converged accidentally via stripCompanyAllEndings.
+    name = name.replace(new RegExp("\\b" + regexp + "\\b", "i"), canonical);
   }
   return name;
 };

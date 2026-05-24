@@ -9,6 +9,16 @@ export interface RenderOptions {
   readonly total?: number;
   readonly offset?: number;
   readonly limit?: number;
+  /**
+   * Set when the displayed `total` is a lower bound — the underlying
+   * query streamed and stopped after collecting offset+limit matches
+   * without exhausting the dataset. Rendered as "≥ N" with a hint to
+   * narrow the filter.
+   */
+  readonly totalApprox?: {
+    readonly atLeast: number;
+    readonly exhausted: boolean;
+  };
 }
 
 function truncate(value: string, width: number): string {
@@ -26,10 +36,20 @@ function pad(value: string, width: number): string {
 }
 
 function escapeCsvValue(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return '"' + value.replace(/"/g, '""') + '"';
+  // Defuse CSV/spreadsheet formula injection. When Excel/Sheets/Numbers
+  // open a CSV, a cell starting with =/+/-/@ (or with leading TAB/CR
+  // that some loaders strip) is interpreted as a formula, which can
+  // exfiltrate data via WEBSERVICE/HYPERLINK or run external commands.
+  // Prefix a single quote — spreadsheets render it as a literal and hide
+  // the prefix; plain CSV consumers see the original text with one
+  // leading apostrophe, which is a small price for not shipping a known
+  // attack vector.
+  const dangerous = value.length > 0 && /^[=+\-@\t\r]/.test(value);
+  let escaped = dangerous ? "'" + value : value;
+  if (escaped.includes(",") || escaped.includes('"') || escaped.includes("\n")) {
+    return '"' + escaped.replace(/"/g, '""') + '"';
   }
-  return value;
+  return escaped;
 }
 
 function cellValue(row: Record<string, unknown>, key: string): string {
@@ -74,7 +94,15 @@ function renderTextTable(
     const start = count === 0 ? 0 : offset + 1;
     const end = count === 0 ? 0 : offset + count;
     lines.push("");
-    lines.push(`Showing ${start}-${end} of ${options.total} results`);
+    const isApprox =
+      options.totalApprox !== undefined && options.totalApprox.exhausted === false;
+    const totalLabel = isApprox ? `≥ ${options.total}` : `${options.total}`;
+    lines.push(`Showing ${start}-${end} of ${totalLabel} results`);
+    if (isApprox) {
+      lines.push(
+        `(streamed; narrow the filter for an exact count and full pagination)`
+      );
+    }
 
     if (count > 0 && end < options.total) {
       lines.push(`(use --offset ${end} for next page)`);

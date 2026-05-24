@@ -1,5 +1,9 @@
+import { globalServiceRegistry } from "workglow";
+import type { SearchCriteria } from "workglow";
 import type { Entity } from "../../storage/entity/EntitySchema";
+import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
+import { collectPage, streamMatchingRows } from "./_streamMatches";
 
 export interface EntityQueryParams {
   readonly search?: string;
@@ -13,7 +17,21 @@ export interface EntityQueryParams {
 
 export interface QueryResult<T> {
   readonly rows: T[];
+  /**
+   * When `totalApprox` is set, `total` is the number of matches observed so
+   * far (offset + limit, give or take), not the exact dataset cardinality.
+   * Pagination UX should render this as a lower-bound (e.g. "≥ N") rather
+   * than an exact count. Used when streaming substring searches that
+   * cannot be pushed down to the database — forcing an exact total would
+   * require a full table scan.
+   */
   readonly total: number;
+  readonly totalApprox?: {
+    /** The match count we got to before stopping. */
+    readonly atLeast: number;
+    /** True if the iterator drained — in which case `total` is exact. */
+    readonly exhausted: boolean;
+  };
 }
 
 const ENTITY_SORT_KEYS: ReadonlySet<string> = new Set([
@@ -32,57 +50,82 @@ const ENTITY_SORT_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 export async function queryEntities(params: EntityQueryParams): Promise<QueryResult<Entity>> {
-  const repo = new EntityRepo();
-  const limit = params.limit ?? 25;
-  const offset = params.offset ?? 0;
-
-  let entities: Entity[];
-
-  if (params.cik !== undefined) {
-    const entity = await repo.getEntity(params.cik);
-    entities = entity ? [entity] : [];
-  } else if (
-    params.sic !== undefined ||
-    params.state !== undefined
-  ) {
-    const criteria: Partial<Entity> = {};
-    if (params.sic !== undefined) criteria.sic = params.sic;
-    if (params.state !== undefined) criteria.state_incorporation = params.state;
-    entities = await repo.searchEntities(criteria);
-  } else {
-    entities = await repo.getAllEntities();
-  }
-
-  // Apply search filter (partial, case-insensitive name match)
-  if (params.search) {
-    const searchLower = params.search.toLowerCase();
-    entities = entities.filter(
-      (e) => e.name !== null && e.name.toLowerCase().includes(searchLower)
+  // Validate sort up front so we never partially apply a bad call.
+  if (params.sort !== undefined && !ENTITY_SORT_KEYS.has(params.sort)) {
+    throw new Error(
+      `Invalid sort field "${params.sort}". Valid fields: ${[...ENTITY_SORT_KEYS].join(", ")}.`
     );
   }
 
-  // Apply additional filters when fetched via a broader method
-  if (params.cik === undefined && params.sic !== undefined && params.state !== undefined) {
-    // searchEntities only takes one set of criteria; both are already applied above
-  } else if (params.cik !== undefined) {
-    // If we fetched by CIK, also filter by sic/state if provided
-    if (params.sic !== undefined) {
-      entities = entities.filter((e) => e.sic === params.sic);
+  const repo = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+  const limit = params.limit ?? 25;
+  const offset = params.offset ?? 0;
+
+  // CIK is the primary key — a `get` is always optimal.
+  if (params.cik !== undefined) {
+    const entityRepo = new EntityRepo();
+    const entity = await entityRepo.getEntity(params.cik);
+    if (!entity) return { rows: [], total: 0 };
+    if (params.sic !== undefined && entity.sic !== params.sic) return { rows: [], total: 0 };
+    if (params.state !== undefined && entity.state_incorporation !== params.state) {
+      return { rows: [], total: 0 };
     }
-    if (params.state !== undefined) {
-      entities = entities.filter((e) => e.state_incorporation === params.state);
+    if (params.search) {
+      const searchLower = params.search.toLowerCase();
+      if (entity.name === null || !entity.name.toLowerCase().includes(searchLower)) {
+        return { rows: [], total: 0 };
+      }
     }
+    return { rows: [entity], total: 1 };
   }
 
-  // Sort
-  if (params.sort) {
-    if (!ENTITY_SORT_KEYS.has(params.sort)) {
-      throw new Error(
-        `Invalid sort field "${params.sort}". Valid fields: ${[...ENTITY_SORT_KEYS].join(", ")}.`
-      );
+  const criteria: SearchCriteria<Entity> = {};
+  if (params.sic !== undefined) (criteria as Partial<Entity>).sic = params.sic;
+  if (params.state !== undefined) {
+    (criteria as Partial<Entity>).state_incorporation = params.state;
+  }
+  const hasCriteria = Object.keys(criteria).length > 0;
+  const hasSearch = params.search !== undefined && params.search !== "";
+  const orderBy = params.sort
+    ? [{ column: params.sort as keyof Entity, direction: "ASC" as const }]
+    : undefined;
+
+  if (!hasSearch) {
+    if (hasCriteria) {
+      const total = await repo.count(criteria);
+      const rows = (await repo.query(criteria, { orderBy, limit, offset })) ?? [];
+      return { rows, total };
     }
+    const total = await repo.size();
+    if (orderBy === undefined) {
+      const rows = (await repo.getOffsetPage(offset, limit)) ?? [];
+      return { rows, total };
+    }
+    // No criteria but caller wants a sort. getAll({orderBy, limit, offset})
+    // pushes ORDER BY/LIMIT/OFFSET down to SQL (queryPage is cursor-based
+    // and ignores `offset`, which would silently return the first page
+    // forever — the previous implementation here had that bug).
+    const rows = (await repo.getAll({ orderBy, limit, offset })) ?? [];
+    return { rows, total };
+  }
+
+  // Substring search — stream and stop after offset + limit matches.
+  const searchLower = params.search!.toLowerCase();
+  const predicate = (e: Entity): boolean =>
+    e.name !== null && e.name.toLowerCase().includes(searchLower);
+
+  const { rows, total, exhausted } = await collectPage(
+    streamMatchingRows(repo, criteria, predicate),
+    offset,
+    limit
+  );
+
+  // Apply sort to the collected window. With the cap this stays bounded
+  // and matches the previous semantics (sort runs over the whole match
+  // set when the stream drains, or over the truncated window otherwise).
+  if (params.sort) {
     const sortKey = params.sort as keyof Entity;
-    entities.sort((a, b) => {
+    rows.sort((a, b) => {
       const aVal = a[sortKey];
       const bVal = b[sortKey];
       if (aVal === null || aVal === undefined) return 1;
@@ -93,8 +136,7 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
     });
   }
 
-  const total = entities.length;
-  const rows = entities.slice(offset, offset + limit);
-
-  return { rows, total };
+  // totalApprox is the "this number is a lower bound" signal — only
+  // emit it when the stream was capped, not when it drained.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
 }

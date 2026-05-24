@@ -62,10 +62,13 @@ export class UpdateAllSubmissionsTask extends Task<
         needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
       }
     } else {
-      const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
-
+      // Stream rather than getAll() — production has hundreds of
+      // thousands of processed-submission rows. We need both cik and
+      // last_processed for the freshness comparison, so we keep them in
+      // a Map but build it page-by-page rather than materialising every
+      // row up front.
       const processedMap = new Map<number, ProcessedSubmissions>();
-      for (const ps of allProcessedSubmissions) {
+      for await (const ps of processedSubmissionsRepo.records(5000)) {
         processedMap.set(ps.cik, ps);
       }
 

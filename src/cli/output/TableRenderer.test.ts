@@ -61,6 +61,40 @@ describe("renderTable", () => {
       const lines = result.split("\n");
       expect(lines[1]).toBe("1,,");
     });
+
+    it("defuses formula-injection prefixes by quoting them", () => {
+      // Spreadsheets interpret cells starting with =/+/-/@ as formulas
+      // (incl. data exfiltration via WEBSERVICE/HYPERLINK). Prefix with
+      // a single quote so a CSV emitted from `sec query --format csv` is
+      // safe to open in Excel/Sheets/Numbers.
+      const rows = [
+        { id: 1, name: "=cmd|' /C calc'!A0", value: 1 },
+        { id: 2, name: "+1+1", value: 2 },
+        { id: 3, name: "-1+1", value: 3 },
+        { id: 4, name: "@SUM(A1:A9)", value: 4 },
+        { id: 5, name: "\tleading tab", value: 5 },
+      ];
+      const result = renderTable(rows, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe(`1,'=cmd|' /C calc'!A0,1`);
+      expect(lines[2]).toBe("2,'+1+1,2");
+      expect(lines[3]).toBe("3,'-1+1,3");
+      expect(lines[4]).toBe("4,'@SUM(A1:A9),4");
+      expect(lines[5]).toBe("5,'\tleading tab,5");
+    });
+
+    it("does not prefix benign leading characters", () => {
+      const rows = [
+        { id: 1, name: "Alice", value: 1 },
+        { id: 2, name: "1+1", value: 2 },
+        { id: 3, name: "", value: 3 },
+      ];
+      const result = renderTable(rows, columns, { format: "csv" });
+      const lines = result.split("\n");
+      expect(lines[1]).toBe("1,Alice,1");
+      expect(lines[2]).toBe("2,1+1,2");
+      expect(lines[3]).toBe("3,,3");
+    });
   });
 
   describe("table format", () => {

@@ -7,16 +7,68 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { Type } from "typebox";
-import type { FetchUrlTaskInput } from "workglow";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
+import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { SecFetchJob } from "../../fetch/SecFetchJob";
 
 export type BootstrapDownloadTaskInput = {
   readonly url: string;
   readonly targetFolder: string;
 };
+
+/**
+ * Streams an HTTP response body directly to disk without buffering the
+ * full payload in memory. Returns the byte count written. Honours
+ * `signal` and reports progress via `onProgress(downloadedBytes,
+ * totalBytes | undefined)`.
+ *
+ * Exported for testing — the task wraps it with logging and the SEC
+ * User-Agent header.
+ */
+export async function streamDownloadToFile(
+  url: string,
+  destPath: string,
+  opts: {
+    readonly headers?: Record<string, string>;
+    readonly signal?: AbortSignal;
+    readonly onProgress?: (downloadedBytes: number, totalBytes: number | undefined) => void;
+  } = {}
+): Promise<{ bytes: number; totalBytes: number | undefined }> {
+  const response = await fetch(url, {
+    headers: opts.headers,
+    signal: opts.signal,
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Download failed: HTTP ${response.status} ${response.statusText} for ${url}`
+    );
+  }
+  if (response.body === null) {
+    throw new Error(`Download returned no body for ${url}`);
+  }
+
+  const len = response.headers.get("content-length");
+  const totalBytesParsed = len !== null ? parseInt(len, 10) : NaN;
+  const totalBytes = Number.isFinite(totalBytesParsed) ? totalBytesParsed : undefined;
+
+  const writer = Bun.file(destPath).writer();
+  let bytes = 0;
+  try {
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      writer.write(value);
+      bytes += value.length;
+      opts.onProgress?.(bytes, totalBytes);
+    }
+    await writer.flush();
+  } finally {
+    await writer.end();
+  }
+  return { bytes, totalBytes };
+}
 
 export type BootstrapDownloadTaskOutput = {
   readonly success: boolean;
@@ -74,30 +126,36 @@ export class BootstrapDownloadTask extends Task<
 
     console.log(`Downloading ${input.url} ...`);
 
-    const fetchJob = new SecFetchJob({
-      input: {
-        url: input.url,
-        response_type: "blob",
-      } satisfies FetchUrlTaskInput,
-    });
-
-    const fetched = await fetchJob.execute(fetchJob.input, {
+    // Stream the response body directly to disk via streamDownloadToFile.
+    // SEC bulk archives (submissions.zip, companyfacts.zip) are multi-GB;
+    // the previous path went through SecFetchJob with response_type:
+    // "blob", which buffered the entire body in JS heap and OOM'd on
+    // smaller VMs. We bypass the SecFetchJob queue/retry machinery here
+    // because workglow's FetchUrlJob materialises the body regardless of
+    // response_type. Bulk download is a low-frequency operator-triggered
+    // path, so dropping the queue-level retry is an acceptable tradeoff
+    // for the memory ceiling. SEC's 10 req/sec rate limit is never a
+    // concern for a single download.
+    let lastReportedPct = -1;
+    let sizeLogged = false;
+    const { bytes: downloadedBytes } = await streamDownloadToFile(input.url, zipPath, {
+      headers: { "User-Agent": SecUserAgent },
       signal: context.signal,
-      updateProgress: context.updateProgress.bind(context),
+      onProgress: (downloaded, total) => {
+        if (!sizeLogged && total !== undefined) {
+          console.log(`Download size: ~${(total / (1024 * 1024)).toFixed(0)} MB`);
+          sizeLogged = true;
+        }
+        if (total !== undefined && total > 0) {
+          const pct = Math.floor((downloaded / total) * 100);
+          if (pct !== lastReportedPct) {
+            context.updateProgress(pct, `${(downloaded / (1024 * 1024)).toFixed(0)} MB`);
+            lastReportedPct = pct;
+          }
+        }
+      },
     });
-
-    if (!fetched.blob) {
-      throw new Error("SEC fetch returned no blob body");
-    }
-
-    const len = fetched.metadata?.headers?.["content-length"];
-    if (len) {
-      const sizeMB = (parseInt(len, 10) / (1024 * 1024)).toFixed(0);
-      console.log(`Download size: ~${sizeMB} MB`);
-    }
-
-    await Bun.write(zipPath, fetched.blob as Blob);
-    console.log(`Download complete. Extracting to ${targetDir} ...`);
+    console.log(`Download complete (${downloadedBytes} bytes). Extracting to ${targetDir} ...`);
 
     const unzipPath = Bun.which("unzip");
     if (!unzipPath) {

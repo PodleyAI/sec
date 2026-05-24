@@ -60,10 +60,12 @@ export class UpdateAllCompanyFactsTask extends Task<
         needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
       }
     } else {
-      const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
-
+      // Stream rather than getAll() — see UpdateAllSubmissionsTask for the
+      // same pattern. We need both cik and last_processed for freshness,
+      // so a Map built page-by-page is unavoidable but the intermediate
+      // row materialisation isn't.
       const processedMap = new Map<number, ProcessedFacts>();
-      for (const pf of allProcessedFacts) {
+      for await (const pf of processedFactsRepo.records(5000)) {
         processedMap.set(pf.cik, pf);
       }
 

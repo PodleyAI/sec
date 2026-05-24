@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { streamProcessedCikSet } from "../../storage/processing/processedCikSet";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
@@ -86,12 +87,9 @@ export class BootstrapCompanyFactsTask extends Task<
     if (input.force) {
       ciksToProcess = ciks;
     } else {
+      // Stream the cik column rather than getAll() — see streamProcessedCikSet.
       const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
-      const allProcessedFacts = (await processedFactsRepo.getAll()) ?? [];
-      const processedSet = new Set<number>();
-      for (const pf of allProcessedFacts) {
-        processedSet.add(pf.cik);
-      }
+      const processedSet = await streamProcessedCikSet(processedFactsRepo);
       ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
     }
 

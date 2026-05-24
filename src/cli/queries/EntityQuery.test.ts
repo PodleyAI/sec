@@ -243,4 +243,36 @@ describe("queryEntities", () => {
     const result = await queryEntities({ sort: "name" });
     expect(result).toBeDefined();
   });
+
+  it("respects offset on the sorted-no-criteria path", async () => {
+    // Regression: an earlier implementation used queryPage({}, {orderBy,
+    // limit}) which is cursor-based and ignores offset, so `--offset 2`
+    // silently returned the first page. Use getAll({orderBy, limit,
+    // offset}) which pushes OFFSET down to SQL.
+    const repo = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+    for (let i = 1; i <= 5; i++) {
+      await repo.put({
+        cik: i,
+        name: `Co ${String.fromCharCode(64 + i)}`, // "Co A", "Co B", ...
+        type: null,
+        sic: null,
+        ein: null,
+        description: null,
+        website: null,
+        investor_website: null,
+        category: null,
+        fiscal_year: null,
+        state_incorporation: null,
+        state_incorporation_desc: null,
+      });
+    }
+
+    const page1 = await queryEntities({ sort: "name", limit: 2, offset: 0 });
+    expect(page1.rows.map((r) => r.name)).toEqual(["Co A", "Co B"]);
+    expect(page1.total).toBe(5);
+
+    const page2 = await queryEntities({ sort: "name", limit: 2, offset: 2 });
+    expect(page2.rows.map((r) => r.name)).toEqual(["Co C", "Co D"]);
+    expect(page2.total).toBe(5);
+  });
 });

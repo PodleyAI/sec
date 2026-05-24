@@ -11,6 +11,36 @@ import { FetchUrlTaskOutput, TaskInput, TaskOutput, TaskOutputRepository } from 
 import { isDryRun } from "../cli/isDryRun";
 import { secDate, YYYYdMMdDD } from "../util/parseDate";
 
+/**
+ * Resolves `relative` against `folderPath` and asserts the result stays
+ * inside `folderPath`. Defends every cache call site against a stray
+ * `inputToFileName` returning a path with `..` segments or an absolute
+ * path — SEC-supplied fields (`primary_doc` filenames, accession numbers)
+ * flow into these paths, and a single malformed value would let a fetch
+ * write outside SEC_RAW_DATA_FOLDER. Returns the resolved absolute path.
+ */
+function safeJoinWithinFolder(folderPath: string, relative: string): string {
+  const base = path.resolve(folderPath);
+  const candidate = path.resolve(base, relative);
+  // `path.relative` returns a path starting with a parent-segment (`..`)
+  // ONLY when the candidate escapes the base — a legitimate file named
+  // "..foo.txt" returns "..foo.txt" too, so a plain `startsWith("..")`
+  // would false-positive on it. Anchor on the path separator (and the
+  // exact ".." case) instead, and also reject absolute paths.
+  const rel = path.relative(base, candidate);
+  const escapes =
+    rel === ".." ||
+    rel.startsWith(".." + path.sep) ||
+    rel.startsWith("../") || // posix sep on win32 hosts (just in case)
+    path.isAbsolute(rel);
+  if (escapes) {
+    throw new Error(
+      `Refusing to access path outside cache folder: "${relative}" resolved to "${candidate}", outside "${base}".`
+    );
+  }
+  return candidate;
+}
+
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
@@ -76,7 +106,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
       return;
     }
     const responseType = input.response_type as string;
-    const filePath = path.join(this.folderPath, this.inputToFileName(input));
+    const filePath = safeJoinWithinFolder(this.folderPath, this.inputToFileName(input));
     await mkdir(path.dirname(filePath), { recursive: true });
 
     // Write to a unique tmp file then atomically rename so an interrupted
@@ -112,7 +142,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     taskType: string,
     inputs: TaskInput & { date?: YYYYdMMdDD }
   ): Promise<TaskOutput | undefined> {
-    const filePath = path.join(this.folderPath, this.inputToFileName(inputs));
+    const filePath = safeJoinWithinFolder(this.folderPath, this.inputToFileName(inputs));
     try {
       if (inputs.date) {
         const stats = await stat(filePath);

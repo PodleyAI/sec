@@ -130,6 +130,17 @@ export class EntityRepo implements EntityRepoOptions {
     await this.filingRepository.put(filing);
   }
 
+  /**
+   * Bulk filing upsert. Companies with many filings (10-K filers,
+   * frequent-issuer broker-dealers) emit thousands of rows per
+   * submission; per-row `put()` is O(N) round-trips and dominates the
+   * Submission ingest time on Postgres.
+   */
+  async saveFilingsBulk(filings: ReadonlyArray<Filing>): Promise<void> {
+    if (filings.length === 0) return;
+    await this.filingRepository.putBulk([...filings]);
+  }
+
   async getFilings(cik: number): Promise<Filing[]> {
     return (await this.filingRepository.query({ cik })) || [];
   }

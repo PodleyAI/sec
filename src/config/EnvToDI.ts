@@ -72,13 +72,20 @@ export const EnvToDI = (): void => {
  */
 function assertSecCliEnvConfigured(): void {
   const dbType = globalServiceRegistry.get(SEC_DB_TYPE);
-  if (dbType !== "sqlite") {
-    return;
+  if (dbType === "sqlite") {
+    if (globalServiceRegistry.has(SEC_DB_FOLDER) && globalServiceRegistry.has(SEC_DB_NAME)) {
+      return;
+    }
+    throw new SecCliConfigurationError(
+      "SEC CLI is not configured; run `init` before commands like `bootstrap`."
+    );
   }
-  if (globalServiceRegistry.has(SEC_DB_FOLDER) && globalServiceRegistry.has(SEC_DB_NAME)) {
-    return;
-  }
+  // Postgres: either SEC_PG_URL or the SEC_PG_HOST + SEC_PG_DATABASE pair
+  // must be supplied. Without this check the pg.Pool only fails mid-command
+  // with a generic connection error, which buries the actual cause.
+  if (globalServiceRegistry.has(SEC_PG_URL)) return;
+  if (globalServiceRegistry.has(SEC_PG_HOST) && globalServiceRegistry.has(SEC_PG_DATABASE)) return;
   throw new SecCliConfigurationError(
-    "SEC CLI is not configured; run `init` before commands like `bootstrap`."
+    "SEC CLI is not configured for Postgres; set SEC_PG_URL, or SEC_PG_HOST + SEC_PG_DATABASE."
   );
 }

@@ -49,6 +49,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -96,6 +97,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -138,6 +140,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -181,6 +184,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -222,6 +226,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -263,6 +268,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
@@ -300,6 +306,7 @@ export function addQueryCommands(program: Command): void {
         renderTable(result.rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
+          totalApprox: result.totalApprox,
           offset,
           limit,
         })
