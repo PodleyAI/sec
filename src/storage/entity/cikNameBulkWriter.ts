@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_TYPE } from "../../config/tokens";
+import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import { CIK_NAME_REPOSITORY_TOKEN } from "./CikNameSchema";
@@ -38,12 +38,17 @@ export function createCikNameBulkWriter(): CikNameBulkWriter {
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
 
-  // SQLite fast path needs SEC_DB_FOLDER to be configured (getDb() requires
-  // it). When the test harness leaves SEC_DB_TYPE=sqlite registered as the
-  // default but the rest of the production config is absent — e.g. in unit
-  // tests that exercise this task without standing up a real DB — fall
-  // through to the repository-backed writer instead of crashing in getDb().
-  if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER)) {
+  // SQLite fast path needs BOTH SEC_DB_FOLDER and SEC_DB_NAME — getDb()
+  // dereferences both unconditionally. When the test harness leaves
+  // SEC_DB_TYPE=sqlite registered as the default but the rest of the
+  // production config is absent — e.g. in unit tests that exercise this
+  // task without standing up a real DB — fall through to the
+  // repository-backed writer instead of crashing in getDb().
+  if (
+    dbType === "sqlite" &&
+    globalServiceRegistry.has(SEC_DB_FOLDER) &&
+    globalServiceRegistry.has(SEC_DB_NAME)
+  ) {
     return createSqliteWriter();
   }
   if (dbType === "postgres") {
@@ -73,11 +78,12 @@ function createSqliteWriter(): CikNameBulkWriter {
   };
 }
 
+// Postgres caps a single statement at 65535 bind parameters; we use 2
+// per cik_names row (cik, name), so ~30000 rows is the safe ceiling.
+// Callers may pass batches larger than this; the writer slices internally.
+const PG_MAX_ROWS_PER_STATEMENT = 30_000;
+
 function createPostgresWriter(): CikNameBulkWriter {
-  // Postgres caps a single statement at 65535 bind parameters, so an inner
-  // sub-batch of ~30000 rows (60000 params @ 2/row) is the safe ceiling.
-  // Callers may pass batches larger than this; we slice internally.
-  const PG_MAX_ROWS_PER_STATEMENT = 30_000;
   const pool = getPgPool();
 
   return {

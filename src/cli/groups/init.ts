@@ -138,11 +138,21 @@ export function addInitCommand(parent: Command): void {
           mkdirSync(rawDataFolder, { recursive: true });
           console.log(`Created directory: ${rawDataFolder}`);
 
-          // Re-read env so DI picks up new values
+          // Re-read env so DI picks up new values. Push every var the
+          // wizard collected, including the Postgres set — assertSecCliEnvConfigured
+          // now fails fast for a Postgres dbType with missing PG env, so
+          // the wizard would crash immediately after writing .env.local
+          // if we left these blank.
           process.env.SEC_DB_TYPE = config.dbType;
           process.env.SEC_DB_FOLDER = config.dbFolder;
           process.env.SEC_DB_NAME = config.dbName;
           process.env.SEC_RAW_DATA_FOLDER = config.rawDataFolder;
+          if (config.pgUrl !== undefined) process.env.SEC_PG_URL = config.pgUrl;
+          if (config.pgHost !== undefined) process.env.SEC_PG_HOST = config.pgHost;
+          if (config.pgPort !== undefined) process.env.SEC_PG_PORT = config.pgPort;
+          if (config.pgUser !== undefined) process.env.SEC_PG_USER = config.pgUser;
+          if (config.pgPassword !== undefined) process.env.SEC_PG_PASSWORD = config.pgPassword;
+          if (config.pgDatabase !== undefined) process.env.SEC_PG_DATABASE = config.pgDatabase;
 
           EnvToDI();
           if (config.dbType === "sqlite" && typeof Sqlite.init === "function") {

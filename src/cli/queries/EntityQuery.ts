@@ -101,11 +101,12 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
       const rows = (await repo.getOffsetPage(offset, limit)) ?? [];
       return { rows, total };
     }
-    // No criteria but caller wants a sort — cursor-paginate so we get the
-    // ordering pushed down. Use queryPage with empty criteria; SQL backends
-    // override it with a server-side ORDER BY + LIMIT.
-    const page = await repo.queryPage({}, { orderBy, limit });
-    return { rows: [...page.items], total };
+    // No criteria but caller wants a sort. getAll({orderBy, limit, offset})
+    // pushes ORDER BY/LIMIT/OFFSET down to SQL (queryPage is cursor-based
+    // and ignores `offset`, which would silently return the first page
+    // forever — the previous implementation here had that bug).
+    const rows = (await repo.getAll({ orderBy, limit, offset })) ?? [];
+    return { rows, total };
   }
 
   // Substring search — stream and stop after offset + limit matches.
@@ -135,9 +136,7 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
     });
   }
 
-  return {
-    rows,
-    total,
-    totalApprox: { atLeast: total, exhausted },
-  };
+  // totalApprox is the "this number is a lower bound" signal — only
+  // emit it when the stream was capped, not when it drained.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
 }

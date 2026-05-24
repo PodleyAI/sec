@@ -17,9 +17,11 @@ export interface FilingQueryParams {
 
 /**
  * Builds the `SearchCriteria` portion that the database can evaluate for us:
- * `cik`/`form` equality plus date range. `search` (substring on
- * `primary_doc_description`) cannot push down — workglow's SearchCriteria
- * has no LIKE operator — so the caller streams instead.
+ * `cik`/`form` equality plus a single-sided date range. `search`
+ * (substring on `primary_doc_description`) cannot push down — workglow's
+ * `SearchCriteria` has no LIKE operator — and a two-sided date range
+ * cannot either, since `SearchCriteria` only accepts one condition per
+ * column. Both fall through to the streaming-predicate path.
  */
 function buildCriteria(params: FilingQueryParams): SearchCriteria<Filing> {
   const criteria: SearchCriteria<Filing> = {};
@@ -28,11 +30,6 @@ function buildCriteria(params: FilingQueryParams): SearchCriteria<Filing> {
   }
   if (params.form !== undefined) {
     (criteria as Partial<Filing>).form = params.form;
-  }
-  if (params.after !== undefined && params.before !== undefined) {
-    // Build the range below; workglow's SearchCriteria only takes one
-    // condition per column, so the &gt;=/&lt;= pair has to be applied
-    // separately on the streaming path (filter predicate).
   }
   if (params.after !== undefined && params.before === undefined) {
     (criteria as any).filing_date = { value: params.after, operator: ">=" };
@@ -94,9 +91,9 @@ export async function queryFilings(params: FilingQueryParams): Promise<QueryResu
     offset,
     limit
   );
-  return {
-    rows,
-    total,
-    totalApprox: { atLeast: total, exhausted },
-  };
+  // Only emit totalApprox when we actually capped the stream. If the
+  // iterator drained, `total` is exact; consumers (TableRenderer, JSON
+  // output) treat the presence of totalApprox as the "this is a lower
+  // bound" signal.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
 }

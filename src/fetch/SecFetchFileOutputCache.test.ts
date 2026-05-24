@@ -58,4 +58,14 @@ describe("SecFetchFileOutputCache path safety", () => {
     const written = readFileSync(path.join(tmpRoot, "subdir/inner/legit.txt"), "utf-8");
     expect(written).toBe("hello");
   });
+
+  it("allows filenames that start with .. but don't escape", async () => {
+    // Regression: a plain startsWith("..") check would reject names like
+    // "..foo.txt" because path.relative returns "..foo.txt" verbatim.
+    // The fix anchors on path separators (and the exact ".." case) so
+    // these legitimate filenames pass.
+    const cache = makeCache(() => "..foo.txt");
+    await cache.saveOutput("T", { response_type: "text" }, { text: "ok" });
+    expect(readFileSync(path.join(tmpRoot, "..foo.txt"), "utf-8")).toBe("ok");
+  });
 });

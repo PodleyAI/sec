@@ -49,5 +49,7 @@ export async function queryFacts(params: FactsQueryParams): Promise<QueryResult<
     offset,
     limit
   );
-  return { rows, total, totalApprox: { atLeast: total, exhausted } };
+  // totalApprox is the "this number is a lower bound" signal — only
+  // emit it when the stream was capped, not when it drained.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
 }

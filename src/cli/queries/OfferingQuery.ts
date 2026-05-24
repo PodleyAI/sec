@@ -55,10 +55,15 @@ export async function queryOfferings(
   const industryLower = hasIndustry ? params.industry!.toLowerCase() : null;
   const exemptionRaw = hasExemption ? params.exemption! : null;
   const predicate = (o: InvestmentOffering): boolean => {
-    if (params.after !== undefined && (o.date_of_first_sale ?? "") < params.after) return false;
-    if (params.before !== undefined) {
+    // Null dates are rejected by ANY date filter, on either side. The
+    // previous after-only branch used `(date ?? "") < params.after`
+    // which happened to do the right thing (empty string sorts before
+    // any non-empty date), but a future change to date string format
+    // could flip behaviour silently. Handle null once, then compare.
+    if (params.after !== undefined || params.before !== undefined) {
       if (o.date_of_first_sale === null || o.date_of_first_sale === undefined) return false;
-      if (o.date_of_first_sale > params.before) return false;
+      if (params.after !== undefined && o.date_of_first_sale < params.after) return false;
+      if (params.before !== undefined && o.date_of_first_sale > params.before) return false;
     }
     if (searchLower !== null && !o.industry_group.toLowerCase().includes(searchLower)) return false;
     if (industryLower !== null && !o.industry_group.toLowerCase().includes(industryLower)) {
@@ -76,5 +81,7 @@ export async function queryOfferings(
     offset,
     limit
   );
-  return { rows, total, totalApprox: { atLeast: total, exhausted } };
+  // totalApprox is the "this number is a lower bound" signal — only
+  // emit it when the stream was capped, not when it drained.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
 }

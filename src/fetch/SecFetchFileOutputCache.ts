@@ -22,10 +22,18 @@ import { secDate, YYYYdMMdDD } from "../util/parseDate";
 function safeJoinWithinFolder(folderPath: string, relative: string): string {
   const base = path.resolve(folderPath);
   const candidate = path.resolve(base, relative);
-  // `path.relative` returns ".." segments when the candidate escapes the
-  // base; the equality check covers the exact-base case.
+  // `path.relative` returns a path starting with a parent-segment (`..`)
+  // ONLY when the candidate escapes the base — a legitimate file named
+  // "..foo.txt" returns "..foo.txt" too, so a plain `startsWith("..")`
+  // would false-positive on it. Anchor on the path separator (and the
+  // exact ".." case) instead, and also reject absolute paths.
   const rel = path.relative(base, candidate);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+  const escapes =
+    rel === ".." ||
+    rel.startsWith(".." + path.sep) ||
+    rel.startsWith("../") || // posix sep on win32 hosts (just in case)
+    path.isAbsolute(rel);
+  if (escapes) {
     throw new Error(
       `Refusing to access path outside cache folder: "${relative}" resolved to "${candidate}", outside "${base}".`
     );

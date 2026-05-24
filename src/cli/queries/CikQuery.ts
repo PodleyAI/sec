@@ -37,17 +37,18 @@ const MAX_FUZZY_MATCHES = 1000;
  * (distinct from "no matches") so callers can prompt the user to run the
  * ingest.
  *
- * Three operating modes, in increasing memory cost:
+ * Two operating modes:
  *
- *   1. **Empty needle** — `count() + getOffsetPage()`. No scan, no
+ *   1. **Empty needle** — `size() + getOffsetPage()`. No scan, no
  *      sorting. The "rank" concept doesn't apply because there's no
  *      target; rows come back in PK order.
- *   2. **Exact match** — `query({ name }) + count({ name })`. Pushes
- *      equality down to the DB. Only the matching rows are loaded.
- *   3. **Prefix / substring** — streams via `records()` because workglow
- *      has no LIKE operator. Capped at `MAX_FUZZY_MATCHES` so the
- *      previously-OOM-prone empty-string path is bounded. When the cap
- *      hits, `totalApprox.exhausted` is `false` and the UI renders "≥ N".
+ *   2. **Exact / prefix / substring** — streams via `records()` because
+ *      workglow has no LIKE operator AND its equality is case-sensitive
+ *      (so even `--exact` can't push down: SEC stores names as
+ *      "Apple Inc." and a user querying "APPLE INC." would miss). Capped
+ *      at `MAX_FUZZY_MATCHES` so the worst case is bounded; if the cap
+ *      fires, `totalApprox.exhausted` is `false` and the UI renders
+ *      "≥ N".
  */
 export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult> {
   const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
@@ -104,19 +105,15 @@ export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult>
 
   // If we hit the cap, we don't know the true total — surface it as a
   // lower bound so the renderer says "≥ N". When the stream drained
-  // (exhausted), matches.length IS the exact total.
-  // tableEmpty stays correct because we still see at least one row before
-  // hitting the cap unless the table is empty.
-  const result: CikQueryResult = {
+  // (exhausted), matches.length IS the exact total and we omit
+  // totalApprox entirely so consumers can rely on its presence as the
+  // streamed-and-capped signal.
+  // tableEmpty stays correct because we still see at least one row
+  // before hitting the cap unless the table is empty.
+  return {
     rows: matches.slice(offset, offset + limit).map((m) => m.row),
     total: matches.length,
     tableEmpty: !anyRowSeen,
+    ...(exhausted ? {} : { totalApprox: { atLeast: matches.length, exhausted: false } }),
   };
-  if (!exhausted) {
-    (result as { totalApprox?: { atLeast: number; exhausted: boolean } }).totalApprox = {
-      atLeast: matches.length,
-      exhausted: false,
-    };
-  }
-  return result;
 }
