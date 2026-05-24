@@ -123,4 +123,23 @@ describe("queryCiks", () => {
     expect(result.rows).toEqual([]);
     expect(result.tableEmpty).toBe(false);
   });
+
+  it("paginates without scanning the full table when the needle is empty", async () => {
+    // Regression: previously walked every row even for empty needle.
+    // Empty needle now uses size() + getOffsetPage() so memory stays
+    // bounded regardless of table size.
+    await seed([
+      { cik: 1, name: "AAA" },
+      { cik: 2, name: "BBB" },
+      { cik: 3, name: "CCC" },
+      { cik: 4, name: "DDD" },
+      { cik: 5, name: "EEE" },
+    ]);
+    const result = await queryCiks({ limit: 2, offset: 1 });
+    expect(result.total).toBe(5);
+    expect(result.rows.length).toBe(2);
+    expect(result.tableEmpty).toBe(false);
+    // Should NOT have a totalApprox — total is exact.
+    expect(result.totalApprox).toBeUndefined();
+  });
 });

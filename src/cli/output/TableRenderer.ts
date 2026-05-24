@@ -9,6 +9,16 @@ export interface RenderOptions {
   readonly total?: number;
   readonly offset?: number;
   readonly limit?: number;
+  /**
+   * Set when the displayed `total` is a lower bound — the underlying
+   * query streamed and stopped after collecting offset+limit matches
+   * without exhausting the dataset. Rendered as "≥ N" with a hint to
+   * narrow the filter.
+   */
+  readonly totalApprox?: {
+    readonly atLeast: number;
+    readonly exhausted: boolean;
+  };
 }
 
 function truncate(value: string, width: number): string {
@@ -74,7 +84,15 @@ function renderTextTable(
     const start = count === 0 ? 0 : offset + 1;
     const end = count === 0 ? 0 : offset + count;
     lines.push("");
-    lines.push(`Showing ${start}-${end} of ${options.total} results`);
+    const isApprox =
+      options.totalApprox !== undefined && options.totalApprox.exhausted === false;
+    const totalLabel = isApprox ? `≥ ${options.total}` : `${options.total}`;
+    lines.push(`Showing ${start}-${end} of ${totalLabel} results`);
+    if (isApprox) {
+      lines.push(
+        `(streamed; narrow the filter for an exact count and full pagination)`
+      );
+    }
 
     if (count > 0 && end < options.total) {
       lines.push(`(use --offset ${end} for next page)`);
