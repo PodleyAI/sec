@@ -204,5 +204,24 @@ describe("CompanyNormalization", () => {
       expect(result!.company_name).toBe("General Motors");
       expect(result!.company_hash_id).toBe("general-motors");
     });
+
+    it("canonicalises space-separated 'L L C' to 'LLC'", () => {
+      // Regression: canonicalEndings used `\b` inside a template literal,
+      // which is the backspace character (U+0008), not a word boundary.
+      // It silently no-op'd against every realistic input — punctuated
+      // forms only converged because normalizeCompanyName's dot-strip
+      // happens to remove the dots first. Space-separated suffixes never
+      // converged. After the fix this test passes.
+      const result = normalizeCompany("Acme L L C");
+      expect(result).toBeDefined();
+      expect(result!.company_name).toBe("Acme LLC");
+      expect(result!.company_hash_id).toBe("acme-llc");
+    });
+
+    it("canonical space-separated 'L L C' shares hash id with 'LLC'", () => {
+      const spaced = normalizeCompany("Acme L L C");
+      const tight = normalizeCompany("Acme LLC");
+      expect(spaced!.company_hash_id).toBe(tight!.company_hash_id);
+    });
   });
 });
