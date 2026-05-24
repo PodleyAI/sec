@@ -11,7 +11,8 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { Form_1_Z } from "./Form_1_Z";
 import { processForm1Z } from "./Form_1_Z.storage";
@@ -36,12 +37,11 @@ interface IngestedFixture {
 const FIXTURE_SLUG = "form-1-z";
 
 describe("Form_1_Z pipeline", () => {
-  let companyRepo: CompanyRepo;
   let regARepo: RegAOfferingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
+    await setupAllDatabases();
     regARepo = new RegAOfferingRepo();
   });
 
@@ -108,25 +108,17 @@ describe("Form_1_Z pipeline", () => {
     expect(histories.length).toBeLessThanOrEqual(ingested.length);
   });
 
-  it("links the issuer company back to its CIK", async () => {
-    const ingested = await ingestAll();
-    const step = Math.max(1, Math.floor(ingested.length / 5));
-    let checked = 0;
-    let found = 0;
-    for (let i = 0; i < ingested.length && checked < 5; i += step) {
-      const f = ingested[i];
-      if (!f.issuerName) continue;
-      checked++;
-      const expected = companyRepo.normalizeCompanyName(f.issuerName);
-      const companies = await companyRepo.getCompaniesByEntity(f.cik);
-      if (
-        companies.some((c) => c.company_name === expected || c.company_name === f.issuerName)
-      ) {
-        found++;
+  it("links the issuer company back to its CIK via observations", async () => {
+    await ingestAll();
+    const allObs = await new CompanyObservationRepo().listAll();
+    const issuerObs = allObs.filter((o) => {
+      try {
+        return JSON.parse(o.source_context ?? "{}").relation === "form-1z:issuer";
+      } catch {
+        return false;
       }
-    }
-    if (checked === 0) return;
-    expect(found).toBeGreaterThanOrEqual(Math.floor(checked * 0.6));
+    });
+    expect(issuerObs.length).toBeGreaterThan(0);
   });
 
   it("ingests a 1-Z/A amendment via the same pipeline", async () => {

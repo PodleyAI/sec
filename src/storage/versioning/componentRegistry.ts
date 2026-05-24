@@ -6,14 +6,11 @@
 
 import type { ComponentKind } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
+import { RESOLVER_IDS } from "../../resolver/resolverIds";
 
-/**
- * The set of (kind, id) pairs that the CLI accepts. Mutating ceremonies
- * (start-dev / promote / rollback / drop-next) reject any (kind, id) not
- * listed here. PR3 registers only extractors; PR4 will add resolvers.
- */
 const REGISTERED: ReadonlyArray<{ kind: ComponentKind; id: string }> = [
   ...EXTRACTOR_IDS.map((id) => ({ kind: "extractor" as const, id })),
+  ...RESOLVER_IDS.map((id) => ({ kind: "resolver" as const, id })),
 ];
 
 export function isRegisteredComponent(kind: ComponentKind, id: string): boolean {

@@ -10,6 +10,15 @@ import type { ExtractorRunRepo } from "./ExtractorRunRepo";
 import { validateBumpProgression } from "./semver";
 import type { VersionEventRepo } from "./VersionEventRepo";
 import type { VersionRegistry } from "./VersionRegistry";
+import { PersonIdentityLinkRepo } from "../canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAddressRepo } from "../canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../canonical/CanonicalCompanyPhoneRepo";
+import type { ResolverId } from "../../resolver/resolverIds";
 
 interface BaseArgs {
   readonly reg: VersionRegistry;
@@ -42,6 +51,13 @@ export interface RollbackArgs extends BaseArgs {
 export interface DropNextArgs extends BaseArgs {
   readonly notes: string | null;
   readonly dryRun?: boolean;
+}
+
+export interface DropPreviousArgs extends BaseArgs {
+  readonly notes: string | null;
+  readonly dryRun?: boolean;
+  /** Required when kind === "extractor". */
+  readonly runs?: ExtractorRunRepo;
 }
 
 function assertRegistered(kind: ComponentKind, id: string): void {
@@ -291,6 +307,65 @@ export async function dropNext(args: DropNextArgs): Promise<void> {
     from_semver: next.semver,
     to_semver: null,
     bump_type: next.bump_type,
+    target_count: null,
+    notes,
+  });
+}
+
+/**
+ * Clears the previous slot and deletes all data associated with the previous
+ * version. For extractors, deletes extractor_run rows at previous.semver. For
+ * resolvers, deletes identity_link rows, junction rows (address/phone), and
+ * orphaned canonical rows for the previous semver. Logs a `drop-previous`
+ * event. When `dryRun: true`, validations run but no writes happen.
+ */
+export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
+  const { reg, events, kind, id, notes } = args;
+  assertRegistered(kind, id);
+
+  const previous = await reg.getPrevious(kind, id);
+  if (!previous) {
+    throw new Error(`No previous slot for ${kind} '${id}'. Nothing to drop.`);
+  }
+
+  if (args.dryRun) return;
+
+  if (kind === "extractor") {
+    if (!args.runs) throw new Error("runs repo required for extractor drop-previous");
+    await args.runs.deleteForExtractorVersion(id, previous.semver);
+  } else {
+    // resolver
+    const resolverId = id as ResolverId;
+    if (resolverId === "person") {
+      const linkRepo = new PersonIdentityLinkRepo();
+      const junctionAddr = new CanonicalPersonAddressRepo();
+      const junctionPhone = new CanonicalPersonPhoneRepo();
+      const canonRepo = new CanonicalPersonRepo();
+      await linkRepo.deleteForResolverVersion(previous.semver);
+      await junctionAddr.deleteForResolverVersion(previous.semver);
+      await junctionPhone.deleteForResolverVersion(previous.semver);
+      await canonRepo.deleteForResolverVersion(previous.semver);
+    } else {
+      const linkRepo = new CompanyIdentityLinkRepo();
+      const junctionAddr = new CanonicalCompanyAddressRepo();
+      const junctionPhone = new CanonicalCompanyPhoneRepo();
+      const canonRepo = new CanonicalCompanyRepo();
+      await linkRepo.deleteForResolverVersion(previous.semver);
+      await junctionAddr.deleteForResolverVersion(previous.semver);
+      await junctionPhone.deleteForResolverVersion(previous.semver);
+      await canonRepo.deleteForResolverVersion(previous.semver);
+    }
+  }
+
+  await reg.clearSlot(kind, id, "previous");
+
+  await events.recordEvent({
+    component_kind: kind,
+    component_id: id,
+    event_type: "drop-previous",
+    from_semver: previous.semver,
+    to_semver: null,
+    bump_type: null,
     target_count: null,
     notes,
   });

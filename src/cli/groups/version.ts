@@ -13,6 +13,7 @@ import {
 } from "../../storage/versioning/ComponentVersionSchema";
 import {
   dropNext as dropNextCeremony,
+  dropPrevious as dropPreviousCeremony,
   promote as promoteCeremony,
   rollback as rollbackCeremony,
   startDev as startDevCeremony,
@@ -26,9 +27,12 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/Version
 import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { renderTable } from "../output/TableRenderer";
+import { computeResolverCoverage } from "../queries/ResolverCoverage";
 import { getVersionCoverage } from "../queries/VersionCoverage";
 import { getVersionHistory } from "../queries/VersionHistory";
 import { getVersionStatus } from "../queries/VersionStatus";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import type { ResolverId } from "../../resolver/resolverIds";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 
@@ -192,6 +196,21 @@ export function addVersionCommands(program: Command): void {
       await runCommand(async () => {
         assertComponentKind(kind);
         assertFormat(options.format);
+        if (kind === "resolver") {
+          const versionRegistry = new VersionRegistry(
+            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+          );
+          const slot = await getActiveSlot(versionRegistry, "resolver", id);
+          if (!slot) {
+            console.error(`No active slot for resolver:${id}`);
+            process.exit(1);
+          }
+          const result = await computeResolverCoverage(id as ResolverId, slot.semver);
+          console.log(
+            `resolver:${result.kind}@${result.resolver_version}: ${result.numerator}/${result.denominator} (${(result.fraction * 100).toFixed(1)}%)`
+          );
+          return;
+        }
         const result = await getVersionCoverage(kind, id);
         if (options.format === "json") {
           console.log(JSON.stringify(result, null, 2));
@@ -396,6 +415,48 @@ export function addVersionCommands(program: Command): void {
             dryRun
               ? `(dry-run) drop-next ${kind} ${id} would succeed`
               : `Dropped next slot for ${kind}:${id}`
+          );
+        });
+      }
+    );
+
+  // drop-previous
+  version
+    .command("drop-previous <kind> <id>")
+    .description("Clear the previous slot and purge associated data")
+    .option("--notes <text>", "Optional notes for the audit log", "")
+    .action(
+      async (kind: string, id: string, options: Record<string, boolean | string>) => {
+        await runCommand(async () => {
+          assertComponentKind(kind);
+          const reg = new VersionRegistry(
+            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+          );
+          const events = new VersionEventRepo(
+            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+          );
+          const notes =
+            typeof options.notes === "string" && options.notes !== ""
+              ? options.notes
+              : null;
+          const dryRun = parseGlobalOptions(program).dryRun;
+          const runs =
+            kind === "extractor"
+              ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
+              : undefined;
+          await dropPreviousCeremony({
+            reg,
+            events,
+            kind,
+            id,
+            notes,
+            dryRun,
+            runs,
+          });
+          console.log(
+            dryRun
+              ? `(dry-run) drop-previous ${kind} ${id} would succeed`
+              : `Dropped previous slot for ${kind}:${id}`
           );
         });
       }

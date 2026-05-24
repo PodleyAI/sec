@@ -1,19 +1,23 @@
 import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
-import { COMPANY_REPOSITORY_TOKEN } from "../../storage/company/CompanySchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../../storage/investment-offering/InvestmentOfferingSchema";
-import { PERSON_REPOSITORY_TOKEN } from "../../storage/person/PersonSchema";
 import { PHONE_REPOSITORY_TOKEN } from "../../storage/phone/PhoneSchema";
 import { CROWDFUNDING_REPOSITORY_TOKEN } from "../../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../../storage/portal/PortalSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
+import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
+import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalPersonSchema";
+import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalCompanySchema";
+import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/PersonIdentityLinkSchema";
+import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/CompanyIdentityLinkSchema";
 
 export interface DbStatusResult {
   readonly entityCount: number;
@@ -76,12 +80,16 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },
   { table: "investment_offering", token: INVESTMENT_OFFERING_REPOSITORY_TOKEN as any },
   { table: "crowdfunding", token: CROWDFUNDING_REPOSITORY_TOKEN as any },
-  { table: "person", token: PERSON_REPOSITORY_TOKEN as any },
   { table: "address", token: ADDRESS_REPOSITORY_TOKEN as any },
   { table: "phone", token: PHONE_REPOSITORY_TOKEN as any },
-  { table: "company", token: COMPANY_REPOSITORY_TOKEN as any },
   { table: "portal", token: PORTAL_REPOSITORY_TOKEN as any },
   { table: "extractor_runs", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
+  { table: "person_observation", token: PERSON_OBSERVATION_REPOSITORY_TOKEN as any },
+  { table: "company_observation", token: COMPANY_OBSERVATION_REPOSITORY_TOKEN as any },
+  { table: "canonical_person", token: CANONICAL_PERSON_REPOSITORY_TOKEN as any },
+  { table: "canonical_company", token: CANONICAL_COMPANY_REPOSITORY_TOKEN as any },
+  { table: "person_identity_link", token: PERSON_IDENTITY_LINK_REPOSITORY_TOKEN as any },
+  { table: "company_identity_link", token: COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN as any },
 ];
 
 export async function getDbStats(): Promise<TableStat[]> {

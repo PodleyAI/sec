@@ -4,20 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, Sqlite } from "workglow";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
 } from "../storage/address/AddressSchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../storage/change-tracking/ChangeLogSchema";
-import {
-  COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  COMPANY_REPOSITORY_TOKEN,
-} from "../storage/company/CompanySchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../storage/entity/CikNameSchema";
 import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../storage/entity/EntityHistorySchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
@@ -28,13 +21,6 @@ import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { INVESTMENT_OFFERING_REPOSITORY_TOKEN } from "../storage/investment-offering/InvestmentOfferingSchema";
 import { ISSUER_REPOSITORY_TOKEN } from "../storage/investment-offering/IssuerSchema";
-import {
-  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  PERSON_REPOSITORY_TOKEN,
-} from "../storage/person/PersonSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -54,7 +40,26 @@ import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinan
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
-import { bootstrapExtractorVersions } from "../storage/versioning/bootstrapExtractorVersions";
+import {
+  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+} from "../storage/canonical/CanonicalAliasSchemas";
+import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
+import {
+  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
+} from "../storage/canonical/CanonicalJunctionSchemas";
+import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalPersonSchema";
+import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/CompanyIdentityLinkSchema";
+import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
+import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
+import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { getDb } from "../util/db";
+import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
+import { SEC_DB_FOLDER } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -67,19 +72,14 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEve
  * add its setupDatabase() call here or the table will not be created.
  */
 export async function setupAllDatabases(): Promise<void> {
+  // Load the SQLite native binding before any repo opens a database. Guarded
+  // because older workglow releases ship without Sqlite.init.
+  if (typeof Sqlite.init === "function") {
+    await Sqlite.init();
+  }
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(INVESTMENT_OFFERING_REPOSITORY_TOKEN).setupDatabase();
@@ -109,5 +109,23 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
-  await bootstrapExtractorVersions();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).setupDatabase();
+  if (globalServiceRegistry.has(SEC_DB_FOLDER)) {
+    const db = getDb();
+    for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
+      db.exec(ddl);
+    }
+  }
+  await bootstrapComponentVersions();
 }

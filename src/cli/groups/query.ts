@@ -273,7 +273,7 @@ export function addQueryCommands(program: Command): void {
     .command("persons [search]")
     .description("Search persons in the database")
     .option("--cik <cik>", "Filter by CIK")
-    .option("--role <role>", "Filter by role")
+    .option("--relationship <relationship>", "Filter by relationship")
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
@@ -284,16 +284,16 @@ export function addQueryCommands(program: Command): void {
       const result = await queryPersons({
         search,
         cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-        role: options.role as string | undefined,
+        relationship: options.relationship as string | undefined,
         limit,
         offset,
       });
 
       const columns = [
-        { key: "first", header: "First", width: 15 },
-        { key: "last", header: "Last", width: 20 },
+        { key: "first_name", header: "First", width: 15 },
+        { key: "last_name", header: "Last", width: 20 },
         { key: "title", header: "Title", width: 20 },
-        { key: "cik", header: "CIK", width: 10 },
+        { key: "source_filing_issuer_cik", header: "CIK", width: 10 },
       ];
 
       console.log(

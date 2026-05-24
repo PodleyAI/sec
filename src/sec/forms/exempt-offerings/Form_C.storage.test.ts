@@ -10,21 +10,19 @@ import { join } from "path";
 import { Form_C } from "./Form_C";
 import { processFormC } from "./Form_C.storage";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_C storage test", () => {
-  let companyRepo: CompanyRepo;
-  let personRepo: PersonRepo;
   let addressRepo: AddressRepo;
   let crowdfundingRepo: CrowdfundingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
-    personRepo = new PersonRepo();
+    await setupAllDatabases();
     addressRepo = new AddressRepo();
     crowdfundingRepo = new CrowdfundingRepo();
   });
@@ -81,9 +79,9 @@ describe("Form_C storage test", () => {
       const allCrowdfunding = await crowdfundingRepo.getAllCrowdfunding();
       expect(allCrowdfunding.length).toBeGreaterThan(0);
 
-      // Verify companies were stored
-      const allCompanies = (await companyRepo.companyRepository.getAll())?.length || 0;
-      expect(allCompanies).toBeGreaterThan(0);
+      // Verify companies were stored via observation tier
+      const allCompanies = await new CompanyObservationRepo().listAll();
+      expect(allCompanies.length).toBeGreaterThan(0);
     });
 
     it("should store crowdfunding entity with correct fields", async () => {
@@ -186,12 +184,16 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      // Verify co-issuer relationships were created
-      const coIssuerRelations = await companyRepo.companyEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-c:co-issuer",
+      // Verify co-issuers were stored as company observations
+      const allCompanyObs = await new CompanyObservationRepo().listAll();
+      const coIssuerObs = allCompanyObs.filter((o) => {
+        try {
+          return JSON.parse(o.source_context ?? "{}").relation === "form-c:co-issuer";
+        } catch {
+          return false;
+        }
       });
-      expect(coIssuerRelations?.length || 0).toBe(2);
+      expect(coIssuerObs.length).toBe(2);
     });
 
     it("should store signature persons", async () => {
@@ -211,12 +213,10 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      // The issuer signature should be stored
-      const signatureRelations = await personRepo.personEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-c:signature",
-      });
-      expect(signatureRelations?.length || 0).toBeGreaterThan(0);
+      // The issuer signature should be stored as a person observation
+      const allPersonObs = await new PersonObservationRepo().listAll();
+      const signatureObs = allPersonObs.filter((o) => o.relationship === "form-c:signature");
+      expect(signatureObs.length).toBeGreaterThan(0);
     });
 
     it("should set amended status for C/A submissions", async () => {

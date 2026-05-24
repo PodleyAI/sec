@@ -8,13 +8,15 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { dropNext, promote, rollback, startDev } from "./ceremonies";
+import { dropNext, dropPrevious, promote, rollback, startDev } from "./ceremonies";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { ExtractorRunRepo } from "./ExtractorRunRepo";
 import { VersionEventRepo } from "./VersionEventRepo";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "./VersionEventSchema";
 import { VersionRegistry } from "./VersionRegistry";
+import { PersonIdentityLinkRepo } from "../canonical/PersonIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../canonical/CanonicalPersonRepo";
 
 function buildDeps() {
   const reg = new VersionRegistry(
@@ -622,5 +624,172 @@ describe("ceremonies.dropNext", () => {
     // No new event.
     const afterEvents = await events.listForComponent("extractor", "D");
     expect(afterEvents).toHaveLength(beforeEvents.length);
+  });
+});
+
+describe("ceremonies.dropPrevious", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+  afterEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  it("throws when no previous slot exists", async () => {
+    const { reg, events } = buildDeps();
+    // After bootstrapping, resolver:person only has current@1.0.0 — no previous.
+    await expect(
+      dropPrevious({
+        reg,
+        events,
+        kind: "resolver",
+        id: "person",
+        notes: null,
+      })
+    ).rejects.toThrow(/no previous slot/i);
+  });
+
+  it("dropPrevious(resolver, person) clears identity-link and canonical rows", async () => {
+    const { reg, events } = buildDeps();
+
+    // Seed previous@1.0.0 slot for resolver:person by doing start-dev → promote.
+    await startDev({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+    await promote({
+      reg,
+      events,
+      runs: buildDeps().runs,
+      kind: "resolver",
+      id: "person",
+      force: true,
+      notes: null,
+    });
+    // Now: current=2.0.0, previous=1.0.0
+
+    // Seed a canonical person and identity link at 1.0.0.
+    const canonRepo = new CanonicalPersonRepo();
+    const linkRepo = new PersonIdentityLinkRepo();
+
+    const canonId = "00000000-0000-0000-0000-000000000001";
+    await canonRepo.create({
+      canonical_person_id: canonId,
+      resolver_version: "1.0.0",
+      display_first: "Alice",
+      display_middle: null,
+      display_last: "Smith",
+      display_suffix: null,
+      cik: null,
+      normalized_first: "alice",
+      normalized_middle: null,
+      normalized_last: "smith",
+      normalized_suffix: null,
+      source_filing_issuer_cik: null,
+      created_at: new Date().toISOString(),
+    });
+    await linkRepo.upsert(
+      /* observation_id */ 42,
+      /* resolver_version */ "1.0.0",
+      /* canonical_person_id */ canonId
+    );
+
+    // Verify seed is in place.
+    expect(await canonRepo.listForResolverVersion("1.0.0")).toHaveLength(1);
+    expect(await linkRepo.listForCanonical(canonId, "1.0.0")).toHaveLength(1);
+    expect((await reg.getPrevious("resolver", "person"))?.semver).toBe("1.0.0");
+
+    // Execute.
+    await dropPrevious({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      notes: "cleaning up 1.0.0",
+    });
+
+    // Identity link must be gone.
+    expect(await linkRepo.listForCanonical(canonId, "1.0.0")).toHaveLength(0);
+    // Canonical row must be deleted (no remaining links).
+    expect(await canonRepo.listForResolverVersion("1.0.0")).toHaveLength(0);
+    // Previous slot must be cleared.
+    expect(await reg.getPrevious("resolver", "person")).toBeUndefined();
+
+    // Event logged.
+    const evts = await events.listForComponent("resolver", "person");
+    const dropEvt = evts.find((e) => e.event_type === "drop-previous");
+    expect(dropEvt).toBeDefined();
+    expect(dropEvt?.from_semver).toBe("1.0.0");
+    expect(dropEvt?.notes).toBe("cleaning up 1.0.0");
+  });
+
+  it("dropPrevious(extractor) deletes run rows at previous semver", async () => {
+    const { reg, events, runs } = buildDeps();
+
+    // Seed previous@1.0.0 for extractor:D by doing start-dev → promote.
+    await startDev({
+      reg,
+      events,
+      kind: "extractor",
+      id: "D",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0,
+      notes: null,
+    });
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "extractor",
+      id: "D",
+      force: true,
+      notes: null,
+    });
+    // Now: current=2.0.0, previous=1.0.0
+
+    // Seed an extractor run at 1.0.0.
+    await runs.recordRun({
+      cik: 9999999,
+      accession_number: "0009999999-25-000001",
+      form: "D",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+
+    // Verify seed.
+    expect((await reg.getPrevious("extractor", "D"))?.semver).toBe("1.0.0");
+
+    // Execute.
+    await dropPrevious({
+      reg,
+      events,
+      runs,
+      kind: "extractor",
+      id: "D",
+      notes: null,
+    });
+
+    // Run row must be gone.
+    const runAfter = await runs.findRun(9999999, "0009999999-25-000001", "D", "1.0.0");
+    expect(runAfter).toBeUndefined();
+    // Previous slot must be cleared.
+    expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
+
+    // Event logged.
+    const evts = await events.listForComponent("extractor", "D");
+    const dropEvt = evts.find((e) => e.event_type === "drop-previous");
+    expect(dropEvt).toBeDefined();
+    expect(dropEvt?.from_semver).toBe("1.0.0");
   });
 });

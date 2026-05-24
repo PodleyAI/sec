@@ -4,27 +4,51 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
-import {
+import { INDEFINITE } from "./Form_D.schema";
+import type {
   FormD,
-  INDEFINITE,
   Issuer,
   OfferingData,
   RelatedPerson,
   Signature,
   SignatureBlock,
 } from "./Form_D.schema";
-import { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
-import { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
+import type { InvestmentOffering } from "../../../storage/investment-offering/InvestmentOfferingSchema";
+import type { InvestmentOfferingHistory } from "../../../storage/investment-offering/InvestmentOfferingHistorySchema";
 import { parseCikSafely } from "../../../util/parseCik";
+import { EntityObserver } from "../../../resolver/EntityObserver";
+import { PersonResolver } from "../../../resolver/PersonResolver";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+
+interface FormDStorageContext {
+  readonly accession_number: string;
+  readonly extractor_id: "D";
+  readonly extractor_version: string;
+  readonly observer: EntityObserver;
+}
 
 /**
  * Coerce a numeric-shaped string into a finite integer or null. EDGAR-emitted
@@ -40,17 +64,21 @@ function parseIntegerOrNull(raw: string | number | undefined | null): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-// relation types for form-d
-const RELATION_TYPE_ISSUER = "form-d:issuer";
-const RELATION_TYPE_RELATED_PERSON = "form-d:related-person";
-const RELATION_TYPE_SALES_COMPENSATION = "form-d:sales-compensation";
-const RELATION_TYPE_SIGNATURE = "form-d:signature";
+async function safeCall<T>(fn: () => Promise<T>, context: string): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.warn(context, error);
+    return null;
+  }
+}
 
 async function processOffering(
   cik: number,
   file_number: string,
   accession_number: string,
-  offering: OfferingData
+  offering: OfferingData,
+  ctx: FormDStorageContext
 ): Promise<void> {
   const investmentOfferingRepo = new InvestmentOfferingRepo();
 
@@ -105,110 +133,84 @@ async function processOffering(
   );
 
   if (offering.salesCompensationList.recipient) {
+    let salesIndex = 100;
     for (const recipient of offering.salesCompensationList.recipient) {
       if (!recipient.recipientName || recipient.recipientName.toLowerCase().trim() === "none") {
         continue;
       }
 
-      await processSalesCompensationRecipient(cik, recipient);
+      await processSalesCompensationRecipient(cik, recipient, ctx, salesIndex);
+      salesIndex++;
     }
   }
 }
 
-async function processSalesCompensationRecipient(cik: number, recipient: any): Promise<void> {
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
+async function processSalesCompensationRecipient(
+  cik: number,
+  recipient: any,
+  ctx: FormDStorageContext,
+  index: number
+): Promise<void> {
   const addressRepo = new AddressRepo();
 
   const recipientName = recipient.recipientName;
   const recipientCRD = recipient.recipientCRDNumber;
-  const relationName = RELATION_TYPE_SALES_COMPENSATION;
-  const relationshipTitles = ["Sales Compensation Recipient"];
 
   // Clean up CRD number - skip if it's "None" or empty
   const cleanCRD = recipientCRD && recipientCRD.toLowerCase() !== "none" ? recipientCRD : null;
 
-  // Determine if this is a company or person
+  const addr = recipient.recipientAddress
+    ? await safeCall(
+        () => addressRepo.saveAddress(recipient.recipientAddress),
+        `Failed to save address for sales compensation recipient ${recipient.recipientName}:`
+      )
+    : null;
+
   if (hasCompanyEnding(recipientName)) {
-    const companyImport = {
-      company_name: recipientName,
-      crd: cleanCRD,
-    };
-    const company = await companyRepo.saveCompany(companyImport);
-    await companyRepo.saveRelatedEntity(
-      company.company_hash_id,
-      relationName,
-      cik,
-      relationshipTitles
-    );
-
-    // Try to save recipient address
-    try {
-      const address = await addressRepo.saveAddress(recipient.recipientAddress);
-      await addressRepo.saveRelatedEntity(address.address_hash_id, relationName, cik);
-      await companyRepo.saveRelatedAddress(
-        company.company_hash_id,
-        relationName,
-        address.address_hash_id
-      );
-    } catch (error) {
-      console.warn(
-        `Failed to save address for sales compensation company ${recipientName}:`,
-        recipient.recipientAddress,
-        error
-      );
-    }
-  } else {
-    // Process as person
-    const personImport = {
+    await ctx.observer.observeCompany({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: index,
+      cik: null,
+      crd_number: cleanCRD,
       name: recipientName,
-      crd: cleanCRD,
-    };
-    const savedPerson = await personRepo.savePerson(personImport);
-    await personRepo.saveRelatedEntity(
-      savedPerson.person_hash_id,
-      relationName,
-      cik,
-      relationshipTitles
-    );
-
-    try {
-      const address = await addressRepo.saveAddress(recipient.recipientAddress);
-      await addressRepo.saveRelatedEntity(address.address_hash_id, relationName, cik);
-      await personRepo.saveRelatedAddress(
-        savedPerson.person_hash_id,
-        relationName,
-        address.address_hash_id
-      );
-    } catch (error) {
-      console.warn(
-        `Failed to save address for sales compensation person ${recipientName}:`,
-        recipient.recipientAddress,
-        error
-      );
-    }
+      address_id: addr?.address_hash_id ?? null,
+      source_context: JSON.stringify({ relation: "form-d:sales-compensation" }),
+    });
+  } else {
+    await ctx.observer.observePerson({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: index,
+      source_filing_issuer_cik: cik,
+      last_name: recipientName,
+      title: "Sales Compensation Recipient",
+      relationship: "form-d:sales-compensation",
+      address_id: addr?.address_hash_id ?? null,
+      source_context: JSON.stringify({ relation: "form-d:sales-compensation", crd_number: cleanCRD }),
+    });
   }
 }
 
-async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boolean): Promise<void> {
-  // Repository instances
-  const companyRepo = new CompanyRepo();
+async function processIssuer(
+  cik: number,
+  issuer: Issuer,
+  isPrimaryIssuer: boolean,
+  ctx: FormDStorageContext,
+  index: number
+): Promise<void> {
   const addressRepo = new AddressRepo();
   const phoneRepo = new PhoneRepo();
   const issuerRepo = new IssuerRepo();
 
   const companyName = issuer.entityName || `Entity ${issuer.cik}`;
-  const company = await companyRepo.saveCompany(companyName);
-  // Save relationship between this entity and the issuer
-  const relationName = isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer";
-  await companyRepo.saveRelatedEntity(company.company_hash_id, relationName, cik, [
-    isPrimaryIssuer ? "Primary Issuer" : "Additional Issuer",
-  ]);
 
   let country_code = "US";
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
+  let phone: Awaited<ReturnType<typeof phoneRepo.savePhone>> | null = null;
 
-  // Save the issuer record only if it's not a self-reference
-  // (primary issuer typically has the same CIK as the filing entity)
   const issuerCik = parseCikSafely(issuer.cik);
   if (issuerCik !== cik) {
     const issuerRecord = {
@@ -217,41 +219,22 @@ async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boole
       is_primary: isPrimaryIssuer,
     };
     await issuerRepo.saveIssuer(issuerRecord);
-    await companyRepo.saveRelatedEntity(company.company_hash_id, RELATION_TYPE_ISSUER, issuerCik, [
-      "Issuer",
-    ]);
   }
 
   try {
-    const address = await addressRepo.saveAddress(issuer.issuerAddress);
-    await addressRepo.saveRelatedEntity(address.address_hash_id, relationName, cik);
-    if (address.country_code) {
-      country_code = address.country_code;
+    addr = await addressRepo.saveAddress(issuer.issuerAddress);
+    if (addr?.country_code) {
+      country_code = addr.country_code;
     }
-    await companyRepo.saveRelatedAddress(
-      company.company_hash_id,
-      relationName,
-      address.address_hash_id
-    );
   } catch (error) {
     console.warn(`Failed to save address for issuer ${companyName}:`, issuer.issuerAddress, error);
   }
 
-  // EDGAR phone numbers are user-entered and routinely malformed (e.g. UK
-  // numbers like "44(0) 20 7493 2462" with no country code). Treat
-  // normalization failures the same way we treat address failures above:
-  // warn and continue so one bad field doesn't drop the whole filing.
   try {
-    const phone = await phoneRepo.savePhone({
+    phone = await phoneRepo.savePhone({
       phone_raw: issuer.issuerPhoneNumber,
       country_code,
     });
-    await phoneRepo.saveRelatedEntity(phone.international_number, relationName, cik);
-    await companyRepo.saveRelatedPhone(
-      phone.international_number,
-      relationName,
-      company.company_hash_id
-    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(
@@ -259,17 +242,20 @@ async function processIssuer(cik: number, issuer: Issuer, isPrimaryIssuer: boole
     );
   }
 
-  if (issuer.issuerPreviousNameList && "previousName" in issuer.issuerPreviousNameList) {
-    for (const prevName of issuer.issuerPreviousNameList.previousName || []) {
-      await companyRepo.savePreviousName(company.company_hash_id, prevName, "issuer", "Form D");
-    }
-  }
+  await ctx.observer.observeCompany({
+    accession_number: ctx.accession_number,
+    extractor_id: ctx.extractor_id,
+    extractor_version: ctx.extractor_version,
+    observation_index: index,
+    cik: issuerCik ?? null,
+    name: companyName,
+    address_id: addr?.address_hash_id ?? null,
+    international_number: phone?.international_number ?? null,
+    source_context: JSON.stringify({
+      relation: isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer",
+    }),
+  });
 
-  if (issuer.edgarPreviousNameList && "previousName" in issuer.edgarPreviousNameList) {
-    for (const prevName of issuer.edgarPreviousNameList.previousName || []) {
-      await companyRepo.savePreviousName(company.company_hash_id, prevName, "edgar", "Form D");
-    }
-  }
 }
 
 function isCompanyInPersonField(person: RelatedPerson): boolean {
@@ -282,10 +268,10 @@ function isCompanyInPersonField(person: RelatedPerson): boolean {
 async function processRelatedPerson(
   cik: number,
   relation_type: string,
-  person: RelatedPerson
+  person: RelatedPerson,
+  ctx: FormDStorageContext,
+  index: number
 ): Promise<void> {
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
   const addressRepo = new AddressRepo();
   if (
     isBadPersonField(person.relatedPersonName.firstName) &&
@@ -304,120 +290,131 @@ async function processRelatedPerson(
       .join(" ");
 
     if (companyName) {
-      const company = await companyRepo.saveCompany(companyName);
-      await companyRepo.saveRelatedEntity(
-        company.company_hash_id,
-        relation_type,
-        cik,
-        person.relatedPersonRelationshipList.relationship
-      );
-
+      let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
       try {
-        const address = await addressRepo.saveAddress(person.relatedPersonAddress);
-        await addressRepo.saveRelatedEntity(address.address_hash_id, relation_type, cik);
-        await companyRepo.saveRelatedAddress(
-          company.company_hash_id,
-          relation_type,
-          address.address_hash_id
-        );
+        addr = await addressRepo.saveAddress(person.relatedPersonAddress);
       } catch (error) {
         console.warn(`Failed to save address for company ${companyName}:`, error);
       }
+
+      await ctx.observer.observeCompany({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: index,
+        cik: null,
+        name: companyName,
+        address_id: addr?.address_hash_id ?? null,
+        source_context: JSON.stringify({
+          relation: relation_type,
+          titles: person.relatedPersonRelationshipList.relationship,
+        }),
+      });
     }
     return;
   }
 
-  const personFullName = [
-    person.relatedPersonName.firstName,
-    person.relatedPersonName.middleName,
-    person.relatedPersonName.lastName,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const savedPerson = await personRepo.savePerson({ name: personFullName });
-
-  const titles = person.relatedPersonRelationshipList.relationship;
-  await personRepo.saveRelatedEntity(savedPerson.person_hash_id, relation_type, cik, titles);
-
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
   try {
-    const address = await addressRepo.saveAddress(person.relatedPersonAddress);
-    await addressRepo.saveRelatedEntity(address.address_hash_id, relation_type, cik);
-    await personRepo.saveRelatedAddress(
-      savedPerson.person_hash_id,
-      relation_type,
-      address.address_hash_id
-    );
+    addr = await addressRepo.saveAddress(person.relatedPersonAddress);
   } catch (error) {
-    console.warn(`Failed to save address for person ${personFullName}:`, error);
+    const fullName = [
+      person.relatedPersonName.firstName,
+      person.relatedPersonName.middleName,
+      person.relatedPersonName.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    console.warn(`Failed to save address for person ${fullName}:`, error);
   }
+
+  await ctx.observer.observePerson({
+    accession_number: ctx.accession_number,
+    extractor_id: ctx.extractor_id,
+    extractor_version: ctx.extractor_version,
+    observation_index: index,
+    source_filing_issuer_cik: cik,
+    first_name: person.relatedPersonName.firstName || null,
+    middle_name: person.relatedPersonName.middleName || null,
+    last_name: person.relatedPersonName.lastName || null,
+    relationship: relation_type,
+    address_id: addr?.address_hash_id ?? null,
+    source_context: JSON.stringify({
+      relation: relation_type,
+      titles: person.relatedPersonRelationshipList.relationship,
+    }),
+  });
 }
 
 async function processSignature(
   cik: number,
   signature: Signature,
-  authorizedRepresentative: boolean = false
+  authorizedRepresentative: boolean = false,
+  ctx: FormDStorageContext,
+  index: number
 ): Promise<void> {
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
-
   const signerName = signature.signatureName || signature.nameOfSigner;
   const signatureTitle = signature.signatureTitle;
-  const signatureDate = signature.signatureDate;
-  const issuerName = signature.issuerName;
 
   if (!signerName) {
     console.warn("Signature missing signer name, skipping");
     return;
   }
 
-  // Determine relationship titles - include signature title and whether they're authorized rep
   const relationshipTitles = [signatureTitle || "Signer"];
   if (authorizedRepresentative) {
     relationshipTitles.push("Authorized Representative");
   }
-
-  // Clean up empty/null titles
   const cleanTitles = relationshipTitles.filter(Boolean);
 
-  // Signature names are almost always individual people signing on behalf of entities
   if (hasCompanyEnding(signerName)) {
-    const company = await companyRepo.saveCompany(signerName);
-    await companyRepo.saveRelatedEntity(
-      company.company_hash_id,
-      RELATION_TYPE_SIGNATURE,
-      cik,
-      cleanTitles
-    );
+    await ctx.observer.observeCompany({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: index,
+      cik: null,
+      name: signerName,
+      source_context: JSON.stringify({ relation: "form-d:signature", titles: cleanTitles }),
+    });
   } else {
-    const savedPerson = await personRepo.savePerson({ name: signerName });
-    await personRepo.saveRelatedEntity(
-      savedPerson.person_hash_id,
-      RELATION_TYPE_SIGNATURE,
-      cik,
-      cleanTitles
-    );
+    await ctx.observer.observePerson({
+      accession_number: ctx.accession_number,
+      extractor_id: ctx.extractor_id,
+      extractor_version: ctx.extractor_version,
+      observation_index: index,
+      source_filing_issuer_cik: cik,
+      last_name: signerName,
+      title: cleanTitles[0] ?? null,
+      relationship: "form-d:signature",
+      source_context: JSON.stringify({ relation: "form-d:signature", titles: cleanTitles }),
+    });
   }
 }
 
-async function processSignatureBlock(cik: number, signatureBlock: SignatureBlock): Promise<void> {
+async function processSignatureBlock(
+  cik: number,
+  signatureBlock: SignatureBlock,
+  ctx: FormDStorageContext,
+  startIndex: number
+): Promise<void> {
   if (!signatureBlock || !signatureBlock.signature) {
     return;
   }
 
   const authorizedRepresentative = signatureBlock.authorizedRepresentative === "true";
 
-  // Handle both single signature and array of signatures
   const signatures: Signature[] = Array.isArray(signatureBlock.signature)
     ? signatureBlock.signature
     : [signatureBlock.signature];
 
+  let idx = startIndex;
   for (const signature of signatures) {
     try {
-      await processSignature(cik, signature, authorizedRepresentative);
+      await processSignature(cik, signature, authorizedRepresentative, ctx, idx);
+      idx++;
     } catch (error) {
       console.warn(`Failed to process signature:`, signature, error);
-      // Continue processing other signatures
     }
   }
 }
@@ -435,16 +432,85 @@ export async function processFormD({
   primary_doc: string;
   formD: FormD;
 }): Promise<void> {
-  await processOffering(cik, file_number, accession_number, formD.offeringData);
-  await processIssuer(cik, formD.primaryIssuer, true);
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+
+  const [personSlot, companySlot] = await Promise.all([
+    getActiveSlot(versionRegistry, "resolver", "person"),
+    getActiveSlot(versionRegistry, "resolver", "company"),
+  ]);
+
+  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
+  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+
+  const extractor_version = "1.0.0";
+
+  const personObservationRepo = new PersonObservationRepo();
+  const companyObservationRepo = new CompanyObservationRepo();
+  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
+  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
+  const canonicalPersonRepo = new CanonicalPersonRepo();
+  const canonicalCompanyRepo = new CanonicalCompanyRepo();
+  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
+  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
+  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
+  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
+  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
+  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+
+  const personResolver = new PersonResolver({
+    canonicalPersonRepo,
+    canonicalPersonAliasRepo,
+    activeResolverVersion: activeResolverPersonVersion,
+  });
+
+  const companyResolver = new CompanyResolver({
+    canonicalCompanyRepo,
+    canonicalCompanyAliasRepo,
+    activeResolverVersion: activeResolverCompanyVersion,
+  });
+
+  const observer = new EntityObserver({
+    personObservationRepo,
+    companyObservationRepo,
+    personIdentityLinkRepo,
+    companyIdentityLinkRepo,
+    personResolver,
+    companyResolver,
+    canonicalPersonAddressRepo,
+    canonicalPersonPhoneRepo,
+    canonicalCompanyAddressRepo,
+    canonicalCompanyPhoneRepo,
+    activeResolverPersonVersion,
+    activeResolverCompanyVersion,
+  });
+
+  const ctx: FormDStorageContext = {
+    accession_number,
+    extractor_id: "D",
+    extractor_version,
+    observer,
+  };
+
+  // Issuers: indices 0–99
+  let issuerIndex = 0;
+  await processIssuer(cik, formD.primaryIssuer, true, ctx, issuerIndex++);
   for (const issuer of formD.issuerList?.issuer || []) {
-    await processIssuer(cik, issuer, false);
-  }
-  for (const person of formD.relatedPersonsList?.relatedPersonInfo || []) {
-    await processRelatedPerson(cik, RELATION_TYPE_RELATED_PERSON, person);
+    await processIssuer(cik, issuer, false, ctx, issuerIndex++);
   }
 
+  // Sales compensation: indices 100–199 (handled inside processOffering)
+  await processOffering(cik, file_number, accession_number, formD.offeringData, ctx);
+
+  // Related persons: indices 200–299
+  let relatedPersonIndex = 200;
+  for (const person of formD.relatedPersonsList?.relatedPersonInfo || []) {
+    await processRelatedPerson(cik, "form-d:related-person", person, ctx, relatedPersonIndex++);
+  }
+
+  // Signatures: indices 300–399
   if (formD.offeringData?.signatureBlock) {
-    await processSignatureBlock(cik, formD.offeringData.signatureBlock);
+    await processSignatureBlock(cik, formD.offeringData.signatureBlock, ctx, 300);
   }
 }

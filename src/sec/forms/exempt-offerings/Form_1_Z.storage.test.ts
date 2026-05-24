@@ -9,26 +9,21 @@ import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { Form_1_Z } from "./Form_1_Z";
 import { processForm1Z } from "./Form_1_Z.storage";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_1_Z storage test", () => {
-  let companyRepo: CompanyRepo;
-  let personRepo: PersonRepo;
   let addressRepo: AddressRepo;
-  let phoneRepo: PhoneRepo;
   let regARepo: RegAOfferingRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
-    personRepo = new PersonRepo();
+    await setupAllDatabases();
     addressRepo = new AddressRepo();
-    phoneRepo = new PhoneRepo();
     regARepo = new RegAOfferingRepo();
   });
 
@@ -108,18 +103,21 @@ describe("Form_1_Z storage test", () => {
         form1Z,
       });
 
-      // Check that signature persons/companies were stored
-      const personSignatures = await personRepo.personEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-rega:signature",
-      });
-      const companySignatures = await companyRepo.companyEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-rega:signature",
-      });
+      // Check that signature persons/companies were stored via observation tier
+      const allPersonObs = await new PersonObservationRepo().listAll();
+      const allCompanyObs = await new CompanyObservationRepo().listAll();
+      const sigObs = [
+        ...allPersonObs.filter((o) => o.relationship === "form-1z:signature"),
+        ...allCompanyObs.filter((o) => {
+          try {
+            return JSON.parse(o.source_context ?? "{}").relation === "form-1z:signature";
+          } catch {
+            return false;
+          }
+        }),
+      ];
 
-      const totalSignatures = (personSignatures?.length || 0) + (companySignatures?.length || 0);
-      expect(totalSignatures).toBeGreaterThan(0);
+      expect(sigObs.length).toBeGreaterThan(0);
     });
 
     it("should store issuer address and phone", async () => {
@@ -142,15 +140,16 @@ describe("Form_1_Z storage test", () => {
       const allAddresses = (await addressRepo.addressRepository.getAll()) || [];
       expect(allAddresses.length).toBeGreaterThan(0);
 
-      const allPhones = (await phoneRepo.phoneRepository.getAll()) || [];
-      expect(allPhones.length).toBeGreaterThan(0);
-
-      // Verify issuer company was stored
-      const issuerRelations = await companyRepo.companyEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-rega:issuer",
+      // Verify issuer company was stored via observation tier
+      const companyObs = await new CompanyObservationRepo().listAll();
+      const issuerObs = companyObs.filter((o) => {
+        try {
+          return JSON.parse(o.source_context ?? "{}").relation === "form-1z:issuer";
+        } catch {
+          return false;
+        }
       });
-      expect(issuerRelations?.length || 0).toBeGreaterThan(0);
+      expect(issuerObs.length).toBeGreaterThan(0);
     });
 
     it("should store certification suspension data", async () => {

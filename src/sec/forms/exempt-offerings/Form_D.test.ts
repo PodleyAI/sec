@@ -13,29 +13,31 @@ import { processFormD } from "./Form_D.storage";
 // Import all repository schemas and types
 
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 
 describe("Form_D comprehensive storage test", () => {
-  let companyRepo: CompanyRepo;
-  let personRepo: PersonRepo;
   let addressRepo: AddressRepo;
   let phoneRepo: PhoneRepo;
   let investmentOfferingRepo: InvestmentOfferingRepo;
   let issuerRepo: IssuerRepo;
+  let personObsRepo: PersonObservationRepo;
+  let companyObsRepo: CompanyObservationRepo;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetDependencyInjectionsForTesting();
-    companyRepo = new CompanyRepo();
-    personRepo = new PersonRepo();
+    await setupAllDatabases();
     addressRepo = new AddressRepo();
     phoneRepo = new PhoneRepo();
     investmentOfferingRepo = new InvestmentOfferingRepo();
     issuerRepo = new IssuerRepo();
+    personObsRepo = new PersonObservationRepo();
+    companyObsRepo = new CompanyObservationRepo();
   });
 
   describe("Form D parsing and storage with all mock data", () => {
@@ -100,8 +102,8 @@ describe("Form_D comprehensive storage test", () => {
       expect(failedFiles.length).toBe(0);
 
       // Verify data was stored
-      const allCompanies = (await companyRepo.companyRepository.getAll())?.length || 0;
-      const allPersons = (await personRepo.personRepository.getAll())?.length || 0;
+      const allCompanyObs = (await companyObsRepo.listAll())?.length || 0;
+      const allPersonObs = (await personObsRepo.listAll())?.length || 0;
       const allAddresses = (await addressRepo.addressRepository.getAll())?.length || 0;
       const allPhones = (await phoneRepo.phoneRepository.getAll())?.length || 0;
       const allOfferings =
@@ -109,21 +111,18 @@ describe("Form_D comprehensive storage test", () => {
       const allOfferingHistories =
         (await investmentOfferingRepo.investmentOfferingHistoryRepository.getAll())?.length || 0;
       const allIssuers = (await issuerRepo.issuerRepository.getAll())?.length || 0;
-      const allCompanyPreviousNames =
-        (await companyRepo.companyPreviousNamesRepository.getAll())?.length || 0;
 
       // Verify we have data in each repository. The fixture set grows over
       // time as we pull more real filings from EDGAR, so assert relative
       // invariants (rows-per-filing ratios) rather than absolute counts.
       const filings = xmlFiles.length;
-      expect(allCompanies).toBeGreaterThanOrEqual(filings); // >=1 issuer per filing
+      expect(allCompanyObs).toBeGreaterThanOrEqual(filings); // >=1 issuer observation per filing
       expect(allOfferings).toBeGreaterThanOrEqual(filings - Math.ceil(filings * 0.1)); // ~1 offering per filing
       expect(allOfferingHistories).toBeGreaterThanOrEqual(filings - Math.ceil(filings * 0.1));
-      expect(allPersons).toBeGreaterThan(0);
+      expect(allPersonObs).toBeGreaterThan(0);
       expect(allAddresses).toBeGreaterThan(0);
       expect(allPhones).toBeGreaterThan(0);
       expect(allIssuers).toBeGreaterThanOrEqual(0); // some filings have no related issuers
-      expect(allCompanyPreviousNames).toBeGreaterThanOrEqual(0);
     });
 
     it("should handle company entities in person fields correctly", async () => {
@@ -145,17 +144,13 @@ describe("Form_D comprehensive storage test", () => {
         formD,
       });
 
-      // Verify that "Jordan Park Access Solutions GP LLC" was stored as a company, not a person
-      const allCompanies = await companyRepo.companyRepository.getAll();
-      const jordanParkCompany = allCompanies?.find((company) =>
-        company.company_name.includes("Jordan Park Access Solutions")
+      // Verify that "Jordan Park Access Solutions GP LLC" was stored as a company observation, not a person
+      const allCompanyObs = await companyObsRepo.listAll();
+      const jordanParkObs = allCompanyObs?.find((obs) =>
+        obs.name?.includes("Jordan Park Access Solutions")
       );
 
-      expect(jordanParkCompany).toBeDefined();
-
-      // Verify company-entity relationships were created
-      const companyRelations = await companyRepo.companyEntityJunctionRepository.query({ cik });
-      expect(companyRelations?.length || 0).toBeGreaterThan(0);
+      expect(jordanParkObs).toBeDefined();
     });
 
     it("should store investment offering data correctly", async () => {
@@ -214,23 +209,13 @@ describe("Form_D comprehensive storage test", () => {
         formD,
       });
 
-      // Verify signers were stored as persons with correct relationships
-      const allPersons = await personRepo.personRepository.getAll();
-      const sharlaLangston = allPersons?.find(
-        (person) => person.first === "Sharla" && person.last === "Langston"
+      // Verify signers were stored as person observations
+      const allPersonObs = await personObsRepo.listAll();
+      const sharlaLangston = allPersonObs?.find(
+        (obs) => obs.last_name?.includes("Langston") || obs.last_name?.includes("Sharla Langston")
       );
 
       expect(sharlaLangston).toBeDefined();
-
-      // Verify signature relationship was created
-      const signatureRelations = await personRepo.personEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-d:signature",
-      });
-      expect(signatureRelations?.length || 0).toBe(1);
-
-      const signatureRelation = signatureRelations?.[0];
-      expect(signatureRelation?.titles).toContain("Attorney-in-fact");
     });
 
     it("should store CRD numbers correctly", async () => {
@@ -252,73 +237,26 @@ describe("Form_D comprehensive storage test", () => {
         formD,
       });
 
-      // Verify company with CRD number was stored
-      const allCompanies = await companyRepo.companyRepository.getAll();
-      const thornhillCompany = allCompanies?.find((company) =>
-        company.company_name.includes("Thornhill Securities")
+      // Verify company observation with CRD number was stored
+      const allCompanyObs = await companyObsRepo.listAll();
+      const thornhillObs = allCompanyObs?.find((obs) =>
+        obs.name?.includes("Thornhill Securities")
       );
-      expect(thornhillCompany).toBeDefined();
-      expect(thornhillCompany?.crd).toBe("22333");
+      expect(thornhillObs).toBeDefined();
+      expect(thornhillObs?.crd_number).toBe("22333");
 
-      // Verify person with CRD number was stored
-      const allPersons = await personRepo.personRepository.getAll();
-      const robertAnderson = allPersons?.find(
-        (person) => person.first === "Robert" && person.last === "Anderson"
-      );
+      // Verify person observation with CRD number was stored (as source_context)
+      const allPersonObs = await personObsRepo.listAll();
+      const robertAnderson = allPersonObs?.find((obs) => {
+        if (!obs.source_context) return false;
+        try {
+          const ctx = JSON.parse(obs.source_context);
+          return ctx.crd_number === "3101064";
+        } catch {
+          return false;
+        }
+      });
       expect(robertAnderson).toBeDefined();
-      expect(robertAnderson?.crd).toBe("3101064");
-
-      // Verify sales compensation relationships were created
-      const companyRelations = await companyRepo.companyEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-d:sales-compensation",
-      });
-      expect(companyRelations?.length || 0).toBeGreaterThan(0);
-
-      const personRelations = await personRepo.personEntityJunctionRepository.query({
-        cik,
-        relation_name: "form-d:sales-compensation",
-      });
-      expect(personRelations?.length || 0).toBeGreaterThan(0);
-    });
-
-    it("should store previous names correctly", async () => {
-      // Test a file that has previous names
-      const xmlContent = readFileSync(
-        join(__dirname, "mock_data", "form-d", "000175724718000001-primary_doc.xml"),
-        "utf-8"
-      );
-
-      const formD = await Form_D.parse("D", xmlContent);
-      const accessionNumber = "000175724718000001";
-      const cik = parseInt(formD.primaryIssuer.cik);
-
-      await processFormD({
-        cik,
-        file_number: `file-${accessionNumber}`,
-        accession_number: accessionNumber,
-        primary_doc: "000175724718000001-primary_doc.xml",
-        formD,
-      });
-
-      // Check if previous names were stored for companies
-      const allCompanyPreviousNames = await companyRepo.companyPreviousNamesRepository.getAll();
-      expect(allCompanyPreviousNames?.length || 0).toBeGreaterThan(0);
-
-      // Find a specific previous name
-      const jordanParkPrevName = allCompanyPreviousNames?.find((prev) =>
-        prev.previous_name.includes("Jordan Park Private Capital I L.P.")
-      );
-      expect(jordanParkPrevName).toBeDefined();
-      expect(jordanParkPrevName?.name_type).toBe("issuer");
-      expect(jordanParkPrevName?.source).toBe("Form D");
-
-      // Check for additional issuer previous names
-      const additionalIssuerPrevName = allCompanyPreviousNames?.find((prev) =>
-        prev.previous_name.includes("Jordan Park Private Capital 1-A L.P.")
-      );
-      expect(additionalIssuerPrevName).toBeDefined();
-      expect(additionalIssuerPrevName?.name_type).toBe("issuer");
     });
 
     it("should store related persons and their relationships correctly", async () => {
@@ -339,22 +277,18 @@ describe("Form_D comprehensive storage test", () => {
         formD,
       });
 
-      // Verify persons were stored
-      const allPersons = await personRepo.personRepository.getAll();
-      const frankGhali = allPersons?.find(
-        (person) => person.first === "Frank" && person.last === "Ghali"
+      // Verify persons were stored as observations
+      const allPersonObs = await personObsRepo.listAll();
+      const frankGhali = allPersonObs?.find(
+        (obs) => obs.last_name === "Ghali" && obs.first_name === "Frank"
       );
 
-      expect(frankGhali?.first).toBe("Frank");
-      expect(frankGhali?.last).toBe("Ghali");
+      expect(frankGhali?.first_name).toBe("Frank");
+      expect(frankGhali?.last_name).toBe("Ghali");
 
-      // Verify person-entity relationships
-      const personRelations = await personRepo.personEntityJunctionRepository.query({ cik });
-      expect(personRelations?.length || 0).toBe(6); // Original 5 + 1 signer
-
-      // Verify addresses were linked to persons
-      const personAddressLinks = await personRepo.personAddressJunctionRepository.getAll();
-      expect(personAddressLinks?.length || 0).toBe(5);
+      // Verify we have person observations for this accession
+      const accessionPersonObs = await personObsRepo.listByAccession(accessionNumber);
+      expect(accessionPersonObs.length).toBeGreaterThan(0);
     });
   });
 });

@@ -8,12 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { bootstrapExtractorVersions } from "./bootstrapExtractorVersions";
+import { bootstrapComponentVersions } from "./bootstrapComponentVersions";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
+import { RESOLVER_IDS } from "../../resolver/resolverIds";
 import { VersionRegistry } from "./VersionRegistry";
 
-describe("bootstrapExtractorVersions", () => {
+describe("bootstrapComponentVersions", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
@@ -24,7 +25,7 @@ describe("bootstrapExtractorVersions", () => {
   });
 
   it("seeds every known extractor at 1.0.0 in the current slot", async () => {
-    await bootstrapExtractorVersions();
+    await bootstrapComponentVersions();
     const reg = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
@@ -36,14 +37,26 @@ describe("bootstrapExtractorVersions", () => {
     }
   });
 
+  it("seeds resolver:person and resolver:company at 1.0.0", async () => {
+    await bootstrapComponentVersions();
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    for (const id of RESOLVER_IDS) {
+      const cur = await reg.getCurrent("resolver", id);
+      expect(cur?.semver).toBe("1.0.0");
+      expect(cur?.coverage_complete).toBe(true);
+    }
+  });
+
   it("is idempotent: running it twice does not change anything", async () => {
-    await bootstrapExtractorVersions();
+    await bootstrapComponentVersions();
     const reg = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
     const before = await reg.getCurrent("extractor", "D");
 
-    await bootstrapExtractorVersions();
+    await bootstrapComponentVersions();
     const after = await reg.getCurrent("extractor", "D");
 
     expect(after?.semver).toBe(before?.semver);
@@ -65,14 +78,14 @@ describe("bootstrapExtractorVersions", () => {
       target_count: null,
     });
 
-    await bootstrapExtractorVersions();
+    await bootstrapComponentVersions();
 
     const cur = await reg.getCurrent("extractor", "D");
     expect(cur?.semver).toBe("2.5.0");
   });
 
   it("leaves previous and next slots empty", async () => {
-    await bootstrapExtractorVersions();
+    await bootstrapComponentVersions();
     const reg = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );

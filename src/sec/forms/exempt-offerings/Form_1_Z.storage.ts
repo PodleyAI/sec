@@ -4,66 +4,75 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globalServiceRegistry } from "workglow";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CompanyRepo } from "../../../storage/company/CompanyRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { PersonRepo } from "../../../storage/person/PersonRepo";
-import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
 import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
 import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
-import {
-  extractServiceProviders,
-  RELATION_TYPE_REGA_ISSUER,
-  RELATION_TYPE_REGA_SERVICE_PROVIDER,
-  RELATION_TYPE_REGA_SIGNATURE,
-} from "./RegA_shared";
+import { extractServiceProviders } from "./RegA_shared";
 import type { Form1Z } from "./Form_1_Z.schema";
+import { EntityObserver } from "../../../resolver/EntityObserver";
+import { PersonResolver } from "../../../resolver/PersonResolver";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 
-async function processIssuerAndAddress(cik: number, form1Z: Form1Z): Promise<void> {
-  const companyRepo = new CompanyRepo();
+interface Form1ZStorageContext {
+  readonly accession_number: string;
+  readonly extractor_id: "1-Z";
+  readonly extractor_version: string;
+  readonly observer: EntityObserver;
+}
+
+async function processIssuer(
+  cik: number,
+  form1Z: Form1Z,
+  ctx: Form1ZStorageContext,
+  startIndex: number
+): Promise<void> {
   const addressRepo = new AddressRepo();
-  const phoneRepo = new PhoneRepo();
 
   const item1 = form1Z.formData.item1;
 
-  const company = await companyRepo.saveCompany(item1.issuerName);
-  await companyRepo.saveRelatedEntity(
-    company.company_hash_id,
-    RELATION_TYPE_REGA_ISSUER,
-    cik,
-    ["Issuer"]
-  );
-
+  let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
   try {
-    const address = await addressRepo.saveAddress({
+    addr = await addressRepo.saveAddress({
       street1: item1.street1,
       street2: item1.street2,
       city: item1.city,
       stateOrCountry: item1.stateOrCountry,
       zipCode: item1.zipCode,
     });
-    await addressRepo.saveRelatedEntity(address.address_hash_id, RELATION_TYPE_REGA_ISSUER, cik);
-    await companyRepo.saveRelatedAddress(
-      company.company_hash_id,
-      RELATION_TYPE_REGA_ISSUER,
-      address.address_hash_id
-    );
   } catch (error) {
     console.warn(`Failed to save address for Form 1-Z issuer ${item1.issuerName}:`, error);
   }
 
-  const phone = await phoneRepo.savePhone({
-    phone_raw: item1.phone,
-    country_code: item1.stateOrCountry?.length === 2 ? "US" : item1.stateOrCountry,
+  await ctx.observer.observeCompany({
+    accession_number: ctx.accession_number,
+    extractor_id: ctx.extractor_id,
+    extractor_version: ctx.extractor_version,
+    observation_index: startIndex,
+    cik,
+    name: item1.issuerName,
+    address_id: addr?.address_hash_id ?? null,
+    international_number: null,
+    source_context: JSON.stringify({ relation: "form-1z:issuer" }),
   });
-  await phoneRepo.saveRelatedEntity(phone.international_number, RELATION_TYPE_REGA_ISSUER, cik);
-  await companyRepo.saveRelatedPhone(
-    phone.international_number,
-    RELATION_TYPE_REGA_ISSUER,
-    company.company_hash_id
-  );
 }
 
 async function processOfferingSummaries(
@@ -71,13 +80,15 @@ async function processOfferingSummaries(
   file_number: string,
   accession_number: string,
   filing_date: string,
-  form1Z: Form1Z
+  form1Z: Form1Z,
+  ctx: Form1ZStorageContext,
+  startIndex: number
 ): Promise<void> {
   const regARepo = new RegAOfferingRepo();
-  const companyRepo = new CompanyRepo();
   const summaryInfoArr = form1Z.formData.summaryInfoOffering;
   if (!summaryInfoArr) return;
 
+  let providerIdx = 0;
   for (const summaryInfo of summaryInfoArr) {
     // Skip empty/non-object entries (from self-closing XML tags)
     if (typeof summaryInfo !== "object" || summaryInfo === null) continue;
@@ -119,13 +130,21 @@ async function processOfferingSummaries(
       });
 
       if (provider.name) {
-        const company = await companyRepo.saveCompany(provider.name);
-        await companyRepo.saveRelatedEntity(
-          company.company_hash_id,
-          RELATION_TYPE_REGA_SERVICE_PROVIDER,
-          cik,
-          [provider.type]
-        );
+        await ctx.observer.observeCompany({
+          accession_number: ctx.accession_number,
+          extractor_id: ctx.extractor_id,
+          extractor_version: ctx.extractor_version,
+          observation_index: startIndex + providerIdx,
+          cik: null,
+          name: provider.name,
+          address_id: null,
+          international_number: null,
+          source_context: JSON.stringify({
+            relation: "form-1z:service-provider",
+            providerType: provider.type,
+          }),
+        });
+        providerIdx++;
       }
     }
   }
@@ -168,9 +187,13 @@ async function processCertificationSuspension(
   }
 }
 
-async function processSignatures(cik: number, form1Z: Form1Z): Promise<void> {
-  const companyRepo = new CompanyRepo();
-  const personRepo = new PersonRepo();
+async function processSignatures(
+  cik: number,
+  form1Z: Form1Z,
+  ctx: Form1ZStorageContext,
+  startIndex: number
+): Promise<void> {
+  let idx = 0;
 
   for (const sig of form1Z.formData.signatureTab) {
     let signerName: string | undefined = undefined;
@@ -178,8 +201,9 @@ async function processSignatures(cik: number, form1Z: Form1Z): Promise<void> {
       signerName = sig.signatureBy;
     } else if (typeof sig.signatureBy === "object" && sig.signatureBy !== null) {
       const obj = sig.signatureBy as Record<string, unknown>;
-      signerName = (typeof obj.name === "string" ? obj.name : undefined)
-        ?? (Object.values(obj).find((v) => typeof v === "string") as string | undefined);
+      signerName =
+        (typeof obj.name === "string" ? obj.name : undefined) ??
+        (Object.values(obj).find((v) => typeof v === "string") as string | undefined);
     }
     if (!signerName) continue;
 
@@ -190,26 +214,35 @@ async function processSignatures(cik: number, form1Z: Form1Z): Promise<void> {
     const titles = [sig.title || "Signer"];
 
     if (hasCompanyEnding(signerName)) {
-      const company = await companyRepo.saveCompany(signerName);
-      await companyRepo.saveRelatedEntity(
-        company.company_hash_id,
-        RELATION_TYPE_REGA_SIGNATURE,
-        cik,
-        titles
-      );
+      await ctx.observer.observeCompany({
+        accession_number: ctx.accession_number,
+        extractor_id: ctx.extractor_id,
+        extractor_version: ctx.extractor_version,
+        observation_index: startIndex + idx,
+        cik: null,
+        name: signerName,
+        address_id: null,
+        international_number: null,
+        source_context: JSON.stringify({ relation: "form-1z:signature", titles }),
+      });
     } else {
       try {
-        const person = await personRepo.savePerson({ name: signerName });
-        await personRepo.saveRelatedEntity(
-          person.person_hash_id,
-          RELATION_TYPE_REGA_SIGNATURE,
-          cik,
-          titles
-        );
+        await ctx.observer.observePerson({
+          accession_number: ctx.accession_number,
+          extractor_id: ctx.extractor_id,
+          extractor_version: ctx.extractor_version,
+          observation_index: startIndex + idx,
+          source_filing_issuer_cik: cik,
+          last_name: signerName,
+          title: titles[0] ?? null,
+          relationship: "form-1z:signature",
+          source_context: JSON.stringify({ relation: "form-1z:signature", titles }),
+        });
       } catch (error) {
         console.warn(`Failed to normalize signature person ${signerName}:`, error);
       }
     }
+    idx++;
   }
 }
 
@@ -228,6 +261,67 @@ export async function processForm1Z({
   primary_doc: string;
   form1Z: Form1Z;
 }): Promise<void> {
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+
+  const [personSlot, companySlot] = await Promise.all([
+    getActiveSlot(versionRegistry, "resolver", "person"),
+    getActiveSlot(versionRegistry, "resolver", "company"),
+  ]);
+
+  const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
+  const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+
+  const extractor_version = "1.0.0";
+
+  const personObservationRepo = new PersonObservationRepo();
+  const companyObservationRepo = new CompanyObservationRepo();
+  const personIdentityLinkRepo = new PersonIdentityLinkRepo();
+  const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
+  const canonicalPersonRepo = new CanonicalPersonRepo();
+  const canonicalCompanyRepo = new CanonicalCompanyRepo();
+  const canonicalPersonAliasRepo = new CanonicalPersonAliasRepo();
+  const canonicalCompanyAliasRepo = new CanonicalCompanyAliasRepo();
+  const canonicalPersonAddressRepo = new CanonicalPersonAddressRepo();
+  const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
+  const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
+  const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+
+  const personResolver = new PersonResolver({
+    canonicalPersonRepo,
+    canonicalPersonAliasRepo,
+    activeResolverVersion: activeResolverPersonVersion,
+  });
+
+  const companyResolver = new CompanyResolver({
+    canonicalCompanyRepo,
+    canonicalCompanyAliasRepo,
+    activeResolverVersion: activeResolverCompanyVersion,
+  });
+
+  const observer = new EntityObserver({
+    personObservationRepo,
+    companyObservationRepo,
+    personIdentityLinkRepo,
+    companyIdentityLinkRepo,
+    personResolver,
+    companyResolver,
+    canonicalPersonAddressRepo,
+    canonicalPersonPhoneRepo,
+    canonicalCompanyAddressRepo,
+    canonicalCompanyPhoneRepo,
+    activeResolverPersonVersion,
+    activeResolverCompanyVersion,
+  });
+
+  const ctx: Form1ZStorageContext = {
+    accession_number,
+    extractor_id: "1-Z",
+    extractor_version,
+    observer,
+  };
+
   const regARepo = new RegAOfferingRepo();
   const item1 = form1Z.formData.item1;
 
@@ -246,8 +340,8 @@ export async function processForm1Z({
 
   await regARepo.saveOffering(offering);
 
-  await processIssuerAndAddress(cik, form1Z);
-  await processOfferingSummaries(cik, file_number, accession_number, filing_date, form1Z);
+  await processIssuer(cik, form1Z, ctx, 0);
+  await processOfferingSummaries(cik, file_number, accession_number, filing_date, form1Z, ctx, 100);
   await processCertificationSuspension(cik, file_number, accession_number, form1Z);
-  await processSignatures(cik, form1Z);
+  await processSignatures(cik, form1Z, ctx, 200);
 }

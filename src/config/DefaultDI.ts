@@ -26,23 +26,6 @@ import {
   ChangeLogSchema,
 } from "../storage/change-tracking/ChangeLogSchema";
 import {
-  CompaniesAddressJunctionSchema,
-  CompaniesEntityJunctionSchema,
-  COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  COMPANY_REPOSITORY_TOKEN,
-  CompanyAddressJunctionPrimaryKeyNames,
-  CompanyEntityJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionPrimaryKeyNames,
-  CompanyPhoneJunctionSchema,
-  CompanyPreviousNamesPrimaryKeyNames,
-  CompanyPreviousNamesSchema,
-  CompanyPrimaryKeyNames,
-  CompanySchema,
-} from "../storage/company/CompanySchema";
-import {
   CIK_NAME_REPOSITORY_TOKEN,
   CikNamePrimaryKeyNames,
   CikNameSchema,
@@ -92,24 +75,6 @@ import {
   IssuerPrimaryKeyNames,
   IssuerSchema,
 } from "../storage/investment-offering/IssuerSchema";
-import {
-  Person,
-  PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-  PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-  PERSON_REPOSITORY_TOKEN,
-  PersonAddressJunctionPrimaryKeyNames,
-  PersonEntityJunctionPrimaryKeyNames,
-  PersonPhoneJunctionPrimaryKeyNames,
-  PersonPhoneJunctionSchema,
-  PersonPreviousNamesPrimaryKeyNames,
-  PersonPreviousNamesSchema,
-  PersonPrimaryKeyNames,
-  PersonsAddressJunctionSchema,
-  PersonSchema,
-  PersonsEntityJunctionSchema,
-} from "../storage/person/PersonSchema";
 import {
   PHONE_ENTITY_JUNCTION_REPOSITORY_TOKEN,
   PHONE_REPOSITORY_TOKEN,
@@ -180,6 +145,58 @@ import {
   RegAServiceProviderSchema,
 } from "../storage/reg-a/RegAServiceProviderSchema";
 import {
+  CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+  CanonicalCompanyAliasSchema,
+  CanonicalCompanyAliasPrimaryKeyNames,
+  CanonicalPersonAliasSchema,
+  CanonicalPersonAliasPrimaryKeyNames,
+} from "../storage/canonical/CanonicalAliasSchemas";
+import {
+  CANONICAL_COMPANY_REPOSITORY_TOKEN,
+  CanonicalCompanyPrimaryKeyNames,
+  CanonicalCompanySchema,
+} from "../storage/canonical/CanonicalCompanySchema";
+import {
+  CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
+  CanonicalCompanyAddressPrimaryKeyNames,
+  CanonicalCompanyAddressSchema,
+  CanonicalCompanyPhonePrimaryKeyNames,
+  CanonicalCompanyPhoneSchema,
+  CanonicalPersonAddressPrimaryKeyNames,
+  CanonicalPersonAddressSchema,
+  CanonicalPersonPhonePrimaryKeyNames,
+  CanonicalPersonPhoneSchema,
+} from "../storage/canonical/CanonicalJunctionSchemas";
+import {
+  CANONICAL_PERSON_REPOSITORY_TOKEN,
+  CanonicalPersonPrimaryKeyNames,
+  CanonicalPersonSchema,
+} from "../storage/canonical/CanonicalPersonSchema";
+import {
+  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
+  CompanyIdentityLinkPrimaryKeyNames,
+  CompanyIdentityLinkSchema,
+} from "../storage/canonical/CompanyIdentityLinkSchema";
+import {
+  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
+  PersonIdentityLinkPrimaryKeyNames,
+  PersonIdentityLinkSchema,
+} from "../storage/canonical/PersonIdentityLinkSchema";
+import {
+  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
+  CompanyObservationPrimaryKeyNames,
+  CompanyObservationSchema,
+} from "../storage/observation/CompanyObservationSchema";
+import {
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+} from "../storage/observation/PersonObservationSchema";
+import {
   COMPONENT_VERSION_REPOSITORY_TOKEN,
   ComponentVersionPrimaryKeyNames,
   ComponentVersionSchema,
@@ -226,95 +243,6 @@ export const DefaultDI = () => {
       [["cik"]]
     )
   );
-  // ------------------------------ Persons --------------------------------
-  globalServiceRegistry.registerInstance(
-    PERSON_REPOSITORY_TOKEN,
-    createStorage<typeof PersonSchema, typeof PersonPrimaryKeyNames, Person>(
-      "persons",
-      PersonSchema,
-      PersonPrimaryKeyNames,
-      [["last", "first"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_entity_junction",
-      PersonsEntityJunctionSchema,
-      PersonEntityJunctionPrimaryKeyNames,
-      [["cik"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_address_junction",
-      PersonsAddressJunctionSchema,
-      PersonAddressJunctionPrimaryKeyNames,
-      [["address_hash_id"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_phone_junction",
-      PersonPhoneJunctionSchema,
-      PersonPhoneJunctionPrimaryKeyNames,
-      [["international_number"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    PERSON_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    createStorage(
-      "persons_previous_names",
-      PersonPreviousNamesSchema,
-      PersonPreviousNamesPrimaryKeyNames,
-      [["person_hash_id"], ["previous_name"]]
-    )
-  );
-
-  // ------------------------------ Companies --------------------------------
-  globalServiceRegistry.registerInstance(
-    COMPANY_REPOSITORY_TOKEN,
-    createStorage("companies", CompanySchema, CompanyPrimaryKeyNames, [["company_name"]])
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ENTITY_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_entity_junction",
-      CompaniesEntityJunctionSchema,
-      CompanyEntityJunctionPrimaryKeyNames,
-      [["cik"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_ADDRESS_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_address_junction",
-      CompaniesAddressJunctionSchema,
-      CompanyAddressJunctionPrimaryKeyNames,
-      [["address_hash_id"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PHONE_JUNCTION_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_phone_junction",
-      CompanyPhoneJunctionSchema,
-      CompanyPhoneJunctionPrimaryKeyNames,
-      [["international_number"]]
-    )
-  );
-  globalServiceRegistry.registerInstance(
-    COMPANY_PREVIOUS_NAMES_REPOSITORY_TOKEN,
-    createStorage(
-      "companies_previous_names",
-      CompanyPreviousNamesSchema,
-      CompanyPreviousNamesPrimaryKeyNames,
-      [["company_hash_id"], ["previous_name"]]
-    )
-  );
-
   // ------------------------------ Phones --------------------------------
   globalServiceRegistry.registerInstance(
     PHONE_REPOSITORY_TOKEN,
@@ -533,5 +461,119 @@ export const DefaultDI = () => {
     createStorage("rega_equity_classes", RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
+  );
+
+  // ----- Observation / Canonical / Resolver -----
+  globalServiceRegistry.registerInstance(
+    PERSON_OBSERVATION_REPOSITORY_TOKEN,
+    createStorage("person_observations", PersonObservationSchema, PersonObservationPrimaryKeyNames, [
+      ["accession_number"],
+      ["accession_number", "extractor_id", "observation_index"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    COMPANY_OBSERVATION_REPOSITORY_TOKEN,
+    createStorage(
+      "company_observations",
+      CompanyObservationSchema,
+      CompanyObservationPrimaryKeyNames,
+      [
+        ["accession_number"],
+        ["accession_number", "extractor_id", "observation_index"],
+      ]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_PERSON_REPOSITORY_TOKEN,
+    createStorage("canonical_person", CanonicalPersonSchema, CanonicalPersonPrimaryKeyNames, [
+      ["resolver_version", "cik"],
+      ["resolver_version", "normalized_last"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_COMPANY_REPOSITORY_TOKEN,
+    createStorage("canonical_company", CanonicalCompanySchema, CanonicalCompanyPrimaryKeyNames, [
+      ["resolver_version", "cik"],
+      ["resolver_version", "crd_number"],
+      ["resolver_version", "normalized_name"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
+    createStorage(
+      "person_identity_link",
+      PersonIdentityLinkSchema,
+      PersonIdentityLinkPrimaryKeyNames,
+      [
+        ["canonical_person_id", "resolver_version"],
+        ["resolver_version"],
+      ]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
+    createStorage(
+      "company_identity_link",
+      CompanyIdentityLinkSchema,
+      CompanyIdentityLinkPrimaryKeyNames,
+      [
+        ["canonical_company_id", "resolver_version"],
+        ["resolver_version"],
+      ]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_person_address",
+      CanonicalPersonAddressSchema,
+      CanonicalPersonAddressPrimaryKeyNames,
+      [["canonical_person_id", "resolver_version"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_person_phone",
+      CanonicalPersonPhoneSchema,
+      CanonicalPersonPhonePrimaryKeyNames,
+      [["canonical_person_id", "resolver_version"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_company_address",
+      CanonicalCompanyAddressSchema,
+      CanonicalCompanyAddressPrimaryKeyNames,
+      [["canonical_company_id", "resolver_version"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_company_phone",
+      CanonicalCompanyPhoneSchema,
+      CanonicalCompanyPhonePrimaryKeyNames,
+      [["canonical_company_id", "resolver_version"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_person_alias",
+      CanonicalPersonAliasSchema,
+      CanonicalPersonAliasPrimaryKeyNames,
+      []
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_company_alias",
+      CanonicalCompanyAliasSchema,
+      CanonicalCompanyAliasPrimaryKeyNames,
+      []
+    )
   );
 };

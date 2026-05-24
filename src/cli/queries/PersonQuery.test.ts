@@ -1,32 +1,45 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { globalServiceRegistry } from "workglow";
-import { PERSON_REPOSITORY_TOKEN } from "../../storage/person/PersonSchema";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
-function makePerson(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
+let nextId = 1;
+
+function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
   return {
-    person_hash_id: "abc123",
-    first: "John",
-    middle: null,
-    last: "Doe",
+    observation_id: nextId++,
+    accession_number: "0001234567-25-000001",
+    extractor_id: "D",
+    extractor_version: "1.0.0",
+    observation_index: 0,
+    source_filing_issuer_cik: 1318605,
+    cik: null,
+    first_name: "John",
+    middle_name: null,
+    last_name: "Doe",
     suffix: null,
+    normalized_first: null,
+    normalized_middle: null,
+    normalized_last: null,
+    normalized_suffix: null,
     title: "CEO",
-    nick: null,
-    dob: null,
-    notes: null,
-    cik: 1318605,
-    crd: null,
+    relationship: null,
+    raw_address_id: null,
+    raw_phone_id: null,
+    source_context: null,
+    created_at: new Date().toISOString(),
     ...overrides,
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof PERSON_REPOSITORY_TOKEN>>;
+let repo: ReturnType<typeof globalServiceRegistry.get<typeof PERSON_OBSERVATION_REPOSITORY_TOKEN>>;
 
 describe("queryPersons", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
-    repo = globalServiceRegistry.get(PERSON_REPOSITORY_TOKEN);
+    nextId = 1;
+    repo = globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN);
   });
 
   it("returns empty results for empty DB", async () => {
@@ -35,40 +48,63 @@ describe("queryPersons", () => {
     expect(result.total).toBe(0);
   });
 
-  it("filters by CIK", async () => {
-    await repo.put(makePerson({ person_hash_id: "h1", cik: 1318605 }));
-    await repo.put(makePerson({ person_hash_id: "h2", cik: 320193, first: "Jane", last: "Smith" }));
+  it("filters by CIK (source_filing_issuer_cik)", async () => {
+    await repo.put(makeObservation({ observation_id: 1, source_filing_issuer_cik: 1318605 }));
+    await repo.put(
+      makeObservation({
+        observation_id: 2,
+        accession_number: "0001234567-25-000002",
+        source_filing_issuer_cik: 320193,
+        first_name: "Jane",
+        last_name: "Smith",
+      })
+    );
 
     const result = await queryPersons({ cik: 1318605 });
     expect(result.rows.length).toBe(1);
     expect(result.total).toBe(1);
-    expect(result.rows[0].first).toBe("John");
+    expect(result.rows[0].first_name).toBe("John");
   });
 
-  it("filters by search on first+last name (partial, case-insensitive)", async () => {
-    await repo.put(makePerson({ person_hash_id: "h1", first: "John", last: "Doe" }));
-    await repo.put(makePerson({ person_hash_id: "h2", first: "Jane", last: "Smith" }));
+  it("filters by search on first+middle+last name (partial, case-insensitive)", async () => {
+    await repo.put(makeObservation({ observation_id: 1, first_name: "John", last_name: "Doe" }));
+    await repo.put(
+      makeObservation({
+        observation_id: 2,
+        accession_number: "0001234567-25-000002",
+        first_name: "Jane",
+        last_name: "Smith",
+      })
+    );
 
     const result = await queryPersons({ search: "john" });
     expect(result.rows.length).toBe(1);
-    expect(result.rows[0].first).toBe("John");
+    expect(result.rows[0].first_name).toBe("John");
   });
 
-  it("filters by role (partial match on title)", async () => {
-    await repo.put(makePerson({ person_hash_id: "h1", title: "CEO" }));
-    await repo.put(makePerson({ person_hash_id: "h2", title: "General Counsel", first: "Jane" }));
+  it("filters by relationship (partial match)", async () => {
+    await repo.put(makeObservation({ observation_id: 1, relationship: "Director" }));
+    await repo.put(
+      makeObservation({
+        observation_id: 2,
+        accession_number: "0001234567-25-000002",
+        relationship: "Officer",
+        first_name: "Jane",
+      })
+    );
 
-    const result = await queryPersons({ role: "ceo" });
+    const result = await queryPersons({ relationship: "director" });
     expect(result.rows.length).toBe(1);
-    expect(result.rows[0].title).toBe("CEO");
+    expect(result.rows[0].relationship).toBe("Director");
   });
 
   it("respects limit and offset", async () => {
     for (let i = 1; i <= 5; i++) {
       await repo.put(
-        makePerson({
-          person_hash_id: `h${i}`,
-          first: `Person${i}`,
+        makeObservation({
+          observation_id: i,
+          accession_number: `000123456${i}-25-000001`,
+          first_name: `Person${i}`,
         })
       );
     }
