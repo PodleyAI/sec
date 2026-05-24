@@ -36,10 +36,20 @@ function pad(value: string, width: number): string {
 }
 
 function escapeCsvValue(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return '"' + value.replace(/"/g, '""') + '"';
+  // Defuse CSV/spreadsheet formula injection. When Excel/Sheets/Numbers
+  // open a CSV, a cell starting with =/+/-/@ (or with leading TAB/CR
+  // that some loaders strip) is interpreted as a formula, which can
+  // exfiltrate data via WEBSERVICE/HYPERLINK or run external commands.
+  // Prefix a single quote — spreadsheets render it as a literal and hide
+  // the prefix; plain CSV consumers see the original text with one
+  // leading apostrophe, which is a small price for not shipping a known
+  // attack vector.
+  const dangerous = value.length > 0 && /^[=+\-@\t\r]/.test(value);
+  let escaped = dangerous ? "'" + value : value;
+  if (escaped.includes(",") || escaped.includes('"') || escaped.includes("\n")) {
+    return '"' + escaped.replace(/"/g, '""') + '"';
   }
-  return value;
+  return escaped;
 }
 
 function cellValue(row: Record<string, unknown>, key: string): string {
