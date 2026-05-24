@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { streamProcessedCikSet } from "../../storage/processing/processedCikSet";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { fetchAndStoreSubmission } from "./fetchAndStoreSubmission";
 
@@ -84,14 +85,14 @@ export class BootstrapSubmissionsTask extends Task<
     if (input.force) {
       ciksToProcess = ciks;
     } else {
+      // Stream the cik column rather than getAll() — production has
+      // hundreds of thousands to millions of processed CIK rows, and
+      // getAll() materialises every column for every row only to throw
+      // most of it away.
       const processedSubmissionsRepo = globalServiceRegistry.get(
         PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
       );
-      const allProcessedSubmissions = (await processedSubmissionsRepo.getAll()) ?? [];
-      const processedSet = new Set<number>();
-      for (const ps of allProcessedSubmissions) {
-        processedSet.add(ps.cik);
-      }
+      const processedSet = await streamProcessedCikSet(processedSubmissionsRepo);
       ciksToProcess = ciks.filter((cik) => !processedSet.has(cik));
     }
 
