@@ -94,7 +94,7 @@ export async function queryFilings(params: FilingQueryParams): Promise<QueryResu
   );
   // Only emit totalApprox when we actually capped the stream. If the
   // iterator drained, `total` is exact; consumers (TableRenderer, JSON
-  // output) treat the presence of totalApprox as the "this is a lower
+  // output) treat the PRESENCE of totalApprox as the "this is a lower
   // bound" signal.
-  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
 }

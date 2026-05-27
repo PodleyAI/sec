@@ -39,8 +39,7 @@ export interface CikQueryResult extends QueryResult<CikNameType> {
  *      (so even `--exact` can't push down: SEC stores names as
  *      "Apple Inc." and a user querying "APPLE INC." would miss). Capped
  *      at `MAX_FUZZY_MATCHES` so the worst case is bounded; if the cap
- *      fires, `totalApprox.exhausted` is `false` and the UI renders
- *      "≥ N".
+ *      fires, `totalApprox` is set and the UI renders "≥ N".
  */
 export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult> {
   const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
@@ -59,8 +58,8 @@ export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult>
   // because workglow's equality is case-sensitive and there is no LIKE
   // operator — both case-insensitive exact match and prefix/substring
   // matches have to be evaluated client-side. Capped at MAX_FUZZY_MATCHES
-  // so the worst case is bounded; if the cap fires, `totalApprox.exhausted`
-  // is `false` and the UI renders "≥ N".
+  // so the worst case is bounded; if the cap fires, `totalApprox` is set
+  // and the UI renders "≥ N".
   //
   // Unlike collectPage (which buffers only the requested window because it
   // preserves stream order), CikQuery must buffer ALL matches up to the
@@ -113,6 +112,6 @@ export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult>
     rows: matches.slice(offset, offset + limit).map((m) => m.row),
     total: matches.length,
     tableEmpty: !anyRowSeen,
-    ...(exhausted ? {} : { totalApprox: { atLeast: matches.length, exhausted: false } }),
+    ...(exhausted ? {} : { totalApprox: { atLeast: matches.length } }),
   };
 }

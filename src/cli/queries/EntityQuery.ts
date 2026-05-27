@@ -32,8 +32,6 @@ export interface QueryResult<T> {
   readonly totalApprox?: {
     /** The match count we got to before stopping (the soft cap). */
     readonly atLeast: number;
-    /** True if the iterator drained — in which case `total` is exact. */
-    readonly exhausted: boolean;
   };
 }
 
@@ -144,6 +142,7 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
   }
 
   // totalApprox is the "this number is a lower bound" signal — only
-  // emit it when the stream was capped, not when it drained.
-  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
+  // emit it when the stream was capped, not when it drained. Its presence
+  // (not any field on it) is what marks `total` as approximate.
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
 }

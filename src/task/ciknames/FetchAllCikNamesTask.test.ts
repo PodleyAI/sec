@@ -36,7 +36,16 @@ describe("createCikNameBulkWriter", () => {
     // API, so without this pin a leaked sqlite config would route the
     // writer down the getDb() fast path and prepare an INSERT against a
     // cik_names table that does not exist in the test SQLite file.
-    globalServiceRegistry.registerInstance(SEC_DB_TYPE, "memory" as unknown as "sqlite");
+    //
+    // "memory" is intentionally OUTSIDE the token's declared
+    // "sqlite" | "postgres" union: at runtime it is the sentinel that makes
+    // createCikNameBulkWriter() fall through to the repository writer, but
+    // the type only admits the two real backends, so we cast through
+    // `unknown` to register the out-of-union sentinel.
+    globalServiceRegistry.registerInstance(
+      SEC_DB_TYPE,
+      "memory" as unknown as "sqlite" | "postgres"
+    );
   });
 
   it("falls back to the repository writer when no real DB is configured", async () => {

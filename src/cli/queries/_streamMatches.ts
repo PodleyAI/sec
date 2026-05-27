@@ -57,21 +57,30 @@ export async function* streamMatchingRows<Entity>(
  *
  * Counting all matches makes `total` a meaningful number rather than a
  * constant equal to the page end: it is the number of matches observed up
- * to `maxScan`. Memory stays O(limit) — only rows inside the requested
- * window are retained; everything before `offset` and after
+ * to the scan bound. Memory stays O(limit) — only rows inside the
+ * requested window are retained; everything before `offset` and after
  * `offset + limit` is counted then discarded.
  *
- * Stops early when the running match count reaches `maxScan`
- * (`exhausted: false` — more matches may exist beyond the cap) or when the
- * iterator drains (`exhausted: true` — `total` is exact).
+ * The requested window is ALWAYS filled to `limit` whenever enough matches
+ * exist: the effective scan bound is `Math.max(maxScan, offset + limit)`,
+ * so `maxScan` can never truncate the window — it only bounds the SURPLUS
+ * count past the window used for the lower bound. (A naive `matched >=
+ * maxScan` break would short the final page whenever `offset + limit >
+ * maxScan`, returning fewer than `limit` rows and making the renderer
+ * advertise an always-empty next-page offset.)
+ *
+ * Stops when the running match count reaches the scan bound
+ * (`exhausted: false` — more matches may exist beyond the bound) or when
+ * the iterator drains (`exhausted: true` — `total` is exact).
  *
  * Callers fold this into a `totalApprox` so the UI can render "≥ N" when
  * the cap fired, instead of pretending to know the exact match count.
  *
- * @param maxScan Soft cap on matches counted; defaults to the shared
- * `MAX_FUZZY_MATCHES`.
- * @returns `total` — matches counted up to `maxScan`. `exhausted` —
- * `false` if the cap stopped us (more may exist), `true` if the iterator
+ * @param maxScan Soft cap on the surplus matches counted past the window;
+ * defaults to the shared `MAX_FUZZY_MATCHES`. The window itself is always
+ * filled regardless of this value.
+ * @returns `total` — matches counted up to the scan bound. `exhausted` —
+ * `false` if the bound stopped us (more may exist), `true` if the iterator
  * drained (in which case `total` is exact).
  */
 export async function collectPage<T>(
@@ -81,6 +90,10 @@ export async function collectPage<T>(
   maxScan: number = MAX_FUZZY_MATCHES
 ): Promise<{ rows: T[]; total: number; exhausted: boolean }> {
   const windowEnd = offset + limit;
+  // The cap bounds the COUNT, never the WINDOW: always scan at least far
+  // enough to fill [offset, offset + limit), then keep counting up to
+  // `maxScan` for the lower bound.
+  const scanLimit = Math.max(maxScan, windowEnd);
   const window: T[] = [];
   let matched = 0;
   for await (const row of iter) {
@@ -89,11 +102,11 @@ export async function collectPage<T>(
       window.push(row);
     }
     matched++;
-    if (matched >= maxScan) {
-      // Hit the soft cap: there may be more matches we never counted.
+    if (matched >= scanLimit) {
+      // Hit the scan bound: there may be more matches we never counted.
       return { rows: window, total: matched, exhausted: false };
     }
   }
-  // Iterator drained: `matched` is the exact total.
+  // Iterator drained before the scan bound: `matched` is the exact total.
   return { rows: window, total: matched, exhausted: true };
 }
