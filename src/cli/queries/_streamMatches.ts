@@ -12,6 +12,18 @@ import type { ITabularStorage, SearchCriteria } from "workglow";
 type CursorOf<Entity> = Awaited<ReturnType<ITabularStorage<any, any, Entity>["queryPage"]>>["nextCursor"];
 
 /**
+ * Soft cap on streamed substring/prefix matches before we stop counting.
+ *
+ * Single source of truth shared by `collectPage` (this module) and
+ * `queryCiks` (CikQuery.ts) so the two streaming query surfaces report
+ * `totalApprox` with identical semantics. Stops the empty-needle /
+ * pathologically-broad-needle case from walking the entire ~1M-row table
+ * and exhausting memory, while leaving plenty of headroom for a normal
+ * `offset + limit` of a few hundred.
+ */
+export const MAX_FUZZY_MATCHES = 1000;
+
+/**
  * Iterates `repo.queryPage(criteria, ...)` cursor-by-cursor, yielding each
  * row that satisfies `predicate`. Memory is bounded to one page; total
  * iteration is bounded by the matching row count, not the table size.
@@ -40,25 +52,48 @@ export async function* streamMatchingRows<Entity>(
 }
 
 /**
- * Collects an async iterable into the slice `[offset, offset + limit)`.
+ * Collects an async iterable into the slice `[offset, offset + limit)`
+ * while counting EVERY match (not just the ones that land in the window).
  *
- * Returns `exhausted: true` only if the iterator drained — otherwise the
- * caller observed exactly `offset + limit` matches and there may be more.
- * Callers fold this into a `totalApprox` so the UI can render "≥ N"
- * instead of pretending to know the exact match count.
+ * Counting all matches makes `total` a meaningful number rather than a
+ * constant equal to the page end: it is the number of matches observed up
+ * to `maxScan`. Memory stays O(limit) — only rows inside the requested
+ * window are retained; everything before `offset` and after
+ * `offset + limit` is counted then discarded.
+ *
+ * Stops early when the running match count reaches `maxScan`
+ * (`exhausted: false` — more matches may exist beyond the cap) or when the
+ * iterator drains (`exhausted: true` — `total` is exact).
+ *
+ * Callers fold this into a `totalApprox` so the UI can render "≥ N" when
+ * the cap fired, instead of pretending to know the exact match count.
+ *
+ * @param maxScan Soft cap on matches counted; defaults to the shared
+ * `MAX_FUZZY_MATCHES`.
+ * @returns `total` — matches counted up to `maxScan`. `exhausted` —
+ * `false` if the cap stopped us (more may exist), `true` if the iterator
+ * drained (in which case `total` is exact).
  */
 export async function collectPage<T>(
   iter: AsyncIterable<T>,
   offset: number,
-  limit: number
+  limit: number,
+  maxScan: number = MAX_FUZZY_MATCHES
 ): Promise<{ rows: T[]; total: number; exhausted: boolean }> {
-  const target = offset + limit;
-  const collected: T[] = [];
+  const windowEnd = offset + limit;
+  const window: T[] = [];
+  let matched = 0;
   for await (const row of iter) {
-    collected.push(row);
-    if (collected.length >= target) {
-      return { rows: collected.slice(offset, target), total: target, exhausted: false };
+    // Retain only rows in [offset, offset + limit) — O(limit) memory.
+    if (matched >= offset && matched < windowEnd) {
+      window.push(row);
+    }
+    matched++;
+    if (matched >= maxScan) {
+      // Hit the soft cap: there may be more matches we never counted.
+      return { rows: window, total: matched, exhausted: false };
     }
   }
-  return { rows: collected.slice(offset), total: collected.length, exhausted: true };
+  // Iterator drained: `matched` is the exact total.
+  return { rows: window, total: matched, exhausted: true };
 }
