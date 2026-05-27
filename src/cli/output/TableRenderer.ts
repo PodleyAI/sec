@@ -12,12 +12,11 @@ export interface RenderOptions {
   /**
    * Set when the displayed `total` is a lower bound — the underlying
    * query streamed and stopped after collecting offset+limit matches
-   * without exhausting the dataset. Rendered as "≥ N" with a hint to
-   * narrow the filter.
+   * without exhausting the dataset. Its PRESENCE marks `total` as
+   * approximate; rendered as "≥ N" with a hint to narrow the filter.
    */
   readonly totalApprox?: {
     readonly atLeast: number;
-    readonly exhausted: boolean;
   };
 }
 
@@ -94,8 +93,9 @@ function renderTextTable(
     const start = count === 0 ? 0 : offset + 1;
     const end = count === 0 ? 0 : offset + count;
     lines.push("");
-    const isApprox =
-      options.totalApprox !== undefined && options.totalApprox.exhausted === false;
+    // The presence of totalApprox is the "approximate/capped, more may
+    // exist" signal — total is a lower bound, so render "≥ N".
+    const isApprox = options.totalApprox !== undefined;
     const totalLabel = isApprox ? `≥ ${options.total}` : `${options.total}`;
     lines.push(`Showing ${start}-${end} of ${totalLabel} results`);
     if (isApprox) {

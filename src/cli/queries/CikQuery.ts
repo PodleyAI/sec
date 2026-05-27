@@ -7,6 +7,7 @@
 import { globalServiceRegistry } from "workglow";
 import { CIK_NAME_REPOSITORY_TOKEN, type CikNameType } from "../../storage/entity/CikNameSchema";
 import type { QueryResult } from "./EntityQuery";
+import { MAX_FUZZY_MATCHES } from "./_streamMatches";
 
 export interface CikQueryParams {
   readonly name?: string;
@@ -18,15 +19,6 @@ export interface CikQueryParams {
 export interface CikQueryResult extends QueryResult<CikNameType> {
   readonly tableEmpty: boolean;
 }
-
-/**
- * Soft cap on substring/prefix matches we'll collect before sorting. Stops
- * the empty-needle case (which previously walked the entire ~1M-row table)
- * and any pathologically broad needle from exhausting memory. Picked so a
- * normal `offset+limit` of a few hundred has plenty of headroom for the
- * rank-based reordering.
- */
-const MAX_FUZZY_MATCHES = 1000;
 
 /**
  * Queries the `cik_names` table for companies whose name matches the given
@@ -47,8 +39,7 @@ const MAX_FUZZY_MATCHES = 1000;
  *      (so even `--exact` can't push down: SEC stores names as
  *      "Apple Inc." and a user querying "APPLE INC." would miss). Capped
  *      at `MAX_FUZZY_MATCHES` so the worst case is bounded; if the cap
- *      fires, `totalApprox.exhausted` is `false` and the UI renders
- *      "≥ N".
+ *      fires, `totalApprox` is set and the UI renders "≥ N".
  */
 export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult> {
   const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
@@ -67,8 +58,15 @@ export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult>
   // because workglow's equality is case-sensitive and there is no LIKE
   // operator — both case-insensitive exact match and prefix/substring
   // matches have to be evaluated client-side. Capped at MAX_FUZZY_MATCHES
-  // so the worst case is bounded; if the cap fires, `totalApprox.exhausted`
-  // is `false` and the UI renders "≥ N".
+  // so the worst case is bounded; if the cap fires, `totalApprox` is set
+  // and the UI renders "≥ N".
+  //
+  // Unlike collectPage (which buffers only the requested window because it
+  // preserves stream order), CikQuery must buffer ALL matches up to the
+  // cap: ranking reorders the whole match set, so we can't know which rows
+  // land in [offset, offset + limit) until every match has been collected
+  // and sorted. The shared MAX_FUZZY_MATCHES cap keeps that buffer bounded
+  // and keeps the two surfaces' totalApprox semantics identical.
   const matches: { row: CikNameType; rank: number }[] = [];
   let anyRowSeen = false;
   let exhausted = true;
@@ -114,6 +112,6 @@ export async function queryCiks(params: CikQueryParams): Promise<CikQueryResult>
     rows: matches.slice(offset, offset + limit).map((m) => m.row),
     total: matches.length,
     tableEmpty: !anyRowSeen,
-    ...(exhausted ? {} : { totalApprox: { atLeast: matches.length, exhausted: false } }),
+    ...(exhausted ? {} : { totalApprox: { atLeast: matches.length } }),
   };
 }

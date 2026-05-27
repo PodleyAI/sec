@@ -72,8 +72,9 @@ export async function queryFilings(params: FilingQueryParams): Promise<QueryResu
   }
 
   // Streaming path. Push criteria down to the DB; apply substring and the
-  // closing range bound in JS. We stop once we have offset + limit
-  // matches so memory stays bounded.
+  // closing range bound in JS. collectPage counts every match up to the
+  // soft cap (so `total` is a meaningful lower bound) while keeping only
+  // the requested window in memory.
   const searchLower = hasSearch ? params.search!.toLowerCase() : null;
   const predicate = (f: Filing): boolean => {
     if (params.after !== undefined && f.filing_date < params.after) return false;
@@ -93,7 +94,7 @@ export async function queryFilings(params: FilingQueryParams): Promise<QueryResu
   );
   // Only emit totalApprox when we actually capped the stream. If the
   // iterator drained, `total` is exact; consumers (TableRenderer, JSON
-  // output) treat the presence of totalApprox as the "this is a lower
+  // output) treat the PRESENCE of totalApprox as the "this is a lower
   // bound" signal.
-  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total, exhausted } };
+  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
 }

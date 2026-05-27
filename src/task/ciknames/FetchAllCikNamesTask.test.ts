@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { SEC_DB_FOLDER } from "../../config/tokens";
+import { SEC_DB_TYPE } from "../../config/tokens";
 import {
   createCikNameBulkWriter,
   type CikNameRow,
@@ -26,15 +26,29 @@ import {
 describe("createCikNameBulkWriter", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
+    // Pin SEC_DB_TYPE to a value that is neither "sqlite" nor "postgres" so
+    // createCikNameBulkWriter() deterministically selects the in-memory
+    // repository writer. bun shares module state across test files in a
+    // worker, and sibling task tests (FetchDailyIndexTask/
+    // FetchQuarterlyIndexTask) call EnvToDI() at module load, which
+    // registers SEC_DB_FOLDER / SEC_DB_NAME / SEC_DB_TYPE=sqlite from
+    // .env.test into the shared registry. The registry has no unregister
+    // API, so without this pin a leaked sqlite config would route the
+    // writer down the getDb() fast path and prepare an INSERT against a
+    // cik_names table that does not exist in the test SQLite file.
+    //
+    // "memory" is intentionally OUTSIDE the token's declared
+    // "sqlite" | "postgres" union: at runtime it is the sentinel that makes
+    // createCikNameBulkWriter() fall through to the repository writer, but
+    // the type only admits the two real backends, so we cast through
+    // `unknown` to register the out-of-union sentinel.
+    globalServiceRegistry.registerInstance(
+      SEC_DB_TYPE,
+      "memory" as unknown as "sqlite" | "postgres"
+    );
   });
 
   it("falls back to the repository writer when no real DB is configured", async () => {
-    // SEC_DB_TYPE may be left as "sqlite" by a sibling test that called
-    // EnvToDI() at module-load time. Without SEC_DB_FOLDER the SQLite fast
-    // path can't run (getDb() would throw), so the writer must route
-    // through the in-memory repository.
-    expect(globalServiceRegistry.has(SEC_DB_FOLDER)).toBe(false);
-
     const writer = createCikNameBulkWriter();
     const rows: CikNameRow[] = [
       { cik: 320193, name: "APPLE INC" },

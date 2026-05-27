@@ -99,6 +99,31 @@ describe("queryFilings", () => {
     expect(result.rows[0].primary_doc_description).toBe("Annual Report");
   });
 
+  it("streamed search reports the FULL match count with no totalApprox when drained", async () => {
+    // H1 regression: streamed total used to be pinned at offset+limit. It
+    // must now equal the full count of matching rows, and totalApprox must
+    // be undefined because the stream drained under the soft cap.
+    for (let i = 1; i <= 12; i++) {
+      await repo.put(
+        makeFiling({
+          accession_number: `0001-26-${String(i).padStart(3, "0")}`,
+          primary_doc_description: "Annual Report",
+        })
+      );
+    }
+    await repo.put(
+      makeFiling({
+        accession_number: "0001-26-999",
+        primary_doc_description: "Quarterly Report",
+      })
+    );
+
+    const result = await queryFilings({ search: "annual", limit: 4, offset: 0 });
+    expect(result.rows.length).toBe(4);
+    expect(result.total).toBe(12);
+    expect(result.totalApprox).toBeUndefined();
+  });
+
   it("combines filters", async () => {
     await repo.put(
       makeFiling({
