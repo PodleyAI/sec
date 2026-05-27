@@ -82,6 +82,35 @@ describe("queryPersons", () => {
     expect(result.rows[0].first_name).toBe("John");
   });
 
+  it("streamed search reports the FULL match count with no totalApprox when drained", async () => {
+    // H1 regression: streamed total was pinned at offset+limit. With 15
+    // "Aaron" matches and a limit of 4, total must be 15 (the full match
+    // count) and totalApprox must be undefined since the stream drained.
+    for (let i = 1; i <= 15; i++) {
+      await repo.put(
+        makeObservation({
+          observation_id: i,
+          accession_number: `000123456${i}-25-000001`,
+          first_name: "Aaron",
+          last_name: `Surname${i}`,
+        })
+      );
+    }
+    await repo.put(
+      makeObservation({
+        observation_id: 999,
+        accession_number: "0009999999-25-000001",
+        first_name: "Zelda",
+        last_name: "Other",
+      })
+    );
+
+    const result = await queryPersons({ search: "aaron", limit: 4, offset: 0 });
+    expect(result.rows.length).toBe(4);
+    expect(result.total).toBe(15);
+    expect(result.totalApprox).toBeUndefined();
+  });
+
   it("filters by relationship (partial match)", async () => {
     await repo.put(makeObservation({ observation_id: 1, relationship: "Director" }));
     await repo.put(

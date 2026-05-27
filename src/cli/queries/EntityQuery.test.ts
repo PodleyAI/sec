@@ -4,6 +4,23 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { queryEntities } from "./EntityQuery";
 
+function makeEntity(cik: number, name: string | null) {
+  return {
+    cik,
+    name,
+    type: null,
+    sic: null,
+    ein: null,
+    description: null,
+    website: null,
+    investor_website: null,
+    category: null,
+    fiscal_year: null,
+    state_incorporation: null,
+    state_incorporation_desc: null,
+  };
+}
+
 describe("queryEntities", () => {
   beforeEach(() => {
     resetDependencyInjectionsForTesting();
@@ -159,6 +176,24 @@ describe("queryEntities", () => {
     const result = await queryEntities({ limit: 3 });
     expect(result.rows.length).toBe(3);
     expect(result.total).toBe(10);
+  });
+
+  it("streamed search reports the FULL match count, not offset+limit", async () => {
+    // H1 regression: collectPage used to stop at offset+limit and report
+    // that as total, so total was a constant equal to the page end. Now
+    // it counts every match. 20 entities match "acme"; with limit 3 the
+    // window has 3 rows but total must be the full 20, and because the
+    // stream drained well under the cap totalApprox must be undefined.
+    const repo = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+    for (let i = 1; i <= 20; i++) {
+      await repo.put(makeEntity(i, `Acme ${i}`));
+    }
+    await repo.put(makeEntity(999, "Globex"));
+
+    const result = await queryEntities({ search: "acme", limit: 3, offset: 0 });
+    expect(result.rows.length).toBe(3);
+    expect(result.total).toBe(20);
+    expect(result.totalApprox).toBeUndefined();
   });
 
   it("filters by SIC code", async () => {

@@ -18,16 +18,19 @@ export interface EntityQueryParams {
 export interface QueryResult<T> {
   readonly rows: T[];
   /**
-   * When `totalApprox` is set, `total` is the number of matches observed so
-   * far (offset + limit, give or take), not the exact dataset cardinality.
-   * Pagination UX should render this as a lower-bound (e.g. "≥ N") rather
-   * than an exact count. Used when streaming substring searches that
-   * cannot be pushed down to the database — forcing an exact total would
-   * require a full table scan.
+   * When `totalApprox` is set, `total` is the number of matches counted
+   * before the streaming soft cap fired (a lower bound), not the exact
+   * dataset cardinality. Pagination UX should render this as a lower
+   * bound (e.g. "≥ N") rather than an exact count. Used when streaming
+   * substring searches that cannot be pushed down to the database — a
+   * truly exact total would require an unbounded full table scan.
+   *
+   * When `totalApprox` is absent, the stream drained and `total` is the
+   * exact match count.
    */
   readonly total: number;
   readonly totalApprox?: {
-    /** The match count we got to before stopping. */
+    /** The match count we got to before stopping (the soft cap). */
     readonly atLeast: number;
     /** True if the iterator drained — in which case `total` is exact. */
     readonly exhausted: boolean;
@@ -109,7 +112,9 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
     return { rows, total };
   }
 
-  // Substring search — stream and stop after offset + limit matches.
+  // Substring search — stream matches, counting every one up to the soft
+  // cap so `total` is a meaningful lower bound, while retaining only the
+  // requested window in memory.
   const searchLower = params.search!.toLowerCase();
   const predicate = (e: Entity): boolean =>
     e.name !== null && e.name.toLowerCase().includes(searchLower);
@@ -120,9 +125,11 @@ export async function queryEntities(params: EntityQueryParams): Promise<QueryRes
     limit
   );
 
-  // Apply sort to the collected window. With the cap this stays bounded
-  // and matches the previous semantics (sort runs over the whole match
-  // set when the stream drains, or over the truncated window otherwise).
+  // Sort the collected window only. collectPage preserves stream order and
+  // retains just [offset, offset + limit), so this re-orders the page the
+  // user sees — it does NOT globally sort the full match set. (A global
+  // sort would require buffering every match, which the window-only design
+  // deliberately avoids.)
   if (params.sort) {
     const sortKey = params.sort as keyof Entity;
     rows.sort((a, b) => {
