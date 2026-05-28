@@ -221,4 +221,132 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     const persons = await new PersonObservationRepo().listByAccession(accession);
     expect(persons.some((p) => p.last_name === "Chung Chih-Hsiao")).toBe(true);
   });
+
+  it("stores null (not 0) for an empty transactionShares element on a Form 4", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    // Simulate a filing that emits an empty <transactionShares><value/></transactionShares>.
+    const nonDerivTxn = doc.nonDerivativeTable!.nonDerivativeTransaction![0];
+    nonDerivTxn.transactionAmounts!.transactionShares!.value = "";
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const txns = await repo.getTransactions(accession);
+    const nonDeriv = txns.find((t) => !t.is_derivative)!;
+    expect(nonDeriv.shares).toBeNull();
+    // A populated sibling field still coerces to its real number.
+    expect(nonDeriv.price_per_share).toBe(1.405);
+  });
+
+  it("stores null (not 0) for an empty transactionPricePerShare element", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    const nonDerivTxn = doc.nonDerivativeTable!.nonDerivativeTransaction![0];
+    nonDerivTxn.transactionAmounts!.transactionPricePerShare!.value = "";
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const txns = await repo.getTransactions(accession);
+    const nonDeriv = txns.find((t) => !t.is_derivative)!;
+    expect(nonDeriv.price_per_share).toBeNull();
+    expect(nonDeriv.shares).toBe(177936);
+  });
+
+  it("stores null (not 0) for an empty sharesOwnedFollowingTransaction on a holding", async () => {
+    const accession = "0000950103-26-007758";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-3-a", "000095010326007758-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_3.parse("3/A", xml);
+    const nonDerivHold = doc.nonDerivativeTable!.nonDerivativeHolding![0];
+    nonDerivHold.postTransactionAmounts!.sharesOwnedFollowingTransaction!.value = "";
+    await processOwnershipForm({
+      cik: 1122411,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "3/A",
+      doc,
+    });
+
+    const holdings = await repo.getHoldings(accession);
+    const nonDeriv = holdings.find((h) => !h.is_derivative)!;
+    expect(nonDeriv.shares_owned_following).toBeNull();
+  });
+
+  it("stores null (not 0) for an empty derivative conversionOrExercisePrice", async () => {
+    const accession = "0000950103-26-007758";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-3-a", "000095010326007758-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_3.parse("3/A", xml);
+    const derivHold = doc.derivativeTable!.derivativeHolding![0];
+    derivHold.conversionOrExercisePrice!.value = "";
+    await processOwnershipForm({
+      cik: 1122411,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "3/A",
+      doc,
+    });
+
+    const holdings = await repo.getHoldings(accession);
+    const deriv = holdings.filter((h) => h.is_derivative);
+    expect(deriv[0].conversion_or_exercise_price).toBeNull();
+    // The other derivative holding still carries its real price.
+    expect(deriv[1].conversion_or_exercise_price).not.toBeNull();
+  });
+
+  it("stores null (not 0) for an empty underlyingSecurityShares on a derivative transaction", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    const derivTxn = doc.derivativeTable!.derivativeTransaction![0];
+    derivTxn.underlyingSecurity!.underlyingSecurityShares!.value = "";
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const txns = await repo.getTransactions(accession);
+    const deriv = txns.find((t) => t.is_derivative)!;
+    expect(deriv.underlying_security_shares).toBeNull();
+    // A populated sibling field still coerces to its real number.
+    expect(deriv.conversion_or_exercise_price).toBe(1.28);
+  });
 });
