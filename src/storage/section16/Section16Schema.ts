@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
 /**
  * One row per Section 16 ownership filing (Form 3 / 4 / 5 and amendments),
@@ -17,7 +18,7 @@ export const Section16FilingSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25, description: "EDGAR accession number" }),
   form: Type.String({ maxLength: 10, description: "Form symbol (3, 4, 5, 3/A, ...)" }),
   document_type: Type.String({ maxLength: 10, description: "ownershipDocument documentType" }),
-  issuer_cik: Type.Integer({ minimum: 0, description: "Issuer CIK" }),
+  issuer_cik: TypeSecCik({ description: "Issuer CIK" }),
   issuer_name: Type.String({ maxLength: 150, description: "Issuer name" }),
   issuer_trading_symbol: TypeNullable(Type.String({ maxLength: 20 })),
   period_of_report: TypeNullable(Type.String({ description: "Period of report (date)" })),
@@ -46,7 +47,7 @@ export const SECTION16_FILING_REPOSITORY_TOKEN =
 export const Section16TransactionSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   transaction_index: Type.Integer({ minimum: 0 }),
-  issuer_cik: Type.Integer({ minimum: 0 }),
+  issuer_cik: TypeSecCik(),
   is_derivative: Type.Boolean(),
   security_title: TypeNullable(Type.String({ maxLength: 255 })),
   transaction_date: TypeNullable(Type.String()),
@@ -93,7 +94,7 @@ export const SECTION16_TRANSACTION_REPOSITORY_TOKEN =
 export const Section16HoldingSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   holding_index: Type.Integer({ minimum: 0 }),
-  issuer_cik: Type.Integer({ minimum: 0 }),
+  issuer_cik: TypeSecCik(),
   is_derivative: Type.Boolean(),
   security_title: TypeNullable(Type.String({ maxLength: 255 })),
   shares_owned_following: TypeNullable(Type.Number()),

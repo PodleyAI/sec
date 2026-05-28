@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
 /**
  * One row per Form 144 / 144/A filing. The single `securitiesInformation`
@@ -19,7 +20,7 @@ export const Form144FilingSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   form: Type.String({ maxLength: 10 }),
   submission_type: TypeNullable(Type.String({ maxLength: 10 })),
-  issuer_cik: Type.Integer({ minimum: 0 }),
+  issuer_cik: TypeSecCik(),
   issuer_name: Type.String({ maxLength: 150 }),
   sec_file_number: TypeNullable(Type.String({ maxLength: 30 })),
   person_for_whose_account: TypeNullable(Type.String({ maxLength: 150 })),
@@ -56,7 +57,7 @@ export const FORM144_FILING_REPOSITORY_TOKEN = createServiceToken<Form144FilingR
 export const Form144AcquisitionSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   acquisition_index: Type.Integer({ minimum: 0 }),
-  issuer_cik: Type.Integer({ minimum: 0 }),
+  issuer_cik: TypeSecCik(),
   securities_class_title: TypeNullable(Type.String({ maxLength: 255 })),
   acquired_date: TypeNullable(Type.String({ maxLength: 12 })),
   nature_of_acquisition: TypeNullable(Type.String({ maxLength: 255 })),
@@ -88,7 +89,7 @@ export const FORM144_ACQUISITION_REPOSITORY_TOKEN =
 export const Form144RecentSaleSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   sale_index: Type.Integer({ minimum: 0 }),
-  issuer_cik: Type.Integer({ minimum: 0 }),
+  issuer_cik: TypeSecCik(),
   seller_name: TypeNullable(Type.String({ maxLength: 150 })),
   securities_class_title: TypeNullable(Type.String({ maxLength: 255 })),
   sale_date: TypeNullable(Type.String({ maxLength: 12 })),
