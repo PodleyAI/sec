@@ -58,11 +58,35 @@ export class Section16Repo implements Section16RepoOptions {
     return (await this.transactionRepository.query({ accession_number })) || [];
   }
 
+  /**
+   * Removes every transaction row for a filing. Transactions are keyed by a
+   * positional `(accession_number, transaction_index)`, so re-extracting a
+   * filing that now yields fewer rows would otherwise leave stale orphans at
+   * the higher indices. Callers clear before re-inserting to stay idempotent.
+   */
+  async clearTransactions(accession_number: string): Promise<void> {
+    const rows = (await this.transactionRepository.query({ accession_number })) || [];
+    for (const row of rows) {
+      await this.transactionRepository.delete({
+        accession_number,
+        transaction_index: row.transaction_index,
+      });
+    }
+  }
+
   async saveHolding(holding: Section16Holding): Promise<void> {
     await this.holdingRepository.put(holding);
   }
 
   async getHoldings(accession_number: string): Promise<Section16Holding[]> {
     return (await this.holdingRepository.query({ accession_number })) || [];
+  }
+
+  /** Removes every holding row for a filing; see {@link clearTransactions}. */
+  async clearHoldings(accession_number: string): Promise<void> {
+    const rows = (await this.holdingRepository.query({ accession_number })) || [];
+    for (const row of rows) {
+      await this.holdingRepository.delete({ accession_number, holding_index: row.holding_index });
+    }
   }
 }

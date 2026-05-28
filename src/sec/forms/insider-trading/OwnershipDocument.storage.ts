@@ -28,6 +28,7 @@ import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalC
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { formToExtractorId } from "../../../storage/versioning/extractorIds";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import type {
   Section16Holding,
@@ -225,9 +226,12 @@ export async function processOwnershipForm({
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   const extractor_version = "1.0.0";
 
-  // The canonical extractor id is the bare document type (3/4/5); amendments
-  // share the same extractor.
-  const extractor_id = (str(doc.documentType) ?? form).replace("/A", "");
+  // Use the same canonical extractor id the dispatch task records against
+  // (amendments share the base extractor), so observation rows and
+  // extractor_runs/version slots never disagree. Fall back to the bare
+  // document type only for forms not in the mapping.
+  const extractor_id =
+    formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
   const issuer_cik = parseCikSafely(doc.issuer?.issuerCik) || cik;
 
   const personResolver = new PersonResolver({
@@ -282,6 +286,11 @@ export async function processOwnershipForm({
 
   await processIssuer(doc, ctx);
   await processReportingOwners(doc, ctx);
+
+  // Re-extraction reuses the same positional indices, so clear any prior rows
+  // first to avoid leaving stale orphans when a filing now yields fewer.
+  await section16Repo.clearTransactions(accession_number);
+  await section16Repo.clearHoldings(accession_number);
 
   // Transactions: non-derivative first, then derivative, in a single index space.
   let txnIndex = 0;

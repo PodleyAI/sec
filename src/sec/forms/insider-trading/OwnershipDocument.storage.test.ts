@@ -144,6 +144,44 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     expect(companies).toContain("Oasis Investments II Master Fund Ltd.");
   });
 
+  it("clears stale rows when a filing is re-extracted with fewer transactions", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+
+    // First pass: one non-derivative + one derivative transaction = 2 rows.
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+    expect((await repo.getTransactions(accession)).length).toBe(2);
+
+    // Re-extract the same accession but with the derivative table removed, as a
+    // parser change reducing the row count would produce.
+    const fewer = { ...doc, derivativeTable: undefined };
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc: fewer,
+    });
+
+    const txns = await repo.getTransactions(accession);
+    expect(txns.length).toBe(1); // no orphaned derivative row left behind
+    expect(txns[0].is_derivative).toBe(false);
+  });
+
   it("stores Form 3/A holdings (non-derivative and derivative)", async () => {
     const accession = "0000950103-26-007758";
     const xml = readFileSync(

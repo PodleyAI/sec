@@ -32,6 +32,11 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
+import {
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+} from "../storage/section16/Section16Schema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
@@ -95,6 +100,9 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_REPORTS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SECTION16_HOLDING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).setupDatabase();
