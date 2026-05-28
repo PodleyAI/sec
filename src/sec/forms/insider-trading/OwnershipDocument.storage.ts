@@ -199,7 +199,6 @@ async function processIssuer(doc: OwnershipDocument, ctx: OwnershipStorageContex
 }
 
 export async function processOwnershipForm({
-  cik,
   accession_number,
   filing_date,
   form,
@@ -232,7 +231,11 @@ export async function processOwnershipForm({
   // document type only for forms not in the mapping.
   const extractor_id =
     formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
-  const issuer_cik = parseCikSafely(doc.issuer?.issuerCik) || cik;
+  // The XML issuerCik is authoritative. We must NOT fall back to the filing's
+  // own CIK: ownership filings are ingested from a submission feed that may be
+  // the reporting owner's, not the issuer's, so that fallback could stamp the
+  // owner's CIK as the issuer. 0 is the honest "unknown" sentinel.
+  const issuer_cik = parseCikSafely(doc.issuer?.issuerCik);
 
   const personResolver = new PersonResolver({
     canonicalPersonRepo: new CanonicalPersonRepo(),
@@ -277,7 +280,7 @@ export async function processOwnershipForm({
     issuer_cik,
     issuer_name: str(doc.issuer?.issuerName) ?? "",
     issuer_trading_symbol: str(doc.issuer?.issuerTradingSymbol),
-    period_of_report: str(doc.periodOfReport) ?? (filing_date || null),
+    period_of_report: str(doc.periodOfReport),
     filing_date: filing_date || null,
     not_subject_to_section16: toBool(doc.notSubjectToSection16),
     no_securities_owned: toBool(doc.noSecuritiesOwned),
