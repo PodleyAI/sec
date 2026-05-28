@@ -44,13 +44,13 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      // PR2 wires bootstrapExtractorVersions() into db setup; expect the
-      // five extractor ids registered at 1.0.0 in the current slot.
+      // PR2 wires bootstrapExtractorVersions() into db setup; expect every
+      // extractor id registered at 1.0.0 in the current slot.
       const ids = parsed
         .filter((r: { component_kind: string }) => r.component_kind === "extractor")
         .map((r: { component_id: string }) => r.component_id)
         .sort();
-      expect(ids).toEqual(["1-A", "1-K", "1-Z", "C", "D"]);
+      expect(ids).toEqual(["1-A", "1-K", "1-Z", "144", "3", "4", "5", "C", "D"]);
       const extractorRows = parsed.filter(
         (r: { component_kind: string }) => r.component_kind === "extractor"
       );

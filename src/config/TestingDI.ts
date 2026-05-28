@@ -103,6 +103,28 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+  Section16FilingPrimaryKeyNames,
+  Section16FilingSchema,
+  Section16HoldingPrimaryKeyNames,
+  Section16HoldingSchema,
+  Section16TransactionPrimaryKeyNames,
+  Section16TransactionSchema,
+} from "../storage/section16/Section16Schema";
+import {
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
+  Form144AcquisitionPrimaryKeyNames,
+  Form144AcquisitionSchema,
+  Form144FilingPrimaryKeyNames,
+  Form144FilingSchema,
+  Form144RecentSalePrimaryKeyNames,
+  Form144RecentSaleSchema,
+} from "../storage/form144/Form144Schema";
+import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
   CikLastUpdatePrimaryKeyNames,
   CikLastUpdateSchema,
@@ -361,6 +383,53 @@ export function resetDependencyInjectionsForTesting() {
     CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(CrowdfundingHistorySchema, CrowdfundingHistoryPrimaryKeyNames, [
       ["cik", "file_number"],
+    ])
+  );
+
+  // Initialize Section 16 (Forms 3/4/5) repositories
+  globalServiceRegistry.registerInstance(
+    SECTION16_FILING_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Section16FilingSchema, Section16FilingPrimaryKeyNames, [
+      ["issuer_cik"],
+      ["form"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      Section16TransactionSchema,
+      Section16TransactionPrimaryKeyNames,
+      [["accession_number"], ["issuer_cik"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    SECTION16_HOLDING_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Section16HoldingSchema, Section16HoldingPrimaryKeyNames, [
+      ["accession_number"],
+      ["issuer_cik"],
+    ])
+  );
+
+  // Initialize Form 144 repositories
+  globalServiceRegistry.registerInstance(
+    FORM144_FILING_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Form144FilingSchema, Form144FilingPrimaryKeyNames, [
+      ["issuer_cik"],
+      ["form"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    FORM144_ACQUISITION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Form144AcquisitionSchema, Form144AcquisitionPrimaryKeyNames, [
+      ["accession_number"],
+      ["issuer_cik"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    FORM144_RECENT_SALE_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Form144RecentSaleSchema, Form144RecentSalePrimaryKeyNames, [
+      ["accession_number"],
+      ["issuer_cik"],
     ])
   );
 

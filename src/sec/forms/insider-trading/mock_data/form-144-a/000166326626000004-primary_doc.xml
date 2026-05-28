@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/ownership" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>144/A</submissionType>
+    <previousAccessionNumber>0001663266-26-000001</previousAccessionNumber>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <cik>0001663266</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInfo>
+      <issuerCik>0001915657</issuerCik>
+      <issuerName>HF Sinclair </issuerName>
+      <secFileNumber>001-41325</secFileNumber>
+      <issuerAddress>
+        <com:street1>2323 VICTORY AVENUE</com:street1>
+        <com:street2>SUITE 1400</com:street2>
+        <com:city>DALLAS</com:city>
+        <com:stateOrCountry>TX</com:stateOrCountry>
+        <com:zipCode>75219</com:zipCode>
+      </issuerAddress>
+      <issuerContactPhone>214-954-6696</issuerContactPhone>
+      <nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>Go Timothy</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+      <relationshipsToIssuer>
+        <relationshipToIssuer>Former Employee</relationshipToIssuer>
+      </relationshipsToIssuer>
+    </issuerInfo>
+    <securitiesInformation>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <brokerOrMarketmakerDetails>
+        <name>Pershing Advisor Solutions</name>
+        <address>
+          <com:street1>One Pershing Plaza</com:street1>
+          <com:city>Jersey City</com:city>
+          <com:stateOrCountry>NJ</com:stateOrCountry>
+          <com:zipCode>07399</com:zipCode>
+        </address>
+      </brokerOrMarketmakerDetails>
+      <noOfUnitsSold>16184</noOfUnitsSold>
+      <aggregateMarketValue>1123856.61</aggregateMarketValue>
+      <noOfUnitsOutstanding>180275437</noOfUnitsOutstanding>
+      <approxSaleDate>05/15/2026</approxSaleDate>
+      <securitiesExchangeName>NYSE</securitiesExchangeName>
+    </securitiesInformation>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>12/01/2022</acquiredDate>
+      <natureOfAcquisitionTransaction>Vested Stock</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>HF SInclair</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>16184</amountOfSecuritiesAcquired>
+      <paymentDate>12/01/2022</paymentDate>
+      <natureOfPayment>Vested Stock</natureOfPayment>
+    </securitiesToBeSold>
+    <nothingToReportFlagOnSecuritiesSoldInPast3Months>Y</nothingToReportFlagOnSecuritiesSoldInPast3Months>
+    <noticeSignature>
+      <noticeDate>05/27/2026</noticeDate>
+      <signature>TimothyGo</signature>
+    </noticeSignature>
+  </formData>
+</edgarSubmission>

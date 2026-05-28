@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/ownership" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>144</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <cik>0001346064</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInfo>
+      <issuerCik>0000943819</issuerCik>
+      <issuerName>RESMED INC</issuerName>
+      <secFileNumber>001-15317</secFileNumber>
+      <issuerAddress>
+        <com:street1>9001 SPECTRUM CENTER BLVD.</com:street1>
+        <com:city>SAN DIEGO</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>92123</com:zipCode>
+      </issuerAddress>
+      <issuerContactPhone>8587462400</issuerContactPhone>
+      <nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>Sandercock Brett</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+      <relationshipsToIssuer>
+        <relationshipToIssuer>Former Officer</relationshipToIssuer>
+      </relationshipsToIssuer>
+    </issuerInfo>
+    <securitiesInformation>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <brokerOrMarketmakerDetails>
+        <name>Fidelity Brokerage Services LLC</name>
+        <address>
+          <com:street1>900 Salem Street</com:street1>
+          <com:city>Smithfield</com:city>
+          <com:stateOrCountry>RI</com:stateOrCountry>
+          <com:zipCode>02917</com:zipCode>
+        </address>
+      </brokerOrMarketmakerDetails>
+      <noOfUnitsSold>8000</noOfUnitsSold>
+      <aggregateMarketValue>1672560.00</aggregateMarketValue>
+      <noOfUnitsOutstanding>145056384</noOfUnitsOutstanding>
+      <approxSaleDate>05/27/2026</approxSaleDate>
+      <securitiesExchangeName>NYSE</securitiesExchangeName>
+    </securitiesInformation>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>11/21/2019</acquiredDate>
+      <natureOfAcquisitionTransaction>Restricted Stock Vesting</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>Issuer</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>8000</amountOfSecuritiesAcquired>
+      <paymentDate>11/21/2019</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <nothingToReportFlagOnSecuritiesSoldInPast3Months>N</nothingToReportFlagOnSecuritiesSoldInPast3Months>
+    <securitiesSoldInPast3Months>
+      <sellerDetails>
+        <name>Brett Sandercock</name>
+        <address>
+          <com:street1>9001 Spectrum Center Blvd.</com:street1>
+          <com:city>San Diego</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>92123</com:zipCode>
+        </address>
+      </sellerDetails>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <saleDate>03/02/2026</saleDate>
+      <amountOfSecuritiesSold>1000</amountOfSecuritiesSold>
+      <grossProceeds>254300.00</grossProceeds>
+    </securitiesSoldInPast3Months>
+    <securitiesSoldInPast3Months>
+      <sellerDetails>
+        <name>Brett Sandercock</name>
+        <address>
+          <com:street1>9001 Spectrum Center Blvd.</com:street1>
+          <com:city>San Diego</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>92123</com:zipCode>
+        </address>
+      </sellerDetails>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <saleDate>04/01/2026</saleDate>
+      <amountOfSecuritiesSold>1000</amountOfSecuritiesSold>
+      <grossProceeds>224310.00</grossProceeds>
+    </securitiesSoldInPast3Months>
+    <noticeSignature>
+      <noticeDate>05/27/2026</noticeDate>
+      <signature>/s/ Jared Cook, as a duly authorized representative of Fidelity Brokerage Services LLC, as attorney-in-fact for Brett Sandercock</signature>
+    </noticeSignature>
+  </formData>
+</edgarSubmission>
