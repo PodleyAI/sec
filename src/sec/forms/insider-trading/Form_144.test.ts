@@ -51,8 +51,9 @@ describe("Form 144 parsing", () => {
     expect(fd.securitiesSoldInPast3Months!.length).toBe(2);
     expect(Array.isArray(fd.issuerInfo?.relationshipsToIssuer?.relationshipToIssuer)).toBe(true);
 
-    expect(fd.securitiesInformation?.noOfUnitsSold).toBe(129915);
-    expect(fd.securitiesInformation?.aggregateMarketValue).toBe(9019409.69);
+    // Numeric leaves are kept as raw strings; storage coerces them.
+    expect(fd.securitiesInformation?.noOfUnitsSold).toBe("129915");
+    expect(fd.securitiesInformation?.aggregateMarketValue).toBe("9019409.69");
     // com:street1 -> street1 after removeNSPrefix
     expect(fd.issuerInfo?.issuerAddress?.street1).toBe("2323 Victory Avenue Suite 1400");
     expect(fd.securitiesSoldInPast3Months?.[0]?.sellerDetails?.address?.city).toBe("Dallas");

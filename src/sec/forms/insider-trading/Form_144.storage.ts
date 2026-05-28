@@ -53,6 +53,15 @@ function toBoolYN(raw: string | undefined): boolean {
   return str(raw)?.toUpperCase() === "Y";
 }
 
+// Every observed Form 144 carries exactly one securitiesInformation/broker
+// block, so the schema models them as single objects. Guard anyway: if a
+// filing ever repeats the element, fast-xml-parser yields an array, and
+// reading a field off it would silently null the whole proposed-sale block —
+// fall back to the first block instead.
+function firstOf<T>(x: T | readonly T[] | undefined): T | undefined {
+  return Array.isArray(x) ? x[0] : (x as T | undefined);
+}
+
 function buildAddress(addr: AddressShape): AddressImport | null {
   if (!addr) return null;
   const street1 = str(addr.street1);
@@ -197,17 +206,11 @@ export async function processForm144({
 
   const accountName = str(issuerInfo?.nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold);
   if (accountName && !isBadPersonField(accountName)) {
-    // The account holder's address isn't in issuerInfo; the trailing-3-month
-    // sellerDetails block carries it for the same seller, so reuse it when present.
-    let accountAddressId: string | null = null;
-    const sellerAddr = buildAddress(recentSales[0]?.sellerDetails?.address);
-    if (sellerAddr) {
-      try {
-        accountAddressId = (await addressRepo.saveAddress(sellerAddr)).address_hash_id;
-      } catch (error) {
-        console.warn(`Failed to save Form 144 seller address for ${accountName}:`, error);
-      }
-    }
+    // Form 144 carries no address for the account holder. The trailing-3-month
+    // sellerDetails block has an address, but its seller can be a different
+    // party and its name is in the opposite order ("Timothy Go" vs the account
+    // holder's "Go Timothy"), so it can't be reliably matched — don't risk
+    // attaching the wrong address to the canonical person.
     const relationship = relationships.length ? relationships.join(", ") : "form144:seller";
     if (accountHolderIsCompany(accountName)) {
       await observer.observeCompany({
@@ -217,7 +220,6 @@ export async function processForm144({
         observation_index: 1,
         cik: null,
         name: accountName,
-        address_id: accountAddressId,
         source_context: JSON.stringify({ relation: "form144:seller", relationships }),
       });
     } else {
@@ -229,7 +231,6 @@ export async function processForm144({
         source_filing_issuer_cik: issuer_cik || null,
         last_name: accountName,
         relationship,
-        address_id: accountAddressId,
         source_context: JSON.stringify({ relation: "form144:seller", relationships }),
       });
     }
@@ -273,7 +274,7 @@ export async function processForm144({
       acquired_date: str(a.acquiredDate),
       nature_of_acquisition: str(a.natureOfAcquisitionTransaction),
       name_of_person_from_whom_acquired: str(a.nameOfPersonfromWhomAcquired),
-      is_gift: a.isGiftTransaction !== undefined ? toBoolYN(a.isGiftTransaction) : null,
+      is_gift: str(a.isGiftTransaction) !== null ? toBoolYN(a.isGiftTransaction) : null,
       amount_acquired: num(a.amountOfSecuritiesAcquired),
       payment_date: str(a.paymentDate),
       nature_of_payment: str(a.natureOfPayment),

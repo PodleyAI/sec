@@ -164,6 +164,31 @@ describe("Form 144 storage", () => {
     expect((await repo.getAcquisitions(accession)).length).toBeGreaterThan(0);
   });
 
+  it("stores null (not a fabricated 0) for an empty numeric element", async () => {
+    const accession = "0001663266-26-000003";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-144", "000166326626000003-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_144.parse("144", xml);
+    // Simulate a filing that emits an empty <aggregateMarketValue/> element.
+    doc.formData!.securitiesInformation!.aggregateMarketValue = "";
+    await processForm144({
+      cik: 1534263,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "144",
+      doc,
+    });
+
+    const filing = await repo.getFiling(accession);
+    expect(filing?.aggregate_market_value).toBeNull();
+    // A populated sibling field still coerces to its real number.
+    expect(filing?.no_of_units_sold).toBe(129915);
+  });
+
   it("clears stale rows when re-extracted with fewer acquisitions", async () => {
     const accession = "0001663266-26-000003";
     const xml = readFileSync(

@@ -65,9 +65,12 @@ const BROKER_DETAILS_TYPE = Type.Object({
 const SECURITIES_INFORMATION_TYPE = Type.Object({
   securitiesClassTitle: Type.Optional(Type.String()),
   brokerOrMarketmakerDetails: Type.Optional(BROKER_DETAILS_TYPE),
-  noOfUnitsSold: Type.Optional(Type.Number()),
-  aggregateMarketValue: Type.Optional(Type.Number()),
-  noOfUnitsOutstanding: Type.Optional(Type.Number()),
+  // Numeric leaves are kept as raw strings and coerced in storage. Typing them
+  // as Type.Number() would let Value.Convert turn an empty element ("") into a
+  // fabricated 0, indistinguishable from a real zero.
+  noOfUnitsSold: Type.Optional(Type.String()),
+  aggregateMarketValue: Type.Optional(Type.String()),
+  noOfUnitsOutstanding: Type.Optional(Type.String()),
   approxSaleDate: Type.Optional(Type.String()),
   securitiesExchangeName: Type.Optional(Type.String()),
 });
@@ -78,7 +81,7 @@ const SECURITIES_TO_BE_SOLD_TYPE = Type.Object({
   natureOfAcquisitionTransaction: Type.Optional(Type.String()),
   nameOfPersonfromWhomAcquired: Type.Optional(Type.String()),
   isGiftTransaction: Type.Optional(Type.String()),
-  amountOfSecuritiesAcquired: Type.Optional(Type.Number()),
+  amountOfSecuritiesAcquired: Type.Optional(Type.String()),
   paymentDate: Type.Optional(Type.String()),
   natureOfPayment: Type.Optional(Type.String()),
 });
@@ -92,8 +95,8 @@ const SECURITIES_SOLD_PAST_3_MONTHS_TYPE = Type.Object({
   sellerDetails: Type.Optional(SELLER_DETAILS_TYPE),
   securitiesClassTitle: Type.Optional(Type.String()),
   saleDate: Type.Optional(Type.String()),
-  amountOfSecuritiesSold: Type.Optional(Type.Number()),
-  grossProceeds: Type.Optional(Type.Number()),
+  amountOfSecuritiesSold: Type.Optional(Type.String()),
+  grossProceeds: Type.Optional(Type.String()),
 });
 
 const NOTICE_SIGNATURE_TYPE = Type.Object({
