@@ -58,15 +58,18 @@ describe("OwnershipDocument parsing (Forms 3/4/5)", () => {
     expect(doc.derivativeTable?.derivativeTransaction?.length).toBe(1);
   });
 
-  it("unwraps and coerces value-wrapped leaves", async () => {
+  it("unwraps value-wrapped leaves (numerics kept as raw strings; storage coerces)", async () => {
     const xml = readFileSync(
       join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
       "utf-8"
     );
     const doc = await Form_4.parse("4", xml);
     const txn = doc.nonDerivativeTable!.nonDerivativeTransaction![0];
-    expect(txn.transactionAmounts?.transactionShares?.value).toBe(177936);
-    expect(txn.transactionAmounts?.transactionPricePerShare?.value).toBe(1.405);
+    // VALUE_NUMBER's inner value is typed as a string so an empty <transactionShares><value/></transactionShares>
+    // survives Value.Convert intact (as "") instead of becoming a fabricated 0. Storage's num() helper
+    // is the single place that coerces populated strings to numbers and "" to null.
+    expect(txn.transactionAmounts?.transactionShares?.value).toBe("177936");
+    expect(txn.transactionAmounts?.transactionPricePerShare?.value).toBe("1.405");
     expect(txn.securityTitle?.value).toBe("Common Stock");
   });
 
