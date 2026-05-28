@@ -5,35 +5,35 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { AddressRepo } from "../../../storage/address/AddressRepo";
-import type { AddressImport } from "../../../storage/address/AddressNormalization";
-import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
-import { isBadPersonField } from "../../../types/edgar/bad-data";
-import { parseCikSafely } from "../../../util/parseCik";
+import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
-import { CompanyResolver } from "../../../resolver/CompanyResolver";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import type { AddressImport } from "../../../storage/address/AddressNormalization";
+import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
+import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
-import { formToExtractorId } from "../../../storage/versioning/extractorIds";
+import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
+import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
+import { CanonicalPersonRepo } from "../../../storage/canonical/CanonicalPersonRepo";
+import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
+import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
+import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import type {
   Section16Holding,
   Section16Transaction,
 } from "../../../storage/section16/Section16Schema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
+import { formToExtractorId } from "../../../storage/versioning/extractorIds";
+import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { isBadPersonField } from "../../../types/edgar/bad-data";
+import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
 
 // EDGAR ownership flags appear as "1"/"0" (X0609) or "true"/"false" (X0607).
@@ -75,9 +75,9 @@ interface OwnershipStorageContext {
  * Builds a human-readable relationship label and officer title from the
  * reportingOwnerRelationship flags.
  */
-function describeRelationship(rel: NonNullable<
-  OwnershipDocument["reportingOwner"]
->[number]["reportingOwnerRelationship"]): { relationship: string; title: string | null } {
+function describeRelationship(
+  rel: NonNullable<OwnershipDocument["reportingOwner"]>[number]["reportingOwnerRelationship"]
+): { relationship: string; title: string | null } {
   if (!rel) return { relationship: "reporting-owner", title: null };
   const roles: string[] = [];
   if (toBool(rel.isDirector)) roles.push("director");
@@ -226,14 +226,13 @@ export async function processOwnershipForm({
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-  const extractor_version = "1.1.0";
+  const extractor_version = "1.0.0";
 
   // Use the same canonical extractor id the dispatch task records against
   // (amendments share the base extractor), so observation rows and
   // extractor_runs/version slots never disagree. Fall back to the bare
   // document type only for forms not in the mapping.
-  const extractor_id =
-    formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
+  const extractor_id = formToExtractorId(form) ?? (str(doc.documentType) ?? form).replace("/A", "");
   // The XML issuerCik is authoritative. We must NOT fall back to the filing's
   // own CIK: ownership filings are ingested from a submission feed that may be
   // the reporting owner's, not the issuer's, so that fallback could stamp the
@@ -301,19 +300,27 @@ export async function processOwnershipForm({
   // Transactions: non-derivative first, then derivative, in a single index space.
   let txnIndex = 0;
   for (const t of doc.nonDerivativeTable?.nonDerivativeTransaction ?? []) {
-    await section16Repo.saveTransaction(nonDerivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++));
+    await section16Repo.saveTransaction(
+      nonDerivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++)
+    );
   }
   for (const t of doc.derivativeTable?.derivativeTransaction ?? []) {
-    await section16Repo.saveTransaction(derivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++));
+    await section16Repo.saveTransaction(
+      derivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++)
+    );
   }
 
   // Holdings: non-derivative first, then derivative.
   let holdIndex = 0;
   for (const h of doc.nonDerivativeTable?.nonDerivativeHolding ?? []) {
-    await section16Repo.saveHolding(nonDerivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++));
+    await section16Repo.saveHolding(
+      nonDerivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++)
+    );
   }
   for (const h of doc.derivativeTable?.derivativeHolding ?? []) {
-    await section16Repo.saveHolding(derivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++));
+    await section16Repo.saveHolding(
+      derivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++)
+    );
   }
 }
 
