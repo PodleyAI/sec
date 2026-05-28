@@ -22,9 +22,14 @@ const VALUE_STRING = Type.Object({
   value: Type.Optional(Type.String()),
 });
 
-// A `{ value }` wrapper around a numeric leaf. Convert coerces "10000" -> 10000.
+// A `{ value }` wrapper around a numeric leaf. The inner value is kept as a
+// raw string and coerced in storage. Typing it as Type.Number() would let
+// Value.Convert turn an empty element (`<transactionShares><value/></transactionShares>`,
+// which parses to "") into a fabricated 0, indistinguishable from a real zero
+// and silently corrupting transaction and holding data. Storage's `num()`
+// helper maps "" -> null and parses populated strings to numbers.
 const VALUE_NUMBER = Type.Object({
-  value: Type.Optional(Type.Number()),
+  value: Type.Optional(Type.String()),
 });
 
 const ISSUER_TYPE = Type.Object({

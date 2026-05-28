@@ -51,12 +51,15 @@ function str(field: { value?: string } | string | undefined): string | null {
   return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
 }
 
-// Unwrap a `{ value }` leaf to a finite number, or null.
-function num(field: { value?: number | string } | string | undefined): number | null {
+// Unwrap a `{ value }` leaf to a finite number, or null. The schema types the
+// inner value as a string so that an empty XML element (parsed as "") survives
+// Value.Convert intact and reaches this helper, which maps "" -> null. If we
+// typed it as a number, Value.Convert would fabricate a 0 here instead.
+function num(field: { value?: string } | string | undefined): number | null {
   if (field === undefined || field === null || typeof field === "string") return null;
   const v = field.value;
-  if (v === undefined || v === null || String(v).trim() === "") return null;
-  const n = typeof v === "number" ? v : Number(v);
+  if (v === undefined || v === null || v.trim() === "") return null;
+  const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -223,7 +226,7 @@ export async function processOwnershipForm({
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-  const extractor_version = "1.0.0";
+  const extractor_version = "1.1.0";
 
   // Use the same canonical extractor id the dispatch task records against
   // (amendments share the base extractor), so observation rows and
