@@ -8,8 +8,8 @@ import { describe, expect, it } from "bun:test";
 import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
 
 describe("componentRegistry", () => {
-  it("registers all five extractors", () => {
-    for (const id of ["D", "C", "1-A", "1-K", "1-Z"]) {
+  it("registers all extractors", () => {
+    for (const id of ["D", "C", "1-A", "1-K", "1-Z", "3", "4", "5"]) {
       expect(isRegisteredComponent("extractor", id)).toBe(true);
     }
   });
@@ -24,7 +24,7 @@ describe("componentRegistry", () => {
     expect(isRegisteredComponent("resolver", "sponsor")).toBe(false);
   });
 
-  it("listRegisteredComponents returns 7 entries", () => {
-    expect(listRegisteredComponents()).toHaveLength(7);
+  it("listRegisteredComponents returns one entry per extractor and resolver", () => {
+    expect(listRegisteredComponents()).toHaveLength(10);
   });
 });

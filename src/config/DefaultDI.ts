@@ -105,6 +105,17 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+  Section16FilingPrimaryKeyNames,
+  Section16FilingSchema,
+  Section16HoldingPrimaryKeyNames,
+  Section16HoldingSchema,
+  Section16TransactionPrimaryKeyNames,
+  Section16TransactionSchema,
+} from "../storage/section16/Section16Schema";
+import {
   CIK_LAST_UPDATE_REPOSITORY_TOKEN,
   CikLastUpdatePrimaryKeyNames,
   CikLastUpdateSchema,
@@ -355,6 +366,31 @@ export const DefaultDI = () => {
       CrowdfundingHistoryPrimaryKeyNames,
       [["cik", "file_number"]]
     )
+  );
+
+  // ------------------------------ Section 16 (Forms 3/4/5) --------------------------------
+  globalServiceRegistry.registerInstance(
+    SECTION16_FILING_REPOSITORY_TOKEN,
+    createStorage("section16_filings", Section16FilingSchema, Section16FilingPrimaryKeyNames, [
+      ["issuer_cik"],
+      ["form"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+    createStorage(
+      "section16_transactions",
+      Section16TransactionSchema,
+      Section16TransactionPrimaryKeyNames,
+      [["accession_number"], ["issuer_cik"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    SECTION16_HOLDING_REPOSITORY_TOKEN,
+    createStorage("section16_holdings", Section16HoldingSchema, Section16HoldingPrimaryKeyNames, [
+      ["accession_number"],
+      ["issuer_cik"],
+    ])
   );
 
   // ------------------------------ Change Log --------------------------------

@@ -13,8 +13,15 @@ import {
 } from "./extractorIds";
 
 describe("extractorIds", () => {
-  it("exposes exactly five canonical extractor ids", () => {
-    expect([...EXTRACTOR_IDS].sort()).toEqual(["1-A", "1-K", "1-Z", "C", "D"]);
+  it("exposes the canonical extractor ids", () => {
+    expect([...EXTRACTOR_IDS].sort()).toEqual(["1-A", "1-K", "1-Z", "3", "4", "5", "C", "D"]);
+  });
+
+  it("maps Form 3/4/5 and amendments to their document-type extractor ids", () => {
+    for (const form of ["3", "4", "5"]) {
+      expect(formToExtractorId(form)).toBe(form);
+      expect(formToExtractorId(`${form}/A`)).toBe(form);
+    }
   });
 
   it("maps Form D and amendments to extractor id 'D'", () => {

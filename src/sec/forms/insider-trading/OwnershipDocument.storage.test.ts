@@ -1,0 +1,186 @@
+/**
+ * @license
+ * Copyright 2025 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { beforeEach, describe, expect, it } from "bun:test";
+import { readFileSync, readdirSync } from "fs";
+import { join } from "path";
+import { Form_3 } from "./Form_3";
+import { Form_4 } from "./Form_4";
+import { Form_5 } from "./Form_5";
+import { processOwnershipForm } from "./OwnershipDocument.storage";
+import { Section16Repo } from "../../../storage/section16/Section16Repo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { accessionFromFixtureName } from "../../../util/accession";
+import { parseCikSafely } from "../../../util/parseCik";
+
+const CASES = [
+  { dir: "form-3", form: "3" as const, parser: Form_3 },
+  { dir: "form-3-a", form: "3/A" as const, parser: Form_3 },
+  { dir: "form-4", form: "4" as const, parser: Form_4 },
+  { dir: "form-4-a", form: "4/A" as const, parser: Form_4 },
+  { dir: "form-5", form: "5" as const, parser: Form_5 },
+];
+
+function listFixtures(dir: string): string[] {
+  return readdirSync(join(__dirname, "mock_data", dir)).filter((f) =>
+    f.endsWith("-primary_doc.xml")
+  );
+}
+
+describe("OwnershipDocument storage (Forms 3/4/5)", () => {
+  let repo: Section16Repo;
+
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+    repo = new Section16Repo();
+  });
+
+  it("parses and stores every fixture without error", async () => {
+    const errors: Array<{ file: string; error: string }> = [];
+    let count = 0;
+
+    for (const { dir, form, parser } of CASES) {
+      for (const file of listFixtures(dir)) {
+        count++;
+        const accession = accessionFromFixtureName(file);
+        try {
+          const xml = readFileSync(join(__dirname, "mock_data", dir, file), "utf-8");
+          const doc = await (parser as typeof Form_4).parse(form as "4", xml);
+          await processOwnershipForm({
+            cik: parseCikSafely(doc.issuer?.issuerCik),
+            file_number: "",
+            accession_number: accession,
+            filing_date: "2026-05-27",
+            primary_doc: file,
+            form,
+            doc,
+          });
+          const filing = await repo.getFiling(accession);
+          expect(filing).toBeDefined();
+          expect(filing!.form).toBe(form);
+        } catch (error) {
+          errors.push({ file, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+
+    expect(count).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  });
+
+  it("stores a Form 4 with non-derivative and derivative transactions", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const filing = await repo.getFiling(accession);
+    expect(filing?.issuer_name).toBe("HCW Biologics Inc.");
+    expect(filing?.not_subject_to_section16).toBe(false);
+
+    const txns = await repo.getTransactions(accession);
+    expect(txns.length).toBe(2);
+
+    const nonDeriv = txns.find((t) => !t.is_derivative)!;
+    expect(nonDeriv.transaction_code).toBe("P");
+    expect(nonDeriv.shares).toBe(177936);
+    expect(nonDeriv.price_per_share).toBe(1.405);
+    expect(nonDeriv.acquired_disposed_code).toBe("A");
+    expect(nonDeriv.shares_owned_following).toBe(203441);
+
+    const deriv = txns.find((t) => t.is_derivative)!;
+    expect(deriv.conversion_or_exercise_price).toBe(1.28);
+    expect(deriv.expiration_date).toBe("2031-11-22");
+    expect(deriv.underlying_security_title).toBe("Common Stock");
+    expect(deriv.underlying_security_shares).toBe(177936);
+  });
+
+  it("classifies directors/officers as persons and entities as companies", async () => {
+    // Multi-owner Form 4: an individual 10% owner plus two fund entities.
+    const accession = "0000902664-26-002604";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000090266426002604-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    await processOwnershipForm({
+      cik: 885508,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const persons = (await new PersonObservationRepo().listByAccession(accession)).map(
+      (p) => p.last_name
+    );
+    const companies = (await new CompanyObservationRepo().listByAccession(accession)).map(
+      (c) => c.name
+    );
+
+    expect(persons).toContain("Fischer Seth");
+    expect(companies).toContain("STRATUS PROPERTIES INC"); // issuer
+    expect(companies).toContain("Oasis Management Co Ltd.");
+    expect(companies).toContain("Oasis Investments II Master Fund Ltd.");
+  });
+
+  it("stores Form 3/A holdings (non-derivative and derivative)", async () => {
+    const accession = "0000950103-26-007758";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-3-a", "000095010326007758-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_3.parse("3/A", xml);
+    await processOwnershipForm({
+      cik: 1122411,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "3/A",
+      doc,
+    });
+
+    const holdings = await repo.getHoldings(accession);
+    expect(holdings.length).toBe(3);
+
+    const nonDeriv = holdings.filter((h) => !h.is_derivative);
+    expect(nonDeriv.length).toBe(1);
+    expect(nonDeriv[0].security_title).toBe("Ordinary Shares");
+    expect(nonDeriv[0].shares_owned_following).toBe(30000);
+
+    const deriv = holdings.filter((h) => h.is_derivative);
+    expect(deriv.length).toBe(2);
+    expect(deriv[0].conversion_or_exercise_price).toBe(41.1);
+    expect(deriv[0].underlying_security_shares).toBe(365000);
+    // exerciseDate carried only a footnote id -> null, no transaction rows.
+    expect(deriv[0].exercise_date).toBeNull();
+
+    // A Form 3 reports holdings only, never transactions.
+    expect((await repo.getTransactions(accession)).length).toBe(0);
+
+    // The officer is observed as a person with the officer title.
+    const persons = await new PersonObservationRepo().listByAccession(accession);
+    expect(persons.some((p) => p.last_name === "Chung Chih-Hsiao")).toBe(true);
+  });
+});
