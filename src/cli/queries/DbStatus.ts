@@ -14,6 +14,11 @@ import {
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
 } from "../../storage/section16/Section16Schema";
+import {
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
+} from "../../storage/form144/Form144Schema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
@@ -98,6 +103,9 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "section16_filings", token: SECTION16_FILING_REPOSITORY_TOKEN as any },
   { table: "section16_transactions", token: SECTION16_TRANSACTION_REPOSITORY_TOKEN as any },
   { table: "section16_holdings", token: SECTION16_HOLDING_REPOSITORY_TOKEN as any },
+  { table: "form144_filings", token: FORM144_FILING_REPOSITORY_TOKEN as any },
+  { table: "form144_acquisitions", token: FORM144_ACQUISITION_REPOSITORY_TOKEN as any },
+  { table: "form144_recent_sales", token: FORM144_RECENT_SALE_REPOSITORY_TOKEN as any },
 ];
 
 export async function getDbStats(): Promise<TableStat[]> {

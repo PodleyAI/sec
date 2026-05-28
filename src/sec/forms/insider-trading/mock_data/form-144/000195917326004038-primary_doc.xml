@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/ownership" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>144</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <cik>0001310306</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInfo>
+      <issuerCik>0001560258</issuerCik>
+      <issuerName>electroCore, Inc.</issuerName>
+      <secFileNumber>001-38538</secFileNumber>
+      <issuerAddress>
+        <com:street1>200 FORGE WAY</com:street1>
+        <com:street2>SUITE 205</com:street2>
+        <com:city>ROCKAWAY</com:city>
+        <com:stateOrCountry>NJ</com:stateOrCountry>
+        <com:zipCode>07866</com:zipCode>
+      </issuerAddress>
+      <issuerContactPhone>973-290-0097</issuerContactPhone>
+      <nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>PATTON THOMAS M</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+      <relationshipsToIssuer>
+        <relationshipToIssuer>Director</relationshipToIssuer>
+      </relationshipsToIssuer>
+    </issuerInfo>
+    <securitiesInformation>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <brokerOrMarketmakerDetails>
+        <name>Fidelity Brokerage Services LLC</name>
+        <address>
+          <com:street1>245 Summer Street</com:street1>
+          <com:city>Boston</com:city>
+          <com:stateOrCountry>MA</com:stateOrCountry>
+          <com:zipCode>02110</com:zipCode>
+        </address>
+      </brokerOrMarketmakerDetails>
+      <noOfUnitsSold>85000</noOfUnitsSold>
+      <aggregateMarketValue>615658.00</aggregateMarketValue>
+      <noOfUnitsOutstanding>8295707</noOfUnitsOutstanding>
+      <approxSaleDate>05/22/2026</approxSaleDate>
+      <securitiesExchangeName>NASDAQ</securitiesExchangeName>
+    </securitiesInformation>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>04/02/2021</acquiredDate>
+      <natureOfAcquisitionTransaction>Payment for services rendered</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>ISSUER</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>3333</amountOfSecuritiesAcquired>
+      <paymentDate>04/02/2021</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>04/02/2022</acquiredDate>
+      <natureOfAcquisitionTransaction>Payment for services rendered</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>ISSUER</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>3333</amountOfSecuritiesAcquired>
+      <paymentDate>04/02/2022</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>common</securitiesClassTitle>
+      <acquiredDate>04/03/2023</acquiredDate>
+      <natureOfAcquisitionTransaction>Payment for services rendered</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>ISSUER</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>3333</amountOfSecuritiesAcquired>
+      <paymentDate>04/03/2023</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>06/11/2022</acquiredDate>
+      <natureOfAcquisitionTransaction>Payment for services rendered</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>ISSUER</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>2967</amountOfSecuritiesAcquired>
+      <paymentDate>06/11/2022</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>05/16/2026</acquiredDate>
+      <natureOfAcquisitionTransaction>Payment for services rendered</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>ISSUER</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>72034</amountOfSecuritiesAcquired>
+      <paymentDate>05/16/2026</paymentDate>
+      <natureOfPayment>Compensation</natureOfPayment>
+    </securitiesToBeSold>
+    <nothingToReportFlagOnSecuritiesSoldInPast3Months>Y</nothingToReportFlagOnSecuritiesSoldInPast3Months>
+    <noticeSignature>
+      <noticeDate>05/27/2026</noticeDate>
+      <signature>/s/ Ariadna Gonzalez as a duly authorized representative of Fidelity Brokerage Services LLC, as attorney-in-fact for PATTON THOMAS M</signature>
+    </noticeSignature>
+  </formData>
+</edgarSubmission>

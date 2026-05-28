@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/ownership" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>144</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <cik>0001663266</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInfo>
+      <issuerCik>0001534263</issuerCik>
+      <issuerName>HF Sinclair</issuerName>
+      <secFileNumber>000-56092</secFileNumber>
+      <issuerAddress>
+        <com:street1>2323 Victory Avenue Suite 1400</com:street1>
+        <com:street2>SUITE D582</com:street2>
+        <com:city>Dallas</com:city>
+        <com:stateOrCountry>TX</com:stateOrCountry>
+        <com:zipCode>75219</com:zipCode>
+      </issuerAddress>
+      <issuerContactPhone>2148713555</issuerContactPhone>
+      <nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>Go Timothy</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+      <relationshipsToIssuer>
+        <relationshipToIssuer>Former Employee</relationshipToIssuer>
+      </relationshipsToIssuer>
+    </issuerInfo>
+    <securitiesInformation>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <brokerOrMarketmakerDetails>
+        <name>Pershing Advisor Solutions</name>
+        <address>
+          <com:street1>One Pershing Plaza</com:street1>
+          <com:city>Jersey City</com:city>
+          <com:stateOrCountry>NJ</com:stateOrCountry>
+          <com:zipCode>07399</com:zipCode>
+        </address>
+      </brokerOrMarketmakerDetails>
+      <noOfUnitsSold>129915</noOfUnitsSold>
+      <aggregateMarketValue>9019409.69</aggregateMarketValue>
+      <noOfUnitsOutstanding>180275437</noOfUnitsOutstanding>
+      <approxSaleDate>05/26/2026</approxSaleDate>
+      <securitiesExchangeName>NYSE</securitiesExchangeName>
+    </securitiesInformation>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>12/01/2023</acquiredDate>
+      <natureOfAcquisitionTransaction>Vested Stock</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>HF Sinclair</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>66505</amountOfSecuritiesAcquired>
+      <paymentDate>12/01/2023</paymentDate>
+      <natureOfPayment>Vesting</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common</securitiesClassTitle>
+      <acquiredDate>12/01/2025</acquiredDate>
+      <natureOfAcquisitionTransaction>Vested Stock</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>HF Sinclair</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>63410</amountOfSecuritiesAcquired>
+      <paymentDate>12/01/2025</paymentDate>
+      <natureOfPayment>Vesting</natureOfPayment>
+    </securitiesToBeSold>
+    <nothingToReportFlagOnSecuritiesSoldInPast3Months>N</nothingToReportFlagOnSecuritiesSoldInPast3Months>
+    <securitiesSoldInPast3Months>
+      <sellerDetails>
+        <name>Timothy Go</name>
+        <address>
+          <com:street1>4325 Fairfax Ave</com:street1>
+          <com:city>Dallas</com:city>
+          <com:stateOrCountry>TX</com:stateOrCountry>
+          <com:zipCode>75206</com:zipCode>
+        </address>
+      </sellerDetails>
+      <securitiesClassTitle>HF Sinclair Corp</securitiesClassTitle>
+      <saleDate>05/15/2026</saleDate>
+      <amountOfSecuritiesSold>16814</amountOfSecuritiesSold>
+      <grossProceeds>1123856.61</grossProceeds>
+    </securitiesSoldInPast3Months>
+    <securitiesSoldInPast3Months>
+      <sellerDetails>
+        <name>Timothy Go</name>
+        <address>
+          <com:street1>4325 Fairfax Ave</com:street1>
+          <com:city>Dallas</com:city>
+          <com:stateOrCountry>TX</com:stateOrCountry>
+          <com:zipCode>75206</com:zipCode>
+        </address>
+      </sellerDetails>
+      <securitiesClassTitle>HF Sinclair Corp</securitiesClassTitle>
+      <saleDate>05/18/2026</saleDate>
+      <amountOfSecuritiesSold>4768</amountOfSecuritiesSold>
+      <grossProceeds>339958.40</grossProceeds>
+    </securitiesSoldInPast3Months>
+    <noticeSignature>
+      <noticeDate>05/27/2026</noticeDate>
+      <signature>Timothy Go</signature>
+    </noticeSignature>
+  </formData>
+</edgarSubmission>

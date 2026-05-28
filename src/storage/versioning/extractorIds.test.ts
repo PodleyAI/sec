@@ -14,7 +14,17 @@ import {
 
 describe("extractorIds", () => {
   it("exposes the canonical extractor ids", () => {
-    expect([...EXTRACTOR_IDS].sort()).toEqual(["1-A", "1-K", "1-Z", "3", "4", "5", "C", "D"]);
+    expect([...EXTRACTOR_IDS].sort()).toEqual([
+      "1-A",
+      "1-K",
+      "1-Z",
+      "144",
+      "3",
+      "4",
+      "5",
+      "C",
+      "D",
+    ]);
   });
 
   it("maps Form 3/4/5 and amendments to their document-type extractor ids", () => {
@@ -22,6 +32,11 @@ describe("extractorIds", () => {
       expect(formToExtractorId(form)).toBe(form);
       expect(formToExtractorId(`${form}/A`)).toBe(form);
     }
+  });
+
+  it("maps Form 144 and its amendment to extractor id '144'", () => {
+    expect(formToExtractorId("144")).toBe("144");
+    expect(formToExtractorId("144/A")).toBe("144");
   });
 
   it("maps Form D and amendments to extractor id 'D'", () => {
