@@ -35,32 +35,13 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
+import { numWrapped as num, strWrapped as str } from "./_valueHelpers";
 
 // EDGAR ownership flags appear as "1"/"0" (X0609) or "true"/"false" (X0607).
 function toBool(raw: string | undefined): boolean {
   if (raw === undefined) return false;
   const v = raw.trim().toLowerCase();
   return v === "1" || v === "true";
-}
-
-// Unwrap a `{ value }` leaf to its string, treating empty as null.
-function str(field: { value?: string } | string | undefined): string | null {
-  if (field === undefined || field === null) return null;
-  if (typeof field === "string") return field.trim() || null;
-  const v = field.value;
-  return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
-}
-
-// Unwrap a `{ value }` leaf to a finite number, or null. The schema types the
-// inner value as a string so that an empty XML element (parsed as "") survives
-// Value.Convert intact and reaches this helper, which maps "" -> null. If we
-// typed it as a number, Value.Convert would fabricate a 0 here instead.
-function num(field: { value?: string } | string | undefined): number | null {
-  if (field === undefined || field === null || typeof field === "string") return null;
-  const v = field.value;
-  if (v === undefined || v === null || v.trim() === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 interface OwnershipStorageContext {

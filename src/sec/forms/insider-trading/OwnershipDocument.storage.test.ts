@@ -249,6 +249,31 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     expect(nonDeriv.price_per_share).toBe(1.405);
   });
 
+  it("stores null (not 0) for a whitespace-only transactionShares element", async () => {
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    const nonDerivTxn = doc.nonDerivativeTable!.nonDerivativeTransaction![0];
+    nonDerivTxn.transactionAmounts!.transactionShares!.value = "   ";
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const txns = await repo.getTransactions(accession);
+    const nonDeriv = txns.find((t) => !t.is_derivative)!;
+    expect(nonDeriv.shares).toBeNull();
+    expect(nonDeriv.price_per_share).toBe(1.405);
+  });
+
   it("stores null (not 0) for an empty transactionPricePerShare element", async () => {
     const accession = "0001493152-26-025476";
     const xml = readFileSync(

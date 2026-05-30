@@ -82,4 +82,18 @@ describe("createCikNameBulkWriter", () => {
     const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
     expect((await repo.getAll())?.length ?? 0).toBe(0);
   });
+
+  it("dedups duplicate CIKs within a single batch, last value wins", async () => {
+    const writer = createCikNameBulkWriter();
+    await writer.writeBatch([
+      { cik: 1, name: "FIRST" },
+      { cik: 2, name: "B" },
+      { cik: 1, name: "LAST" },
+    ]);
+    await writer.close();
+    const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
+    expect((await repo.get({ cik: 1 }))?.name).toBe("LAST");
+    const all = await repo.getAll();
+    expect(all?.length).toBe(2);
+  });
 });

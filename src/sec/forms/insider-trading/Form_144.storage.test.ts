@@ -189,6 +189,79 @@ describe("Form 144 storage", () => {
     expect(filing?.no_of_units_sold).toBe(129915);
   });
 
+  it("stores null (not a fabricated 0) for a whitespace-only aggregateMarketValue", async () => {
+    const accession = "0001663266-26-000003";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-144", "000166326626000003-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_144.parse("144", xml);
+    // Filings have been observed with whitespace-only numeric elements, which
+    // the previous local num() coerced to 0 via Number("   ") and silently
+    // fabricated a market value.
+    doc.formData!.securitiesInformation!.aggregateMarketValue = "   ";
+    await processForm144({
+      cik: 1534263,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "144",
+      doc,
+    });
+
+    const filing = await repo.getFiling(accession);
+    expect(filing?.aggregate_market_value).toBeNull();
+    expect(filing?.no_of_units_sold).toBe(129915);
+  });
+
+  it("stores null (not a fabricated 0) for whitespace-only grossProceeds on a recent sale", async () => {
+    const accession = "0001663266-26-000003";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-144", "000166326626000003-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_144.parse("144", xml);
+    doc.formData!.securitiesSoldInPast3Months![0].grossProceeds = "   ";
+    await processForm144({
+      cik: 1534263,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "144",
+      doc,
+    });
+
+    const sales = await repo.getRecentSales(accession);
+    expect(sales[0].gross_proceeds).toBeNull();
+    expect(sales[0].amount_sold).toBe(16814);
+  });
+
+  it("stores null (not a fabricated 0) for whitespace-only amountOfSecuritiesAcquired", async () => {
+    const accession = "0001663266-26-000003";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-144", "000166326626000003-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_144.parse("144", xml);
+    doc.formData!.securitiesToBeSold![0].amountOfSecuritiesAcquired = "   ";
+    await processForm144({
+      cik: 1534263,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "144",
+      doc,
+    });
+
+    const acquisitions = await repo.getAcquisitions(accession);
+    expect(acquisitions[0].amount_acquired).toBeNull();
+    // The second acquisition's populated field is unaffected.
+    expect(acquisitions[1].amount_acquired).not.toBeNull();
+  });
+
   it("clears stale rows when re-extracted with fewer acquisitions", async () => {
     const accession = "0001663266-26-000003";
     const xml = readFileSync(

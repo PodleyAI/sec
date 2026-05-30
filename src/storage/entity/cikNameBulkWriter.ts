@@ -94,12 +94,28 @@ function createPostgresWriter(): CikNameBulkWriter {
         await client.query("BEGIN");
         for (let start = 0; start < rows.length; start += PG_MAX_ROWS_PER_STATEMENT) {
           const slice = rows.slice(start, start + PG_MAX_ROWS_PER_STATEMENT);
+          // Per-slice dedup keeps `INSERT ... ON CONFLICT DO UPDATE` from
+          // failing on duplicate CIKs within a single statement (Postgres
+          // rejects two rows with the same conflict key in one INSERT).
+          // Last value wins, matching the SQLite `INSERT OR REPLACE` path.
+          // Dedup runs AFTER slicing and only shrinks the row set, so the
+          // 60_000-bind cap (PG_MAX_ROWS_PER_STATEMENT * 2) still holds.
+          const dedup = new Map<number, string>();
+          for (const r of slice) dedup.set(r.cik, r.name);
+          if (dedup.size < slice.length) {
+            console.debug(
+              `cikNameBulkWriter: dedup dropped ${slice.length - dedup.size} duplicate cik(s) within a ${slice.length}-row slice`
+            );
+          }
+          if (dedup.size === 0) continue;
           const values: (number | string)[] = [];
           const placeholders: string[] = [];
-          for (let i = 0; i < slice.length; i++) {
+          let i = 0;
+          for (const [cik, name] of dedup.entries()) {
             const base = i * 2;
             placeholders.push(`($${base + 1}, $${base + 2})`);
-            values.push(slice[i].cik, slice[i].name);
+            values.push(cik, name);
+            i++;
           }
           const sql =
             `INSERT INTO "cik_names" ("cik", "name") VALUES ` +
