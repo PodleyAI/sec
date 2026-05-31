@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { renderTable } from "./TableRenderer";
+import { renderTable, __testing } from "./TableRenderer";
 import type { ColumnDef, RenderOptions } from "./TableRenderer";
+
+const { escapeCsvValue } = __testing;
 
 const columns: ReadonlyArray<ColumnDef> = [
   { key: "id", header: "ID", width: 6 },
@@ -152,5 +154,81 @@ describe("renderTable", () => {
       expect(result).toContain("Showing 0-0 of 10 results");
       expect(result).not.toContain("--offset");
     });
+  });
+});
+
+describe("escapeCsvValue", () => {
+  // Per OWASP CSV Injection (https://owasp.org/www-community/attacks/CSV_Injection),
+  // cells beginning with =/+/-/@ (or TAB/CR after whitespace stripping) must be
+  // neutralized with a leading single-quote before being handed to a spreadsheet.
+
+  it("prefixes a single-quote when value starts with '='", () => {
+    expect(escapeCsvValue("=cmd")).toBe("'=cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '+'", () => {
+    expect(escapeCsvValue("+cmd")).toBe("'+cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '-'", () => {
+    expect(escapeCsvValue("-cmd")).toBe("'-cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '@'", () => {
+    expect(escapeCsvValue("@cmd")).toBe("'@cmd");
+  });
+
+  it("prefixes a single-quote when value starts with TAB", () => {
+    expect(escapeCsvValue("\tcmd")).toBe("'\tcmd");
+  });
+
+  it("prefixes a single-quote when value starts with CR", () => {
+    // CR alone forces RFC 4180 quoting too because the cell contains a CR.
+    expect(escapeCsvValue("\rcmd")).toBe('"\'\rcmd"');
+  });
+
+  it("defuses leading ASCII space before '=' (spreadsheets strip leading WS)", () => {
+    expect(escapeCsvValue(" =cmd")).toBe("' =cmd");
+  });
+
+  it("defuses leading U+00A0 NBSP before '=' (spreadsheets strip NBSP too)", () => {
+    expect(escapeCsvValue(" =cmd")).toBe("' =cmd");
+  });
+
+  it("leaves plain alphabetic values unchanged", () => {
+    expect(escapeCsvValue("abc")).toBe("abc");
+  });
+
+  it("leaves plain numeric values unchanged", () => {
+    expect(escapeCsvValue("123")).toBe("123");
+  });
+
+  it("defuses a dangerous line after LF inside a multi-line cell", () => {
+    // Excel/Sheets re-parse every physical line of a quoted multi-line cell,
+    // so the second line must also be defused.
+    expect(escapeCsvValue("safe\n=cmd")).toBe('"safe\n\'=cmd"');
+  });
+
+  it("defuses a dangerous line after CRLF inside a multi-line cell", () => {
+    expect(escapeCsvValue("safe\r\n=cmd")).toBe('"safe\r\n\'=cmd"');
+  });
+
+  it("defuses every dangerous follow-up line, leaving safe interleaved lines alone", () => {
+    const input = "safe\n=danger1\nstillsafe\n+danger2\n@danger3";
+    const expected =
+      '"safe\n\'=danger1\nstillsafe\n\'+danger2\n\'@danger3"';
+    expect(escapeCsvValue(input)).toBe(expected);
+  });
+
+  it("wraps cells that contain a comma in double quotes", () => {
+    expect(escapeCsvValue("a,b")).toBe('"a,b"');
+  });
+
+  it("doubles embedded double-quotes inside a wrapped cell", () => {
+    expect(escapeCsvValue('he said "hi"')).toBe('"he said ""hi"""');
+  });
+
+  it("returns an empty string unchanged", () => {
+    expect(escapeCsvValue("")).toBe("");
   });
 });
