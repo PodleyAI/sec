@@ -164,17 +164,24 @@ export class BootstrapDownloadTask extends Task<
       );
     }
 
-    const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    const exitCode = await proc.exited;
+    try {
+      const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const exitCode = await proc.exited;
 
-    if (exitCode !== 0) {
-      throw new Error(`unzip exited with code ${exitCode}`);
+      if (exitCode !== 0) {
+        throw new Error(`unzip exited with code ${exitCode}`);
+      }
+    } finally {
+      // Always remove the staged zip — on extract failure the partial
+      // archive can be many GB and would silently leak into rawDataFolder
+      // until the next bootstrap run. force: true makes the cleanup a
+      // no-op if the file is already gone (e.g. Bun.spawn never created
+      // anything we own).
+      rmSync(zipPath, { force: true });
     }
-
-    rmSync(zipPath);
     console.log(`Extraction complete. Cleaned up ${zipPath}`);
 
     return { success: true };
