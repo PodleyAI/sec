@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { renderTable } from "./TableRenderer";
+import { renderTable, __testing } from "./TableRenderer";
 import type { ColumnDef, RenderOptions } from "./TableRenderer";
+
+const { escapeCsvValue } = __testing;
 
 const columns: ReadonlyArray<ColumnDef> = [
   { key: "id", header: "ID", width: 6 },
@@ -152,5 +154,142 @@ describe("renderTable", () => {
       expect(result).toContain("Showing 0-0 of 10 results");
       expect(result).not.toContain("--offset");
     });
+  });
+});
+
+describe("escapeCsvValue", () => {
+  // Per OWASP CSV Injection (https://owasp.org/www-community/attacks/CSV_Injection),
+  // cells beginning with =/+/-/@ (or TAB/CR after whitespace stripping) must be
+  // neutralized with a leading single-quote before being handed to a spreadsheet.
+
+  it("prefixes a single-quote when value starts with '='", () => {
+    expect(escapeCsvValue("=cmd")).toBe("'=cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '+'", () => {
+    expect(escapeCsvValue("+cmd")).toBe("'+cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '-'", () => {
+    expect(escapeCsvValue("-cmd")).toBe("'-cmd");
+  });
+
+  it("prefixes a single-quote when value starts with '@'", () => {
+    expect(escapeCsvValue("@cmd")).toBe("'@cmd");
+  });
+
+  it("prefixes a single-quote when value starts with TAB", () => {
+    // \t is a dangerous lead in its own right (some loaders strip it
+    // before formula parsing). Cell contains no comma/quote/CR/LF so the
+    // result is NOT RFC 4180 quoted.
+    expect(escapeCsvValue("\tcmd")).toBe("'\tcmd");
+  });
+
+  it("quotes (but does not prefix) a value that begins with bare CR", () => {
+    // After splitting on \r\n | \r | \n, "\rcmd" decomposes to
+    // ["", "\r", "cmd"]: the empty pre-CR line and the post-CR "cmd"
+    // line are both non-dangerous, so no apostrophe is needed; the cell
+    // is still RFC 4180 quoted because it contains a CR.
+    expect(escapeCsvValue("\rcmd")).toBe('"\rcmd"');
+  });
+
+  it("defuses leading ASCII space before '=' (spreadsheets strip leading WS)", () => {
+    expect(escapeCsvValue(" =cmd")).toBe("' =cmd");
+  });
+
+  it("defuses leading U+00A0 NBSP before '=' (spreadsheets strip NBSP too)", () => {
+    expect(escapeCsvValue(" =cmd")).toBe("' =cmd");
+  });
+
+  it("leaves plain alphabetic values unchanged", () => {
+    expect(escapeCsvValue("abc")).toBe("abc");
+  });
+
+  it("leaves plain numeric values unchanged", () => {
+    expect(escapeCsvValue("123")).toBe("123");
+  });
+
+  it("defuses a dangerous line after LF inside a multi-line cell", () => {
+    // Excel/Sheets re-parse every physical line of a quoted multi-line cell,
+    // so the second line must also be defused.
+    expect(escapeCsvValue("safe\n=cmd")).toBe('"safe\n\'=cmd"');
+  });
+
+  it("defuses a dangerous line after CRLF inside a multi-line cell", () => {
+    expect(escapeCsvValue("safe\r\n=cmd")).toBe('"safe\r\n\'=cmd"');
+  });
+
+  it("defuses a dangerous line after a bare CR inside a multi-line cell", () => {
+    // Splitting on \r\n | \r | \n means the second physical line
+    // ("=cmd") is independently defused even when the separator is
+    // a lone carriage return.
+    expect(escapeCsvValue("safe\r=cmd")).toBe('"safe\r\'=cmd"');
+  });
+
+  it("quotes — but does not prefix — bare CR followed by a non-dangerous line", () => {
+    // The post-CR line ("cmd") is not a formula lead, so no apostrophe;
+    // the cell still needs RFC 4180 quoting because it contains a CR.
+    expect(escapeCsvValue("safe\rcmd")).toBe('"safe\rcmd"');
+  });
+
+  it("defuses every dangerous follow-up line, leaving safe interleaved lines alone", () => {
+    const input = "safe\n=danger1\nstillsafe\n+danger2\n@danger3";
+    const expected =
+      '"safe\n\'=danger1\nstillsafe\n\'+danger2\n\'@danger3"';
+    expect(escapeCsvValue(input)).toBe(expected);
+  });
+
+  it("wraps cells that contain a comma in double quotes", () => {
+    expect(escapeCsvValue("a,b")).toBe('"a,b"');
+  });
+
+  it("doubles embedded double-quotes inside a wrapped cell", () => {
+    expect(escapeCsvValue('he said "hi"')).toBe('"he said ""hi"""');
+  });
+
+  it("returns an empty string unchanged", () => {
+    expect(escapeCsvValue("")).toBe("");
+  });
+
+  // Zero-width / format-control characters that spreadsheets silently
+  // ignore at the start of a cell — each must be stripped before the
+  // formula-lead check so attackers can't sneak a leading "=cmd" past us.
+
+  it("defuses leading U+200B ZWSP before '='", () => {
+    expect(escapeCsvValue("​=cmd")).toBe("'​=cmd");
+  });
+
+  it("defuses leading U+200C ZWNJ before '='", () => {
+    expect(escapeCsvValue("‌=cmd")).toBe("'‌=cmd");
+  });
+
+  it("defuses leading U+200D ZWJ before '='", () => {
+    expect(escapeCsvValue("‍=cmd")).toBe("'‍=cmd");
+  });
+
+  it("defuses leading U+200E LRM before '='", () => {
+    expect(escapeCsvValue("‎=cmd")).toBe("'‎=cmd");
+  });
+
+  it("defuses leading U+200F RLM before '='", () => {
+    expect(escapeCsvValue("‏=cmd")).toBe("'‏=cmd");
+  });
+
+  it("defuses leading U+00AD SHY before '='", () => {
+    expect(escapeCsvValue("­=cmd")).toBe("'­=cmd");
+  });
+
+  it("defuses leading U+FEFF BOM before '='", () => {
+    expect(escapeCsvValue("﻿=cmd")).toBe("'﻿=cmd");
+  });
+
+  it("defuses ZWSP + ASCII space + '=' (mixed leading-WS bypass)", () => {
+    expect(escapeCsvValue("​ =cmd")).toBe("'​ =cmd");
+  });
+
+  it("leaves ZWSP followed by a benign char unchanged", () => {
+    // Negative control — stripping leading ZWSP must NOT cause prefixing
+    // of cells that aren't actually formulas after the strip.
+    expect(escapeCsvValue("​abc")).toBe("​abc");
   });
 });
