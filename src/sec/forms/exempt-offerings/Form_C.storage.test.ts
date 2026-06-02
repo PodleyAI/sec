@@ -246,5 +246,147 @@ describe("Form_C storage test", () => {
         }
       }
     });
+
+    // Plan H regression guard for Form C: empty/whitespace offering &
+    // disclosure numerics must persist as null; "0" must round-trip.
+
+    it("treats whitespace-only offering numerics as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+
+      // Mutate the parsed object so the leaves we care about are whitespace.
+      const offeringInfo = formC.formData.offeringInformation as
+        | Record<string, unknown>
+        | undefined;
+      if (offeringInfo) {
+        offeringInfo.price = "   ";
+        offeringInfo.offeringAmount = "   ";
+        offeringInfo.maximumOfferingAmount = "   ";
+      }
+      const disclosures = formC.formData.annualReportDisclosureRequirements as
+        | Record<string, unknown>
+        | undefined;
+      if (disclosures) {
+        disclosures.totalAssetMostRecentFiscalYear = "   ";
+      }
+
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-h-ws-c";
+      const filingDate = "2024-01-15";
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-h-ws-c",
+        filing_date: filingDate,
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(
+        cik,
+        fileNumber,
+        filingDate
+      );
+      expect(offering?.price).toBe(null);
+      expect(offering?.offering_amount).toBe(null);
+      expect(offering?.maximum_offering_amount).toBe(null);
+
+      if (disclosures) {
+        const reports = (await crowdfundingRepo.getCrowdfundingReportsByCik(cik)).filter(
+          (r) => r.file_number === fileNumber
+        );
+        expect(
+          reports.find((r) => r.disclosure_name === "totalAssetMostRecentFiscalYear")
+        ).toBeUndefined();
+      }
+    });
+
+    it("treats empty offering numerics as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+
+      const offeringInfo = formC.formData.offeringInformation as
+        | Record<string, unknown>
+        | undefined;
+      if (offeringInfo) {
+        offeringInfo.price = "";
+        offeringInfo.offeringAmount = "";
+      }
+
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-h-empty-c";
+      const filingDate = "2024-01-16";
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-h-empty-c",
+        filing_date: filingDate,
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(
+        cik,
+        fileNumber,
+        filingDate
+      );
+      expect(offering?.price).toBe(null);
+      expect(offering?.offering_amount).toBe(null);
+    });
+
+    it("preserves legitimate '0' offering numerics as DB value 0", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+
+      const offeringInfo = formC.formData.offeringInformation as
+        | Record<string, unknown>
+        | undefined;
+      if (offeringInfo) {
+        offeringInfo.price = "0";
+        offeringInfo.offeringAmount = "0";
+      }
+      const disclosures = formC.formData.annualReportDisclosureRequirements as
+        | Record<string, unknown>
+        | undefined;
+      if (disclosures) {
+        disclosures.totalAssetMostRecentFiscalYear = "0";
+      }
+
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-h-zero-c";
+      const filingDate = "2024-01-17";
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-h-zero-c",
+        filing_date: filingDate,
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(
+        cik,
+        fileNumber,
+        filingDate
+      );
+      expect(offering?.price).toBe(0);
+      expect(offering?.offering_amount).toBe(0);
+
+      if (disclosures) {
+        const reports = (await crowdfundingRepo.getCrowdfundingReportsByCik(cik)).filter(
+          (r) => r.file_number === fileNumber
+        );
+        const totalAsset = reports.find(
+          (r) => r.disclosure_name === "totalAssetMostRecentFiscalYear"
+        );
+        expect(totalAsset?.disclosure_value).toBe(0);
+      }
+    });
   });
 });
