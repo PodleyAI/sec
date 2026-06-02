@@ -154,14 +154,18 @@ describe("Form_1_A parsing test", () => {
       expect(form1A.formData.summaryInfo.solicitationProposedOfferingFlag).toBe("N");
       expect(form1A.formData.summaryInfo.resaleSecuritiesAffiliatesFlag).toBe("N");
       expect(form1A.formData.summaryInfo.securitiesOffered).toBe(75000000);
-      expect(form1A.formData.summaryInfo.pricePerSecurity).toBe(1.0);
-      expect(form1A.formData.summaryInfo.qualificationOfferingAggregate).toBe(75000000.0);
-      expect(form1A.formData.summaryInfo.totalAggregateOffering).toBe(75000000.0);
+      // Decimal-typed leaves are now Type.String() in the schema (see
+      // Form_1_A.schema.ts) so the storage layer can run them through
+      // numScalar() and treat "" / whitespace as null instead of
+      // fabricating 0. Tests assert the raw XML text the parser surfaces.
+      expect(form1A.formData.summaryInfo.pricePerSecurity).toBe("1.0000");
+      expect(form1A.formData.summaryInfo.qualificationOfferingAggregate).toBe("75000000.00");
+      expect(form1A.formData.summaryInfo.totalAggregateOffering).toBe("75000000.00");
       expect(form1A.formData.summaryInfo.auditorServiceProviderName).toBe("CF Audits LLC");
-      expect(form1A.formData.summaryInfo.auditorFees).toBe(5850.0);
+      expect(form1A.formData.summaryInfo.auditorFees).toBe("5850.00");
       expect(form1A.formData.summaryInfo.legalServiceProviderName).toBe("Renee Sanders");
-      expect(form1A.formData.summaryInfo.legalFees).toBe(30000.0);
-      expect(form1A.formData.summaryInfo.estimatedNetAmount).toBe(75000000.0);
+      expect(form1A.formData.summaryInfo.legalFees).toBe("30000.00");
+      expect(form1A.formData.summaryInfo.estimatedNetAmount).toBe("75000000.00");
 
       // Test jurisdiction securities offered
       expect(form1A.formData.juridictionSecuritiesOffered?.jurisdictionsOfSecOfferedNone).toBe(
@@ -308,8 +312,12 @@ describe("Form_1_A parsing test", () => {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
         const form1A = await Form_1_A.parse("1-A", xmlContent);
 
-        // Test financial amounts are numbers
-        const financialFields = [
+        // Decimal-typed leaves are now Type.String() in the schema; the
+        // storage layer runs them through numScalar() to coerce. Here we
+        // assert that every non-null decimal leaf parses as a finite
+        // number through that same lens — anything else would surface
+        // as a fabricated 0 or NaN in storage.
+        const decimalFields: Array<string | null | undefined> = [
           form1A.formData.issuerInfo.cashEquivalents,
           form1A.formData.issuerInfo.investmentSecurities,
           form1A.formData.issuerInfo.accountsReceivable,
@@ -326,8 +334,6 @@ describe("Form_1_A parsing test", () => {
           form1A.formData.issuerInfo.netIncome,
           form1A.formData.issuerInfo.earningsPerShareBasic,
           form1A.formData.issuerInfo.earningsPerShareDiluted,
-          form1A.formData.summaryInfo.securitiesOffered,
-          form1A.formData.summaryInfo.outstandingSecurities,
           form1A.formData.summaryInfo.pricePerSecurity,
           form1A.formData.summaryInfo.issuerAggregateOffering,
           form1A.formData.summaryInfo.securityHolderAggegate,
@@ -339,7 +345,21 @@ describe("Form_1_A parsing test", () => {
           form1A.formData.summaryInfo.estimatedNetAmount,
         ];
 
-        financialFields.forEach((value) => {
+        decimalFields.forEach((value) => {
+          if (value !== undefined && value !== null) {
+            expect(typeof value).toBe("string");
+            const n = Number(value);
+            expect(Number.isFinite(n)).toBe(true);
+          }
+        });
+
+        // Integer-typed leaves remain Type.Integer() — the parser
+        // delivers them as numbers, not strings.
+        const integerFields = [
+          form1A.formData.summaryInfo.securitiesOffered,
+          form1A.formData.summaryInfo.outstandingSecurities,
+        ];
+        integerFields.forEach((value) => {
           if (value !== undefined && value !== null) {
             expect(typeof value).toBe("number");
           }
