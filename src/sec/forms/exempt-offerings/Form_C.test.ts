@@ -120,21 +120,25 @@ describe("Form_C parsing test", () => {
       expect(formC.formData.offeringInformation?.securityOfferedOtherDesc).toBe(
         "Simple Agreement for Future Equity (SAFE)"
       );
-      expect(formC.formData.offeringInformation?.offeringAmount).toBe(50000.0);
-      expect(formC.formData.offeringInformation?.maximumOfferingAmount).toBe(1000000.0);
+      // Decimal-typed leaves are now Type.String() in the schema (see
+      // Form_C.schema.ts) so the storage layer can run them through
+      // numScalar() and treat "" / whitespace as null instead of
+      // fabricating 0. Tests assert the raw XML text the parser surfaces.
+      expect(formC.formData.offeringInformation?.offeringAmount).toBe("50000.00");
+      expect(formC.formData.offeringInformation?.maximumOfferingAmount).toBe("1000000.00");
 
       // Test co-issuers
       expect(formC.formData.issuerInformation.isCoIssuer).toBe("Y");
       expect(formC.formData.issuerInformation.coIssuers?.coIssuerInfo).toBeDefined();
       expect(formC.formData.issuerInformation.coIssuers?.coIssuerInfo?.length).toBe(2);
 
-      // Test annual report disclosure requirements
-      expect(formC.formData.annualReportDisclosureRequirements?.currentEmployees).toBe(4);
+      // Test annual report disclosure requirements (also string-typed)
+      expect(formC.formData.annualReportDisclosureRequirements?.currentEmployees).toBe("4");
       expect(
         formC.formData.annualReportDisclosureRequirements?.totalAssetMostRecentFiscalYear
-      ).toBe(36580.0);
+      ).toBe("36580.00");
       expect(formC.formData.annualReportDisclosureRequirements?.revenueMostRecentFiscalYear).toBe(
-        101736.0
+        "101736.00"
       );
 
       // Test signature information
