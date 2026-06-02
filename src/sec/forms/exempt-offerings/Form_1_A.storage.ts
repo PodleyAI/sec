@@ -52,6 +52,7 @@ import {
   RELATION_TYPE_REGA_SERVICE_PROVIDER,
 } from "./RegA_shared";
 import type { Form1A } from "./Form_1_A.schema";
+import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
@@ -246,34 +247,37 @@ async function processFinancialData(
   const regARepo = new RegAOfferingRepo();
   const issuerInfo = form1A.formData.issuerInfo;
 
-  const fields: Array<[string, number | undefined]> = [
-    ["cashEquivalents", issuerInfo.cashEquivalents],
-    ["investmentSecurities", issuerInfo.investmentSecurities],
-    ["totalInvestments", issuerInfo.totalInvestments],
-    ["accountsReceivable", issuerInfo.accountsReceivable],
-    ["loans", issuerInfo.loans],
-    ["propertyPlantEquipment", issuerInfo.propertyPlantEquipment],
-    ["propertyAndEquipment", issuerInfo.propertyAndEquipment],
-    ["totalAssets", issuerInfo.totalAssets],
-    ["accountsPayable", issuerInfo.accountsPayable],
-    ["policyLiabilitiesAndAccruals", issuerInfo.policyLiabilitiesAndAccruals],
-    ["deposits", issuerInfo.deposits],
-    ["longTermDebt", issuerInfo.longTermDebt],
-    ["totalLiabilities", issuerInfo.totalLiabilities],
-    ["totalStockholderEquity", issuerInfo.totalStockholderEquity],
-    ["totalLiabilitiesAndEquity", issuerInfo.totalLiabilitiesAndEquity],
-    ["totalRevenues", issuerInfo.totalRevenues],
-    ["totalInterestIncome", issuerInfo.totalInterestIncome],
-    ["costAndExpensesApplToRevenues", issuerInfo.costAndExpensesApplToRevenues],
-    ["totalInterestExpenses", issuerInfo.totalInterestExpenses],
-    ["depreciationAndAmortization", issuerInfo.depreciationAndAmortization],
-    ["netIncome", issuerInfo.netIncome],
-    ["earningsPerShareBasic", issuerInfo.earningsPerShareBasic],
-    ["earningsPerShareDiluted", issuerInfo.earningsPerShareDiluted],
+  // Each numeric leaf is passed through numScalar so an empty / whitespace
+  // value persists as null (and is therefore skipped below) rather than
+  // being coerced to a fabricated 0 by Value.Convert against Type.Number().
+  const fields: Array<[string, number | null]> = [
+    ["cashEquivalents", numScalar(issuerInfo.cashEquivalents)],
+    ["investmentSecurities", numScalar(issuerInfo.investmentSecurities)],
+    ["totalInvestments", numScalar(issuerInfo.totalInvestments)],
+    ["accountsReceivable", numScalar(issuerInfo.accountsReceivable)],
+    ["loans", numScalar(issuerInfo.loans)],
+    ["propertyPlantEquipment", numScalar(issuerInfo.propertyPlantEquipment)],
+    ["propertyAndEquipment", numScalar(issuerInfo.propertyAndEquipment)],
+    ["totalAssets", numScalar(issuerInfo.totalAssets)],
+    ["accountsPayable", numScalar(issuerInfo.accountsPayable)],
+    ["policyLiabilitiesAndAccruals", numScalar(issuerInfo.policyLiabilitiesAndAccruals)],
+    ["deposits", numScalar(issuerInfo.deposits)],
+    ["longTermDebt", numScalar(issuerInfo.longTermDebt)],
+    ["totalLiabilities", numScalar(issuerInfo.totalLiabilities)],
+    ["totalStockholderEquity", numScalar(issuerInfo.totalStockholderEquity)],
+    ["totalLiabilitiesAndEquity", numScalar(issuerInfo.totalLiabilitiesAndEquity)],
+    ["totalRevenues", numScalar(issuerInfo.totalRevenues)],
+    ["totalInterestIncome", numScalar(issuerInfo.totalInterestIncome)],
+    ["costAndExpensesApplToRevenues", numScalar(issuerInfo.costAndExpensesApplToRevenues)],
+    ["totalInterestExpenses", numScalar(issuerInfo.totalInterestExpenses)],
+    ["depreciationAndAmortization", numScalar(issuerInfo.depreciationAndAmortization)],
+    ["netIncome", numScalar(issuerInfo.netIncome)],
+    ["earningsPerShareBasic", numScalar(issuerInfo.earningsPerShareBasic)],
+    ["earningsPerShareDiluted", numScalar(issuerInfo.earningsPerShareDiluted)],
   ];
 
   for (const [fieldName, fieldValue] of fields) {
-    if (fieldValue === undefined) continue;
+    if (fieldValue === null) continue;
     const data: RegAFinancialData = {
       cik,
       file_number,
@@ -363,7 +367,9 @@ export async function processForm1A({
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
 
-  const extractor_version = "1.0.0";
+  // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
+  // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
+  const extractor_version = "1.1.0";
 
   const personObservationRepo = new PersonObservationRepo();
   const companyObservationRepo = new CompanyObservationRepo();
@@ -440,15 +446,15 @@ export async function processForm1A({
     commence_date: null,
     securities_qualified_sold: null,
     securities_sold: null,
-    price_per_security: summaryInfo.pricePerSecurity ?? null,
+    price_per_security: numScalar(summaryInfo.pricePerSecurity),
     aggregate_offering_price: null,
     aggregate_offering_price_holders: null,
-    issuer_aggregate_offering: summaryInfo.issuerAggregateOffering,
-    security_holder_aggregate: summaryInfo.securityHolderAggegate,
-    total_aggregate_offering: summaryInfo.totalAggregateOffering,
+    issuer_aggregate_offering: numScalar(summaryInfo.issuerAggregateOffering),
+    security_holder_aggregate: numScalar(summaryInfo.securityHolderAggegate),
+    total_aggregate_offering: numScalar(summaryInfo.totalAggregateOffering),
     securities_offered: summaryInfo.securitiesOffered,
     outstanding_securities: summaryInfo.outstandingSecurities ?? null,
-    estimated_net_amount: summaryInfo.estimatedNetAmount ?? null,
+    estimated_net_amount: numScalar(summaryInfo.estimatedNetAmount),
     crd_number: summaryInfo.brokerDealerCrdNumber ?? null,
   };
 

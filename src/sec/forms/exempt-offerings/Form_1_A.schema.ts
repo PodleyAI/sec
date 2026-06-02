@@ -64,10 +64,14 @@ export const YES_NO_TYPE = Type.Union([Type.Literal("Y"), Type.Literal("N")]);
 const CCC_TYPE = Type.String({ minLength: 8, maxLength: 8 });
 const FILE_NUMBER_TYPE = Type.String({ minLength: 1, maxLength: 17 });
 const FILE_NUMBER_TYPE_2 = Type.String({ minLength: 1, maxLength: 17 });
-const DECIMAL_TYPE13_2 = Type.Number();
-const DECIMAL_TYPE13_4 = Type.Number();
-const DECIMAL_TYPE14_2 = Type.Number();
-const DECIMAL_TYPE14_4 = Type.Number();
+// Decimal leaves arrive as XML text. Modelling them as Type.String() lets
+// the storage layer use numScalar() to decide null-vs-zero per cell;
+// Type.Number() routed every empty/whitespace value through Value.Convert
+// which silently fabricated 0.
+const DECIMAL_TYPE13_2 = Type.String();
+const DECIMAL_TYPE13_4 = Type.String();
+const DECIMAL_TYPE14_2 = Type.String();
+const DECIMAL_TYPE14_4 = Type.String();
 const INTEGER_NONNEGATIVE_13 = Type.Integer({ minimum: 0, maximum: 9999999999999 });
 const INTEGER_NONNEGATIVE_7 = Type.Integer({ minimum: 0, maximum: 9999999 });
 const INTEGER_TYPE_4 = Type.Integer({ minimum: 1, maximum: 9999 });
