@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { AsyncMutex } from "../../util/AsyncMutex";
 import {
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   type PersonObservation,
@@ -69,6 +70,14 @@ interface PersonObservationRepoOptions {
  * same row.
  */
 export class PersonObservationRepo {
+  // Process-wide mutex that serializes the INSERT branch of
+  // upsertByNaturalKey. Two concurrent inserts on an empty in-memory
+  // store would otherwise both observe `size()` as 0 and assign
+  // observation_id = 1 to two different natural keys (TOCTOU). Held only
+  // for the size()/put() critical section; update-of-existing rows do
+  // not need it because put() is keyed by observation_id and a duplicate
+  // natural-key match goes through the existing-row branch.
+  private static _insertMutex = new AsyncMutex();
   private repo: PersonObservationRepositoryStorage;
 
   constructor(options: PersonObservationRepoOptions = {}) {
@@ -93,13 +102,32 @@ export class PersonObservationRepo {
       await this.repo.put(merged);
       return merged;
     }
-    const next_id = (await this.repo.size()) + 1;
-    const row: PersonObservation = {
-      observation_id: next_id,
-      ...this.applyNullDefaults(draft),
-    };
-    await this.repo.put(row);
-    return row;
+    return await PersonObservationRepo._insertMutex.lock(async () => {
+      // Re-check inside the critical section: a parallel caller may have
+      // already inserted the same natural key while we were queued.
+      const racedMatches = await this.repo.query({
+        accession_number: draft.accession_number,
+        extractor_id: draft.extractor_id,
+        observation_index: draft.observation_index,
+      });
+      const raced = racedMatches?.[0];
+      if (raced) {
+        const merged: PersonObservation = {
+          ...raced,
+          ...this.applyNullDefaults(draft),
+          observation_id: raced.observation_id,
+        };
+        await this.repo.put(merged);
+        return merged;
+      }
+      const next_id = (await this.repo.size()) + 1;
+      const row: PersonObservation = {
+        observation_id: next_id,
+        ...this.applyNullDefaults(draft),
+      };
+      await this.repo.put(row);
+      return row;
+    });
   }
 
   async getByNaturalKey(

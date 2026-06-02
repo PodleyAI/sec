@@ -5,10 +5,18 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, mock } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { streamDownloadToFile } from "./BootstrapDownloadTask";
+import { globalServiceRegistry } from "workglow";
+import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { BootstrapDownloadTask, streamDownloadToFile } from "./BootstrapDownloadTask";
 
 let tmpRoot: string;
 
@@ -98,6 +106,130 @@ describe("streamDownloadToFile", () => {
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "no-len.bin"), { force: true });
+    }
+  });
+});
+
+describe("BootstrapDownloadTask.execute zip cleanup", () => {
+  // The zip is downloaded into SEC_RAW_DATA_FOLDER and then handed to
+  // `unzip`. On any extraction failure the multi-GB staged archive must
+  // not leak — the success path also removes it. These tests stub
+  // fetch/Bun.spawn/Bun.which so the body never makes a real network
+  // call or runs a real subprocess.
+
+  function setupRawDataFolder(): { folder: string; targetFolder: string; zipPath: string } {
+    const folder = mkdtempSync(path.join(tmpdir(), "sec-bootstrap-test-"));
+    const targetFolder = "extract-target";
+    globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, folder);
+    return {
+      folder,
+      targetFolder,
+      zipPath: path.join(folder, `${targetFolder}.zip`),
+    };
+  }
+
+  function stubFetchToWriteZip(): () => void {
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // Minimal ZIP magic bytes — we never actually unzip in these
+          // tests because Bun.spawn is stubbed.
+          controller.enqueue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "4" },
+      });
+    });
+    return () => {
+      (global as any).fetch = oldFetch;
+    };
+  }
+
+  function stubBun(opts: {
+    spawn: (cmd: readonly string[]) => { exited: Promise<number> } | never;
+  }): () => void {
+    const realSpawn = Bun.spawn;
+    const realWhich = Bun.which;
+    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((
+      cmd: readonly string[]
+    ) => opts.spawn(cmd)) as typeof Bun.spawn;
+    (Bun as unknown as { which: typeof Bun.which }).which = ((
+      _name: string
+    ) => "/usr/bin/unzip") as typeof Bun.which;
+    return () => {
+      (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = realSpawn;
+      (Bun as unknown as { which: typeof Bun.which }).which = realWhich;
+    };
+  }
+
+  const ctx = {
+    signal: new AbortController().signal,
+    updateProgress: async () => {},
+  } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
+
+  it("removes the staged zip when Bun.spawn throws synchronously", async () => {
+    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const restoreFetch = stubFetchToWriteZip();
+    const restoreBun = stubBun({
+      spawn: () => {
+        throw new Error("spawn refused");
+      },
+    });
+    try {
+      const input = { url: "https://example/file.zip", targetFolder };
+      const task = new BootstrapDownloadTask({ defaults: input });
+      await expect(task.execute(input, ctx)).rejects.toThrow(/spawn refused/);
+      expect(existsSync(zipPath)).toBe(false);
+    } finally {
+      restoreBun();
+      restoreFetch();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("removes the staged zip when unzip exits non-zero", async () => {
+    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const restoreFetch = stubFetchToWriteZip();
+    const restoreBun = stubBun({
+      spawn: () => ({ exited: Promise.resolve(1) }),
+    });
+    try {
+      const input = { url: "https://example/file.zip", targetFolder };
+      const task = new BootstrapDownloadTask({ defaults: input });
+      await expect(task.execute(input, ctx)).rejects.toThrow(/unzip exited with code 1/);
+      expect(existsSync(zipPath)).toBe(false);
+    } finally {
+      restoreBun();
+      restoreFetch();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("removes the staged zip on the success path too", async () => {
+    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const restoreFetch = stubFetchToWriteZip();
+    const restoreBun = stubBun({
+      spawn: () => ({ exited: Promise.resolve(0) }),
+    });
+    try {
+      // Pre-create a dummy file at zipPath to prove the success-path
+      // cleanup actually removes it (the streamed fetch above will also
+      // overwrite it; the dummy just makes the assertion meaningful if
+      // someone refactors the stream stub).
+      writeFileSync(zipPath, "placeholder");
+      const input = { url: "https://example/file.zip", targetFolder };
+      const task = new BootstrapDownloadTask({ defaults: input });
+      const result = await task.execute(input, ctx);
+      expect(result.success).toBe(true);
+      expect(existsSync(zipPath)).toBe(false);
+    } finally {
+      restoreBun();
+      restoreFetch();
+      rmSync(folder, { recursive: true, force: true });
     }
   });
 });

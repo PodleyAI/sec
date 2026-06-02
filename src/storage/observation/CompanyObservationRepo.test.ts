@@ -135,4 +135,72 @@ describe("CompanyObservationRepo", () => {
     const found = await repo.getById(row.observation_id);
     expect(found?.observation_id).toBe(row.observation_id);
   });
+
+  // The next two tests pin down the TOCTOU fix: concurrent inserts on
+  // an empty store must not both observe size()=0 and assign
+  // observation_id=1 to two different natural keys.
+
+  it("concurrent inserts on empty store get distinct sequential ids", async () => {
+    const [a, b] = await Promise.all([
+      repo.upsertByNaturalKey({
+        accession_number: "0001-25-000001",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        observation_index: 0,
+        name: "Acme",
+        normalized_name: "acme",
+        created_at: "2026-05-22T00:00:00.000Z",
+      }),
+      repo.upsertByNaturalKey({
+        accession_number: "0001-25-000001",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        observation_index: 1,
+        name: "Beta",
+        normalized_name: "beta",
+        created_at: "2026-05-22T00:00:00.000Z",
+      }),
+    ]);
+    const ids = [a.observation_id, b.observation_id].sort((x, y) => x - y);
+    expect(ids).toEqual([1, 2]);
+    expect(await storage.size()).toBe(2);
+  });
+
+  it("concurrent update-of-existing keeps original id while parallel insert gets the next id", async () => {
+    const seeded = await repo.upsertByNaturalKey({
+      accession_number: "0001-25-000001",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      name: "Acme",
+      normalized_name: "acme",
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+    expect(seeded.observation_id).toBe(1);
+
+    const [updated, inserted] = await Promise.all([
+      repo.upsertByNaturalKey({
+        accession_number: "0001-25-000001",
+        extractor_id: "D",
+        extractor_version: "1.1.0",
+        observation_index: 0,
+        name: "Acme LLC",
+        normalized_name: "acme llc",
+        created_at: "2026-05-23T00:00:00.000Z",
+      }),
+      repo.upsertByNaturalKey({
+        accession_number: "0001-25-000001",
+        extractor_id: "D",
+        extractor_version: "1.1.0",
+        observation_index: 1,
+        name: "Beta",
+        normalized_name: "beta",
+        created_at: "2026-05-23T00:00:00.000Z",
+      }),
+    ]);
+    expect(updated.observation_id).toBe(seeded.observation_id);
+    expect(updated.name).toBe("Acme LLC");
+    expect(inserted.observation_id).toBe(2);
+    expect(await storage.size()).toBe(2);
+  });
 });
