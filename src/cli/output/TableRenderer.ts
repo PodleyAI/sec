@@ -34,21 +34,63 @@ function pad(value: string, width: number): string {
   return truncate(value, width).padEnd(width);
 }
 
+// Characters that trigger formula interpretation when found at the start of a
+// spreadsheet cell. See OWASP CSV Injection
+// (https://owasp.org/www-community/attacks/CSV_Injection).
+const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
+// Strip only space-like characters spreadsheets silently ignore.
+// Excludes \t and \r — those are themselves dangerous formula leads.
+const LEADING_WS = /^[  ­​‌‍‎‏﻿]+/;
+
+function needsFormulaPrefix(line: string): boolean {
+  return DANGEROUS_LEAD.test(line.replace(LEADING_WS, ""));
+}
+
+function defuseLine(line: string): string {
+  return needsFormulaPrefix(line) ? "'" + line : line;
+}
+
+/**
+ * Defuse CSV/spreadsheet formula injection per OWASP CSV Injection guidance.
+ *
+ * When Excel/Sheets/Numbers open a CSV, a cell starting with =/+/-/@ (or TAB/CR
+ * which some loaders strip) is interpreted as a formula and can exfiltrate data
+ * via WEBSERVICE/HYPERLINK or run external commands. Prefixing a single quote
+ * neutralizes the formula — spreadsheets render the apostrophe as a literal and
+ * hide the prefix; plain CSV consumers see one extra leading apostrophe.
+ *
+ * The naive `^[=+\-@\t\r]` check has three bypasses we handle here:
+ *   1. Leading ASCII whitespace (" =cmd...") plus other space-like chars
+ *      that spreadsheets silently strip (NBSP, SHY, ZWSP, ZWNJ, ZWJ, LRM,
+ *      RLM, BOM). Tab and CR are themselves dangerous leads and are NOT
+ *      stripped here.
+ *   2. Dangerous char after an embedded newline in a quoted multi-line cell
+ *      ("safe\n=cmd") — each physical line is re-parsed.
+ *   3. Bare CR (\r) as a line separator inside a quoted multi-line cell —
+ *      the line after the CR also re-parses, so split on \r\n | \r | \n.
+ *
+ * Each line of the value is defused independently; the result is then RFC 4180
+ * quoted if it contains a comma, quote, CR, or LF.
+ */
 function escapeCsvValue(value: string): string {
-  // Defuse CSV/spreadsheet formula injection. When Excel/Sheets/Numbers
-  // open a CSV, a cell starting with =/+/-/@ (or with leading TAB/CR
-  // that some loaders strip) is interpreted as a formula, which can
-  // exfiltrate data via WEBSERVICE/HYPERLINK or run external commands.
-  // Prefix a single quote — spreadsheets render it as a literal and hide
-  // the prefix; plain CSV consumers see the original text with one
-  // leading apostrophe, which is a small price for not shipping a known
-  // attack vector.
-  const dangerous = value.length > 0 && /^[=+\-@\t\r]/.test(value);
-  let escaped = dangerous ? "'" + value : value;
-  if (escaped.includes(",") || escaped.includes('"') || escaped.includes("\n")) {
-    return '"' + escaped.replace(/"/g, '""') + '"';
+  if (value.length === 0) {
+    return value;
   }
-  return escaped;
+  // Capturing-group split preserves the separators at odd indices so we can
+  // round-trip the exact line endings (LF, CRLF, or bare CR) the caller used.
+  const parts = value.split(/(\r\n|\r|\n)/);
+  const defused = parts
+    .map((part, i) => (i % 2 === 0 ? defuseLine(part) : part))
+    .join("");
+  if (
+    defused.includes(",") ||
+    defused.includes('"') ||
+    defused.includes("\n") ||
+    defused.includes("\r")
+  ) {
+    return '"' + defused.replace(/"/g, '""') + '"';
+  }
+  return defused;
 }
 
 function cellValue(row: Record<string, unknown>, key: string): string {
@@ -128,3 +170,6 @@ export function renderTable(
       return renderTextTable(rows, columns, options);
   }
 }
+
+// Exported for unit tests; not part of the module's public API.
+export const __testing = { escapeCsvValue };
