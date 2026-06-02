@@ -142,29 +142,32 @@ describe("Form_1_K parsing test", () => {
         expect(summary.offeringCommenceDate).toBe("10-22-2021");
         expect(summary.qualifiedSecuritiesSold).toBe(166500);
         expect(summary.offeringSecuritiesSold).toBe(166500);
-        expect(summary.pricePerSecurity).toBe(20.0);
-        expect(summary.aggregrateOfferingPrice).toBe(3330000.0);
-        expect(summary.aggregrateOfferingPriceHolders).toBe(0.0);
+        // Decimal-typed leaves are now Type.String() in the schema (see
+        // Form_1_K.schema.ts) so the storage layer can run them through
+        // numScalar(). Tests assert the raw XML text the parser surfaces.
+        expect(summary.pricePerSecurity).toBe("20.0000");
+        expect(summary.aggregrateOfferingPrice).toBe("3330000.00");
+        expect(summary.aggregrateOfferingPriceHolders).toBe("0.00");
         expect(summary.underwrittenSpName).toBe(
           "Independent Brokerage Solutions LLC and Arete Wealth Management, LLC"
         );
-        expect(summary.underwriterFees).toBe(39767.0);
+        expect(summary.underwriterFees).toBe("39767.00");
         expect(summary.salesCommissionsSpName).toBe(
           "Independent Brokerage Solutions LLC and Arete Wealth Management, LLC"
         );
-        expect(summary.salesCommissionsFee).toBe(99900.0);
+        expect(summary.salesCommissionsFee).toBe("99900.00");
         expect(summary.findersSpName).toBe("N/A");
-        expect(summary.findersFees).toBe(0.0);
+        expect(summary.findersFees).toBe("0.00");
         expect(summary.auditorSpName).toBe("LGA, LLP");
-        expect(summary.auditorFees).toBe(5500.0);
+        expect(summary.auditorFees).toBe("5500.00");
         expect(summary.legalSpName).toBe("Anthony L.G., PLLC");
-        expect(summary.legalFees).toBe(5000.0);
+        expect(summary.legalFees).toBe("5000.00");
         expect(summary.promoterSpName).toBe("N/A");
-        expect(summary.promotersFees).toBe(0.0);
+        expect(summary.promotersFees).toBe("0.00");
         expect(summary.blueSkySpName).toBe("Anthony L.G., PLLC");
-        expect(summary.blueSkyFees).toBe(5000.0);
+        expect(summary.blueSkyFees).toBe("5000.00");
         expect(summary.crdNumberBrokerDealer).toBe("153563");
-        expect(summary.issuerNetProceeds).toBe(3330000.0);
+        expect(summary.issuerNetProceeds).toBe("3330000.00");
         expect(summary.clarificationResponses).toContain("Estimated Net Proceeds Calculation");
       }
     });
@@ -280,8 +283,11 @@ describe("Form_1_K parsing test", () => {
         // Test summary info financial data
         if (form1K.formData.summaryInfo) {
           form1K.formData.summaryInfo.forEach((summary) => {
-            // Test financial amounts are numbers
-            const financialFields = [
+            // Decimal-typed leaves are now Type.String() in the schema
+            // (see Form_1_K.schema.ts) — assert they parse as a finite
+            // number when fed through Number(), matching what
+            // numScalar() does in storage.
+            const decimalFields: Array<string | null | undefined> = [
               summary.pricePerSecurity,
               summary.aggregrateOfferingPrice,
               summary.aggregrateOfferingPriceHolders,
@@ -295,9 +301,10 @@ describe("Form_1_K parsing test", () => {
               summary.issuerNetProceeds,
             ];
 
-            financialFields.forEach((value) => {
+            decimalFields.forEach((value) => {
               if (value !== undefined && value !== null) {
-                expect(typeof value).toBe("number");
+                expect(typeof value).toBe("string");
+                expect(Number.isFinite(Number(value))).toBe(true);
               }
             });
 
