@@ -13,6 +13,7 @@ import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHis
 import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
 import { extractServiceProviders } from "./RegA_shared";
 import type { Form1Z } from "./Form_1_Z.schema";
+import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
@@ -102,15 +103,15 @@ async function processOfferingSummaries(
       commence_date: summaryInfo.offeringCommenceDate ?? null,
       securities_qualified_sold: summaryInfo.offeringSecuritiesQualifiedSold ?? null,
       securities_sold: summaryInfo.offeringSecuritiesSold ?? null,
-      price_per_security: summaryInfo.pricePerSecurity ?? null,
-      aggregate_offering_price: summaryInfo.portionSecuritiesSoldIssuer ?? null,
-      aggregate_offering_price_holders: summaryInfo.portionSecuritiesSoldSecurityholders ?? null,
+      price_per_security: numScalar(summaryInfo.pricePerSecurity),
+      aggregate_offering_price: numScalar(summaryInfo.portionSecuritiesSoldIssuer),
+      aggregate_offering_price_holders: numScalar(summaryInfo.portionSecuritiesSoldSecurityholders),
       issuer_aggregate_offering: null,
       security_holder_aggregate: null,
       total_aggregate_offering: null,
       securities_offered: null,
       outstanding_securities: null,
-      estimated_net_amount: summaryInfo.issuerNetProceeds ?? null,
+      estimated_net_amount: numScalar(summaryInfo.issuerNetProceeds),
       crd_number: summaryInfo.crdNumberBrokerDealer ?? null,
     };
 
@@ -174,13 +175,14 @@ async function processCertificationSuspension(
       await regARepo.saveFinancialData(data);
     }
 
-    if (cert.approxRecordHolders !== undefined) {
+    const approxRecordHolders = numScalar(cert.approxRecordHolders);
+    if (approxRecordHolders !== null) {
       const data: RegAFinancialData = {
         cik,
         file_number,
         accession_number,
         field_name: `suspension_${i}_approxRecordHolders`,
-        field_value: cert.approxRecordHolders,
+        field_value: approxRecordHolders,
       };
       await regARepo.saveFinancialData(data);
     }
@@ -273,7 +275,9 @@ export async function processForm1Z({
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
 
-  const extractor_version = "1.0.0";
+  // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
+  // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
+  const extractor_version = "1.1.0";
 
   const personObservationRepo = new PersonObservationRepo();
   const companyObservationRepo = new CompanyObservationRepo();
