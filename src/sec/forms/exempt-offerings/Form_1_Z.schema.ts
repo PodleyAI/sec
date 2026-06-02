@@ -28,8 +28,10 @@ export const YES_NO_TYPE = Type.Union([Type.Literal("Y"), Type.Literal("N")]);
 const CCC_TYPE = Type.String({ minLength: 8, maxLength: 8 });
 const FILE_NUMBER_TYPE = Type.String({ minLength: 1, maxLength: 17 });
 const FILE_NUMBER_TYPE_2 = Type.String({ minLength: 1, maxLength: 17 });
-const DECIMAL_TYPE13_2 = Type.Number();
-const DECIMAL_TYPE14_4 = Type.Number();
+// Decimal leaves arrive as XML text. See Form_1_A.schema.ts for the
+// rationale — Type.String() routes through numScalar() in storage.
+const DECIMAL_TYPE13_2 = Type.String();
+const DECIMAL_TYPE14_4 = Type.String();
 const INTEGER_NONNEGATIVE_13 = Type.Integer({ minimum: 0, maximum: 9999999999999 });
 const STRING_30_TYPE = Type.String({ minLength: 1, maxLength: 30 });
 const CRD_NUMBER_TYPE = Type.String({ maxLength: 9 });
