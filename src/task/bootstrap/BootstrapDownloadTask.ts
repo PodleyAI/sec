@@ -54,20 +54,48 @@ export async function streamDownloadToFile(
 
   const writer = Bun.file(destPath).writer();
   let bytes = 0;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      writer.write(value);
+      await writer.write(value);
       bytes += value.length;
       opts.onProgress?.(bytes, totalBytes);
     }
     await writer.flush();
+    if (totalBytes !== undefined && bytes !== totalBytes) {
+      throw new Error(
+        `Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`
+      );
+    }
+    return { bytes, totalBytes };
+  } catch (err) {
+    // Best-effort cleanup: on any failure (mid-stream abort, size mismatch,
+    // writer error) drop the partial file so a multi-GB stale archive
+    // doesn't sit on disk silently. force: true makes this a no-op when
+    // the file was never created.
+    try {
+      rmSync(destPath, { force: true });
+    } catch {
+      // swallow — the original error matters more
+    }
+    throw err;
   } finally {
-    await writer.end();
+    // Release the reader before closing the writer so the underlying
+    // stream is cancellable if the writer.end() awaits a flush.
+    try {
+      reader?.releaseLock();
+    } catch {
+      // swallow
+    }
+    try {
+      await writer.end();
+    } catch {
+      // swallow — already cleaned up the destination on the catch path
+    }
   }
-  return { bytes, totalBytes };
 }
 
 export type BootstrapDownloadTaskOutput = {

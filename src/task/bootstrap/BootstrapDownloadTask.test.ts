@@ -86,6 +86,70 @@ describe("streamDownloadToFile", () => {
     }
   });
 
+  it("removes the destination file when the stream aborts mid-download", async () => {
+    // Simulates the multi-GB EDGAR-bulk download case where the connection
+    // drops after partial bytes. The old implementation left a half-written
+    // archive on disk that the next bootstrap run would silently feed to
+    // unzip. The wrapper must catch the stream error, remove the partial
+    // file, and rethrow so the caller surfaces the failure.
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(new TextEncoder().encode("first-half"));
+          // Defer the abort to the next microtask so the first chunk has
+          // already been written to disk before we tear the stream down.
+          await Promise.resolve();
+          controller.error(new Error("connection reset"));
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "100" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "aborted.bin");
+      await expect(
+        streamDownloadToFile("https://example/aborts", dest)
+      ).rejects.toThrow(/connection reset/);
+      // The partial file must not be left behind for the next bootstrap
+      // run to mistake for a complete archive.
+      expect(existsSync(dest)).toBe(false);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "aborted.bin"), { force: true });
+    }
+  });
+
+  it("throws and removes the destination when content-length mismatch is detected", async () => {
+    // Server advertised 10 bytes but only sent 4. We want a hard failure
+    // (with cleanup) rather than silently honouring a truncated archive.
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("abcd"));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "10" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "short.bin");
+      await expect(
+        streamDownloadToFile("https://example/short", dest)
+      ).rejects.toThrow(/size mismatch/);
+      expect(existsSync(dest)).toBe(false);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "short.bin"), { force: true });
+    }
+  });
+
   it("handles responses with no content-length header", async () => {
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {
