@@ -38,9 +38,37 @@ function pad(value: string, width: number): string {
 // spreadsheet cell. See OWASP CSV Injection
 // (https://owasp.org/www-community/attacks/CSV_Injection).
 const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
-// Strip only space-like characters spreadsheets silently ignore.
-// Excludes \t and \r — those are themselves dangerous formula leads.
-const LEADING_WS = /^[  ­​‌‍‎‏﻿]+/;
+// Strip only space-like characters that spreadsheets silently ignore before
+// formula parsing. Excludes \t and \r — those are themselves dangerous
+// formula leads and are caught by DANGEROUS_LEAD.
+//
+// All entries are written as `\uXXXX` escape sequences. Source-level raw
+// NBSP / zero-width characters are silently normalised by many editors,
+// which would defang this regex without anyone noticing in code review.
+//
+// Codepoint coverage (informal):
+//   U+0020 SPACE
+//   U+00A0 NO-BREAK SPACE (NBSP)
+//   U+00AD SOFT HYPHEN (SHY)
+//   U+034F COMBINING GRAPHEME JOINER (CGJ)
+//   U+061C ARABIC LETTER MARK (ALM)
+//   U+115F HANGUL CHOSEONG FILLER (invisible)
+//   U+1160 HANGUL JONGSEONG FILLER (invisible)
+//   U+1680 OGHAM SPACE MARK
+//   U+180E MONGOLIAN VOWEL SEPARATOR
+//   U+2000..U+200A en/em/figure/hair/etc. spaces
+//   U+200B..U+200F ZWSP / ZWNJ / ZWJ / LRM / RLM
+//   U+202A..U+202E bidi formatting (LRE/RLE/PDF/LRO/RLO)
+//   U+202F NARROW NO-BREAK SPACE
+//   U+205F MEDIUM MATHEMATICAL SPACE
+//   U+2060..U+2064 WORD JOINER / invisible operators
+//   U+206A..U+206F deprecated invisible formatting
+//   U+3000 IDEOGRAPHIC SPACE
+//   U+3164 HANGUL FILLER
+//   U+FEFF ZERO WIDTH NO-BREAK SPACE / BOM
+//   U+FFA0 HALFWIDTH HANGUL FILLER
+const LEADING_WS =
+  /^[\u0020\u00A0\u00AD\u034F\u061C\u115F\u1160\u1680\u180E\u2000-\u200F\u202A-\u202F\u205F\u2060-\u2064\u206A-\u206F\u3000\u3164\uFEFF\uFFA0]+/;
 
 function needsFormulaPrefix(line: string): boolean {
   return DANGEROUS_LEAD.test(line.replace(LEADING_WS, ""));
@@ -62,8 +90,9 @@ function defuseLine(line: string): string {
  * The naive `^[=+\-@\t\r]` check has three bypasses we handle here:
  *   1. Leading ASCII whitespace (" =cmd...") plus other space-like chars
  *      that spreadsheets silently strip (NBSP, SHY, ZWSP, ZWNJ, ZWJ, LRM,
- *      RLM, BOM). Tab and CR are themselves dangerous leads and are NOT
- *      stripped here.
+ *      RLM, BOM, narrow/medium math spaces, ideographic/Hangul fillers,
+ *      bidi formatting). Tab and CR are themselves dangerous leads and
+ *      are NOT stripped here — they're handled by DANGEROUS_LEAD.
  *   2. Dangerous char after an embedded newline in a quoted multi-line cell
  *      ("safe\n=cmd") — each physical line is re-parsed.
  *   3. Bare CR (\r) as a line separator inside a quoted multi-line cell —
