@@ -18,6 +18,7 @@ import {
   JobQueueServer,
   setTaskQueueRegistry,
   TaskFailedError,
+  wrapQueueStorage,
 } from "workglow";
 import { SecJobQueueName } from "../../config/Constants";
 import { EnvToDI } from "../../config/EnvToDI";
@@ -107,14 +108,17 @@ describe("FetchDailyIndexTask", () => {
     const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(
       SecJobQueueName
     );
+    const { messageQueue, jobStore } = wrapQueueStorage(storage);
     server = new JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>(SecFetchJob, {
       queueName: SecJobQueueName,
-      storage,
+      messageQueue,
+      jobStore,
       limiter: new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
       pollIntervalMs: 1,
     });
     const client = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
-      storage,
+      messageQueue,
+      jobStore,
       queueName: SecJobQueueName,
     });
 

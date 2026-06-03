@@ -14,6 +14,7 @@ import {
   JobQueueClient,
   JobQueueServer,
   RateLimiter,
+  wrapQueueStorage,
 } from "workglow";
 
 import { SecJobQueueName } from "../config/Constants";
@@ -33,13 +34,17 @@ export const SecJobQueueStorage = new InMemoryQueueStorage<FetchUrlTaskInput, Fe
   SecJobQueueName
 );
 
+const { messageQueue: secJobQueueMessageQueue, jobStore: secJobQueueJobStore } =
+  wrapQueueStorage(SecJobQueueStorage);
+
 export const SecJobQueueServer = new JobQueueServer<
   FetchUrlTaskInput,
   FetchUrlTaskOutput,
   SecFetchJob
 >(SecFetchJob, {
   queueName: SecJobQueueName,
-  storage: SecJobQueueStorage,
+  messageQueue: secJobQueueMessageQueue,
+  jobStore: secJobQueueJobStore,
   limiter: new CompositeLimiter([
     limiter,
     new EvenlySpacedRateLimiter({ maxExecutions: 10, windowSizeInSeconds: 1 }),
@@ -48,7 +53,8 @@ export const SecJobQueueServer = new JobQueueServer<
 });
 
 export const SecJobQueueClient = new JobQueueClient<FetchUrlTaskInput, FetchUrlTaskOutput>({
-  storage: SecJobQueueStorage,
+  messageQueue: secJobQueueMessageQueue,
+  jobStore: secJobQueueJobStore,
   queueName: SecJobQueueName,
 });
 
