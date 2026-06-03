@@ -33,7 +33,9 @@ describe("CompanyObservationRepo", () => {
     repo = new CompanyObservationRepo({ companyObservationRepository: storage });
   });
 
-  it("upsertByNaturalKey assigns sequential observation_ids", async () => {
+  it("upsertByNaturalKey assigns distinct positive observation_ids", async () => {
+    // observation_id is backend-assigned (x-auto-generated); see the
+    // PersonObservationRepo equivalent for the rationale.
     const a = await repo.upsertByNaturalKey({
       accession_number: "0001-25-000001",
       extractor_id: "D",
@@ -43,7 +45,7 @@ describe("CompanyObservationRepo", () => {
       normalized_name: "acme holdings",
       created_at: "2026-05-22T00:00:00.000Z",
     });
-    expect(a.observation_id).toBe(1);
+    expect(a.observation_id).toBeGreaterThan(0);
 
     const b = await repo.upsertByNaturalKey({
       accession_number: "0001-25-000001",
@@ -55,7 +57,8 @@ describe("CompanyObservationRepo", () => {
       normalized_name: "beta co llc",
       created_at: "2026-05-22T00:00:00.000Z",
     });
-    expect(b.observation_id).toBe(2);
+    expect(b.observation_id).toBeGreaterThan(0);
+    expect(b.observation_id).not.toBe(a.observation_id);
   });
 
   it("upsertByNaturalKey overwrites same natural key in place across extractor versions", async () => {
@@ -137,10 +140,11 @@ describe("CompanyObservationRepo", () => {
   });
 
   // The next two tests pin down the TOCTOU fix: concurrent inserts on
-  // an empty store must not both observe size()=0 and assign
-  // observation_id=1 to two different natural keys.
+  // an empty store used to race because both observed `size()` as 0 and
+  // assigned observation_id=1 to two different natural keys. The fix is
+  // now driven by the storage backend's auto-generated key.
 
-  it("concurrent inserts on empty store get distinct sequential ids", async () => {
+  it("concurrent inserts on empty store get distinct positive ids", async () => {
     const [a, b] = await Promise.all([
       repo.upsertByNaturalKey({
         accession_number: "0001-25-000001",
@@ -161,12 +165,13 @@ describe("CompanyObservationRepo", () => {
         created_at: "2026-05-22T00:00:00.000Z",
       }),
     ]);
-    const ids = [a.observation_id, b.observation_id].sort((x, y) => x - y);
-    expect(ids).toEqual([1, 2]);
+    expect(a.observation_id).toBeGreaterThan(0);
+    expect(b.observation_id).toBeGreaterThan(0);
+    expect(a.observation_id).not.toBe(b.observation_id);
     expect(await storage.size()).toBe(2);
   });
 
-  it("concurrent update-of-existing keeps original id while parallel insert gets the next id", async () => {
+  it("concurrent update-of-existing keeps original id while parallel insert gets a new id", async () => {
     const seeded = await repo.upsertByNaturalKey({
       accession_number: "0001-25-000001",
       extractor_id: "D",
@@ -176,7 +181,7 @@ describe("CompanyObservationRepo", () => {
       normalized_name: "acme",
       created_at: "2026-05-22T00:00:00.000Z",
     });
-    expect(seeded.observation_id).toBe(1);
+    expect(seeded.observation_id).toBeGreaterThan(0);
 
     const [updated, inserted] = await Promise.all([
       repo.upsertByNaturalKey({
@@ -200,7 +205,8 @@ describe("CompanyObservationRepo", () => {
     ]);
     expect(updated.observation_id).toBe(seeded.observation_id);
     expect(updated.name).toBe("Acme LLC");
-    expect(inserted.observation_id).toBe(2);
+    expect(inserted.observation_id).toBeGreaterThan(0);
+    expect(inserted.observation_id).not.toBe(seeded.observation_id);
     expect(await storage.size()).toBe(2);
   });
 });

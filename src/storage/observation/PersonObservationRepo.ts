@@ -5,7 +5,6 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { AsyncMutex } from "../../util/AsyncMutex";
 import {
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   type PersonObservation,
@@ -64,20 +63,14 @@ interface PersonObservationRepoOptions {
 /**
  * Manages PersonObservation rows. Natural-key upsert is idempotent on
  * `(accession_number, extractor_id, observation_index)`; the synthetic
- * `observation_id` is assigned by `storage.size() + 1` on insert and
- * preserved on collision. `extractor_version` is recorded but does not
+ * `observation_id` is assigned by the underlying storage backend (via the
+ * `x-auto-generated: true` schema annotation — INTEGER PRIMARY KEY
+ * AUTOINCREMENT on SQLite, SERIAL on Postgres, in-memory counter for tests)
+ * and preserved on collision. `extractor_version` is recorded but does not
  * affect the natural key — re-extraction at a new version overwrites the
  * same row.
  */
 export class PersonObservationRepo {
-  // Process-wide mutex that serializes the INSERT branch of
-  // upsertByNaturalKey. Two concurrent inserts on an empty in-memory
-  // store would otherwise both observe `size()` as 0 and assign
-  // observation_id = 1 to two different natural keys (TOCTOU). Held only
-  // for the size()/put() critical section; update-of-existing rows do
-  // not need it because put() is keyed by observation_id and a duplicate
-  // natural-key match goes through the existing-row branch.
-  private static _insertMutex = new AsyncMutex();
   private repo: PersonObservationRepositoryStorage;
 
   constructor(options: PersonObservationRepoOptions = {}) {
@@ -102,32 +95,15 @@ export class PersonObservationRepo {
       await this.repo.put(merged);
       return merged;
     }
-    return await PersonObservationRepo._insertMutex.lock(async () => {
-      // Re-check inside the critical section: a parallel caller may have
-      // already inserted the same natural key while we were queued.
-      const racedMatches = await this.repo.query({
-        accession_number: draft.accession_number,
-        extractor_id: draft.extractor_id,
-        observation_index: draft.observation_index,
-      });
-      const raced = racedMatches?.[0];
-      if (raced) {
-        const merged: PersonObservation = {
-          ...raced,
-          ...this.applyNullDefaults(draft),
-          observation_id: raced.observation_id,
-        };
-        await this.repo.put(merged);
-        return merged;
-      }
-      const next_id = (await this.repo.size()) + 1;
-      const row: PersonObservation = {
-        observation_id: next_id,
-        ...this.applyNullDefaults(draft),
-      };
-      await this.repo.put(row);
-      return row;
-    });
+    // No prior row for this natural key: hand the storage backend a draft
+    // without `observation_id` and let the auto-generated PK assign one.
+    // This closes the TOCTOU race the previous size()+1 path had — the
+    // backend's monotonic counter / AUTOINCREMENT serialises ID
+    // assignment, so the previous process-wide AsyncMutex is unnecessary.
+    // `put()` returns the persisted row including the assigned key.
+    return await this.repo.put(
+      this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
+    );
   }
 
   async getByNaturalKey(

@@ -20,6 +20,7 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
 export const CompanyObservationSchema = Type.Object({
   observation_id: Type.Integer({
     description: "Synthetic surrogate key; AUTOINCREMENT INTEGER PRIMARY KEY",
+    "x-auto-generated": true,
   }),
   accession_number: Type.String({ maxLength: 32 }),
   extractor_id: Type.String({ maxLength: 16 }),
