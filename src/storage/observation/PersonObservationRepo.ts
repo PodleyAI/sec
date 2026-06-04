@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import type { SearchCriteria } from "workglow";
 import {
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   type PersonObservation,
@@ -130,6 +131,15 @@ export class PersonObservationRepo {
 
   async listAll(): Promise<PersonObservation[]> {
     return (await this.repo.getAll()) ?? [];
+  }
+
+  /**
+   * Pass-through to the underlying tabular storage's COUNT path. Callers
+   * (e.g. `ResolverCoverage`) must prefer this over `(await listAll()).length`
+   * at Form D / Section 16 scale to avoid materializing the full table.
+   */
+  async count(criteria?: SearchCriteria<PersonObservation>): Promise<number> {
+    return await this.repo.count(criteria);
   }
 
   private applyNullDefaults(

@@ -16,6 +16,7 @@ import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalComp
 import { PersonResolver } from "../../resolver/PersonResolver";
 import { CompanyResolver } from "../../resolver/CompanyResolver";
 import { RESOLVER_IDS, type ResolverId } from "../../resolver/resolverIds";
+import { isValidSemver } from "../../storage/versioning/VersionRegistry";
 
 export function addResolveCommands(program: Command): void {
   const cmd = program.command("resolve");
@@ -31,6 +32,12 @@ export function addResolveCommands(program: Command): void {
       }
       if (!opts.all) {
         console.error("error: --all is required (no other mode supported in v1)");
+        process.exit(1);
+      }
+      if (!isValidSemver(opts.resolverVersion)) {
+        console.error(
+          `error: --resolver-version must be a valid semver (got '${opts.resolverVersion}')`
+        );
         process.exit(1);
       }
 

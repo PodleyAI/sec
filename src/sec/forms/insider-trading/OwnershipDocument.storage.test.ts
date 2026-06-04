@@ -324,6 +324,66 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     expect(deriv[1].conversion_or_exercise_price).not.toBeNull();
   });
 
+  it("preserves null issuer CIK on reporting-owner observations (S-MAIN-01)", async () => {
+    // Two unrelated Form 4 filings whose XML omits issuer.issuerCik (or carries
+    // an unparseable value) must NOT collapse two reporting owners that happen
+    // to share a name into one canonical person. The observation must carry
+    // source_filing_issuer_cik=null instead of the raw 0 sentinel that
+    // PersonResolver's name-fallback key would conflate across filers.
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const docA = await Form_4.parse("4", xml);
+    const docB = await Form_4.parse("4", xml);
+
+    // Strip the issuer CIK on both filings (different accessions). Use a
+    // distinct reporting-owner name so we can find it back later.
+    const SHARED_NAME = "Smith John A";
+    docA.issuer!.issuerCik = undefined;
+    docB.issuer!.issuerCik = undefined;
+    // Rewrite each filing's first reporting owner to the same name with no CIK
+    // so the resolver hits the name-fallback path (not the CIK fast-path).
+    docA.reportingOwner![0].reportingOwnerId!.rptOwnerName = { value: SHARED_NAME };
+    docA.reportingOwner![0].reportingOwnerId!.rptOwnerCik = undefined;
+    docB.reportingOwner![0].reportingOwnerId!.rptOwnerName = { value: SHARED_NAME };
+    docB.reportingOwner![0].reportingOwnerId!.rptOwnerCik = undefined;
+
+    const accessionA = "0001493152-26-025476";
+    const accessionB = "0001493152-26-099999";
+
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accessionA,
+      filing_date: "2026-05-27",
+      primary_doc: "a.xml",
+      form: "4",
+      doc: docA,
+    });
+    await processOwnershipForm({
+      cik: 9999999,
+      file_number: "",
+      accession_number: accessionB,
+      filing_date: "2026-05-27",
+      primary_doc: "b.xml",
+      form: "4",
+      doc: docB,
+    });
+
+    const obsA = (await new PersonObservationRepo().listByAccession(accessionA)).find(
+      (p) => p.last_name === SHARED_NAME
+    );
+    const obsB = (await new PersonObservationRepo().listByAccession(accessionB)).find(
+      (p) => p.last_name === SHARED_NAME
+    );
+    expect(obsA).toBeDefined();
+    expect(obsB).toBeDefined();
+    // The fix: source_filing_issuer_cik is null, not 0.
+    expect(obsA!.source_filing_issuer_cik).toBeNull();
+    expect(obsB!.source_filing_issuer_cik).toBeNull();
+  });
+
   it("stores null (not 0) for an empty underlyingSecurityShares on a derivative transaction", async () => {
     const accession = "0001493152-26-025476";
     const xml = readFileSync(

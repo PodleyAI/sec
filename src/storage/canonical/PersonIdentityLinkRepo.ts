@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import type { SearchCriteria } from "workglow";
 import {
   PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
   type PersonIdentityLink,
@@ -71,5 +72,13 @@ export class PersonIdentityLinkRepo {
 
   async listAll(): Promise<PersonIdentityLink[]> {
     return (await this.repo.getAll()) ?? [];
+  }
+
+  /**
+   * Pass-through to the underlying tabular storage's COUNT path. Callers
+   * must prefer this over `(await listAll()).length` at scale.
+   */
+  async count(criteria?: SearchCriteria<PersonIdentityLink>): Promise<number> {
+    return await this.repo.count(criteria);
   }
 }

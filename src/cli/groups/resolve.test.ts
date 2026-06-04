@@ -168,4 +168,55 @@ describe("sec resolve CLI", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("resolve rejects partial semver --resolver-version '1.0'", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "1.0", "--all"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("--resolver-version");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolve rejects v-prefixed --resolver-version 'v1.0.0'", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "v1.0.0", "--all"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("--resolver-version");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolve rejects nonsense --resolver-version 'not-a-version'", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "not-a-version", "--all"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("--resolver-version");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

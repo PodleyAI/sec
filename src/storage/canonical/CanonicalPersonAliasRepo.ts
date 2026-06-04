@@ -41,6 +41,15 @@ export class CanonicalPersonAliasRepo {
         `single-hop invariant violated: target ${target_canonical_id} is itself an alias`
       );
     }
+    // Also reject when the new FROM is already the TARGET of some other alias.
+    // Without this, `add X Y` then `add Y Z` would create a 2-hop chain that
+    // `resolve()` (single-hop) silently mis-resolves to the stale Y.
+    const fromIsTarget = (await this.repo.query({ target_canonical_id: alias_canonical_id })) ?? [];
+    if (fromIsTarget.length > 0) {
+      throw new Error(
+        `single-hop invariant violated: ${alias_canonical_id} is already a target of an existing alias`
+      );
+    }
     const row: CanonicalPersonAlias = {
       alias_canonical_id,
       target_canonical_id,

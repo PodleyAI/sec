@@ -5,10 +5,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
+import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
+import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/PersonIdentityLinkSchema";
 import { computeResolverCoverage } from "./ResolverCoverage";
 
 describe("computeResolverCoverage", () => {
@@ -70,5 +73,45 @@ describe("computeResolverCoverage", () => {
     expect(result.numerator).toBe(0);
     expect(result.denominator).toBe(0);
     expect(result.fraction).toBe(0);
+  });
+
+  it("uses count() (not listAll/getAll) to compute coverage (S-MAIN-05)", async () => {
+    // Stub the underlying ITabularStorage instances so that every row-materializing
+    // path (getAll / query / records / pages) throws if called, while count()
+    // returns deterministic values. If computeResolverCoverage still materializes
+    // the full table this test will fail loudly with the planted error.
+    const obsStorage = globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN);
+    const linkStorage = globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN);
+
+    let countCalls = 0;
+    let lastLinkCriteria: Record<string, unknown> | undefined;
+
+    const refuse = (name: string) => {
+      throw new Error(`forbidden materialization path '${name}' was called`);
+    };
+
+    // We only need to intercept the methods ResolverCoverage might call.
+    (obsStorage as { getAll: () => Promise<unknown> }).getAll = async () =>
+      refuse("PersonObservation.getAll");
+    (obsStorage as { count: (c?: unknown) => Promise<number> }).count = async () => {
+      countCalls++;
+      return 17;
+    };
+    (linkStorage as { getAll: () => Promise<unknown> }).getAll = async () =>
+      refuse("PersonIdentityLink.getAll");
+    (linkStorage as { count: (c?: Record<string, unknown>) => Promise<number> }).count = async (
+      criteria
+    ) => {
+      countCalls++;
+      lastLinkCriteria = criteria;
+      return 11;
+    };
+
+    const result = await computeResolverCoverage("person", "1.0.0");
+    expect(result.numerator).toBe(11);
+    expect(result.denominator).toBe(17);
+    expect(result.fraction).toBeCloseTo(11 / 17);
+    expect(countCalls).toBe(2);
+    expect(lastLinkCriteria).toEqual({ resolver_version: "1.0.0" });
   });
 });
