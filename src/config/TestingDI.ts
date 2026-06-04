@@ -237,6 +237,11 @@ import {
   ExtractionDeadLetterSchema,
 } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import {
+  S1_CLASSIFICATION_REPOSITORY_TOKEN,
+  S1ClassificationPrimaryKeyNames,
+  S1ClassificationSchema,
+} from "../storage/classification/S1ClassificationSchema";
+import {
   COMPONENT_VERSION_REPOSITORY_TOKEN,
   ComponentVersionPrimaryKeyNames,
   ComponentVersionSchema,
@@ -543,6 +548,10 @@ export function resetDependencyInjectionsForTesting() {
       ["extractor_id"],
       ["status"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    S1_CLASSIFICATION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(S1ClassificationSchema, S1ClassificationPrimaryKeyNames)
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
