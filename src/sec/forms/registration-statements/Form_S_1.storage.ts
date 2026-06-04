@@ -390,6 +390,13 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
 
   // --- SPAC sponsors (gated on deterministic classification) ---
   if (isSpac) {
+    // v1 strategy: sponsor names are not under a single canonical heading, so we
+    // run the extractor over the concatenated text of the target sections we
+    // already segmented (management / ownership / related-party) rather than
+    // adding a dedicated segmenter section. `byName` is empty only when no target
+    // heading matched, in which case there is no text to extract from and we
+    // dead-letter the sponsor step as SECTION_NOT_FOUND. A future spec may add a
+    // focused "The Sponsor" section to the segmenter (see design doc Future work).
     const sponsorText = [...byName.values()].join("\n\n");
     if (sponsorText.trim() === "") {
       await deadLetters.record({
