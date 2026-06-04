@@ -14,6 +14,7 @@ import {
   type ManagementPersonRow,
   type RelatedPartyRow,
 } from "./sectionSchemas";
+import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -111,4 +112,18 @@ export async function extractRelatedParty(
     sectionText;
   const obj = await runStructured(model, prompt, RelatedPartyOutputSchema);
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
+}
+
+export async function extractSpacSponsors(
+  sectionText: string,
+  model: ModelConfig
+): Promise<SpacSponsorRow[]> {
+  const prompt =
+    "This is a SPAC (blank-check) registration statement. Identify each sponsor entity. " +
+    "For each, give legal_name (the full legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name " +
+    "(the sponsor brand/family without the legal suffix or series number, e.g. 'Acme Sponsor'), a " +
+    "confidence in [0,1], and the verbatim source_span. Return JSON matching the schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, SpacSponsorOutputSchema);
+  return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }

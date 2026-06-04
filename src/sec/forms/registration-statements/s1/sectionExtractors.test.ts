@@ -9,6 +9,7 @@ import {
   extractManagement,
   extractBeneficialOwnership,
   extractRelatedParty,
+  extractSpacSponsors,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -91,4 +92,29 @@ describe("section extractors", () => {
     const parties = await extractRelatedParty("We pay rent...", fakeS1Model());
     expect(parties[0].transactions[0].amount).toBe(120000);
   });
+});
+
+it("extractSpacSponsors returns scripted sponsor rows", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      sponsors: [
+        {
+          legal_name: "Pershing Square Sponsor 2, LLC",
+          common_name: "Pershing Square Sponsor",
+          confidence: 0.95,
+          source_span: "Pershing Square Sponsor 2, LLC",
+        },
+      ],
+    },
+  ]);
+  try {
+    const rows = await extractSpacSponsors(
+      "The Sponsor is Pershing Square Sponsor 2, LLC.",
+      fakeS1Model()
+    );
+    expect(rows[0].common_name).toBe("Pershing Square Sponsor");
+    expect(rows[0].legal_name).toBe("Pershing Square Sponsor 2, LLC");
+  } finally {
+    unregister();
+  }
 });
