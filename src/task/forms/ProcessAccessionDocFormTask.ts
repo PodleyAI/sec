@@ -21,6 +21,7 @@ import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
+import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
@@ -196,6 +197,11 @@ export class ProcessAccessionDocFormTask extends Task<
             case "144":
             case "144/A":
               await processForm144({ ...storageArgs, form: form!, doc: parsed });
+              break;
+            case "S-1":
+            case "S-1/A":
+            case "S-1MEF":
+              await processFormS1({ ...storageArgs, form: form!, formS1: parsed });
               break;
             default:
               throw new TaskError(`Form '${form}' has no storage handler`);

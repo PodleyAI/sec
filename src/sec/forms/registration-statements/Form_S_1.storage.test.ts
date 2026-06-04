@@ -1,0 +1,213 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { processFormS1 } from "./Form_S_1.storage";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
+import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
+
+const HTML = [
+  "<h1>MANAGEMENT</h1>",
+  "<p>Jane Roe — Director</p>",
+  "<h1>PRINCIPAL AND SELLING STOCKHOLDERS</h1>",
+  "<table><tr><td>ACME Fund</td><td>1,000,000</td><td>12.5%</td></tr></table>",
+  "<h1>CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</h1>",
+  "<p>We pay rent to an entity controlled by our CEO.</p>",
+  "<h1>LEGAL MATTERS</h1><p>x</p>",
+].join("");
+
+let cleanup: (() => void) | undefined;
+
+describe("processFormS1", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+  afterEach(() => {
+    cleanup?.();
+    cleanup = undefined;
+    resetDependencyInjectionsForTesting();
+  });
+
+  it("observes issuer + people + entities and writes figures", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: "Jane Roe",
+            title: "Director",
+            relationship: null,
+            confidence: 0.9,
+            source_span: "Jane Roe — Director",
+          },
+        ],
+      },
+      {
+        owners: [
+          {
+            name: "ACME Fund",
+            owner_kind: "company",
+            security_class: null,
+            shares_owned: 1000000,
+            percent_owned: 12.5,
+            shares_offered: null,
+            shares_after: null,
+            percent_after: null,
+            is_selling_stockholder: false,
+            footnote: null,
+            confidence: 0.8,
+            source_span: "ACME Fund 1,000,000 12.5%",
+          },
+        ],
+      },
+      {
+        parties: [
+          {
+            name: "Acme Holdings",
+            party_kind: "company",
+            confidence: 0.7,
+            source_span: "entity controlled by our CEO",
+            transactions: [
+              {
+                counterparty: "the Company",
+                nature: "lease",
+                amount: 120000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000001",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { html: HTML },
+      model: fakeS1Model(),
+    });
+
+    const companies = await new CompanyObservationRepo().listAll();
+    expect(companies.some((c) => c.cik === 1018724)).toBe(true);
+
+    const people = await new PersonObservationRepo().listAll();
+    expect(people.some((p) => p.last_name === "Roe" || p.first_name === "Jane")).toBe(true);
+
+    const owners = await new BeneficialOwnershipRepo().queryByAccession("0000000000-26-000001");
+    expect(owners[0].percent_owned).toBe(12.5);
+
+    const tx = await new RelatedPartyTransactionRepo().queryByAccession("0000000000-26-000001");
+    expect(tx[0].amount).toBe(120000);
+
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    expect(dl).toHaveLength(0);
+  });
+
+  it("dead-letters a section that yields no rows", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      {
+        owners: [
+          {
+            name: "ACME Fund",
+            owner_kind: "company",
+            security_class: null,
+            shares_owned: null,
+            percent_owned: null,
+            shares_offered: null,
+            shares_after: null,
+            percent_after: null,
+            is_selling_stockholder: false,
+            footnote: null,
+            confidence: 0.8,
+            source_span: "ACME Fund",
+          },
+        ],
+      },
+      { parties: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "",
+      accession_number: "accX",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { html: HTML },
+      model: fakeS1Model(),
+    });
+
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    const reasons = new Map(dl.map((d) => [d.section_name, d.reason_code]));
+    expect(reasons.get("Management")).toBe("MODEL_EMPTY");
+    expect(reasons.get("Certain Relationships and Related Transactions")).toBe("MODEL_EMPTY");
+    expect(reasons.has("Principal and Selling Stockholders")).toBe(false);
+  });
+
+  it("reconciles a dead-lettered section to resolved on a successful re-run", async () => {
+    const acc = "accR";
+    const deadLetters = new ExtractionDeadLetterRepo();
+
+    // First run: Management yields nothing → recorded as a pending dead letter.
+    const first = registerFakeStructuredProvider([{ people: [] }, { owners: [] }, { parties: [] }]);
+    await processFormS1({
+      cik: 1018724,
+      file_number: "",
+      accession_number: acc,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { html: HTML },
+      model: fakeS1Model(),
+    });
+    first.unregister();
+    expect((await deadLetters.get("S-1", acc, "Management"))?.status).toBe("pending");
+
+    // Second run (same version): Management now yields a person → entry flips to resolved.
+    const second = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: "Jane Roe",
+            title: null,
+            relationship: null,
+            confidence: 0.9,
+            source_span: "Jane Roe",
+          },
+        ],
+      },
+      { owners: [] },
+      { parties: [] },
+    ]);
+    cleanup = second.unregister;
+    await processFormS1({
+      cik: 1018724,
+      file_number: "",
+      accession_number: acc,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { html: HTML },
+      model: fakeS1Model(),
+    });
+
+    expect((await deadLetters.get("S-1", acc, "Management"))?.status).toBe("resolved");
+  });
+});
