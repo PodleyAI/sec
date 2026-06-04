@@ -6,6 +6,7 @@
 
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
+import { countEligibleDeadLetters } from "./extractor";
 import {
   COMPONENT_KINDS,
   COMPONENT_VERSION_REPOSITORY_TOKEN,
@@ -336,6 +337,15 @@ export function addVersionCommands(program: Command): void {
               ? `(dry-run) promote ${kind} ${id} would succeed`
               : `Promoted ${kind}:${id}`
           );
+          if (!dryRun && kind === "extractor") {
+            const eligible = await countEligibleDeadLetters(id);
+            if (eligible > 0) {
+              console.log(
+                `${eligible} dead-letter entr${eligible === 1 ? "y is" : "ies are"} now eligible ` +
+                  `for retry — run 'sec extractor retry-dead-letters ${id}'`
+              );
+            }
+          }
         });
       }
     );
