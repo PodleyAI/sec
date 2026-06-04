@@ -48,6 +48,14 @@ describe("CanonicalCompanyAliasRepo", () => {
     await expect(repo.add("uuid-x", "uuid-x", null, "op")).rejects.toThrow(/self/);
   });
 
+  it("add rejects when from-id is already a target (no 2-hop chains)", async () => {
+    // Establish A → B. Now B is a target.
+    await repo.add("uuid-a", "uuid-b", null, "op");
+    // Attempting B → C must fail; otherwise resolve("uuid-a") would yield
+    // the stale "uuid-b" since resolve() is single-hop by design.
+    await expect(repo.add("uuid-b", "uuid-c", null, "op")).rejects.toThrow(/single-hop/);
+  });
+
   it("remove deletes the row; resolve falls back to identity afterwards", async () => {
     await repo.add("uuid-a", "uuid-b", null, "op");
     await repo.remove("uuid-a");
