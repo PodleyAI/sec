@@ -67,7 +67,13 @@ interface OwnershipStorageContext {
   readonly accession_number: string;
   readonly extractor_id: string;
   readonly extractor_version: string;
-  readonly issuer_cik: number;
+  // Null when the XML `issuer.issuerCik` is missing or unparseable. Must NOT
+  // be coerced to 0 on the observation path: PersonResolver's `personKey`
+  // includes `source_filing_issuer_cik` in the name-fallback key, so a 0
+  // sentinel collapses reporting-owner observations with the same name
+  // across unrelated filers into one canonical person. Form_144 already
+  // guards this at `Form_144.storage.ts` with `issuer_cik || null`.
+  readonly issuer_cik: number | null;
   readonly observer: EntityObserver;
 }
 
@@ -195,7 +201,7 @@ async function processIssuer(doc: OwnershipDocument, ctx: OwnershipStorageContex
     extractor_id: ctx.extractor_id,
     extractor_version: ctx.extractor_version,
     observation_index: 0,
-    cik: ctx.issuer_cik || null,
+    cik: ctx.issuer_cik,
     name: issuerName,
     source_context: JSON.stringify({ relation: "section16:issuer" }),
   });
@@ -226,7 +232,10 @@ export async function processOwnershipForm({
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-  const extractor_version = "1.0.0";
+  // 1.0.1 (S-MAIN-01): preserve null issuer_cik on observation path so
+  // PersonResolver does not collapse same-named reporting owners across
+  // unrelated filers via the 0 sentinel. Patch bump — same dev cycle.
+  const extractor_version = "1.0.1";
 
   // Use the same canonical extractor id the dispatch task records against
   // (amendments share the base extractor), so observation rows and
@@ -236,8 +245,11 @@ export async function processOwnershipForm({
   // The XML issuerCik is authoritative. We must NOT fall back to the filing's
   // own CIK: ownership filings are ingested from a submission feed that may be
   // the reporting owner's, not the issuer's, so that fallback could stamp the
-  // owner's CIK as the issuer. 0 is the honest "unknown" sentinel.
-  const issuer_cik = parseCikSafely(doc.issuer?.issuerCik);
+  // owner's CIK as the issuer. Use `|| null` (not `parseCikSafely` alone): the
+  // raw 0 sentinel poisons PersonResolver's name-fallback key — see Form_144
+  // for the parallel guard. Section16 row sites coerce back with `?? 0` since
+  // the SQL column is non-null (TypeSecCik is `Type.Number`).
+  const issuer_cik = parseCikSafely(doc.issuer?.issuerCik) || null;
 
   const personResolver = new PersonResolver({
     canonicalPersonRepo: new CanonicalPersonRepo(),
@@ -275,11 +287,16 @@ export async function processOwnershipForm({
 
   const section16Repo = new Section16Repo();
 
+  // Section16 SQL columns require a non-null CIK (TypeSecCik is `Type.Number`).
+  // 0 is acceptable here as a "missing" sentinel for the raw section16 row;
+  // it is NOT acceptable on the observation/resolver path above.
+  const section16IssuerCik = issuer_cik ?? 0;
+
   await section16Repo.saveFiling({
     accession_number,
     form,
     document_type: str(doc.documentType) ?? form,
-    issuer_cik,
+    issuer_cik: section16IssuerCik,
     issuer_name: str(doc.issuer?.issuerName) ?? "",
     issuer_trading_symbol: str(doc.issuer?.issuerTradingSymbol),
     period_of_report: str(doc.periodOfReport),
@@ -301,12 +318,12 @@ export async function processOwnershipForm({
   let txnIndex = 0;
   for (const t of doc.nonDerivativeTable?.nonDerivativeTransaction ?? []) {
     await section16Repo.saveTransaction(
-      nonDerivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++)
+      nonDerivativeTransactionRow(t, accession_number, section16IssuerCik, txnIndex++)
     );
   }
   for (const t of doc.derivativeTable?.derivativeTransaction ?? []) {
     await section16Repo.saveTransaction(
-      derivativeTransactionRow(t, accession_number, issuer_cik, txnIndex++)
+      derivativeTransactionRow(t, accession_number, section16IssuerCik, txnIndex++)
     );
   }
 
@@ -314,12 +331,12 @@ export async function processOwnershipForm({
   let holdIndex = 0;
   for (const h of doc.nonDerivativeTable?.nonDerivativeHolding ?? []) {
     await section16Repo.saveHolding(
-      nonDerivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++)
+      nonDerivativeHoldingRow(h, accession_number, section16IssuerCik, holdIndex++)
     );
   }
   for (const h of doc.derivativeTable?.derivativeHolding ?? []) {
     await section16Repo.saveHolding(
-      derivativeHoldingRow(h, accession_number, issuer_cik, holdIndex++)
+      derivativeHoldingRow(h, accession_number, section16IssuerCik, holdIndex++)
     );
   }
 }
