@@ -73,3 +73,26 @@ export const CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN =
   createServiceToken<CanonicalCompanyAliasRepositoryStorage>(
     "sec.storage.canonicalCompanyAliasRepository"
   );
+
+/**
+ * Operator-managed merge of AI-emitted sponsor-family name variants. Same
+ * single-hop semantics as the person/company alias schemas.
+ */
+export const CanonicalSponsorFamilyAliasSchema = Type.Object({
+  alias_canonical_id: Type.String({ maxLength: 36 }),
+  target_canonical_id: Type.String({ maxLength: 36 }),
+  reason: TypeNullable(Type.String({ maxLength: 1024 })),
+  created_at: Type.String(),
+  created_by: TypeNullable(Type.String({ maxLength: 128 })),
+});
+export type CanonicalSponsorFamilyAlias = Static<typeof CanonicalSponsorFamilyAliasSchema>;
+export const CanonicalSponsorFamilyAliasPrimaryKeyNames = ["alias_canonical_id"] as const;
+export type CanonicalSponsorFamilyAliasRepositoryStorage = ITabularStorage<
+  typeof CanonicalSponsorFamilyAliasSchema,
+  typeof CanonicalSponsorFamilyAliasPrimaryKeyNames,
+  CanonicalSponsorFamilyAlias
+>;
+export const CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN =
+  createServiceToken<CanonicalSponsorFamilyAliasRepositoryStorage>(
+    "sec.storage.canonicalSponsorFamilyAliasRepository"
+  );
