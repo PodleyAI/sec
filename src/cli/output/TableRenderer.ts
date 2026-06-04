@@ -58,6 +58,11 @@ const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
 //   U+180E MONGOLIAN VOWEL SEPARATOR
 //   U+2000..U+200A en/em/figure/hair/etc. spaces
 //   U+200B..U+200F ZWSP / ZWNJ / ZWJ / LRM / RLM
+//   U+2028 LINE SEPARATOR (Zl) — not matched by JS `\n`, so it never
+//          gets split into a separate line by escapeCsvValue. Strip
+//          it here so a leading ` =cmd` payload (where  is
+//          U+2028) can't slip past the formula-lead check.
+//   U+2029 PARAGRAPH SEPARATOR (Zp) — same rationale as U+2028.
 //   U+202A..U+202E bidi formatting (LRE/RLE/PDF/LRO/RLO)
 //   U+202F NARROW NO-BREAK SPACE
 //   U+205F MEDIUM MATHEMATICAL SPACE
@@ -68,7 +73,7 @@ const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
 //   U+FEFF ZERO WIDTH NO-BREAK SPACE / BOM
 //   U+FFA0 HALFWIDTH HANGUL FILLER
 const LEADING_WS =
-  /^[\u0020\u00A0\u00AD\u034F\u061C\u115F\u1160\u1680\u180E\u2000-\u200F\u202A-\u202F\u205F\u2060-\u2064\u206A-\u206F\u3000\u3164\uFEFF\uFFA0]+/;
+  /^[\u0020\u00A0\u00AD\u034F\u061C\u115F\u1160\u1680\u180E\u2000-\u200F\u2028\u2029\u202A-\u202F\u205F\u2060-\u2064\u206A-\u206F\u3000\u3164\uFEFF\uFFA0]+/;
 
 function needsFormulaPrefix(line: string): boolean {
   return DANGEROUS_LEAD.test(line.replace(LEADING_WS, ""));
