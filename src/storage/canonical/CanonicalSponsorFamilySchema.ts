@@ -17,10 +17,13 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
  */
 export const CanonicalSponsorFamilySchema = Type.Object({
   canonical_sponsor_family_id: Type.String({ maxLength: 36, description: "UUID v4" }),
-  resolver_version: Type.String({ maxLength: 32 }),
-  display_name: TypeNullable(Type.String({ maxLength: 512 })),
-  normalized_name: Type.String({ maxLength: 512 }),
-  created_at: Type.String(),
+  resolver_version: Type.String({
+    maxLength: 32,
+    description: "Semver of the resolver that produced this row",
+  }),
+  display_name: TypeNullable(Type.String({ maxLength: 512, description: "As first emitted" })),
+  normalized_name: Type.String({ maxLength: 512, description: "Natural key (with resolver_version)" }),
+  created_at: Type.String({ description: "ISO 8601 timestamp" }),
 });
 export type CanonicalSponsorFamily = Static<typeof CanonicalSponsorFamilySchema>;
 

@@ -17,11 +17,12 @@ interface SponsorFamilyResolverOptions {
 }
 
 /**
- * The single source of truth for the sponsor-family natural key. Strips
- * suffixes / collapses whitespace via {@link normalizeCompanyName}, then
- * upper-cases so matching is case-insensitive. Every caller that looks up a
- * family by name (resolver, CLI query, alias commands) MUST use this so keys
- * line up. Returns "" when the name normalizes to nothing.
+ * The single source of truth for the sponsor-family natural key. Normalizes the
+ * name via {@link normalizeCompanyName} (punctuation/whitespace canonicalization
+ * plus the suffix handling that helper applies), then upper-cases so matching is
+ * case-insensitive. Every caller that looks up a family by name (resolver, CLI
+ * query, alias commands) MUST use this so keys line up. Returns "" when the name
+ * normalizes to nothing.
  */
 export function normalizeSponsorFamilyName(name: string): string {
   return normalizeCompanyName(name)?.toUpperCase() ?? "";

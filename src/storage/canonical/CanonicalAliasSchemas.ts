@@ -79,10 +79,16 @@ export const CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN =
  * single-hop semantics as the person/company alias schemas.
  */
 export const CanonicalSponsorFamilyAliasSchema = Type.Object({
-  alias_canonical_id: Type.String({ maxLength: 36 }),
-  target_canonical_id: Type.String({ maxLength: 36 }),
+  alias_canonical_id: Type.String({
+    maxLength: 36,
+    description: "UUID v4 — the canonical_sponsor_family_id being aliased away",
+  }),
+  target_canonical_id: Type.String({
+    maxLength: 36,
+    description: "UUID v4 — the canonical_sponsor_family_id to use instead",
+  }),
   reason: TypeNullable(Type.String({ maxLength: 1024 })),
-  created_at: Type.String(),
+  created_at: Type.String({ description: "ISO 8601 timestamp" }),
   created_by: TypeNullable(Type.String({ maxLength: 128 })),
 });
 export type CanonicalSponsorFamilyAlias = Static<typeof CanonicalSponsorFamilyAliasSchema>;
