@@ -89,6 +89,7 @@ describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
 
     const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
     expect(dl?.reason_code).toBe("FETCH_ERROR");
+    expect(dl?.status).toBe("pending");
     expect(dl?.detail).toContain("simulated network failure");
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
@@ -101,7 +102,11 @@ describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
 
     class BadParseTask extends ProcessAccessionDocFormTask {
       protected override async runFetch(): Promise<string> {
-        return "<edgarSubmission><unclosed>"; // malformed XML → Form D parse throws
+        // fast-xml-parser leniently accepts this; the throw originates in the
+        // Domain 3 storage step (processFormD dereferencing issuer.entityName on
+        // undefined), exercising the parse/store-rethrow path — not the fetch path
+        // (runFetch is overridden to return successfully here).
+        return "<edgarSubmission><unclosed>";
       }
     }
 
