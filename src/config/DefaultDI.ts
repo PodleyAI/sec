@@ -183,6 +183,16 @@ import {
   CanonicalSponsorFamilySchema,
 } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
+  SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+  SponsorFamilyMembershipPrimaryKeyNames,
+  SponsorFamilyMembershipSchema,
+} from "../storage/canonical/SponsorFamilyMembershipSchema";
+import {
+  SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
+  SpacSponsorLinkPrimaryKeyNames,
+  SpacSponsorLinkSchema,
+} from "../storage/canonical/SpacSponsorLinkSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -737,5 +747,21 @@ export const DefaultDI = () => {
       CanonicalSponsorFamilyAliasPrimaryKeyNames,
       [["target_canonical_id"]]
     )
+  );
+  globalServiceRegistry.registerInstance(
+    SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+    createStorage(
+      "sponsor_family_membership",
+      SponsorFamilyMembershipSchema,
+      SponsorFamilyMembershipPrimaryKeyNames,
+      [["resolver_version"], ["canonical_sponsor_family_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_SPONSOR_LINK_REPOSITORY_TOKEN,
+    createStorage("spac_sponsor_link", SpacSponsorLinkSchema, SpacSponsorLinkPrimaryKeyNames, [
+      ["accession_number"],
+      ["sponsor_family_id"],
+    ])
   );
 };
