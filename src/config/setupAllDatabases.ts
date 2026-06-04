@@ -71,6 +71,7 @@ import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/O
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
@@ -135,6 +136,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
