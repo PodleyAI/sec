@@ -33,6 +33,14 @@ import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
+/** Registration prospectus forms whose body is fetched as the full submission .txt. */
+const REGISTRATION_PROSPECTUS_FORMS = new Set(["S-1", "S-1/A", "S-1MEF", "DRS", "DRS/A"]);
+
+/** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
+function fullSubmissionFileName(accessionNumber: string): string {
+  return `${accessionNumber}.txt`;
+}
+
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({
     accessionNumber: Type.String({
@@ -135,6 +143,13 @@ export class ProcessAccessionDocFormTask extends Task<
 
     if (!form) {
       throw new TaskError(`Filing ${accessionNumber} has no form type`);
+    }
+
+    // Registration prospectus forms (S-1 / DRS family) are fetched as the full
+    // submission .txt so Form.parse() can read the <SEC-HEADER> and select the
+    // primary <DOCUMENT>. Other forms keep their primary-doc fetch.
+    if (REGISTRATION_PROSPECTUS_FORMS.has(form)) {
+      fileName = fullSubmissionFileName(accessionNumber);
     }
 
     const extractorId = formToExtractorId(form);
@@ -281,6 +296,8 @@ export class ProcessAccessionDocFormTask extends Task<
         case "S-1":
         case "S-1/A":
         case "S-1MEF":
+        case "DRS":
+        case "DRS/A":
           await processFormS1({ ...storageArgs, form: form!, formS1: parsed });
           break;
         default:

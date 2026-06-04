@@ -22,7 +22,7 @@ import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 // Mirror the section structure of Form_S_1.storage.test.ts so the heuristic
 // segmenter finds Management / Principal and Selling Stockholders / Certain
 // Relationships sections and the 3 scripted payloads below line up by call order.
-const HTML = [
+const SECTION_HTML = [
   "<h1>MANAGEMENT</h1>",
   "<p>Jane Roe — Director</p>",
   "<h1>PRINCIPAL AND SELLING STOCKHOLDERS</h1>",
@@ -32,9 +32,13 @@ const HTML = [
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
+// Wrap in a DOCUMENT envelope so parseRegistrationSubmission selects the S-1 body.
+const HTML = "<DOCUMENT><TYPE>S-1<SEQUENCE>1<TEXT>" + SECTION_HTML + "</TEXT></DOCUMENT>";
+
 const CIK = 1018724;
 const ACCESSION = "0000000000-26-000099";
-const FILE_NAME = "s1.htm";
+// The task now fetches <accession>.txt for registration prospectus forms.
+const FILE_NAME = ACCESSION + ".txt";
 
 let rawRoot: string | undefined;
 let cleanup: (() => void) | undefined;

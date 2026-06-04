@@ -5,9 +5,15 @@
  */
 
 import { Form } from "../Form";
+import { parseRegistrationSubmission, type FormS1Parsed } from "./s1/parseSubmission";
 
 export class Form_DRS extends Form {
-  static readonly name = "Registration Statement (DRS)";
-  static readonly description = "Registration statement for direct registration system securities.";
+  static readonly name = "Draft Registration Statement (DRS)";
+  static readonly description =
+    "Confidential draft registration statement (JOBS Act); a draft S-1 with identical structure.";
   static readonly forms = ["DRS", "DRS/A", "DRSLTR"] as const;
+
+  static override async parse(form: string, txt: string): Promise<FormS1Parsed> {
+    return parseRegistrationSubmission(form, txt);
+  }
 }

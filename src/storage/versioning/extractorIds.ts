@@ -45,6 +45,8 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "S-1": "S-1",
   "S-1/A": "S-1",
   "S-1MEF": "S-1",
+  DRS: "S-1",
+  "DRS/A": "S-1",
 };
 
 export function formToExtractorId(form: string): ExtractorId | undefined {
