@@ -308,6 +308,19 @@ export class ProcessAccessionDocFormTask extends Task<
     }
 
     if (parseError === undefined) {
+      // A filing that previously failed at the fetch layer (a filing-level
+      // dead-letter, section_name "") and now succeeds end to end should have
+      // that pending entry cleared, so the version-gated retry sweep doesn't
+      // reprocess it after a bump. No-op when no such entry exists; best-effort
+      // like recordRun so a storage hiccup can't mask the successful outcome.
+      try {
+        await deadLetters.markResolved(extractorId, accessionNumber, "");
+      } catch (dlErr) {
+        console.error(
+          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
       try {
         await runRepo.recordRun({
           cik: cik!,

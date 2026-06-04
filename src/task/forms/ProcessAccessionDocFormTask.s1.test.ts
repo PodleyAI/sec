@@ -16,6 +16,7 @@ import { CompanyObservationRepo } from "../../storage/observation/CompanyObserva
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
@@ -95,13 +96,16 @@ describe("ProcessAccessionDocFormTask (S-1 end-to-end)", () => {
     } as any);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup?.();
     cleanup = undefined;
     if (rawRoot) {
       rmSync(rawRoot, { recursive: true, force: true });
       rawRoot = undefined;
     }
+    // The global ModelRepository is not cleared by resetDependencyInjectionsForTesting,
+    // so remove the fake model or the next test's addModel() throws "already exists".
+    await getGlobalModelRepository().removeModel("fake-s1-model");
     delete process.env.SEC_S1_MODEL;
     resetDependencyInjectionsForTesting();
   });
@@ -144,5 +148,38 @@ describe("ProcessAccessionDocFormTask (S-1 end-to-end)", () => {
 
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => c.cik === CIK)).toBe(true);
+  });
+
+  it("clears a prior filing-level dead-letter when a re-run succeeds", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      { parties: [] },
+    ]);
+    cleanup = unregister;
+
+    // Simulate an earlier fetch-layer failure for this filing.
+    await new ExtractionDeadLetterRepo().record({
+      extractor_id: "S-1",
+      accession_number: ACCESSION,
+      section_name: "",
+      reason_code: "FETCH_ERROR",
+      detail: "earlier transient failure",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    await seedFiling();
+    seedFetchCache(rawRoot!);
+
+    await new ProcessAccessionDocFormTask().run({
+      accessionNumber: ACCESSION,
+      cik: CIK,
+      form: "S-1",
+      fileName: FILE_NAME,
+    });
+
+    const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
+    expect(dl?.status).toBe("resolved");
   });
 });
