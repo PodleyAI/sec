@@ -103,7 +103,7 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     );
     await wf.run();
-    if (text === undefined) {
+    if (!text) {
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
     }
     return text;
@@ -180,18 +180,32 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     };
 
+    const recordDeadLetterSafe = async (
+      reason_code: string,
+      detail: string
+    ): Promise<void> => {
+      try {
+        await deadLetters.record({
+          extractor_id: extractorId,
+          accession_number: accessionNumber,
+          section_name: "",
+          reason_code,
+          detail,
+          failed_extractor_version: extractorVersion,
+          source_run_id: null,
+        });
+      } catch (dlErr) {
+        console.error(
+          `Failed to record dead-letter ${reason_code} for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
+    };
+
     // --- Domain 1: primary-document resolution (filing-level) ---
     if (!fileName) {
       const detail = `No primary document for filing ${accessionNumber}`;
-      await deadLetters.record({
-        extractor_id: extractorId,
-        accession_number: accessionNumber,
-        section_name: "",
-        reason_code: "PRIMARY_DOC_UNRESOLVED",
-        detail,
-        failed_extractor_version: extractorVersion,
-        source_run_id: null,
-      });
+      await recordDeadLetterSafe("PRIMARY_DOC_UNRESOLVED", detail);
       await recordRunFailed(`PRIMARY_DOC_UNRESOLVED: ${detail}`);
       return { success: false };
     }
@@ -202,15 +216,7 @@ export class ProcessAccessionDocFormTask extends Task<
       text = await this.runFetch(cik!, accessionNumber, fileName, context);
     } catch (fetchErr) {
       const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-      await deadLetters.record({
-        extractor_id: extractorId,
-        accession_number: accessionNumber,
-        section_name: "",
-        reason_code: "FETCH_ERROR",
-        detail: message.slice(0, 1024),
-        failed_extractor_version: extractorVersion,
-        source_run_id: null,
-      });
+      await recordDeadLetterSafe("FETCH_ERROR", message.slice(0, 1024));
       await recordRunFailed(`FETCH_ERROR: ${message}`);
       return { success: false };
     }
