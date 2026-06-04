@@ -54,19 +54,61 @@ export async function streamDownloadToFile(
 
   const writer = Bun.file(destPath).writer();
   let bytes = 0;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let originalError: unknown;
   try {
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      writer.write(value);
+      await writer.write(value);
       bytes += value.length;
       opts.onProgress?.(bytes, totalBytes);
     }
     await writer.flush();
-  } finally {
-    await writer.end();
+    if (totalBytes !== undefined && bytes !== totalBytes) {
+      throw new Error(
+        `Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`
+      );
+    }
+  } catch (err) {
+    originalError = err;
   }
+
+  // Release the reader before closing the writer so the underlying
+  // stream is cancellable if writer.end() awaits a flush.
+  try {
+    reader?.releaseLock();
+  } catch {
+    // swallow
+  }
+
+  // Close the writer FIRST, then unlink. On Windows, rmSync cannot
+  // delete a file whose handle is still open. On every platform, a
+  // writer.end() failure (disk full, permission error) must surface as
+  // the operation failure on the success path — silently swallowing it
+  // would let us return success with a corrupt / half-flushed file.
+  let endError: unknown;
+  try {
+    await writer.end();
+  } catch (e) {
+    endError = e;
+  }
+
+  // Best-effort cleanup on any failure path (mid-stream abort, size
+  // mismatch, writer error, end-flush error) — drop the partial file so
+  // a multi-GB stale archive doesn't sit on disk silently. force: true
+  // makes this a no-op when the file was never created.
+  if (originalError !== undefined || endError !== undefined) {
+    try {
+      rmSync(destPath, { force: true });
+    } catch {
+      // swallow — the original error matters more
+    }
+  }
+
+  if (originalError !== undefined) throw originalError;
+  if (endError !== undefined) throw endError;
   return { bytes, totalBytes };
 }
 
@@ -164,17 +206,24 @@ export class BootstrapDownloadTask extends Task<
       );
     }
 
-    const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    const exitCode = await proc.exited;
+    try {
+      const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const exitCode = await proc.exited;
 
-    if (exitCode !== 0) {
-      throw new Error(`unzip exited with code ${exitCode}`);
+      if (exitCode !== 0) {
+        throw new Error(`unzip exited with code ${exitCode}`);
+      }
+    } finally {
+      // Always remove the staged zip — on extract failure the partial
+      // archive can be many GB and would silently leak into rawDataFolder
+      // until the next bootstrap run. force: true makes the cleanup a
+      // no-op if the file is already gone (e.g. Bun.spawn never created
+      // anything we own).
+      rmSync(zipPath, { force: true });
     }
-
-    rmSync(zipPath);
     console.log(`Extraction complete. Cleaned up ${zipPath}`);
 
     return { success: true };

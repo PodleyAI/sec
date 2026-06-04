@@ -226,5 +226,122 @@ describe("Form_1_Z storage test", () => {
         }
       }
     });
+
+    // Plan H regression guard for Form 1-Z.
+
+    it("treats whitespace-only pricePerSecurity as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-z");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+
+      for (const file of xmlFiles) {
+        const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
+        const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
+        const offerings = form1Z.formData.summaryInfoOffering;
+        if (!offerings) continue;
+        const target = offerings.find(
+          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
+            typeof o === "object" && o !== null
+        );
+        if (!target) continue;
+
+        target.pricePerSecurity = "   ";
+
+        const cik = 990101;
+        const fileNumber = "024-h-ws-z";
+        const accessionNumber = "test-h-ws-z";
+        await processForm1Z({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+          filing_date: "2024-09-15",
+          primary_doc: file,
+          form1Z,
+        });
+
+        const history = await regARepo.offeringHistoryRepository.get({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+        });
+        expect(history?.price_per_security).toBe(null);
+        return;
+      }
+    });
+
+    it("treats empty pricePerSecurity as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-z");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+
+      for (const file of xmlFiles) {
+        const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
+        const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
+        const offerings = form1Z.formData.summaryInfoOffering;
+        if (!offerings) continue;
+        const target = offerings.find(
+          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
+            typeof o === "object" && o !== null
+        );
+        if (!target) continue;
+        target.pricePerSecurity = "";
+
+        const cik = 990102;
+        const fileNumber = "024-h-empty-z";
+        const accessionNumber = "test-h-empty-z";
+        await processForm1Z({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+          filing_date: "2024-09-15",
+          primary_doc: file,
+          form1Z,
+        });
+
+        const history = await regARepo.offeringHistoryRepository.get({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+        });
+        expect(history?.price_per_security).toBe(null);
+        return;
+      }
+    });
+
+    it("preserves a legitimate '0' pricePerSecurity as DB value 0", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-z");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+
+      for (const file of xmlFiles) {
+        const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
+        const form1Z = await Form_1_Z.parse("1-Z", xmlContent);
+        const offerings = form1Z.formData.summaryInfoOffering;
+        if (!offerings) continue;
+        const target = offerings.find(
+          (o): o is Record<string, unknown> & { pricePerSecurity?: unknown } =>
+            typeof o === "object" && o !== null
+        );
+        if (!target) continue;
+        target.pricePerSecurity = "0";
+
+        const cik = 990103;
+        const fileNumber = "024-h-zero-z";
+        const accessionNumber = "test-h-zero-z";
+        await processForm1Z({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+          filing_date: "2024-09-15",
+          primary_doc: file,
+          form1Z,
+        });
+
+        const history = await regARepo.offeringHistoryRepository.get({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+        });
+        expect(history?.price_per_security).toBe(0);
+        return;
+      }
+    });
   });
 });

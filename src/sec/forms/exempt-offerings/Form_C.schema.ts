@@ -62,11 +62,16 @@ export const YES_NO_TYPE = Type.Union([Type.Literal("Y"), Type.Literal("N")]);
 
 const CCC_TYPE = Type.String({ minLength: 8, maxLength: 8 });
 const FILE_NUMBER_TYPE = Type.String({ minLength: 1, maxLength: 17 });
-const DECIMAL_TYPE7_5_FIXED = Type.Number();
-const DECIMAL_TYPE7_2_FIXED = Type.Number();
-const DECIMAL_TYPE14_2_FIXED = Type.Number();
+// Decimal leaves arrive as XML text. See Form_1_A.schema.ts for the
+// rationale — Type.String() routes through numScalar() in storage so
+// empty/whitespace become null instead of fabricated 0. Note the
+// per-cell minimum:0 invariant for DECIMAL_TYPE7_2_NONNEGATIVE moves
+// to the extractor (Form_C.storage.ts) at the same time.
+const DECIMAL_TYPE7_5_FIXED = Type.String();
+const DECIMAL_TYPE7_2_FIXED = Type.String();
+const DECIMAL_TYPE14_2_FIXED = Type.String();
 const INTEGER_TYPE_10 = Type.Integer({ minimum: 1, maximum: 9999999999 });
-const DECIMAL_TYPE7_2_NONNEGATIVE = Type.Number({ minimum: 0 });
+const DECIMAL_TYPE7_2_NONNEGATIVE = Type.String();
 const DATE_TYPE = Type.String({ format: "date" });
 const CRD_NUMBER_TYPE = Type.String({ maxLength: 9 });
 

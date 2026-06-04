@@ -34,21 +34,97 @@ function pad(value: string, width: number): string {
   return truncate(value, width).padEnd(width);
 }
 
+// Characters that trigger formula interpretation when found at the start of a
+// spreadsheet cell. See OWASP CSV Injection
+// (https://owasp.org/www-community/attacks/CSV_Injection).
+const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
+// Strip only space-like characters that spreadsheets silently ignore before
+// formula parsing. Excludes \t and \r — those are themselves dangerous
+// formula leads and are caught by DANGEROUS_LEAD.
+//
+// All entries are written as `\uXXXX` escape sequences. Source-level raw
+// NBSP / zero-width characters are silently normalised by many editors,
+// which would defang this regex without anyone noticing in code review.
+//
+// Codepoint coverage (informal):
+//   U+0020 SPACE
+//   U+00A0 NO-BREAK SPACE (NBSP)
+//   U+00AD SOFT HYPHEN (SHY)
+//   U+034F COMBINING GRAPHEME JOINER (CGJ)
+//   U+061C ARABIC LETTER MARK (ALM)
+//   U+115F HANGUL CHOSEONG FILLER (invisible)
+//   U+1160 HANGUL JONGSEONG FILLER (invisible)
+//   U+1680 OGHAM SPACE MARK
+//   U+180E MONGOLIAN VOWEL SEPARATOR
+//   U+2000..U+200A en/em/figure/hair/etc. spaces
+//   U+200B..U+200F ZWSP / ZWNJ / ZWJ / LRM / RLM
+//   U+2028 LINE SEPARATOR (Zl) — not matched by JS `\n`, so it never
+//          gets split into a separate line by escapeCsvValue. Strip
+//          it here so a leading ` =cmd` payload (where  is
+//          U+2028) can't slip past the formula-lead check.
+//   U+2029 PARAGRAPH SEPARATOR (Zp) — same rationale as U+2028.
+//   U+202A..U+202E bidi formatting (LRE/RLE/PDF/LRO/RLO)
+//   U+202F NARROW NO-BREAK SPACE
+//   U+205F MEDIUM MATHEMATICAL SPACE
+//   U+2060..U+2064 WORD JOINER / invisible operators
+//   U+206A..U+206F deprecated invisible formatting
+//   U+3000 IDEOGRAPHIC SPACE
+//   U+3164 HANGUL FILLER
+//   U+FEFF ZERO WIDTH NO-BREAK SPACE / BOM
+//   U+FFA0 HALFWIDTH HANGUL FILLER
+const LEADING_WS =
+  /^[\u0020\u00A0\u00AD\u034F\u061C\u115F\u1160\u1680\u180E\u2000-\u200F\u2028\u2029\u202A-\u202F\u205F\u2060-\u2064\u206A-\u206F\u3000\u3164\uFEFF\uFFA0]+/;
+
+function needsFormulaPrefix(line: string): boolean {
+  return DANGEROUS_LEAD.test(line.replace(LEADING_WS, ""));
+}
+
+function defuseLine(line: string): string {
+  return needsFormulaPrefix(line) ? "'" + line : line;
+}
+
+/**
+ * Defuse CSV/spreadsheet formula injection per OWASP CSV Injection guidance.
+ *
+ * When Excel/Sheets/Numbers open a CSV, a cell starting with =/+/-/@ (or TAB/CR
+ * which some loaders strip) is interpreted as a formula and can exfiltrate data
+ * via WEBSERVICE/HYPERLINK or run external commands. Prefixing a single quote
+ * neutralizes the formula — spreadsheets render the apostrophe as a literal and
+ * hide the prefix; plain CSV consumers see one extra leading apostrophe.
+ *
+ * The naive `^[=+\-@\t\r]` check has three bypasses we handle here:
+ *   1. Leading ASCII whitespace (" =cmd...") plus other space-like chars
+ *      that spreadsheets silently strip (NBSP, SHY, ZWSP, ZWNJ, ZWJ, LRM,
+ *      RLM, BOM, narrow/medium math spaces, ideographic/Hangul fillers,
+ *      bidi formatting). Tab and CR are themselves dangerous leads and
+ *      are NOT stripped here — they're handled by DANGEROUS_LEAD.
+ *   2. Dangerous char after an embedded newline in a quoted multi-line cell
+ *      ("safe\n=cmd") — each physical line is re-parsed.
+ *   3. Bare CR (\r) as a line separator inside a quoted multi-line cell —
+ *      the line after the CR also re-parses, so split on \r\n | \r | \n.
+ *
+ * Each line of the value is defused independently; the result is then RFC 4180
+ * quoted if it contains a comma, quote, CR, or LF.
+ */
 function escapeCsvValue(value: string): string {
-  // Defuse CSV/spreadsheet formula injection. When Excel/Sheets/Numbers
-  // open a CSV, a cell starting with =/+/-/@ (or with leading TAB/CR
-  // that some loaders strip) is interpreted as a formula, which can
-  // exfiltrate data via WEBSERVICE/HYPERLINK or run external commands.
-  // Prefix a single quote — spreadsheets render it as a literal and hide
-  // the prefix; plain CSV consumers see the original text with one
-  // leading apostrophe, which is a small price for not shipping a known
-  // attack vector.
-  const dangerous = value.length > 0 && /^[=+\-@\t\r]/.test(value);
-  let escaped = dangerous ? "'" + value : value;
-  if (escaped.includes(",") || escaped.includes('"') || escaped.includes("\n")) {
-    return '"' + escaped.replace(/"/g, '""') + '"';
+  if (value.length === 0) {
+    return value;
   }
-  return escaped;
+  // Capturing-group split preserves the separators at odd indices so we can
+  // round-trip the exact line endings (LF, CRLF, or bare CR) the caller used.
+  const parts = value.split(/(\r\n|\r|\n)/);
+  const defused = parts
+    .map((part, i) => (i % 2 === 0 ? defuseLine(part) : part))
+    .join("");
+  if (
+    defused.includes(",") ||
+    defused.includes('"') ||
+    defused.includes("\n") ||
+    defused.includes("\r")
+  ) {
+    return '"' + defused.replace(/"/g, '""') + '"';
+  }
+  return defused;
 }
 
 function cellValue(row: Record<string, unknown>, key: string): string {
@@ -128,3 +204,6 @@ export function renderTable(
       return renderTextTable(rows, columns, options);
   }
 }
+
+// Exported for unit tests; not part of the module's public API.
+export const __testing = { escapeCsvValue };

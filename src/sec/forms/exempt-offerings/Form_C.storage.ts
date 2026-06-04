@@ -17,6 +17,7 @@ import type {
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import type { FormC } from "./Form_C.schema";
 import { parseCikSafely } from "../../../util/parseCik";
+import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
@@ -240,10 +241,10 @@ async function processOfferingInfo(
     financial_interest_detail: finInterest.detail,
     security_offered_type: offeringInfo.securityOfferedType ?? null,
     no_of_security_offered: offeringInfo.noOfSecurityOffered ?? null,
-    price: offeringInfo.price ?? null,
+    price: numScalar(offeringInfo.price),
     price_determination_method: offeringInfo.priceDeterminationMethod ?? null,
-    offering_amount: offeringInfo.offeringAmount ?? null,
-    maximum_offering_amount: offeringInfo.maximumOfferingAmount ?? null,
+    offering_amount: numScalar(offeringInfo.offeringAmount),
+    maximum_offering_amount: numScalar(offeringInfo.maximumOfferingAmount),
     over_subscription_accepted: offeringInfo.overSubscriptionAccepted ?? null,
     deadline_date: offeringInfo.deadlineDate ?? null,
   };
@@ -261,30 +262,43 @@ async function processAnnualReportDisclosures(
   const disclosures = formC.formData.annualReportDisclosureRequirements;
   if (!disclosures) return;
 
-  const fields: Array<[string, number | undefined]> = [
-    ["currentEmployees", disclosures.currentEmployees],
-    ["totalAssetMostRecentFiscalYear", disclosures.totalAssetMostRecentFiscalYear],
-    ["totalAssetPriorFiscalYear", disclosures.totalAssetPriorFiscalYear],
-    ["cashEquiMostRecentFiscalYear", disclosures.cashEquiMostRecentFiscalYear],
-    ["cashEquiPriorFiscalYear", disclosures.cashEquiPriorFiscalYear],
-    ["actReceivedMostRecentFiscalYear", disclosures.actReceivedMostRecentFiscalYear],
-    ["actReceivedPriorFiscalYear", disclosures.actReceivedPriorFiscalYear],
-    ["shortTermDebtMostRecentFiscalYear", disclosures.shortTermDebtMostRecentFiscalYear],
-    ["shortTermDebtPriorFiscalYear", disclosures.shortTermDebtPriorFiscalYear],
-    ["longTermDebtMostRecentFiscalYear", disclosures.longTermDebtMostRecentFiscalYear],
-    ["longTermDebtPriorFiscalYear", disclosures.longTermDebtPriorFiscalYear],
-    ["revenueMostRecentFiscalYear", disclosures.revenueMostRecentFiscalYear],
-    ["revenuePriorFiscalYear", disclosures.revenuePriorFiscalYear],
-    ["costGoodsSoldMostRecentFiscalYear", disclosures.costGoodsSoldMostRecentFiscalYear],
-    ["costGoodsSoldPriorFiscalYear", disclosures.costGoodsSoldPriorFiscalYear],
-    ["taxPaidMostRecentFiscalYear", disclosures.taxPaidMostRecentFiscalYear],
-    ["taxPaidPriorFiscalYear", disclosures.taxPaidPriorFiscalYear],
-    ["netIncomeMostRecentFiscalYear", disclosures.netIncomeMostRecentFiscalYear],
-    ["netIncomePriorFiscalYear", disclosures.netIncomePriorFiscalYear],
+  // numScalar drops empty / whitespace strings so we don't persist a
+  // fabricated 0 disclosure_value (used to surface in reports as if the
+  // issuer reported $0).
+  //
+  // `currentEmployees` is the only field schema-typed as
+  // DECIMAL_TYPE7_2_NONNEGATIVE; before the string-decimal migration,
+  // TypeBox enforced `minimum: 0` at parse time. Now that the leaf is a
+  // string routed through numScalar(), we enforce the non-negative
+  // invariant here so a malformed feed (e.g. -1) can't reach disclosure
+  // storage as a negative count.
+  const rawCurrentEmployees = numScalar(disclosures.currentEmployees);
+  const currentEmployees =
+    rawCurrentEmployees !== null && rawCurrentEmployees >= 0 ? rawCurrentEmployees : null;
+  const fields: Array<[string, number | null]> = [
+    ["currentEmployees", currentEmployees],
+    ["totalAssetMostRecentFiscalYear", numScalar(disclosures.totalAssetMostRecentFiscalYear)],
+    ["totalAssetPriorFiscalYear", numScalar(disclosures.totalAssetPriorFiscalYear)],
+    ["cashEquiMostRecentFiscalYear", numScalar(disclosures.cashEquiMostRecentFiscalYear)],
+    ["cashEquiPriorFiscalYear", numScalar(disclosures.cashEquiPriorFiscalYear)],
+    ["actReceivedMostRecentFiscalYear", numScalar(disclosures.actReceivedMostRecentFiscalYear)],
+    ["actReceivedPriorFiscalYear", numScalar(disclosures.actReceivedPriorFiscalYear)],
+    ["shortTermDebtMostRecentFiscalYear", numScalar(disclosures.shortTermDebtMostRecentFiscalYear)],
+    ["shortTermDebtPriorFiscalYear", numScalar(disclosures.shortTermDebtPriorFiscalYear)],
+    ["longTermDebtMostRecentFiscalYear", numScalar(disclosures.longTermDebtMostRecentFiscalYear)],
+    ["longTermDebtPriorFiscalYear", numScalar(disclosures.longTermDebtPriorFiscalYear)],
+    ["revenueMostRecentFiscalYear", numScalar(disclosures.revenueMostRecentFiscalYear)],
+    ["revenuePriorFiscalYear", numScalar(disclosures.revenuePriorFiscalYear)],
+    ["costGoodsSoldMostRecentFiscalYear", numScalar(disclosures.costGoodsSoldMostRecentFiscalYear)],
+    ["costGoodsSoldPriorFiscalYear", numScalar(disclosures.costGoodsSoldPriorFiscalYear)],
+    ["taxPaidMostRecentFiscalYear", numScalar(disclosures.taxPaidMostRecentFiscalYear)],
+    ["taxPaidPriorFiscalYear", numScalar(disclosures.taxPaidPriorFiscalYear)],
+    ["netIncomeMostRecentFiscalYear", numScalar(disclosures.netIncomeMostRecentFiscalYear)],
+    ["netIncomePriorFiscalYear", numScalar(disclosures.netIncomePriorFiscalYear)],
   ];
 
   for (const [name, value] of fields) {
-    if (value === undefined) continue;
+    if (value === null) continue;
     const report: CrowdfundingReports = {
       cik,
       file_number,
@@ -323,7 +337,9 @@ export async function processFormC({
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
 
-  const extractor_version = "1.0.0";
+  // 1.1.0: numScalar() treats whitespace-only/empty numeric elements as null
+  // instead of fabricating 0 via Value.Convert. Bumped to force re-extract.
+  const extractor_version = "1.1.0";
 
   const personObservationRepo = new PersonObservationRepo();
   const companyObservationRepo = new CompanyObservationRepo();

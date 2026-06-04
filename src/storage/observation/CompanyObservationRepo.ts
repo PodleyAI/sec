@@ -51,9 +51,12 @@ interface CompanyObservationRepoOptions {
 /**
  * Manages CompanyObservation rows. Natural-key upsert is idempotent on
  * `(accession_number, extractor_id, observation_index)`; the synthetic
- * `observation_id` is assigned by `storage.size() + 1` on insert and
- * preserved on collision. `extractor_version` is recorded but not part of
- * the natural key — re-extraction at a new version overwrites in place.
+ * `observation_id` is assigned by the underlying storage backend (via the
+ * `x-auto-generated: true` schema annotation — INTEGER PRIMARY KEY
+ * AUTOINCREMENT on SQLite, SERIAL on Postgres, in-memory counter for
+ * tests) and preserved on collision. `extractor_version` is recorded but
+ * not part of the natural key — re-extraction at a new version overwrites
+ * in place.
  */
 export class CompanyObservationRepo {
   private repo: CompanyObservationRepositoryStorage;
@@ -80,13 +83,12 @@ export class CompanyObservationRepo {
       await this.repo.put(merged);
       return merged;
     }
-    const next_id = (await this.repo.size()) + 1;
-    const row: CompanyObservation = {
-      observation_id: next_id,
-      ...this.applyNullDefaults(draft),
-    };
-    await this.repo.put(row);
-    return row;
+    // See PersonObservationRepo for the rationale on dropping the
+    // process-wide mutex: the backend's auto-generated PK closes the
+    // TOCTOU race on its own.
+    return await this.repo.put(
+      this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
+    );
   }
 
   async getByNaturalKey(

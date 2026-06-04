@@ -33,8 +33,11 @@ export const YES_NO_TYPE = Type.Union([Type.Literal("Y"), Type.Literal("N")]);
 const CCC_TYPE = Type.String({ minLength: 8, maxLength: 8 });
 const FILE_NUMBER_TYPE = Type.String({ minLength: 1, maxLength: 17 });
 const FILE_NUMBER_TYPE_2 = Type.String({ minLength: 1, maxLength: 17 });
-const DECIMAL_TYPE13_2 = Type.Number();
-const DECIMAL_TYPE13_4 = Type.Number();
+// Decimal leaves arrive as XML text. See Form_1_A.schema.ts for the
+// rationale — Type.String() routes through numScalar() in storage so
+// "" / whitespace become null instead of fabricated 0.
+const DECIMAL_TYPE13_2 = Type.String();
+const DECIMAL_TYPE13_4 = Type.String();
 const INTEGER_NONNEGATIVE_13 = Type.Integer({ minimum: 0, maximum: 9999999999999 });
 const INTEGER_TYPE_4 = Type.Integer({ minimum: 1, maximum: 9999 });
 const IRS_NUMBER_TYPE = Type.String({ pattern: "^\\d{2}-\\d{7}$" });

@@ -234,5 +234,127 @@ describe("Form_1_A storage test", () => {
       const allPhones = (await phoneRepo.phoneRepository.getAll()) || [];
       expect(allPhones.length).toBeGreaterThan(0);
     });
+
+    // Plan H regression guard: whitespace / empty numeric leaves must be
+    // persisted as null (effectively dropped) rather than fabricated 0,
+    // while a legitimate "0" must round-trip.
+
+    it("treats whitespace-only numeric fields as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+
+      const form1A = await Form_1_A.parse("1-A", xmlContent);
+      // Mutate the parsed object so a known leaf is whitespace-only.
+      // The schema is now Type.String() so any string is structurally
+      // valid; numScalar() in storage is the gate.
+      (form1A.formData.issuerInfo as Record<string, unknown>).cashEquivalents = "   ";
+      (form1A.formData.summaryInfo as Record<string, unknown>).pricePerSecurity = "   ";
+
+      const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+      const fileNumber = "024-00099";
+      const accessionNumber = "test-h-ws";
+
+      await processForm1A({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+        filing_date: "2024-03-15",
+        primary_doc: xmlFiles[0],
+        form1A,
+      });
+
+      const financialData = await regARepo.getFinancialDataByFiling(
+        cik,
+        fileNumber,
+        accessionNumber
+      );
+      // cashEquivalents was whitespace — must NOT show up at all (the
+      // pre-fix bug would have written field_value: 0).
+      expect(financialData.find((d) => d.field_name === "cashEquivalents")).toBeUndefined();
+
+      // pricePerSecurity flows into RegAOfferingHistory.price_per_security.
+      const history = await regARepo.offeringHistoryRepository.get({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+      });
+      expect(history?.price_per_security).toBe(null);
+    });
+
+    it("treats empty numeric fields as null (not fabricated 0)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+
+      const form1A = await Form_1_A.parse("1-A", xmlContent);
+      (form1A.formData.issuerInfo as Record<string, unknown>).cashEquivalents = "";
+      (form1A.formData.summaryInfo as Record<string, unknown>).pricePerSecurity = "";
+
+      const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+      const fileNumber = "024-00098";
+      const accessionNumber = "test-h-empty";
+
+      await processForm1A({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+        filing_date: "2024-03-15",
+        primary_doc: xmlFiles[0],
+        form1A,
+      });
+
+      const financialData = await regARepo.getFinancialDataByFiling(
+        cik,
+        fileNumber,
+        accessionNumber
+      );
+      expect(financialData.find((d) => d.field_name === "cashEquivalents")).toBeUndefined();
+
+      const history = await regARepo.offeringHistoryRepository.get({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+      });
+      expect(history?.price_per_security).toBe(null);
+    });
+
+    it("preserves a legitimate '0' as DB value 0 (regression guard)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+
+      const form1A = await Form_1_A.parse("1-A", xmlContent);
+      (form1A.formData.issuerInfo as Record<string, unknown>).cashEquivalents = "0";
+      (form1A.formData.summaryInfo as Record<string, unknown>).pricePerSecurity = "0";
+
+      const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+      const fileNumber = "024-00097";
+      const accessionNumber = "test-h-zero";
+
+      await processForm1A({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+        filing_date: "2024-03-15",
+        primary_doc: xmlFiles[0],
+        form1A,
+      });
+
+      const financialData = await regARepo.getFinancialDataByFiling(
+        cik,
+        fileNumber,
+        accessionNumber
+      );
+      const cashRow = financialData.find((d) => d.field_name === "cashEquivalents");
+      expect(cashRow?.field_value).toBe(0);
+
+      const history = await regARepo.offeringHistoryRepository.get({
+        cik,
+        file_number: fileNumber,
+        accession_number: accessionNumber,
+      });
+      expect(history?.price_per_security).toBe(0);
+    });
   });
 });
