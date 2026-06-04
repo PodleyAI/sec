@@ -167,11 +167,19 @@ import {
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
   CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+  CanonicalSponsorFamilyAliasSchema,
+  CanonicalSponsorFamilyAliasPrimaryKeyNames,
 } from "../storage/canonical/CanonicalAliasSchemas";
+import {
+  CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
+  CanonicalSponsorFamilyPrimaryKeyNames,
+  CanonicalSponsorFamilySchema,
+} from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
@@ -615,5 +623,21 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(CanonicalCompanyAliasSchema, CanonicalCompanyAliasPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      CanonicalSponsorFamilySchema,
+      CanonicalSponsorFamilyPrimaryKeyNames,
+      [["resolver_version"], ["normalized_name"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      CanonicalSponsorFamilyAliasSchema,
+      CanonicalSponsorFamilyAliasPrimaryKeyNames,
+      [["target_canonical_id"]]
+    )
   );
 }

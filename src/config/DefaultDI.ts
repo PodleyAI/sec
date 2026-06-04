@@ -169,11 +169,19 @@ import {
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
   CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+  CanonicalSponsorFamilyAliasSchema,
+  CanonicalSponsorFamilyAliasPrimaryKeyNames,
 } from "../storage/canonical/CanonicalAliasSchemas";
+import {
+  CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
+  CanonicalSponsorFamilyPrimaryKeyNames,
+  CanonicalSponsorFamilySchema,
+} from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
@@ -710,6 +718,24 @@ export const DefaultDI = () => {
       CanonicalCompanyAliasSchema,
       CanonicalCompanyAliasPrimaryKeyNames,
       []
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_sponsor_family",
+      CanonicalSponsorFamilySchema,
+      CanonicalSponsorFamilyPrimaryKeyNames,
+      [["resolver_version"], ["normalized_name"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_sponsor_family_alias",
+      CanonicalSponsorFamilyAliasSchema,
+      CanonicalSponsorFamilyAliasPrimaryKeyNames,
+      [["target_canonical_id"]]
     )
   );
 };
