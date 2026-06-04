@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const EXTRACTOR_IDS = ["D", "C", "1-A", "1-K", "1-Z", "3", "4", "5", "144"] as const;
+export const EXTRACTOR_IDS = ["D", "C", "1-A", "1-K", "1-Z", "3", "4", "5", "144", "S-1"] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
 /**
@@ -42,6 +42,9 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "5/A": "5",
   "144": "144",
   "144/A": "144",
+  "S-1": "S-1",
+  "S-1/A": "S-1",
+  "S-1MEF": "S-1",
 };
 
 export function formToExtractorId(form: string): ExtractorId | undefined {
