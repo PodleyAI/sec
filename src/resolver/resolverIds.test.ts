@@ -8,7 +8,7 @@ import { describe, expect, it } from "bun:test";
 import { RESOLVER_IDS } from "./resolverIds";
 
 describe("resolverIds", () => {
-  it("contains person and company", () => {
-    expect(RESOLVER_IDS).toEqual(["person", "company"]);
+  it("contains person, company, and sponsor-family", () => {
+    expect(RESOLVER_IDS).toEqual(["person", "company", "sponsor-family"]);
   });
 });
