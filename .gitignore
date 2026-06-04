@@ -16,3 +16,6 @@ sec-db/
 
 # Local worktrees for subagent-driven development
 .worktrees/
+
+# Downloaded S-1 fixture cache (use `sec fetch s1-fixtures`); only the curated set under mock_data/s1/*.htm is committed
+src/sec/html/mock_data/s1/.cache/

@@ -41,6 +41,36 @@ sec version drop-previous resolver company
 sec version drop-previous extractor <extractor-id>
 ```
 
+### S-1 extraction
+
+S-1 prospectuses are narrative HTML (not structured XML), so the `S-1` extractor
+parses the SGML header deterministically and uses AI structured generation to
+extract management, beneficial-ownership, and related-party entities/figures.
+
+```bash
+# Fetch + AI-extract S-1 management / beneficial-ownership / related-party data
+sec fetch form <cik> S-1
+
+# Dead-letter worklist (version-fixable extraction failures, per filing+section)
+sec extractor dead-letters S-1             # list pending entries
+sec extractor dead-letters S-1 --eligible  # count entries eligible for retry
+sec extractor retry-dead-letters S-1       # re-run filings eligible under the current version
+```
+
+`sec version promote extractor S-1` announces how many dead-letter entries became
+eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-4-6`)
+and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
+
+A curated sample of real S-1 prospectus HTML (incl. ≥3 SPACs, SIC 6770) is
+committed under `src/sec/html/mock_data/s1/` (see its `SOURCES.md`) and exercised
+by `parseEdgarHtml.golden.test.ts`. To refresh / grow the sample on demand into a
+gitignored cache:
+
+```bash
+sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/s1/.cache/
+sec fetch s1-fixtures -c 20 --min-spac 5
+```
+
 ## Architecture
 
 ### Layered Structure

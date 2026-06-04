@@ -15,6 +15,12 @@ import {
   parseFormCodes,
   parseQuarterStrings,
 } from "../../task/fixtures/fetchFixtures";
+import {
+  DEFAULT_MIN_SPAC,
+  DEFAULT_S1_SAMPLE_COUNT,
+  fetchS1Fixtures,
+} from "../../task/fixtures/fetchS1Fixtures";
+import { edgarS1Deps } from "../../task/fixtures/s1FixtureSource";
 import { FetchAndStoreFormsTask } from "../../task/forms/FetchAndStoreFormsTask";
 import { ProcessAccessionDocFormTask } from "../../task/forms/ProcessAccessionDocFormTask";
 import { FetchSubmissionsTask } from "../../task/submissions/FetchSubmissionsTask";
@@ -190,4 +196,32 @@ export function addFetchCommands(program: Command): void {
         });
       }
     );
+
+  fetch
+    .command("s1-fixtures")
+    .description(
+      "Download a random sample of real S-1 prospectus HTML (>= 3 SPACs) into the gitignored mock_data/s1/.cache for converter testing"
+    )
+    .option(
+      "-c, --count <n>",
+      `Number of filings to sample (default ${DEFAULT_S1_SAMPLE_COUNT})`,
+      (v) => Number(v)
+    )
+    .option(
+      "--min-spac <n>",
+      `Minimum SPAC (SIC 6770) filings to include (default ${DEFAULT_MIN_SPAC})`,
+      (v) => Number(v)
+    )
+    .action(async (options: { count?: number; minSpac?: number }) => {
+      await runCommand(async () => {
+        const result = await fetchS1Fixtures({
+          count: options.count,
+          minSpac: options.minSpac,
+          deps: edgarS1Deps((msg) => console.log(msg)),
+        });
+        console.log(
+          `Done. downloaded=${result.downloaded} skipped=${result.skipped} spacs=${result.spacs}`
+        );
+      });
+    });
 }
