@@ -736,7 +736,7 @@ export const DefaultDI = () => {
       "canonical_sponsor_family",
       CanonicalSponsorFamilySchema,
       CanonicalSponsorFamilyPrimaryKeyNames,
-      [["resolver_version"], ["normalized_name"]]
+      [["resolver_version", "normalized_name"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -754,7 +754,7 @@ export const DefaultDI = () => {
       "sponsor_family_membership",
       SponsorFamilyMembershipSchema,
       SponsorFamilyMembershipPrimaryKeyNames,
-      [["resolver_version"], ["canonical_sponsor_family_id"]]
+      [["resolver_version", "canonical_sponsor_family_id"]]
     )
   );
   globalServiceRegistry.registerInstance(

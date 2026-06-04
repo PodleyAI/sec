@@ -423,12 +423,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             source_run_id: null,
           });
         } else {
+          let wrote = 0;
           for (const r of rows) {
+            // A row whose legal or common name is blank (degenerate model output)
+            // is skipped rather than allowed to throw inside the resolver and abort
+            // every other valid sponsor in this filing.
+            const legalName = r.legal_name?.trim() ?? "";
+            const commonName = r.common_name?.trim() ?? "";
+            if (legalName === "" || commonName === "") continue;
             const observation_index = idx++;
             const { observation_id, canonical_company_id } = await observer.observeCompany({
               ...base,
               observation_index,
-              name: r.legal_name,
+              name: legalName,
               source_context: JSON.stringify({ relation: "s1:spac-sponsor" }),
             });
             await provenance.save({
@@ -441,7 +448,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
               prompt_version: extractor_version,
               extra: null,
             });
-            const sponsor_family_id = await sponsorFamilyResolver.resolve(r.common_name);
+            const sponsor_family_id = await sponsorFamilyResolver.resolve(commonName);
             await membershipRepo.record({
               resolver_version: activeSponsorFamilyVersion,
               canonical_company_id,
@@ -457,8 +464,21 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
               sponsor_family_id,
               resolver_version: activeSponsorFamilyVersion,
             });
+            wrote++;
           }
-          await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-sponsors");
+          if (wrote === 0) {
+            await deadLetters.record({
+              extractor_id: EXTRACTOR_ID,
+              accession_number,
+              section_name: "spac-sponsors",
+              reason_code: "MODEL_INVALID_OUTPUT",
+              detail: "no sponsor rows had usable legal and common names",
+              failed_extractor_version: extractor_version,
+              source_run_id: null,
+            });
+          } else {
+            await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-sponsors");
+          }
         }
       } catch (e) {
         await deadLetters.record({
@@ -466,7 +486,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           accession_number,
           section_name: "spac-sponsors",
           reason_code: "MODEL_INVALID_OUTPUT",
-          detail: (e as Error).message.slice(0, 1024),
+          detail: (e instanceof Error ? e.message : String(e)).slice(0, 1024),
           failed_extractor_version: extractor_version,
           source_run_id: null,
         });

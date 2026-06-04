@@ -86,7 +86,12 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
   const header = parseSecHeader(txt);
   const docs = parseDocuments(txt);
   if (docs.length === 0) {
-    return { header, html: txt };
+    // No <DOCUMENT> envelope: treat the input as a bare body. If a SEC-HEADER is
+    // present (a malformed/truncated submission missing its document blocks), drop
+    // it so the header lines aren't fed to the HTML converter as body text.
+    const end = txt.indexOf("</SEC-HEADER>");
+    const html = end !== -1 ? txt.slice(end + "</SEC-HEADER>".length) : txt;
+    return { header, html };
   }
   const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
   const bySeq = docs.find((d) => d.sequence === 1);

@@ -142,4 +142,22 @@ describe("SPAC sponsor end-to-end", () => {
     const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
     expect(families.length).toBe(0);
   });
+
+  it("skips a blank-named sponsor row without dropping the valid ones", async () => {
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      {
+        sponsors: [
+          { legal_name: "", common_name: "", confidence: 0.9, source_span: "x" }, // degenerate
+          { legal_name: "Acme Sponsor, LLC", common_name: "Acme Sponsor", confidence: 0.9, source_span: "Acme Sponsor, LLC" },
+        ],
+      },
+    ]));
+    await processFormS1(runArgs(444, "0000000000-26-000501", 6770));
+
+    const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.length).toBe(1); // the valid sponsor still resolved a family
+    const famId = families[0].canonical_sponsor_family_id;
+    expect(await new SpacSponsorLinkRepo().listIssuerCiksForFamily(famId)).toEqual([444]);
+  });
 });
