@@ -1,0 +1,81 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, expect, it } from "bun:test";
+import { parseRegistrationSubmission, parseSecHeader } from "./parseSubmission";
+
+const TXT = [
+  "<SEC-HEADER>0001193125-21-066104.hdr.sgml : 20210302",
+  "ACCESSION NUMBER:		0001193125-21-066104",
+  "CONFORMED SUBMISSION TYPE:	S-1",
+  "FILED AS OF DATE:		20210302",
+  "FILER:",
+  "	COMPANY DATA:	",
+  "		COMPANY CONFORMED NAME:			1.12 Acquisition Corp",
+  "		CENTRAL INDEX KEY:			0001848507",
+  "		STANDARD INDUSTRIAL CLASSIFICATION:	BLANK CHECKS [6770]",
+  "</SEC-HEADER>",
+  "<DOCUMENT>",
+  "<TYPE>S-1",
+  "<SEQUENCE>1",
+  "<FILENAME>d141894ds1.htm",
+  "<DESCRIPTION>FORM S-1",
+  "<TEXT>",
+  "<html><body><h1>MANAGEMENT</h1></body></html>",
+  "</TEXT>",
+  "</DOCUMENT>",
+  "<DOCUMENT>",
+  "<TYPE>EX-23.1",
+  "<SEQUENCE>2",
+  "<FILENAME>consent.htm",
+  "<TEXT>",
+  "<html><body>exhibit</body></html>",
+  "</TEXT>",
+  "</DOCUMENT>",
+].join("\n");
+
+describe("parseSecHeader", () => {
+  it("extracts sic, description, cik, name, and filing date", () => {
+    const h = parseSecHeader(TXT);
+    expect(h.sic).toBe(6770);
+    expect(h.sicDescription).toBe("BLANK CHECKS");
+    expect(h.cik).toBe(1848507);
+    expect(h.companyName).toBe("1.12 Acquisition Corp");
+    expect(h.filingDate).toBe("20210302");
+  });
+
+  it("returns all-null when no header is present", () => {
+    const h = parseSecHeader("<DOCUMENT><TYPE>S-1<TEXT><html></html></TEXT></DOCUMENT>");
+    expect(h.sic).toBeNull();
+    expect(h.cik).toBeNull();
+  });
+});
+
+describe("parseRegistrationSubmission", () => {
+  it("selects the primary DOCUMENT body and returns the header", () => {
+    const parsed = parseRegistrationSubmission("S-1", TXT);
+    expect(parsed.header.sic).toBe(6770);
+    expect(parsed.html).toContain("MANAGEMENT");
+    expect(parsed.html).not.toContain("exhibit");
+    expect(parsed.html).not.toContain("<TYPE>");
+  });
+
+  it("falls back to the whole input as body when there is no DOCUMENT envelope", () => {
+    const bare = "<html><body><h1>MANAGEMENT</h1></body></html>";
+    const parsed = parseRegistrationSubmission("S-1", bare);
+    expect(parsed.header.sic).toBeNull();
+    expect(parsed.html).toContain("MANAGEMENT");
+  });
+
+  it("matches the dispatched form TYPE for DRS", () => {
+    const drs = TXT.replace("<TYPE>S-1", "<TYPE>DRS").replace(
+      "CONFORMED SUBMISSION TYPE:	S-1",
+      "CONFORMED SUBMISSION TYPE:	DRS"
+    );
+    const parsed = parseRegistrationSubmission("DRS", drs);
+    expect(parsed.html).toContain("MANAGEMENT");
+  });
+});
