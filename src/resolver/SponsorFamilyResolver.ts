@@ -17,6 +17,17 @@ interface SponsorFamilyResolverOptions {
 }
 
 /**
+ * The single source of truth for the sponsor-family natural key. Strips
+ * suffixes / collapses whitespace via {@link normalizeCompanyName}, then
+ * upper-cases so matching is case-insensitive. Every caller that looks up a
+ * family by name (resolver, CLI query, alias commands) MUST use this so keys
+ * line up. Returns "" when the name normalizes to nothing.
+ */
+export function normalizeSponsorFamilyName(name: string): string {
+  return normalizeCompanyName(name)?.toUpperCase() ?? "";
+}
+
+/**
  * Resolves a sponsor *common* name to a CanonicalSponsorFamily id: normalize ->
  * find-or-create at the active resolver version -> alias resolve. Name-only
  * analogue of CompanyResolver's normalized-name fallback.
@@ -27,7 +38,7 @@ export class SponsorFamilyResolver {
   constructor(private opts: SponsorFamilyResolverOptions) {}
 
   async resolve(commonName: string): Promise<string> {
-    const normalized = normalizeCompanyName(commonName)?.toUpperCase();
+    const normalized = normalizeSponsorFamilyName(commonName);
     if (!normalized) throw new Error("cannot resolve sponsor family: empty common name");
     const key = `${this.opts.activeResolverVersion}|sponsor-family|${normalized}`;
 
