@@ -13,6 +13,7 @@ import { PersonObservationRepo } from "../../../storage/observation/PersonObserv
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML = [
@@ -24,6 +25,8 @@ const HTML = [
   "<p>We pay rent to an entity controlled by our CEO.</p>",
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
+
+const NULL_HEADER = { sic: null, sicDescription: null, cik: null, companyName: null, filingDate: null };
 
 let cleanup: (() => void) | undefined;
 
@@ -98,7 +101,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { html: HTML },
+      formS1: { header: NULL_HEADER, html: HTML },
       model: fakeS1Model(),
     });
 
@@ -150,7 +153,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { html: HTML },
+      formS1: { header: NULL_HEADER, html: HTML },
       model: fakeS1Model(),
     });
 
@@ -174,7 +177,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { html: HTML },
+      formS1: { header: NULL_HEADER, html: HTML },
       model: fakeS1Model(),
     });
     first.unregister();
@@ -204,10 +207,35 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { html: HTML },
+      formS1: { header: NULL_HEADER, html: HTML },
       model: fakeS1Model(),
     });
 
     expect((await deadLetters.get("S-1", acc, "Management"))?.status).toBe("resolved");
+  });
+
+  it("records a sic-unknown, non-SPAC classification for a header-less body", async () => {
+    const ACCESSION = "acc-classification-test";
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      { parties: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "",
+      accession_number: ACCESSION,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML },
+      model: fakeS1Model(),
+    });
+
+    const c = await new S1ClassificationRepo().get("S-1", ACCESSION);
+    expect(c?.is_spac).toBe(false);
+    expect(c?.classifier_source).toBe("sic-unknown");
   });
 });
