@@ -14,9 +14,10 @@ describe("componentRegistry", () => {
     }
   });
 
-  it("registers person and company resolvers", () => {
+  it("registers person, company, and sponsor-family resolvers", () => {
     expect(isRegisteredComponent("resolver", "person")).toBe(true);
     expect(isRegisteredComponent("resolver", "company")).toBe(true);
+    expect(isRegisteredComponent("resolver", "sponsor-family")).toBe(true);
   });
 
   it("rejects unknown ids", () => {
@@ -25,6 +26,6 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    expect(listRegisteredComponents()).toHaveLength(12);
+    expect(listRegisteredComponents()).toHaveLength(13);
   });
 });
