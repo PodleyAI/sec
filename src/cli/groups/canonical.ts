@@ -28,9 +28,10 @@ export async function resolveCanonicalPersonRef(
   input: string,
   repo: CanonicalPersonRepo
 ): Promise<string> {
-  if (UUID_RE.test(input)) return input;
+  const trimmed = input.trim();
+  if (UUID_RE.test(trimmed)) return trimmed;
   const all = await repo.listAll();
-  const lower = input.toLowerCase();
+  const lower = trimmed.toLowerCase();
   const matches = all.filter((r) => {
     const composite = [r.display_first, r.display_last]
       .filter((s): s is string => Boolean(s))
@@ -40,11 +41,11 @@ export async function resolveCanonicalPersonRef(
     return composite === lower || lastOnly === lower;
   });
   if (matches.length === 0) {
-    throw new Error(`no canonical person matches '${input}'`);
+    throw new Error(`no canonical person matches '${trimmed}'`);
   }
   if (matches.length > 1) {
     throw new Error(
-      `multiple canonical persons match '${input}': ${matches
+      `multiple canonical persons match '${trimmed}': ${matches
         .map((m) => m.canonical_person_id)
         .join(", ")}`
     );
@@ -57,16 +58,17 @@ export async function resolveCanonicalCompanyRef(
   input: string,
   repo: CanonicalCompanyRepo
 ): Promise<string> {
-  if (UUID_RE.test(input)) return input;
+  const trimmed = input.trim();
+  if (UUID_RE.test(trimmed)) return trimmed;
   const all = await repo.listAll();
-  const lower = input.toLowerCase();
+  const lower = trimmed.toLowerCase();
   const matches = all.filter((r) => (r.display_name ?? "").toLowerCase() === lower);
   if (matches.length === 0) {
-    throw new Error(`no canonical company matches '${input}'`);
+    throw new Error(`no canonical company matches '${trimmed}'`);
   }
   if (matches.length > 1) {
     throw new Error(
-      `multiple canonical companies match '${input}': ${matches
+      `multiple canonical companies match '${trimmed}': ${matches
         .map((m) => m.canonical_company_id)
         .join(", ")}`
     );

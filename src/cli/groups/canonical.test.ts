@@ -251,6 +251,30 @@ describe("resolveCanonicalPersonRef", () => {
   it("throws when no canonical person matches a bare name", async () => {
     await expect(resolveCanonicalPersonRef("Nobody Here", repo)).rejects.toThrow(/no canonical/);
   });
+
+  it("trims leading/trailing whitespace before UUID and name matching", async () => {
+    const id = "aaaaaaaa-0000-0000-0000-000000000001";
+    await repo.create({
+      canonical_person_id: id,
+      resolver_version: "1.0.0",
+      display_first: "Jane",
+      display_middle: null,
+      display_last: "Doe",
+      display_suffix: null,
+      cik: null,
+      normalized_first: "jane",
+      normalized_middle: null,
+      normalized_last: "doe",
+      normalized_suffix: null,
+      source_filing_issuer_cik: null,
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+    // UUID with surrounding whitespace still detected as UUID.
+    expect(await resolveCanonicalPersonRef(` ${id}\n`, repo)).toBe(id);
+    // Bare name with trailing whitespace still resolves to its UUID.
+    expect(await resolveCanonicalPersonRef("Jane Doe ", repo)).toBe(id);
+    expect(await resolveCanonicalPersonRef(" doe\t", repo)).toBe(id);
+  });
 });
 
 describe("resolveCanonicalCompanyRef", () => {
@@ -316,5 +340,21 @@ describe("resolveCanonicalCompanyRef", () => {
     await expect(resolveCanonicalCompanyRef("Nonexistent Co", repo)).rejects.toThrow(
       /no canonical/
     );
+  });
+
+  it("trims leading/trailing whitespace before UUID and name matching", async () => {
+    const id = "bbbbbbbb-0000-0000-0000-000000000001";
+    await repo.create({
+      canonical_company_id: id,
+      resolver_version: "1.0.0",
+      display_name: "Acme Holdings LLC",
+      cik: null,
+      crd_number: null,
+      normalized_name: "acme holdings llc",
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+    expect(await resolveCanonicalCompanyRef(` ${id}\n`, repo)).toBe(id);
+    expect(await resolveCanonicalCompanyRef("Acme Holdings LLC ", repo)).toBe(id);
+    expect(await resolveCanonicalCompanyRef(" acme holdings llc\t", repo)).toBe(id);
   });
 });
