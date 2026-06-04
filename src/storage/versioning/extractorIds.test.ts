@@ -111,3 +111,11 @@ describe("extractorIds + ALL_FORMS_MAP invariant", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("extractorIds — DRS dispatch mapping", () => {
+  it("maps DRS and DRS/A to the S-1 extractor and leaves DRSLTR unmapped", () => {
+    expect(formToExtractorId("DRS")).toBe("S-1");
+    expect(formToExtractorId("DRS/A")).toBe("S-1");
+    expect(formToExtractorId("DRSLTR")).toBeUndefined();
+  });
+});
