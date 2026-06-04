@@ -181,14 +181,33 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
   // fetch/Bun.spawn/Bun.which so the body never makes a real network
   // call or runs a real subprocess.
 
-  function setupRawDataFolder(): { folder: string; targetFolder: string; zipPath: string } {
+  function setupRawDataFolder(): {
+    folder: string;
+    targetFolder: string;
+    zipPath: string;
+    restore: () => void;
+  } {
     const folder = mkdtempSync(path.join(tmpdir(), "sec-bootstrap-test-"));
     const targetFolder = "extract-target";
+    // Snapshot the previous binding (if any) so we can restore it on
+    // teardown. ServiceRegistry has no `unregister` API, so the best we
+    // can do is restore-to-previous; this avoids polluting later test
+    // files with a stray tmp folder path that no longer exists on disk.
+    const hadPrevious = globalServiceRegistry.has(SEC_RAW_DATA_FOLDER);
+    const previous = hadPrevious ? globalServiceRegistry.get(SEC_RAW_DATA_FOLDER) : undefined;
     globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, folder);
     return {
       folder,
       targetFolder,
       zipPath: path.join(folder, `${targetFolder}.zip`),
+      restore: () => {
+        if (hadPrevious) {
+          globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, previous as string);
+        }
+        // else: no API to unregister; leave the stale binding in place.
+        // Subsequent test files that need SEC_RAW_DATA_FOLDER must
+        // register their own value, so this is acceptable in practice.
+      },
     };
   }
 
@@ -236,7 +255,7 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
   } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
 
   it("removes the staged zip when Bun.spawn throws synchronously", async () => {
-    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const { folder, targetFolder, zipPath, restore } = setupRawDataFolder();
     const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => {
@@ -251,12 +270,13 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
     } finally {
       restoreBun();
       restoreFetch();
+      restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
   it("removes the staged zip when unzip exits non-zero", async () => {
-    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const { folder, targetFolder, zipPath, restore } = setupRawDataFolder();
     const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => ({ exited: Promise.resolve(1) }),
@@ -269,12 +289,13 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
     } finally {
       restoreBun();
       restoreFetch();
+      restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
   it("removes the staged zip on the success path too", async () => {
-    const { folder, targetFolder, zipPath } = setupRawDataFolder();
+    const { folder, targetFolder, zipPath, restore } = setupRawDataFolder();
     const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => ({ exited: Promise.resolve(0) }),
@@ -293,6 +314,7 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
     } finally {
       restoreBun();
       restoreFetch();
+      restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });

@@ -55,6 +55,7 @@ export async function streamDownloadToFile(
   const writer = Bun.file(destPath).writer();
   let bytes = 0;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let originalError: unknown;
   try {
     reader = response.body.getReader();
     while (true) {
@@ -70,32 +71,45 @@ export async function streamDownloadToFile(
         `Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`
       );
     }
-    return { bytes, totalBytes };
   } catch (err) {
-    // Best-effort cleanup: on any failure (mid-stream abort, size mismatch,
-    // writer error) drop the partial file so a multi-GB stale archive
-    // doesn't sit on disk silently. force: true makes this a no-op when
-    // the file was never created.
+    originalError = err;
+  }
+
+  // Release the reader before closing the writer so the underlying
+  // stream is cancellable if writer.end() awaits a flush.
+  try {
+    reader?.releaseLock();
+  } catch {
+    // swallow
+  }
+
+  // Close the writer FIRST, then unlink. On Windows, rmSync cannot
+  // delete a file whose handle is still open. On every platform, a
+  // writer.end() failure (disk full, permission error) must surface as
+  // the operation failure on the success path — silently swallowing it
+  // would let us return success with a corrupt / half-flushed file.
+  let endError: unknown;
+  try {
+    await writer.end();
+  } catch (e) {
+    endError = e;
+  }
+
+  // Best-effort cleanup on any failure path (mid-stream abort, size
+  // mismatch, writer error, end-flush error) — drop the partial file so
+  // a multi-GB stale archive doesn't sit on disk silently. force: true
+  // makes this a no-op when the file was never created.
+  if (originalError !== undefined || endError !== undefined) {
     try {
       rmSync(destPath, { force: true });
     } catch {
       // swallow — the original error matters more
     }
-    throw err;
-  } finally {
-    // Release the reader before closing the writer so the underlying
-    // stream is cancellable if the writer.end() awaits a flush.
-    try {
-      reader?.releaseLock();
-    } catch {
-      // swallow
-    }
-    try {
-      await writer.end();
-    } catch {
-      // swallow — already cleaned up the destination on the catch path
-    }
   }
+
+  if (originalError !== undefined) throw originalError;
+  if (endError !== undefined) throw endError;
+  return { bytes, totalBytes };
 }
 
 export type BootstrapDownloadTaskOutput = {

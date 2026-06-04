@@ -388,5 +388,44 @@ describe("Form_C storage test", () => {
         expect(totalAsset?.disclosure_value).toBe(0);
       }
     });
+
+    // Regression guard: `currentEmployees` is schema-typed
+    // DECIMAL_TYPE7_2_NONNEGATIVE. The string-decimal migration moved
+    // the parse-time `minimum: 0` invariant into storage. A malformed
+    // feed with a negative value must not produce a disclosure row
+    // (the negative count would silently surface in reports).
+    it("rejects negative currentEmployees as null (not stored)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+
+      const disclosures = formC.formData.annualReportDisclosureRequirements as
+        | Record<string, unknown>
+        | undefined;
+      expect(disclosures).toBeDefined();
+      if (!disclosures) return;
+      disclosures.currentEmployees = "-1";
+
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-h-neg-ce";
+      const filingDate = "2024-01-18";
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-h-neg-ce",
+        filing_date: filingDate,
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const reports = (await crowdfundingRepo.getCrowdfundingReportsByCik(cik)).filter(
+        (r) => r.file_number === fileNumber
+      );
+      // The negative value must be dropped rather than stored as -1.
+      expect(
+        reports.find((r) => r.disclosure_name === "currentEmployees")
+      ).toBeUndefined();
+    });
   });
 });

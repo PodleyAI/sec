@@ -265,8 +265,18 @@ async function processAnnualReportDisclosures(
   // numScalar drops empty / whitespace strings so we don't persist a
   // fabricated 0 disclosure_value (used to surface in reports as if the
   // issuer reported $0).
+  //
+  // `currentEmployees` is the only field schema-typed as
+  // DECIMAL_TYPE7_2_NONNEGATIVE; before the string-decimal migration,
+  // TypeBox enforced `minimum: 0` at parse time. Now that the leaf is a
+  // string routed through numScalar(), we enforce the non-negative
+  // invariant here so a malformed feed (e.g. -1) can't reach disclosure
+  // storage as a negative count.
+  const rawCurrentEmployees = numScalar(disclosures.currentEmployees);
+  const currentEmployees =
+    rawCurrentEmployees !== null && rawCurrentEmployees >= 0 ? rawCurrentEmployees : null;
   const fields: Array<[string, number | null]> = [
-    ["currentEmployees", numScalar(disclosures.currentEmployees)],
+    ["currentEmployees", currentEmployees],
     ["totalAssetMostRecentFiscalYear", numScalar(disclosures.totalAssetMostRecentFiscalYear)],
     ["totalAssetPriorFiscalYear", numScalar(disclosures.totalAssetPriorFiscalYear)],
     ["cashEquiMostRecentFiscalYear", numScalar(disclosures.cashEquiMostRecentFiscalYear)],

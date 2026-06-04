@@ -352,7 +352,13 @@ describe("Form_1_Z parsing test", () => {
         expect(form1Z.formData.signatureTab.length).toBeGreaterThan(0);
 
         form1Z.formData.signatureTab.forEach((signature) => {
-          expect(signature.cik).toBe(signature.cik);
+          // CIK is a required `Type.String({ pattern: "^[0-9]+$", minLength: 1, maxLength: 10 })`
+          // on the signature record. Assert the actual schema shape rather
+          // than the previous self-comparison (which always passed).
+          expect(typeof signature.cik).toBe("string");
+          expect(signature.cik.length).toBeGreaterThan(0);
+          expect(signature.cik.length).toBeLessThanOrEqual(10);
+          expect(signature.cik).toMatch(/^[0-9]+$/);
           expect(signature.regulationIssuerName1).toBeTruthy();
           expect(signature.regulationIssuerName2).toBeTruthy();
           expect(signature.signatureBy).toBeTruthy();
