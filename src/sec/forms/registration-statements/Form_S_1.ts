@@ -5,22 +5,16 @@
  */
 
 import { Form } from "../Form";
+import { parseRegistrationSubmission, type FormS1Parsed } from "./s1/parseSubmission";
 
-export interface FormS1Parsed {
-  readonly html: string;
-}
+export type { FormS1Parsed, FormS1Header } from "./s1/parseSubmission";
 
 export class Form_S_1 extends Form {
   static readonly name = "Registration Statement (S-1)";
   static readonly description = "Initial registration statement for new securities.";
   static readonly forms = ["S-1", "S-1/A", "S-1MEF"] as const;
 
-  /**
-   * S-1 bodies are narrative HTML, not structured XML, so there is nothing to
-   * coerce here — the real extraction happens in processFormS1(). We return the
-   * raw HTML so the downstream pipeline can normalize and segment it.
-   */
-  static override async parse(_form: string, html: string): Promise<FormS1Parsed> {
-    return { html };
+  static override async parse(form: string, txt: string): Promise<FormS1Parsed> {
+    return parseRegistrationSubmission(form, txt);
   }
 }

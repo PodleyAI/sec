@@ -61,17 +61,20 @@ describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
   });
 
   it("records PRIMARY_DOC_UNRESOLVED and a failed run when no primary doc exists", async () => {
-    await seedFiling("S-1", null);
+    // Use a non-registration form (D) for PRIMARY_DOC_UNRESOLVED — registration
+    // prospectus forms (S-1 / DRS family) always derive the filename from the
+    // accession number and never trigger this path.
+    await seedFiling("D", null);
 
     const result = await new ProcessAccessionDocFormTask().run({ accessionNumber: ACCESSION });
     expect((result as { success: boolean }).success).toBe(false);
 
-    const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
+    const dl = await new ExtractionDeadLetterRepo().get("D", ACCESSION, "");
     expect(dl?.reason_code).toBe("PRIMARY_DOC_UNRESOLVED");
     expect(dl?.status).toBe("pending");
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-    const run = await runRepo.findRun(CIK, ACCESSION, "S-1", "1.0.0");
+    const run = await runRepo.findRun(CIK, ACCESSION, "D", "1.0.0");
     expect(run?.success).toBe(false);
   });
 
