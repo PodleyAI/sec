@@ -1,0 +1,140 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { DataPortSchema } from "workglow";
+
+const NULLABLE_STRING = { type: ["string", "null"] } as const;
+const NULLABLE_NUMBER = { type: ["number", "null"] } as const;
+
+/** Common provenance fields every extracted row carries. */
+const CONFIDENCE = { type: "number", minimum: 0, maximum: 1 } as const;
+const SOURCE_SPAN = { type: "string" } as const;
+
+export const ManagementOutputSchema = {
+  type: "object",
+  properties: {
+    people: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          full_name: { type: "string" },
+          title: NULLABLE_STRING,
+          relationship: NULLABLE_STRING,
+          confidence: CONFIDENCE,
+          source_span: SOURCE_SPAN,
+        },
+        required: ["full_name", "confidence", "source_span"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["people"],
+  additionalProperties: false,
+} as const satisfies DataPortSchema;
+
+export const BeneficialOwnershipOutputSchema = {
+  type: "object",
+  properties: {
+    owners: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          owner_kind: { type: "string", enum: ["person", "company"] },
+          security_class: NULLABLE_STRING,
+          shares_owned: NULLABLE_NUMBER,
+          percent_owned: NULLABLE_NUMBER,
+          shares_offered: NULLABLE_NUMBER,
+          shares_after: NULLABLE_NUMBER,
+          percent_after: NULLABLE_NUMBER,
+          is_selling_stockholder: { type: "boolean" },
+          footnote: NULLABLE_STRING,
+          confidence: CONFIDENCE,
+          source_span: SOURCE_SPAN,
+        },
+        required: ["name", "owner_kind", "is_selling_stockholder", "confidence", "source_span"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["owners"],
+  additionalProperties: false,
+} as const satisfies DataPortSchema;
+
+export const RelatedPartyOutputSchema = {
+  type: "object",
+  properties: {
+    parties: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          party_kind: { type: "string", enum: ["person", "company"] },
+          confidence: CONFIDENCE,
+          source_span: SOURCE_SPAN,
+          transactions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                counterparty: NULLABLE_STRING,
+                nature: NULLABLE_STRING,
+                amount: NULLABLE_NUMBER,
+                period: NULLABLE_STRING,
+                footnote: NULLABLE_STRING,
+              },
+              required: [],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["name", "party_kind", "confidence", "source_span", "transactions"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["parties"],
+  additionalProperties: false,
+} as const satisfies DataPortSchema;
+
+// Row types inferred for use by extractors / mapper.
+export interface ManagementPersonRow {
+  full_name: string;
+  title: string | null;
+  relationship: string | null;
+  confidence: number;
+  source_span: string;
+}
+export interface BeneficialOwnerRow {
+  name: string;
+  owner_kind: "person" | "company";
+  security_class: string | null;
+  shares_owned: number | null;
+  percent_owned: number | null;
+  shares_offered: number | null;
+  shares_after: number | null;
+  percent_after: number | null;
+  is_selling_stockholder: boolean;
+  footnote: string | null;
+  confidence: number;
+  source_span: string;
+}
+export interface RelatedPartyRow {
+  name: string;
+  party_kind: "person" | "company";
+  confidence: number;
+  source_span: string;
+  transactions: ReadonlyArray<{
+    counterparty: string | null;
+    nature: string | null;
+    amount: number | null;
+    period: string | null;
+    footnote: string | null;
+  }>;
+}

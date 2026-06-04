@@ -1,0 +1,32 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { ModelConfig } from "workglow";
+import { getGlobalModelRepository } from "workglow";
+
+const DEFAULT_S1_MODEL = "claude-sonnet-4-6";
+
+/** The model id used for S-1 extraction; overridable via SEC_S1_MODEL. */
+export function getS1ModelId(): string {
+  const id = (process.env.SEC_S1_MODEL ?? "").trim();
+  return id === "" ? DEFAULT_S1_MODEL : id;
+}
+
+/**
+ * Resolves the configured S-1 model into a ModelConfig from the global model
+ * repository. Throws a clear error if the id isn't registered, so an operator
+ * knows to register the model before running extraction.
+ */
+export async function getS1Model(): Promise<ModelConfig> {
+  const id = getS1ModelId();
+  const record = await getGlobalModelRepository().findByName(id);
+  if (!record) {
+    throw new Error(
+      `S-1 model '${id}' is not registered. Register it or set SEC_S1_MODEL to a known model id.`
+    );
+  }
+  return record as ModelConfig;
+}
