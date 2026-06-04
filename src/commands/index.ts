@@ -17,6 +17,7 @@ import { addUpdateCommands } from "../cli/groups/update";
 import { addVersionCommands } from "../cli/groups/version";
 import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
+import { addExtractorCommands } from "../cli/groups/extractor";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { SEC_DRY_RUN } from "../config/tokens";
@@ -65,4 +66,5 @@ export const AddCommands = (program: Command): void => {
   addVersionCommands(program);
   addResolveCommands(program);
   addCanonicalCommands(program);
+  addExtractorCommands(program);
 };
