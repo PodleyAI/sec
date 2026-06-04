@@ -123,4 +123,23 @@ describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
     const run = await runRepo.findRun(CIK, ACCESSION, "D", "1.0.0");
     expect(run?.success).toBe(false);
   });
+
+  it("dead-letters a registration form with no primary doc as FETCH_ERROR (not PRIMARY_DOC_UNRESOLVED)", async () => {
+    // Registration prospectus forms always derive the fetch filename from the
+    // accession (<accession>.txt), so a null primary_doc never reaches the
+    // PRIMARY_DOC_UNRESOLVED guard — a failed .txt fetch surfaces as FETCH_ERROR.
+    await seedFiling("S-1", null);
+
+    class ThrowingFetchTask extends ProcessAccessionDocFormTask {
+      protected override async runFetch(): Promise<string> {
+        throw new Error("no full-submission .txt");
+      }
+    }
+
+    const result = await new ThrowingFetchTask().run({ accessionNumber: ACCESSION });
+    expect((result as { success: boolean }).success).toBe(false);
+
+    const dl = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "");
+    expect(dl?.reason_code).toBe("FETCH_ERROR");
+  });
 });

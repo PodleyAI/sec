@@ -639,7 +639,7 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(
       CanonicalSponsorFamilySchema,
       CanonicalSponsorFamilyPrimaryKeyNames,
-      [["resolver_version"], ["normalized_name"]]
+      [["resolver_version", "normalized_name"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -655,7 +655,7 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(
       SponsorFamilyMembershipSchema,
       SponsorFamilyMembershipPrimaryKeyNames,
-      [["resolver_version"], ["canonical_sponsor_family_id"]]
+      [["resolver_version", "canonical_sponsor_family_id"]]
     )
   );
   globalServiceRegistry.registerInstance(

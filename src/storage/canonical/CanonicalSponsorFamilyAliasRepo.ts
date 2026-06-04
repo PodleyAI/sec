@@ -67,6 +67,11 @@ export class CanonicalSponsorFamilyAliasRepo {
     return (await this.repo.getAll()) ?? [];
   }
 
+  /** Aliases that redirect into `target_canonical_id` (indexed lookup). */
+  async listByTarget(target_canonical_id: string): Promise<CanonicalSponsorFamilyAlias[]> {
+    return (await this.repo.query({ target_canonical_id })) ?? [];
+  }
+
   async listOrphans(validIds: Set<string>): Promise<CanonicalSponsorFamilyAlias[]> {
     const all = await this.list();
     return all.filter(

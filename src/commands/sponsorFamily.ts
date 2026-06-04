@@ -28,9 +28,7 @@ export async function spacIssuersByFamilyName(
 
   const aliases = new CanonicalSponsorFamilyAliasRepo();
   const target = await aliases.resolve(family.canonical_sponsor_family_id);
-  const variantIds = (await aliases.list())
-    .filter((a) => a.target_canonical_id === target)
-    .map((a) => a.alias_canonical_id);
+  const variantIds = (await aliases.listByTarget(target)).map((a) => a.alias_canonical_id);
   const familyIds = [target, ...variantIds];
 
   const links = new SpacSponsorLinkRepo();
