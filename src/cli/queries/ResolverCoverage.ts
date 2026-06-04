@@ -22,12 +22,13 @@ export async function computeResolverCoverage(
   kind: ResolverId,
   resolver_version: string
 ): Promise<ResolverCoverageResult> {
+  // Use the storage layer's COUNT path instead of materializing every row.
+  // At Form D + Section 16 scale `listAll()` OOMs.
   if (kind === "person") {
     const obsRepo = new PersonObservationRepo();
     const linkRepo = new PersonIdentityLinkRepo();
-    const denom = (await obsRepo.listAll()).length;
-    const allLinks = await linkRepo.listAll();
-    const num = allLinks.filter((l) => l.resolver_version === resolver_version).length;
+    const denom = await obsRepo.count();
+    const num = await linkRepo.count({ resolver_version });
     return {
       kind,
       resolver_version,
@@ -38,9 +39,8 @@ export async function computeResolverCoverage(
   }
   const obsRepo = new CompanyObservationRepo();
   const linkRepo = new CompanyIdentityLinkRepo();
-  const denom = (await obsRepo.listAll()).length;
-  const allLinks = await linkRepo.listAll();
-  const num = allLinks.filter((l) => l.resolver_version === resolver_version).length;
+  const denom = await obsRepo.count();
+  const num = await linkRepo.count({ resolver_version });
   return {
     kind,
     resolver_version,
