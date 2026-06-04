@@ -219,6 +219,26 @@ import {
   PersonObservationSchema,
 } from "../storage/observation/PersonObservationSchema";
 import {
+  OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
+  ObservationProvenancePrimaryKeyNames,
+  ObservationProvenanceSchema,
+} from "../storage/provenance/ObservationProvenanceSchema";
+import {
+  BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
+  BeneficialOwnershipPrimaryKeyNames,
+  BeneficialOwnershipSchema,
+} from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
+import {
+  RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
+  RelatedPartyTransactionPrimaryKeyNames,
+  RelatedPartyTransactionSchema,
+} from "../storage/related-party/RelatedPartyTransactionSchema";
+import {
+  EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
+  ExtractionDeadLetterPrimaryKeyNames,
+  ExtractionDeadLetterSchema,
+} from "../storage/dead-letter/ExtractionDeadLetterSchema";
+import {
   COMPONENT_VERSION_REPOSITORY_TOKEN,
   ComponentVersionPrimaryKeyNames,
   ComponentVersionSchema,
@@ -553,6 +573,41 @@ export const DefaultDI = () => {
         ["accession_number"],
         ["accession_number", "extractor_id", "observation_index"],
       ]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
+    createStorage(
+      "observation_provenance",
+      ObservationProvenanceSchema,
+      ObservationProvenancePrimaryKeyNames
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
+    createStorage(
+      "beneficial_ownership",
+      BeneficialOwnershipSchema,
+      BeneficialOwnershipPrimaryKeyNames,
+      [["accession_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
+    createStorage(
+      "related_party_transactions",
+      RelatedPartyTransactionSchema,
+      RelatedPartyTransactionPrimaryKeyNames,
+      [["accession_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
+    createStorage(
+      "extraction_dead_letter",
+      ExtractionDeadLetterSchema,
+      ExtractionDeadLetterPrimaryKeyNames,
+      [["extractor_id"], ["status"]]
     )
   );
   globalServiceRegistry.registerInstance(

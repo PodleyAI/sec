@@ -6,11 +6,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
-import {
-  EXTRACTOR_IDS,
-  FORM_TO_EXTRACTOR_ID,
-  formToExtractorId,
-} from "./extractorIds";
+import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID, formToExtractorId } from "./extractorIds";
 
 describe("extractorIds", () => {
   it("exposes the canonical extractor ids", () => {
@@ -24,6 +20,7 @@ describe("extractorIds", () => {
       "5",
       "C",
       "D",
+      "S-1",
     ]);
   });
 
@@ -80,7 +77,6 @@ describe("extractorIds", () => {
 
   it("returns undefined for unknown forms", () => {
     expect(formToExtractorId("10-K")).toBeUndefined();
-    expect(formToExtractorId("S-1")).toBeUndefined();
     expect(formToExtractorId("")).toBeUndefined();
   });
 
@@ -89,6 +85,18 @@ describe("extractorIds", () => {
     expect(seen.has("D/A")).toBe(true);
     expect(seen.has("C-AR/A-W")).toBe(true);
     expect(seen.has("1-Z/A")).toBe(true);
+  });
+});
+
+describe("extractorIds — S-1", () => {
+  it("includes S-1 in the registry", () => {
+    expect(EXTRACTOR_IDS).toContain("S-1");
+  });
+
+  it("maps S-1 form symbols to the S-1 extractor", () => {
+    expect(formToExtractorId("S-1")).toBe("S-1");
+    expect(formToExtractorId("S-1/A")).toBe("S-1");
+    expect(formToExtractorId("S-1MEF")).toBe("S-1");
   });
 });
 
