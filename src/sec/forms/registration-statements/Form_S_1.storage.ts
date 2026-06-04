@@ -27,6 +27,7 @@ import { ObservationProvenanceRepo } from "../../../storage/provenance/Observati
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -122,6 +123,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     observation_index: idx++,
     cik,
     source_context: JSON.stringify({ relation: "s1:issuer" }),
+  });
+
+  // --- Deterministic SPAC classification from the SGML-header SIC ---
+  const headerSic = formS1.header?.sic ?? null;
+  const isSpac = headerSic === 6770;
+  await new S1ClassificationRepo().save({
+    extractor_id: EXTRACTOR_ID,
+    accession_number,
+    cik,
+    sic: headerSic,
+    sic_description: formS1.header?.sicDescription ?? null,
+    is_spac: isSpac,
+    classifier_source: headerSic === null ? "sic-unknown" : "sgml-header",
+    created_at: new Date().toISOString(),
   });
 
   const recordFail = (section: S1SectionName, reason: string, detail: string | null) =>
