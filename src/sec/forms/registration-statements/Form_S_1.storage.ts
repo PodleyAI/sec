@@ -28,6 +28,11 @@ import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/B
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
+import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
+import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
+import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
+import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
+import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -36,6 +41,7 @@ import {
   extractBeneficialOwnership,
   extractManagement,
   extractRelatedParty,
+  extractSpacSponsors,
 } from "./s1/sectionExtractors";
 import { getS1Model } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
@@ -73,14 +79,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const [extractorSlot, personSlot, companySlot] = await Promise.all([
+  const [extractorSlot, personSlot, companySlot, sponsorFamilySlot] = await Promise.all([
     getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
     getActiveSlot(versionRegistry, "resolver", "person"),
     getActiveSlot(versionRegistry, "resolver", "company"),
+    getActiveSlot(versionRegistry, "resolver", "sponsor-family"),
   ]);
   const extractor_version = extractorSlot?.semver ?? "1.0.0";
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+  const activeSponsorFamilyVersion = sponsorFamilySlot?.semver ?? "1.0.0";
 
   const personResolver = new PersonResolver({
     canonicalPersonRepo: new CanonicalPersonRepo(),
@@ -112,8 +120,17 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const relatedRepo = new RelatedPartyTransactionRepo();
   const deadLetters = new ExtractionDeadLetterRepo();
 
+  const sponsorFamilyResolver = new SponsorFamilyResolver({
+    canonicalSponsorFamilyRepo: new CanonicalSponsorFamilyRepo(),
+    canonicalSponsorFamilyAliasRepo: new CanonicalSponsorFamilyAliasRepo(),
+    activeResolverVersion: activeSponsorFamilyVersion,
+  });
+  const membershipRepo = new SponsorFamilyMembershipRepo();
+  const linkRepo = new SpacSponsorLinkRepo();
+
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
+  await linkRepo.clear(accession_number);
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
@@ -368,6 +385,85 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "MODEL_INVALID_OUTPUT",
         (e as Error).message.slice(0, 1024)
       );
+    }
+  }
+
+  // --- SPAC sponsors (gated on deterministic classification) ---
+  if (isSpac) {
+    const sponsorText = [...byName.values()].join("\n\n");
+    if (sponsorText.trim() === "") {
+      await deadLetters.record({
+        extractor_id: EXTRACTOR_ID,
+        accession_number,
+        section_name: "spac-sponsors",
+        reason_code: "SECTION_NOT_FOUND",
+        detail: "no section text available for sponsor extraction",
+        failed_extractor_version: extractor_version,
+        source_run_id: null,
+      });
+    } else {
+      try {
+        const raw = await extractSpacSponsors(sponsorText, model);
+        const rows = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+        if (rows.length === 0) {
+          await deadLetters.record({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            section_name: "spac-sponsors",
+            reason_code: raw.length === 0 ? "MODEL_EMPTY" : "LOW_CONFIDENCE_ALL",
+            detail: raw.length === 0 ? "no sponsors returned" : "all rows below confidence floor",
+            failed_extractor_version: extractor_version,
+            source_run_id: null,
+          });
+        } else {
+          for (const r of rows) {
+            const observation_index = idx++;
+            const { observation_id, canonical_company_id } = await observer.observeCompany({
+              ...base,
+              observation_index,
+              name: r.legal_name,
+              source_context: JSON.stringify({ relation: "s1:spac-sponsor" }),
+            });
+            await provenance.save({
+              kind: "company",
+              observation_id,
+              confidence: r.confidence,
+              source_span: r.source_span,
+              section_name: "spac-sponsors",
+              model_id,
+              prompt_version: extractor_version,
+              extra: null,
+            });
+            const sponsor_family_id = await sponsorFamilyResolver.resolve(r.common_name);
+            await membershipRepo.record({
+              resolver_version: activeSponsorFamilyVersion,
+              canonical_company_id,
+              canonical_sponsor_family_id: sponsor_family_id,
+              seen_at: new Date().toISOString(),
+            });
+            await linkRepo.save({
+              accession_number,
+              extractor_id: EXTRACTOR_ID,
+              observation_index,
+              issuer_cik: cik,
+              sponsor_canonical_company_id: canonical_company_id,
+              sponsor_family_id,
+              resolver_version: activeSponsorFamilyVersion,
+            });
+          }
+          await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-sponsors");
+        }
+      } catch (e) {
+        await deadLetters.record({
+          extractor_id: EXTRACTOR_ID,
+          accession_number,
+          section_name: "spac-sponsors",
+          reason_code: "MODEL_INVALID_OUTPUT",
+          detail: (e as Error).message.slice(0, 1024),
+          failed_extractor_version: extractor_version,
+          source_run_id: null,
+        });
+      }
     }
   }
 }
