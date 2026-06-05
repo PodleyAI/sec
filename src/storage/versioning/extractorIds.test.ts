@@ -119,3 +119,11 @@ describe("extractorIds — DRS dispatch mapping", () => {
     expect(formToExtractorId("DRSLTR")).toBeUndefined();
   });
 });
+
+describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
+  it("maps F-1, F-1/A, and F-1MEF to the S-1 extractor", () => {
+    expect(formToExtractorId("F-1")).toBe("S-1");
+    expect(formToExtractorId("F-1/A")).toBe("S-1");
+    expect(formToExtractorId("F-1MEF")).toBe("S-1");
+  });
+});
