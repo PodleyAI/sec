@@ -34,7 +34,16 @@ import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /** Registration prospectus forms whose body is fetched as the full submission .txt. */
-const REGISTRATION_PROSPECTUS_FORMS = new Set(["S-1", "S-1/A", "S-1MEF", "DRS", "DRS/A"]);
+const REGISTRATION_PROSPECTUS_FORMS = new Set([
+  "S-1",
+  "S-1/A",
+  "S-1MEF",
+  "DRS",
+  "DRS/A",
+  "F-1",
+  "F-1/A",
+  "F-1MEF",
+]);
 
 /** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
 function fullSubmissionFileName(accessionNumber: string): string {
@@ -298,6 +307,9 @@ export class ProcessAccessionDocFormTask extends Task<
         case "S-1MEF":
         case "DRS":
         case "DRS/A":
+        case "F-1":
+        case "F-1/A":
+        case "F-1MEF":
           await processFormS1({ ...storageArgs, form: form!, formS1: parsed });
           break;
         default:
