@@ -145,4 +145,39 @@ describe("CompanyResolver.resolve", () => {
     const result = await resolver.resolve(obs({ cik: 1234, observation_id: 3 }));
     expect(result).toBe("alias-target");
   });
+
+  it("alias resolution is serialised with create", async () => {
+    // Two parallel resolves on the same natural key must converge on the
+    // alias-resolved id even when the alias lookup is slow. With the alias
+    // call inside the mutex, the queued caller waits for the entire
+    // find-or-create + alias step rather than racing it, so concurrent
+    // resolves cannot split between the pre-alias candidate id and the
+    // alias target.
+    //
+    // Stub `aliasRepo.resolve` to always return "B-id" after a 10ms sleep
+    // — the sleep widens the window where, without the fix, the second
+    // caller could overtake the first's alias lookup.
+
+    // Spy on create to confirm exactly one canonical row was minted —
+    // proving the mutex itself still serialised the find-or-create pair.
+    const originalCreate = setup.canonRepo.create.bind(setup.canonRepo);
+    let createCount = 0;
+    setup.canonRepo.create = (async (row: CanonicalCompany) => {
+      createCount += 1;
+      return originalCreate(row);
+    }) as typeof setup.canonRepo.create;
+
+    setup.aliasRepo.resolve = async (_id: string) => {
+      await new Promise((r) => setTimeout(r, 10));
+      return "B-id";
+    };
+
+    const [a, b] = await Promise.all([
+      resolver.resolve(obs({ cik: 4242 })),
+      resolver.resolve(obs({ cik: 4242, observation_id: 2 })),
+    ]);
+    expect(a).toBe("B-id");
+    expect(b).toBe("B-id");
+    expect(createCount).toBe(1);
+  });
 });
