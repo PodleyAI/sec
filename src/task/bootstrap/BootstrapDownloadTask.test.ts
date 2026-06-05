@@ -150,6 +150,95 @@ describe("streamDownloadToFile", () => {
     }
   });
 
+  it("streamDownloadToFile rejects malformed Content-Length", async () => {
+    // Server advertises `123abc` for a 10-byte body. `parseInt` would have
+    // returned 123 and triggered a size-mismatch failure that masks the
+    // root cause; with strict parsing we treat the header as absent and
+    // let the body stream through to completion.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "123abc" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "bad-len.bin");
+      const result = await streamDownloadToFile("https://example/bad-len", dest);
+      expect(result.bytes).toBe(body.length);
+      expect(result.totalBytes).toBeUndefined();
+      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "bad-len.bin"), { force: true });
+    }
+  });
+
+  it("streamDownloadToFile accepts whitespace-padded Content-Length", async () => {
+    // Surrounding whitespace is harmless and must not trip the strict
+    // parser — many proxies normalise headers with stray spaces.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "  10  " },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "padded-len.bin");
+      const result = await streamDownloadToFile("https://example/padded-len", dest);
+      expect(result.bytes).toBe(10);
+      expect(result.totalBytes).toBe(10);
+      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "padded-len.bin"), { force: true });
+    }
+  });
+
+  it("streamDownloadToFile rejects negative Content-Length", async () => {
+    // A negative value is malformed under RFC 9110; we treat it like an
+    // absent header and continue rather than fabricating a mismatch.
+    const body = new TextEncoder().encode("hello");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "-5" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "neg-len.bin");
+      const result = await streamDownloadToFile("https://example/neg-len", dest);
+      expect(result.bytes).toBe(body.length);
+      expect(result.totalBytes).toBeUndefined();
+      expect(readFileSync(dest, "utf-8")).toBe("hello");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "neg-len.bin"), { force: true });
+    }
+  });
+
   it("handles responses with no content-length header", async () => {
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {
