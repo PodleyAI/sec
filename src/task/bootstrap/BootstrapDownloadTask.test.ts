@@ -151,10 +151,9 @@ describe("streamDownloadToFile", () => {
   });
 
   it("streamDownloadToFile rejects malformed Content-Length", async () => {
-    // Server advertises `123abc` for a 10-byte body. `parseInt` would have
-    // returned 123 and triggered a size-mismatch failure that masks the
-    // root cause; with strict parsing we treat the header as absent and
-    // let the body stream through to completion.
+    // Server advertises `123abc`. `parseInt` would have returned 123 and
+    // silently downgraded integrity to a wrong-but-passable check; we
+    // fail closed instead so the caller sees the protocol violation.
     const body = new TextEncoder().encode("0123456789");
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {
@@ -171,10 +170,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "bad-len.bin");
-      const result = await streamDownloadToFile("https://example/bad-len", dest);
-      expect(result.bytes).toBe(body.length);
-      expect(result.totalBytes).toBeUndefined();
-      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+      await expect(
+        streamDownloadToFile("https://example/bad-len", dest)
+      ).rejects.toThrow(/Invalid Content-Length/);
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "bad-len.bin"), { force: true });
@@ -211,8 +209,8 @@ describe("streamDownloadToFile", () => {
   });
 
   it("streamDownloadToFile rejects negative Content-Length", async () => {
-    // A negative value is malformed under RFC 9110; we treat it like an
-    // absent header and continue rather than fabricating a mismatch.
+    // A negative value is malformed under RFC 9110; we fail closed rather
+    // than silently downgrade to no-integrity-check.
     const body = new TextEncoder().encode("hello");
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {
@@ -229,10 +227,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "neg-len.bin");
-      const result = await streamDownloadToFile("https://example/neg-len", dest);
-      expect(result.bytes).toBe(body.length);
-      expect(result.totalBytes).toBeUndefined();
-      expect(readFileSync(dest, "utf-8")).toBe("hello");
+      await expect(
+        streamDownloadToFile("https://example/neg-len", dest)
+      ).rejects.toThrow(/Invalid Content-Length/);
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "neg-len.bin"), { force: true });
