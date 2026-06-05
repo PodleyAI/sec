@@ -48,22 +48,28 @@ export async function streamDownloadToFile(
     throw new Error(`Download returned no body for ${url}`);
   }
 
-  // Strict integer parse: `parseInt` accepts trailing garbage ("123abc" →
-  // 123) which would let a malformed Content-Length defeat the
-  // size-mismatch integrity check below. We require the trimmed header
-  // to be a pure non-negative integer string, otherwise we fall back to
-  // `undefined` (the no-Content-Length path), which still streams to
-  // completion but skips the mismatch assertion. Values above
-  // `MAX_SAFE_INTEGER` (extremely unlikely in practice) are also clamped
-  // to `undefined` because beyond that point arithmetic on
-  // `bytes !== totalBytes` is no longer exact.
+  // Strict integer parse, fail-closed: `parseInt` accepts trailing garbage
+  // ("123abc" → 123) which would let a malformed Content-Length defeat the
+  // size-mismatch integrity check below. When the header is present we
+  // require its trimmed form to be a pure non-negative integer no larger
+  // than `MAX_SAFE_INTEGER` (beyond that point `bytes !== totalBytes` is
+  // no longer exact); otherwise we throw rather than silently treating
+  // the response as having no advertised length. A truly-absent header
+  // (chunked transfer) keeps `totalBytes` undefined and skips the
+  // mismatch assertion as before.
   const len = response.headers.get("content-length");
-  const parsedTotal =
-    len !== null && /^\d+$/.test(len.trim()) ? Number(len.trim()) : undefined;
-  const totalBytes =
-    parsedTotal !== undefined && parsedTotal <= Number.MAX_SAFE_INTEGER
-      ? parsedTotal
-      : undefined;
+  let totalBytes: number | undefined;
+  if (len !== null) {
+    const trimmed = len.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid Content-Length header ${JSON.stringify(len)} for ${url}`);
+    }
+    const parsed = Number(trimmed);
+    if (parsed > Number.MAX_SAFE_INTEGER) {
+      throw new Error(`Content-Length ${trimmed} exceeds MAX_SAFE_INTEGER for ${url}`);
+    }
+    totalBytes = parsed;
+  }
 
   const writer = Bun.file(destPath).writer();
   let bytes = 0;
