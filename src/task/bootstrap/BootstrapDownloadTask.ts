@@ -48,9 +48,22 @@ export async function streamDownloadToFile(
     throw new Error(`Download returned no body for ${url}`);
   }
 
+  // Strict integer parse: `parseInt` accepts trailing garbage ("123abc" →
+  // 123) which would let a malformed Content-Length defeat the
+  // size-mismatch integrity check below. We require the trimmed header
+  // to be a pure non-negative integer string, otherwise we fall back to
+  // `undefined` (the no-Content-Length path), which still streams to
+  // completion but skips the mismatch assertion. Values above
+  // `MAX_SAFE_INTEGER` (extremely unlikely in practice) are also clamped
+  // to `undefined` because beyond that point arithmetic on
+  // `bytes !== totalBytes` is no longer exact.
   const len = response.headers.get("content-length");
-  const totalBytesParsed = len !== null ? parseInt(len, 10) : NaN;
-  const totalBytes = Number.isFinite(totalBytesParsed) ? totalBytesParsed : undefined;
+  const parsedTotal =
+    len !== null && /^\d+$/.test(len.trim()) ? Number(len.trim()) : undefined;
+  const totalBytes =
+    parsedTotal !== undefined && parsedTotal <= Number.MAX_SAFE_INTEGER
+      ? parsedTotal
+      : undefined;
 
   const writer = Bun.file(destPath).writer();
   let bytes = 0;
