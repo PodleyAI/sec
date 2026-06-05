@@ -41,7 +41,12 @@ function companyKey(
  * Delegates alias indirection to CanonicalCompanyAliasRepo.
  *
  * Concurrency: see PersonResolver — same per-key AsyncMutex with refcount
- * pattern. Multi-process callers still need a backend UNIQUE constraint.
+ * pattern, and the alias-resolution lookup also runs inside the mutex so
+ * the queued caller observes both the canonical row and its alias
+ * resolution, so concurrent resolves converge to the same final
+ * canonical_company_id even when one races an alias rewrite that happens
+ * between the create and the alias lookup. Multi-process callers still
+ * need a backend UNIQUE constraint.
  */
 export class CompanyResolver {
   private static readonly _keyMutexes = new Map<
@@ -65,9 +70,9 @@ export class CompanyResolver {
     }
     entry.refs += 1;
 
-    let candidateId: string;
+    let resolvedId: string;
     try {
-      candidateId = await entry.mutex.lock(async () => {
+      resolvedId = await entry.mutex.lock(async () => {
         // Re-query inside the critical section — a queued caller might
         // have just created the row we're about to mint.
         let candidate: CanonicalCompany | undefined;
@@ -87,21 +92,29 @@ export class CompanyResolver {
             obs.normalized_name
           );
         }
+        let candidateId: string;
         if (candidate) {
-          return candidate.canonical_company_id;
+          candidateId = candidate.canonical_company_id;
+        } else {
+          const freshId = randomUUID();
+          const fresh: CanonicalCompany = {
+            canonical_company_id: freshId,
+            resolver_version: this.opts.activeResolverVersion,
+            display_name: obs.name,
+            cik: obs.cik ?? null,
+            crd_number: obs.crd_number ?? null,
+            normalized_name: obs.normalized_name ?? null,
+            created_at: new Date().toISOString(),
+          };
+          await this.opts.canonicalCompanyRepo.create(fresh);
+          candidateId = freshId;
         }
-        const freshId = randomUUID();
-        const fresh: CanonicalCompany = {
-          canonical_company_id: freshId,
-          resolver_version: this.opts.activeResolverVersion,
-          display_name: obs.name,
-          cik: obs.cik ?? null,
-          crd_number: obs.crd_number ?? null,
-          normalized_name: obs.normalized_name ?? null,
-          created_at: new Date().toISOString(),
-        };
-        await this.opts.canonicalCompanyRepo.create(fresh);
-        return freshId;
+        // Resolve the alias INSIDE the mutex so a concurrent caller that
+        // queues behind us cannot observe the freshly-minted candidate
+        // before the alias rewrite is applied. Without this, two parallel
+        // resolves could split: one returns the alias target, the other
+        // returns the pre-alias id.
+        return await this.opts.canonicalCompanyAliasRepo.resolve(candidateId);
       });
     } finally {
       entry.refs -= 1;
@@ -113,6 +126,6 @@ export class CompanyResolver {
       }
     }
 
-    return await this.opts.canonicalCompanyAliasRepo.resolve(candidateId);
+    return resolvedId;
   }
 }
