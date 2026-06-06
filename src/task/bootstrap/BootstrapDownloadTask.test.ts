@@ -236,6 +236,69 @@ describe("streamDownloadToFile", () => {
     }
   });
 
+  it("H-S3: accepts RFC 9112 duplicate-equal Content-Length values", async () => {
+    // CloudFront / Akamai / ELB sometimes emit two `Content-Length: N`
+    // header lines. Headers.append combines them into a single
+    // comma-joined string "N, N". RFC 9112 §6.3 explicitly allows the
+    // recipient to combine duplicate equal values. The strict regex
+    // introduced in PR #125 rejected this real-world value; we now
+    // accept it while still rejecting genuinely conflicting values.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      // Build the header via append so we get the RFC 9112 combined form.
+      const h = new Headers();
+      h.append("content-length", "10");
+      h.append("content-length", "10");
+      return new Response(stream, { status: 200, headers: h });
+    });
+    try {
+      const dest = path.join(tmpRoot, "dup-equal-len.bin");
+      const result = await streamDownloadToFile("https://example/dup-equal", dest);
+      expect(result.bytes).toBe(10);
+      expect(result.totalBytes).toBe(10);
+      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "dup-equal-len.bin"), { force: true });
+    }
+  });
+
+  it("H-S3: rejects mismatched duplicate Content-Length values", async () => {
+    // Two Content-Length lines with different values are a genuine
+    // protocol error. RFC 9112 §6.3 requires equal duplicates; mismatched
+    // duplicates must fail closed.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      const h = new Headers();
+      h.append("content-length", "10");
+      h.append("content-length", "20");
+      return new Response(stream, { status: 200, headers: h });
+    });
+    try {
+      const dest = path.join(tmpRoot, "dup-mismatched-len.bin");
+      await expect(
+        streamDownloadToFile("https://example/dup-mismatched", dest)
+      ).rejects.toThrow(/Conflicting Content-Length/);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "dup-mismatched-len.bin"), { force: true });
+    }
+  });
+
   it("handles responses with no content-length header", async () => {
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {
