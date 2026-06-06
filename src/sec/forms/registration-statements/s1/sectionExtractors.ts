@@ -131,8 +131,13 @@ export async function extractOfferingTerms(
     "anything not stated. Give a confidence in [0,1] and a verbatim source_span. Return JSON matching the " +
     "schema.\n\n" +
     sectionText;
-  const obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
-  if (obj.confidence === undefined || obj.source_span === undefined) return null;
+  let obj: Record<string, unknown>;
+  try {
+    obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
+  } catch {
+    return null;
+  }
+  if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as OfferingTermsRow;
 }
 

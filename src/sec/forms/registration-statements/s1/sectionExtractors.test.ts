@@ -131,6 +131,15 @@ it("extractOfferingTerms returns the parsed offering object", async () => {
   }
 });
 
+it("extractOfferingTerms returns null when the model omits confidence/source_span", async () => {
+  const { unregister } = registerFakeStructuredProvider([{ tickers: [] }]);
+  try {
+    expect(await extractOfferingTerms("THE OFFERING ...", fakeS1Model())).toBeNull();
+  } finally {
+    unregister();
+  }
+});
+
 it("extractUnderwriters returns parsed underwriter rows", async () => {
   const { unregister } = registerFakeStructuredProvider([
     {
