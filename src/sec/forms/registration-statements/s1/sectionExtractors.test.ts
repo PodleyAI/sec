@@ -10,6 +10,7 @@ import {
   extractBeneficialOwnership,
   extractRelatedParty,
   extractSpacSponsors,
+  extractOfferingTerms,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -92,6 +93,40 @@ describe("section extractors", () => {
     const parties = await extractRelatedParty("We pay rent...", fakeS1Model());
     expect(parties[0].transactions[0].amount).toBe(120000);
   });
+});
+
+it("extractOfferingTerms returns the parsed offering object", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      security_type: "Units",
+      shares_offered: null,
+      price: null,
+      price_low: null,
+      price_high: null,
+      gross_proceeds: 200000000,
+      net_proceeds: null,
+      over_allotment_shares: null,
+      units_offered: 20000000,
+      price_per_unit: 10,
+      unit_composition: "one share and one-half warrant",
+      warrant_fraction_per_unit: 0.5,
+      right_fraction_per_unit: null,
+      trust_per_unit: 10.1,
+      over_allotment_units: 3000000,
+      exchange: "NASDAQ",
+      par_value: null,
+      confidence: 0.9,
+      source_span: "each unit",
+      tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+    },
+  ]);
+  try {
+    const got = await extractOfferingTerms("THE OFFERING ...", fakeS1Model());
+    expect(got?.units_offered).toBe(20000000);
+    expect(got?.tickers[0].ticker).toBe("ACQU");
+  } finally {
+    unregister();
+  }
 });
 
 it("extractSpacSponsors returns scripted sponsor rows", async () => {

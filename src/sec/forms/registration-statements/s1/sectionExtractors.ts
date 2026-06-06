@@ -15,6 +15,7 @@ import {
   type RelatedPartyRow,
 } from "./sectionSchemas";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
+import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -112,6 +113,25 @@ export async function extractRelatedParty(
     sectionText;
   const obj = await runStructured(model, prompt, RelatedPartyOutputSchema);
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
+}
+
+export async function extractOfferingTerms(
+  sectionText: string,
+  model: ModelConfig
+): Promise<OfferingTermsRow | null> {
+  const prompt =
+    "Extract the offering terms from the following S-1/F-1 'The Offering' and 'Underwriting' text. " +
+    "For a normal IPO fill security_type, shares_offered, price (or price_low/price_high), gross_proceeds, " +
+    "net_proceeds, over_allotment_shares, exchange, par_value. For a SPAC (units) fill units_offered, " +
+    "price_per_unit, unit_composition (verbatim), warrant_fraction_per_unit, right_fraction_per_unit, " +
+    "trust_per_unit, over_allotment_units. List every distinct ticker symbol in 'tickers' (exact symbol, " +
+    "is_primary true for the common-equity/units symbol, false for warrant/right symbols). Use null for " +
+    "anything not stated. Give a confidence in [0,1] and a verbatim source_span. Return JSON matching the " +
+    "schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
+  if (obj.confidence === undefined || obj.source_span === undefined) return null;
+  return obj as unknown as OfferingTermsRow;
 }
 
 export async function extractSpacSponsors(
