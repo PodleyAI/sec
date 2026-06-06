@@ -40,7 +40,7 @@ export async function ipoIssuersByUnderwriterFamilyName(
 }
 
 /**
- * Registers `sec canonical underwriter-family alias|alias-list`,
+ * Registers `sec canonical underwriter-family alias|alias-remove|alias-list`,
  * `sec underwriter by-family`, and `sec issuer tickers`. Must be called after
  * the `canonical` subcommand is registered.
  */
@@ -91,12 +91,46 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
     );
 
   fam
+    .command("alias-remove <name>")
+    .description("Remove an alias for an underwriter-family name")
+    .option("--resolver-version <v>", "resolver version", "1.0.0")
+    .action(async (name: string, opts: { resolverVersion: string }) => {
+      const families = new CanonicalUnderwriterFamilyRepo();
+      const family = await families.findByResolverAndName(
+        opts.resolverVersion,
+        normalizeUnderwriterFamilyName(name)
+      );
+      if (!family) {
+        console.error(`error: no underwriter-family found for '${name}'`);
+        process.exit(1);
+      }
+      await new CanonicalUnderwriterFamilyAliasRepo().remove(family.canonical_underwriter_family_id);
+      console.log(`removed alias for ${family.canonical_underwriter_family_id}`);
+    });
+
+  fam
     .command("alias-list")
     .description("List all underwriter-family aliases")
-    .action(async () => {
-      const rows = await new CanonicalUnderwriterFamilyAliasRepo().list();
-      for (const r of rows) {
-        console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
+    .option("--orphans", "show only aliases referencing missing canonicals", false)
+    .option("--resolver-version <v>", "resolver version", "1.0.0")
+    .action(async (opts: { orphans: boolean; resolverVersion: string }) => {
+      const aliasRepo = new CanonicalUnderwriterFamilyAliasRepo();
+      if (opts.orphans) {
+        const familyRepo = new CanonicalUnderwriterFamilyRepo();
+        const allIds = new Set(
+          (await familyRepo.listForResolverVersion(opts.resolverVersion)).map(
+            (r) => r.canonical_underwriter_family_id
+          )
+        );
+        const list = await aliasRepo.listOrphans(allIds);
+        for (const r of list) {
+          console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
+        }
+      } else {
+        const rows = await aliasRepo.list();
+        for (const r of rows) {
+          console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
+        }
       }
     });
 
