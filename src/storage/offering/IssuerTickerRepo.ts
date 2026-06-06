@@ -34,9 +34,19 @@ export class IssuerTickerRepo {
     }
   }
 
-  /** Every symbol the issuer carried, ordered by filing_date (nulls last). */
+  /**
+   * Every symbol the issuer carried, ordered by filing_date (nulls last), then —
+   * for symbols sharing one filing (the common units/share/warrant trio) — the
+   * primary symbol first, then ticker, so the order is deterministic across the
+   * SQLite and in-memory backends.
+   */
   async history(cik: number): Promise<IssuerTicker[]> {
     const rows = (await this.storage.query({ cik })) ?? [];
-    return rows.sort((a, b) => (a.filing_date ?? "~").localeCompare(b.filing_date ?? "~"));
+    return rows.sort((a, b) => {
+      const byDate = (a.filing_date ?? "~").localeCompare(b.filing_date ?? "~");
+      if (byDate !== 0) return byDate;
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return a.ticker.localeCompare(b.ticker);
+    });
   }
 }

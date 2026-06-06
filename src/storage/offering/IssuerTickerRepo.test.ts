@@ -58,4 +58,24 @@ describe("IssuerTickerRepo", () => {
     await repo.clear("0000000000-26-000002");
     expect(await repo.history(1848507)).toHaveLength(0);
   });
+
+  it("orders same-filing-date symbols deterministically (primary first, then ticker)", async () => {
+    const repo = new IssuerTickerRepo();
+    const base = {
+      extractor_id: "S-1",
+      accession_number: "0000000000-26-000002",
+      cik: 1848507,
+      filing_date: "2026-01-02",
+      security_type: null,
+      confidence: null,
+      source_span: null,
+      created_at: new Date().toISOString(),
+    };
+    // Insert non-primary symbols first to prove ordering is not insertion order.
+    await repo.save({ ...base, exchange: "NASDAQ", ticker: "ACQW", is_primary: false });
+    await repo.save({ ...base, exchange: "NASDAQ", ticker: "ACQ", is_primary: false });
+    await repo.save({ ...base, exchange: "NASDAQ", ticker: "ACQU", is_primary: true });
+    const history = await repo.history(1848507);
+    expect(history.map((t) => t.ticker)).toEqual(["ACQU", "ACQ", "ACQW"]);
+  });
 });

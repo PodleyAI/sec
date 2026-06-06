@@ -8,7 +8,7 @@ import { PersonObservationRepo } from "../../storage/observation/PersonObservati
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../../storage/canonical/CompanyIdentityLinkRepo";
-import type { ResolverId } from "../../resolver/resolverIds";
+import { isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 
 export interface ResolverCoverageResult {
   readonly kind: ResolverId;
@@ -22,6 +22,15 @@ export async function computeResolverCoverage(
   kind: ResolverId,
   resolver_version: string
 ): Promise<ResolverCoverageResult> {
+  // Family-tier resolvers (sponsor-family / underwriter-family) have no
+  // observation → identity-link coverage model; refuse rather than silently
+  // reporting the company tier's coverage under a family-kind label.
+  if (isFamilyResolverId(kind)) {
+    throw new Error(
+      `coverage is not defined for family resolver kind '${kind}' ` +
+        `(family resolvers track membership, not observation identity-links)`
+    );
+  }
   // Use the storage layer's COUNT path instead of materializing every row.
   // At Form D + Section 16 scale `listAll()` OOMs.
   if (kind === "person") {

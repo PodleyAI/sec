@@ -64,6 +64,16 @@ const RAW_CONFIDENCE_FLOOR = Number(process.env.SEC_S1_CONFIDENCE_FLOOR ?? "0");
 // always false — silently dropping every row. Fall back to 0 (no floor).
 const CONFIDENCE_FLOOR = Number.isFinite(RAW_CONFIDENCE_FLOOR) ? RAW_CONFIDENCE_FLOOR : 0;
 
+/**
+ * Share/unit counts are emitted by the model as plain numbers but stored in
+ * integer-typed columns. Round a finite value to the nearest integer (a stray
+ * decimal would otherwise be rejected on write and dead-letter the whole
+ * section); pass through null.
+ */
+function toIntCount(n: number | null | undefined): number | null {
+  return n == null || !Number.isFinite(n) ? null : Math.round(n);
+}
+
 export interface ProcessFormS1Args {
   readonly cik: number;
   readonly file_number: string;
@@ -456,13 +466,13 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             extractor_id: EXTRACTOR_ID,
             accession_number,
             cik,
-            units_offered: terms.units_offered,
+            units_offered: toIntCount(terms.units_offered),
             price_per_unit: terms.price_per_unit,
             unit_composition: terms.unit_composition,
             warrant_fraction_per_unit: terms.warrant_fraction_per_unit,
             right_fraction_per_unit: terms.right_fraction_per_unit,
             trust_per_unit: terms.trust_per_unit,
-            over_allotment_units: terms.over_allotment_units,
+            over_allotment_units: toIntCount(terms.over_allotment_units),
             exchange: terms.exchange,
             ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
             gross_proceeds: terms.gross_proceeds,
@@ -477,13 +487,13 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             accession_number,
             cik,
             security_type: terms.security_type,
-            shares_offered: terms.shares_offered,
+            shares_offered: toIntCount(terms.shares_offered),
             price: terms.price,
             price_low: terms.price_low,
             price_high: terms.price_high,
             gross_proceeds: terms.gross_proceeds,
             net_proceeds: terms.net_proceeds,
-            over_allotment_shares: terms.over_allotment_shares,
+            over_allotment_shares: toIntCount(terms.over_allotment_shares),
             exchange: terms.exchange,
             ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
             par_value: terms.par_value,
@@ -588,8 +598,8 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             underwriter_canonical_company_id: canonical_company_id,
             underwriter_family_id,
             role_detail: r.role,
-            shares_allocated: r.shares_allocated,
-            over_allotment_shares: r.over_allotment_shares,
+            shares_allocated: toIntCount(r.shares_allocated),
+            over_allotment_shares: toIntCount(r.over_allotment_shares),
             resolver_version: activeUnderwriterFamilyVersion,
           });
           wrote++;

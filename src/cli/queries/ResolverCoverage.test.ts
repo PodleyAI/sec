@@ -114,4 +114,13 @@ describe("computeResolverCoverage", () => {
     expect(countCalls).toBe(2);
     expect(lastLinkCriteria).toEqual({ resolver_version: "1.0.0" });
   });
+
+  it("refuses family resolver kinds instead of reporting company coverage", async () => {
+    await expect(computeResolverCoverage("underwriter-family", "1.0.0")).rejects.toThrow(
+      /family resolver kind/
+    );
+    await expect(computeResolverCoverage("sponsor-family", "1.0.0")).rejects.toThrow(
+      /family resolver kind/
+    );
+  });
 });
