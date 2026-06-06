@@ -258,7 +258,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // dropped, the surviving rows persist normally AND a "<sectionName>-partial"
     // dead-letter is recorded for triage (using `unverifiedPartialDetail`).
     // Detail strings may use `$N` (dropped count) and `$T` (confident total).
-    verifyRow?: (text: string, row: TRow) => boolean;
+    // `NoInfer<TRow>` keeps TRow inferred solely from `extract` — without it,
+    // contextual typing of the verifyRow callback's parameter would pin TRow
+    // to the constraint and break the persist callback's row typing.
+    verifyRow?: (text: string, row: NoInfer<TRow>) => boolean;
     unverifiedAllDetail?: string;
     unverifiedPartialDetail?: string;
     extract: (text: string) => Promise<TRow[]>;
@@ -676,7 +679,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // back to the concatenated target sections (management / ownership /
   // related-party) when that heading is absent. The text is blank only when no
   // target heading matched at all, in which case we dead-letter SECTION_NOT_FOUND.
-  await runSection({
+  // Pin TRow explicitly: the verifyRow callback's `r.source_span` access would
+  // otherwise contextually anchor TRow to the bare `{ confidence: number }`
+  // constraint and break inference for the persist callback below.
+  type SpacSponsorRow = Awaited<ReturnType<typeof extractSpacSponsors>>[number];
+  await runSection<SpacSponsorRow>({
     sectionName: "spac-sponsors",
     skip: !isSpac,
     text: byName.get(S1_SECTIONS.THE_SPONSOR) ?? [...byName.values()].join("\n\n"),
