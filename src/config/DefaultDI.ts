@@ -203,6 +203,11 @@ import {
   SpacUnitTermsSchema,
 } from "../storage/offering/SpacUnitTermsSchema";
 import {
+  ISSUER_TICKER_REPOSITORY_TOKEN,
+  IssuerTickerPrimaryKeyNames,
+  IssuerTickerSchema,
+} from "../storage/offering/IssuerTickerSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -781,5 +786,12 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
     createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    ISSUER_TICKER_REPOSITORY_TOKEN,
+    createStorage("issuer_ticker", IssuerTickerSchema, IssuerTickerPrimaryKeyNames, [
+      ["cik"],
+      ["accession_number"],
+    ])
   );
 };
