@@ -61,6 +61,7 @@ import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSpo
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
+import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -161,6 +162,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN).setupDatabase();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

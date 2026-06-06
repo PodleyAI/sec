@@ -206,6 +206,11 @@ import {
   IssuerTickerSchema,
 } from "../storage/offering/IssuerTickerSchema";
 import {
+  CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
+  CanonicalUnderwriterFamilyPrimaryKeyNames,
+  CanonicalUnderwriterFamilySchema,
+} from "../storage/canonical/CanonicalUnderwriterFamilySchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -694,5 +699,13 @@ export function resetDependencyInjectionsForTesting() {
       ["cik"],
       ["accession_number"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      CanonicalUnderwriterFamilySchema,
+      CanonicalUnderwriterFamilyPrimaryKeyNames,
+      [["resolver_version", "normalized_name"]]
+    )
   );
 }
