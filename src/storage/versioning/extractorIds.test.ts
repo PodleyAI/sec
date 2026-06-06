@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
+import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
 import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID, formToExtractorId } from "./extractorIds";
 
 describe("extractorIds", () => {
@@ -125,5 +126,14 @@ describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
     expect(formToExtractorId("F-1")).toBe("S-1");
     expect(formToExtractorId("F-1/A")).toBe("S-1");
     expect(formToExtractorId("F-1MEF")).toBe("S-1");
+  });
+});
+
+describe("Form_DRS — DRSLTR not advertised (H-S0)", () => {
+  it("Form_DRS.forms does not include DRSLTR (correspondence letter, not a prospectus)", () => {
+    expect(Form_DRS.forms).not.toContain("DRSLTR");
+  });
+  it("ALL_FORMS_MAP does not include DRSLTR", () => {
+    expect(ALL_FORMS_MAP.has("DRSLTR")).toBe(false);
   });
 });
