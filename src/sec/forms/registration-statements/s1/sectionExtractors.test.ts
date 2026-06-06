@@ -11,6 +11,7 @@ import {
   extractRelatedParty,
   extractSpacSponsors,
   extractOfferingTerms,
+  extractUnderwriters,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -124,6 +125,31 @@ it("extractOfferingTerms returns the parsed offering object", async () => {
     const got = await extractOfferingTerms("THE OFFERING ...", fakeS1Model());
     expect(got?.units_offered).toBe(20000000);
     expect(got?.tickers[0].ticker).toBe("ACQU");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractUnderwriters returns parsed underwriter rows", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      underwriters: [
+        {
+          legal_name: "Goldman Sachs & Co. LLC",
+          common_name: "Goldman Sachs",
+          role: "lead",
+          shares_allocated: 3000000,
+          over_allotment_shares: 450000,
+          confidence: 0.95,
+          source_span: "Goldman Sachs & Co. LLC",
+        },
+      ],
+    },
+  ]);
+  try {
+    const rows = await extractUnderwriters("UNDERWRITING ...", fakeS1Model());
+    expect(rows[0].common_name).toBe("Goldman Sachs");
+    expect(rows[0].role).toBe("lead");
   } finally {
     unregister();
   }

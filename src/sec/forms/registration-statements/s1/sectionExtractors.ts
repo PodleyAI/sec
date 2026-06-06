@@ -16,6 +16,7 @@ import {
 } from "./sectionSchemas";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
+import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -132,6 +133,22 @@ export async function extractOfferingTerms(
   const obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
   if (obj.confidence === undefined || obj.source_span === undefined) return null;
   return obj as unknown as OfferingTermsRow;
+}
+
+export async function extractUnderwriters(
+  sectionText: string,
+  model: ModelConfig
+): Promise<UnderwriterRowOut[]> {
+  const prompt =
+    "Extract every underwriter named in the following S-1/F-1 Underwriting (or Plan of Distribution) " +
+    "section. For each give legal_name (full legal entity, e.g. 'Goldman Sachs & Co. LLC'), common_name " +
+    "(the bank brand without legal suffix, e.g. 'Goldman Sachs'), role (one of 'lead' for the " +
+    "representative/lead, 'bookrunner' for a book-running manager, 'co-manager', else 'underwriter'; null " +
+    "if unclear), shares_allocated (the number of shares underwritten, or null), over_allotment_shares (or " +
+    "null), a confidence in [0,1], and the verbatim source_span. Return JSON matching the schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, UnderwriterOutputSchema);
+  return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
 }
 
 export async function extractSpacSponsors(
