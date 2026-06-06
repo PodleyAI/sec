@@ -36,6 +36,11 @@ import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkR
 import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
+import { CanonicalUnderwriterFamilyRepo } from "../../../storage/canonical/CanonicalUnderwriterFamilyRepo";
+import { CanonicalUnderwriterFamilyAliasRepo } from "../../../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
+import { UnderwriterFamilyResolver } from "../../../resolver/UnderwriterFamilyResolver";
+import { UnderwriterFamilyMembershipRepo } from "../../../storage/canonical/UnderwriterFamilyMembershipRepo";
+import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -46,6 +51,7 @@ import {
   extractOfferingTerms,
   extractRelatedParty,
   extractSpacSponsors,
+  extractUnderwriters,
 } from "./s1/sectionExtractors";
 import { getS1Model } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
@@ -83,16 +89,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const [extractorSlot, personSlot, companySlot, sponsorFamilySlot] = await Promise.all([
-    getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
-    getActiveSlot(versionRegistry, "resolver", "person"),
-    getActiveSlot(versionRegistry, "resolver", "company"),
-    getActiveSlot(versionRegistry, "resolver", "sponsor-family"),
-  ]);
+  const [extractorSlot, personSlot, companySlot, sponsorFamilySlot, underwriterFamilySlot] =
+    await Promise.all([
+      getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
+      getActiveSlot(versionRegistry, "resolver", "person"),
+      getActiveSlot(versionRegistry, "resolver", "company"),
+      getActiveSlot(versionRegistry, "resolver", "sponsor-family"),
+      getActiveSlot(versionRegistry, "resolver", "underwriter-family"),
+    ]);
   const extractor_version = extractorSlot?.semver ?? "1.0.0";
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   const activeSponsorFamilyVersion = sponsorFamilySlot?.semver ?? "1.0.0";
+  const activeUnderwriterFamilyVersion = underwriterFamilySlot?.semver ?? "1.0.0";
 
   const personResolver = new PersonResolver({
     canonicalPersonRepo: new CanonicalPersonRepo(),
@@ -136,10 +145,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const spacUnitTermsRepo = new SpacUnitTermsRepo();
   const issuerTickerRepo = new IssuerTickerRepo();
 
+  const underwriterFamilyResolver = new UnderwriterFamilyResolver({
+    canonicalUnderwriterFamilyRepo: new CanonicalUnderwriterFamilyRepo(),
+    canonicalUnderwriterFamilyAliasRepo: new CanonicalUnderwriterFamilyAliasRepo(),
+    activeResolverVersion: activeUnderwriterFamilyVersion,
+  });
+  const underwriterMembershipRepo = new UnderwriterFamilyMembershipRepo();
+  const underwriterLinkRepo = new UnderwriterLinkRepo();
+
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
   await linkRepo.clear(accession_number);
   await issuerTickerRepo.clear(accession_number);
+  await underwriterLinkRepo.clear(accession_number);
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
@@ -494,6 +512,103 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         extractor_id: EXTRACTOR_ID,
         accession_number,
         section_name: "offering-terms",
+        reason_code: "MODEL_INVALID_OUTPUT",
+        detail: (e instanceof Error ? e.message : String(e)).slice(0, 1024),
+        failed_extractor_version: extractor_version,
+        source_run_id: null,
+      });
+    }
+  }
+
+  // --- Underwriters (Underwriting section; all filings) ---
+  const underwritingText = byName.get(S1_SECTIONS.UNDERWRITING);
+  if (underwritingText === undefined) {
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: "underwriters",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: null,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+  } else {
+    try {
+      const raw = await extractUnderwriters(underwritingText, model);
+      const rows = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+      if (rows.length === 0) {
+        await deadLetters.record({
+          extractor_id: EXTRACTOR_ID,
+          accession_number,
+          section_name: "underwriters",
+          reason_code: raw.length === 0 ? "MODEL_EMPTY" : "LOW_CONFIDENCE_ALL",
+          detail: raw.length === 0 ? "no underwriters returned" : "all rows below confidence floor",
+          failed_extractor_version: extractor_version,
+          source_run_id: null,
+        });
+      } else {
+        let wrote = 0;
+        for (const r of rows) {
+          const legalName = r.legal_name?.trim() ?? "";
+          const commonName = r.common_name?.trim() ?? "";
+          if (legalName === "" || commonName === "") continue;
+          const observation_index = idx++;
+          const { observation_id, canonical_company_id } = await observer.observeCompany({
+            ...base,
+            observation_index,
+            name: legalName,
+            source_context: JSON.stringify({ relation: "s1:underwriter" }),
+          });
+          await provenance.save({
+            kind: "company",
+            observation_id,
+            confidence: r.confidence,
+            source_span: r.source_span,
+            section_name: "underwriters",
+            model_id,
+            prompt_version: extractor_version,
+            extra: null,
+          });
+          const underwriter_family_id = await underwriterFamilyResolver.resolve(commonName);
+          await underwriterMembershipRepo.record({
+            resolver_version: activeUnderwriterFamilyVersion,
+            canonical_company_id,
+            canonical_underwriter_family_id: underwriter_family_id,
+            seen_at: new Date().toISOString(),
+          });
+          await underwriterLinkRepo.save({
+            accession_number,
+            extractor_id: EXTRACTOR_ID,
+            observation_index,
+            issuer_cik: cik,
+            underwriter_canonical_company_id: canonical_company_id,
+            underwriter_family_id,
+            role_detail: r.role,
+            shares_allocated: r.shares_allocated,
+            over_allotment_shares: r.over_allotment_shares,
+            resolver_version: activeUnderwriterFamilyVersion,
+          });
+          wrote++;
+        }
+        if (wrote === 0) {
+          await deadLetters.record({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            section_name: "underwriters",
+            reason_code: "MODEL_INVALID_OUTPUT",
+            detail: "no underwriter rows had usable legal and common names",
+            failed_extractor_version: extractor_version,
+            source_run_id: null,
+          });
+        } else {
+          await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "underwriters");
+        }
+      }
+    } catch (e) {
+      await deadLetters.record({
+        extractor_id: EXTRACTOR_ID,
+        accession_number,
+        section_name: "underwriters",
         reason_code: "MODEL_INVALID_OUTPUT",
         detail: (e instanceof Error ? e.message : String(e)).slice(0, 1024),
         failed_extractor_version: extractor_version,
