@@ -4,5 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const RESOLVER_IDS = ["person", "company", "sponsor-family"] as const;
+export const RESOLVER_IDS = ["person", "company", "sponsor-family", "underwriter-family"] as const;
 export type ResolverId = (typeof RESOLVER_IDS)[number];
