@@ -22,7 +22,12 @@ export const UnderwriterLinkSchema = Type.Object({
   issuer_cik: TypeSecCik(),
   underwriter_canonical_company_id: Type.String({ maxLength: 36 }),
   underwriter_family_id: Type.String({ maxLength: 36 }),
-  role_detail: TypeNullable(Type.String({ maxLength: 32 })),
+  // Constrained to UNDERWRITER_ROLES so a typo or free-form value can't be
+  // persisted; the AI extractor already emits only these literals or null.
+  role_detail: Type.Unsafe<UnderwriterRole | null>({
+    type: ["string", "null"],
+    enum: [...UNDERWRITER_ROLES, null],
+  }),
   shares_allocated: TypeNullable(Type.Integer()),
   over_allotment_shares: TypeNullable(Type.Integer()),
   resolver_version: Type.String({ maxLength: 32 }),

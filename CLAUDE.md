@@ -91,13 +91,15 @@ sec canonical underwriter-family alias "<from>" "<into>" --reason "subsidiary"
 sec canonical underwriter-family alias-remove "<name>"
 sec canonical underwriter-family alias-list [--orphans]
 
-# Versioning for the new resolver kind
-sec version coverage resolver underwriter-family
-sec version drop-previous resolver underwriter-family
-
 # Point-in-time ticker series for an issuer
 sec issuer tickers <cik>
 ```
+
+> Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
+> command are **not** supported for the family-tier resolver kinds
+> (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
+> operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
+> status doc's deferred cleanups).
 
 ## Architecture
 
