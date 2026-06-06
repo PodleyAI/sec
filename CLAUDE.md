@@ -88,7 +88,8 @@ sec underwriter by-family "Goldman Sachs"
 
 # Underwriter-family alias management
 sec canonical underwriter-family alias "<from>" "<into>" --reason "subsidiary"
-sec canonical underwriter-family alias-list
+sec canonical underwriter-family alias-remove "<name>"
+sec canonical underwriter-family alias-list [--orphans]
 
 # Versioning for the new resolver kind
 sec version coverage resolver underwriter-family
