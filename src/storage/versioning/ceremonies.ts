@@ -345,7 +345,7 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
       await junctionAddr.deleteForResolverVersion(previous.semver);
       await junctionPhone.deleteForResolverVersion(previous.semver);
       await canonRepo.deleteForResolverVersion(previous.semver);
-    } else {
+    } else if (resolverId === "company") {
       const linkRepo = new CompanyIdentityLinkRepo();
       const junctionAddr = new CanonicalCompanyAddressRepo();
       const junctionPhone = new CanonicalCompanyPhoneRepo();
@@ -354,6 +354,17 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
       await junctionAddr.deleteForResolverVersion(previous.semver);
       await junctionPhone.deleteForResolverVersion(previous.semver);
       await canonRepo.deleteForResolverVersion(previous.semver);
+    } else {
+      // Family-tier resolvers (sponsor-family / underwriter-family) store
+      // canonical + membership + link rows, not identity-links/junctions. Their
+      // version-scoped purge is not yet wired; refuse rather than fall through to
+      // the company branch, which would destructively delete unrelated company
+      // canonical/identity-link data at this semver.
+      throw new Error(
+        `drop-previous is not yet supported for family resolver kind '${resolverId}'. ` +
+          `Purging canonical/membership/link rows by resolver_version is unimplemented; ` +
+          `the previous slot was left intact.`
+      );
     }
   }
 

@@ -13,7 +13,8 @@ import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/Docum
 import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
 import type { S1SectionName } from "../forms/registration-statements/s1/DocumentSegmenter";
 
-const { MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY } = S1_SECTIONS;
+const { MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY, THE_OFFERING, UNDERWRITING, USE_OF_PROCEEDS, THE_SPONSOR } =
+  S1_SECTIONS;
 const dir = join(import.meta.dir, "mock_data", "s1");
 
 /**
@@ -22,14 +23,42 @@ const dir = join(import.meta.dir, "mock_data", "s1");
  * heading detection or the section patterns change.
  */
 const EXPECTED: Record<string, readonly S1SectionName[]> = {
-  // SPACs (SIC 6770) — standard, complete section structure.
-  "s1_1848507_000119312521066104.htm": [MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY],
-  "s1_1849470_000110465921035696.htm": [MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY],
-  "s1_1822912_000121390021001475.htm": [MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY],
+  // SPACs (SIC 6770) — standard, complete section structure (incl. offering sections).
+  "s1_1848507_000119312521066104.htm": [
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
+  "s1_1849470_000110465921035696.htm": [
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
+  "s1_1822912_000121390021001475.htm": [
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
   // Operating companies — varied coverage / edge cases.
-  "s1_2030954_000149315226027129.htm": [BENEFICIAL_OWNERSHIP],
-  "s1_2087989_000143774926019444.htm": [], // atypical trust; 3 stitched tables
-  "s1_1817004_000149315226027137.htm": [], // incorporation-by-reference S-1/A
+  "s1_2030954_000149315226027129.htm": [
+    BENEFICIAL_OWNERSHIP,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
+  // atypical trust (3 stitched tables) — no mgmt/ownership/related-party headings,
+  // but carries the offering sections incl. a focused "The Sponsor".
+  "s1_2087989_000143774926019444.htm": [THE_OFFERING, THE_SPONSOR, UNDERWRITING, USE_OF_PROCEEDS],
+  // incorporation-by-reference S-1/A — offering mechanics present, entities by reference.
+  "s1_1817004_000149315226027137.htm": [THE_OFFERING, UNDERWRITING, USE_OF_PROCEEDS],
 };
 
 const SPAC_FIXTURES = [

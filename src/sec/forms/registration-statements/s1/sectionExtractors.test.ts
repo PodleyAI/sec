@@ -10,6 +10,9 @@ import {
   extractBeneficialOwnership,
   extractRelatedParty,
   extractSpacSponsors,
+  extractOfferingTerms,
+  extractUnderwriters,
+  extractUseOfProceeds,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -94,6 +97,74 @@ describe("section extractors", () => {
   });
 });
 
+it("extractOfferingTerms returns the parsed offering object", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      security_type: "Units",
+      shares_offered: null,
+      price: null,
+      price_low: null,
+      price_high: null,
+      gross_proceeds: 200000000,
+      net_proceeds: null,
+      over_allotment_shares: null,
+      units_offered: 20000000,
+      price_per_unit: 10,
+      unit_composition: "one share and one-half warrant",
+      warrant_fraction_per_unit: 0.5,
+      right_fraction_per_unit: null,
+      trust_per_unit: 10.1,
+      over_allotment_units: 3000000,
+      exchange: "NASDAQ",
+      par_value: null,
+      confidence: 0.9,
+      source_span: "each unit",
+      tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+    },
+  ]);
+  try {
+    const got = await extractOfferingTerms("THE OFFERING ...", fakeS1Model());
+    expect(got?.units_offered).toBe(20000000);
+    expect(got?.tickers[0].ticker).toBe("ACQU");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractOfferingTerms throws on schema-invalid model output (caller dead-letters it)", async () => {
+  const { unregister } = registerFakeStructuredProvider([{ tickers: [] }]);
+  try {
+    await expect(extractOfferingTerms("THE OFFERING ...", fakeS1Model())).rejects.toThrow();
+  } finally {
+    unregister();
+  }
+});
+
+it("extractUnderwriters returns parsed underwriter rows", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      underwriters: [
+        {
+          legal_name: "Goldman Sachs & Co. LLC",
+          common_name: "Goldman Sachs",
+          role: "lead",
+          shares_allocated: 3000000,
+          over_allotment_shares: 450000,
+          confidence: 0.95,
+          source_span: "Goldman Sachs & Co. LLC",
+        },
+      ],
+    },
+  ]);
+  try {
+    const rows = await extractUnderwriters("UNDERWRITING ...", fakeS1Model());
+    expect(rows[0].common_name).toBe("Goldman Sachs");
+    expect(rows[0].role).toBe("lead");
+  } finally {
+    unregister();
+  }
+});
+
 it("extractSpacSponsors returns scripted sponsor rows", async () => {
   const { unregister } = registerFakeStructuredProvider([
     {
@@ -114,6 +185,24 @@ it("extractSpacSponsors returns scripted sponsor rows", async () => {
     );
     expect(rows[0].common_name).toBe("Pershing Square Sponsor");
     expect(rows[0].legal_name).toBe("Pershing Square Sponsor 2, LLC");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractUseOfProceeds returns parsed line items", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      line_items: [
+        { purpose: "repay debt", amount: 20000000, percent: 40, note: null, confidence: 0.8, source_span: "repay" },
+        { purpose: "working capital", amount: null, percent: null, note: "remainder", confidence: 0.6, source_span: "wc" },
+      ],
+    },
+  ]);
+  try {
+    const rows = await extractUseOfProceeds("USE OF PROCEEDS ...", fakeS1Model());
+    expect(rows).toHaveLength(2);
+    expect(rows[0].amount).toBe(20000000);
   } finally {
     unregister();
   }

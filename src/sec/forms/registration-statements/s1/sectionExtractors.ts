@@ -15,6 +15,9 @@ import {
   type RelatedPartyRow,
 } from "./sectionSchemas";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
+import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
+import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
+import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -114,6 +117,41 @@ export async function extractRelatedParty(
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
 }
 
+export async function extractOfferingTerms(
+  sectionText: string,
+  model: ModelConfig
+): Promise<OfferingTermsRow | null> {
+  const prompt =
+    "Extract the offering terms from the following S-1/F-1 'The Offering' and 'Underwriting' text. " +
+    "For a normal IPO fill security_type, shares_offered, price (or price_low/price_high), gross_proceeds, " +
+    "net_proceeds, over_allotment_shares, exchange, par_value. For a SPAC (units) fill units_offered, " +
+    "price_per_unit, unit_composition (verbatim), warrant_fraction_per_unit, right_fraction_per_unit, " +
+    "trust_per_unit, over_allotment_units. List every distinct ticker symbol in 'tickers' (exact symbol, " +
+    "is_primary true for the common-equity/units symbol, false for warrant/right symbols). Use null for " +
+    "anything not stated. Give a confidence in [0,1] and a verbatim source_span. Return JSON matching the " +
+    "schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return obj as unknown as OfferingTermsRow;
+}
+
+export async function extractUnderwriters(
+  sectionText: string,
+  model: ModelConfig
+): Promise<UnderwriterRowOut[]> {
+  const prompt =
+    "Extract every underwriter named in the following S-1/F-1 Underwriting (or Plan of Distribution) " +
+    "section. For each give legal_name (full legal entity, e.g. 'Goldman Sachs & Co. LLC'), common_name " +
+    "(the bank brand without legal suffix, e.g. 'Goldman Sachs'), role (one of 'lead' for the " +
+    "representative/lead, 'bookrunner' for a book-running manager, 'co-manager', else 'underwriter'; null " +
+    "if unclear), shares_allocated (the number of shares underwritten, or null), over_allotment_shares (or " +
+    "null), a confidence in [0,1], and the verbatim source_span. Return JSON matching the schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, UnderwriterOutputSchema);
+  return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
+}
+
 export async function extractSpacSponsors(
   sectionText: string,
   model: ModelConfig
@@ -126,4 +164,17 @@ export async function extractSpacSponsors(
     sectionText;
   const obj = await runStructured(model, prompt, SpacSponsorOutputSchema);
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
+}
+
+export async function extractUseOfProceeds(
+  sectionText: string,
+  model: ModelConfig
+): Promise<UseOfProceedsLineRow[]> {
+  const prompt =
+    "Extract the use-of-proceeds line items from the following S-1/F-1 Use of Proceeds section. For each " +
+    "stated purpose give purpose, amount (dollars, or null), percent (or null), note (any qualifier, or " +
+    "null), a confidence in [0,1], and the verbatim source_span. Return JSON matching the schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, UseOfProceedsOutputSchema);
+  return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }

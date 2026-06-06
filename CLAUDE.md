@@ -71,6 +71,36 @@ sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/
 sec fetch s1-fixtures -c 20 --min-spac 5
 ```
 
+#### Offering terms / underwriters / use of proceeds
+
+S-1/F-1 prospectuses also yield the deal itself: offering terms (equity →
+`offering_terms`, SPAC units → `spac_unit_terms`), a point-in-time exact ticker
+series (`issuer_ticker`, distinct from the mutable submissions-API `entity_tickers`),
+use-of-proceeds line items, and underwriters on the company tier rolled up to an
+`underwriter-family` resolver tier (mirroring sponsor families). The segmenter
+recognizes focused `The Offering` / `Underwriting` / `Use of Proceeds` / `The Sponsor`
+sections; the last one also gives SPAC sponsor extraction a dedicated home (it falls
+back to concatenated section text when the heading is absent).
+
+```bash
+# IPOs underwritten by a family (alias-aware)
+sec underwriter by-family "Goldman Sachs"
+
+# Underwriter-family alias management
+sec canonical underwriter-family alias "<from>" "<into>" --reason "subsidiary"
+sec canonical underwriter-family alias-remove "<name>"
+sec canonical underwriter-family alias-list [--orphans]
+
+# Point-in-time ticker series for an issuer
+sec issuer tickers <cik>
+```
+
+> Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
+> command are **not** supported for the family-tier resolver kinds
+> (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
+> operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
+> status doc's deferred cleanups).
+
 ## Architecture
 
 ### Layered Structure

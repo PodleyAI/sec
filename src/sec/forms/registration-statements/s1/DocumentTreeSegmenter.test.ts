@@ -57,4 +57,24 @@ describe("DocumentTreeSegmenter", () => {
     const sections = new DocumentTreeSegmenter().segment(doc);
     expect(sections.some((s) => s.name === S1_SECTIONS.MANAGEMENT)).toBe(false);
   });
+
+  it("resolves the four new offering sections from the tree", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">THE OFFERING</p>
+        <p>We are offering 5,000,000 shares.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">USE OF PROCEEDS</p>
+        <p>We intend to use the net proceeds for working capital.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+        <p>Goldman Sachs &amp; Co. LLC is acting as representative.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">THE SPONSOR</p>
+        <p>Our sponsor is Acme Sponsor, LLC.</p>
+      </body></html>`;
+    const doc = parseEdgarHtml(html, "S-1");
+    const byName = new Map(new DocumentTreeSegmenter().segment(doc).map((s) => [s.name, s.text]));
+    expect(byName.get(S1_SECTIONS.THE_OFFERING)).toContain("5,000,000 shares");
+    expect(byName.get(S1_SECTIONS.USE_OF_PROCEEDS)).toContain("working capital");
+    expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("Goldman Sachs");
+    expect(byName.get(S1_SECTIONS.THE_SPONSOR)).toContain("Acme Sponsor");
+  });
 });

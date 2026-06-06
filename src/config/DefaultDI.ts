@@ -170,12 +170,15 @@ import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
   CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
   CanonicalSponsorFamilyAliasSchema,
   CanonicalSponsorFamilyAliasPrimaryKeyNames,
+  CanonicalUnderwriterFamilyAliasSchema,
+  CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
 } from "../storage/canonical/CanonicalAliasSchemas";
 import {
   CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
@@ -192,6 +195,41 @@ import {
   SpacSponsorLinkPrimaryKeyNames,
   SpacSponsorLinkSchema,
 } from "../storage/canonical/SpacSponsorLinkSchema";
+import {
+  OFFERING_TERMS_REPOSITORY_TOKEN,
+  OfferingTermsPrimaryKeyNames,
+  OfferingTermsSchema,
+} from "../storage/offering/OfferingTermsSchema";
+import {
+  SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+  SpacUnitTermsPrimaryKeyNames,
+  SpacUnitTermsSchema,
+} from "../storage/offering/SpacUnitTermsSchema";
+import {
+  ISSUER_TICKER_REPOSITORY_TOKEN,
+  IssuerTickerPrimaryKeyNames,
+  IssuerTickerSchema,
+} from "../storage/offering/IssuerTickerSchema";
+import {
+  CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
+  CanonicalUnderwriterFamilyPrimaryKeyNames,
+  CanonicalUnderwriterFamilySchema,
+} from "../storage/canonical/CanonicalUnderwriterFamilySchema";
+import {
+  UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+  UnderwriterFamilyMembershipPrimaryKeyNames,
+  UnderwriterFamilyMembershipSchema,
+} from "../storage/canonical/UnderwriterFamilyMembershipSchema";
+import {
+  UNDERWRITER_LINK_REPOSITORY_TOKEN,
+  UnderwriterLinkPrimaryKeyNames,
+  UnderwriterLinkSchema,
+} from "../storage/canonical/UnderwriterLinkSchema";
+import {
+  USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+  UseOfProceedsPrimaryKeyNames,
+  UseOfProceedsSchema,
+} from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
@@ -762,6 +800,61 @@ export const DefaultDI = () => {
     createStorage("spac_sponsor_link", SpacSponsorLinkSchema, SpacSponsorLinkPrimaryKeyNames, [
       ["accession_number"],
       ["sponsor_family_id"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    OFFERING_TERMS_REPOSITORY_TOKEN,
+    createStorage("offering_terms", OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+    createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    ISSUER_TICKER_REPOSITORY_TOKEN,
+    createStorage("issuer_ticker", IssuerTickerSchema, IssuerTickerPrimaryKeyNames, [
+      ["cik"],
+      ["accession_number"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_underwriter_family",
+      CanonicalUnderwriterFamilySchema,
+      CanonicalUnderwriterFamilyPrimaryKeyNames,
+      [["resolver_version", "normalized_name"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
+    createStorage(
+      "canonical_underwriter_family_alias",
+      CanonicalUnderwriterFamilyAliasSchema,
+      CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
+      [["target_canonical_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+    createStorage(
+      "underwriter_family_membership",
+      UnderwriterFamilyMembershipSchema,
+      UnderwriterFamilyMembershipPrimaryKeyNames,
+      [["resolver_version", "canonical_underwriter_family_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    UNDERWRITER_LINK_REPOSITORY_TOKEN,
+    createStorage("underwriter_link", UnderwriterLinkSchema, UnderwriterLinkPrimaryKeyNames, [
+      ["accession_number"],
+      ["underwriter_family_id"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+    createStorage("use_of_proceeds", UseOfProceedsSchema, UseOfProceedsPrimaryKeyNames, [
+      ["accession_number"],
     ])
   );
 };

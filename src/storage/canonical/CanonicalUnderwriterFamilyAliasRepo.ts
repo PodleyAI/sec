@@ -6,20 +6,20 @@
 
 import { globalServiceRegistry } from "workglow";
 import {
-  CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
-  type CanonicalSponsorFamilyAliasRepositoryStorage,
+  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
+  type CanonicalUnderwriterFamilyAliasRepositoryStorage,
 } from "./CanonicalAliasSchemas";
 import { CanonicalFamilyAliasRepo } from "./CanonicalFamilyAliasRepo";
 
 interface Options {
-  repository?: CanonicalSponsorFamilyAliasRepositoryStorage;
+  repository?: CanonicalUnderwriterFamilyAliasRepositoryStorage;
 }
 
-export class CanonicalSponsorFamilyAliasRepo extends CanonicalFamilyAliasRepo {
+export class CanonicalUnderwriterFamilyAliasRepo extends CanonicalFamilyAliasRepo {
   constructor(options: Options = {}) {
     super(
       options.repository ??
-        globalServiceRegistry.get(CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN)
+        globalServiceRegistry.get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN)
     );
   }
 }

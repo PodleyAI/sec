@@ -15,7 +15,7 @@ import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPerso
 import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
 import { PersonResolver } from "../../resolver/PersonResolver";
 import { CompanyResolver } from "../../resolver/CompanyResolver";
-import { RESOLVER_IDS, type ResolverId } from "../../resolver/resolverIds";
+import { RESOLVER_IDS, isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 import { isValidSemver } from "../../storage/versioning/VersionRegistry";
 
 export function addResolveCommands(program: Command): void {
@@ -28,6 +28,17 @@ export function addResolveCommands(program: Command): void {
     .action(async (opts: { kind: string; resolverVersion: string; all: boolean }) => {
       if (!RESOLVER_IDS.includes(opts.kind as ResolverId)) {
         console.error(`error: --kind must be one of ${RESOLVER_IDS.join("|")}`);
+        process.exit(1);
+      }
+      // Family-tier resolvers run inline during S-1 extraction (keyed off the
+      // sponsor/underwriter common name), not as a batch pass over observations.
+      // Refuse here rather than silently running the company resolver and writing
+      // mislabeled company identity-link rows.
+      if (isFamilyResolverId(opts.kind)) {
+        console.error(
+          `error: 'sec resolve' does not support family resolver kind '${opts.kind}'; ` +
+            `family resolution happens inline during S-1 extraction`
+        );
         process.exit(1);
       }
       if (!opts.all) {

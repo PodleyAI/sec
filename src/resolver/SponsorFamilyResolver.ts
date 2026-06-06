@@ -7,8 +7,7 @@
 import { randomUUID } from "node:crypto";
 import type { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
 import type { CanonicalSponsorFamilyAliasRepo } from "../storage/canonical/CanonicalSponsorFamilyAliasRepo";
-import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
-import { AsyncMutex } from "../util/AsyncMutex";
+import { FamilyResolver, normalizeFamilyName } from "./FamilyResolver";
 
 interface SponsorFamilyResolverOptions {
   canonicalSponsorFamilyRepo: CanonicalSponsorFamilyRepo;
@@ -17,64 +16,53 @@ interface SponsorFamilyResolverOptions {
 }
 
 /**
- * The single source of truth for the sponsor-family natural key. Normalizes the
- * name via {@link normalizeCompanyName} (punctuation/whitespace canonicalization
- * plus the suffix handling that helper applies), then upper-cases so matching is
- * case-insensitive. Every caller that looks up a family by name (resolver, CLI
- * query, alias commands) MUST use this so keys line up. Returns "" when the name
+ * The single source of truth for the sponsor-family natural key. Delegates to
+ * {@link normalizeFamilyName} (punctuation/whitespace canonicalization plus the
+ * suffix handling that helper applies, then lower-casing for case-insensitive
+ * matching). Every caller that looks up a family by name (resolver, CLI query,
+ * alias commands) MUST use this so keys line up. Returns "" when the name
  * normalizes to nothing.
  */
 export function normalizeSponsorFamilyName(name: string): string {
-  return normalizeCompanyName(name)?.toUpperCase() ?? "";
+  return normalizeFamilyName(name);
 }
 
 /**
  * Resolves a sponsor *common* name to a CanonicalSponsorFamily id: normalize ->
  * find-or-create at the active resolver version -> alias resolve. Name-only
- * analogue of CompanyResolver's normalized-name fallback.
+ * analogue of CompanyResolver's normalized-name fallback. Thin wrapper over the
+ * shared {@link FamilyResolver}.
  */
 export class SponsorFamilyResolver {
-  private static readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
+  private core: FamilyResolver;
 
-  constructor(private opts: SponsorFamilyResolverOptions) {}
-
-  async resolve(commonName: string): Promise<string> {
-    const normalized = normalizeSponsorFamilyName(commonName);
-    if (!normalized) throw new Error("cannot resolve sponsor family: empty common name");
-    const key = `${this.opts.activeResolverVersion}|sponsor-family|${normalized}`;
-
-    let entry = SponsorFamilyResolver._keyMutexes.get(key);
-    if (entry === undefined) {
-      entry = { mutex: new AsyncMutex(), refs: 0 };
-      SponsorFamilyResolver._keyMutexes.set(key, entry);
-    }
-    entry.refs += 1;
-
-    let candidateId: string;
-    try {
-      candidateId = await entry.mutex.lock(async () => {
-        const existing = await this.opts.canonicalSponsorFamilyRepo.findByResolverAndName(
-          this.opts.activeResolverVersion,
+  constructor(private opts: SponsorFamilyResolverOptions) {
+    this.core = new FamilyResolver({
+      kind: "sponsor",
+      activeResolverVersion: opts.activeResolverVersion,
+      findIdByNormalizedName: async (normalized) => {
+        const existing = await opts.canonicalSponsorFamilyRepo.findByResolverAndName(
+          opts.activeResolverVersion,
           normalized
         );
-        if (existing) return existing.canonical_sponsor_family_id;
+        return existing?.canonical_sponsor_family_id;
+      },
+      createFamily: async (displayName, normalized) => {
         const freshId = randomUUID();
-        await this.opts.canonicalSponsorFamilyRepo.create({
+        await opts.canonicalSponsorFamilyRepo.create({
           canonical_sponsor_family_id: freshId,
-          resolver_version: this.opts.activeResolverVersion,
-          display_name: commonName,
+          resolver_version: opts.activeResolverVersion,
+          display_name: displayName,
           normalized_name: normalized,
           created_at: new Date().toISOString(),
         });
         return freshId;
-      });
-    } finally {
-      entry.refs -= 1;
-      if (entry.refs === 0 && SponsorFamilyResolver._keyMutexes.get(key) === entry) {
-        SponsorFamilyResolver._keyMutexes.delete(key);
-      }
-    }
+      },
+      resolveAlias: (id) => opts.canonicalSponsorFamilyAliasRepo.resolve(id),
+    });
+  }
 
-    return this.opts.canonicalSponsorFamilyAliasRepo.resolve(candidateId);
+  async resolve(commonName: string): Promise<string> {
+    return this.core.resolve(commonName);
   }
 }
