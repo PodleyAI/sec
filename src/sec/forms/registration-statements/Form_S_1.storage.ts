@@ -46,6 +46,7 @@ import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
+import { spanAppearsIn } from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
   extractManagement,
@@ -59,6 +60,10 @@ import { getS1Model } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
 
 const EXTRACTOR_ID = "S-1";
+// v1.1.0: SPAC sponsor extraction now requires the LLM-returned source_span to
+// appear verbatim (after light normalization) in the section text before a
+// canonical sponsor row is persisted.
+const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
 const RAW_CONFIDENCE_FLOOR = Number(process.env.SEC_S1_CONFIDENCE_FLOOR ?? "0");
 // A non-numeric SEC_S1_CONFIDENCE_FLOOR would be NaN, and `confidence >= NaN` is
 // always false — silently dropping every row. Fall back to 0 (no floor).
@@ -109,7 +114,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       getActiveSlot(versionRegistry, "resolver", "sponsor-family"),
       getActiveSlot(versionRegistry, "resolver", "underwriter-family"),
     ]);
-  const extractor_version = extractorSlot?.semver ?? "1.0.0";
+  const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
   const activeSponsorFamilyVersion = sponsorFamilySlot?.semver ?? "1.0.0";
@@ -247,6 +252,15 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // rows had blank names) dead-letters MODEL_INVALID_OUTPUT. Omit for sections
     // whose persist always writes every confident row, so they always markResolved.
     invalidWriteDetail?: string;
+    // Optional row-level verification applied AFTER the confidence floor. When
+    // every confident row is dropped, the section dead-letters as
+    // UNVERIFIED_SOURCE_SPAN (using `unverifiedAllDetail`); when some are
+    // dropped, the surviving rows persist normally AND a "<sectionName>-partial"
+    // dead-letter is recorded for triage (using `unverifiedPartialDetail`).
+    // Detail strings may use `$N` (dropped count) and `$T` (confident total).
+    verifyRow?: (text: string, row: TRow) => boolean;
+    unverifiedAllDetail?: string;
+    unverifiedPartialDetail?: string;
     extract: (text: string) => Promise<TRow[]>;
     persist: (rows: TRow[]) => Promise<number>;
   }): Promise<void> {
@@ -270,12 +284,34 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
 
     try {
       const raw = await sargs.extract(sargs.text);
-      const rows = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+      const confident = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+      const text = sargs.text;
+      const verifyRow = sargs.verifyRow;
+      let rows: TRow[];
+      let droppedUnverified = 0;
+      if (verifyRow !== undefined && confident.length > 0) {
+        rows = confident.filter((r) => verifyRow(text, r));
+        droppedUnverified = confident.length - rows.length;
+      } else {
+        rows = confident;
+      }
       if (rows.length === 0) {
-        await record(
-          raw.length === 0 ? "MODEL_EMPTY" : "LOW_CONFIDENCE_ALL",
-          raw.length === 0 ? sargs.emptyDetail : sargs.lowConfidenceDetail
-        );
+        const allDroppedUnverified =
+          droppedUnverified > 0 && droppedUnverified === confident.length;
+        const reason = allDroppedUnverified
+          ? "UNVERIFIED_SOURCE_SPAN"
+          : raw.length === 0
+            ? "MODEL_EMPTY"
+            : "LOW_CONFIDENCE_ALL";
+        const detail = allDroppedUnverified
+          ? (sargs.unverifiedAllDetail ?? sargs.lowConfidenceDetail).replace(
+              /\$T/g,
+              String(confident.length)
+            )
+          : raw.length === 0
+            ? sargs.emptyDetail
+            : sargs.lowConfidenceDetail;
+        await record(reason, detail);
         return;
       }
       const wrote = await sargs.persist(rows);
@@ -283,6 +319,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
       } else {
         await deadLetters.markResolved(EXTRACTOR_ID, accession_number, sargs.sectionName);
+      }
+      if (droppedUnverified > 0 && sargs.unverifiedPartialDetail !== undefined) {
+        await deadLetters.record({
+          extractor_id: EXTRACTOR_ID,
+          accession_number,
+          section_name: `${sargs.sectionName}-partial`,
+          reason_code: "UNVERIFIED_SOURCE_SPAN",
+          detail: sargs.unverifiedPartialDetail
+            .replace(/\$N/g, String(droppedUnverified))
+            .replace(/\$T/g, String(confident.length)),
+          failed_extractor_version: extractor_version,
+          source_run_id: null,
+        });
       }
     } catch (e) {
       await record("MODEL_INVALID_OUTPUT", (e instanceof Error ? e.message : String(e)).slice(0, 1024));
@@ -635,6 +684,17 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     emptyDetail: "no sponsors returned",
     lowConfidenceDetail: "all rows below confidence floor",
     invalidWriteDetail: "no sponsor rows had usable legal and common names",
+    // v1.1.0: verify the LLM-returned source_span actually appears in the
+    // section text we sent. The sponsor-section input may be the concatenation
+    // of management/ownership/related-party text (when "The Sponsor" heading
+    // is absent), so an LLM can hallucinate company names from director bios;
+    // this gate stops unverified rows from being written as fact-claims keyed
+    // to the issuer CIK.
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident sponsor rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident sponsor rows had source_span not present in section text",
     extract: (text) => extractSpacSponsors(text, model),
     persist: async (rows) => {
       let wrote = 0;

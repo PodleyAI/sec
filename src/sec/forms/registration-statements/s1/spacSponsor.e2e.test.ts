@@ -13,13 +13,20 @@ import { S1ClassificationRepo } from "../../../../storage/classification/S1Class
 import { SpacSponsorLinkRepo } from "../../../../storage/canonical/SpacSponsorLinkRepo";
 import { CanonicalSponsorFamilyRepo } from "../../../../storage/canonical/CanonicalSponsorFamilyRepo";
 import { SponsorFamilyMembershipRepo } from "../../../../storage/canonical/SponsorFamilyMembershipRepo";
+import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 
 // Body with the three target headings so the section extractors run in a fixed
 // order (management, ownership, related); sponsor extraction runs last when SPAC.
+//
+// The related-party paragraph includes the sponsor legal names that the tests'
+// fake provider returns, so the H-S1 source_span verification (post-1.1.0)
+// accepts them. The blank "x" placeholders are kept in the other sections so
+// management / ownership extractors still run with empty input.
 const BODY = [
   "<h1>MANAGEMENT</h1><p>x</p>",
   "<h1>PRINCIPAL AND SELLING STOCKHOLDERS</h1><p>x</p>",
-  "<h1>CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</h1><p>The Sponsor backs this SPAC.</p>",
+  "<h1>CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</h1>",
+  "<p>The Sponsor backs this SPAC. Acme Sponsor 2, LLC and Acme Sponsor, LLC are the sponsors.</p>",
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
@@ -141,6 +148,84 @@ describe("SPAC sponsor end-to-end", () => {
     expect(cls?.is_spac).toBe(false);
     const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
     expect(families.length).toBe(0);
+  });
+
+  it("H-S1: drops sponsor rows whose source_span is not present in section text", async () => {
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      {
+        sponsors: [
+          {
+            // Both rows have plausible names but neither source_span appears
+            // anywhere in the BODY sections — this is the LLM-hallucination case.
+            legal_name: "Phantom Sponsor, LLC",
+            common_name: "Phantom Sponsor",
+            confidence: 0.95,
+            source_span: "This phrase is not anywhere in the prospectus body.",
+          },
+          {
+            legal_name: "Ghost Capital, LLC",
+            common_name: "Ghost Capital",
+            confidence: 0.95,
+            source_span: "Another fabricated quotation that does not occur.",
+          },
+        ],
+      },
+    ]));
+
+    await processFormS1(runArgs(555, "0000000000-26-000601", 6770));
+
+    // No families and no sponsor links should have been written.
+    const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.length).toBe(0);
+
+    // A dead-letter under UNVERIFIED_SOURCE_SPAN should be recorded.
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    const sponsorDl = dl.find(
+      (d) => d.section_name === "spac-sponsors" && d.accession_number === "0000000000-26-000601"
+    );
+    expect(sponsorDl?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+  });
+
+  it("H-S1: writes verified sponsor rows and dead-letters a partial for unverified ones", async () => {
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      {
+        sponsors: [
+          {
+            // Verified: this exact phrase appears in the related-party section.
+            legal_name: "Acme Sponsor, LLC",
+            common_name: "Acme Sponsor",
+            confidence: 0.95,
+            source_span: "The Sponsor backs this SPAC.",
+          },
+          {
+            // Hallucinated: this phrase does not appear in any section text.
+            legal_name: "Phantom Sponsor, LLC",
+            common_name: "Phantom Sponsor",
+            confidence: 0.95,
+            source_span: "Phrase definitely not present in the body.",
+          },
+        ],
+      },
+    ]));
+
+    await processFormS1(runArgs(666, "0000000000-26-000701", 6770));
+
+    // The verified sponsor still resolved to a family and a link.
+    const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.length).toBe(1);
+    const famId = families[0].canonical_sponsor_family_id;
+    expect(await new SpacSponsorLinkRepo().listIssuerCiksForFamily(famId)).toEqual([666]);
+
+    // A spac-sponsors-partial dead-letter records the dropped row for triage.
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    const partial = dl.find(
+      (d) =>
+        d.section_name === "spac-sponsors-partial" &&
+        d.accession_number === "0000000000-26-000701"
+    );
+    expect(partial?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });
 
   it("skips a blank-named sponsor row without dropping the valid ones", async () => {
