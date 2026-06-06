@@ -191,6 +191,11 @@ import {
   SpacSponsorLinkSchema,
 } from "../storage/canonical/SpacSponsorLinkSchema";
 import {
+  OFFERING_TERMS_REPOSITORY_TOKEN,
+  OfferingTermsPrimaryKeyNames,
+  OfferingTermsSchema,
+} from "../storage/offering/OfferingTermsSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -664,5 +669,9 @@ export function resetDependencyInjectionsForTesting() {
       ["accession_number"],
       ["sponsor_family_id"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    OFFERING_TERMS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
   );
 }
