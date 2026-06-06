@@ -12,6 +12,7 @@ import {
   extractSpacSponsors,
   extractOfferingTerms,
   extractUnderwriters,
+  extractUseOfProceeds,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -175,6 +176,24 @@ it("extractSpacSponsors returns scripted sponsor rows", async () => {
     );
     expect(rows[0].common_name).toBe("Pershing Square Sponsor");
     expect(rows[0].legal_name).toBe("Pershing Square Sponsor 2, LLC");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractUseOfProceeds returns parsed line items", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      line_items: [
+        { purpose: "repay debt", amount: 20000000, percent: 40, note: null, confidence: 0.8, source_span: "repay" },
+        { purpose: "working capital", amount: null, percent: null, note: "remainder", confidence: 0.6, source_span: "wc" },
+      ],
+    },
+  ]);
+  try {
+    const rows = await extractUseOfProceeds("USE OF PROCEEDS ...", fakeS1Model());
+    expect(rows).toHaveLength(2);
+    expect(rows[0].amount).toBe(20000000);
   } finally {
     unregister();
   }

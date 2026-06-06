@@ -17,6 +17,7 @@ import {
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
+import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -163,4 +164,17 @@ export async function extractSpacSponsors(
     sectionText;
   const obj = await runStructured(model, prompt, SpacSponsorOutputSchema);
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
+}
+
+export async function extractUseOfProceeds(
+  sectionText: string,
+  model: ModelConfig
+): Promise<UseOfProceedsLineRow[]> {
+  const prompt =
+    "Extract the use-of-proceeds line items from the following S-1/F-1 Use of Proceeds section. For each " +
+    "stated purpose give purpose, amount (dollars, or null), percent (or null), note (any qualifier, or " +
+    "null), a confidence in [0,1], and the verbatim source_span. Return JSON matching the schema.\n\n" +
+    sectionText;
+  const obj = await runStructured(model, prompt, UseOfProceedsOutputSchema);
+  return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }
