@@ -224,6 +224,11 @@ import {
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
 import {
+  USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+  UseOfProceedsPrimaryKeyNames,
+  UseOfProceedsSchema,
+} from "../storage/use-of-proceeds/UseOfProceedsSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -742,6 +747,12 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(UnderwriterLinkSchema, UnderwriterLinkPrimaryKeyNames, [
       ["accession_number"],
       ["underwriter_family_id"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(UseOfProceedsSchema, UseOfProceedsPrimaryKeyNames, [
+      ["accession_number"],
     ])
   );
 }

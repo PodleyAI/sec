@@ -226,6 +226,11 @@ import {
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
 import {
+  USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+  UseOfProceedsPrimaryKeyNames,
+  UseOfProceedsSchema,
+} from "../storage/use-of-proceeds/UseOfProceedsSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -844,6 +849,12 @@ export const DefaultDI = () => {
     createStorage("underwriter_link", UnderwriterLinkSchema, UnderwriterLinkPrimaryKeyNames, [
       ["accession_number"],
       ["underwriter_family_id"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    USE_OF_PROCEEDS_REPOSITORY_TOKEN,
+    createStorage("use_of_proceeds", UseOfProceedsSchema, UseOfProceedsPrimaryKeyNames, [
+      ["accession_number"],
     ])
   );
 };
