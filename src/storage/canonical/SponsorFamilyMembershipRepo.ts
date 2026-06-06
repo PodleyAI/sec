@@ -10,36 +10,20 @@ import {
   type SponsorFamilyMembership,
   type SponsorFamilyMembershipRepositoryStorage,
 } from "./SponsorFamilyMembershipSchema";
+import { FamilyMembershipRepo } from "./FamilyMembershipRepo";
 
-export class SponsorFamilyMembershipRepo {
-  private repo: SponsorFamilyMembershipRepositoryStorage;
-
+export class SponsorFamilyMembershipRepo extends FamilyMembershipRepo<SponsorFamilyMembership> {
   constructor(repo?: SponsorFamilyMembershipRepositoryStorage) {
-    this.repo = repo ?? globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN);
-  }
-
-  async record(row: SponsorFamilyMembership): Promise<void> {
-    await this.repo.put(row); // PK upsert -> idempotent
+    super(
+      repo ?? globalServiceRegistry.get(SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN),
+      "canonical_sponsor_family_id"
+    );
   }
 
   async listCompaniesForFamily(
     resolver_version: string,
     canonical_sponsor_family_id: string
   ): Promise<string[]> {
-    const rows =
-      (await this.repo.query({ resolver_version, canonical_sponsor_family_id })) ?? [];
-    return rows.map((r) => r.canonical_company_id);
-  }
-
-  async deleteForResolverVersion(resolver_version: string): Promise<number> {
-    const rows = (await this.repo.query({ resolver_version })) ?? [];
-    for (const r of rows) {
-      await this.repo.delete({
-        resolver_version: r.resolver_version,
-        canonical_company_id: r.canonical_company_id,
-        canonical_sponsor_family_id: r.canonical_sponsor_family_id,
-      });
-    }
-    return rows.length;
+    return super.listCompaniesForFamily(resolver_version, canonical_sponsor_family_id);
   }
 }

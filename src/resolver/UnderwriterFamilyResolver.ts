@@ -7,12 +7,11 @@
 import { randomUUID } from "node:crypto";
 import type { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import type { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
-import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
-import { AsyncMutex } from "../util/AsyncMutex";
+import { FamilyResolver, normalizeFamilyName } from "./FamilyResolver";
 
 /** Shared normalization so the CLI and the extractor key families identically. */
 export function normalizeUnderwriterFamilyName(name: string): string {
-  return normalizeCompanyName(name)?.toLowerCase() ?? "";
+  return normalizeFamilyName(name);
 }
 
 interface UnderwriterFamilyResolverOptions {
@@ -24,50 +23,39 @@ interface UnderwriterFamilyResolverOptions {
 /**
  * Resolves an underwriter *common* name to a CanonicalUnderwriterFamily id:
  * normalize → find-or-create at the active resolver version → alias resolve.
- * Name-only analogue of SponsorFamilyResolver.
+ * Name-only analogue of SponsorFamilyResolver. Thin wrapper over the shared
+ * {@link FamilyResolver}.
  */
 export class UnderwriterFamilyResolver {
-  private static readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
+  private core: FamilyResolver;
 
-  constructor(private opts: UnderwriterFamilyResolverOptions) {}
-
-  async resolve(commonName: string): Promise<string> {
-    const normalized = normalizeUnderwriterFamilyName(commonName);
-    if (!normalized) throw new Error("cannot resolve underwriter family: empty common name");
-    const key = `${this.opts.activeResolverVersion}|underwriter-family|${normalized}`;
-
-    let entry = UnderwriterFamilyResolver._keyMutexes.get(key);
-    if (entry === undefined) {
-      entry = { mutex: new AsyncMutex(), refs: 0 };
-      UnderwriterFamilyResolver._keyMutexes.set(key, entry);
-    }
-    entry.refs += 1;
-
-    let candidateId: string;
-    try {
-      candidateId = await entry.mutex.lock(async () => {
-        const existing = await this.opts.canonicalUnderwriterFamilyRepo.findByResolverAndName(
-          this.opts.activeResolverVersion,
+  constructor(private opts: UnderwriterFamilyResolverOptions) {
+    this.core = new FamilyResolver({
+      kind: "underwriter",
+      activeResolverVersion: opts.activeResolverVersion,
+      findIdByNormalizedName: async (normalized) => {
+        const existing = await opts.canonicalUnderwriterFamilyRepo.findByResolverAndName(
+          opts.activeResolverVersion,
           normalized
         );
-        if (existing) return existing.canonical_underwriter_family_id;
+        return existing?.canonical_underwriter_family_id;
+      },
+      createFamily: async (displayName, normalized) => {
         const freshId = randomUUID();
-        await this.opts.canonicalUnderwriterFamilyRepo.create({
+        await opts.canonicalUnderwriterFamilyRepo.create({
           canonical_underwriter_family_id: freshId,
-          resolver_version: this.opts.activeResolverVersion,
-          display_name: commonName,
+          resolver_version: opts.activeResolverVersion,
+          display_name: displayName,
           normalized_name: normalized,
           created_at: new Date().toISOString(),
         });
         return freshId;
-      });
-    } finally {
-      entry.refs -= 1;
-      if (entry.refs === 0 && UnderwriterFamilyResolver._keyMutexes.get(key) === entry) {
-        UnderwriterFamilyResolver._keyMutexes.delete(key);
-      }
-    }
+      },
+      resolveAlias: (id) => opts.canonicalUnderwriterFamilyAliasRepo.resolve(id),
+    });
+  }
 
-    return this.opts.canonicalUnderwriterFamilyAliasRepo.resolve(candidateId);
+  async resolve(commonName: string): Promise<string> {
+    return this.core.resolve(commonName);
   }
 }
