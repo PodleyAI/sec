@@ -196,6 +196,11 @@ import {
   OfferingTermsSchema,
 } from "../storage/offering/OfferingTermsSchema";
 import {
+  SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+  SpacUnitTermsPrimaryKeyNames,
+  SpacUnitTermsSchema,
+} from "../storage/offering/SpacUnitTermsSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -673,5 +678,9 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     OFFERING_TERMS_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
   );
 }

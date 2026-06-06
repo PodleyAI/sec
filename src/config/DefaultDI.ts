@@ -198,6 +198,11 @@ import {
   OfferingTermsSchema,
 } from "../storage/offering/OfferingTermsSchema";
 import {
+  SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+  SpacUnitTermsPrimaryKeyNames,
+  SpacUnitTermsSchema,
+} from "../storage/offering/SpacUnitTermsSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -772,5 +777,9 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     OFFERING_TERMS_REPOSITORY_TOKEN,
     createStorage("offering_terms", OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
+    createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
   );
 };
