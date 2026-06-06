@@ -214,6 +214,11 @@ import {
   CanonicalUnderwriterFamilySchema,
 } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import {
+  UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+  UnderwriterFamilyMembershipPrimaryKeyNames,
+  UnderwriterFamilyMembershipSchema,
+} from "../storage/canonical/UnderwriterFamilyMembershipSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -717,6 +722,14 @@ export function resetDependencyInjectionsForTesting() {
       CanonicalUnderwriterFamilyAliasSchema,
       CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
       [["target_canonical_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      UnderwriterFamilyMembershipSchema,
+      UnderwriterFamilyMembershipPrimaryKeyNames,
+      [["resolver_version", "canonical_underwriter_family_id"]]
     )
   );
 }

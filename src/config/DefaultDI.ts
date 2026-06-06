@@ -216,6 +216,11 @@ import {
   CanonicalUnderwriterFamilySchema,
 } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import {
+  UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+  UnderwriterFamilyMembershipPrimaryKeyNames,
+  UnderwriterFamilyMembershipSchema,
+} from "../storage/canonical/UnderwriterFamilyMembershipSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -818,6 +823,15 @@ export const DefaultDI = () => {
       CanonicalUnderwriterFamilyAliasSchema,
       CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
       [["target_canonical_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
+    createStorage(
+      "underwriter_family_membership",
+      UnderwriterFamilyMembershipSchema,
+      UnderwriterFamilyMembershipPrimaryKeyNames,
+      [["resolver_version", "canonical_underwriter_family_id"]]
     )
   );
 };
