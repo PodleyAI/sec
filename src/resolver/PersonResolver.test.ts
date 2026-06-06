@@ -146,20 +146,19 @@ describe("PersonResolver.resolve", () => {
     expect(result).toBe("alias-target");
   });
 
-  it("alias resolution is serialised with create", async () => {
-    // Two parallel resolves on the same natural key must converge on the
-    // alias-resolved id even when the alias lookup is slow. With the alias
-    // call inside the mutex, the queued caller waits for the entire
-    // find-or-create + alias step rather than racing it, so concurrent
-    // resolves cannot split between the pre-alias candidate id and the
-    // alias target.
+  it("serialises alias lookup inside the per-key mutex (no overlapping alias.resolve calls)", async () => {
+    // H-S2: the previous regression test stubbed `aliasRepo.resolve` to always
+    // return a constant id regardless of input, so both pre-fix (lookup
+    // outside the mutex) and post-fix (lookup inside the mutex) code paths
+    // produced the same final answer and the test could not discriminate the
+    // bug. The actual difference between the two code paths is whether the
+    // alias lookups overlap in time — pre-fix runs them in parallel after
+    // the mutex releases; post-fix runs them sequentially inside the lock.
     //
-    // Stub `aliasRepo.resolve` to always return "B-id" after a 10ms sleep
-    // — the sleep widens the window where, without the fix, the second
-    // caller could overtake the first's alias lookup.
+    // Track concurrent in-flight alias.resolve calls. Pre-fix code drives the
+    // counter to 2 simultaneously when two resolves run in parallel; post-fix
+    // never sees more than one in flight.
 
-    // Spy on create to confirm exactly one canonical row was minted —
-    // proving the mutex itself still serialised the find-or-create pair.
     const originalCreate = setup.canonRepo.create.bind(setup.canonRepo);
     let createCount = 0;
     setup.canonRepo.create = (async (row: CanonicalPerson) => {
@@ -167,17 +166,30 @@ describe("PersonResolver.resolve", () => {
       return originalCreate(row);
     }) as typeof setup.canonRepo.create;
 
-    setup.aliasRepo.resolve = async (_id: string) => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let aliasCallCount = 0;
+    setup.aliasRepo.resolve = async (id: string) => {
+      inFlight += 1;
+      if (inFlight > maxInFlight) maxInFlight = inFlight;
+      aliasCallCount += 1;
+      // Sleep long enough that a parallel caller is guaranteed to start
+      // before this one resolves.
       await new Promise((r) => setTimeout(r, 10));
-      return "B-id";
+      inFlight -= 1;
+      return id; // alias not installed — we only care about the in-flight window
     };
 
-    const [a, b] = await Promise.all([
+    await Promise.all([
       resolver.resolve(obs({ cik: 4242 })),
       resolver.resolve(obs({ cik: 4242, observation_id: 2 })),
     ]);
-    expect(a).toBe("B-id");
-    expect(b).toBe("B-id");
+
+    // Post-fix: alias lookup is inside the mutex → at most one in flight.
+    // Pre-fix: alias lookup is after mutex.release → both run in parallel.
+    expect(maxInFlight).toBe(1);
+    expect(aliasCallCount).toBe(2);
+    // Exactly one canonical row was minted — find-or-create remains serialised.
     expect(createCount).toBe(1);
   });
 });
