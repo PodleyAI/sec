@@ -168,12 +168,15 @@ import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
+  CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
   CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
   CanonicalSponsorFamilyAliasSchema,
   CanonicalSponsorFamilyAliasPrimaryKeyNames,
+  CanonicalUnderwriterFamilyAliasSchema,
+  CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
 } from "../storage/canonical/CanonicalAliasSchemas";
 import {
   CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
@@ -706,6 +709,14 @@ export function resetDependencyInjectionsForTesting() {
       CanonicalUnderwriterFamilySchema,
       CanonicalUnderwriterFamilyPrimaryKeyNames,
       [["resolver_version", "normalized_name"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      CanonicalUnderwriterFamilyAliasSchema,
+      CanonicalUnderwriterFamilyAliasPrimaryKeyNames,
+      [["target_canonical_id"]]
     )
   );
 }
