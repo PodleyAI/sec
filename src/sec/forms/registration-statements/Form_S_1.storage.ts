@@ -41,6 +41,7 @@ import { CanonicalUnderwriterFamilyAliasRepo } from "../../../storage/canonical/
 import { UnderwriterFamilyResolver } from "../../../resolver/UnderwriterFamilyResolver";
 import { UnderwriterFamilyMembershipRepo } from "../../../storage/canonical/UnderwriterFamilyMembershipRepo";
 import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
+import { UseOfProceedsRepo } from "../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -52,6 +53,7 @@ import {
   extractRelatedParty,
   extractSpacSponsors,
   extractUnderwriters,
+  extractUseOfProceeds,
 } from "./s1/sectionExtractors";
 import { getS1Model } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
@@ -152,12 +154,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   });
   const underwriterMembershipRepo = new UnderwriterFamilyMembershipRepo();
   const underwriterLinkRepo = new UnderwriterLinkRepo();
+  const useOfProceedsRepo = new UseOfProceedsRepo();
 
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
   await linkRepo.clear(accession_number);
   await issuerTickerRepo.clear(accession_number);
   await underwriterLinkRepo.clear(accession_number);
+  await useOfProceedsRepo.clear(accession_number);
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
@@ -617,6 +621,65 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     }
   }
 
+  // --- Use of proceeds ---
+  const proceedsText = byName.get(S1_SECTIONS.USE_OF_PROCEEDS);
+  if (proceedsText === undefined) {
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: "use-of-proceeds",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: null,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+  } else {
+    try {
+      const raw = await extractUseOfProceeds(proceedsText, model);
+      const rows = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+      if (rows.length === 0) {
+        await deadLetters.record({
+          extractor_id: EXTRACTOR_ID,
+          accession_number,
+          section_name: "use-of-proceeds",
+          reason_code: raw.length === 0 ? "MODEL_EMPTY" : "LOW_CONFIDENCE_ALL",
+          detail: raw.length === 0 ? "no line items returned" : "all rows below confidence floor",
+          failed_extractor_version: extractor_version,
+          source_run_id: null,
+        });
+      } else {
+        const now = new Date().toISOString();
+        let lineIndex = 0;
+        for (const r of rows) {
+          await useOfProceedsRepo.save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            line_index: lineIndex++,
+            cik,
+            purpose: r.purpose,
+            amount: r.amount,
+            percent: r.percent,
+            note: r.note,
+            confidence: r.confidence,
+            source_span: r.source_span,
+            created_at: now,
+          });
+        }
+        await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "use-of-proceeds");
+      }
+    } catch (e) {
+      await deadLetters.record({
+        extractor_id: EXTRACTOR_ID,
+        accession_number,
+        section_name: "use-of-proceeds",
+        reason_code: "MODEL_INVALID_OUTPUT",
+        detail: (e instanceof Error ? e.message : String(e)).slice(0, 1024),
+        failed_extractor_version: extractor_version,
+        source_run_id: null,
+      });
+    }
+  }
+
   // --- SPAC sponsors (gated on deterministic classification) ---
   if (isSpac) {
     // v1 strategy: sponsor names are not under a single canonical heading, so we
@@ -626,7 +689,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // heading matched, in which case there is no text to extract from and we
     // dead-letter the sponsor step as SECTION_NOT_FOUND. A future spec may add a
     // focused "The Sponsor" section to the segmenter (see design doc Future work).
-    const sponsorText = [...byName.values()].join("\n\n");
+    // Prefer the focused "The Sponsor" section; fall back to the concatenated
+    // target sections when that heading is absent (legacy v1 behavior).
+    const sponsorText =
+      byName.get(S1_SECTIONS.THE_SPONSOR) ?? [...byName.values()].join("\n\n");
     if (sponsorText.trim() === "") {
       await deadLetters.record({
         extractor_id: EXTRACTOR_ID,
