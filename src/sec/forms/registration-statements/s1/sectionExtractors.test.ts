@@ -131,10 +131,10 @@ it("extractOfferingTerms returns the parsed offering object", async () => {
   }
 });
 
-it("extractOfferingTerms returns null when the model omits confidence/source_span", async () => {
+it("extractOfferingTerms throws on schema-invalid model output (caller dead-letters it)", async () => {
   const { unregister } = registerFakeStructuredProvider([{ tickers: [] }]);
   try {
-    expect(await extractOfferingTerms("THE OFFERING ...", fakeS1Model())).toBeNull();
+    await expect(extractOfferingTerms("THE OFFERING ...", fakeS1Model())).rejects.toThrow();
   } finally {
     unregister();
   }
