@@ -33,6 +33,9 @@ import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/Cano
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
 import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
+import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
+import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
+import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -40,6 +43,7 @@ import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
 import {
   extractBeneficialOwnership,
   extractManagement,
+  extractOfferingTerms,
   extractRelatedParty,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
@@ -128,9 +132,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const membershipRepo = new SponsorFamilyMembershipRepo();
   const linkRepo = new SpacSponsorLinkRepo();
 
+  const offeringTermsRepo = new OfferingTermsRepo();
+  const spacUnitTermsRepo = new SpacUnitTermsRepo();
+  const issuerTickerRepo = new IssuerTickerRepo();
+
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
   await linkRepo.clear(accession_number);
+  await issuerTickerRepo.clear(accession_number);
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
@@ -385,6 +394,111 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "MODEL_INVALID_OUTPUT",
         (e as Error).message.slice(0, 1024)
       );
+    }
+  }
+
+  // --- Offering terms (read from The Offering + Underwriting) ---
+  const offeringText = [
+    byName.get(S1_SECTIONS.THE_OFFERING),
+    byName.get(S1_SECTIONS.UNDERWRITING),
+  ]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+  if (offeringText.trim() === "") {
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: "offering-terms",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "no The Offering / Underwriting section text",
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+  } else {
+    try {
+      const terms = await extractOfferingTerms(offeringText, model);
+      if (terms === null || terms.confidence < CONFIDENCE_FLOOR) {
+        await deadLetters.record({
+          extractor_id: EXTRACTOR_ID,
+          accession_number,
+          section_name: "offering-terms",
+          reason_code: terms === null ? "MODEL_EMPTY" : "LOW_CONFIDENCE_ALL",
+          detail: terms === null ? "no offering terms returned" : "below confidence floor",
+          failed_extractor_version: extractor_version,
+          source_run_id: null,
+        });
+      } else {
+        const now = new Date().toISOString();
+        if (isSpac) {
+          await spacUnitTermsRepo.save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            cik,
+            units_offered: terms.units_offered,
+            price_per_unit: terms.price_per_unit,
+            unit_composition: terms.unit_composition,
+            warrant_fraction_per_unit: terms.warrant_fraction_per_unit,
+            right_fraction_per_unit: terms.right_fraction_per_unit,
+            trust_per_unit: terms.trust_per_unit,
+            over_allotment_units: terms.over_allotment_units,
+            exchange: terms.exchange,
+            ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
+            gross_proceeds: terms.gross_proceeds,
+            net_proceeds: terms.net_proceeds,
+            confidence: terms.confidence,
+            source_span: terms.source_span,
+            created_at: now,
+          });
+        } else {
+          await offeringTermsRepo.save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            cik,
+            security_type: terms.security_type,
+            shares_offered: terms.shares_offered,
+            price: terms.price,
+            price_low: terms.price_low,
+            price_high: terms.price_high,
+            gross_proceeds: terms.gross_proceeds,
+            net_proceeds: terms.net_proceeds,
+            over_allotment_shares: terms.over_allotment_shares,
+            exchange: terms.exchange,
+            ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
+            par_value: terms.par_value,
+            confidence: terms.confidence,
+            source_span: terms.source_span,
+            created_at: now,
+          });
+        }
+        for (const t of terms.tickers) {
+          const ticker = t.ticker?.trim() ?? "";
+          if (ticker === "") continue;
+          await issuerTickerRepo.save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            exchange: (t.exchange ?? terms.exchange ?? "").trim(),
+            ticker,
+            cik,
+            filing_date: args.filing_date,
+            security_type: t.security_type,
+            is_primary: t.is_primary,
+            confidence: terms.confidence,
+            source_span: terms.source_span,
+            created_at: now,
+          });
+        }
+        await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "offering-terms");
+      }
+    } catch (e) {
+      await deadLetters.record({
+        extractor_id: EXTRACTOR_ID,
+        accession_number,
+        section_name: "offering-terms",
+        reason_code: "MODEL_INVALID_OUTPUT",
+        detail: (e instanceof Error ? e.message : String(e)).slice(0, 1024),
+        failed_extractor_version: extractor_version,
+        source_run_id: null,
+      });
     }
   }
 
