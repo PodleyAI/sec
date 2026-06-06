@@ -11,6 +11,10 @@ export const S1_SECTIONS = {
   MANAGEMENT: "Management",
   BENEFICIAL_OWNERSHIP: "Principal and Selling Stockholders",
   RELATED_PARTY: "Certain Relationships and Related Transactions",
+  THE_OFFERING: "The Offering",
+  UNDERWRITING: "Underwriting",
+  USE_OF_PROCEEDS: "Use of Proceeds",
+  THE_SPONSOR: "The Sponsor",
 } as const;
 export type S1SectionName = (typeof S1_SECTIONS)[keyof typeof S1_SECTIONS];
 
@@ -34,6 +38,18 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*certain relationships and related (party |person |persons )?transactions\s*$/i,
     /^\s*related (part(y|ies)|persons?) transactions\s*$/i,
     /^\s*transactions with related persons\s*$/i,
+  ],
+  [S1_SECTIONS.THE_OFFERING]: [/^\s*the offering\s*$/i, /^\s*our offering\s*$/i],
+  [S1_SECTIONS.UNDERWRITING]: [
+    /^\s*underwriting\s*$/i,
+    /^\s*underwriting\s*\(conflicts of interest\)\s*$/i,
+    /^\s*plan of distribution\s*$/i,
+  ],
+  [S1_SECTIONS.USE_OF_PROCEEDS]: [/^\s*use of proceeds\s*$/i],
+  // SPAC-specific; intentionally tight to avoid matching sponsor mentions in body text.
+  [S1_SECTIONS.THE_SPONSOR]: [
+    /^\s*(the|our) sponsor\s*$/i,
+    /^\s*the sponsor and its affiliates\s*$/i,
   ],
 };
 
