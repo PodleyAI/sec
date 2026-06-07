@@ -35,6 +35,17 @@ interface FamilyResolverOptions {
  * Shared core for the sponsor-family / underwriter-family resolvers: normalize ->
  * find-or-create at the active resolver version (serialized per key) -> alias
  * resolve. Name-only analogue of CompanyResolver's normalized-name fallback.
+ *
+ * Concurrency: alias resolution runs INSIDE the per-key mutex so a concurrent
+ * caller that queues behind us cannot observe the freshly-minted candidate
+ * before the alias rewrite is applied. Without this, two parallel resolves on
+ * the same family name could split: one returns the alias target, the other
+ * returns the pre-alias id. Mirrors the {@link PersonResolver} /
+ * {@link CompanyResolver} fix.
+ *
+ * Multi-process callers (workers, separate `sec` invocations) still need a
+ * backend-level UNIQUE constraint to be race-free — single-process mutexes
+ * are not visible to other processes.
  */
 export class FamilyResolver {
   private static readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
@@ -55,12 +66,12 @@ export class FamilyResolver {
     }
     entry.refs += 1;
 
-    let candidateId: string;
+    let resolvedId: string;
     try {
-      candidateId = await entry.mutex.lock(async () => {
+      resolvedId = await entry.mutex.lock(async () => {
         const existing = await this.opts.findIdByNormalizedName(normalized);
-        if (existing) return existing;
-        return this.opts.createFamily(commonName, normalized);
+        const candidateId = existing ?? (await this.opts.createFamily(commonName, normalized));
+        return await this.opts.resolveAlias(candidateId);
       });
     } finally {
       entry.refs -= 1;
@@ -69,6 +80,6 @@ export class FamilyResolver {
       }
     }
 
-    return this.opts.resolveAlias(candidateId);
+    return resolvedId;
   }
 }
