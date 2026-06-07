@@ -11,12 +11,19 @@ import { AsyncMutex } from "../util/AsyncMutex";
  * The single source of truth for a family natural key (sponsor or underwriter).
  * Normalizes the name via {@link normalizeCompanyName} (punctuation/whitespace
  * canonicalization plus the suffix handling that helper applies), then
- * lower-cases so matching is case-insensitive. Every caller that looks up a
+ * UPPER-cases so matching is case-insensitive. Every caller that looks up a
  * family by name (resolver, CLI query, alias commands) MUST use this so keys
  * line up. Returns "" when the name normalizes to nothing.
+ *
+ * Case convention is UPPER and is locked in: existing
+ * canonical_sponsor_family.normalized_name rows were minted under this
+ * convention, and the alias table keys those canonical_*_id ids directly, so
+ * changing the fold here would silently orphan rows and operator-installed
+ * aliases. FamilyResolver.test.ts pins this — do not change without a
+ * one-time migration.
  */
 export function normalizeFamilyName(name: string): string {
-  return normalizeCompanyName(name)?.toLowerCase() ?? "";
+  return normalizeCompanyName(name)?.toUpperCase() ?? "";
 }
 
 interface FamilyResolverOptions {

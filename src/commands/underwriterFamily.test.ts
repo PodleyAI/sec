@@ -23,7 +23,7 @@ describe("ipoIssuersByUnderwriterFamilyName", () => {
       canonical_underwriter_family_id: "fam-1",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs",
-      normalized_name: "goldman sachs",
+      normalized_name: "GOLDMAN SACHS",
       created_at: new Date().toISOString(),
     });
     await new UnderwriterLinkRepo().save({
@@ -47,14 +47,14 @@ describe("ipoIssuersByUnderwriterFamilyName", () => {
       canonical_underwriter_family_id: "fam-1",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs",
-      normalized_name: "goldman sachs",
+      normalized_name: "GOLDMAN SACHS",
       created_at: new Date().toISOString(),
     });
     await families.create({
       canonical_underwriter_family_id: "gs-variant",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs Group",
-      normalized_name: "goldman sachs group",
+      normalized_name: "GOLDMAN SACHS GROUP",
       created_at: new Date().toISOString(),
     });
     // The AI-emitted variant is merged into the canonical family.
