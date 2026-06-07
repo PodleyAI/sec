@@ -19,7 +19,7 @@ import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/Extrac
 // order (management, ownership, related); sponsor extraction runs last when SPAC.
 //
 // The related-party paragraph includes the sponsor legal names that the tests'
-// fake provider returns, so the H-S1 source_span verification (post-1.1.0)
+// fake provider returns, so the source_span verification (post-1.1.0)
 // accepts them. The blank "x" placeholders are kept in the other sections so
 // management / ownership extractors still run with empty input.
 const BODY = [
@@ -150,7 +150,7 @@ describe("SPAC sponsor end-to-end", () => {
     expect(families.length).toBe(0);
   });
 
-  it("H-S1: drops sponsor rows whose source_span is not present in section text", async () => {
+  it("drops sponsor rows whose source_span is not present in section text", async () => {
     ({ unregister } = registerFakeStructuredProvider([
       ...EMPTY_SECTIONS,
       {
@@ -187,7 +187,7 @@ describe("SPAC sponsor end-to-end", () => {
     expect(sponsorDl?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });
 
-  it("H-S1: writes verified sponsor rows and dead-letters a partial for unverified ones", async () => {
+  it("writes verified sponsor rows and dead-letters a partial for unverified ones", async () => {
     ({ unregister } = registerFakeStructuredProvider([
       ...EMPTY_SECTIONS,
       {

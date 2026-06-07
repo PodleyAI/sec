@@ -147,7 +147,7 @@ describe("PersonResolver.resolve", () => {
   });
 
   it("serialises alias lookup inside the per-key mutex (no overlapping alias.resolve calls)", async () => {
-    // H-S2: the previous regression test stubbed `aliasRepo.resolve` to always
+    // The previous regression test stubbed `aliasRepo.resolve` to always
     // return a constant id regardless of input, so both pre-fix (lookup
     // outside the mutex) and post-fix (lookup inside the mutex) code paths
     // produced the same final answer and the test could not discriminate the

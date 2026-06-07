@@ -236,7 +236,7 @@ describe("streamDownloadToFile", () => {
     }
   });
 
-  it("H-S3: accepts RFC 9112 duplicate-equal Content-Length values", async () => {
+  it("accepts RFC 9112 duplicate-equal Content-Length values", async () => {
     // CloudFront / Akamai / ELB sometimes emit two `Content-Length: N`
     // header lines. Headers.append combines them into a single
     // comma-joined string "N, N". RFC 9112 §6.3 explicitly allows the
@@ -270,7 +270,7 @@ describe("streamDownloadToFile", () => {
     }
   });
 
-  it("H-S3: rejects mismatched duplicate Content-Length values", async () => {
+  it("rejects mismatched duplicate Content-Length values", async () => {
     // Two Content-Length lines with different values are a genuine
     // protocol error. RFC 9112 §6.3 requires equal duplicates; mismatched
     // duplicates must fail closed.

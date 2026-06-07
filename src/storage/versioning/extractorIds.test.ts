@@ -129,7 +129,7 @@ describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
   });
 });
 
-describe("Form_DRS — DRSLTR not advertised (H-S0)", () => {
+describe("Form_DRS — DRSLTR not advertised", () => {
   it("Form_DRS.forms does not include DRSLTR (correspondence letter, not a prospectus)", () => {
     expect(Form_DRS.forms).not.toContain("DRSLTR");
   });
