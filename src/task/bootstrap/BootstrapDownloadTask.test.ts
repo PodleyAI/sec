@@ -150,6 +150,155 @@ describe("streamDownloadToFile", () => {
     }
   });
 
+  it("streamDownloadToFile rejects malformed Content-Length", async () => {
+    // Server advertises `123abc`. `parseInt` would have returned 123 and
+    // silently downgraded integrity to a wrong-but-passable check; we
+    // fail closed instead so the caller sees the protocol violation.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "123abc" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "bad-len.bin");
+      await expect(
+        streamDownloadToFile("https://example/bad-len", dest)
+      ).rejects.toThrow(/Invalid Content-Length/);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "bad-len.bin"), { force: true });
+    }
+  });
+
+  it("streamDownloadToFile accepts whitespace-padded Content-Length", async () => {
+    // Surrounding whitespace is harmless and must not trip the strict
+    // parser — many proxies normalise headers with stray spaces.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "  10  " },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "padded-len.bin");
+      const result = await streamDownloadToFile("https://example/padded-len", dest);
+      expect(result.bytes).toBe(10);
+      expect(result.totalBytes).toBe(10);
+      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "padded-len.bin"), { force: true });
+    }
+  });
+
+  it("streamDownloadToFile rejects negative Content-Length", async () => {
+    // A negative value is malformed under RFC 9110; we fail closed rather
+    // than silently downgrade to no-integrity-check.
+    const body = new TextEncoder().encode("hello");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-length": "-5" },
+      });
+    });
+    try {
+      const dest = path.join(tmpRoot, "neg-len.bin");
+      await expect(
+        streamDownloadToFile("https://example/neg-len", dest)
+      ).rejects.toThrow(/Invalid Content-Length/);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "neg-len.bin"), { force: true });
+    }
+  });
+
+  it("accepts RFC 9112 duplicate-equal Content-Length values", async () => {
+    // CloudFront / Akamai / ELB sometimes emit two `Content-Length: N`
+    // header lines. Headers.append combines them into a single
+    // comma-joined string "N, N". RFC 9112 §6.3 explicitly allows the
+    // recipient to combine duplicate equal values. The strict regex
+    // introduced in PR #125 rejected this real-world value; we now
+    // accept it while still rejecting genuinely conflicting values.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      // Build the header via append so we get the RFC 9112 combined form.
+      const h = new Headers();
+      h.append("content-length", "10");
+      h.append("content-length", "10");
+      return new Response(stream, { status: 200, headers: h });
+    });
+    try {
+      const dest = path.join(tmpRoot, "dup-equal-len.bin");
+      const result = await streamDownloadToFile("https://example/dup-equal", dest);
+      expect(result.bytes).toBe(10);
+      expect(result.totalBytes).toBe(10);
+      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "dup-equal-len.bin"), { force: true });
+    }
+  });
+
+  it("rejects mismatched duplicate Content-Length values", async () => {
+    // Two Content-Length lines with different values are a genuine
+    // protocol error. RFC 9112 §6.3 requires equal duplicates; mismatched
+    // duplicates must fail closed.
+    const body = new TextEncoder().encode("0123456789");
+    const oldFetch = global.fetch;
+    (global as any).fetch = mock(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      });
+      const h = new Headers();
+      h.append("content-length", "10");
+      h.append("content-length", "20");
+      return new Response(stream, { status: 200, headers: h });
+    });
+    try {
+      const dest = path.join(tmpRoot, "dup-mismatched-len.bin");
+      await expect(
+        streamDownloadToFile("https://example/dup-mismatched", dest)
+      ).rejects.toThrow(/Conflicting Content-Length/);
+    } finally {
+      (global as any).fetch = oldFetch;
+      rmSync(path.join(tmpRoot, "dup-mismatched-len.bin"), { force: true });
+    }
+  });
+
   it("handles responses with no content-length header", async () => {
     const oldFetch = global.fetch;
     (global as any).fetch = mock(async () => {

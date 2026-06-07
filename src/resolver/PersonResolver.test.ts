@@ -145,4 +145,51 @@ describe("PersonResolver.resolve", () => {
     const result = await resolver.resolve(obs({ cik: 1234, observation_id: 3 }));
     expect(result).toBe("alias-target");
   });
+
+  it("serialises alias lookup inside the per-key mutex (no overlapping alias.resolve calls)", async () => {
+    // The previous regression test stubbed `aliasRepo.resolve` to always
+    // return a constant id regardless of input, so both pre-fix (lookup
+    // outside the mutex) and post-fix (lookup inside the mutex) code paths
+    // produced the same final answer and the test could not discriminate the
+    // bug. The actual difference between the two code paths is whether the
+    // alias lookups overlap in time — pre-fix runs them in parallel after
+    // the mutex releases; post-fix runs them sequentially inside the lock.
+    //
+    // Track concurrent in-flight alias.resolve calls. Pre-fix code drives the
+    // counter to 2 simultaneously when two resolves run in parallel; post-fix
+    // never sees more than one in flight.
+
+    const originalCreate = setup.canonRepo.create.bind(setup.canonRepo);
+    let createCount = 0;
+    setup.canonRepo.create = (async (row: CanonicalPerson) => {
+      createCount += 1;
+      return originalCreate(row);
+    }) as typeof setup.canonRepo.create;
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let aliasCallCount = 0;
+    setup.aliasRepo.resolve = async (id: string) => {
+      inFlight += 1;
+      if (inFlight > maxInFlight) maxInFlight = inFlight;
+      aliasCallCount += 1;
+      // Sleep long enough that a parallel caller is guaranteed to start
+      // before this one resolves.
+      await new Promise((r) => setTimeout(r, 10));
+      inFlight -= 1;
+      return id; // alias not installed — we only care about the in-flight window
+    };
+
+    await Promise.all([
+      resolver.resolve(obs({ cik: 4242 })),
+      resolver.resolve(obs({ cik: 4242, observation_id: 2 })),
+    ]);
+
+    // Post-fix: alias lookup is inside the mutex → at most one in flight.
+    // Pre-fix: alias lookup is after mutex.release → both run in parallel.
+    expect(maxInFlight).toBe(1);
+    expect(aliasCallCount).toBe(2);
+    // Exactly one canonical row was minted — find-or-create remains serialised.
+    expect(createCount).toBe(1);
+  });
 });

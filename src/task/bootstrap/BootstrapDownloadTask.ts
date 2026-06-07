@@ -48,9 +48,36 @@ export async function streamDownloadToFile(
     throw new Error(`Download returned no body for ${url}`);
   }
 
+  // Strict integer parse, fail-closed: `parseInt` accepts trailing garbage
+  // ("123abc" → 123) which would let a malformed Content-Length defeat the
+  // size-mismatch integrity check below. When the header is present we
+  // require each comma-separated part to be a pure non-negative integer no
+  // larger than `MAX_SAFE_INTEGER` (beyond that point `bytes !== totalBytes`
+  // is no longer exact); otherwise we throw rather than silently treating
+  // the response as having no advertised length. A truly-absent header
+  // (chunked transfer) keeps `totalBytes` undefined and skips the
+  // mismatch assertion as before.
   const len = response.headers.get("content-length");
-  const totalBytesParsed = len !== null ? parseInt(len, 10) : NaN;
-  const totalBytes = Number.isFinite(totalBytesParsed) ? totalBytesParsed : undefined;
+  let totalBytes: number | undefined;
+  if (len !== null) {
+    // RFC 9112 §6.3: repeated Content-Length lines may be combined as
+    // "v1, v2, ...". Equal duplicates are valid (same length); mismatched
+    // values are a protocol error. A single value remains a single value.
+    const parts = len.split(",").map((p) => p.trim());
+    if (parts.length === 0 || parts.some((p) => !/^\d+$/.test(p))) {
+      throw new Error(`Invalid Content-Length header ${JSON.stringify(len)} for ${url}`);
+    }
+    if (new Set(parts).size > 1) {
+      throw new Error(
+        `Conflicting Content-Length values ${JSON.stringify(len)} for ${url} (RFC 9112 §6.3 requires duplicates to be equal)`
+      );
+    }
+    const parsed = Number(parts[0]);
+    if (parsed > Number.MAX_SAFE_INTEGER) {
+      throw new Error(`Content-Length ${parts[0]} exceeds MAX_SAFE_INTEGER for ${url}`);
+    }
+    totalBytes = parsed;
+  }
 
   const writer = Bun.file(destPath).writer();
   let bytes = 0;

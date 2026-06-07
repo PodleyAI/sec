@@ -50,6 +50,12 @@ function personKey(obs: PersonObservation, resolverVersion: string): string {
  * removed from the map so the map stays bounded for long-running
  * processes that resolve millions of distinct keys.
  *
+ * The alias-resolution lookup also runs inside the mutex so the queued
+ * caller observes both the canonical row and its alias resolution, so
+ * concurrent resolves converge to the same final canonical_person_id
+ * even when one races an alias rewrite that happens between the create
+ * and the alias lookup.
+ *
  * Multi-process callers (workers, separate `sec` invocations) still need
  * a backend-level UNIQUE constraint to be race-free — single-process
  * mutexes are not visible to other processes.
@@ -71,9 +77,9 @@ export class PersonResolver {
     }
     entry.refs += 1;
 
-    let candidateId: string;
+    let resolvedId: string;
     try {
-      candidateId = await entry.mutex.lock(async () => {
+      resolvedId = await entry.mutex.lock(async () => {
         // Inside the critical section we re-query so any queued caller
         // that ran before us picks up the canonical row they just
         // inserted.
@@ -93,28 +99,36 @@ export class PersonResolver {
             obs.source_filing_issuer_cik
           );
         }
+        let candidateId: string;
         if (candidate) {
-          return candidate.canonical_person_id;
+          candidateId = candidate.canonical_person_id;
+        } else {
+          const freshId = randomUUID();
+          const fresh: CanonicalPerson = {
+            canonical_person_id: freshId,
+            resolver_version: this.opts.activeResolverVersion,
+            display_first: obs.first_name,
+            display_middle: obs.middle_name,
+            display_last: obs.last_name,
+            display_suffix: obs.suffix,
+            cik: obs.cik,
+            normalized_first: obs.normalized_first,
+            normalized_middle: obs.normalized_middle,
+            normalized_last: obs.normalized_last,
+            normalized_suffix: obs.normalized_suffix,
+            source_filing_issuer_cik:
+              obs.cik === null ? obs.source_filing_issuer_cik : null,
+            created_at: new Date().toISOString(),
+          };
+          await this.opts.canonicalPersonRepo.create(fresh);
+          candidateId = freshId;
         }
-        const freshId = randomUUID();
-        const fresh: CanonicalPerson = {
-          canonical_person_id: freshId,
-          resolver_version: this.opts.activeResolverVersion,
-          display_first: obs.first_name,
-          display_middle: obs.middle_name,
-          display_last: obs.last_name,
-          display_suffix: obs.suffix,
-          cik: obs.cik,
-          normalized_first: obs.normalized_first,
-          normalized_middle: obs.normalized_middle,
-          normalized_last: obs.normalized_last,
-          normalized_suffix: obs.normalized_suffix,
-          source_filing_issuer_cik:
-            obs.cik === null ? obs.source_filing_issuer_cik : null,
-          created_at: new Date().toISOString(),
-        };
-        await this.opts.canonicalPersonRepo.create(fresh);
-        return freshId;
+        // Resolve the alias INSIDE the mutex so a concurrent caller that
+        // queues behind us cannot observe the freshly-minted candidate
+        // before the alias rewrite is applied. Without this, two parallel
+        // resolves could split: one returns the alias target, the other
+        // returns the pre-alias id.
+        return await this.opts.canonicalPersonAliasRepo.resolve(candidateId);
       });
     } finally {
       entry.refs -= 1;
@@ -128,6 +142,6 @@ export class PersonResolver {
       }
     }
 
-    return await this.opts.canonicalPersonAliasRepo.resolve(candidateId);
+    return resolvedId;
   }
 }
