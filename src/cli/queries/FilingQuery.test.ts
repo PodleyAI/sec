@@ -100,7 +100,7 @@ describe("queryFilings", () => {
   });
 
   it("streamed search reports the FULL match count with no totalApprox when drained", async () => {
-    // H1 regression: streamed total used to be pinned at offset+limit. It
+    // Regression: streamed total used to be pinned at offset+limit. It
     // must now equal the full count of matching rows, and totalApprox must
     // be undefined because the stream drained under the soft cap.
     for (let i = 1; i <= 12; i++) {

@@ -15,7 +15,7 @@ export interface ActiveSlot {
 /**
  * Resolves which slot's extractor version should be used right now.
  *
- * "Next if exists, else current" — per PR3 spec decision D9. When a dev cycle
+ * "Next if exists, else current". When a dev cycle
  * is in flight (next-slot row exists), all processing targets that slot. When
  * no dev cycle is in flight, processing targets current.
  *

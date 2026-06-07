@@ -179,7 +179,7 @@ describe("queryEntities", () => {
   });
 
   it("streamed search reports the FULL match count, not offset+limit", async () => {
-    // H1 regression: collectPage used to stop at offset+limit and report
+    // Regression: collectPage used to stop at offset+limit and report
     // that as total, so total was a constant equal to the page end. Now
     // it counts every match. 20 entities match "acme"; with limit 3 the
     // window has 3 rows but total must be the full 20, and because the

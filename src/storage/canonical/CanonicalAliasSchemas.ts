@@ -14,7 +14,7 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
  * `canonical_person` whose `canonical_person_id` matches `alias_canonical_id`
  * is rewritten to `target_canonical_id` by `PersonResolver`'s final pass.
  *
- * Single-hop only: the alias repo (Task 15) rejects an insert whose
+ * Single-hop only: the alias repo rejects an insert whose
  * `target_canonical_id` is itself an `alias_canonical_id`. Aliases survive
  * resolver-version bumps — they live in their own table, not the canonical
  * table.

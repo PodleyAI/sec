@@ -9,9 +9,9 @@ import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow
 import { isDryRun } from "../../cli/isDryRun";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
@@ -28,7 +28,7 @@ export type UpdateAllFormsTaskOutput = {
  * Schedules ProcessAccessionDocFormTask for every filing of the requested
  * form types that does not yet have a successful extractor_runs row at the
  * current extractor version. Re-processing existing rows requires a
- * version bump (PR3's `sec version start-dev` / `promote`); there is no
+ * version bump (`sec version start-dev` / `promote`); there is no
  * --force escape hatch.
  */
 export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllFormsTaskOutput> {
@@ -53,9 +53,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     context: IExecuteContext
   ): Promise<UpdateAllFormsTaskOutput> {
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    const runRepo = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const versionRegistry = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
@@ -70,9 +68,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
     for (const form of formSet) {
       const extractorId = formToExtractorId(form);
       if (!extractorId) {
-        console.warn(
-          `update-forms: form '${form}' has no registered extractor; skipping`
-        );
+        console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
         continue;
       }
       let active = slotCache.get(extractorId);
@@ -102,9 +98,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
     if (isDryRun()) {
       const forms = [...formSet].join(", ");
-      console.log(
-        `Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}`
-      );
+      console.log(`Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}`);
       return { success: true };
     }
 

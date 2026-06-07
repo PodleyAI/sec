@@ -6,12 +6,8 @@
 
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
-import { countEligibleDeadLetters } from "./extractor";
-import {
-  COMPONENT_KINDS,
-  COMPONENT_VERSION_REPOSITORY_TOKEN,
-  ComponentKind,
-} from "../../storage/versioning/ComponentVersionSchema";
+import type { ResolverId } from "../../resolver/resolverIds";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   dropNext as dropNextCeremony,
   dropPrevious as dropPreviousCeremony,
@@ -20,22 +16,26 @@ import {
   startDev as startDevCeremony,
 } from "../../storage/versioning/ceremonies";
 import { isRegisteredComponent } from "../../storage/versioning/componentRegistry";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import {
+  COMPONENT_KINDS,
+  COMPONENT_VERSION_REPOSITORY_TOKEN,
+  ComponentKind,
+} from "../../storage/versioning/ComponentVersionSchema";
 import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
+import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { parseGlobalOptions } from "../GlobalOptions";
 import { renderTable } from "../output/TableRenderer";
 import { computeResolverCoverage } from "../queries/ResolverCoverage";
 import { getVersionCoverage } from "../queries/VersionCoverage";
 import { getVersionHistory } from "../queries/VersionHistory";
 import { getVersionStatus } from "../queries/VersionStatus";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
-import type { ResolverId } from "../../resolver/resolverIds";
-import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
+import { countEligibleDeadLetters } from "./extractor";
 
 function assertComponentKind(s: string): asserts s is ComponentKind {
   if (!(COMPONENT_KINDS as readonly string[]).includes(s)) {
@@ -65,18 +65,15 @@ function assertFormat(s: string): asserts s is "table" | "json" {
  * handled by this extractor. Stored on the next-slot row; used as the
  * promote-gate denominator.
  *
- * TODO(PR4): this is extractor-specific. When resolvers gain a major
+ * This is extractor-specific today. When resolvers gain a major
  * dev-cycle, they will need their own kind-aware snapshot strategy
  * (count of observations? count of canonical identities? TBD). Add a
- * dispatch table keyed on ComponentKind here when PR4 lands.
+ * dispatch table keyed on ComponentKind when resolver support lands.
  */
-async function snapshotTargetCount(
-  kind: ComponentKind,
-  id: string
-): Promise<number> {
+async function snapshotTargetCount(kind: ComponentKind, id: string): Promise<number> {
   if (kind !== "extractor") {
     throw new Error(
-      `snapshotTargetCount: kind '${kind}' is not yet supported; only 'extractor' has a snapshot strategy. Add resolver support in PR4.`
+      `snapshotTargetCount: kind '${kind}' is not yet supported; only 'extractor' has a snapshot strategy. Add resolver support when implemented.`
     );
   }
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -152,9 +149,7 @@ export function addVersionCommands(program: Command): void {
         assertFormat(options.format);
         const limit = parseInt(options.limit, 10);
         if (Number.isNaN(limit) || limit < 1) {
-          throw new Error(
-            `Invalid --limit '${options.limit}'. Expected positive integer.`
-          );
+          throw new Error(`Invalid --limit '${options.limit}'. Expected positive integer.`);
         }
         const events = await getVersionHistory(kind, id, limit);
         if (options.format === "json") {
@@ -261,12 +256,9 @@ export function addVersionCommands(program: Command): void {
           const events = new VersionEventRepo(
             globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
           );
-          const targetCount =
-            bumpArg === "major" ? await snapshotTargetCount(kind, id) : null;
+          const targetCount = bumpArg === "major" ? await snapshotTargetCount(kind, id) : null;
           const notes =
-            typeof options.notes === "string" && options.notes !== ""
-              ? options.notes
-              : null;
+            typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
           const dryRun = parseGlobalOptions(program).dryRun;
           await startDevCeremony({
             reg,
@@ -304,165 +296,145 @@ export function addVersionCommands(program: Command): void {
     .description("Promote the next slot to current (slot rotation)")
     .option("--force", "Bypass the major-bump coverage gate", false)
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .action(
-      async (kind: string, id: string, options: Record<string, boolean | string>) => {
-        await runCommand(async () => {
-          assertComponentKind(kind);
-          const reg = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const events = new VersionEventRepo(
-            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-          );
-          const runs = new ExtractorRunRepo(
-            globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-          );
-          const notes =
-            typeof options.notes === "string" && options.notes !== ""
-              ? options.notes
-              : null;
-          const dryRun = parseGlobalOptions(program).dryRun;
-          await promoteCeremony({
-            reg,
-            events,
-            runs,
-            kind,
-            id,
-            force: options.force === true,
-            notes,
-            dryRun,
-          });
-          console.log(
-            dryRun
-              ? `(dry-run) promote ${kind} ${id} would succeed`
-              : `Promoted ${kind}:${id}`
-          );
-          if (!dryRun && kind === "extractor") {
-            const eligible = await countEligibleDeadLetters(id);
-            if (eligible > 0) {
-              console.log(
-                `${eligible} dead-letter entr${eligible === 1 ? "y is" : "ies are"} now eligible ` +
-                  `for retry — run 'sec extractor retry-dead-letters ${id}'`
-              );
-            }
-          }
+    .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
+      await runCommand(async () => {
+        assertComponentKind(kind);
+        const reg = new VersionRegistry(
+          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+        );
+        const events = new VersionEventRepo(
+          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+        );
+        const runs = new ExtractorRunRepo(
+          globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+        );
+        const notes =
+          typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
+        const dryRun = parseGlobalOptions(program).dryRun;
+        await promoteCeremony({
+          reg,
+          events,
+          runs,
+          kind,
+          id,
+          force: options.force === true,
+          notes,
+          dryRun,
         });
-      }
-    );
+        console.log(
+          dryRun ? `(dry-run) promote ${kind} ${id} would succeed` : `Promoted ${kind}:${id}`
+        );
+        if (!dryRun && kind === "extractor") {
+          const eligible = await countEligibleDeadLetters(id);
+          if (eligible > 0) {
+            console.log(
+              `${eligible} dead-letter entr${eligible === 1 ? "y is" : "ies are"} now eligible ` +
+                `for retry — run 'sec extractor retry-dead-letters ${id}'`
+            );
+          }
+        }
+      });
+    });
 
   // rollback
   version
     .command("rollback <kind> <id>")
     .description("Swap current and previous slots")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .action(
-      async (kind: string, id: string, options: Record<string, boolean | string>) => {
-        await runCommand(async () => {
-          assertComponentKind(kind);
-          const reg = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const events = new VersionEventRepo(
-            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-          );
-          const notes =
-            typeof options.notes === "string" && options.notes !== ""
-              ? options.notes
-              : null;
-          const dryRun = parseGlobalOptions(program).dryRun;
-          await rollbackCeremony({
-            reg,
-            events,
-            kind,
-            id,
-            notes,
-            dryRun,
-          });
-          console.log(
-            dryRun
-              ? `(dry-run) rollback ${kind} ${id} would succeed`
-              : `Rolled back ${kind}:${id}`
-          );
+    .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
+      await runCommand(async () => {
+        assertComponentKind(kind);
+        const reg = new VersionRegistry(
+          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+        );
+        const events = new VersionEventRepo(
+          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+        );
+        const notes =
+          typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
+        const dryRun = parseGlobalOptions(program).dryRun;
+        await rollbackCeremony({
+          reg,
+          events,
+          kind,
+          id,
+          notes,
+          dryRun,
         });
-      }
-    );
+        console.log(
+          dryRun ? `(dry-run) rollback ${kind} ${id} would succeed` : `Rolled back ${kind}:${id}`
+        );
+      });
+    });
 
   // drop-next
   version
     .command("drop-next <kind> <id>")
     .description("Discard the in-flight dev cycle (clear the next slot)")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .action(
-      async (kind: string, id: string, options: Record<string, boolean | string>) => {
-        await runCommand(async () => {
-          assertComponentKind(kind);
-          const reg = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const events = new VersionEventRepo(
-            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-          );
-          const notes =
-            typeof options.notes === "string" && options.notes !== ""
-              ? options.notes
-              : null;
-          const dryRun = parseGlobalOptions(program).dryRun;
-          await dropNextCeremony({
-            reg,
-            events,
-            kind,
-            id,
-            notes,
-            dryRun,
-          });
-          console.log(
-            dryRun
-              ? `(dry-run) drop-next ${kind} ${id} would succeed`
-              : `Dropped next slot for ${kind}:${id}`
-          );
+    .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
+      await runCommand(async () => {
+        assertComponentKind(kind);
+        const reg = new VersionRegistry(
+          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+        );
+        const events = new VersionEventRepo(
+          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+        );
+        const notes =
+          typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
+        const dryRun = parseGlobalOptions(program).dryRun;
+        await dropNextCeremony({
+          reg,
+          events,
+          kind,
+          id,
+          notes,
+          dryRun,
         });
-      }
-    );
+        console.log(
+          dryRun
+            ? `(dry-run) drop-next ${kind} ${id} would succeed`
+            : `Dropped next slot for ${kind}:${id}`
+        );
+      });
+    });
 
   // drop-previous
   version
     .command("drop-previous <kind> <id>")
     .description("Clear the previous slot and purge associated data")
     .option("--notes <text>", "Optional notes for the audit log", "")
-    .action(
-      async (kind: string, id: string, options: Record<string, boolean | string>) => {
-        await runCommand(async () => {
-          assertComponentKind(kind);
-          const reg = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const events = new VersionEventRepo(
-            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-          );
-          const notes =
-            typeof options.notes === "string" && options.notes !== ""
-              ? options.notes
-              : null;
-          const dryRun = parseGlobalOptions(program).dryRun;
-          const runs =
-            kind === "extractor"
-              ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
-              : undefined;
-          await dropPreviousCeremony({
-            reg,
-            events,
-            kind,
-            id,
-            notes,
-            dryRun,
-            runs,
-          });
-          console.log(
-            dryRun
-              ? `(dry-run) drop-previous ${kind} ${id} would succeed`
-              : `Dropped previous slot for ${kind}:${id}`
-          );
+    .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
+      await runCommand(async () => {
+        assertComponentKind(kind);
+        const reg = new VersionRegistry(
+          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+        );
+        const events = new VersionEventRepo(
+          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+        );
+        const notes =
+          typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
+        const dryRun = parseGlobalOptions(program).dryRun;
+        const runs =
+          kind === "extractor"
+            ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
+            : undefined;
+        await dropPreviousCeremony({
+          reg,
+          events,
+          kind,
+          id,
+          notes,
+          dryRun,
+          runs,
         });
-      }
-    );
+        console.log(
+          dryRun
+            ? `(dry-run) drop-previous ${kind} ${id} would succeed`
+            : `Dropped previous slot for ${kind}:${id}`
+        );
+      });
+    });
 }

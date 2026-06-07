@@ -17,7 +17,7 @@ export function addSyncCommand(program: Command): void {
     .action(async (options) => {
       if (options.force) {
         console.warn(
-          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version' once PR3 lands)."
+          "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version')."
         );
       }
       await runCommand(

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { globalServiceRegistry } from "workglow";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
 import { queryPersons } from "./PersonQuery";
 
@@ -83,7 +83,7 @@ describe("queryPersons", () => {
   });
 
   it("streamed search reports the FULL match count with no totalApprox when drained", async () => {
-    // H1 regression: streamed total was pinned at offset+limit. With 15
+    // Regression: streamed total was pinned at offset+limit. With 15
     // "Aaron" matches and a limit of 4, total must be 15 (the full match
     // count) and totalApprox must be undefined since the stream drained.
     for (let i = 1; i <= 15; i++) {

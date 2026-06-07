@@ -44,7 +44,7 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      // PR2 wires bootstrapExtractorVersions() into db setup; expect every
+      // db setup bootstraps extractor versions; expect every
       // extractor id registered at 1.0.0 in the current slot.
       const ids = parsed
         .filter((r: { component_kind: string }) => r.component_kind === "extractor")
@@ -69,15 +69,7 @@ describe("sec version CLI", () => {
       expect(setup.exitCode).toBe(0);
 
       const startDev = await runCli(
-        [
-          "version",
-          "start-dev",
-          "extractor",
-          "D",
-          "2.0.0",
-          "--bump",
-          "major",
-        ],
+        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
         dir
       );
       expect(startDev.exitCode).toBe(0);
@@ -85,10 +77,8 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      // After PR2 bootstrap, status lists all five extractors; locate "D".
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      // After bootstrap, status lists all extractors; locate "D".
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow).toBeDefined();
       // JSON output is raw data — semver only, no presentation suffix.
       expect(dRow.next).toBe("2.0.0");
@@ -137,9 +127,7 @@ describe("sec version CLI", () => {
       const status = await runCli(["version", "status", "--format", "json"], dir);
       expect(status.exitCode).toBe(0);
       const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow?.next).toBe("2.0.0");
       expect(dRow?.next_coverage_complete).toBe(false);
 
@@ -161,10 +149,7 @@ describe("sec version CLI", () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
-      await runCli(
-        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
-        dir
-      );
+      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       const result = await runCli(
         ["version", "coverage", "extractor", "D", "--format", "json"],
         dir
@@ -179,27 +164,17 @@ describe("sec version CLI", () => {
     }
   });
 
-  it(
-    "promote with --force rotates slots and history records both events",
-    async () => {
+  it("promote with --force rotates slots and history records both events", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
-      await runCli(
-        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
-        dir
-      );
-      const promote = await runCli(
-        ["version", "promote", "extractor", "D", "--force"],
-        dir
-      );
+      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
+      const promote = await runCli(["version", "promote", "extractor", "D", "--force"], dir);
       expect(promote.exitCode).toBe(0);
 
       const status = await runCli(["version", "status", "--format", "json"], dir);
       const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow?.current).toBe("2.0.0");
       expect(dRow?.previous).toBe("1.0.0");
       expect(dRow?.next).toBe("—");
@@ -215,61 +190,39 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-    },
-    15000
-  );
+  }, 15000);
 
-  it(
-    "rollback swaps current and previous",
-    async () => {
+  it("rollback swaps current and previous", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
-      await runCli(
-        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
-        dir
-      );
+      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
       await runCli(["version", "promote", "extractor", "D", "--force"], dir);
 
-      const result = await runCli(
-        ["version", "rollback", "extractor", "D"],
-        dir
-      );
+      const result = await runCli(["version", "rollback", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
 
       const status = await runCli(["version", "status", "--format", "json"], dir);
       const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow?.current).toBe("1.0.0");
       expect(dRow?.previous).toBe("2.0.0");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-    },
-    15000
-  );
+  }, 15000);
 
   it("drop-next clears the next slot", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {
       await runCli(["db", "setup"], dir);
-      await runCli(
-        ["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"],
-        dir
-      );
-      const result = await runCli(
-        ["version", "drop-next", "extractor", "D"],
-        dir
-      );
+      await runCli(["version", "start-dev", "extractor", "D", "2.0.0", "--bump", "major"], dir);
+      const result = await runCli(["version", "drop-next", "extractor", "D"], dir);
       expect(result.exitCode).toBe(0);
 
       const status = await runCli(["version", "status", "--format", "json"], dir);
       const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow?.next).toBe("—");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -288,9 +241,7 @@ describe("sec version CLI", () => {
 
       const status = await runCli(["version", "status", "--format", "json"], dir);
       const parsed = JSON.parse(status.stdout);
-      const dRow = parsed.find(
-        (r: { component_id: string }) => r.component_id === "D"
-      );
+      const dRow = parsed.find((r: { component_id: string }) => r.component_id === "D");
       expect(dRow?.current).toBe("1.0.1");
       expect(dRow?.next).toBe("—");
       expect(dRow?.previous).toBe("—");
@@ -320,15 +271,7 @@ describe("sec version CLI", () => {
     try {
       await runCli(["db", "setup"], dir);
       const result = await runCli(
-        [
-          "version",
-          "start-dev",
-          "extractor",
-          "no-such-form",
-          "1.0.0",
-          "--bump",
-          "major",
-        ],
+        ["version", "start-dev", "extractor", "no-such-form", "1.0.0", "--bump", "major"],
         dir
       );
       expect(result.exitCode).not.toBe(0);

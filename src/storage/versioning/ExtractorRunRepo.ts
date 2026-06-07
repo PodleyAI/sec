@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {
-  ExtractorRun,
-  ExtractorRunRepositoryStorage,
-} from "./ExtractorRunSchema";
+import type { ExtractorRun, ExtractorRunRepositoryStorage } from "./ExtractorRunSchema";
 import { semverMajorMinorPrefix } from "./semver";
 
 export interface FilingKey {
@@ -16,21 +13,19 @@ export interface FilingKey {
 }
 
 /**
- * Helper around the extractor_runs table. PR2 call sites use:
+ * Helper around the extractor_runs table. Call sites use:
  *   - recordRun: every ProcessAccessionDocFormTask attempt writes one row.
  *   - hasSuccessfulRun: single-filing check.
  *   - listFilingsWithoutSuccessfulRun: UpdateAllFormsTask scheduling.
  *
  * Re-running the same (cik, accession, extractor_id, extractor_version)
  * overwrites the prior row by PK — preserving a per-execution history
- * is intentionally not a goal (see spec D3: one row per version per filing).
+ * is intentionally not a goal (one row per version per filing).
  */
 export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
-  async recordRun(
-    row: Omit<ExtractorRun, "ran_at">
-  ): Promise<void> {
+  async recordRun(row: Omit<ExtractorRun, "ran_at">): Promise<void> {
     await this.storage.put({
       ...row,
       ran_at: new Date().toISOString(),
@@ -58,12 +53,7 @@ export class ExtractorRunRepo {
     extractor_id: string,
     extractor_version: string
   ): Promise<boolean> {
-    const row = await this.findRun(
-      cik,
-      accession_number,
-      extractor_id,
-      extractor_version
-    );
+    const row = await this.findRun(cik, accession_number, extractor_id, extractor_version);
     return row?.success === true;
   }
 
@@ -72,10 +62,7 @@ export class ExtractorRunRepo {
    * Used by the major-promote coverage gate. Exact-match (not major.minor
    * prefix) because the gate measures actual production at the new version.
    */
-  async countSuccessfulAtVersion(
-    extractor_id: string,
-    extractor_version: string
-  ): Promise<number> {
+  async countSuccessfulAtVersion(extractor_id: string, extractor_version: string): Promise<number> {
     const rows = await this.storage.query({
       extractor_id,
       extractor_version,
@@ -96,14 +83,13 @@ export class ExtractorRunRepo {
    * Scale note: this method materializes the full set of successful runs
    * for the requested (extractor_id, extractor_version[, form]) tuple into
    * an in-memory Set. At Form D's projected size (hundreds of thousands of
-   * filings), the result set can reach ~100-200 MB. For PR2 this is
-   * acceptable because the data set is small in absolute terms; a future
-   * plan should switch to a streaming or anti-join (WHERE NOT EXISTS) query
+   * filings), the result set can reach ~100-200 MB. This is
+   * acceptable while the data set is small in absolute terms; a future
+   * migration should switch to a streaming or anti-join (WHERE NOT EXISTS) query
    * once the data set grows.
    *
-   * In PR2, the only production caller (UpdateAllFormsTask) always passes
-   * `form`. The no-form path is retained for PR3's coverage queries which
-   * may need to count across an extractor's variants.
+   * UpdateAllFormsTask always passes `form`. The no-form path is retained
+   * for coverage queries that may need to count across an extractor's variants.
    */
   async deleteForExtractorVersion(
     extractor_id: string,
@@ -127,7 +113,7 @@ export class ExtractorRunRepo {
     extractor_version: string,
     form?: string
   ): Promise<T[]> {
-    // Patch-ceremony reading-side gating (PR3 spec D7): match on major.minor
+    // Patch-ceremony reading-side gating: match on major.minor
     // prefix so a row at "1.0.0" satisfies the gate for any "1.0.x" current.
     // A row at "1.1.0" or "2.0.0" does NOT satisfy a "1.0.x" gate.
     const prefix = semverMajorMinorPrefix(extractor_version);
@@ -135,7 +121,7 @@ export class ExtractorRunRepo {
     // Workglow's tabular query doesn't expose LIKE/prefix matching today, so
     // we narrow with the available criteria (extractor_id, success, optionally
     // form) and post-filter on extractor_version in memory. Note: with patch
-    // ceremony (PR3 D7), the criteria no longer constrains extractor_version,
+    // patch ceremony, the criteria no longer constrains extractor_version,
     // so the worst-case successful-set spans ALL versions for this extractor
     // (1.0.0, 1.0.1, 1.1.0, 2.0.0, ...). For a long-lived extractor with many
     // versions and many filings, this set can grow substantially. See the
@@ -158,8 +144,6 @@ export class ExtractorRunRepo {
         .filter((r) => r.extractor_version.startsWith(prefix))
         .map((r) => `${r.cik}::${r.accession_number}`)
     );
-    return filings.filter(
-      (f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`)
-    );
+    return filings.filter((f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`));
   }
 }

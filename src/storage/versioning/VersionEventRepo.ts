@@ -5,10 +5,7 @@
  */
 
 import type { ComponentKind } from "./ComponentVersionSchema";
-import type {
-  VersionEvent,
-  VersionEventRepositoryStorage,
-} from "./VersionEventSchema";
+import type { VersionEvent, VersionEventRepositoryStorage } from "./VersionEventSchema";
 
 /**
  * Append-only ceremony audit log. One row per start-dev / promote / rollback /
@@ -21,16 +18,14 @@ import type {
  *
  * Note: ids are assigned via storage.size() + 1. This is correct for an
  * append-only log but breaks if any consumer ever deletes rows from this
- * table (a delete-then-insert sequence will reuse the deleted id). PR3
- * never deletes events; future code that wants to garbage-collect old
+ * table (a delete-then-insert sequence will reuse the deleted id). This
+ * repo never deletes events; future code that wants to garbage-collect old
  * audit rows MUST migrate to a stable id source (e.g. UUIDs) first.
  */
 export class VersionEventRepo {
   constructor(private readonly storage: VersionEventRepositoryStorage) {}
 
-  async recordEvent(
-    event: Omit<VersionEvent, "id" | "at_timestamp">
-  ): Promise<void> {
+  async recordEvent(event: Omit<VersionEvent, "id" | "at_timestamp">): Promise<void> {
     const size = (await this.storage.size()) ?? 0;
     await this.storage.put({
       ...event,

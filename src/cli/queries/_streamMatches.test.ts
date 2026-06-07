@@ -14,7 +14,7 @@ async function* gen(count: number): AsyncGenerator<number, void, undefined> {
 describe("collectPage", () => {
   it("counts the FULL match set when it drains below the cap", async () => {
     // 50 matches, window is [10, 15). total must be the full count (50),
-    // not offset+limit (15) — this is the H1 fix.
+    // not offset+limit (15).
     const result = await collectPage(gen(50), 10, 5, 1000);
     expect(result.total).toBe(50);
     expect(result.exhausted).toBe(true);

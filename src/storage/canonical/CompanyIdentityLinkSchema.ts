@@ -17,7 +17,7 @@ import { createServiceToken } from "workglow";
  *
  * PK is composite `(observation_id, resolver_version)`. An index on
  * `(canonical_company_id, resolver_version)` is created at DDL time
- * (Task 17) for the reverse direction — "which observations point to this
+ * for the reverse direction — "which observations point to this
  * canonical at this resolver version".
  */
 export const CompanyIdentityLinkSchema = Type.Object({

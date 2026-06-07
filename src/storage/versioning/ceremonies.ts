@@ -69,7 +69,7 @@ function assertRegistered(kind: ComponentKind, id: string): void {
 /**
  * Begin (or, for patch bumps, complete) a version cycle. Major and minor
  * bumps populate the `next` slot; patch bumps update `current` in place
- * and log a `promote` event directly (degenerate per spec D10). Validates
+ * and log a `promote` event directly (degenerate promote). Validates
  * bump progression, registration, existing-next-conflict, and (for major)
  * non-negative target_count. Throws on any violation. When `dryRun: true`
  * all validations run but no writes happen.
@@ -286,8 +286,8 @@ export async function rollback(args: RollbackArgs): Promise<void> {
  *     re-running (currently requires raw SQL; a `sec version reset-runs`
  *     command would be a useful follow-up).
  *
- * Documented operator discipline matches spec D8 (single-operator
- * assumption) and is acceptable for v1.
+ * Documented operator discipline matches the single-operator
+ * assumption and is acceptable for v1.
  */
 export async function dropNext(args: DropNextArgs): Promise<void> {
   const { reg, events, kind, id, notes } = args;
