@@ -17,10 +17,10 @@ describe("CanonicalUnderwriterFamilyRepo", () => {
       canonical_underwriter_family_id: "uw-1",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs",
-      normalized_name: "goldman sachs",
+      normalized_name: "GOLDMAN SACHS",
       created_at: new Date().toISOString(),
     });
-    const found = await repo.findByResolverAndName("1.0.0", "goldman sachs");
+    const found = await repo.findByResolverAndName("1.0.0", "GOLDMAN SACHS");
     expect(found?.canonical_underwriter_family_id).toBe("uw-1");
   });
 });

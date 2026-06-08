@@ -17,10 +17,10 @@ describe("CanonicalSponsorFamilyRepo", () => {
       canonical_sponsor_family_id: "fam-1",
       resolver_version: "1.0.0",
       display_name: "Pershing Square Sponsor",
-      normalized_name: "pershing square sponsor",
+      normalized_name: "PERSHING SQUARE SPONSOR",
       created_at: new Date().toISOString(),
     });
-    const found = await repo.findByResolverAndName("1.0.0", "pershing square sponsor");
+    const found = await repo.findByResolverAndName("1.0.0", "PERSHING SQUARE SPONSOR");
     expect(found?.canonical_sponsor_family_id).toBe("fam-1");
   });
 });

@@ -11,12 +11,19 @@ import { AsyncMutex } from "../util/AsyncMutex";
  * The single source of truth for a family natural key (sponsor or underwriter).
  * Normalizes the name via {@link normalizeCompanyName} (punctuation/whitespace
  * canonicalization plus the suffix handling that helper applies), then
- * lower-cases so matching is case-insensitive. Every caller that looks up a
+ * UPPER-cases so matching is case-insensitive. Every caller that looks up a
  * family by name (resolver, CLI query, alias commands) MUST use this so keys
  * line up. Returns "" when the name normalizes to nothing.
+ *
+ * Case convention is UPPER and is locked in: existing
+ * canonical_sponsor_family.normalized_name rows were minted under this
+ * convention, and the alias table keys those canonical_*_id ids directly, so
+ * changing the fold here would silently orphan rows and operator-installed
+ * aliases. FamilyResolver.test.ts pins this — do not change without a
+ * one-time migration.
  */
 export function normalizeFamilyName(name: string): string {
-  return normalizeCompanyName(name)?.toLowerCase() ?? "";
+  return normalizeCompanyName(name)?.toUpperCase() ?? "";
 }
 
 interface FamilyResolverOptions {
@@ -35,6 +42,17 @@ interface FamilyResolverOptions {
  * Shared core for the sponsor-family / underwriter-family resolvers: normalize ->
  * find-or-create at the active resolver version (serialized per key) -> alias
  * resolve. Name-only analogue of CompanyResolver's normalized-name fallback.
+ *
+ * Concurrency: alias resolution runs INSIDE the per-key mutex so a concurrent
+ * caller that queues behind us cannot observe the freshly-minted candidate
+ * before the alias rewrite is applied. Without this, two parallel resolves on
+ * the same family name could split: one returns the alias target, the other
+ * returns the pre-alias id. Mirrors the {@link PersonResolver} /
+ * {@link CompanyResolver} fix.
+ *
+ * Multi-process callers (workers, separate `sec` invocations) still need a
+ * backend-level UNIQUE constraint to be race-free — single-process mutexes
+ * are not visible to other processes.
  */
 export class FamilyResolver {
   private static readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
@@ -55,12 +73,12 @@ export class FamilyResolver {
     }
     entry.refs += 1;
 
-    let candidateId: string;
+    let resolvedId: string;
     try {
-      candidateId = await entry.mutex.lock(async () => {
+      resolvedId = await entry.mutex.lock(async () => {
         const existing = await this.opts.findIdByNormalizedName(normalized);
-        if (existing) return existing;
-        return this.opts.createFamily(commonName, normalized);
+        const candidateId = existing ?? (await this.opts.createFamily(commonName, normalized));
+        return await this.opts.resolveAlias(candidateId);
       });
     } finally {
       entry.refs -= 1;
@@ -69,6 +87,6 @@ export class FamilyResolver {
       }
     }
 
-    return this.opts.resolveAlias(candidateId);
+    return resolvedId;
   }
 }
