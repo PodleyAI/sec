@@ -64,7 +64,7 @@ describe("processFormS1 underwriters", () => {
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => c.name === "Goldman Sachs & Co. LLC")).toBe(true);
 
-    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName("1.0.0", "goldman sachs");
+    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName("1.0.0", "GOLDMAN SACHS");
     expect(family).toBeDefined();
     const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
       "1.0.0",

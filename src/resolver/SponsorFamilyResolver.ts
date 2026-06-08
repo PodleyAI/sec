@@ -18,10 +18,10 @@ interface SponsorFamilyResolverOptions {
 /**
  * The single source of truth for the sponsor-family natural key. Delegates to
  * {@link normalizeFamilyName} (punctuation/whitespace canonicalization plus the
- * suffix handling that helper applies, then lower-casing for case-insensitive
- * matching). Every caller that looks up a family by name (resolver, CLI query,
- * alias commands) MUST use this so keys line up. Returns "" when the name
- * normalizes to nothing.
+ * suffix handling that helper applies, then UPPER-casing for case-insensitive
+ * matching against `canonical_sponsor_family.normalized_name`). Every caller
+ * that looks up a family by name (resolver, CLI query, alias commands) MUST
+ * use this so keys line up. Returns "" when the name normalizes to nothing.
  */
 export function normalizeSponsorFamilyName(name: string): string {
   return normalizeFamilyName(name);
