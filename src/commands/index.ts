@@ -7,6 +7,7 @@
 import type { Command } from "commander";
 import { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
+import { runStaleCanonicalGuard } from "../cli/StaleCanonicalGuard";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
 import { addDbCommands } from "../cli/groups/db";
 import { addFetchCommands } from "../cli/groups/fetch";
@@ -57,6 +58,15 @@ export const AddCommands = (program: Command): void => {
     // still in fixupJobs(); stop() then completes before workers start, and start()
     // resumes and leaves workers running — process never exits (e.g. `sec db status`).
     await SecJobQueueServer.start();
+
+    // Preflight: warn on stale lowercase canonical-family rows, or hard-fail
+    // on safety-critical commands where silent double-minting would corrupt
+    // resolution. Runs LAST so DI is fully initialised before any DB read.
+    await runStaleCanonicalGuard({
+      actionCommand,
+      allowStale: globalOpts.allowStale,
+      useColor: globalOpts.color,
+    });
   });
 
   addBootstrapCommands(program);
