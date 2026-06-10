@@ -8,7 +8,7 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { Factoid } from "../../sec/facts/CompanyFacts";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
+import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 
 export type StoreCompanyFactsTaskInput = FetchCompanyFactsTaskOutput;
@@ -45,14 +45,15 @@ export class StoreCompanyFactsTask extends Task<
     const factsArray: Factoid[] = input.facts.filter((f) => !!f);
 
     const companyFactsRepo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
-    const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
 
     if (factsArray.length === 0) {
       if (input.date) {
-        await processedFactsRepo.put({
+        await recordFactsOutcome({
           cik: input.cik,
-          last_processed: input.date,
+          date: input.date,
           success: true,
+          reason_code: null,
+          detail: null,
         });
       }
       return { success: true };
@@ -92,10 +93,12 @@ export class StoreCompanyFactsTask extends Task<
       }
     }
     if (input.date) {
-      await processedFactsRepo.put({
+      await recordFactsOutcome({
         cik: input.cik,
-        last_processed: input.date,
+        date: input.date,
         success: true,
+        reason_code: null,
+        detail: null,
       });
     }
     return { success: true };

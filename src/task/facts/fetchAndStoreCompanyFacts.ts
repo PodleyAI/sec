@@ -4,32 +4,102 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, IExecuteContext, pipe } from "workglow";
-import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
+import { IExecuteContext, TaskAbortedError } from "workglow";
+import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
-import { FetchCompanyFactsTask } from "./FetchCompanyFactsTask";
+import { classifyFactsFetchError } from "./classifyFactsFetchError";
+import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import { StoreCompanyFactsTask } from "./StoreCompanyFactsTask";
+
+export interface FetchAndStoreFactsDeps {
+  readonly fetchFacts: (
+    input: { cik: number; date?: string },
+    ctx: IExecuteContext
+  ) => Promise<FetchCompanyFactsTaskOutput>;
+  readonly storeFacts: (
+    fetched: FetchCompanyFactsTaskOutput,
+    ctx: IExecuteContext
+  ) => Promise<void>;
+}
+
+const defaultDeps: FetchAndStoreFactsDeps = {
+  fetchFacts: async (input, ctx) => await ctx.own(new FetchCompanyFactsTask()).run(input),
+  storeFacts: async (fetched, ctx) => {
+    await ctx.own(new StoreCompanyFactsTask()).run(fetched);
+  },
+};
 
 export async function fetchAndStoreCompanyFacts(
   input: { cik: number; date?: string },
   ctx: IExecuteContext
 ): Promise<{ success: boolean }> {
-  const pipeline = ctx.own(pipe([new FetchCompanyFactsTask(), new StoreCompanyFactsTask()]));
-  let success = false;
+  return await fetchAndStoreCompanyFactsWithDeps(input, ctx, defaultDeps);
+}
+
+/**
+ * Fetches and stores one CIK's facts, recording a classified outcome in
+ * `processed_facts`. A companyfacts 404 is a successful terminal outcome
+ * (`NO_XBRL_FACTS`); other failures are recorded for the `--retry-failed`
+ * sweep. Aborts propagate without recording. Per-item failures are swallowed
+ * so the enclosing map task always succeeds.
+ */
+export async function fetchAndStoreCompanyFactsWithDeps(
+  input: { cik: number; date?: string },
+  ctx: IExecuteContext,
+  deps: FetchAndStoreFactsDeps
+): Promise<{ success: boolean }> {
+  const date = input.date ?? todayYYYYdMMdDD();
+
+  let fetched: FetchCompanyFactsTaskOutput;
   try {
-    await pipeline.run(input);
-    success = true;
+    fetched = await deps.fetchFacts(input, ctx);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.warn(`Failed to fetch/store company facts for CIK ${input.cik}: ${message}`);
-  } finally {
-    const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
-    await processedFactsRepo.put({
-      cik: input.cik,
-      last_processed: input.date ?? todayYYYYdMMdDD(),
-      success,
-    });
+    if (e instanceof TaskAbortedError) throw e;
+    const reason = classifyFactsFetchError(e);
+    if (reason === "NO_XBRL_FACTS") {
+      await recordFactsOutcome({
+        cik: input.cik,
+        date,
+        success: true,
+        reason_code: "NO_XBRL_FACTS",
+        detail: null,
+      });
+    } else {
+      const message = e instanceof Error ? e.message : String(e);
+      console.warn(`Failed to fetch company facts for CIK ${input.cik} (${reason}): ${message}`);
+      await recordFactsOutcome({
+        cik: input.cik,
+        date,
+        success: false,
+        reason_code: reason,
+        detail: message,
+      });
+    }
+    return { success: true };
   }
-  // Per-item failures are recorded above; the map task itself always succeeds
+
+  try {
+    await deps.storeFacts(fetched, ctx);
+  } catch (e) {
+    if (e instanceof TaskAbortedError) throw e;
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`Failed to store company facts for CIK ${input.cik}: ${message}`);
+    await recordFactsOutcome({
+      cik: input.cik,
+      date,
+      success: false,
+      reason_code: "STORE_ERROR",
+      detail: message,
+    });
+    return { success: true };
+  }
+
+  await recordFactsOutcome({
+    cik: input.cik,
+    date,
+    success: true,
+    reason_code: null,
+    detail: null,
+  });
   return { success: true };
 }

@@ -43,6 +43,7 @@ import {
   FORM144_RECENT_SALE_REPOSITORY_TOKEN,
 } from "../storage/form144/Form144Schema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
+import { migrateProcessedFactsColumns } from "../storage/processing/migrateProcessedFactsColumns";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { REGA_EQUITY_CLASS_REPOSITORY_TOKEN } from "../storage/reg-a/RegAEquityClassSchema";
@@ -137,6 +138,9 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
+  // setupDatabase() never alters existing tables; evolve pre-existing
+  // processed_facts tables that lack the outcome columns.
+  await migrateProcessedFactsColumns();
   await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).setupDatabase();
@@ -170,9 +174,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry
     .get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN)
     .setupDatabase();
-  await globalServiceRegistry
-    .get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN)
-    .setupDatabase();
+  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   // View DDL is created here only on the SQLite path; the Postgres backend

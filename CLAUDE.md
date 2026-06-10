@@ -61,6 +61,18 @@ sec extractor retry-dead-letters S-1       # re-run filings eligible under the c
 eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-4-6`)
 and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
 
+### Company facts outcome tracking
+
+`processed_facts` rows carry `reason_code` / `detail` / `attempts`. A companyfacts
+404 (the entity has no XBRL data — most filer CIKs) is recorded as a *successful*
+`NO_XBRL_FACTS` outcome and never retried. `FETCH_ERROR` (transient HTTP/network),
+`PARSE_ERROR` (code-fixable), and `STORE_ERROR` rows are failures; `attempts`
+counts consecutive failures and resets on success.
+
+```bash
+sec update facts --retry-failed   # also re-fetch CIKs whose last facts processing failed
+```
+
 A curated sample of real S-1 prospectus HTML (incl. ≥3 SPACs, SIC 6770) is
 committed under `src/sec/html/mock_data/s1/` (see its `SOURCES.md`) and exercised
 by `parseEdgarHtml.golden.test.ts`. To refresh / grow the sample on demand into a

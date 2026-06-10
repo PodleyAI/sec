@@ -45,6 +45,21 @@ function getStatus(error: MaybeHttpError): number | undefined {
   return error.status ?? error.statusCode ?? error.response?.status;
 }
 
+/**
+ * Extracts an HTTP status from an error's structured fields or, as a last
+ * resort, from its message ("...: <status> <reason>" — workglow's HTTP error
+ * shape). Returns undefined for network-level or non-HTTP errors.
+ */
+export function getHttpErrorStatus(error: unknown): number | undefined {
+  if (error === null || typeof error !== "object") return undefined;
+  const e = error as MaybeHttpError;
+  const status = getStatus(e);
+  if (status !== undefined) return status;
+  const message = typeof e.message === "string" ? e.message : "";
+  const msgStatus = message.match(/:\s*(\d{3})\s/)?.[1];
+  return msgStatus ? Number(msgStatus) : undefined;
+}
+
 function isRetriableError(error: unknown): boolean {
   if (error === null || typeof error !== "object") return false;
   const e = error as MaybeHttpError;
@@ -122,7 +137,10 @@ function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
   const live = signals.filter((s): s is AbortSignal => Boolean(s));
   if (live.length === 0) return new AbortController().signal;
   if (live.length === 1) return live[0];
-  if (typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any === "function") {
+  if (
+    typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any ===
+    "function"
+  ) {
     return (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any(live);
   }
   const controller = new AbortController();
@@ -160,7 +178,10 @@ export class SecFetchJob<
       const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
       const timeoutHandle =
         timeoutController && DEFAULT_TIMEOUT_MS > 0
-          ? setTimeout(() => timeoutController.abort(new Error("SEC fetch timed out")), DEFAULT_TIMEOUT_MS)
+          ? setTimeout(
+              () => timeoutController.abort(new Error("SEC fetch timed out")),
+              DEFAULT_TIMEOUT_MS
+            )
           : undefined;
       const signal = combineSignals([context.signal, timeoutController?.signal]);
 

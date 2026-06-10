@@ -25,10 +25,14 @@ export function addUpdateCommands(program: Command): void {
     .command("facts")
     .description("Update all company facts")
     .option("--force", "Reprocess all items, ignoring processed state", false)
+    .option("--retry-failed", "Also re-fetch CIKs whose last facts processing failed", false)
     .action(async (options) => {
       await runCommand(
         async () => {
-          await withCli(new UpdateAllCompanyFactsTask()).run({ force: options.force });
+          await withCli(new UpdateAllCompanyFactsTask()).run({
+            force: options.force,
+            retryFailed: options.retryFailed,
+          });
         },
         { force: options.force }
       );
