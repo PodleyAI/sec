@@ -231,6 +231,11 @@ import {
   UseOfProceedsSchema,
 } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import {
+  XBRL_FACT_REPOSITORY_TOKEN,
+  XbrlFactPrimaryKeyNames,
+  XbrlFactRowSchema,
+} from "../storage/xbrl/XbrlFactSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -504,10 +509,12 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     FORM144_RECENT_SALE_REPOSITORY_TOKEN,
-    createStorage("form144_recent_sales", Form144RecentSaleSchema, Form144RecentSalePrimaryKeyNames, [
-      ["accession_number"],
-      ["issuer_cik"],
-    ])
+    createStorage(
+      "form144_recent_sales",
+      Form144RecentSaleSchema,
+      Form144RecentSalePrimaryKeyNames,
+      [["accession_number"], ["issuer_cik"]]
+    )
   );
 
   // ------------------------------ Change Log --------------------------------
@@ -559,12 +566,9 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     VERSION_EVENT_REPOSITORY_TOKEN,
-    createStorage(
-      "version_events",
-      VersionEventSchema,
-      VersionEventPrimaryKeyNames,
-      [["component_kind", "component_id", "at_timestamp"]]
-    )
+    createStorage("version_events", VersionEventSchema, VersionEventPrimaryKeyNames, [
+      ["component_kind", "component_id", "at_timestamp"],
+    ])
   );
 
   // ------------------------------ Company Facts --------------------------------
@@ -619,10 +623,12 @@ export const DefaultDI = () => {
   // ----- Observation / Canonical / Resolver -----
   globalServiceRegistry.registerInstance(
     PERSON_OBSERVATION_REPOSITORY_TOKEN,
-    createStorage("person_observations", PersonObservationSchema, PersonObservationPrimaryKeyNames, [
-      ["accession_number"],
-      ["accession_number", "extractor_id", "observation_index"],
-    ])
+    createStorage(
+      "person_observations",
+      PersonObservationSchema,
+      PersonObservationPrimaryKeyNames,
+      [["accession_number"], ["accession_number", "extractor_id", "observation_index"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     COMPANY_OBSERVATION_REPOSITORY_TOKEN,
@@ -630,10 +636,7 @@ export const DefaultDI = () => {
       "company_observations",
       CompanyObservationSchema,
       CompanyObservationPrimaryKeyNames,
-      [
-        ["accession_number"],
-        ["accession_number", "extractor_id", "observation_index"],
-      ]
+      [["accession_number"], ["accession_number", "extractor_id", "observation_index"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -696,10 +699,7 @@ export const DefaultDI = () => {
       "person_identity_link",
       PersonIdentityLinkSchema,
       PersonIdentityLinkPrimaryKeyNames,
-      [
-        ["canonical_person_id", "resolver_version"],
-        ["resolver_version"],
-      ]
+      [["canonical_person_id", "resolver_version"], ["resolver_version"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -708,10 +708,7 @@ export const DefaultDI = () => {
       "company_identity_link",
       CompanyIdentityLinkSchema,
       CompanyIdentityLinkPrimaryKeyNames,
-      [
-        ["canonical_company_id", "resolver_version"],
-        ["resolver_version"],
-      ]
+      [["canonical_company_id", "resolver_version"], ["resolver_version"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -856,5 +853,9 @@ export const DefaultDI = () => {
     createStorage("use_of_proceeds", UseOfProceedsSchema, UseOfProceedsPrimaryKeyNames, [
       ["accession_number"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    XBRL_FACT_REPOSITORY_TOKEN,
+    createStorage("xbrl_fact", XbrlFactRowSchema, XbrlFactPrimaryKeyNames, [["cik"], ["concept"]])
   );
 };

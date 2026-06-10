@@ -58,6 +58,7 @@ import {
 } from "./s1/sectionExtractors";
 import { getS1Model } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
+import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "S-1";
 // v1.1.0: SPAC sponsor extraction now requires the LLM-returned source_span to
@@ -181,11 +182,29 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
 
+  // Deterministic iXBRL/XBRL pass: persists every tagged fact and recovers dei
+  // cover-page attributes that upgrade the issuer observation below. Contained
+  // failures only — an untagged or malformed filing proceeds as before.
+  const xbrl = await extractAndStoreXbrl({
+    cik,
+    accession_number,
+    html: formS1.html,
+    xbrlInstanceXml: formS1.xbrlInstanceXml,
+  });
+
   await observer.observeCompany({
     ...base,
     observation_index: idx++,
     cik,
-    source_context: JSON.stringify({ relation: "s1:issuer" }),
+    name: xbrl.name,
+    jurisdiction: xbrl.jurisdiction,
+    address_id: xbrl.address_id,
+    international_number: xbrl.international_number,
+    source_context: JSON.stringify(
+      xbrl.hasXbrl
+        ? { relation: "s1:issuer", attributes_source: "xbrl-dei" }
+        : { relation: "s1:issuer" }
+    ),
   });
 
   // --- Deterministic SPAC classification from the SGML-header SIC ---
@@ -337,7 +356,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         });
       }
     } catch (e) {
-      await record("MODEL_INVALID_OUTPUT", (e instanceof Error ? e.message : String(e)).slice(0, 1024));
+      await record(
+        "MODEL_INVALID_OUTPUT",
+        (e instanceof Error ? e.message : String(e)).slice(0, 1024)
+      );
     }
   }
 

@@ -16,6 +16,8 @@ export interface FormS1Header {
 export interface FormS1Parsed {
   readonly header: FormS1Header;
   readonly html: string;
+  /** Standalone XBRL instance document (EX-101.INS) body, when the submission carries one. */
+  readonly xbrlInstanceXml: string | null;
 }
 
 function headerSlice(txt: string): string {
@@ -58,6 +60,7 @@ export function parseSecHeader(txt: string): FormS1Header {
 interface DocBlock {
   readonly type: string | null;
   readonly sequence: number | null;
+  readonly filename: string | null;
   readonly body: string;
 }
 
@@ -69,11 +72,29 @@ function parseDocuments(txt: string): DocBlock[] {
     const inner = m[1];
     const type = inner.match(/<TYPE>\s*([^\r\n<]+)/i)?.[1].trim() ?? null;
     const seq = inner.match(/<SEQUENCE>\s*(\d+)/i)?.[1];
+    const filename = inner.match(/<FILENAME>\s*([^\r\n<]+)/i)?.[1].trim() ?? null;
     const textMatch = inner.match(/<TEXT>\s*([\s\S]*?)\s*<\/TEXT>/i);
     const body = textMatch ? textMatch[1] : inner;
-    blocks.push({ type, sequence: seq ? Number(seq) : null, body });
+    blocks.push({ type, sequence: seq ? Number(seq) : null, filename, body });
   }
   return blocks;
+}
+
+/**
+ * Finds a standalone XBRL instance document among the submission's members:
+ * the EDGAR exhibit type `EX-101.INS`, or any `.xml` member whose body opens
+ * an `xbrl` root element (filers vary in how they label the exhibit).
+ */
+function findXbrlInstance(docs: readonly DocBlock[]): string | null {
+  const byType = docs.find((d) => d.type !== null && d.type.toUpperCase().startsWith("EX-101.INS"));
+  if (byType) return byType.body;
+  const byFilename = docs.find(
+    (d) =>
+      d.filename !== null &&
+      d.filename.toLowerCase().endsWith(".xml") &&
+      /<(\w+:)?xbrl[\s>]/i.test(d.body)
+  );
+  return byFilename ? byFilename.body : null;
 }
 
 /**
@@ -91,10 +112,10 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
     // it so the header lines aren't fed to the HTML converter as body text.
     const end = txt.indexOf("</SEC-HEADER>");
     const html = end !== -1 ? txt.slice(end + "</SEC-HEADER>".length) : txt;
-    return { header, html };
+    return { header, html, xbrlInstanceXml: null };
   }
   const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
   const bySeq = docs.find((d) => d.sequence === 1);
   const primary = byType ?? bySeq ?? docs[0];
-  return { header, html: primary.body };
+  return { header, html: primary.body, xbrlInstanceXml: findXbrlInstance(docs) };
 }

@@ -34,7 +34,10 @@ function isPageBreak($: CheerioAPI, el: unknown): boolean {
 }
 
 function emitProse(buffer: string[], out: EdgarBlock[]): void {
-  const text = buffer.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const text = buffer
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   buffer.length = 0;
   if (text.length === 0) return;
   const node: ParagraphNode = {
@@ -74,6 +77,11 @@ export function parseToBlocks(html: string): EdgarBlock[] {
     }
 
     if (tag === "script" || tag === "style") return;
+
+    // display:none subtrees are invisible to a reader and, in iXBRL filings,
+    // hold the ix:header metadata block (contexts, units, hidden facts) whose
+    // text must not leak into prose. The XBRL pass parses them separately.
+    if (/display\s*:\s*none/i.test($(el as never).attr("style") ?? "")) return;
 
     if (tag === "table") {
       emitProse(prose, out);
@@ -126,11 +134,14 @@ export function parseToBlocks(html: string): EdgarBlock[] {
       // image must be descended into so those children are handled separately;
       // otherwise the wrapper is a leaf whose text joins the prose run. (img is
       // included so a logo/signature wrapped in <div>/<p> is not silently lost.)
-      const hasBlockChild = $el.children().toArray().some((c) => {
-        const cn = c as { tagName?: string; name?: string };
-        const ct = (cn.tagName ?? cn.name ?? "").toLowerCase();
-        return BLOCK_TAGS.has(ct) || ct === "table" || ct === "ul" || ct === "ol" || ct === "img";
-      });
+      const hasBlockChild = $el
+        .children()
+        .toArray()
+        .some((c) => {
+          const cn = c as { tagName?: string; name?: string };
+          const ct = (cn.tagName ?? cn.name ?? "").toLowerCase();
+          return BLOCK_TAGS.has(ct) || ct === "table" || ct === "ul" || ct === "ol" || ct === "img";
+        });
       if (!hasBlockChild) {
         const text = $el.text().replace(/\s+/g, " ").trim();
         if (text.length === 0) return;
@@ -163,7 +174,9 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // Walk an element's children in document order: text nodes feed the prose
   // buffer, element nodes recurse through `walk`.
   function descend(el: unknown): void {
-    for (const child of $(el as never).contents().toArray()) {
+    for (const child of $(el as never)
+      .contents()
+      .toArray()) {
       const cn = child as { type?: string; data?: string };
       if (cn.type === "text") {
         const t = (cn.data ?? "").replace(/\s+/g, " ").trim();

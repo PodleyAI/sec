@@ -71,6 +71,32 @@ sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/
 sec fetch s1-fixtures -c 20 --min-spac 5
 ```
 
+#### iXBRL / XBRL facts
+
+Modern S-1s embed inline XBRL (`ix:nonFraction` / `ix:nonNumeric` facts against the
+`dei`, `us-gaap`, and `spac` taxonomies); older submissions may carry a standalone
+XBRL instance document (`EX-101.INS`). `src/sec/xbrl/` parses both front-ends into a
+shared fact/context/unit model (no taxonomy/linkbase processing), and `processFormS1`
+runs this deterministic pass before AI extraction:
+
+- every fact is persisted to the `xbrl_fact` table (`src/storage/xbrl/`), keyed
+  `(accession_number, fact_index)` with the context period/dimensions and resolved
+  unit denormalized onto the row;
+- the dei cover-page facts (registrant name, incorporation state, address, phone)
+  upgrade the issuer company observation (`source_context.attributes_source = "xbrl-dei"`);
+- XBRL failures never abort the filing — extraction degrades to the untagged path.
+
+`parseToBlocks` skips `display:none` subtrees so the hidden `ix:header` metadata
+block does not leak into the prose handed to the AI section extractors.
+
+```bash
+# Stored XBRL facts for a filing
+sec query xbrl <accession> [--concept TrustAccount] [--numeric-only] [--format json]
+```
+
+The committed Churchill Capital Corp XII fixture (`s1_2114227_...htm`, a 2026 SPAC
+with full `spac`-taxonomy tagging) pins the parser via `parseXbrl.golden.test.ts`.
+
 #### Offering terms / underwriters / use of proceeds
 
 S-1/F-1 prospectuses also yield the deal itself: offering terms (equity →
