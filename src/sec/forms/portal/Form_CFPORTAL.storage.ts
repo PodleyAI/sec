@@ -129,14 +129,15 @@ export async function processFormCFPORTAL({
     filing_date < existing.as_of;
 
   if (!isStale) {
-    // Only a withdrawal inherits the registered identity (its formData may be
-    // stripped); a CFPORTAL/A is a full restatement, so an amendment that
-    // drops an alias section genuinely clears brand/url.
+    // Absent fields inherit from the existing portal row — a CFPORTAL/A may
+    // omit identifying info the registered portal still carries. A fresh
+    // CFPORTAL with an absent field stays null (no existing row).
+    const hasName = identifying?.nameOfPortal !== undefined;
     await portalRepo.savePortal({
       cik,
-      name: identifying?.nameOfPortal ?? (isWithdrawal ? (existing?.name ?? null) : null),
-      brand: brand ?? (isWithdrawal ? (existing?.brand ?? null) : null),
-      url: url ?? (isWithdrawal ? (existing?.url ?? null) : null),
+      name: hasName ? (identifying!.nameOfPortal ?? null) : (existing?.name ?? null),
+      brand: brand ?? existing?.brand ?? null,
+      url: url ?? existing?.url ?? null,
       live: !isWithdrawal,
       as_of: filing_date || existing?.as_of || null,
     });

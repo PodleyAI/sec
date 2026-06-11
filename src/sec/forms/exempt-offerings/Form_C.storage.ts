@@ -443,26 +443,31 @@ export async function processFormC({
     existing.filing_date !== "" &&
     filing_date < existing.filing_date;
 
-  if (!isStale) {
-    const crowdfunding: Crowdfunding = {
-      cik,
-      file_number,
-      filing_date: filing_date || existing?.filing_date || "",
-      name: issuer.nameOfIssuer,
-      legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
-      state_jurisdiction:
-        issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
-      date_incorporation:
-        issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
-      url: issuer.issuerWebsite ?? existing?.url ?? "",
-      portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
-      status: determineStatus(submissionType),
-      progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
-      nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
-    };
+  // Always build and write the history snapshot — a stale replay still
+  // belongs in the time series, only the mutable row write is suppressed
+  // (via skipMutableUpdate) so out-of-order processing doesn't regress it.
+  // Falling back to existing fields keeps the snapshot meaningful when the
+  // older filing carried sparser data than the current state.
+  const crowdfunding: Crowdfunding = {
+    cik,
+    file_number,
+    filing_date: filing_date || existing?.filing_date || "",
+    name: issuer.nameOfIssuer,
+    legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
+    state_jurisdiction:
+      issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
+    date_incorporation:
+      issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
+    url: issuer.issuerWebsite ?? existing?.url ?? "",
+    portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
+    status: determineStatus(submissionType),
+    progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
+    nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
+  };
 
-    await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
-  }
+  await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`, {
+    skipMutableUpdate: isStale,
+  });
 
   // Issuers: index 0 (issuer), 1+ (co-issuers)
   await processIssuer(cik, formC, ctx, 0);

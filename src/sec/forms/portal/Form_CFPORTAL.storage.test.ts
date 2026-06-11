@@ -135,4 +135,58 @@ describe("Form_CFPORTAL storage", () => {
     });
     expect((await portalRepo.getPortal(cik))?.live).toBe(true);
   });
+
+  it("CFPORTAL/A with absent identifyingInformation fields preserves existing name/brand/url", async () => {
+    const portalRepo = new PortalRepo();
+    const files = fixtureFiles();
+    // Pick the first non-withdrawal fixture that carries identifying info.
+    let seedFile: string | undefined;
+    for (const f of files) {
+      const xml = readFileSync(join(FIXTURE_DIR, f), "utf-8");
+      if (xml.includes("<submissionType>CFPORTAL-W</submissionType>")) continue;
+      const parsedProbe = await Form_CFPORTAL.parse("CFPORTAL", xml);
+      if (parsedProbe.formData?.identifyingInformation?.nameOfPortal) {
+        seedFile = f;
+        break;
+      }
+    }
+    expect(seedFile).toBeDefined();
+
+    const cik = 6666666;
+    const seedXml = readFileSync(join(FIXTURE_DIR, seedFile!), "utf-8");
+    const seedParse = await Form_CFPORTAL.parse("CFPORTAL", seedXml);
+
+    // Seed: register the portal with the full parse.
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "0000000001-24-000010",
+      filing_date: "2024-06-01",
+      formCfportal: seedParse,
+    });
+
+    const seeded = await portalRepo.getPortal(cik);
+    expect(seeded?.name).toBeTruthy();
+    const seededName = seeded?.name;
+    const seededBrand = seeded?.brand;
+    const seededUrl = seeded?.url;
+
+    // Build a follow-up parse that strips identifying fields (simulating an
+    // amendment that only touched other sections).
+    const followUp = await Form_CFPORTAL.parse("CFPORTAL", seedXml);
+    delete (followUp.formData!.identifyingInformation as any).nameOfPortal;
+    delete (followUp.formData!.identifyingInformation as any).otherNamesAndWebsiteUrls;
+
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "0000000001-25-000010",
+      filing_date: "2025-06-01",
+      formCfportal: followUp,
+    });
+
+    const after = await portalRepo.getPortal(cik);
+    expect(after?.name).toBe(seededName ?? null);
+    expect(after?.brand).toBe(seededBrand ?? null);
+    expect(after?.url).toBe(seededUrl ?? null);
+    expect(after?.as_of).toBe("2025-06-01");
+  });
 });
