@@ -715,11 +715,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     OFFERING_TERMS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+    new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
+    new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,

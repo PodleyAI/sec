@@ -801,11 +801,11 @@ export const DefaultDI = () => {
   );
   globalServiceRegistry.registerInstance(
     OFFERING_TERMS_REPOSITORY_TOKEN,
-    createStorage("offering_terms", OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+    createStorage("offering_terms", OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
-    createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
+    createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,

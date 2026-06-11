@@ -142,6 +142,9 @@ sec canonical underwriter-family alias-list [--orphans]
 
 # Point-in-time ticker series for an issuer
 sec issuer tickers <cik>
+
+# Registered (S-1) vs final priced (424B1/424B4) terms, with deltas
+sec issuer deal <cik> [--format json]
 ```
 
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
