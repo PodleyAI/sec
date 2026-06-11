@@ -280,6 +280,7 @@ export class ProcessAccessionDocFormTask extends Task<
           break;
         case "1-A":
         case "1-A/A":
+        case "1-A POS":
           await processForm1A({ ...storageArgs, form1A: parsed });
           break;
         case "1-K":

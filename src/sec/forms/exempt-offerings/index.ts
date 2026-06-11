@@ -5,7 +5,6 @@
  */
 
 import { Form_1_A } from "./Form_1_A";
-import { Form_1_A_POS } from "./Form_1_A_POS";
 import { Form_1_A_W } from "./Form_1_A_W";
 import { Form_1_K } from "./Form_1_K";
 import { Form_1_SA } from "./Form_1_SA";
@@ -29,7 +28,6 @@ import { Form_TTW } from "./Form_TTW";
 
 export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_1_A.forms.map((form) => [form, Form_1_A] as const),
-  ...Form_1_A_POS.forms.map((form) => [form, Form_1_A_POS] as const),
   ...Form_1_A_W.forms.map((form) => [form, Form_1_A_W] as const),
   ...Form_1_K.forms.map((form) => [form, Form_1_K] as const),
   ...Form_1_SA.forms.map((form) => [form, Form_1_SA] as const),

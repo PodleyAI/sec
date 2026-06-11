@@ -30,6 +30,7 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "C-TR-W": "C",
   "1-A": "1-A",
   "1-A/A": "1-A",
+  "1-A POS": "1-A",
   "1-K": "1-K",
   "1-K/A": "1-K",
   "1-Z": "1-Z",
