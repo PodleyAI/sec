@@ -190,8 +190,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     accession_number,
     html: formS1.html,
     xbrlInstanceXml: formS1.xbrlInstanceXml,
+    feeExhibitHtml: formS1.feeExhibitHtml,
   });
 
+  const hasXbrlIssuerAttributes =
+    xbrl.name !== null ||
+    xbrl.jurisdiction !== null ||
+    xbrl.address_id !== null ||
+    xbrl.international_number !== null;
   await observer.observeCompany({
     ...base,
     observation_index: idx++,
@@ -201,7 +207,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     address_id: xbrl.address_id,
     international_number: xbrl.international_number,
     source_context: JSON.stringify(
-      xbrl.hasXbrl
+      hasXbrlIssuerAttributes
         ? { relation: "s1:issuer", attributes_source: "xbrl-dei" }
         : { relation: "s1:issuer" }
     ),

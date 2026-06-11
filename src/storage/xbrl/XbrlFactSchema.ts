@@ -34,7 +34,7 @@ export const XbrlFactRowSchema = Type.Object({
   is_numeric: Type.Boolean(),
   is_hidden: Type.Boolean(),
   dimensions_json: TypeNullable(Type.String()),
-  source: Type.String({ maxLength: 8 }), // "inline" | "instance"
+  source: Type.String({ maxLength: 16 }), // "inline" | "instance" | "fee-exhibit"
   created_at: Type.String(),
 });
 export type XbrlFactRow = Static<typeof XbrlFactRowSchema>;

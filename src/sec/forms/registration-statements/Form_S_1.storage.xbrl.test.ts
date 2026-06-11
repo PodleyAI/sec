@@ -40,6 +40,21 @@ const IXBRL_HTML =
   ` decimals="0" format="ixt:num-dot-decimal" scale="0">250,000,000</ix:nonFraction></p>` +
   `</body></html>`;
 
+/** Minimal ffd-taxonomy EX-FILING FEES exhibit (its own iXBRL document). */
+const FEE_EXHIBIT_HTML =
+  `<html xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"` +
+  ` xmlns:xbrli="http://www.xbrl.org/2003/instance"` +
+  ` xmlns:ffd="http://xbrl.sec.gov/ffd/2025"><body>` +
+  `<div style="display:none"><ix:header><ix:resources>` +
+  `<xbrli:context id="f1"><xbrli:entity>` +
+  `<xbrli:identifier scheme="http://www.sec.gov/CIK">0002114227</xbrli:identifier></xbrli:entity>` +
+  `<xbrli:period><xbrli:instant>2026-04-02</xbrli:instant></xbrli:period></xbrli:context>` +
+  `<xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>` +
+  `</ix:resources></ix:header></div>` +
+  `<p>Total: $<ix:nonFraction contextRef="f1" unitRef="usd" name="ffd:TtlOfferingAmt"` +
+  ` decimals="0" format="ixt:num-dot-decimal" scale="0">345,000,000</ix:nonFraction></p>` +
+  `</body></html>`;
+
 const NULL_HEADER = {
   sic: null,
   sicDescription: null,
@@ -72,12 +87,26 @@ describe("processFormS1 XBRL integration", () => {
       filing_date: "2026-04-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: IXBRL_HTML, xbrlInstanceXml: null },
+      formS1: {
+        header: NULL_HEADER,
+        html: IXBRL_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: FEE_EXHIBIT_HTML,
+      },
       model: fakeS1Model(),
     });
 
     const facts = await new XbrlFactRepo().getByAccession(ACCESSION);
-    expect(facts).toHaveLength(9);
+    expect(facts).toHaveLength(10); // 9 primary-doc facts + 1 fee-exhibit fact
+
+    // Fee-exhibit facts continue the fact_index sequence and are labeled.
+    const fee = facts.find((f) => f.concept === "ffd:TtlOfferingAmt")!;
+    expect(fee.source).toBe("fee-exhibit");
+    expect(fee.fact_index).toBe(9);
+    expect(fee.value_numeric).toBe(345000000);
+    expect(fee.unit).toBe("USD");
+    expect(fee.period_instant).toBe("2026-04-02");
+    expect(facts.filter((f) => f.source === "inline")).toHaveLength(9);
     const trust = facts.find((f) => f.concept === "spac:AssetsHeldInTrustNoncurrent")!;
     expect(trust.value_numeric).toBe(250000000);
     expect(trust.unit).toBe("USD");
@@ -124,6 +153,7 @@ describe("processFormS1 XBRL integration", () => {
         header: NULL_HEADER,
         html: "<html><body><p>Plain.</p></body></html>",
         xbrlInstanceXml: instance,
+        feeExhibitHtml: null,
       },
       model: fakeS1Model(),
     });
@@ -134,6 +164,37 @@ describe("processFormS1 XBRL integration", () => {
 
     const issuer = (await new CompanyObservationRepo().listAll()).find((c) => c.cik === CIK)!;
     expect(issuer.name).toBe("Instance Only Corp");
+  });
+
+  it("stores fee-exhibit facts even when the prospectus itself is untagged", async () => {
+    const { unregister } = registerFakeStructuredProvider([]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: CIK,
+      file_number: "333-2",
+      accession_number: ACCESSION,
+      filing_date: "2026-04-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: "<html><body><p>No tagging.</p></body></html>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: FEE_EXHIBIT_HTML,
+      },
+      model: fakeS1Model(),
+    });
+
+    const facts = await new XbrlFactRepo().getByAccession(ACCESSION);
+    expect(facts).toHaveLength(1);
+    expect(facts[0].concept).toBe("ffd:TtlOfferingAmt");
+    expect(facts[0].source).toBe("fee-exhibit");
+
+    // No dei cover-page facts were recovered, so the issuer stays unlabeled.
+    const issuer = (await new CompanyObservationRepo().listAll()).find((c) => c.cik === CIK)!;
+    expect(issuer.name).toBeNull();
+    expect(JSON.parse(issuer.source_context!)).toEqual({ relation: "s1:issuer" });
   });
 
   it("leaves the issuer observation bare for untagged filings", async () => {
@@ -151,6 +212,7 @@ describe("processFormS1 XBRL integration", () => {
         header: NULL_HEADER,
         html: "<html><body><p>No tagging.</p></body></html>",
         xbrlInstanceXml: null,
+        feeExhibitHtml: null,
       },
       model: fakeS1Model(),
     });

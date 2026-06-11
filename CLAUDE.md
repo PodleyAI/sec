@@ -75,13 +75,17 @@ sec fetch s1-fixtures -c 20 --min-spac 5
 
 Modern S-1s embed inline XBRL (`ix:nonFraction` / `ix:nonNumeric` facts against the
 `dei`, `us-gaap`, and `spac` taxonomies); older submissions may carry a standalone
-XBRL instance document (`EX-101.INS`). `src/sec/xbrl/` parses both front-ends into a
-shared fact/context/unit model (no taxonomy/linkbase processing), and `processFormS1`
+XBRL instance document (`EX-101.INS`); and since the filing-fee modernization the
+fee table is a separate `EX-FILING FEES` exhibit tagged against the `ffd` taxonomy
+(it includes `ffd:MaxAggtOfferingPric` / `ffd:TtlOfferingAmt` — the registered
+offering size as a deterministic fact). `src/sec/xbrl/` parses these into a shared
+fact/context/unit model (no taxonomy/linkbase processing), and `processFormS1`
 runs this deterministic pass before AI extraction:
 
 - every fact is persisted to the `xbrl_fact` table (`src/storage/xbrl/`), keyed
   `(accession_number, fact_index)` with the context period/dimensions and resolved
-  unit denormalized onto the row;
+  unit denormalized onto the row; fee-exhibit facts share the accession with
+  `source = "fee-exhibit"` and continue the primary document's `fact_index` sequence;
 - the dei cover-page facts (registrant name, incorporation state, address, phone)
   upgrade the issuer company observation (`source_context.attributes_source = "xbrl-dei"`);
 - XBRL failures never abort the filing — extraction degrades to the untagged path.

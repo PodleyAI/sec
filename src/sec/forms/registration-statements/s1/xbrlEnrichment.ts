@@ -43,8 +43,9 @@ export async function extractAndStoreXbrl(args: {
   readonly accession_number: string;
   readonly html: string;
   readonly xbrlInstanceXml: string | null;
+  readonly feeExhibitHtml: string | null;
 }): Promise<XbrlIssuerEnrichment> {
-  const { cik, accession_number, html, xbrlInstanceXml } = args;
+  const { cik, accession_number, html, xbrlInstanceXml, feeExhibitHtml } = args;
   try {
     // Callers hand through parser output; tolerate malformed shapes (tests and
     // legacy call sites may omit fields) rather than relying on the catch below.
@@ -52,10 +53,32 @@ export async function extractAndStoreXbrl(args: {
     if (!doc.hasXbrl && typeof xbrlInstanceXml === "string") {
       doc = parseXbrlInstance(xbrlInstanceXml);
     }
-    if (!doc.hasXbrl) return NO_XBRL;
 
-    const rows = toXbrlFactRows({ doc, accession_number, cik });
+    // The EX-FILING FEES exhibit (ffd-taxonomy fee table) is its own iXBRL
+    // document; its facts are appended under the same accession with their
+    // fact_index continuing after the primary document's.
+    const rows = doc.hasXbrl ? toXbrlFactRows({ doc, accession_number, cik }) : [];
+    if (typeof feeExhibitHtml === "string") {
+      const feeDoc = parseInlineXbrl(feeExhibitHtml);
+      if (feeDoc.hasXbrl) {
+        const offset = rows.length;
+        rows.push(
+          ...toXbrlFactRows({ doc: feeDoc, accession_number, cik }).map((r) => ({
+            ...r,
+            fact_index: r.fact_index + offset,
+            source: "fee-exhibit",
+          }))
+        );
+      }
+    }
+    if (rows.length === 0) return NO_XBRL;
     await new XbrlFactRepo().replaceForAccession(accession_number, rows);
+
+    if (!doc.hasXbrl) {
+      // Fee-exhibit-only filing: facts are stored, but there are no primary-doc
+      // dei cover-page facts to enrich the issuer observation with.
+      return { ...NO_XBRL, hasXbrl: true, factCount: rows.length };
+    }
 
     const cover = extractXbrlCoverPage(doc);
 

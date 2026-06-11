@@ -48,7 +48,7 @@ describe("processFormS1 use of proceeds", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 

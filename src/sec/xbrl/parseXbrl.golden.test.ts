@@ -87,6 +87,34 @@ describe("parseInlineXbrl golden: Texas Precious Metals Trust S-1 (cover-page-on
   });
 });
 
+describe("parseInlineXbrl golden: Churchill Capital Corp XII EX-FILING FEES exhibit", () => {
+  const result = parseInlineXbrl(
+    readFileSync(join(import.meta.dir, "mock_data/exfee_2114227_000121390026039320.htm"), "utf8")
+  );
+
+  it("parses the ffd-taxonomy fee table", () => {
+    expect(result.hasXbrl).toBe(true);
+    expect(result.facts.length).toBe(53);
+    expect(result.facts.filter((f) => f.isNumeric).length).toBe(25);
+    expect(result.contexts.size).toBe(5);
+    // The submission-level metadata facts live in ix:hidden.
+    expect(result.facts.filter((f) => f.isHidden).length).toBe(6);
+  });
+
+  it("recovers the registered offering size and fee", () => {
+    const byConcept = (c: string) => result.facts.filter((f) => f.concept === c);
+    expect(byConcept("ffd:TtlOfferingAmt")[0].numericValue).toBe(384675000);
+    expect(byConcept("ffd:NetFeeAmt")[0].numericValue).toBe(53123.62);
+    expect(byConcept("ffd:FeeRate")[0].numericValue).toBe(0.0001381);
+    // Per-class rows: units, shares, warrants.
+    expect(byConcept("ffd:AmtSctiesRegd").map((f) => f.numericValue)).toEqual([
+      34500000, 34500000, 3450000, 3450000,
+    ]);
+    const registrant = result.facts.find((f) => f.concept === "dei:EntityRegistrantName")!;
+    expect(registrant.value).toBe("Churchill Capital Corp XII");
+  });
+});
+
 describe("parseInlineXbrl golden: untagged S-1 (2021 vintage)", () => {
   it("reports hasXbrl=false", () => {
     const result = parseInlineXbrl(load("s1_1848507_000119312521066104.htm"));

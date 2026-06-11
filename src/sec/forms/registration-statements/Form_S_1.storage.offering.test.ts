@@ -77,7 +77,7 @@ describe("processFormS1 offering terms", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 
@@ -127,7 +127,7 @@ describe("processFormS1 offering terms", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: SPAC_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null },
+      formS1: { header: SPAC_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 

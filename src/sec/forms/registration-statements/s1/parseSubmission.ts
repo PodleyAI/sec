@@ -18,6 +18,12 @@ export interface FormS1Parsed {
   readonly html: string;
   /** Standalone XBRL instance document (EX-101.INS) body, when the submission carries one. */
   readonly xbrlInstanceXml: string | null;
+  /**
+   * The `EX-FILING FEES` exhibit body, when present. Since the SEC's filing-fee
+   * modernization the fee table lives in this separate exhibit (not on the cover
+   * page) and is iXBRL-tagged against the `ffd` taxonomy.
+   */
+  readonly feeExhibitHtml: string | null;
 }
 
 function headerSlice(txt: string): string {
@@ -97,6 +103,14 @@ function findXbrlInstance(docs: readonly DocBlock[]): string | null {
   return byFilename ? byFilename.body : null;
 }
 
+/** Finds the iXBRL-tagged `EX-FILING FEES` exhibit (filing-fee table) when present. */
+function findFeeExhibit(docs: readonly DocBlock[]): string | null {
+  const doc = docs.find(
+    (d) => d.type !== null && d.type.toUpperCase().startsWith("EX-FILING FEES")
+  );
+  return doc ? doc.body : null;
+}
+
 /**
  * Parses a full-submission `.txt` (or a bare primary-doc body). Returns the
  * SGML header values and the primary document body (the block whose `<TYPE>`
@@ -112,10 +126,15 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
     // it so the header lines aren't fed to the HTML converter as body text.
     const end = txt.indexOf("</SEC-HEADER>");
     const html = end !== -1 ? txt.slice(end + "</SEC-HEADER>".length) : txt;
-    return { header, html, xbrlInstanceXml: null };
+    return { header, html, xbrlInstanceXml: null, feeExhibitHtml: null };
   }
   const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
   const bySeq = docs.find((d) => d.sequence === 1);
   const primary = byType ?? bySeq ?? docs[0];
-  return { header, html: primary.body, xbrlInstanceXml: findXbrlInstance(docs) };
+  return {
+    header,
+    html: primary.body,
+    xbrlInstanceXml: findXbrlInstance(docs),
+    feeExhibitHtml: findFeeExhibit(docs),
+  };
 }

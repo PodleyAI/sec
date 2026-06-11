@@ -101,7 +101,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 
@@ -159,7 +159,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 
@@ -183,7 +183,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
     first.unregister();
@@ -213,7 +213,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 
@@ -236,7 +236,7 @@ describe("processFormS1", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null },
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
       model: fakeS1Model(),
     });
 
