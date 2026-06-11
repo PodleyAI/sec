@@ -90,20 +90,40 @@ export class RegAOfferingRepo {
     return (await this.offeringRepository.query({ tier })) || [];
   }
 
+  /**
+   * Statuses the Reg-A extractors write: 1-A -> pending, 1-K -> reporting,
+   * 1-Z -> exit. Rows with any other status are reported under "other" by
+   * {@link countOfferingsByStatus}.
+   */
+  static readonly OFFERING_STATUSES = ["pending", "reporting", "exit"] as const;
+
+  static readonly OFFERING_TIERS = ["Tier1", "Tier2"] as const;
+
   async countOfferingsByStatus(): Promise<Map<string, number>> {
-    const all = (await this.offeringRepository.getAll()) || [];
     const counts = new Map<string, number>();
-    for (const o of all) counts.set(o.status, (counts.get(o.status) ?? 0) + 1);
+    let known = 0;
+    for (const status of RegAOfferingRepo.OFFERING_STATUSES) {
+      const n = await this.offeringRepository.count({ status });
+      if (n > 0) counts.set(status, n);
+      known += n;
+    }
+    const total = await this.offeringRepository.size();
+    if (total > known) counts.set("other", total - known);
     return counts;
   }
 
   async countOfferingsByTier(): Promise<Map<string, number>> {
-    const all = (await this.offeringRepository.getAll()) || [];
     const counts = new Map<string, number>();
-    for (const o of all) {
-      const tier = o.tier ?? "unknown";
-      counts.set(tier, (counts.get(tier) ?? 0) + 1);
+    let known = 0;
+    for (const tier of RegAOfferingRepo.OFFERING_TIERS) {
+      const n = await this.offeringRepository.count({ tier });
+      if (n > 0) counts.set(tier, n);
+      known += n;
     }
+    // Null tiers (and any unexpected label) land here; criteria pushdown has
+    // no IS NULL form, so the bucket is derived from the table size instead.
+    const total = await this.offeringRepository.size();
+    if (total > known) counts.set("unknown", total - known);
     return counts;
   }
 

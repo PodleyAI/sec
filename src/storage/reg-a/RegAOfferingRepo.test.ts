@@ -424,6 +424,17 @@ describe("RegAOfferingRepo", () => {
       expect(byTier.get("unknown")).toBe(1);
     });
 
+    it("buckets unexpected statuses under 'other'", async () => {
+      await repo.saveOffering(makeOffering({ cik: 1, file_number: "024-001" }));
+      await repo.saveOffering(
+        makeOffering({ cik: 2, file_number: "024-002", status: "suspended" })
+      );
+
+      const byStatus = await repo.countOfferingsByStatus();
+      expect(byStatus.get("pending")).toBe(1);
+      expect(byStatus.get("other")).toBe(1);
+    });
+
     it("sums the latest aggregate offering amount per offering for a CIK", async () => {
       await repo.saveOffering(
         makeOffering({ cik: 7, file_number: "024-010", tier: "Tier2", status: "reporting" })
