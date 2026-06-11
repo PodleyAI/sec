@@ -92,6 +92,10 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
       } else if (stores === "reports") {
         expect((await repo.getCrowdfundingReportsByCik(ciks[0])).length).toBeGreaterThan(0);
       }
+      if (form === "C-U") {
+        // The progress narrative is the C-U's defining payload.
+        expect(rows[0].progress_update).toBeTruthy();
+      }
     });
   }
 
@@ -130,5 +134,43 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
     expect(updated?.status).toBe("annual-report");
     // The C-AR carries no <commissionCik>; the portal link must survive.
     expect(updated?.portal_cik).toBe(1725012);
+  });
+
+  it("ignores an out-of-order replay of an older filing on the mutable row", async () => {
+    const repo = new CrowdfundingRepo();
+    const files = listFixtureFiles("form-c-ar");
+    const xml = readFixture("form-c-ar", files[0]);
+    const parsed = await Form_C.parse("C-AR", xml);
+    const cik = safeCikToInt(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
+    const file_number = "020-88888";
+
+    await repo.saveCrowdfunding({
+      cik,
+      file_number,
+      filing_date: "2026-01-01",
+      name: "Current Issuer",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "https://issuer.example.com",
+      portal_cik: 1725012,
+      status: "termination",
+      progress_update: null,
+      nature_of_amendment: null,
+    });
+
+    // The replayed C-AR is older than the row's filing_date: skipped.
+    await processFormC({
+      cik,
+      file_number,
+      accession_number: accessionFromFixtureName(files[0]),
+      filing_date: "2025-04-28",
+      primary_doc: "primary_doc.xml",
+      formC: parsed,
+    });
+
+    const row = await repo.getCrowdfunding(cik, file_number);
+    expect(row?.status).toBe("termination");
+    expect(row?.filing_date).toBe("2026-01-01");
   });
 });

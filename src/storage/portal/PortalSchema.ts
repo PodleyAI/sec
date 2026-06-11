@@ -45,6 +45,15 @@ export const PortalSchema = Type.Object({
       })
     )
   ),
+  as_of: Type.Optional(
+    TypeNullable(
+      Type.String({
+        format: "date",
+        description:
+          "Filing date of the filing that last shaped this row; writes guard against out-of-order processing with it",
+      })
+    )
+  ),
 });
 
 export type Portal = Static<typeof PortalSchema>;

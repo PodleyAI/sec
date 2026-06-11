@@ -432,21 +432,37 @@ export async function processFormC({
   const existing = await crowdfundingRepo.getCrowdfunding(cik, file_number);
   const parsedPortalCik = parseCikSafely(issuerInfo.commissionCik);
 
-  const crowdfunding: Crowdfunding = {
-    cik,
-    file_number,
-    filing_date,
-    name: issuer.nameOfIssuer,
-    legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
-    state_jurisdiction:
-      issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
-    date_incorporation: issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
-    url: issuer.issuerWebsite ?? existing?.url ?? "",
-    portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
-    status: determineStatus(submissionType),
-  };
+  // The mutable row reflects the latest filing by *filing date*, not by
+  // processing order: a back-catalog replay of an older filing must not
+  // regress it. Unknown dates ("") can't be ordered and apply as-is. The
+  // per-filing tables (offerings, disclosure reports, observations) below
+  // are keyed by filing/accession and always record the older filing too.
+  const isStale =
+    filing_date !== "" &&
+    existing?.filing_date !== undefined &&
+    existing.filing_date !== "" &&
+    filing_date < existing.filing_date;
 
-  await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
+  if (!isStale) {
+    const crowdfunding: Crowdfunding = {
+      cik,
+      file_number,
+      filing_date: filing_date || existing?.filing_date || "",
+      name: issuer.nameOfIssuer,
+      legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
+      state_jurisdiction:
+        issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
+      date_incorporation:
+        issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
+      url: issuer.issuerWebsite ?? existing?.url ?? "",
+      portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
+      status: determineStatus(submissionType),
+      progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
+      nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
+    };
+
+    await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
+  }
 
   // Issuers: index 0 (issuer), 1+ (co-issuers)
   await processIssuer(cik, formC, ctx, 0);

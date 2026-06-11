@@ -232,6 +232,8 @@ export class CrowdfundingTemporalRepo {
       "url",
       "portal_cik",
       "status",
+      "progress_update",
+      "nature_of_amendment",
     ];
 
     for (const field of fields) {

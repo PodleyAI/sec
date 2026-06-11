@@ -9,7 +9,7 @@ import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow
 import { isDryRun } from "../../cli/isDryRun";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import { FORM_TO_EXTRACTOR_ID, formToExtractorId } from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
@@ -17,7 +17,8 @@ import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 export type UpdateAllFormsTaskInput = {
-  readonly form: string[];
+  /** Omit (or pass empty) to process every form with a registered extractor. */
+  readonly form?: string[];
 };
 
 export type UpdateAllFormsTaskOutput = {
@@ -38,7 +39,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
   public static inputSchema() {
     return Type.Object({
-      form: Type.Array(Type.String()),
+      form: Type.Optional(Type.Array(Type.String())),
     });
   }
 
@@ -58,7 +59,11 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
 
-    const formSet = new Set(input.form);
+    const requestedForms =
+      input.form !== undefined && input.form.length > 0
+        ? input.form
+        : Object.keys(FORM_TO_EXTRACTOR_ID);
+    const formSet = new Set(requestedForms);
     const formsToProcess: Filing[] = [];
 
     // Cache active-slot lookups per extractor_id. Active slot is "next if a

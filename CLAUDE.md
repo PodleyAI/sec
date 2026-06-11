@@ -194,6 +194,27 @@ CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
 
 ## Architecture
 
+### Temporal design: history + current state
+
+A core value of the dataset is showing both how filings change data **over
+time** and a queryable **current state**:
+
+- **Per-filing / append-only tables** (offering histories, crowdfunding
+  offerings & disclosure reports, observations, XBRL facts) are keyed by
+  accession or filing date and are never overwritten by later filings — they
+  are the time series.
+- **Mutable "current" rows** (`Crowdfunding`, `Portal`, `RegAOffering`) must
+  reflect the latest filing by **filing date**, not by processing order.
+  Every write guards against out-of-order processing (skip when the incoming
+  `filing_date` is older than the row's as-of date; unknown dates apply
+  as-is) and merges fields the newer filing doesn't carry (e.g. a 1-K has no
+  tier; a C-AR has no portal CIK) instead of clobbering them with nulls.
+- **History tables** (`CrowdfundingHistory` + `ChangeLog`) version the
+  mutable rows so point-in-time state stays reconstructable.
+- Worst case, when an extractor bug corrupted data midway through a CIK's
+  filing set, re-process the whole CIK's filings (version bump →
+  re-extract); the guards above make replays idempotent and order-safe.
+
 ### Layered Structure
 
 - **`src/commands/`** — Commander CLI command definitions. Each command wires up tasks and invokes them.

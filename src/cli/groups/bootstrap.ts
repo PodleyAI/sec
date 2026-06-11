@@ -66,7 +66,7 @@ export function addBootstrapCommands(program: Command): void {
           }
 
           if (!options.skipForms) {
-            tasks.push(new UpdateAllFormsTask({ defaults: { form: ["D", "C"] } }));
+            tasks.push(new UpdateAllFormsTask());
           }
 
           if (tasks.length > 0) {

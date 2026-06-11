@@ -63,10 +63,12 @@ function crdOrNull(crdNumber: string | undefined): string | null {
 export async function processFormCFPORTAL({
   cik,
   accession_number,
+  filing_date,
   formCfportal,
 }: {
   cik: number;
   accession_number: string;
+  filing_date: string;
   formCfportal: FormCfportal;
 }): Promise<void> {
   const versionRegistry = new VersionRegistry(
@@ -113,17 +115,32 @@ export async function processFormCFPORTAL({
 
   const portalRepo = new PortalRepo();
   const isWithdrawal = submissionType === "CFPORTAL-W";
-  // Only a withdrawal inherits the registered identity (its formData may be
-  // stripped); a CFPORTAL/A is a full restatement, so an amendment that
-  // drops an alias section genuinely clears brand/url.
-  const existing = isWithdrawal ? await portalRepo.getPortal(cik) : undefined;
-  await portalRepo.savePortal({
-    cik,
-    name: identifying?.nameOfPortal ?? existing?.name ?? null,
-    brand: brand ?? existing?.brand ?? null,
-    url: url ?? existing?.url ?? null,
-    live: !isWithdrawal,
-  });
+  const existing = await portalRepo.getPortal(cik);
+
+  // The mutable row reflects the latest filing by *filing date*, not by
+  // processing order — a back-catalog replay of the original registration
+  // must not resurrect a withdrawn portal. Unknown dates ("") can't be
+  // ordered and apply as-is. Observations below are keyed by accession and
+  // always record the older filing too.
+  const isStale =
+    filing_date !== "" &&
+    existing?.as_of != null &&
+    existing.as_of !== "" &&
+    filing_date < existing.as_of;
+
+  if (!isStale) {
+    // Only a withdrawal inherits the registered identity (its formData may be
+    // stripped); a CFPORTAL/A is a full restatement, so an amendment that
+    // drops an alias section genuinely clears brand/url.
+    await portalRepo.savePortal({
+      cik,
+      name: identifying?.nameOfPortal ?? (isWithdrawal ? (existing?.name ?? null) : null),
+      brand: brand ?? (isWithdrawal ? (existing?.brand ?? null) : null),
+      url: url ?? (isWithdrawal ? (existing?.url ?? null) : null),
+      live: !isWithdrawal,
+      as_of: filing_date || existing?.as_of || null,
+    });
+  }
 
   // Observation tier. Index layout: 0 = the portal company itself,
   // 1 = contact employee, 100+ = Schedule A direct/indirect owners.

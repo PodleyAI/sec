@@ -50,6 +50,7 @@ describe("Form_CFPORTAL storage", () => {
       await processFormCFPORTAL({
         cik,
         accession_number: accession,
+        filing_date: "2025-06-01",
         formCfportal: parsed,
       });
 
@@ -83,5 +84,55 @@ describe("Form_CFPORTAL storage", () => {
     // CFPORTAL-W fixture would otherwise silently drop withdrawal coverage.
     expect(sawScheduleA).toBe(true);
     expect(sawWithdrawal).toBe(true);
+  });
+
+  it("ignores an out-of-order replay of an older filing (withdrawn portals stay withdrawn)", async () => {
+    const portalRepo = new PortalRepo();
+    const files = fixtureFiles();
+    const withdrawalFile = files.find((f) => {
+      const xml = readFileSync(join(FIXTURE_DIR, f), "utf-8");
+      return xml.includes("<submissionType>CFPORTAL-W</submissionType>");
+    });
+    expect(withdrawalFile).toBeDefined();
+    const registrationFile = files.find((f) => f !== withdrawalFile)!;
+
+    const cik = 7777777; // cik is a processor param, so fixtures can be replayed under one CIK
+    const withdrawal = await Form_CFPORTAL.parse(
+      "CFPORTAL",
+      readFileSync(join(FIXTURE_DIR, withdrawalFile!), "utf-8")
+    );
+    const registration = await Form_CFPORTAL.parse(
+      "CFPORTAL",
+      readFileSync(join(FIXTURE_DIR, registrationFile), "utf-8")
+    );
+
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "0000000001-25-000002",
+      filing_date: "2025-06-24",
+      formCfportal: withdrawal,
+    });
+    expect((await portalRepo.getPortal(cik))?.live).toBe(false);
+
+    // Back-catalog replay of the original (older) registration: must not
+    // resurrect the withdrawn portal.
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "0000000001-24-000001",
+      filing_date: "2024-01-01",
+      formCfportal: registration,
+    });
+    const portal = await portalRepo.getPortal(cik);
+    expect(portal?.live).toBe(false);
+    expect(portal?.as_of).toBe("2025-06-24");
+
+    // A genuinely newer registration applies.
+    await processFormCFPORTAL({
+      cik,
+      accession_number: "0000000001-26-000001",
+      filing_date: "2026-01-01",
+      formCfportal: registration,
+    });
+    expect((await portalRepo.getPortal(cik))?.live).toBe(true);
   });
 });

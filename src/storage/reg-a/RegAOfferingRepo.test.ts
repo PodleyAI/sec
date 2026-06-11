@@ -34,6 +34,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       };
 
       await repo.saveOffering(offering);
@@ -57,6 +58,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       };
 
       await repo.saveOffering(offering);
@@ -78,6 +80,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "pending",
+        as_of: null,
       });
       await repo.saveOffering({
         cik: 12345,
@@ -90,6 +93,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "reporting",
+        as_of: null,
       });
 
       const results = await repo.getOfferingsByCik(12345);
@@ -108,6 +112,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "pending",
+        as_of: null,
       });
       await repo.saveOffering({
         cik: 67890,
@@ -120,6 +125,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "exit",
+        as_of: null,
       });
 
       const pending = await repo.getOfferingsByStatus("pending");
@@ -289,6 +295,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       });
 
       await repo.saveOfferingHistory({
@@ -366,6 +373,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "pending",
+        as_of: null,
         ...overrides,
       };
     }

@@ -16,6 +16,7 @@ function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
     securities_offered_type: "Common Stock",
     industry_group: "Real Estate",
     status: "reporting",
+    as_of: null,
     ...overrides,
   };
 }
