@@ -25,6 +25,7 @@ import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
+import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { FormCfportal } from "./Form_CFPORTAL.schema";
 
@@ -182,7 +183,12 @@ export async function processFormCFPORTAL({
       ownershipCode: owner.ownershipCode ?? null,
       controlPerson: owner.controlPerson ?? null,
     });
-    if (owner.entityType === "NP") {
+    // entityType is optional in the schema; when absent, fall back to the
+    // same company-ending heuristic Form C uses for signature names.
+    const isNaturalPerson =
+      owner.entityType === "NP" ||
+      (owner.entityType === undefined && !hasCompanyEnding(owner.fullLegalName));
+    if (isNaturalPerson) {
       const name = splitScheduleAName(owner.fullLegalName);
       await observer.observePerson({
         accession_number,

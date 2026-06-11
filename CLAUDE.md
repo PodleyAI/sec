@@ -117,6 +117,10 @@ sec query reg-a --tier Tier2 --status reporting
 sec query reg-a-summary <cik>      # counts by status/tier + latest aggregate offering
 ```
 
+Known gap: the C-U `progressUpdate` narrative and C/A `natureOfAmendment`
+free-text are parsed but not yet persisted (the crowdfunding tables have no
+text column for them).
+
 Fixtures: `sec fetch fixtures C-U C-AR C-TR` extends the exempt-offering
 mock_data tree (note: the quarterly form.idx endpoint may 403 from cloud
 containers; the committed fixtures were sourced from EDGAR daily indexes).

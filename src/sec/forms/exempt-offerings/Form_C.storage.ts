@@ -424,16 +424,25 @@ export async function processFormC({
   const issuer = issuerInfo.issuerInfo;
   const submissionType = formC.headerData.submissionType;
 
+  // Post-offering filings (C-AR / C-TR) carry no <commissionCik> and often no
+  // legal-status block; preserve what the original Form C established for the
+  // same (cik, file_number) instead of clobbering the portal link and issuer
+  // details with empties.
+  const crowdfundingRepo = new CrowdfundingRepo();
+  const existing = await crowdfundingRepo.getCrowdfunding(cik, file_number);
+  const parsedPortalCik = parseCikSafely(issuerInfo.commissionCik);
+
   const crowdfunding: Crowdfunding = {
     cik,
     file_number,
     filing_date,
     name: issuer.nameOfIssuer,
-    legal_status: issuer.legalStatus?.legalStatusForm ?? "",
-    state_jurisdiction: issuer.legalStatus?.jurisdictionOrganization ?? "",
-    date_incorporation: issuer.legalStatus?.dateIncorporation ?? "",
-    url: issuer.issuerWebsite ?? "",
-    portal_cik: parseCikSafely(issuerInfo.commissionCik),
+    legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
+    state_jurisdiction:
+      issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
+    date_incorporation: issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
+    url: issuer.issuerWebsite ?? existing?.url ?? "",
+    portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
     status: determineStatus(submissionType),
   };
 

@@ -15,15 +15,19 @@ import {
   assertAllSucceeded,
   deriveFileNumber,
   listFixtureFiles,
+  readFixture,
   runPipeline,
   safeCikToInt,
 } from "./pipeline-test-util";
 
 const CASES = [
-  { slug: "form-c-u", form: "C-U" as const, status: "progress-update" },
-  { slug: "form-c-ar", form: "C-AR" as const, status: "annual-report" },
-  { slug: "form-c-tr", form: "C-TR" as const, status: "termination" },
-];
+  // C-U fixtures all carry offeringInformation; C-AR fixtures all carry the
+  // annual-report disclosure battery. Asserting those tables (not just the
+  // status string) keeps the form-specific storage paths covered.
+  { slug: "form-c-u", form: "C-U" as const, status: "progress-update", stores: "offerings" },
+  { slug: "form-c-ar", form: "C-AR" as const, status: "annual-report", stores: "reports" },
+  { slug: "form-c-tr", form: "C-TR" as const, status: "termination", stores: null },
+] as const;
 
 describe("determineStatus", () => {
   // The -W post-offering codes withdraw the referenced filing, not the
@@ -56,7 +60,7 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
     await setupAllDatabases();
   });
 
-  for (const { slug, form, status } of CASES) {
+  for (const { slug, form, status, stores } of CASES) {
     it(`stores every ${form} fixture and round-trips status "${status}"`, async () => {
       const files = listFixtureFiles(slug);
       expect(files.length).toBeGreaterThan(0);
@@ -82,6 +86,49 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
       const rows = await repo.getCrowdfundingByCik(ciks[0]);
       expect(rows.length).toBeGreaterThan(0);
       expect(rows[0].status).toBe(status);
+
+      if (stores === "offerings") {
+        expect((await repo.getCrowdfundingOfferingsByCik(ciks[0])).length).toBeGreaterThan(0);
+      } else if (stores === "reports") {
+        expect((await repo.getCrowdfundingReportsByCik(ciks[0])).length).toBeGreaterThan(0);
+      }
     });
   }
+
+  it("preserves the portal link and issuer details when a post-offering filing follows the Form C", async () => {
+    const repo = new CrowdfundingRepo();
+    const files = listFixtureFiles("form-c-ar");
+    const xml = readFixture("form-c-ar", files[0]);
+    const parsed = await Form_C.parse("C-AR", xml);
+    const cik = safeCikToInt(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
+    const file_number = "020-99999";
+
+    // Simulate the original Form C having established the portal link.
+    await repo.saveCrowdfunding({
+      cik,
+      file_number,
+      filing_date: "2024-01-15",
+      name: "Original Issuer",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "https://issuer.example.com",
+      portal_cik: 1725012,
+      status: "active",
+    });
+
+    await processFormC({
+      cik,
+      file_number,
+      accession_number: accessionFromFixtureName(files[0]),
+      filing_date: "2025-04-28",
+      primary_doc: "primary_doc.xml",
+      formC: parsed,
+    });
+
+    const updated = await repo.getCrowdfunding(cik, file_number);
+    expect(updated?.status).toBe("annual-report");
+    // The C-AR carries no <commissionCik>; the portal link must survive.
+    expect(updated?.portal_cik).toBe(1725012);
+  });
 });
