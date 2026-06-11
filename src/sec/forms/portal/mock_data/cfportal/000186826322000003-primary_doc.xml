@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL/A</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001868263</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <amendmentExplanation>Update qualified third party arrangements and Address of United States person applicant designates and appoints as agent for service of process</amendmentExplanation>
+      <nameOfPortal>Fanded Funding Portal, LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>Fanded</otherNamesUsedPortal>
+        <webSiteOfPortal>https://www.fanded.com/</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>87-2727301</irsEmployerIdNumber>
+      <legalNameChange>Funding portal name(1A)</legalNameChange>
+      <prevNamesAndWebsiteUrls>
+        <prevNamesOfPortal>Fanded Inc.</prevNamesOfPortal>
+      </prevNamesAndWebsiteUrls>
+      <portalAddress>
+        <com:street1>20555 DEVONSHIRE STREET #436</com:street1>
+        <com:city>CHATSWORTH</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>91311</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>20555 DEVONSHIRE STREET #436</com:street1>
+        <com:city>CHATSWORTH</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>91311</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>6268334743</portalContactPhone>
+        <portalContactEmail>travis@fanded.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Travis</com:firstName>
+        <com:middleName>Atro</com:middleName>
+        <com:lastName>Graham</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>CA</jurisdictionOrganization>
+      <dateIncorporation>09-02-2021</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Fanded Inc.</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Travis Atreo Graham</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>North Capital Investment Technology</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>623 E Fort Union Blvd. Suite 101</com:street1>
+          <com:city>Salt Lake City</com:city>
+          <com:stateOrCountry>UT</com:stateOrCountry>
+          <com:zipCode>84047</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>801-810-7805</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>Fanded Funding Portal LLC may charge commissions and other fees payable in cash and/or securities of the issuer.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>05-12-2022</executionDate>
+      <fullLegalNameFundingPortal>Fanded Funding Portal, LLC</fullLegalNameFundingPortal>
+      <personSignature>Travis Graham</personSignature>
+      <personTitle>CEO</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Graham, Travis Atreo</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>CEO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>007425445</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Fanded Inc.</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Parent Company</titleStatus>
+        <dateOfTitleStatusAcquired>04/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+    <scheduleB>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Graham, Travis Atreo</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>CEO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>007425445</crdNumber>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Fanded Inc.</fullLegalName>
+        <entityType>DE</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Parent Company</titleStatus>
+        <dateOfTitleStatusAcquired>04/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </amendEntityOrNaturalPerson>
+    </scheduleB>
+    <scheduleC>
+      <agentName>Travis Atreo Graham</agentName>
+      <agentAddress>
+        <com:street1>20555 Devonshire Street #436</com:street1>
+        <com:city>Los Angeles</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>91311</com:zipCode>
+      </agentAddress>
+    </scheduleC>
+  </formData>
+</edgarSubmission>

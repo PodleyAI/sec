@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001669191</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>NetCapital Funding Portal Inc.</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <webSiteOfPortal>www.netcapital.com</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>81-1830473</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>430 NORTH STREET</com:street1>
+        <com:city>WHITE PLAINS</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10605</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>false</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>430 North Street</com:street1>
+        <com:city>White Plains</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10605</com:zipCode>
+      </portalMailingAddress>
+      <otherOfficeLocationAddress>
+        <com:street1>745 Atlantic Ave</com:street1>
+        <com:city>Boston</com:city>
+        <com:stateOrCountry>MA</com:stateOrCountry>
+        <com:zipCode>02111</com:zipCode>
+      </otherOfficeLocationAddress>
+      <portalContact>
+        <portalContactPhone>914-750-9339</portalContactPhone>
+        <portalContactEmail>paul@netcapital.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Paul</com:firstName>
+        <com:middleName>Herman</com:middleName>
+        <com:lastName>Riss</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>Chief Compliance Officer</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Corporation</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>03-08-2016</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Jason Frishman, Thomas Carmody, Jeff Sneden, Paul Riss, NetCapital Systems LLC</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>Worldwide Stock Transfer, LLC</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>One University Plaza</com:street1>
+          <com:street2>Suite 505</com:street2>
+          <com:city>Hackensack</com:city>
+          <com:stateOrCountry>NJ</com:stateOrCountry>
+          <com:zipCode>07601</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>201-820-2008</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>The funding portal charges the issuers a fee of five percent (5%) of the money raised.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>03-28-2016</executionDate>
+      <fullLegalNameFundingPortal>NetCapital Funding Portal Inc.</fullLegalNameFundingPortal>
+      <personSignature>/s/ Paul Riss</personSignature>
+      <personTitle>Chief Compliance Officer</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>NetCapital Systems LLC</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>100% owner</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Frishman, Jason, Alexander</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Executive Officer</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Sneden, Jeffrey, Clark</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Technology Officer</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Carmody, Thomas, Henry</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Legal Officer</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Riss, Paul, Herman</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Compliance Officer, Chief Financial Officer</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+  </formData>
+</edgarSubmission>

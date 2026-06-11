@@ -27,7 +27,7 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 10 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(14);
+    // 11 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(15);
   });
 });

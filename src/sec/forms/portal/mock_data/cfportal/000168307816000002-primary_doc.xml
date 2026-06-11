@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001683078</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>Venture Capital 500, LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>VC 500</otherNamesUsedPortal>
+        <webSiteOfPortal>www.venturecapital500.com</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>81-2016236</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>8451 GATE PARKWAY WEST</com:street1>
+        <com:street2>UNIT 927</com:street2>
+        <com:city>JACKSONVILLE</com:city>
+        <com:stateOrCountry>FL</com:stateOrCountry>
+        <com:zipCode>32216</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>false</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>VC 500 c/o Aaron Pimienta</com:street1>
+        <com:street2>8451 Gate Parkway W #1029</com:street2>
+        <com:city>Jacksonville</com:city>
+        <com:stateOrCountry>FL</com:stateOrCountry>
+        <com:zipCode>32216</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>215-360-5456</portalContactPhone>
+        <portalContactEmail>aaron@venturecapital500.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:prefix>Mr.</com:prefix>
+        <com:firstName>James</com:firstName>
+        <com:middleName>Ronald</com:middleName>
+        <com:lastName>Cataland</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>Managing Member</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>FL</jurisdictionOrganization>
+      <dateIncorporation>03-25-2016</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Aaron Michael Pimienta; James Ronald Cataland; Arthur Theodore Papanastasiou</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>Wells Fargo Bank</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>1919 US Highway 1 South</com:street1>
+          <com:city>St. Augustine</com:city>
+          <com:stateOrCountry>FL</com:stateOrCountry>
+          <com:zipCode>32086</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>904-824-7550</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>Investments in the Issuer will initially be placed in escrow. At the closing or completion of the offering, the escrow agent is responsible for sending all funds to the Issuer less any funding portal compensation and reimbursable expenses previously agreed to by the Issuer, the funding portal, and the escrow agent. The funding portal compensation may include an equity interest in the offered securities.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>10-17-2016</executionDate>
+      <fullLegalNameFundingPortal>Venture Capital 500, LLC</fullLegalNameFundingPortal>
+      <personSignature>James Ronald Cataland</personSignature>
+      <personTitle>Managing Member</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Pimienta, Aaron, Michael</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Managing Member</titleStatus>
+        <dateOfTitleStatusAcquired>03/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>C</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>005574837</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Cataland, James, Ronald</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Managing Member</titleStatus>
+        <dateOfTitleStatusAcquired>07/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>C</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Papanastasiou, Arthur, Theodore</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Member</titleStatus>
+        <dateOfTitleStatusAcquired>04/2016</dateOfTitleStatusAcquired>
+        <ownershipCode>B</ownershipCode>
+        <controlPerson>N</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+  </formData>
+</edgarSubmission>

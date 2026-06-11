@@ -19,6 +19,7 @@ import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
+import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
 import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
@@ -277,6 +278,11 @@ export class ProcessAccessionDocFormTask extends Task<
         case "C-TR":
         case "C-TR-W":
           await processFormC({ ...storageArgs, formC: parsed });
+          break;
+        case "CFPORTAL":
+        case "CFPORTAL/A":
+        case "CFPORTAL-W":
+          await processFormCFPORTAL({ ...storageArgs, formCfportal: parsed });
           break;
         case "1-A":
         case "1-A/A":

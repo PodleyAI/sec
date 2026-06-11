@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001879158</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>Hospitality Multiple LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>Hospitality Multiple</otherNamesUsedPortal>
+        <webSiteOfPortal>https://hmxnyc.new.crowdengine.com/explore</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>86-3316789</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>132 WEST 31ST STREET, 9TH FLOOR</com:street1>
+        <com:street2>9th Floor</com:street2>
+        <com:city>NEW YORK</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10001</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>132 WEST 31ST STREET, 9TH FLOOR</com:street1>
+        <com:street2>9th Floor</com:street2>
+        <com:city>NEW YORK</com:city>
+        <com:stateOrCountry>NY</com:stateOrCountry>
+        <com:zipCode>10001</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>8452081596</portalContactPhone>
+        <portalContactEmail>ron@hmxnyc.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Ronald</com:firstName>
+        <com:middleName>Darren</com:middleName>
+        <com:lastName>Parker</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>04-07-2021</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Ronald D. Parker</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>North Capital Private Securities Corporation</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>623 E Fort Union Blvd. Suite 101</com:street1>
+          <com:city>Salt Lake City</com:city>
+          <com:stateOrCountry>UT</com:stateOrCountry>
+          <com:zipCode>84047</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>801-810-7805</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>The company currently has no arrangements with issuers. In the future, the company expects to charge commissions on capital raised, along with other fees. The Funding Portal will receive reimbursement for costs incurred.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>10-25-2021</executionDate>
+      <fullLegalNameFundingPortal>Hospitality Multiple LLC</fullLegalNameFundingPortal>
+      <personSignature>Ronald D. Parker</personSignature>
+      <personTitle>CEO</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Parker, Ronald, Darren</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Founder , CEO</titleStatus>
+        <dateOfTitleStatusAcquired>04/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Springboard LLC</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Owner</titleStatus>
+        <dateOfTitleStatusAcquired>04/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+  </formData>
+</edgarSubmission>

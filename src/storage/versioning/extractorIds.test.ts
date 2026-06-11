@@ -20,6 +20,7 @@ describe("extractorIds", () => {
       "4",
       "5",
       "C",
+      "CFPORTAL",
       "D",
       "S-1",
     ]);
