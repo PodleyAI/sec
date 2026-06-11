@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-TR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001907993</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>necoBrands, Inc</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>03-15-2021</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>70 S. SANDUSKY STREET, SUITE 210</com:street1>
+          <com:street2>SUITE 210</com:street2>
+          <com:city>DELAWARE</com:city>
+          <com:stateOrCountry>OH</com:stateOrCountry>
+          <com:zipCode>43015</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>necotech.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>Y</isCoIssuer>
+      <coIssuers>
+        <coIssuerInfo>
+          <nameOfCoIssuer>necoBrands I, a series of Wefunder SPV, L</nameOfCoIssuer>
+          <coIssuerLegalStatus>
+            <legalStatusForm>Limited Liability Company</legalStatusForm>
+            <jurisdictionOrganization>DE</jurisdictionOrganization>
+            <dateIncorporation>03-15-2021</dateIncorporation>
+          </coIssuerLegalStatus>
+          <coIssuerAddress>
+            <com:street1>4104 24TH ST </com:street1>
+            <com:street2>PMB 8113</com:street2>
+            <com:city>SAN FRANCISCO</com:city>
+            <com:stateOrCountry>CA</com:stateOrCountry>
+            <com:zipCode>94114</com:zipCode>
+          </coIssuerAddress>
+          <coIssuerWebsite>www.wefunder.com</coIssuerWebsite>
+        </coIssuerInfo>
+      </coIssuers>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>necoBrands, Inc</issuer>
+        <issuerSignature>Steve Flaherty </issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Steve Flaherty </personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>05-05-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

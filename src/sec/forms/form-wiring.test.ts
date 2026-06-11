@@ -18,4 +18,13 @@ describe("form wiring", () => {
   it("maps 1-A POS to the 1-A extractor", () => {
     expect(FORM_TO_EXTRACTOR_ID["1-A POS"]).toBe("1-A");
   });
+
+  it("every extractor-mapped form has a real parser override", () => {
+    for (const form of Object.keys(FORM_TO_EXTRACTOR_ID)) {
+      expect({ form, supported: isFormParsingSupported(form) }).toEqual({
+        form,
+        supported: true,
+      });
+    }
+  });
 });

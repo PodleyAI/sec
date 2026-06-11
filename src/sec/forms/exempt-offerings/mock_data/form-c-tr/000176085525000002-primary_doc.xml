@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-TR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001760855</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Riemann Computing Inc.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>MI</jurisdictionOrganization>
+          <dateIncorporation>02-23-2018</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>801 W BIG BEAVER RD</com:street1>
+          <com:street2>STE 300-MB # 038</com:street2>
+          <com:city>TROY</com:city>
+          <com:stateOrCountry>MI</com:stateOrCountry>
+          <com:zipCode>48084</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://riecomp.org</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Riemann Computing Inc.</issuer>
+        <issuerSignature>/Andrew Magdy Kamal/</issuerSignature>
+        <issuerTitle>Founder</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>/Andrew Magdy Kamal/</personSignature>
+          <personTitle>Founder</personTitle>
+          <signatureDate>04-28-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

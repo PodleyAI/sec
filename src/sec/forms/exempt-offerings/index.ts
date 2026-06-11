@@ -14,9 +14,6 @@ import { Form_1_Z_W } from "./Form_1_Z_W";
 import { Form_DOS } from "./Form_DOS";
 import { Form_DOSLTR } from "./Form_DOSLTR";
 import { Form_C } from "./Form_C";
-import { Form_C_U } from "./Form_C_U";
-import { Form_C_AR } from "./Form_C_AR";
-import { Form_C_TR } from "./Form_C_TR";
 import { Form_D } from "./Form_D";
 import { Form_REGDEX } from "./Form_REGDEX";
 import { Form_253G1 } from "./Form_253G1";
@@ -37,9 +34,6 @@ export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_DOS.forms.map((form) => [form, Form_DOS] as const),
   ...Form_DOSLTR.forms.map((form) => [form, Form_DOSLTR] as const),
   ...Form_C.forms.map((form) => [form, Form_C] as const),
-  ...Form_C_U.forms.map((form) => [form, Form_C_U] as const),
-  ...Form_C_AR.forms.map((form) => [form, Form_C_AR] as const),
-  ...Form_C_TR.forms.map((form) => [form, Form_C_TR] as const),
   ...Form_D.forms.map((form) => [form, Form_D] as const),
   ...Form_REGDEX.forms.map((form) => [form, Form_REGDEX] as const),
   ...Form_253G1.forms.map((form) => [form, Form_253G1] as const),
