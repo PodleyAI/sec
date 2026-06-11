@@ -86,6 +86,52 @@ export class RegAOfferingRepo {
     return (await this.offeringRepository.query({ status })) || [];
   }
 
+  async getOfferingsByTier(tier: string): Promise<RegAOffering[]> {
+    return (await this.offeringRepository.query({ tier })) || [];
+  }
+
+  async countOfferingsByStatus(): Promise<Map<string, number>> {
+    const all = (await this.offeringRepository.getAll()) || [];
+    const counts = new Map<string, number>();
+    for (const o of all) counts.set(o.status, (counts.get(o.status) ?? 0) + 1);
+    return counts;
+  }
+
+  async countOfferingsByTier(): Promise<Map<string, number>> {
+    const all = (await this.offeringRepository.getAll()) || [];
+    const counts = new Map<string, number>();
+    for (const o of all) {
+      const tier = o.tier ?? "unknown";
+      counts.set(tier, (counts.get(tier) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
+   * Sum of the most recently filed aggregate-offering amount per offering
+   * (file_number) for the CIK. Prefers `total_aggregate_offering` (Form 1-A)
+   * and falls back to `aggregate_offering_price`; offerings with no history
+   * carrying either value contribute nothing.
+   */
+  async latestAggregateOfferingByCik(cik: number): Promise<number> {
+    const offerings = await this.getOfferingsByCik(cik);
+    let sum = 0;
+    for (const offering of offerings) {
+      const histories =
+        (await this.offeringHistoryRepository.query({
+          cik,
+          file_number: offering.file_number,
+        })) || [];
+      const latest = [...histories]
+        .sort((a, b) => b.filing_date.localeCompare(a.filing_date))
+        .find((h) => h.total_aggregate_offering !== null || h.aggregate_offering_price !== null);
+      if (latest) {
+        sum += latest.total_aggregate_offering ?? latest.aggregate_offering_price ?? 0;
+      }
+    }
+    return sum;
+  }
+
   // ================================
   // Offering History Methods
   // ================================

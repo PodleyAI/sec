@@ -8,6 +8,7 @@ import { queryFacts } from "../queries/FactsQuery";
 import { queryFilings } from "../queries/FilingQuery";
 import { queryOfferings } from "../queries/OfferingQuery";
 import { queryPersons } from "../queries/PersonQuery";
+import { queryRegAOfferings, summarizeRegA } from "../queries/RegAQuery";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
@@ -230,6 +231,90 @@ export function addQueryCommands(program: Command): void {
           offset,
           limit,
         })
+      );
+    });
+
+  query
+    .command("reg-a [search]")
+    .description("Search Regulation A offerings (Form 1-A / 1-K / 1-Z data)")
+    .option("--cik <cik>", "Filter by CIK")
+    .option("--tier <tier>", "Filter by tier (Tier1, Tier2)")
+    .option("--status <status>", "Filter by status (pending, reporting, exit)")
+    .option("--jurisdiction <code>", "Filter by jurisdiction of organization")
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
+      const result = await queryRegAOfferings({
+        search,
+        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        tier: options.tier as string | undefined,
+        status: options.status as string | undefined,
+        jurisdiction: options.jurisdiction as string | undefined,
+        limit,
+        offset,
+      });
+
+      const columns = [
+        { key: "cik", header: "CIK", width: 10 },
+        { key: "file_number", header: "File #", width: 12 },
+        { key: "issuer_name", header: "Issuer", width: 30 },
+        { key: "tier", header: "Tier", width: 6 },
+        { key: "status", header: "Status", width: 10 },
+        { key: "jurisdiction", header: "Juris", width: 6 },
+      ];
+
+      console.log(
+        renderTable(result.rows as Record<string, unknown>[], columns, {
+          format,
+          total: result.total,
+          totalApprox: result.totalApprox,
+          offset,
+          limit,
+        })
+      );
+    });
+
+  query
+    .command("reg-a-summary [cik]")
+    .description(
+      "Roll up Regulation A offerings: counts by status/tier, plus the latest aggregate offering amount when a CIK is given"
+    )
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (cik: string | undefined, options: Record<string, unknown>) => {
+      const format = validateFormat(options.format as string);
+      const summary = await summarizeRegA(cik ? parseInt(cik, 10) : undefined);
+
+      const rows: Array<{ metric: string; value: string | number }> = [
+        { metric: "offerings", value: summary.offeringCount },
+        ...[...summary.byStatus.entries()].map(([status, n]) => ({
+          metric: `status:${status}`,
+          value: n,
+        })),
+        ...[...summary.byTier.entries()].map(([tier, n]) => ({
+          metric: `tier:${tier}`,
+          value: n,
+        })),
+      ];
+      if (summary.latestAggregateOffering !== undefined) {
+        rows.push({
+          metric: "latest aggregate offering ($)",
+          value: summary.latestAggregateOffering,
+        });
+      }
+
+      console.log(
+        renderTable(
+          rows as Record<string, unknown>[],
+          [
+            { key: "metric", header: "Metric", width: 32 },
+            { key: "value", header: "Value", width: 20 },
+          ],
+          { format }
+        )
       );
     });
 
