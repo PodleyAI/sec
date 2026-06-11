@@ -4,17 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getHttpErrorStatus } from "../../fetch/SecFetchJob";
+import {
+  getHttpErrorStatus,
+  isRetryableJobErrorShape,
+  NETWORK_ERRNO_PATTERN,
+  NETWORK_MESSAGE_PATTERN,
+} from "../../fetch/SecFetchJob";
 import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 
 export type FactsFetchReasonCode = Extract<
   FactsReasonCode,
   "NO_XBRL_FACTS" | "FETCH_ERROR" | "PARSE_ERROR"
 >;
-
-const NETWORK_ERRNO_PATTERN =
-  /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/;
-const NETWORK_MESSAGE_PATTERN = /network|timeout|fetch failed|socket hang up/i;
 
 /**
  * Classifies an error thrown while fetching/linearizing company facts.
@@ -27,6 +28,7 @@ export function classifyFactsFetchError(error: unknown): FactsFetchReasonCode {
   if (status === 404) return "NO_XBRL_FACTS";
   if (status !== undefined) return "FETCH_ERROR";
 
+  if (isRetryableJobErrorShape(error)) return "FETCH_ERROR";
   const code = (error as NodeJS.ErrnoException | null)?.code;
   if (code && NETWORK_ERRNO_PATTERN.test(code)) return "FETCH_ERROR";
   const message = error instanceof Error ? error.message : "";

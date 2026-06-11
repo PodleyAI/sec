@@ -1,14 +1,13 @@
 import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
-import { Workflow } from "workglow";
+import { Workflow, type IExecuteContext } from "workglow";
 import { isFormParsingSupported } from "../../sec/forms/all-forms";
 import {
   EXEMPT_OFFERING_FORM_CODES,
   type ExemptOfferingFormCode,
 } from "../../sec/forms/exempt-offerings/form-slugs";
 import { EntityRepo } from "../../storage/entity/EntityRepo";
-import { FetchCompanyFactsTask } from "../../task/facts/FetchCompanyFactsTask";
-import { StoreCompanyFactsTask } from "../../task/facts/StoreCompanyFactsTask";
+import { fetchAndStoreCompanyFacts } from "../../task/facts/fetchAndStoreCompanyFacts";
 import {
   DEFAULT_FIXTURES_PER_FORM,
   fetchFixtures,
@@ -108,16 +107,15 @@ export function addFetchCommands(program: Command): void {
     .option("--date <date>", "Cache buster date")
     .action(async (cik: string, options) => {
       await runCommand(async () => {
+        // Route through the orchestrator (not a raw Fetch→Store pipe) so the
+        // processed_facts outcome — incl. NO_XBRL_FACTS on 404 — is recorded
+        // exactly once, same as the batch update path.
+        const cikNum = parseCikArg(cik);
+        const date = options.date ? secDate(options.date) : undefined;
         const wf = new Workflow();
-        wf.pipe(
-          new FetchCompanyFactsTask({
-            defaults: {
-              cik: parseCikArg(cik),
-              date: options.date ? secDate(options.date) : undefined,
-            },
-          }),
-          new StoreCompanyFactsTask()
-        );
+        wf.pipe(async (_input: Record<string, never>, ctx: IExecuteContext) => {
+          return await fetchAndStoreCompanyFacts({ cik: cikNum, date }, ctx);
+        });
         await withCli(wf).run();
       });
     });
@@ -170,19 +168,14 @@ export function addFetchCommands(program: Command): void {
       (v, prev: string[]) => [...prev, v],
       [] as string[]
     )
-    .option(
-      "--list",
-      "Print accessions that would be downloaded without fetching them"
-    )
+    .option("--list", "Print accessions that would be downloaded without fetching them")
     .action(
-      async (
-        forms: string[],
-        options: { count?: number; quarter: string[]; list?: boolean }
-      ) => {
+      async (forms: string[], options: { count?: number; quarter: string[]; list?: boolean }) => {
         await runCommand(async () => {
           const formCodes: ExemptOfferingFormCode[] =
             forms.length > 0 ? parseFormCodes(forms) : [...EXEMPT_OFFERING_FORM_CODES];
-          const quarters = options.quarter.length > 0 ? parseQuarterStrings(options.quarter) : undefined;
+          const quarters =
+            options.quarter.length > 0 ? parseQuarterStrings(options.quarter) : undefined;
           const result = await fetchFixtures({
             forms: formCodes,
             count: options.count,

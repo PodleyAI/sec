@@ -5,6 +5,7 @@
  */
 
 import { IExecuteContext, TaskAbortedError } from "workglow";
+import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { classifyFactsFetchError } from "./classifyFactsFetchError";
@@ -50,6 +51,20 @@ export async function fetchAndStoreCompanyFactsWithDeps(
 ): Promise<{ success: boolean }> {
   const date = input.date ?? todayYYYYdMMdDD();
 
+  const recordFailure = async (reason_code: FactsReasonCode, e: unknown): Promise<void> => {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(
+      `Failed to ${reason_code === "STORE_ERROR" ? "store" : "fetch"} company facts for CIK ${input.cik} (${reason_code}): ${message}`
+    );
+    await recordFactsOutcome({
+      cik: input.cik,
+      date,
+      success: false,
+      reason_code,
+      detail: message,
+    });
+  };
+
   let fetched: FetchCompanyFactsTaskOutput;
   try {
     fetched = await deps.fetchFacts(input, ctx);
@@ -65,15 +80,7 @@ export async function fetchAndStoreCompanyFactsWithDeps(
         detail: null,
       });
     } else {
-      const message = e instanceof Error ? e.message : String(e);
-      console.warn(`Failed to fetch company facts for CIK ${input.cik} (${reason}): ${message}`);
-      await recordFactsOutcome({
-        cik: input.cik,
-        date,
-        success: false,
-        reason_code: reason,
-        detail: message,
-      });
+      await recordFailure(reason, e);
     }
     return { success: true };
   }
@@ -82,15 +89,7 @@ export async function fetchAndStoreCompanyFactsWithDeps(
     await deps.storeFacts(fetched, ctx);
   } catch (e) {
     if (e instanceof TaskAbortedError) throw e;
-    const message = e instanceof Error ? e.message : String(e);
-    console.warn(`Failed to store company facts for CIK ${input.cik}: ${message}`);
-    await recordFactsOutcome({
-      cik: input.cik,
-      date,
-      success: false,
-      reason_code: "STORE_ERROR",
-      detail: message,
-    });
+    await recordFailure("STORE_ERROR", e);
     return { success: true };
   }
 

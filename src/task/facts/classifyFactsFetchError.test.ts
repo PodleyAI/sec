@@ -41,4 +41,35 @@ describe("classifyFactsFetchError", () => {
     );
     expect(classifyFactsFetchError("boom")).toBe("PARSE_ERROR");
   });
+
+  it("classifies workglow retryable job errors as FETCH_ERROR even without a matching message", () => {
+    expect(
+      classifyFactsFetchError({ name: "RetryableJobError", retryable: true, message: "hiccup" })
+    ).toBe("FETCH_ERROR");
+    // JobTaskFailedError wraps the original job error in `jobError`.
+    expect(
+      classifyFactsFetchError({
+        name: "JobTaskFailedError",
+        message: "job failed",
+        jobError: { name: "RetryableJobError", retryable: true },
+      })
+    ).toBe("FETCH_ERROR");
+  });
+
+  it("reads the HTTP status from a wrapped job error's structured fields", () => {
+    expect(
+      classifyFactsFetchError({
+        name: "JobTaskFailedError",
+        message: "job failed permanently",
+        jobError: { name: "PermanentJobError", httpStatus: 404 },
+      })
+    ).toBe("NO_XBRL_FACTS");
+    expect(classifyFactsFetchError({ httpStatus: 503 })).toBe("FETCH_ERROR");
+  });
+
+  it("ignores message numbers outside the HTTP status range", () => {
+    expect(classifyFactsFetchError(new Error("unexpected token at position: 999 in"))).toBe(
+      "PARSE_ERROR"
+    );
+  });
 });

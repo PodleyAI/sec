@@ -8,7 +8,6 @@ import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { Factoid } from "../../sec/facts/CompanyFacts";
 import { COMPANY_FACTS_REPOSITORY_TOKEN } from "../../storage/facts/CompanyFactsSchema";
-import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 
 export type StoreCompanyFactsTaskInput = FetchCompanyFactsTaskOutput;
@@ -47,15 +46,6 @@ export class StoreCompanyFactsTask extends Task<
     const companyFactsRepo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
 
     if (factsArray.length === 0) {
-      if (input.date) {
-        await recordFactsOutcome({
-          cik: input.cik,
-          date: input.date,
-          success: true,
-          reason_code: null,
-          detail: null,
-        });
-      }
       return { success: true };
     }
 
@@ -91,15 +81,6 @@ export class StoreCompanyFactsTask extends Task<
         context.updateProgress(newProgress);
         progress = newProgress;
       }
-    }
-    if (input.date) {
-      await recordFactsOutcome({
-        cik: input.cik,
-        date: input.date,
-        success: true,
-        reason_code: null,
-        detail: null,
-      });
     }
     return { success: true };
   }
