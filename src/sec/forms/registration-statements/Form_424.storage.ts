@@ -16,7 +16,7 @@ import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
 import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
-import { getS1Model } from "./s1/s1Model";
+import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { makeRunSection } from "./s1/sectionRunner";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
@@ -79,11 +79,6 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     activeResolverCompanyVersion,
   });
   let idx = 0;
-  const hasXbrlIssuerAttributes =
-    xbrl.name !== null ||
-    xbrl.jurisdiction !== null ||
-    xbrl.address_id !== null ||
-    xbrl.international_number !== null;
   await observer.observeCompany({
     accession_number,
     extractor_id: EXTRACTOR_ID,
@@ -95,7 +90,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     address_id: xbrl.address_id,
     international_number: xbrl.international_number,
     source_context: JSON.stringify(
-      hasXbrlIssuerAttributes
+      xbrl.hasIssuerAttributes
         ? { relation: "424:issuer", attributes_source: "xbrl-dei" }
         : { relation: "424:issuer" }
     ),
@@ -105,13 +100,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
 
   // --- AI offering sections (priced prospectuses only) ---
   const model = args.model ?? (await getS1Model());
-  const modelRef = model as { model_id?: unknown; model?: unknown };
-  const model_id =
-    typeof modelRef.model_id === "string"
-      ? modelRef.model_id
-      : typeof modelRef.model === "string"
-        ? modelRef.model
-        : null;
+  const model_id = resolveModelId(model);
 
   const deadLetters = new ExtractionDeadLetterRepo();
   const recordFail = (section: string, reason: string, detail: string | null) =>

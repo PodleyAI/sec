@@ -24,13 +24,7 @@ export class XbrlFactRepo {
    * writes the new rows.
    */
   async replaceForAccession(accession_number: string, rows: readonly XbrlFactRow[]): Promise<void> {
-    const existing = (await this.storage.query({ accession_number })) ?? [];
-    for (const row of existing) {
-      await this.storage.delete({
-        accession_number: row.accession_number,
-        fact_index: row.fact_index,
-      });
-    }
+    await this.storage.deleteSearch({ accession_number });
     if (rows.length > 0) await this.storage.putBulk([...rows]);
   }
 
@@ -47,12 +41,9 @@ export class XbrlFactRepo {
 
   /** Facts for one concept across an issuer's filings (e.g. trust balance over time). */
   async getByCikConcept(cik: number, concept: string): Promise<XbrlFactRow[]> {
-    const rows = (await this.storage.query({ cik })) ?? [];
-    return rows
-      .filter((r) => r.concept === concept)
-      .sort(
-        (a, b) =>
-          a.accession_number.localeCompare(b.accession_number) || a.fact_index - b.fact_index
-      );
+    const rows = (await this.storage.query({ cik, concept })) ?? [];
+    return rows.sort(
+      (a, b) => a.accession_number.localeCompare(b.accession_number) || a.fact_index - b.fact_index
+    );
   }
 }

@@ -16,6 +16,8 @@ import { toXbrlFactRows } from "../../../xbrl/toFactRows";
 export interface XbrlIssuerEnrichment {
   readonly hasXbrl: boolean;
   readonly factCount: number;
+  /** True when at least one dei attribute below was recovered for the issuer. */
+  readonly hasIssuerAttributes: boolean;
   readonly name: string | null;
   readonly jurisdiction: string | null;
   readonly address_id: string | null;
@@ -25,6 +27,7 @@ export interface XbrlIssuerEnrichment {
 const NO_XBRL: XbrlIssuerEnrichment = {
   hasXbrl: false,
   factCount: 0,
+  hasIssuerAttributes: false,
   name: null,
   jurisdiction: null,
   address_id: null,
@@ -84,6 +87,16 @@ export async function extractAndStoreXbrl(args: {
 
     const cover = extractXbrlCoverPage(coverDoc);
 
+    // The dei registrant CIK must match the filing's CIK before cover-page
+    // attributes are attached to the issuer (a wrong-entity exhibit or
+    // instance must not rename the issuer); the facts stay stored either way.
+    if (cover.centralIndexKey !== null && cover.centralIndexKey !== cik) {
+      console.warn(
+        `XBRL dei CIK ${cover.centralIndexKey} != filing CIK ${cik} for ${accession_number}; skipping issuer enrichment`
+      );
+      return { ...NO_XBRL, hasXbrl: true, factCount: rows.length };
+    }
+
     let address_id: string | null = null;
     if (cover.addressLine1 !== null || cover.city !== null) {
       try {
@@ -115,11 +128,18 @@ export async function extractAndStoreXbrl(args: {
       }
     }
 
+    const name = cover.registrantName;
+    const jurisdiction = cover.incorporationStateCountryCode;
     return {
       hasXbrl: true,
       factCount: rows.length,
-      name: cover.registrantName,
-      jurisdiction: cover.incorporationStateCountryCode,
+      hasIssuerAttributes:
+        name !== null ||
+        jurisdiction !== null ||
+        address_id !== null ||
+        international_number !== null,
+      name,
+      jurisdiction,
       address_id,
       international_number,
     };

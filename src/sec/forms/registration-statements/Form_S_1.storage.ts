@@ -32,8 +32,8 @@ import {
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
 import { makeRunSection } from "./s1/sectionRunner";
-import { runOfferingSections } from "./s1/offeringSections";
-import { getS1Model } from "./s1/s1Model";
+import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
+import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
@@ -57,15 +57,7 @@ export interface ProcessFormS1Args {
 export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const { cik, accession_number, formS1 } = args;
   const model = args.model ?? (await getS1Model());
-  // Production resolves a ModelRecord (keyed `model_id`); the test fake uses `model`.
-  // Accept either so provenance records the real model identifier in both paths.
-  const modelRef = model as { model_id?: unknown; model?: unknown };
-  const model_id =
-    typeof modelRef.model_id === "string"
-      ? modelRef.model_id
-      : typeof modelRef.model === "string"
-        ? modelRef.model
-        : null;
+  const model_id = resolveModelId(model);
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
@@ -120,11 +112,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     feeExhibitHtml: formS1.feeExhibitHtml,
   });
 
-  const hasXbrlIssuerAttributes =
-    xbrl.name !== null ||
-    xbrl.jurisdiction !== null ||
-    xbrl.address_id !== null ||
-    xbrl.international_number !== null;
   await observer.observeCompany({
     ...base,
     observation_index: idx++,
@@ -134,7 +121,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     address_id: xbrl.address_id,
     international_number: xbrl.international_number,
     source_context: JSON.stringify(
-      hasXbrlIssuerAttributes
+      xbrl.hasIssuerAttributes
         ? { relation: "s1:issuer", attributes_source: "xbrl-dei" }
         : { relation: "s1:issuer" }
     ),
@@ -154,7 +141,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     created_at: new Date().toISOString(),
   });
 
-  const recordFail = (section: S1SectionName, reason: string, detail: string | null) =>
+  const recordFail = (section: string, reason: string, detail: string | null) =>
     deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,
@@ -175,7 +162,18 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    for (const section of Object.values(S1_SECTIONS)) {
+    // Dead-letter each section under the name its runSection ceremony uses
+    // (entity sections use segment names; the derived sections use literal
+    // names) so a later successful retry markResolves every entry — letters
+    // recorded under segmenter-only names would stay pending forever.
+    const sectionNames: readonly string[] = [
+      S1_SECTIONS.MANAGEMENT,
+      S1_SECTIONS.BENEFICIAL_OWNERSHIP,
+      S1_SECTIONS.RELATED_PARTY,
+      ...OFFERING_SECTION_NAMES,
+      ...(isSpac ? ["spac-sponsors"] : []),
+    ];
+    for (const section of sectionNames) {
       await recordFail(section, "PARSE_ERROR", detail);
     }
     return;

@@ -121,7 +121,7 @@ export async function compareIssuerDeal(cik: number): Promise<DealComparison | n
 }
 
 function formatValue(v: number | string | null): string {
-  return v === null ? "—" : typeof v === "number" ? String(v) : v;
+  return v === null ? "—" : String(v);
 }
 
 /** Registers `sec issuer deal <cik>` on an existing `issuer` command group. */

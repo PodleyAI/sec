@@ -5,7 +5,6 @@
  */
 
 import * as cheerio from "cheerio";
-import type { CheerioAPI } from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import {
   INLINE_XBRL_NAMESPACES,
@@ -25,7 +24,7 @@ import type { XbrlContext, XbrlDocument, XbrlFact, XbrlUnit } from "./types";
  * Text content of an inline fact element, dropping ix:exclude subtrees (their
  * content is presentation-only and not part of the fact value).
  */
-function factText($: CheerioAPI, el: Element, ixPrefix: string): string {
+function factText(el: Element, ixPrefix: string): string {
   const excludeTag = `${ixPrefix}:exclude`;
   const parts: string[] = [];
   const walk = (node: AnyNode): void => {
@@ -40,25 +39,23 @@ function factText($: CheerioAPI, el: Element, ixPrefix: string): string {
     }
   };
   for (const c of el.children) walk(c);
-  void $;
   return parts.join("");
 }
 
 /** Follows a continuedAt chain, concatenating continuation text. Cycle-safe. */
 function resolveContinuations(
-  $: CheerioAPI,
   el: Element,
   ixPrefix: string,
   continuations: ReadonlyMap<string, Element>
 ): string {
-  let text = factText($, el, ixPrefix);
+  let text = factText(el, ixPrefix);
   let nextId = getAttr(el, "continuedAt");
   const seen = new Set<string>();
   while (nextId !== null && !seen.has(nextId)) {
     seen.add(nextId);
     const cont = continuations.get(nextId);
     if (!cont) break;
-    text += factText($, cont, ixPrefix);
+    text += factText(cont, ixPrefix);
     nextId = getAttr(cont, "continuedAt");
   }
   return text;
@@ -134,7 +131,7 @@ export function parseInlineXbrl(html: string): XbrlDocument {
     if (concept === null) continue;
 
     const isNumeric = localName(el.tagName) === "nonfraction";
-    const rawText = resolveContinuations($, el, ixPrefix, continuations);
+    const rawText = resolveContinuations(el, ixPrefix, continuations);
     const format = getAttr(el, "format");
     const scale = isNumeric ? parseIntAttr(el, "scale") : null;
     const sign = getAttr(el, "sign") === "-" ? ("-" as const) : null;

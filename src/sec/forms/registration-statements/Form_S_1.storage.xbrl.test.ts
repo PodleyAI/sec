@@ -197,6 +197,42 @@ describe("processFormS1 XBRL integration", () => {
     expect(JSON.parse(issuer.source_context!)).toEqual({ relation: "s1:issuer" });
   });
 
+  it("stores facts but skips issuer enrichment when the dei CIK mismatches the filing CIK", async () => {
+    const { unregister } = registerFakeStructuredProvider([]);
+    cleanup = unregister;
+
+    // Same shape as IXBRL_HTML but tagged for a DIFFERENT registrant CIK.
+    const wrongCikHtml = IXBRL_HTML.replace(
+      `<p><ix:nonNumeric contextRef="c1" name="dei:EntityRegistrantName">`,
+      `<p><ix:nonNumeric contextRef="c1" name="dei:EntityCentralIndexKey">0000099999</ix:nonNumeric>` +
+        `<ix:nonNumeric contextRef="c1" name="dei:EntityRegistrantName">`
+    );
+
+    await processFormS1({
+      cik: CIK,
+      file_number: "333-2",
+      accession_number: ACCESSION,
+      filing_date: "2026-04-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: wrongCikHtml,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    // Facts are stored regardless...
+    expect(await new XbrlFactRepo().countByAccession(ACCESSION)).toBe(10);
+    // ...but the wrong entity's attributes never reach the issuer observation.
+    const issuer = (await new CompanyObservationRepo().listAll()).find((c) => c.cik === CIK)!;
+    expect(issuer.name).toBeNull();
+    expect(issuer.jurisdiction).toBeNull();
+    expect(JSON.parse(issuer.source_context!)).toEqual({ relation: "s1:issuer" });
+  });
+
   it("leaves the issuer observation bare for untagged filings", async () => {
     const { unregister } = registerFakeStructuredProvider([]);
     cleanup = unregister;

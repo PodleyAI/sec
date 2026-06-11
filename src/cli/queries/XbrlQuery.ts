@@ -54,6 +54,8 @@ export async function queryXbrlFacts(params: XbrlQueryParams): Promise<QueryResu
     offset,
     limit
   );
+  // Within-page extraction order, matching the unfiltered path above.
+  rows.sort((a, b) => a.fact_index - b.fact_index);
   return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
 }
 

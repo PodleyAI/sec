@@ -84,6 +84,8 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     byName,
   } = args;
   const base = { accession_number, extractor_id, extractor_version };
+  // Relation labels follow the issuer convention: "s1:issuer" / "424:issuer".
+  const relationPrefix = extractor_id === "S-1" ? "s1" : extractor_id;
 
   const offeringTermsRepo = new OfferingTermsRepo();
   const spacUnitTermsRepo = new SpacUnitTermsRepo();
@@ -201,7 +203,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           ...base,
           observation_index,
           name: legalName,
-          source_context: JSON.stringify({ relation: "s1:underwriter" }),
+          source_context: JSON.stringify({ relation: `${relationPrefix}:underwriter` }),
         });
         await provenance.save({
           kind: "company",
