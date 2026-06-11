@@ -93,6 +93,21 @@ runs this deterministic pass before AI extraction:
 `parseToBlocks` skips `display:none` subtrees so the hidden `ix:header` metadata
 block does not leak into the prose handed to the AI section extractors.
 
+**424 prospectuses** (`424A`, `424B1`–`424B5`, `424B7`; extractor id `424`) run a
+deterministic-only handler (`processForm424` — no AI section extraction): the XBRL
+pass captures final / takedown pricing from the fee exhibit (pay-as-you-go 424B2s
+carry `ffd:NrrtvMaxAggtOfferingPric` and `ffd:RegnFileNb`, which ties the prospectus
+back to its registration file number), and the issuer is observed so the filing
+resolves to the same canonical company as its S-1/S-3 (`relation: "424:issuer"`).
+Fee-prepaid 424s (e.g. SPAC 424B4s under Rule 456(a)) carry no fee exhibit and no
+XBRL at all — the handler degrades to a bare issuer observation. When the
+prospectus body is untagged, the fee exhibit's dei facts are the cover-page
+fallback for issuer enrichment.
+
+```bash
+sec fetch form <cik> 424B4        # fetch + process a priced prospectus
+```
+
 ```bash
 # Stored XBRL facts for a filing
 sec query xbrl <accession> [--concept TrustAccount] [--numeric-only] [--format json]

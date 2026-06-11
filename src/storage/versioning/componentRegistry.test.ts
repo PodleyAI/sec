@@ -9,7 +9,7 @@ import { isRegisteredComponent, listRegisteredComponents } from "./componentRegi
 
 describe("componentRegistry", () => {
   it("registers all extractors", () => {
-    for (const id of ["D", "C", "1-A", "1-K", "1-Z", "3", "4", "5", "144", "S-1"]) {
+    for (const id of ["D", "C", "1-A", "1-K", "1-Z", "3", "4", "5", "144", "S-1", "424"]) {
       expect(isRegisteredComponent("extractor", id)).toBe(true);
     }
   });
@@ -27,7 +27,7 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 10 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(14);
+    // 11 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(15);
   });
 });

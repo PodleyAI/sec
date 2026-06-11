@@ -58,6 +58,7 @@ export async function extractAndStoreXbrl(args: {
     // document; its facts are appended under the same accession with their
     // fact_index continuing after the primary document's.
     const rows = doc.hasXbrl ? toXbrlFactRows({ doc, accession_number, cik }) : [];
+    let coverDoc = doc.hasXbrl ? doc : null;
     if (typeof feeExhibitHtml === "string") {
       const feeDoc = parseInlineXbrl(feeExhibitHtml);
       if (feeDoc.hasXbrl) {
@@ -69,18 +70,19 @@ export async function extractAndStoreXbrl(args: {
             source: "fee-exhibit",
           }))
         );
+        // A fee exhibit also tags dei registrant facts; for filings whose
+        // prospectus body is untagged (typical 424s) it is the only dei source.
+        if (coverDoc === null) coverDoc = feeDoc;
       }
     }
     if (rows.length === 0) return NO_XBRL;
     await new XbrlFactRepo().replaceForAccession(accession_number, rows);
 
-    if (!doc.hasXbrl) {
-      // Fee-exhibit-only filing: facts are stored, but there are no primary-doc
-      // dei cover-page facts to enrich the issuer observation with.
+    if (coverDoc === null) {
       return { ...NO_XBRL, hasXbrl: true, factCount: rows.length };
     }
 
-    const cover = extractXbrlCoverPage(doc);
+    const cover = extractXbrlCoverPage(coverDoc);
 
     let address_id: string | null = null;
     if (cover.addressLine1 !== null || cover.city !== null) {

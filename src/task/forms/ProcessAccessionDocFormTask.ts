@@ -22,6 +22,7 @@ import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
+import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -33,7 +34,11 @@ import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
-/** Registration prospectus forms whose body is fetched as the full submission .txt. */
+/**
+ * Registration prospectus forms whose body is fetched as the full submission
+ * .txt — Form.parse() needs the <SEC-HEADER> and sibling <DOCUMENT> blocks
+ * (XBRL instance, EX-FILING FEES exhibit), not just the primary document.
+ */
 const REGISTRATION_PROSPECTUS_FORMS = new Set([
   "S-1",
   "S-1/A",
@@ -43,6 +48,13 @@ const REGISTRATION_PROSPECTUS_FORMS = new Set([
   "F-1",
   "F-1/A",
   "F-1MEF",
+  "424A",
+  "424B1",
+  "424B2",
+  "424B3",
+  "424B4",
+  "424B5",
+  "424B7",
 ]);
 
 /** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
@@ -178,9 +190,7 @@ export class ProcessAccessionDocFormTask extends Task<
     const extractorVersion = activeSlot.semver;
     const slotAtRun = activeSlot.slot;
 
-    const runRepo = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
 
     const deadLetters = new ExtractionDeadLetterRepo();
 
@@ -204,10 +214,7 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     };
 
-    const recordDeadLetterSafe = async (
-      reason_code: string,
-      detail: string
-    ): Promise<void> => {
+    const recordDeadLetterSafe = async (reason_code: string, detail: string): Promise<void> => {
       try {
         await deadLetters.record({
           extractor_id: extractorId,
@@ -311,6 +318,15 @@ export class ProcessAccessionDocFormTask extends Task<
         case "F-1/A":
         case "F-1MEF":
           await processFormS1({ ...storageArgs, form: form!, formS1: parsed });
+          break;
+        case "424A":
+        case "424B1":
+        case "424B2":
+        case "424B3":
+        case "424B4":
+        case "424B5":
+        case "424B7":
+          await processForm424({ ...storageArgs, form: form!, form424: parsed });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);

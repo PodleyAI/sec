@@ -115,6 +115,25 @@ describe("parseInlineXbrl golden: Churchill Capital Corp XII EX-FILING FEES exhi
   });
 });
 
+describe("parseInlineXbrl golden: JPMorgan 424B2 EX-FILING FEES exhibit (pay-as-you-go)", () => {
+  const result = parseInlineXbrl(
+    readFileSync(join(import.meta.dir, "mock_data/exfee_19617_000183988226028863.htm"), "utf8")
+  );
+
+  it("parses the narrative-format takedown fee disclosure", () => {
+    expect(result.hasXbrl).toBe(true);
+    expect(result.facts.length).toBe(12);
+    const byConcept = (c: string) => result.facts.find((f) => f.concept === c)!;
+    expect(byConcept("dei:EntityRegistrantName").value).toBe("JPMorgan Chase & Co.");
+    // Rule 456(b) narrative disclosure: the takedown amount, the final-prospectus
+    // flag, and the registration file number tying the 424B2 to its S-3.
+    expect(byConcept("ffd:NrrtvMaxAggtOfferingPric").numericValue).toBe(689000);
+    expect(byConcept("ffd:FnlPrspctsFlg").value).toBe("true");
+    expect(byConcept("ffd:RegnFileNb").value).toBe("333-293684");
+    expect(byConcept("ffd:FormTp").value).toBe("S-3");
+  });
+});
+
 describe("parseInlineXbrl golden: untagged S-1 (2021 vintage)", () => {
   it("reports hasXbrl=false", () => {
     const result = parseInlineXbrl(load("s1_1848507_000119312521066104.htm"));
