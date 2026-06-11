@@ -32,6 +32,7 @@ const DEFAULT_TIMEOUT_MS = readPositiveIntEnv("SEC_FETCH_TIMEOUT_MS", 60_000);
 interface MaybeHttpError {
   status?: number;
   statusCode?: number;
+  httpStatus?: number;
   response?: { status?: number; headers?: Record<string, string> | Headers };
   headers?: Record<string, string> | Headers;
   retryAfter?: number;
@@ -39,10 +40,50 @@ interface MaybeHttpError {
   retryDate?: Date;
   message?: string;
   name?: string;
+  /** workglow's JobTaskFailedError carries the original job error here. */
+  jobError?: MaybeHttpError;
 }
 
+/** Error code / message heuristics shared with consumers classifying fetch failures. */
+export const NETWORK_ERRNO_PATTERN =
+  /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/;
+export const NETWORK_MESSAGE_PATTERN = /network|timeout|fetch failed|socket hang up/i;
+
 function getStatus(error: MaybeHttpError): number | undefined {
-  return error.status ?? error.statusCode ?? error.response?.status;
+  return error.status ?? error.statusCode ?? error.httpStatus ?? error.response?.status;
+}
+
+/** True for any retryable/permanent job-error wrapper, checked by flag and name —
+ * `instanceof` can fail across module/realm boundaries. */
+export function isRetryableJobErrorShape(error: unknown): boolean {
+  if (error === null || typeof error !== "object") return false;
+  const e = error as MaybeHttpError;
+  return (
+    e.retryable === true ||
+    e.name === "RetryableJobError" ||
+    e.jobError?.retryable === true ||
+    e.jobError?.name === "RetryableJobError"
+  );
+}
+
+/**
+ * Extracts an HTTP status from an error's structured fields (including a
+ * wrapped `jobError`'s `httpStatus`) or, as a last resort, from its message
+ * ("...: <status> <reason>" — workglow's HTTP error shape). Returns undefined
+ * for network-level or non-HTTP errors.
+ */
+export function getHttpErrorStatus(error: unknown): number | undefined {
+  if (error === null || typeof error !== "object") return undefined;
+  const e = error as MaybeHttpError;
+  const status = getStatus(e) ?? (e.jobError ? getStatus(e.jobError) : undefined);
+  if (status !== undefined) return status;
+  const message = typeof e.message === "string" ? e.message : "";
+  const msgStatus = message.match(/:\s*(\d{3})\s/)?.[1];
+  if (!msgStatus) return undefined;
+  const parsed = Number(msgStatus);
+  // A message-derived number is only trusted inside the HTTP status range —
+  // ": 999 in" from a parse error is not a status.
+  return parsed >= 100 && parsed <= 599 ? parsed : undefined;
 }
 
 function isRetriableError(error: unknown): boolean {
@@ -72,10 +113,10 @@ function isRetriableError(error: unknown): boolean {
   // Network-level failures (ECONNRESET, ETIMEDOUT, ENOTFOUND, fetch aborts that
   // weren't user-driven, etc.) all surface as plain Errors with no status.
   const code = (error as NodeJS.ErrnoException).code;
-  if (code && /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/.test(code)) {
+  if (code && NETWORK_ERRNO_PATTERN.test(code)) {
     return true;
   }
-  return /network|timeout|fetch failed|socket hang up/i.test(message);
+  return NETWORK_MESSAGE_PATTERN.test(message);
 }
 
 function readHeader(
@@ -122,7 +163,10 @@ function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
   const live = signals.filter((s): s is AbortSignal => Boolean(s));
   if (live.length === 0) return new AbortController().signal;
   if (live.length === 1) return live[0];
-  if (typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any === "function") {
+  if (
+    typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any ===
+    "function"
+  ) {
     return (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any(live);
   }
   const controller = new AbortController();
@@ -160,7 +204,10 @@ export class SecFetchJob<
       const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
       const timeoutHandle =
         timeoutController && DEFAULT_TIMEOUT_MS > 0
-          ? setTimeout(() => timeoutController.abort(new Error("SEC fetch timed out")), DEFAULT_TIMEOUT_MS)
+          ? setTimeout(
+              () => timeoutController.abort(new Error("SEC fetch timed out")),
+              DEFAULT_TIMEOUT_MS
+            )
           : undefined;
       const signal = combineSignals([context.signal, timeoutController?.signal]);
 

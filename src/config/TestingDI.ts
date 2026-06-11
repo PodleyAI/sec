@@ -229,6 +229,11 @@ import {
   UseOfProceedsSchema,
 } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import {
+  XBRL_FACT_REPOSITORY_TOKEN,
+  XbrlFactPrimaryKeyNames,
+  XbrlFactRowSchema,
+} from "../storage/xbrl/XbrlFactSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -477,11 +482,10 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     SECTION16_TRANSACTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(
-      Section16TransactionSchema,
-      Section16TransactionPrimaryKeyNames,
-      [["accession_number"], ["issuer_cik"]]
-    )
+    new InMemoryTabularStorage(Section16TransactionSchema, Section16TransactionPrimaryKeyNames, [
+      ["accession_number"],
+      ["issuer_cik"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     SECTION16_HOLDING_REPOSITORY_TOKEN,
@@ -640,9 +644,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalPersonAddressSchema, CanonicalPersonAddressPrimaryKeyNames, [
-      ["canonical_person_id", "resolver_version"],
-    ])
+    new InMemoryTabularStorage(
+      CanonicalPersonAddressSchema,
+      CanonicalPersonAddressPrimaryKeyNames,
+      [["canonical_person_id", "resolver_version"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
@@ -670,7 +676,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalCompanyAliasSchema, CanonicalCompanyAliasPrimaryKeyNames, [])
+    new InMemoryTabularStorage(
+      CanonicalCompanyAliasSchema,
+      CanonicalCompanyAliasPrimaryKeyNames,
+      []
+    )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN,
@@ -705,11 +715,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     OFFERING_TERMS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [])
+    new InMemoryTabularStorage(OfferingTermsSchema, OfferingTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [])
+    new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,
@@ -754,5 +764,9 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(UseOfProceedsSchema, UseOfProceedsPrimaryKeyNames, [
       ["accession_number"],
     ])
+  );
+  globalServiceRegistry.registerInstance(
+    XBRL_FACT_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(XbrlFactRowSchema, XbrlFactPrimaryKeyNames, [["cik"], ["concept"]])
   );
 }

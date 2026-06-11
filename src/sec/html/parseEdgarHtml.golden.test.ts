@@ -13,8 +13,15 @@ import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/Docum
 import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
 import type { S1SectionName } from "../forms/registration-statements/s1/DocumentSegmenter";
 
-const { MANAGEMENT, BENEFICIAL_OWNERSHIP, RELATED_PARTY, THE_OFFERING, UNDERWRITING, USE_OF_PROCEEDS, THE_SPONSOR } =
-  S1_SECTIONS;
+const {
+  MANAGEMENT,
+  BENEFICIAL_OWNERSHIP,
+  RELATED_PARTY,
+  THE_OFFERING,
+  UNDERWRITING,
+  USE_OF_PROCEEDS,
+  THE_SPONSOR,
+} = S1_SECTIONS;
 const dir = join(import.meta.dir, "mock_data", "s1");
 
 /**
@@ -47,6 +54,16 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     UNDERWRITING,
     USE_OF_PROCEEDS,
   ],
+  // 2026 SPAC with full iXBRL tagging (spac/dei taxonomies) — also exercised
+  // by parseXbrl.golden.test.ts.
+  "s1_2114227_000121390026039320.htm": [
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
   // Operating companies — varied coverage / edge cases.
   "s1_2030954_000149315226027129.htm": [
     BENEFICIAL_OWNERSHIP,
@@ -65,6 +82,7 @@ const SPAC_FIXTURES = [
   "s1_1848507_000119312521066104.htm",
   "s1_1849470_000110465921035696.htm",
   "s1_1822912_000121390021001475.htm",
+  "s1_2114227_000121390026039320.htm",
 ];
 
 const fixtures = readdirSync(dir).filter((f) => f.endsWith(".htm"));

@@ -97,14 +97,29 @@ describe("parseToBlocks", () => {
         <div><font size="5">RISK FACTORS</font></div>
         <p>risks</p>
       </body></html>`);
-    const headings = blocks.filter((b) => b.type === "heading").map((b) => (b as { text: string }).text);
+    const headings = blocks
+      .filter((b) => b.type === "heading")
+      .map((b) => (b as { text: string }).text);
     expect(headings).toContain("MANAGEMENT");
     expect(headings).toContain("RISK FACTORS");
   });
 
   it("numbers ordered-list items sequentially in ListNode.text", () => {
-    const blocks = parseToBlocks(`<html><body><ol><li>first</li><li>second</li><li>third</li></ol></body></html>`);
+    const blocks = parseToBlocks(
+      `<html><body><ol><li>first</li><li>second</li><li>third</li></ol></body></html>`
+    );
     const list = blocks.find((b) => b.type === "list");
     expect(list && list.type === "list" && list.node.text).toBe("1. first\n2. second\n3. third");
+  });
+
+  it("skips display:none subtrees (iXBRL ix:header metadata must not leak into prose)", () => {
+    const blocks = parseToBlocks(`
+      <html><body>
+        <div style="display:none"><p>c_2026-01-01 iso4217:USD hidden header noise</p></div>
+        <p>Visible prospectus text.</p>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Visible prospectus text.");
+    expect(text).not.toContain("hidden header noise");
   });
 });

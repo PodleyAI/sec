@@ -15,6 +15,7 @@
         "commander": "^15.0.0",
         "compromise": "^14.15.1",
         "csv-parse": "^6.2.1",
+        "domhandler": "^5.0.3",
         "fast-xml-parser": "^5.8.0",
         "html-entities": "^2.6.0",
         "pdf2json": "^4.0.3",
@@ -37,8 +38,8 @@
     },
   },
   "trustedDependencies": [
-    "@huggingface/transformers",
     "onnxruntime-node",
+    "@huggingface/transformers",
   ],
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],

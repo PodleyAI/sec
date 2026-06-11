@@ -61,6 +61,18 @@ sec extractor retry-dead-letters S-1       # re-run filings eligible under the c
 eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-4-6`)
 and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
 
+### Company facts outcome tracking
+
+`processed_facts` rows carry `reason_code` / `detail` / `attempts`. A companyfacts
+404 (the entity has no XBRL data — most filer CIKs) is recorded as a *successful*
+`NO_XBRL_FACTS` outcome and never retried. `FETCH_ERROR` (transient HTTP/network),
+`PARSE_ERROR` (code-fixable), and `STORE_ERROR` rows are failures; `attempts`
+counts consecutive failures and resets on success.
+
+```bash
+sec update facts --retry-failed   # also re-fetch CIKs whose last facts processing failed
+```
+
 A curated sample of real S-1 prospectus HTML (incl. ≥3 SPACs, SIC 6770) is
 committed under `src/sec/html/mock_data/s1/` (see its `SOURCES.md`) and exercised
 by `parseEdgarHtml.golden.test.ts`. To refresh / grow the sample on demand into a
@@ -70,6 +82,55 @@ gitignored cache:
 sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/s1/.cache/
 sec fetch s1-fixtures -c 20 --min-spac 5
 ```
+
+#### iXBRL / XBRL facts
+
+Modern S-1s embed inline XBRL (`ix:nonFraction` / `ix:nonNumeric` facts against the
+`dei`, `us-gaap`, and `spac` taxonomies); older submissions may carry a standalone
+XBRL instance document (`EX-101.INS`); and since the filing-fee modernization the
+fee table is a separate `EX-FILING FEES` exhibit tagged against the `ffd` taxonomy
+(it includes `ffd:MaxAggtOfferingPric` / `ffd:TtlOfferingAmt` — the registered
+offering size as a deterministic fact). `src/sec/xbrl/` parses these into a shared
+fact/context/unit model (no taxonomy/linkbase processing), and `processFormS1`
+runs this deterministic pass before AI extraction:
+
+- every fact is persisted to the `xbrl_fact` table (`src/storage/xbrl/`), keyed
+  `(accession_number, fact_index)` with the context period/dimensions and resolved
+  unit denormalized onto the row; fee-exhibit facts share the accession with
+  `source = "fee-exhibit"` and continue the primary document's `fact_index` sequence;
+- the dei cover-page facts (registrant name, incorporation state, address, phone)
+  upgrade the issuer company observation (`source_context.attributes_source = "xbrl-dei"`);
+- XBRL failures never abort the filing — extraction degrades to the untagged path.
+
+`parseToBlocks` skips `display:none` subtrees so the hidden `ix:header` metadata
+block does not leak into the prose handed to the AI section extractors.
+
+**424 prospectuses** (`424A`, `424B1`–`424B5`, `424B7`; extractor id `424`) run
+`processForm424`: every variant gets the deterministic XBRL pass (pay-as-you-go
+424B2s carry `ffd:NrrtvMaxAggtOfferingPric` and `ffd:RegnFileNb`, which ties the
+prospectus back to its registration file number) and an issuer observation that
+resolves to the same canonical company as the registration statement
+(`relation: "424:issuer"`). The **priced** forms (`424B1` / `424B4`) additionally
+run the AI offering sections — offering terms, underwriters, use of proceeds —
+recording the **final** deal under extractor id `424`, alongside the S-1's
+registered/anticipated terms (compare `spac_unit_terms` / `offering_terms` rows
+across the two extractor ids). Fee-prepaid 424s (e.g. SPAC 424B4s under Rule
+456(a)) carry no fee exhibit and no XBRL; when the prospectus body is untagged,
+the fee exhibit's dei facts are the cover-page fallback for issuer enrichment.
+The offering-sections logic and the per-section dead-letter ceremony are shared
+with the S-1 processor (`s1/offeringSections.ts`, `s1/sectionRunner.ts`).
+
+```bash
+sec fetch form <cik> 424B4        # fetch + process a priced prospectus
+```
+
+```bash
+# Stored XBRL facts for a filing
+sec query xbrl <accession> [--concept TrustAccount] [--numeric-only] [--format json]
+```
+
+The committed Churchill Capital Corp XII fixture (`s1_2114227_...htm`, a 2026 SPAC
+with full `spac`-taxonomy tagging) pins the parser via `parseXbrl.golden.test.ts`.
 
 #### Offering terms / underwriters / use of proceeds
 
@@ -93,6 +154,9 @@ sec canonical underwriter-family alias-list [--orphans]
 
 # Point-in-time ticker series for an issuer
 sec issuer tickers <cik>
+
+# Registered (S-1) vs final priced (424B1/424B4) terms, with deltas
+sec issuer deal <cik> [--format json]
 ```
 
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`

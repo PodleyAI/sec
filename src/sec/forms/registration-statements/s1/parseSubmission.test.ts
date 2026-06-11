@@ -61,6 +61,41 @@ describe("parseRegistrationSubmission", () => {
     expect(parsed.html).toContain("MANAGEMENT");
     expect(parsed.html).not.toContain("exhibit");
     expect(parsed.html).not.toContain("<TYPE>");
+    expect(parsed.xbrlInstanceXml).toBeNull();
+    expect(parsed.feeExhibitHtml).toBeNull();
+  });
+
+  it("surfaces the EX-FILING FEES exhibit body", () => {
+    const withFee = [
+      TXT,
+      "<DOCUMENT>",
+      "<TYPE>EX-FILING FEES",
+      "<SEQUENCE>3",
+      "<FILENAME>ex-fee.htm",
+      "<TEXT>",
+      `<html xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"><body>fee table</body></html>`,
+      "</TEXT>",
+      "</DOCUMENT>",
+    ].join("\n");
+    const parsed = parseRegistrationSubmission("S-1", withFee);
+    expect(parsed.html).toContain("MANAGEMENT");
+    expect(parsed.feeExhibitHtml).toContain("fee table");
+  });
+
+  it("surfaces an EX-101.INS instance document", () => {
+    const withInstance = [
+      TXT,
+      "<DOCUMENT>",
+      "<TYPE>EX-101.INS",
+      "<SEQUENCE>4",
+      "<FILENAME>abc-20140101.xml",
+      "<TEXT>",
+      `<?xml version="1.0"?><xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance"></xbrli:xbrl>`,
+      "</TEXT>",
+      "</DOCUMENT>",
+    ].join("\n");
+    const parsed = parseRegistrationSubmission("S-1", withInstance);
+    expect(parsed.xbrlInstanceXml).toContain("xbrli:xbrl");
   });
 
   it("falls back to the whole input as body when there is no DOCUMENT envelope", () => {

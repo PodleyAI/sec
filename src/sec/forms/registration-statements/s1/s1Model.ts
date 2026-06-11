@@ -30,3 +30,17 @@ export async function getS1Model(): Promise<ModelConfig> {
   }
   return record as ModelConfig;
 }
+
+/**
+ * The model identifier recorded in provenance rows. Production resolves a
+ * ModelRecord (keyed `model_id`); the test fake uses `model` — accept either
+ * so provenance records the real identifier in both paths.
+ */
+export function resolveModelId(model: ModelConfig): string | null {
+  const ref = model as { model_id?: unknown; model?: unknown };
+  return typeof ref.model_id === "string"
+    ? ref.model_id
+    : typeof ref.model === "string"
+      ? ref.model
+      : null;
+}
