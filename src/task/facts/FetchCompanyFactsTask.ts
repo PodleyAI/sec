@@ -5,7 +5,7 @@
  */
 
 import { Static, Type } from "typebox";
-import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
+import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
 import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
 import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -81,8 +81,11 @@ export class FetchCompanyFactsTask extends Task<
     this._secFetch ??= context.own(new SecFetchCompanyFactsTask(input));
     this._secFetch.setDefaults(input);
     const secData = await this._secFetch.run();
-    const companyFacts = secData.json! as unknown as CompanyFacts;
-    const facts = companyFacts.facts;
+    const companyFacts = secData.json as unknown as CompanyFacts | undefined;
+    const facts = companyFacts?.facts;
+    if (!facts || typeof facts !== "object") {
+      throw new TaskError(`Company facts JSON for CIK ${cik} has no 'facts' object`);
+    }
     // linearize the facts
 
     const factsArray: Factoid[] = [];

@@ -12,10 +12,13 @@ import {
   PROCESSED_FACTS_REPOSITORY_TOKEN,
   type ProcessedFacts,
 } from "../../storage/processing/ProcessedFactsSchema";
+import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
+import { computeFactsWorklist, type FactsWorkItem } from "./computeFactsWorklist";
 import { fetchAndStoreCompanyFacts } from "./fetchAndStoreCompanyFacts";
 
 export type UpdateAllCompanyFactsTaskInput = {
   readonly force?: boolean;
+  readonly retryFailed?: boolean;
 };
 
 export type UpdateAllCompanyFactsTaskOutput = {
@@ -52,32 +55,26 @@ export class UpdateAllCompanyFactsTask extends Task<
         { orderBy: [{ column: "last_update", direction: "DESC" }] }
       )) ?? [];
 
-    const needsUpdating: { cik: number; last_update: string }[] = [];
-    const needsProcessing: { cik: number; last_update: string }[] = [];
-
-    if (input.force) {
-      for (const clu of allCikUpdates) {
-        needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
-      }
-    } else {
-      // Stream rather than getAll() — see UpdateAllSubmissionsTask for the
-      // same pattern. We need both cik and last_processed for freshness,
-      // so a Map built page-by-page is unavoidable but the intermediate
-      // row materialisation isn't.
-      const processedMap = new Map<number, ProcessedFacts>();
+    // Stream rather than getAll() — see UpdateAllSubmissionsTask for the
+    // same pattern. We need both cik and last_processed for freshness,
+    // so a Map built page-by-page is unavoidable but the intermediate
+    // row materialisation isn't.
+    const processedMap = new Map<number, ProcessedFacts>();
+    if (!input.force) {
       for await (const pf of processedFactsRepo.records(5000)) {
         processedMap.set(pf.cik, pf);
       }
-
-      for (const clu of allCikUpdates) {
-        const pf = processedMap.get(clu.cik);
-        if (!pf) {
-          needsProcessing.push({ cik: clu.cik, last_update: clu.last_update });
-        } else if (clu.last_update > pf.last_processed) {
-          needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
-        }
-      }
     }
+
+    const { needsUpdating, needsProcessing, needsRetrying } = computeFactsWorklist(
+      allCikUpdates,
+      processedMap,
+      {
+        force: input.force ?? false,
+        retryFailed: input.retryFailed ?? false,
+        retryDate: todayYYYYdMMdDD(),
+      }
+    );
 
     if (isDryRun()) {
       if (input.force) {
@@ -85,34 +82,31 @@ export class UpdateAllCompanyFactsTask extends Task<
           `Would update ${needsUpdating.length} company facts (force — reprocessing all)`
         );
       } else {
+        const retrySuffix = input.retryFailed
+          ? `, retrying ${needsRetrying.length} previously failed,`
+          : "";
         console.log(
-          `Would update ${needsUpdating.length} changed and ${needsProcessing.length} new company facts`
+          `Would update ${needsUpdating.length} changed${retrySuffix} and ${needsProcessing.length} new company facts`
         );
       }
       return { success: true };
     }
 
-    if (needsUpdating.length) {
+    const runLane = async (items: FactsWorkItem[], concurrencyLimit: number): Promise<void> => {
+      if (!items.length) return;
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 1, maxIterations: needsUpdating.length });
+      const loop = wf.map({ concurrencyLimit, maxIterations: items.length });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();
       await wf.run({
-        cik: needsUpdating.map((r) => r.cik),
-        date: needsUpdating.map((r) => r.last_update),
+        cik: items.map((r) => r.cik),
+        date: items.map((r) => r.last_update),
       });
-    }
+    };
 
-    if (needsProcessing.length) {
-      const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 10, maxIterations: needsProcessing.length });
-      loop.pipe(fetchAndStoreCompanyFacts);
-      loop.endMap();
-      await wf.run({
-        cik: needsProcessing.map((r) => r.cik),
-        date: needsProcessing.map((r) => r.last_update),
-      });
-    }
+    await runLane(needsUpdating, 1);
+    await runLane(needsRetrying, 1);
+    await runLane(needsProcessing, 10);
 
     return { success: true };
   }

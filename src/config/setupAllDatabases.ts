@@ -170,9 +170,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry
     .get(CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN)
     .setupDatabase();
-  await globalServiceRegistry
-    .get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN)
-    .setupDatabase();
+  await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   // View DDL is created here only on the SQLite path; the Postgres backend
