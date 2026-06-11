@@ -7,7 +7,12 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { globalServiceRegistry } from "workglow";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
+import {
+  CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
+  type CrowdfundingHistory,
+} from "../../../storage/portal/CrowdfundingHistorySchema";
 import { Form_C } from "./Form_C";
 import { determineStatus, processFormC } from "./Form_C.storage";
 import {
@@ -172,5 +177,84 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
     const row = await repo.getCrowdfunding(cik, file_number);
     expect(row?.status).toBe("termination");
     expect(row?.filing_date).toBe("2026-01-01");
+  });
+
+  it("writes a CrowdfundingHistory row for an out-of-order older filing without regressing the mutable row", async () => {
+    const repo = new CrowdfundingRepo();
+    const historyRepo = globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN);
+    const files = listFixtureFiles("form-c-ar");
+    const xml = readFixture("form-c-ar", files[0]);
+    const parsed = await Form_C.parse("C-AR", xml);
+    const cik = safeCikToInt(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
+    const file_number = "020-77777";
+
+    // Seed the mutable row at a date newer than the replayed filing.
+    await repo.saveCrowdfunding({
+      cik,
+      file_number,
+      filing_date: "2026-01-01",
+      name: "Current Issuer",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "https://issuer.example.com",
+      portal_cik: 1725012,
+      status: "termination",
+      progress_update: null,
+      nature_of_amendment: null,
+    });
+
+    await processFormC({
+      cik,
+      file_number,
+      accession_number: accessionFromFixtureName(files[0]),
+      filing_date: "2025-04-28",
+      primary_doc: "primary_doc.xml",
+      formC: parsed,
+    });
+
+    // Mutable row is preserved.
+    const mutable = await repo.getCrowdfunding(cik, file_number);
+    expect(mutable?.status).toBe("termination");
+    expect(mutable?.filing_date).toBe("2026-01-01");
+
+    // History records the older filing as a closed snapshot.
+    const history = (await historyRepo.query({ cik, file_number })) ?? [];
+    const staleRows = history.filter(
+      (h: CrowdfundingHistory) => h.filing_date === "2025-04-28"
+    );
+    expect(staleRows.length).toBeGreaterThan(0);
+    for (const row of staleRows) {
+      expect(row.valid_to).not.toBeNull();
+    }
+  });
+
+  it("writes a CrowdfundingHistory row for a fresh forward filing and leaves the open record open", async () => {
+    const repo = new CrowdfundingRepo();
+    const historyRepo = globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN);
+    const files = listFixtureFiles("form-c-ar");
+    const xml = readFixture("form-c-ar", files[0]);
+    const parsed = await Form_C.parse("C-AR", xml);
+    const cik = safeCikToInt(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
+    const file_number = "020-66666";
+
+    await processFormC({
+      cik,
+      file_number,
+      accession_number: accessionFromFixtureName(files[0]),
+      filing_date: "2025-04-28",
+      primary_doc: "primary_doc.xml",
+      formC: parsed,
+    });
+
+    // Mutable row exists.
+    const mutable = await repo.getCrowdfunding(cik, file_number);
+    expect(mutable).toBeDefined();
+
+    // Exactly one open history row for this fresh filing.
+    const history = (await historyRepo.query({ cik, file_number })) ?? [];
+    expect(history).toHaveLength(1);
+    expect(history[0].filing_date).toBe("2025-04-28");
+    expect(history[0].valid_to).toBeNull();
   });
 });

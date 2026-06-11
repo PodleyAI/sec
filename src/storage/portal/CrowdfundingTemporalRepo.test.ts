@@ -173,6 +173,41 @@ describe("CrowdfundingTemporalRepo", () => {
     expect(statusChange?.new_value).toBe("Inactive");
   });
 
+  test("skipMutableUpdate writes a closed history row, no mutable row, no ChangeLog", async () => {
+    const crowdfunding: Crowdfunding = {
+      cik: 99999,
+      file_number: "020-99999",
+      filing_date: "2025-04-28",
+      name: "Stale Replay Issuer",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "http://example.com",
+      portal_cik: 12345,
+      status: "annual-report",
+    };
+
+    await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, "STALE_REPLAY", {
+      skipMutableUpdate: true,
+    });
+
+    // No mutable row.
+    const mutable = await temporalRepo.getCrowdfunding(99999, "020-99999");
+    expect(mutable).toBeUndefined();
+
+    // One closed history row (valid_from === valid_to).
+    const history = await temporalRepo.getCrowdfundingHistory(99999, "020-99999");
+    expect(history).toHaveLength(1);
+    expect(history[0].valid_to).not.toBeNull();
+    expect(history[0].valid_to).toBe(history[0].valid_from);
+    expect(history[0].change_source).toBe("STALE_REPLAY");
+    expect(history[0].name).toBe("Stale Replay Issuer");
+
+    // No ChangeLog entry.
+    const changes = await temporalRepo.getCrowdfundingChanges(99999, "020-99999");
+    expect(changes).toHaveLength(0);
+  });
+
   test("should retrieve crowdfunding entity at specific time", async () => {
     const initial: Crowdfunding = {
       cik: 12345,

@@ -42,18 +42,40 @@ export class CrowdfundingTemporalRepo {
   }
 
   /**
-   * Save a crowdfunding entity with history tracking
+   * Save a crowdfunding entity with history tracking.
+   *
+   * When `options.skipMutableUpdate` is true, append a closed-immediately
+   * `CrowdfundingHistory` snapshot (valid_from === valid_to) capturing what
+   * this filing said and skip both the mutable-row write and ChangeLog
+   * emission — used when replaying an older filing that must not regress
+   * the current state but should still be visible in the time series.
    */
   async saveCrowdfundingWithHistory(
     crowdfunding: Crowdfunding,
     changeSource: string,
+    options?: { skipMutableUpdate?: boolean } | undefined,
     batchId?: string
   ): Promise<void> {
+    const changeDate = new Date().toISOString();
+
+    if (options?.skipMutableUpdate === true) {
+      // Snapshot the older filing as a closed history row; do not touch the
+      // mutable row, do not emit a ChangeLog entry.
+      const history: CrowdfundingHistory = {
+        ...crowdfunding,
+        valid_from: changeDate,
+        valid_to: changeDate,
+        change_source: changeSource,
+        change_date: changeDate,
+      };
+      await this.crowdfundingHistoryRepository.put(history);
+      return;
+    }
+
     const existingCrowdfunding = await this.crowdfundingRepo.getCrowdfunding(
       crowdfunding.cik,
       crowdfunding.file_number
     );
-    const changeDate = new Date().toISOString();
 
     // If entity exists, create history record for the old version
     if (existingCrowdfunding) {
