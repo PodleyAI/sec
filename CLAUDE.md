@@ -101,6 +101,29 @@ sec issuer tickers <cik>
 > operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
 > status doc's deferred cleanups).
 
+### Reg A / Reg CF / funding portals
+
+All 12 Form C submission types (including post-offering C-U / C-AR / C-TR),
+the full 1-A family (including 1-A POS), and CFPORTAL portal registrations
+parse and store end to end:
+
+```bash
+sec fetch form <cik> C-AR          # post-offering Form C variants
+sec fetch form <cik> 1-A           # 1-A, 1-A/A, 1-A POS
+sec fetch form <cik> CFPORTAL      # portal registration -> Portal table + observations
+
+sec query crowdfunding --portal <portal-cik>
+sec query reg-a --tier Tier2 --status reporting
+sec query reg-a-summary <cik>      # counts by status/tier + latest aggregate offering
+```
+
+Fixtures: `sec fetch fixtures C-U C-AR C-TR` extends the exempt-offering
+mock_data tree (note: the quarterly form.idx endpoint may 403 from cloud
+containers; the committed fixtures were sourced from EDGAR daily indexes).
+CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
+`isFormParsingSupported` and `FORM_TO_EXTRACTOR_ID` are kept consistent by
+`src/sec/forms/form-wiring.test.ts`.
+
 ## Architecture
 
 ### Layered Structure
