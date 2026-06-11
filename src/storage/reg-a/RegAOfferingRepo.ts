@@ -99,55 +99,71 @@ export class RegAOfferingRepo {
 
   static readonly OFFERING_TIERS = ["Tier1", "Tier2"] as const;
 
-  async countOfferingsByStatus(): Promise<Map<string, number>> {
+  /**
+   * Buckets offerings by a column using one pushed-down count() per known
+   * value plus a residual derived from the total (criteria pushdown has no
+   * IS NULL form, so null values and unexpected labels land in the residual).
+   */
+  private async countBuckets(
+    column: "status" | "tier",
+    known: readonly string[],
+    residualLabel: string,
+    cik: number | undefined
+  ): Promise<Map<string, number>> {
+    const base = cik === undefined ? {} : { cik };
+    const [total, ...perValue] = await Promise.all([
+      this.offeringRepository.count(base),
+      ...known.map((value) => this.offeringRepository.count({ ...base, [column]: value })),
+    ]);
     const counts = new Map<string, number>();
-    let known = 0;
-    for (const status of RegAOfferingRepo.OFFERING_STATUSES) {
-      const n = await this.offeringRepository.count({ status });
-      if (n > 0) counts.set(status, n);
-      known += n;
+    let knownSum = 0;
+    for (let i = 0; i < known.length; i++) {
+      if (perValue[i] > 0) counts.set(known[i], perValue[i]);
+      knownSum += perValue[i];
     }
-    const total = await this.offeringRepository.size();
-    if (total > known) counts.set("other", total - known);
+    if (total > knownSum) counts.set(residualLabel, total - knownSum);
     return counts;
   }
 
-  async countOfferingsByTier(): Promise<Map<string, number>> {
-    const counts = new Map<string, number>();
-    let known = 0;
-    for (const tier of RegAOfferingRepo.OFFERING_TIERS) {
-      const n = await this.offeringRepository.count({ tier });
-      if (n > 0) counts.set(tier, n);
-      known += n;
-    }
-    // Null tiers (and any unexpected label) land here; criteria pushdown has
-    // no IS NULL form, so the bucket is derived from the table size instead.
-    const total = await this.offeringRepository.size();
-    if (total > known) counts.set("unknown", total - known);
-    return counts;
+  async countOfferingsByStatus(cik?: number): Promise<Map<string, number>> {
+    return this.countBuckets("status", RegAOfferingRepo.OFFERING_STATUSES, "other", cik);
+  }
+
+  async countOfferingsByTier(cik?: number): Promise<Map<string, number>> {
+    return this.countBuckets("tier", RegAOfferingRepo.OFFERING_TIERS, "unknown", cik);
+  }
+
+  async countOfferings(cik?: number): Promise<number> {
+    return this.offeringRepository.count(cik === undefined ? {} : { cik });
   }
 
   /**
    * Sum of the most recently filed aggregate-offering amount per offering
    * (file_number) for the CIK. Prefers `total_aggregate_offering` (Form 1-A)
-   * and falls back to `aggregate_offering_price`; offerings with no history
-   * carrying either value contribute nothing.
+   * and falls back to `aggregate_offering_price`. Returns null when no
+   * history row carries either value, so callers can distinguish "no data"
+   * from a genuine $0. Ties on filing_date (e.g. a same-day amendment) break
+   * on the higher accession_number for determinism.
    */
-  async latestAggregateOfferingByCik(cik: number): Promise<number> {
-    const offerings = await this.getOfferingsByCik(cik);
-    let sum = 0;
-    for (const offering of offerings) {
-      const histories =
-        (await this.offeringHistoryRepository.query({
-          cik,
-          file_number: offering.file_number,
-        })) || [];
-      const latest = [...histories]
-        .sort((a, b) => b.filing_date.localeCompare(a.filing_date))
-        .find((h) => h.total_aggregate_offering !== null || h.aggregate_offering_price !== null);
-      if (latest) {
-        sum += latest.total_aggregate_offering ?? latest.aggregate_offering_price ?? 0;
+  async latestAggregateOfferingByCik(cik: number): Promise<number | null> {
+    const histories = (await this.offeringHistoryRepository.query({ cik })) || [];
+    const latestByOffering = new Map<string, RegAOfferingHistory>();
+    for (const h of histories) {
+      if (h.total_aggregate_offering == null && h.aggregate_offering_price == null) continue;
+      const current = latestByOffering.get(h.file_number);
+      if (
+        !current ||
+        h.filing_date.localeCompare(current.filing_date) > 0 ||
+        (h.filing_date === current.filing_date &&
+          h.accession_number.localeCompare(current.accession_number) > 0)
+      ) {
+        latestByOffering.set(h.file_number, h);
       }
+    }
+    if (latestByOffering.size === 0) return null;
+    let sum = 0;
+    for (const h of latestByOffering.values()) {
+      sum += h.total_aggregate_offering ?? h.aggregate_offering_price ?? 0;
     }
     return sum;
   }

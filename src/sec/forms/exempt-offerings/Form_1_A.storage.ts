@@ -422,6 +422,11 @@ export async function processForm1A({
   const summaryInfo = form1A.formData.summaryInfo;
   const employeesInfo = form1A.formData.employeesInfo[0];
 
+  // 1-A/A and 1-A POS restate the offering data but say nothing about the
+  // lifecycle: a post-qualification amendment processed after a 1-K / 1-Z
+  // must not regress a "reporting"/"exit" offering back to "pending".
+  const existing = await regARepo.getOffering(cik, file_number);
+
   const offering: RegAOffering = {
     cik,
     file_number,
@@ -432,7 +437,7 @@ export async function processForm1A({
     financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
     securities_offered_type: summaryInfo.securitiesOfferedTypes,
     industry_group: form1A.formData.issuerInfo.industryGroup,
-    status: "pending",
+    status: existing?.status ?? "pending",
   };
 
   await regARepo.saveOffering(offering);

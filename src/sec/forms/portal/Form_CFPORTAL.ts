@@ -31,6 +31,12 @@ export class Form_CFPORTAL extends Form {
     }
     const parser = Form_CFPORTAL.getParser(FormCfportalSubmissionSchema);
     const json = parser.parse(xml) as FormCfportalSubmission;
+    // Guard before the lenient Value.Convert: an HTML error page or a
+    // different XML root would otherwise flow through as undefined and
+    // surface as a storage crash instead of a parse failure.
+    if (!json?.edgarSubmission?.headerData?.submissionType) {
+      throw new Error(`Not a CFPORTAL edgarSubmission document (form ${form})`);
+    }
     const formCfportal = Value.Convert(FormCfportalSchema, json.edgarSubmission);
     return formCfportal as FormCfportal;
   }

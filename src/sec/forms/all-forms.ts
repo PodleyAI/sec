@@ -107,7 +107,10 @@ export const ALL_FORM_NAMES = [
 // Export a type that represents all possible form names
 export type AllForms = (typeof ALL_FORM_NAMES)[number];
 
-const ALL_FORMS_MAP_ARRAY = [
+// Exported for the duplicate-registration guard in form-wiring.test.ts: Map
+// construction keeps the LAST entry per key, so a duplicate claim silently
+// shadows the earlier class.
+export const ALL_FORMS_MAP_ARRAY = [
   ...PERIODIC_REPORT_FORM_NAMES_MAP,
   ...APPLICATION_WITHDRAWAL_FORM_NAMES_MAP,
   ...ASSET_BACKED_EXHIBIT_FORM_NAMES_MAP,

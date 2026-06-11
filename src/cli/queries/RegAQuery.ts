@@ -65,31 +65,20 @@ export interface RegASummary {
   readonly offeringCount: number;
   readonly byStatus: ReadonlyMap<string, number>;
   readonly byTier: ReadonlyMap<string, number>;
-  /** Defined only for per-CIK summaries. */
-  readonly latestAggregateOffering: number | undefined;
+  /**
+   * Only computed for per-CIK summaries; null when no history row carries an
+   * aggregate amount (distinct from a genuine $0).
+   */
+  readonly latestAggregateOffering: number | null | undefined;
 }
 
 export async function summarizeRegA(cik: number | undefined): Promise<RegASummary> {
   const repo = new RegAOfferingRepo();
-  if (cik === undefined) {
-    const byStatus = await repo.countOfferingsByStatus();
-    const byTier = await repo.countOfferingsByTier();
-    let offeringCount = 0;
-    for (const n of byStatus.values()) offeringCount += n;
-    return { offeringCount, byStatus, byTier, latestAggregateOffering: undefined };
-  }
-  const offerings = await repo.getOfferingsByCik(cik);
-  const byStatus = new Map<string, number>();
-  const byTier = new Map<string, number>();
-  for (const o of offerings) {
-    byStatus.set(o.status, (byStatus.get(o.status) ?? 0) + 1);
-    const tier = o.tier ?? "unknown";
-    byTier.set(tier, (byTier.get(tier) ?? 0) + 1);
-  }
-  return {
-    offeringCount: offerings.length,
-    byStatus,
-    byTier,
-    latestAggregateOffering: await repo.latestAggregateOfferingByCik(cik),
-  };
+  const [offeringCount, byStatus, byTier, latestAggregateOffering] = await Promise.all([
+    repo.countOfferings(cik),
+    repo.countOfferingsByStatus(cik),
+    repo.countOfferingsByTier(cik),
+    cik === undefined ? Promise.resolve(undefined) : repo.latestAggregateOfferingByCik(cik),
+  ]);
+  return { offeringCount, byStatus, byTier, latestAggregateOffering };
 }

@@ -40,6 +40,7 @@ const ADDRESS_TYPE = Type.Object({
 });
 
 const PERSON_NAME_TYPE = Type.Object({
+  prefix: Type.Optional(STRING_150_TYPE),
   firstName: Type.Optional(STRING_150_TYPE),
   middleName: Type.Optional(STRING_150_TYPE),
   lastName: Type.Optional(STRING_150_TYPE),
@@ -111,6 +112,11 @@ const IDENTIFYING_INFORMATION_TYPE = Type.Object({
   anyPreviousRegistrations: Type.Optional(YES_NO_TYPE),
   secFileNumbers: Type.Optional(Type.Array(FILE_NUMBER_TYPE, { maxItems: 50 })),
   anyForeignRegistrations: Type.Optional(YES_NO_TYPE),
+  // Repeating per the XSD; modeled (loosely) so the parser's isArray config
+  // keeps their shape stable whether a filing has one entry or several.
+  legalNameChange: Type.Optional(Type.Array(Type.Unknown(), { maxItems: 2 })),
+  prevNamesAndWebsiteUrls: Type.Optional(Type.Array(Type.Unknown(), { maxItems: 10 })),
+  foreignRegistrations: Type.Optional(Type.Array(Type.Unknown(), { maxItems: 50 })),
 });
 
 const FORM_OF_ORGANIZATION_TYPE = Type.Object({
@@ -122,7 +128,7 @@ const FORM_OF_ORGANIZATION_TYPE = Type.Object({
 
 const SCHEDULE_A_PERSON_TYPE = Type.Object({
   fullLegalName: Type.Optional(ENTITY_NAME_TYPE),
-  // DM = domestic entity, FE = foreign entity, NP = natural person
+  // DE = domestic entity, FE = foreign entity, NP = natural person
   entityType: Type.Optional(Type.String()),
   titleStatus: Type.Optional(Type.String()),
   dateOfTitleStatusAcquired: Type.Optional(Type.String()),
@@ -133,15 +139,8 @@ const SCHEDULE_A_PERSON_TYPE = Type.Object({
 });
 
 const SCHEDULE_B_PERSON_TYPE = Type.Object({
-  fullLegalName: Type.Optional(ENTITY_NAME_TYPE),
-  entityType: Type.Optional(Type.String()),
+  ...SCHEDULE_A_PERSON_TYPE.properties,
   typeOfAmendment: Type.Optional(Type.String()),
-  titleStatus: Type.Optional(Type.String()),
-  dateOfTitleStatusAcquired: Type.Optional(Type.String()),
-  ownershipCode: Type.Optional(Type.String()),
-  controlPerson: Type.Optional(YES_NO_TYPE),
-  crdNumber: Type.Optional(Type.String()),
-  cikNumber: Type.Optional(CIK_TYPE),
 });
 
 const INVESTOR_FUNDS_CONTACT_TYPE = Type.Object({
@@ -154,12 +153,17 @@ const FORM_DATA = Type.Object({
   identifyingInformation: Type.Optional(IDENTIFYING_INFORMATION_TYPE),
   formOfOrganization: Type.Optional(FORM_OF_ORGANIZATION_TYPE),
   successions: Type.Optional(Type.Unknown()),
+  // The XSD repeats the <fullLegalNames> wrapper (maxOccurs 50), each holding
+  // one <fullLegalName> — the wrapper is the array, not the leaf.
   controlRelationships: Type.Optional(
     Type.Object({
       fullLegalNames: Type.Optional(
-        Type.Object({
-          fullLegalName: Type.Optional(Type.Array(Type.String(), { maxItems: 50 })),
-        })
+        Type.Array(
+          Type.Object({
+            fullLegalName: Type.Optional(Type.String()),
+          }),
+          { maxItems: 50 }
+        )
       ),
     })
   ),
@@ -197,6 +201,17 @@ const FORM_DATA = Type.Object({
       ),
     })
   ),
+  // Present in the XSD but not consumed by storage; passthrough placeholders
+  // so their presence in parsed output is documented (scheduleD is the
+  // CFPORTAL-W record-keeping section).
+  scheduleC: Type.Optional(Type.Unknown()),
+  scheduleD: Type.Optional(Type.Unknown()),
+  criminalDrpInfo: Type.Optional(Type.Unknown()),
+  regulatoryDrpInfo: Type.Optional(Type.Unknown()),
+  civilJudicialDrpInfo: Type.Optional(Type.Unknown()),
+  bankruptcySipcDrpInfo: Type.Optional(Type.Unknown()),
+  bondDrpInfo: Type.Optional(Type.Unknown()),
+  judgementDrpInfo: Type.Optional(Type.Unknown()),
 });
 
 export const FormCfportalSchema = Type.Object({

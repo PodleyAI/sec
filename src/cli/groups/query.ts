@@ -237,7 +237,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("reg-a [search]")
     .description("Search Regulation A offerings (Form 1-A / 1-K / 1-Z data)")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--tier <tier>", "Filter by tier (Tier1, Tier2)")
     .option("--status <status>", "Filter by status (pending, reporting, exit)")
     .option("--jurisdiction <code>", "Filter by jurisdiction of organization")
@@ -250,7 +250,7 @@ export function addQueryCommands(program: Command): void {
       const format = validateFormat(options.format as string);
       const result = await queryRegAOfferings({
         search,
-        cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+        cik: options.cik as number | undefined,
         tier: options.tier as string | undefined,
         status: options.status as string | undefined,
         jurisdiction: options.jurisdiction as string | undefined,
@@ -286,7 +286,7 @@ export function addQueryCommands(program: Command): void {
     .option("--format <format>", "Output format (table, json, csv)", "table")
     .action(async (cik: string | undefined, options: Record<string, unknown>) => {
       const format = validateFormat(options.format as string);
-      const summary = await summarizeRegA(cik ? parseInt(cik, 10) : undefined);
+      const summary = await summarizeRegA(cik ? parseIntOption(cik) : undefined);
 
       const rows: Array<{ metric: string; value: string | number }> = [
         { metric: "offerings", value: summary.offeringCount },
@@ -299,7 +299,7 @@ export function addQueryCommands(program: Command): void {
           value: n,
         })),
       ];
-      if (summary.latestAggregateOffering !== undefined) {
+      if (summary.latestAggregateOffering != null) {
         rows.push({
           metric: "latest aggregate offering ($)",
           value: summary.latestAggregateOffering,

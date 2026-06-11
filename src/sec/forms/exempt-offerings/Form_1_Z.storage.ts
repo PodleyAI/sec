@@ -329,16 +329,19 @@ export async function processForm1Z({
   const regARepo = new RegAOfferingRepo();
   const item1 = form1Z.formData.item1;
 
+  // A 1-Z exit report carries only the issuer name; preserve the descriptive
+  // fields the 1-A wrote instead of clobbering them with nulls.
+  const existing = await regARepo.getOffering(cik, file_number);
   const offering: RegAOffering = {
     cik,
     file_number,
-    issuer_name: item1.issuerName,
-    jurisdiction: null,
-    sic_code: null,
-    tier: null,
-    financial_statement_audit_status: null,
-    securities_offered_type: null,
-    industry_group: null,
+    issuer_name: item1.issuerName ?? existing?.issuer_name ?? null,
+    jurisdiction: existing?.jurisdiction ?? null,
+    sic_code: existing?.sic_code ?? null,
+    tier: existing?.tier ?? null,
+    financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+    securities_offered_type: existing?.securities_offered_type ?? null,
+    industry_group: existing?.industry_group ?? null,
     status: "exit",
   };
 

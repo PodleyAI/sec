@@ -240,17 +240,21 @@ export async function processForm1K({
   const item1Info = form1K.formData.item1Info;
   const primaryIssuer = item1Info[0];
 
-  // Upsert the offering
+  // Upsert the offering. A 1-K carries no tier/SIC/audit/securities data, so
+  // preserve whatever the 1-A wrote — a full-row put with nulls here clobbers
+  // the tier and makes queries like `reg-a --tier Tier2 --status reporting`
+  // unsatisfiable.
+  const existing = await regARepo.getOffering(cik, file_number);
   const offering: RegAOffering = {
     cik,
     file_number,
-    issuer_name: primaryIssuer?.issuerName ?? null,
-    jurisdiction: primaryIssuer?.jurisdictionOrganization ?? null,
-    sic_code: null,
-    tier: null,
-    financial_statement_audit_status: null,
-    securities_offered_type: null,
-    industry_group: null,
+    issuer_name: primaryIssuer?.issuerName ?? existing?.issuer_name ?? null,
+    jurisdiction: primaryIssuer?.jurisdictionOrganization ?? existing?.jurisdiction ?? null,
+    sic_code: existing?.sic_code ?? null,
+    tier: existing?.tier ?? null,
+    financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+    securities_offered_type: existing?.securities_offered_type ?? null,
+    industry_group: existing?.industry_group ?? null,
     status: "reporting",
   };
 

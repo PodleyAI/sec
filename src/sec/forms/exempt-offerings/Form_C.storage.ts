@@ -63,13 +63,43 @@ function parsePercentAndDetail(raw: string | undefined): {
   return { percent: null, detail: trimmed || null };
 }
 
-function determineStatus(submissionType: string): string {
-  if (submissionType.includes("/A")) return "amended";
-  if (submissionType.startsWith("C-AR")) return "annual-report";
-  if (submissionType.startsWith("C-TR")) return "termination";
-  if (submissionType.includes("-W")) return "withdrawn";
-  if (submissionType.includes("-U")) return "progress-update";
-  return "active";
+/**
+ * Maps a Form C submission type to the offering's stored lifecycle status.
+ *
+ * The post-offering withdrawal codes (C-U-W, C-AR-W, C-AR/A-W, C-TR-W)
+ * withdraw the *referenced filing*, not the offering itself — a C-TR-W
+ * rescinds a termination, so storing "termination" (or a blanket
+ * "withdrawn") would misstate the offering. They get dedicated
+ * `<base>-withdrawn` statuses instead. Only C-W withdraws the offering;
+ * C/A-W keeps its historical "amended" mapping because EDGAR sometimes
+ * re-tags an in-flight C/A as C/A-W (see Form_variants.test.ts).
+ */
+export function determineStatus(submissionType: string): string {
+  switch (submissionType) {
+    case "C":
+      return "active";
+    case "C/A":
+    case "C/A-W":
+      return "amended";
+    case "C-W":
+      return "withdrawn";
+    case "C-U":
+      return "progress-update";
+    case "C-U-W":
+      return "progress-update-withdrawn";
+    case "C-AR":
+    case "C-AR/A":
+      return "annual-report";
+    case "C-AR-W":
+    case "C-AR/A-W":
+      return "annual-report-withdrawn";
+    case "C-TR":
+      return "termination";
+    case "C-TR-W":
+      return "termination-withdrawn";
+    default:
+      return "active";
+  }
 }
 
 async function processIssuer(

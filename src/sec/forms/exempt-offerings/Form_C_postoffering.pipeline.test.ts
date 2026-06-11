@@ -9,7 +9,7 @@ import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import { Form_C } from "./Form_C";
-import { processFormC } from "./Form_C.storage";
+import { determineStatus, processFormC } from "./Form_C.storage";
 import {
   accessionFromFixtureName,
   assertAllSucceeded,
@@ -24,6 +24,31 @@ const CASES = [
   { slug: "form-c-ar", form: "C-AR" as const, status: "annual-report" },
   { slug: "form-c-tr", form: "C-TR" as const, status: "termination" },
 ];
+
+describe("determineStatus", () => {
+  // The -W post-offering codes withdraw the referenced filing, not the
+  // offering: blanket "withdrawn" (or the base status) would misstate it.
+  const EXPECTED: ReadonlyArray<[string, string]> = [
+    ["C", "active"],
+    ["C/A", "amended"],
+    ["C-W", "withdrawn"],
+    ["C/A-W", "amended"],
+    ["C-U", "progress-update"],
+    ["C-U-W", "progress-update-withdrawn"],
+    ["C-AR", "annual-report"],
+    ["C-AR/A", "annual-report"],
+    ["C-AR-W", "annual-report-withdrawn"],
+    ["C-AR/A-W", "annual-report-withdrawn"],
+    ["C-TR", "termination"],
+    ["C-TR-W", "termination-withdrawn"],
+  ];
+
+  for (const [code, expected] of EXPECTED) {
+    it(`maps ${code} -> ${expected}`, () => {
+      expect(determineStatus(code)).toBe(expected);
+    });
+  }
+});
 
 describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
   beforeEach(async () => {

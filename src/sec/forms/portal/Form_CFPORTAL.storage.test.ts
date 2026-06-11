@@ -12,6 +12,8 @@ import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { PortalRepo } from "../../../storage/portal/PortalRepo";
+import { accessionFromFixtureName } from "../../../util/accession";
+import { parseCikSafely } from "../../../util/parseCik";
 import { Form_CFPORTAL } from "./Form_CFPORTAL";
 import { processFormCFPORTAL } from "./Form_CFPORTAL.storage";
 
@@ -42,15 +44,12 @@ describe("Form_CFPORTAL storage", () => {
     for (const file of files) {
       const xml = readFileSync(join(FIXTURE_DIR, file), "utf-8");
       const parsed = await Form_CFPORTAL.parse("CFPORTAL", xml);
-      const accession = file.replace("-primary_doc.xml", "");
-      const cik = parseInt(parsed.headerData.filerInfo.filer.filerCredentials.filerCik, 10);
+      const accession = accessionFromFixtureName(file);
+      const cik = parseCikSafely(parsed.headerData.filerInfo.filer.filerCredentials.filerCik);
 
       await processFormCFPORTAL({
         cik,
-        file_number: parsed.headerData.filerInfo.filer.fileNumber ?? "",
         accession_number: accession,
-        filing_date: "2025-06-01",
-        primary_doc: "primary_doc.xml",
         formCfportal: parsed,
       });
 
@@ -80,11 +79,9 @@ describe("Form_CFPORTAL storage", () => {
       }
     }
 
-    // The fixture mix should exercise the interesting paths; tolerate a
-    // missing withdrawal sample (rare on EDGAR) but not missing Schedule A.
+    // The fixture set must keep exercising both interesting paths; a pruned
+    // CFPORTAL-W fixture would otherwise silently drop withdrawal coverage.
     expect(sawScheduleA).toBe(true);
-    if (!sawWithdrawal) {
-      console.warn("No CFPORTAL-W fixture present; withdrawal path asserted only via unit shape");
-    }
+    expect(sawWithdrawal).toBe(true);
   });
 });

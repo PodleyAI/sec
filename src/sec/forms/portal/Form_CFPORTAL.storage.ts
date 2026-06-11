@@ -25,24 +25,47 @@ import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
+import { parseCikSafely } from "../../../util/parseCik";
 import type { FormCfportal } from "./Form_CFPORTAL.schema";
 
 const EXTRACTOR_ID = "CFPORTAL" as const;
 const EXTRACTOR_VERSION = "1.0.0";
 
+/**
+ * "Last, First, Middle" is the CFPORTAL Schedule A natural-person name
+ * format; plain "First Last" strings also occur. Splitting here keeps the
+ * comma format out of the person normalizer, which would otherwise read the
+ * third segment as a suffix.
+ */
+function splitScheduleAName(fullLegalName: string): {
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string;
+} {
+  if (!fullLegalName.includes(",")) {
+    return { first_name: null, middle_name: null, last_name: fullLegalName };
+  }
+  const parts = fullLegalName.split(",").map((p) => p.trim());
+  return {
+    last_name: parts[0] || fullLegalName,
+    first_name: parts[1] || null,
+    middle_name: parts[2] || null,
+  };
+}
+
+/** EDGAR pads "no CRD" as a string of zeros; treat those as absent. */
+function crdOrNull(crdNumber: string | undefined): string | null {
+  if (!crdNumber || /^0+$/.test(crdNumber)) return null;
+  return crdNumber;
+}
+
 export async function processFormCFPORTAL({
   cik,
-  file_number,
   accession_number,
-  filing_date,
-  primary_doc,
   formCfportal,
 }: {
   cik: number;
-  file_number: string;
   accession_number: string;
-  filing_date: string;
-  primary_doc: string;
   formCfportal: FormCfportal;
 }): Promise<void> {
   const versionRegistry = new VersionRegistry(
@@ -82,17 +105,23 @@ export async function processFormCFPORTAL({
 
   const submissionType = formCfportal.headerData.submissionType;
   const identifying = formCfportal.formData?.identifyingInformation;
-  const firstAlias = identifying?.otherNamesAndWebsiteUrls?.[0];
+  const aliases = identifying?.otherNamesAndWebsiteUrls ?? [];
+  // Entries may carry only a name or only a URL; take the first of each.
+  const brand = aliases.find((a) => a.otherNamesUsedPortal)?.otherNamesUsedPortal ?? null;
+  const url = aliases.find((a) => a.webSiteOfPortal)?.webSiteOfPortal ?? null;
 
   const portalRepo = new PortalRepo();
-  const existing = await portalRepo.getPortal(cik);
+  const isWithdrawal = submissionType === "CFPORTAL-W";
+  // Only a withdrawal inherits the registered identity (its formData may be
+  // stripped); a CFPORTAL/A is a full restatement, so an amendment that
+  // drops an alias section genuinely clears brand/url.
+  const existing = isWithdrawal ? await portalRepo.getPortal(cik) : undefined;
   await portalRepo.savePortal({
     cik,
-    // A withdrawal carries a stripped formData; keep the registered identity.
     name: identifying?.nameOfPortal ?? existing?.name ?? null,
-    brand: firstAlias?.otherNamesUsedPortal ?? existing?.brand ?? null,
-    url: firstAlias?.webSiteOfPortal ?? existing?.url ?? null,
-    live: submissionType !== "CFPORTAL-W",
+    brand: brand ?? existing?.brand ?? null,
+    url: url ?? existing?.url ?? null,
+    live: !isWithdrawal,
   });
 
   // Observation tier. Index layout: 0 = the portal company itself,
@@ -132,16 +161,21 @@ export async function processFormCFPORTAL({
       first_name: contact.firstName ?? null,
       middle_name: contact.middleName ?? null,
       last_name: contact.lastName,
+      suffix: contact.suffix ?? null,
       title: identifying?.contactEmployeeTitle ?? null,
       relationship: "cfportal:contact",
       source_context: JSON.stringify({ relation: "cfportal:contact" }),
     });
   }
 
+  // Observation indexes are positional (100 + schedule position) so they stay
+  // stable when a previously unparseable owner row becomes parseable later —
+  // upsertByNaturalKey would otherwise shift every subsequent owner.
   const owners = formCfportal.formData?.scheduleA?.entityOrNaturalPerson ?? [];
-  let index = 100;
-  for (const owner of owners) {
+  for (let i = 0; i < owners.length; i++) {
+    const owner = owners[i];
     if (!owner.fullLegalName) continue;
+    const index = 100 + i;
     const source_context = JSON.stringify({
       relation: "cfportal:owner",
       titles: owner.titleStatus ? [owner.titleStatus] : [],
@@ -149,28 +183,32 @@ export async function processFormCFPORTAL({
       controlPerson: owner.controlPerson ?? null,
     });
     if (owner.entityType === "NP") {
+      const name = splitScheduleAName(owner.fullLegalName);
       await observer.observePerson({
         accession_number,
         extractor_id: EXTRACTOR_ID,
         extractor_version: EXTRACTOR_VERSION,
         observation_index: index,
         source_filing_issuer_cik: cik,
-        last_name: owner.fullLegalName,
+        first_name: name.first_name,
+        middle_name: name.middle_name,
+        last_name: name.last_name,
         title: owner.titleStatus ?? null,
         relationship: "cfportal:owner",
         source_context,
       });
     } else {
+      const ownerCik = parseCikSafely(owner.cikNumber);
       await observer.observeCompany({
         accession_number,
         extractor_id: EXTRACTOR_ID,
         extractor_version: EXTRACTOR_VERSION,
         observation_index: index,
-        cik: null,
+        cik: ownerCik > 0 ? ownerCik : null,
+        crd_number: crdOrNull(owner.crdNumber),
         name: owner.fullLegalName,
         source_context,
       });
     }
-    index++;
   }
 }
