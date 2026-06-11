@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-AR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001983438</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <period>12-31-2024</period>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Maxpro FitTech, Inc.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>06-09-2023</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>71 Walnut Blvd. </com:street1>
+          <com:street2>Suite 205</com:street2>
+          <com:city>Rochester</com:city>
+          <com:stateOrCountry>MI</com:stateOrCountry>
+          <com:zipCode>48307</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://maxprofitness.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>5</currentEmployees>
+      <totalAssetMostRecentFiscalYear>2740587.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>2881928.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>351523.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>389491.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>92531.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>82467.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>1525042.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>2151019.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>3542108.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>3347101.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>7324090.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>6776843.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>4081755.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>4727359.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-1249612.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-311694.00</netIncomePriorFiscalYear>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>MAXPRO FITTECH INC.</issuer>
+        <issuerSignature>Nezar Akeel</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Nezar Akeel</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>04-14-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

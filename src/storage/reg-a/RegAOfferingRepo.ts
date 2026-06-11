@@ -86,6 +86,88 @@ export class RegAOfferingRepo {
     return (await this.offeringRepository.query({ status })) || [];
   }
 
+  async getOfferingsByTier(tier: string): Promise<RegAOffering[]> {
+    return (await this.offeringRepository.query({ tier })) || [];
+  }
+
+  /**
+   * Statuses the Reg-A extractors write: 1-A -> pending, 1-K -> reporting,
+   * 1-Z -> exit. Rows with any other status are reported under "other" by
+   * {@link countOfferingsByStatus}.
+   */
+  static readonly OFFERING_STATUSES = ["pending", "reporting", "exit"] as const;
+
+  static readonly OFFERING_TIERS = ["Tier1", "Tier2"] as const;
+
+  /**
+   * Buckets offerings by a column using one pushed-down count() per known
+   * value plus a residual derived from the total (criteria pushdown has no
+   * IS NULL form, so null values and unexpected labels land in the residual).
+   */
+  private async countBuckets(
+    column: "status" | "tier",
+    known: readonly string[],
+    residualLabel: string,
+    cik: number | undefined
+  ): Promise<Map<string, number>> {
+    const base = cik === undefined ? {} : { cik };
+    const [total, ...perValue] = await Promise.all([
+      this.offeringRepository.count(base),
+      ...known.map((value) => this.offeringRepository.count({ ...base, [column]: value })),
+    ]);
+    const counts = new Map<string, number>();
+    let knownSum = 0;
+    for (let i = 0; i < known.length; i++) {
+      if (perValue[i] > 0) counts.set(known[i], perValue[i]);
+      knownSum += perValue[i];
+    }
+    if (total > knownSum) counts.set(residualLabel, total - knownSum);
+    return counts;
+  }
+
+  async countOfferingsByStatus(cik?: number): Promise<Map<string, number>> {
+    return this.countBuckets("status", RegAOfferingRepo.OFFERING_STATUSES, "other", cik);
+  }
+
+  async countOfferingsByTier(cik?: number): Promise<Map<string, number>> {
+    return this.countBuckets("tier", RegAOfferingRepo.OFFERING_TIERS, "unknown", cik);
+  }
+
+  async countOfferings(cik?: number): Promise<number> {
+    return this.offeringRepository.count(cik === undefined ? {} : { cik });
+  }
+
+  /**
+   * Sum of the most recently filed aggregate-offering amount per offering
+   * (file_number) for the CIK. Prefers `total_aggregate_offering` (Form 1-A)
+   * and falls back to `aggregate_offering_price`. Returns null when no
+   * history row carries either value, so callers can distinguish "no data"
+   * from a genuine $0. Ties on filing_date (e.g. a same-day amendment) break
+   * on the higher accession_number for determinism.
+   */
+  async latestAggregateOfferingByCik(cik: number): Promise<number | null> {
+    const histories = (await this.offeringHistoryRepository.query({ cik })) || [];
+    const latestByOffering = new Map<string, RegAOfferingHistory>();
+    for (const h of histories) {
+      if (h.total_aggregate_offering == null && h.aggregate_offering_price == null) continue;
+      const current = latestByOffering.get(h.file_number);
+      if (
+        !current ||
+        h.filing_date.localeCompare(current.filing_date) > 0 ||
+        (h.filing_date === current.filing_date &&
+          h.accession_number.localeCompare(current.accession_number) > 0)
+      ) {
+        latestByOffering.set(h.file_number, h);
+      }
+    }
+    if (latestByOffering.size === 0) return null;
+    let sum = 0;
+    for (const h of latestByOffering.values()) {
+      sum += h.total_aggregate_offering ?? h.aggregate_offering_price ?? 0;
+    }
+    return sum;
+  }
+
   // ================================
   // Offering History Methods
   // ================================

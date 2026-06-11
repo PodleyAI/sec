@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL/A</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001667145</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <amendmentExplanation>Added PRIME TRUST, LLC as Qualified Third Party</amendmentExplanation>
+      <nameOfPortal>truCrowd, Inc</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>TRUCROWD</otherNamesUsedPortal>
+        <webSiteOfPortal>https://us.trucrowd.com/</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>FUNDANNA</otherNamesUsedPortal>
+        <webSiteOfPortal>https://fundanna.com/</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>46-2242197</irsEmployerIdNumber>
+      <legalNameChange>Funding portal name(1A)</legalNameChange>
+      <prevNamesAndWebsiteUrls>
+        <prevNamesOfPortal>TRUCROWD INC</prevNamesOfPortal>
+      </prevNamesAndWebsiteUrls>
+      <portalAddress>
+        <com:street1>318 W ADAMS ST STE 1121</com:street1>
+        <com:city>CHICAGO</com:city>
+        <com:stateOrCountry>IL</com:stateOrCountry>
+        <com:zipCode>60606</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>318 W ADAMS ST STE 1121</com:street1>
+        <com:city>CHICAGO</com:city>
+        <com:stateOrCountry>IL</com:stateOrCountry>
+        <com:zipCode>60606</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>8478735335</portalContactPhone>
+        <portalContactEmail>support@truCrowd.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Vicent</com:firstName>
+        <com:middleName>Carolin</com:middleName>
+        <com:lastName>Petrescu</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Corporation</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>02-07-2013</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Vicent C Petrescu</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>CrowdPay.com</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>1401 4th Avenue</com:street1>
+          <com:city>Canyon</com:city>
+          <com:stateOrCountry>TX</com:stateOrCountry>
+          <com:zipCode>79015</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>8004866888</investorFundsContactPhone>
+      </investorFundsContacts>
+      <investorFundsContacts>
+        <investorFundsContactName>Prime Trust LLC</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>10890 South. Eastern Avenue</com:street1>
+          <com:street2>Suite 114</com:street2>
+          <com:city>Henderson</com:city>
+          <com:stateOrCountry>NV</com:stateOrCountry>
+          <com:zipCode>89052</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>7028404000</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>We plan to get paid up to 12% of the amount raised, if and after the amount is raised. Also, we will charge an upfront fee that will be credited against the success fee</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>03-21-2017</executionDate>
+      <fullLegalNameFundingPortal>truCrowd, Inc</fullLegalNameFundingPortal>
+      <personSignature>Vicent Carolin Petrescu</personSignature>
+      <personTitle>CEO</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Vicent Carolin Petrescu</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Founder and CEO</titleStatus>
+        <dateOfTitleStatusAcquired>02/2013</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+    <scheduleB>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Vicent Carolin Petrescu</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Founder and CEO</titleStatus>
+        <dateOfTitleStatusAcquired>02/2013</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </amendEntityOrNaturalPerson>
+    </scheduleB>
+  </formData>
+</edgarSubmission>

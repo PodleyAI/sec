@@ -63,13 +63,43 @@ function parsePercentAndDetail(raw: string | undefined): {
   return { percent: null, detail: trimmed || null };
 }
 
-function determineStatus(submissionType: string): string {
-  if (submissionType.includes("/A")) return "amended";
-  if (submissionType.startsWith("C-AR")) return "annual-report";
-  if (submissionType.startsWith("C-TR")) return "termination";
-  if (submissionType.includes("-W")) return "withdrawn";
-  if (submissionType.includes("-U")) return "progress-update";
-  return "active";
+/**
+ * Maps a Form C submission type to the offering's stored lifecycle status.
+ *
+ * The post-offering withdrawal codes (C-U-W, C-AR-W, C-AR/A-W, C-TR-W)
+ * withdraw the *referenced filing*, not the offering itself — a C-TR-W
+ * rescinds a termination, so storing "termination" (or a blanket
+ * "withdrawn") would misstate the offering. They get dedicated
+ * `<base>-withdrawn` statuses instead. Only C-W withdraws the offering;
+ * C/A-W keeps its historical "amended" mapping because EDGAR sometimes
+ * re-tags an in-flight C/A as C/A-W (see Form_variants.test.ts).
+ */
+export function determineStatus(submissionType: string): string {
+  switch (submissionType) {
+    case "C":
+      return "active";
+    case "C/A":
+    case "C/A-W":
+      return "amended";
+    case "C-W":
+      return "withdrawn";
+    case "C-U":
+      return "progress-update";
+    case "C-U-W":
+      return "progress-update-withdrawn";
+    case "C-AR":
+    case "C-AR/A":
+      return "annual-report";
+    case "C-AR-W":
+    case "C-AR/A-W":
+      return "annual-report-withdrawn";
+    case "C-TR":
+      return "termination";
+    case "C-TR-W":
+      return "termination-withdrawn";
+    default:
+      return "active";
+  }
 }
 
 async function processIssuer(
@@ -394,20 +424,45 @@ export async function processFormC({
   const issuer = issuerInfo.issuerInfo;
   const submissionType = formC.headerData.submissionType;
 
-  const crowdfunding: Crowdfunding = {
-    cik,
-    file_number,
-    filing_date,
-    name: issuer.nameOfIssuer,
-    legal_status: issuer.legalStatus?.legalStatusForm ?? "",
-    state_jurisdiction: issuer.legalStatus?.jurisdictionOrganization ?? "",
-    date_incorporation: issuer.legalStatus?.dateIncorporation ?? "",
-    url: issuer.issuerWebsite ?? "",
-    portal_cik: parseCikSafely(issuerInfo.commissionCik),
-    status: determineStatus(submissionType),
-  };
+  // Post-offering filings (C-AR / C-TR) carry no <commissionCik> and often no
+  // legal-status block; preserve what the original Form C established for the
+  // same (cik, file_number) instead of clobbering the portal link and issuer
+  // details with empties.
+  const crowdfundingRepo = new CrowdfundingRepo();
+  const existing = await crowdfundingRepo.getCrowdfunding(cik, file_number);
+  const parsedPortalCik = parseCikSafely(issuerInfo.commissionCik);
 
-  await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
+  // The mutable row reflects the latest filing by *filing date*, not by
+  // processing order: a back-catalog replay of an older filing must not
+  // regress it. Unknown dates ("") can't be ordered and apply as-is. The
+  // per-filing tables (offerings, disclosure reports, observations) below
+  // are keyed by filing/accession and always record the older filing too.
+  const isStale =
+    filing_date !== "" &&
+    existing?.filing_date !== undefined &&
+    existing.filing_date !== "" &&
+    filing_date < existing.filing_date;
+
+  if (!isStale) {
+    const crowdfunding: Crowdfunding = {
+      cik,
+      file_number,
+      filing_date: filing_date || existing?.filing_date || "",
+      name: issuer.nameOfIssuer,
+      legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
+      state_jurisdiction:
+        issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
+      date_incorporation:
+        issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
+      url: issuer.issuerWebsite ?? existing?.url ?? "",
+      portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
+      status: determineStatus(submissionType),
+      progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
+      nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
+    };
+
+    await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`);
+  }
 
   // Issuers: index 0 (issuer), 1+ (co-issuers)
   await processIssuer(cik, formC, ctx, 0);

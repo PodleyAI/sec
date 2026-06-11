@@ -21,6 +21,7 @@ describe("extractorIds", () => {
       "424",
       "5",
       "C",
+      "CFPORTAL",
       "D",
       "S-1",
     ]);

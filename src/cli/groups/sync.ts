@@ -12,7 +12,10 @@ export function addSyncCommand(program: Command): void {
   program
     .command("sync")
     .description("Daily sync — fetch index, update submissions, facts, and forms")
-    .option("--forms <types>", "Comma-separated form types to process", "D,C,1-A,1-K,1-Z")
+    .option(
+      "--forms <types>",
+      "Comma-separated form types to process (default: every form with a registered extractor)"
+    )
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
       if (options.force) {
@@ -30,7 +33,8 @@ export function addSyncCommand(program: Command): void {
             force: options.force,
           });
 
-          const formTypes = (options.forms as string).split(",");
+          const formTypes =
+            options.forms !== undefined ? (options.forms as string).split(",") : undefined;
           await withCli(new UpdateAllFormsTask()).run({ form: formTypes });
         },
         { force: options.force }

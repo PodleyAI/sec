@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-U</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002040104</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-34959</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <progressUpdate>At close of offering, the Issuer closed on $130,150.22.</progressUpdate>
+      <issuerInfo>
+        <nameOfIssuer>AIHR SCREEN, INC.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>12-04-2023</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>17501 CARLSON FARM CT</com:street1>
+          <com:city>GERMANTOWN</com:city>
+          <com:stateOrCountry>MD</com:stateOrCountry>
+          <com:zipCode>20874</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.aihrscreen.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+      <companyName>StartEngine Primary, LLC</companyName>
+      <commissionCik>0001725012</commissionCik>
+      <commissionFileNumber>008-70060</commissionFileNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>7 - 13 percent</compensationAmount>
+      <financialInterest>Three percent (3%) of securities of the total amount of investments raised in the offering, along the same terms as investors.</financialInterest>
+      <securityOfferedType>Other</securityOfferedType>
+      <securityOfferedOtherDesc>Convertible Note</securityOfferedOtherDesc>
+      <noOfSecurityOffered>15000</noOfSecurityOffered>
+      <priceDeterminationMethod>N/A</priceDeterminationMethod>
+      <offeringAmount>15000.00</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>At issuer's discretion, with priority given to StartEngine Owners</descOverSubscription>
+      <maximumOfferingAmount>1235000.00</maximumOfferingAmount>
+      <deadlineDate>01-22-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>5.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>62846.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>0.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>62846.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>0.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>0.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>0.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>0.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>0.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>0.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>1499.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>0.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>0.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>0.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-43041.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>0.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>AIHR SCREEN, INC.</issuer>
+        <issuerSignature>Jaskirat Singh Sandhu</issuerSignature>
+        <issuerTitle>CEO, Principal Financial Officer</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Jaskirat Singh Sandhu</personSignature>
+          <personTitle>CEO, Principal Financial Officer</personTitle>
+          <signatureDate>01-29-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Swarn Dhaliwal</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-29-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Harjinder Sandhu</personSignature>
+          <personTitle>Director</personTitle>
+          <signatureDate>01-29-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

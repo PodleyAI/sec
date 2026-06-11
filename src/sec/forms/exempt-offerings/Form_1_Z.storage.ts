@@ -329,20 +329,34 @@ export async function processForm1Z({
   const regARepo = new RegAOfferingRepo();
   const item1 = form1Z.formData.item1;
 
-  const offering: RegAOffering = {
-    cik,
-    file_number,
-    issuer_name: item1.issuerName,
-    jurisdiction: null,
-    sic_code: null,
-    tier: null,
-    financial_statement_audit_status: null,
-    securities_offered_type: null,
-    industry_group: null,
-    status: "exit",
-  };
+  // A 1-Z exit report carries only the issuer name; preserve the descriptive
+  // fields the 1-A wrote instead of clobbering them with nulls. The mutable
+  // row is latest-by-filing-date: skip stale out-of-order writes (unknown ""
+  // dates apply as-is).
+  const existing = await regARepo.getOffering(cik, file_number);
+  const isStale =
+    filing_date !== "" &&
+    existing?.as_of != null &&
+    existing.as_of !== "" &&
+    filing_date < existing.as_of;
 
-  await regARepo.saveOffering(offering);
+  if (!isStale) {
+    const offering: RegAOffering = {
+      cik,
+      file_number,
+      issuer_name: item1.issuerName ?? existing?.issuer_name ?? null,
+      jurisdiction: existing?.jurisdiction ?? null,
+      sic_code: existing?.sic_code ?? null,
+      tier: existing?.tier ?? null,
+      financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+      securities_offered_type: existing?.securities_offered_type ?? null,
+      industry_group: existing?.industry_group ?? null,
+      status: "exit",
+      as_of: filing_date || existing?.as_of || null,
+    };
+
+    await regARepo.saveOffering(offering);
+  }
 
   await processIssuer(cik, form1Z, ctx, 0);
   await processOfferingSummaries(cik, file_number, accession_number, filing_date, form1Z, ctx, 100);

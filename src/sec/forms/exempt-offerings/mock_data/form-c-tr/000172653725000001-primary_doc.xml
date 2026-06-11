@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-TR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001726537</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>PISTIL &amp; POLLEN, LLC</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Limited Liability Company</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>03-16-2016</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>PO Box 451</com:street1>
+          <com:city>Savage</com:city>
+          <com:stateOrCountry>MD</com:stateOrCountry>
+          <com:zipCode>20763</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>www.janewest.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>PISTIL &amp; POLLEN, LLC</issuer>
+        <issuerSignature>Amy Dannemiller</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Amy Dannemiller</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>04-25-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

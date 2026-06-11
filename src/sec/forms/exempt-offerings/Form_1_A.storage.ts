@@ -422,20 +422,37 @@ export async function processForm1A({
   const summaryInfo = form1A.formData.summaryInfo;
   const employeesInfo = form1A.formData.employeesInfo[0];
 
-  const offering: RegAOffering = {
-    cik,
-    file_number,
-    issuer_name: employeesInfo.issuerName,
-    jurisdiction: employeesInfo.jurisdictionOrganization,
-    sic_code: employeesInfo.sicCode,
-    tier: summaryInfo.indicateTier1Tier2Offering,
-    financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
-    securities_offered_type: summaryInfo.securitiesOfferedTypes,
-    industry_group: form1A.formData.issuerInfo.industryGroup,
-    status: "pending",
-  };
+  // 1-A/A and 1-A POS restate the offering data but say nothing about the
+  // lifecycle: a post-qualification amendment processed after a 1-K / 1-Z
+  // must not regress a "reporting"/"exit" offering back to "pending".
+  const existing = await regARepo.getOffering(cik, file_number);
 
-  await regARepo.saveOffering(offering);
+  // Mutable row = latest filing by filing date; skip stale out-of-order
+  // writes (unknown "" dates can't be ordered and apply as-is). The history
+  // row below is per-accession and always recorded.
+  const isStale =
+    filing_date !== "" &&
+    existing?.as_of != null &&
+    existing.as_of !== "" &&
+    filing_date < existing.as_of;
+
+  if (!isStale) {
+    const offering: RegAOffering = {
+      cik,
+      file_number,
+      issuer_name: employeesInfo.issuerName,
+      jurisdiction: employeesInfo.jurisdictionOrganization,
+      sic_code: employeesInfo.sicCode,
+      tier: summaryInfo.indicateTier1Tier2Offering,
+      financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
+      securities_offered_type: summaryInfo.securitiesOfferedTypes,
+      industry_group: form1A.formData.issuerInfo.industryGroup,
+      status: existing?.status ?? "pending",
+      as_of: filing_date || existing?.as_of || null,
+    };
+
+    await regARepo.saveOffering(offering);
+  }
 
   const history: RegAOfferingHistory = {
     cik,

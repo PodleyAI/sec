@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-AR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002000970</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <period>01-24-2022</period>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>REXIS BIOTECH INC.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>01-24-2022</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>1465 SW 6th Ct</com:street1>
+          <com:street2>SUITE 110</com:street2>
+          <com:city>Pompano Beach</com:city>
+          <com:stateOrCountry>FL</com:stateOrCountry>
+          <com:zipCode>33069</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://rexissystems.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>22.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>8262782.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>2509831.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>-121220.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>48195.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>4565035.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>112646.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>0.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>0.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>469797.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>8400823.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>3119575.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>3429923.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>1293815.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>33201.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>893891.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>140884.00</netIncomePriorFiscalYear>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>REXIS BIOTECH INC.</issuer>
+        <issuerSignature>Keith Bushfield</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Simon Selkrig</personSignature>
+          <personTitle>CFO</personTitle>
+          <signatureDate>04-14-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

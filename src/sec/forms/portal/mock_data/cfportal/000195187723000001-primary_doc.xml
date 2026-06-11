@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL/A</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001951877</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <amendmentExplanation>Updated funding portal website address; added additional executive officer to Schedule A (through Schedule B)</amendmentExplanation>
+      <nameOfPortal>Crowdsurf Funding Portal LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <webSiteOfPortal>www.crowdsurf.xyz</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>88-4254885</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>5956 SHERRY LANE</com:street1>
+        <com:street2>SUITE 1350</com:street2>
+        <com:city>DALLAS</com:city>
+        <com:stateOrCountry>TX</com:stateOrCountry>
+        <com:zipCode>75225</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>false</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>5956 SHERRY LANE</com:street1>
+        <com:street2>SUITE 1350</com:street2>
+        <com:city>DALLAS</com:city>
+        <com:stateOrCountry>TX</com:stateOrCountry>
+        <com:zipCode>75225</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>2148386080</portalContactPhone>
+        <portalContactEmail>preston@crowdsurf.xyz</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Preston</com:firstName>
+        <com:middleName>Allen</com:middleName>
+        <com:lastName>Troutt</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>Chief Executive Officer</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>TX</jurisdictionOrganization>
+      <dateIncorporation>10-07-2022</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>King Maker Markets LLC</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Preston Allen Troutt Remainder Trust</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Preston Troutt</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>NORTH CAPITAL PRIVATE SECURITIES CORPORATION</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>623 E. FORT UNION BOULEVARD</com:street1>
+          <com:street2>SUITE 101</com:street2>
+          <com:city>SALT LAKE CITY</com:city>
+          <com:stateOrCountry>UT</com:stateOrCountry>
+          <com:zipCode>84047</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>888-625-7768</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>Crowdsurf Funding Portal LLC intends to charge commissions and other fees payable in cash and/or securities of the Issuer.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>03-03-2023</executionDate>
+      <fullLegalNameFundingPortal>Crowdsurf Funding Portal LLC</fullLegalNameFundingPortal>
+      <personSignature>/s/ Preston Troutt</personSignature>
+      <personTitle>Chief Executive Officer</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>King Maker Markets LLC</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Sole Member</titleStatus>
+        <dateOfTitleStatusAcquired>10/2022</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Preston Troutt</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Executive Officer</titleStatus>
+        <dateOfTitleStatusAcquired>10/2022</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </entityOrNaturalPerson>
+    </scheduleA>
+    <scheduleB>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>King Maker Markets LLC</fullLegalName>
+        <entityType>DE</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Sole Member</titleStatus>
+        <dateOfTitleStatusAcquired>10/2022</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Preston Troutt</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Chief Executive Officer</titleStatus>
+        <dateOfTitleStatusAcquired>10/2022</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Stefan Erickson</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Chief Technology Officer</titleStatus>
+        <dateOfTitleStatusAcquired>02/2023</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>N</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </amendEntityOrNaturalPerson>
+    </scheduleB>
+  </formData>
+</edgarSubmission>

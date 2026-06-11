@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-U</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002033836</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+        <fileNumber>020-34622</fileNumber>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <progressUpdate>At the close of the offering, the Issuer closed on $437,907.69 on 383,802 shares.</progressUpdate>
+      <issuerInfo>
+        <nameOfIssuer>Attorney Shield, Inc.</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>07-17-2023</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>8 THE GRN STE R</com:street1>
+          <com:city>DOVER</com:city>
+          <com:stateOrCountry>DE</com:stateOrCountry>
+          <com:zipCode>19901</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://attorney-shield.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+      <companyName>StartEngine Capital, LLC</companyName>
+      <commissionCik>0001665160</commissionCik>
+      <commissionFileNumber>007-00007</commissionFileNumber>
+    </issuerInformation>
+    <offeringInformation>
+      <compensationAmount>7 - 13 percent</compensationAmount>
+      <financialInterest>Three percent (3%) of securities of the total amount of investments raised in the offering, along the same terms as investors.</financialInterest>
+      <securityOfferedType>Other</securityOfferedType>
+      <securityOfferedOtherDesc>Class B Common Stock</securityOfferedOtherDesc>
+      <noOfSecurityOffered>12500</noOfSecurityOffered>
+      <price>1.20000</price>
+      <priceDeterminationMethod>N/A</priceDeterminationMethod>
+      <offeringAmount>15000.00</offeringAmount>
+      <overSubscriptionAccepted>Y</overSubscriptionAccepted>
+      <overSubscriptionAllocationType>Other</overSubscriptionAllocationType>
+      <descOverSubscription>At issuer's discretion, with priority given to StartEngine Owners</descOverSubscription>
+      <maximumOfferingAmount>999999.60</maximumOfferingAmount>
+      <deadlineDate>01-13-2025</deadlineDate>
+    </offeringInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>6.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>172406.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>0.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>172406.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>0.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>0.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>0.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>123199.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>0.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>0.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>0.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>0.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>852.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>0.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-83793.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>0.00</netIncomePriorFiscalYear>
+      <issueJurisdictionSecuritiesOffering>AL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AZ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>AR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>CT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>DC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>FL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>GA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>HI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ID</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IL</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>IA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>KY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>LA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ME</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MS</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MO</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>MT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NE</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NJ</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NM</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NY</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>NC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>ND</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OH</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OK</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>OR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>PR</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>RI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SC</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>SD</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TN</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>TX</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>UT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VT</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>VA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WA</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WV</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WI</issueJurisdictionSecuritiesOffering>
+      <issueJurisdictionSecuritiesOffering>WY</issueJurisdictionSecuritiesOffering>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Attorney Shield, Inc.</issuer>
+        <issuerSignature>David C. Walton</issuerSignature>
+        <issuerTitle>CEO, Director, Principal Accounting Officer</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>David C. Walton</personSignature>
+          <personTitle>CEO, Director, Principal Accounting Officer</personTitle>
+          <signatureDate>01-14-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Andy Chance</personSignature>
+          <personTitle>President, Director</personTitle>
+          <signatureDate>01-14-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

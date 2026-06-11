@@ -75,6 +75,24 @@ const VARIANTS: readonly VariantCase[] = [
     extractSubmissionType: headerSubmissionType,
   },
   {
+    slug: "form-c-u",
+    formCode: "C-U",
+    parse: (xml) => Form_C.parse("C-U", xml) as Promise<ParsedSubmission>,
+    extractSubmissionType: headerSubmissionType,
+  },
+  {
+    slug: "form-c-ar",
+    formCode: "C-AR",
+    parse: (xml) => Form_C.parse("C-AR", xml) as Promise<ParsedSubmission>,
+    extractSubmissionType: headerSubmissionType,
+  },
+  {
+    slug: "form-c-tr",
+    formCode: "C-TR",
+    parse: (xml) => Form_C.parse("C-TR", xml) as Promise<ParsedSubmission>,
+    extractSubmissionType: headerSubmissionType,
+  },
+  {
     slug: "form-d-a",
     formCode: "D/A",
     parse: (xml) => Form_D.parse("D/A", xml) as Promise<ParsedSubmission>,

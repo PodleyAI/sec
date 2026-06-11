@@ -53,6 +53,18 @@ export const CrowdfundingSchema = Type.Object({
     maxLength: 20,
     description: "Status",
   }),
+  progress_update: TypeNullable(
+    Type.String({
+      maxLength: 255,
+      description: "Latest C-U progress-update narrative",
+    })
+  ),
+  nature_of_amendment: TypeNullable(
+    Type.String({
+      maxLength: 255,
+      description: "Latest C/A nature-of-amendment narrative",
+    })
+  ),
 });
 
 export type Crowdfunding = Static<typeof CrowdfundingSchema>;

@@ -165,7 +165,55 @@ sec issuer deal <cik> [--format json]
 > operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
 > status doc's deferred cleanups).
 
+### Reg A / Reg CF / funding portals
+
+All 12 Form C submission types (including post-offering C-U / C-AR / C-TR),
+the full 1-A family (including 1-A POS), and CFPORTAL portal registrations
+parse and store end to end:
+
+```bash
+sec fetch form <cik> C-AR          # post-offering Form C variants
+sec fetch form <cik> 1-A           # 1-A, 1-A/A, 1-A POS
+sec fetch form <cik> CFPORTAL      # portal registration -> Portal table + observations
+
+sec query crowdfunding --portal <portal-cik>
+sec query reg-a --tier Tier2 --status reporting
+sec query reg-a-summary <cik>      # counts by status/tier + latest aggregate offering
+```
+
+Known gap: the C-U `progressUpdate` narrative and C/A `natureOfAmendment`
+free-text are parsed but not yet persisted (the crowdfunding tables have no
+text column for them).
+
+Fixtures: `sec fetch fixtures C-U C-AR C-TR` extends the exempt-offering
+mock_data tree (note: the quarterly form.idx endpoint may 403 from cloud
+containers; the committed fixtures were sourced from EDGAR daily indexes).
+CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
+`isFormParsingSupported` and `FORM_TO_EXTRACTOR_ID` are kept consistent by
+`src/sec/forms/form-wiring.test.ts`.
+
 ## Architecture
+
+### Temporal design: history + current state
+
+A core value of the dataset is showing both how filings change data **over
+time** and a queryable **current state**:
+
+- **Per-filing / append-only tables** (offering histories, crowdfunding
+  offerings & disclosure reports, observations, XBRL facts) are keyed by
+  accession or filing date and are never overwritten by later filings — they
+  are the time series.
+- **Mutable "current" rows** (`Crowdfunding`, `Portal`, `RegAOffering`) must
+  reflect the latest filing by **filing date**, not by processing order.
+  Every write guards against out-of-order processing (skip when the incoming
+  `filing_date` is older than the row's as-of date; unknown dates apply
+  as-is) and merges fields the newer filing doesn't carry (e.g. a 1-K has no
+  tier; a C-AR has no portal CIK) instead of clobbering them with nulls.
+- **History tables** (`CrowdfundingHistory` + `ChangeLog`) version the
+  mutable rows so point-in-time state stays reconstructable.
+- Worst case, when an extractor bug corrupted data midway through a CIK's
+  filing set, re-process the whole CIK's filings (version bump →
+  re-extract); the guards above make replays idempotent and order-safe.
 
 ### Layered Structure
 

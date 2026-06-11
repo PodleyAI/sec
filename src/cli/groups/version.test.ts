@@ -50,7 +50,20 @@ describe("sec version CLI", () => {
         .filter((r: { component_kind: string }) => r.component_kind === "extractor")
         .map((r: { component_id: string }) => r.component_id)
         .sort();
-      expect(ids).toEqual(["1-A", "1-K", "1-Z", "144", "3", "4", "424", "5", "C", "D", "S-1"]);
+      expect(ids).toEqual([
+        "1-A",
+        "1-K",
+        "1-Z",
+        "144",
+        "3",
+        "4",
+        "424",
+        "5",
+        "C",
+        "CFPORTAL",
+        "D",
+        "S-1",
+      ]);
       const extractorRows = parsed.filter(
         (r: { component_kind: string }) => r.component_kind === "extractor"
       );

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-AR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002031376</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <period>12-31-2024</period>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>TEM Holding Co</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Corporation</legalStatusForm>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>05-30-2024</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>25108 MARGUERITE PARKWAY STE B</com:street1>
+          <com:city>MISSION VIEJO</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>92692</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.theempanadamaker.com/</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>8.00</currentEmployees>
+      <totalAssetMostRecentFiscalYear>405750.00</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>0.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>155.00</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>0.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>0.00</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>0.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>1741.00</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>0.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>0.00</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>0.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>0.00</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>0.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>0.00</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>0.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>0.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>0.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>-13242.00</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>0.00</netIncomePriorFiscalYear>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>TEM Holding Co</issuer>
+        <issuerSignature>Tatiana Friderici</issuerSignature>
+        <issuerTitle>CEO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Tatiana Friderici</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>04-10-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

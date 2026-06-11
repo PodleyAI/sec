@@ -19,6 +19,7 @@ import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
+import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
 import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
@@ -160,6 +161,17 @@ export class ProcessAccessionDocFormTask extends Task<
       filing_date = filing.filing_date;
       file_number = filing.file_number;
       fileName = fileName ?? filing.primary_doc;
+    } else {
+      // Callers like FetchAndStoreFormsTask pass cik/form/fileName but not the
+      // filing-level metadata; without this lookup every storage row gets
+      // filing_date "" and file_number "" (which collapses offerings keyed by
+      // (cik, file_number) into one row). Best-effort: a missing filing row is
+      // tolerated here since the identifiers themselves were supplied.
+      const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+      const filings = await filingRepo.query({ accession_number: accessionNumber });
+      const filing = filings?.[0];
+      filing_date = filing?.filing_date;
+      file_number = filing?.file_number;
     }
 
     if (!form) {
@@ -285,8 +297,14 @@ export class ProcessAccessionDocFormTask extends Task<
         case "C-TR-W":
           await processFormC({ ...storageArgs, formC: parsed });
           break;
+        case "CFPORTAL":
+        case "CFPORTAL/A":
+        case "CFPORTAL-W":
+          await processFormCFPORTAL({ ...storageArgs, formCfportal: parsed });
+          break;
         case "1-A":
         case "1-A/A":
+        case "1-A POS":
           await processForm1A({ ...storageArgs, form1A: parsed });
           break;
         case "1-K":

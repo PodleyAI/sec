@@ -34,6 +34,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       };
 
       await repo.saveOffering(offering);
@@ -57,6 +58,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       };
 
       await repo.saveOffering(offering);
@@ -78,6 +80,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "pending",
+        as_of: null,
       });
       await repo.saveOffering({
         cik: 12345,
@@ -90,6 +93,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "reporting",
+        as_of: null,
       });
 
       const results = await repo.getOfferingsByCik(12345);
@@ -108,6 +112,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "pending",
+        as_of: null,
       });
       await repo.saveOffering({
         cik: 67890,
@@ -120,6 +125,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: null,
         industry_group: null,
         status: "exit",
+        as_of: null,
       });
 
       const pending = await repo.getOfferingsByStatus("pending");
@@ -289,6 +295,7 @@ describe("RegAOfferingRepo", () => {
         securities_offered_type: "Equity (common or preferred stock)",
         industry_group: "Other",
         status: "pending",
+        as_of: null,
       });
 
       await repo.saveOfferingHistory({
@@ -350,6 +357,162 @@ describe("RegAOfferingRepo", () => {
       expect(complete.serviceProviders.length).toBe(1);
       expect(complete.financialData.length).toBe(1);
       expect(complete.equityClasses.length).toBe(1);
+    });
+  });
+
+  describe("Aggregates", () => {
+    function makeOffering(overrides: Partial<RegAOffering> = {}): RegAOffering {
+      return {
+        cik: 1,
+        file_number: "024-00001",
+        issuer_name: "Issuer",
+        jurisdiction: null,
+        sic_code: null,
+        tier: "Tier1",
+        financial_statement_audit_status: null,
+        securities_offered_type: null,
+        industry_group: null,
+        status: "pending",
+        as_of: null,
+        ...overrides,
+      };
+    }
+
+    function makeHistory(overrides: Partial<RegAOfferingHistory> = {}): RegAOfferingHistory {
+      return {
+        cik: 1,
+        file_number: "024-00001",
+        accession_number: "0000000001-25-000001",
+        filing_date: "2025-01-01",
+        qualification_date: null,
+        commence_date: null,
+        securities_qualified_sold: null,
+        securities_sold: null,
+        price_per_security: null,
+        aggregate_offering_price: null,
+        aggregate_offering_price_holders: null,
+        issuer_aggregate_offering: null,
+        security_holder_aggregate: null,
+        total_aggregate_offering: null,
+        securities_offered: null,
+        outstanding_securities: null,
+        estimated_net_amount: null,
+        crd_number: null,
+        ...overrides,
+      };
+    }
+
+    it("filters offerings by tier", async () => {
+      await repo.saveOffering(makeOffering({ cik: 1, file_number: "024-001", tier: "Tier1" }));
+      await repo.saveOffering(
+        makeOffering({ cik: 2, file_number: "024-002", tier: "Tier2", status: "reporting" })
+      );
+
+      const tier2 = await repo.getOfferingsByTier("Tier2");
+      expect(tier2.length).toBe(1);
+      expect(tier2[0].cik).toBe(2);
+    });
+
+    it("counts offerings by status and by tier", async () => {
+      await repo.saveOffering(makeOffering({ cik: 1, file_number: "024-001", tier: "Tier1" }));
+      await repo.saveOffering(
+        makeOffering({ cik: 2, file_number: "024-002", tier: "Tier2", status: "reporting" })
+      );
+      await repo.saveOffering(
+        makeOffering({ cik: 3, file_number: "024-003", tier: null, status: "reporting" })
+      );
+
+      const byStatus = await repo.countOfferingsByStatus();
+      expect(byStatus.get("pending")).toBe(1);
+      expect(byStatus.get("reporting")).toBe(2);
+
+      const byTier = await repo.countOfferingsByTier();
+      expect(byTier.get("Tier1")).toBe(1);
+      expect(byTier.get("Tier2")).toBe(1);
+      expect(byTier.get("unknown")).toBe(1);
+    });
+
+    it("buckets unexpected statuses under 'other'", async () => {
+      await repo.saveOffering(makeOffering({ cik: 1, file_number: "024-001" }));
+      await repo.saveOffering(
+        makeOffering({ cik: 2, file_number: "024-002", status: "suspended" })
+      );
+
+      const byStatus = await repo.countOfferingsByStatus();
+      expect(byStatus.get("pending")).toBe(1);
+      expect(byStatus.get("other")).toBe(1);
+    });
+
+    it("sums the latest aggregate offering amount per offering for a CIK", async () => {
+      await repo.saveOffering(
+        makeOffering({ cik: 7, file_number: "024-010", tier: "Tier2", status: "reporting" })
+      );
+      // Two history snapshots for the same offering: only the latest counts.
+      await repo.saveOfferingHistory(
+        makeHistory({
+          cik: 7,
+          file_number: "024-010",
+          accession_number: "0000000001-25-000001",
+          filing_date: "2025-01-01",
+          aggregate_offering_price: 1_000_000,
+        })
+      );
+      await repo.saveOfferingHistory(
+        makeHistory({
+          cik: 7,
+          file_number: "024-010",
+          accession_number: "0000000001-25-000002",
+          filing_date: "2025-06-01",
+          total_aggregate_offering: 2_500_000,
+        })
+      );
+
+      const total = await repo.latestAggregateOfferingByCik(7);
+      expect(total).toBe(2_500_000);
+    });
+
+    it("breaks same-day ties by accession number and returns null when no amounts exist", async () => {
+      await repo.saveOffering(
+        makeOffering({ cik: 8, file_number: "024-020", tier: "Tier2", status: "reporting" })
+      );
+      // No history rows with amounts: null, not a fabricated $0.
+      await repo.saveOfferingHistory(
+        makeHistory({ cik: 8, file_number: "024-020", accession_number: "0000000001-25-000001" })
+      );
+      expect(await repo.latestAggregateOfferingByCik(8)).toBeNull();
+
+      // Same filing_date, later accession wins deterministically.
+      await repo.saveOfferingHistory(
+        makeHistory({
+          cik: 8,
+          file_number: "024-020",
+          accession_number: "0000000001-25-000002",
+          filing_date: "2025-03-01",
+          aggregate_offering_price: 100,
+        })
+      );
+      await repo.saveOfferingHistory(
+        makeHistory({
+          cik: 8,
+          file_number: "024-020",
+          accession_number: "0000000001-25-000003",
+          filing_date: "2025-03-01",
+          aggregate_offering_price: 250,
+        })
+      );
+      expect(await repo.latestAggregateOfferingByCik(8)).toBe(250);
+    });
+
+    it("scopes bucket counts to a CIK when one is given", async () => {
+      await repo.saveOffering(makeOffering({ cik: 1, file_number: "024-001", tier: "Tier1" }));
+      await repo.saveOffering(
+        makeOffering({ cik: 2, file_number: "024-002", tier: "Tier2", status: "reporting" })
+      );
+
+      const byStatus = await repo.countOfferingsByStatus(2);
+      expect(byStatus.get("reporting")).toBe(1);
+      expect(byStatus.get("pending")).toBeUndefined();
+      expect(await repo.countOfferings(2)).toBe(1);
     });
   });
 });

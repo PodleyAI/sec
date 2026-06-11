@@ -67,6 +67,13 @@ export const RegAOfferingSchema = Type.Object({
     maxLength: 20,
     description: "Offering status: pending, reporting, exit",
   }),
+  as_of: TypeNullable(
+    Type.String({
+      format: "date",
+      description:
+        "Filing date of the filing that last shaped this row; writes guard against out-of-order processing with it",
+    })
+  ),
 });
 
 export type RegAOffering = Static<typeof RegAOfferingSchema>;

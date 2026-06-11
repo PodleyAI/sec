@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/formc" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>C-AR</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0002024433</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <period>12-31-2024</period>
+      <liveTestFlag>LIVE</liveTestFlag>
+      <flags>
+        <confirmingCopyFlag>false</confirmingCopyFlag>
+        <returnCopyFlag>false</returnCopyFlag>
+        <overrideInternetFlag>true</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInformation>
+      <issuerInfo>
+        <nameOfIssuer>Melanin Haircare, LLC</nameOfIssuer>
+        <legalStatus>
+          <legalStatusForm>Limited Liability Company</legalStatusForm>
+          <legalStatusOtherDesc/>
+          <jurisdictionOrganization>DE</jurisdictionOrganization>
+          <dateIncorporation>10-10-2015</dateIncorporation>
+        </legalStatus>
+        <issuerAddress>
+          <com:street1>39 Grant St</com:street1>
+          <com:street2>#210</com:street2>
+          <com:city>Framingham</com:city>
+          <com:stateOrCountry>MA</com:stateOrCountry>
+          <com:zipCode>01702</com:zipCode>
+        </issuerAddress>
+        <issuerWebsite>https://www.melaninhaircare.com</issuerWebsite>
+      </issuerInfo>
+      <isCoIssuer>N</isCoIssuer>
+    </issuerInformation>
+    <annualReportDisclosureRequirements>
+      <currentEmployees>6</currentEmployees>
+      <totalAssetMostRecentFiscalYear>3337837.47</totalAssetMostRecentFiscalYear>
+      <totalAssetPriorFiscalYear>1987114.00</totalAssetPriorFiscalYear>
+      <cashEquiMostRecentFiscalYear>77850.39</cashEquiMostRecentFiscalYear>
+      <cashEquiPriorFiscalYear>8918.00</cashEquiPriorFiscalYear>
+      <actReceivedMostRecentFiscalYear>92636.24</actReceivedMostRecentFiscalYear>
+      <actReceivedPriorFiscalYear>146496.00</actReceivedPriorFiscalYear>
+      <shortTermDebtMostRecentFiscalYear>1299212.74</shortTermDebtMostRecentFiscalYear>
+      <shortTermDebtPriorFiscalYear>1530382.00</shortTermDebtPriorFiscalYear>
+      <longTermDebtMostRecentFiscalYear>21.04</longTermDebtMostRecentFiscalYear>
+      <longTermDebtPriorFiscalYear>164032.00</longTermDebtPriorFiscalYear>
+      <revenueMostRecentFiscalYear>2435701.62</revenueMostRecentFiscalYear>
+      <revenuePriorFiscalYear>4883874.00</revenuePriorFiscalYear>
+      <costGoodsSoldMostRecentFiscalYear>562976.39</costGoodsSoldMostRecentFiscalYear>
+      <costGoodsSoldPriorFiscalYear>4194496.00</costGoodsSoldPriorFiscalYear>
+      <taxPaidMostRecentFiscalYear>2000.00</taxPaidMostRecentFiscalYear>
+      <taxPaidPriorFiscalYear>648.00</taxPaidPriorFiscalYear>
+      <netIncomeMostRecentFiscalYear>341683.55</netIncomeMostRecentFiscalYear>
+      <netIncomePriorFiscalYear>-3155606.00</netIncomePriorFiscalYear>
+    </annualReportDisclosureRequirements>
+    <signatureInfo>
+      <issuerSignature>
+        <issuer>Melanin Haircare, LLC</issuer>
+        <issuerSignature>Taffeta White</issuerSignature>
+        <issuerTitle>Co-Founder &amp; COO</issuerTitle>
+      </issuerSignature>
+      <signaturePersons>
+        <signaturePerson>
+          <personSignature>Taffeta White</personSignature>
+          <personTitle>Co-Founder &amp; COO</personTitle>
+          <signatureDate>04-14-2025</signatureDate>
+        </signaturePerson>
+        <signaturePerson>
+          <personSignature>Whitney White</personSignature>
+          <personTitle>CEO</personTitle>
+          <signatureDate>04-14-2025</signatureDate>
+        </signaturePerson>
+      </signaturePersons>
+    </signatureInfo>
+  </formData>
+</edgarSubmission>

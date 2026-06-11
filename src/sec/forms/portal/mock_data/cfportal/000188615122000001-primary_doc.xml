@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL/A</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001886151</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <amendmentExplanation>removal of Jeff Davis as officer and updated URL for funding portal</amendmentExplanation>
+      <nameOfPortal>Invown Funding Portal LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>invown.com</otherNamesUsedPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>87-2778484</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>33 DIXWELL AVENUE, SUITE 330</com:street1>
+        <com:city>NEW HAVEN</com:city>
+        <com:stateOrCountry>CT</com:stateOrCountry>
+        <com:zipCode>06511</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>33 DIXWELL AVENUE, SUITE 330</com:street1>
+        <com:city>NEW HAVEN</com:city>
+        <com:stateOrCountry>CT</com:stateOrCountry>
+        <com:zipCode>06511</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>475-254-3737</portalContactPhone>
+        <portalContactEmail>levi@invown.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Levi</com:firstName>
+        <com:middleName>Yisroel</com:middleName>
+        <com:lastName>Brackman</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>09-17-2021</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Invown Corp</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Levi Brackman</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>Prime Trust</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>330 S. Rampart Blvd.</com:street1>
+          <com:street2>Suite 260</com:street2>
+          <com:city>Summerlin</com:city>
+          <com:stateOrCountry>NV</com:stateOrCountry>
+          <com:zipCode>89145</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>702-840-4000</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>The company currently has no compensation arrangements with issuers. When it
+becomes a funding portal, the company expects to receive compensation in the
+form of commissions.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>10-04-2021</executionDate>
+      <fullLegalNameFundingPortal>Invown Funding Portal LLC</fullLegalNameFundingPortal>
+      <personSignature>Levi Brackman</personSignature>
+      <personTitle>CEO</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Brackman, Levi, Yisroel</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>CEO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Davis, Jeffery</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>CMO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Invown Corp</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Member</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </entityOrNaturalPerson>
+    </scheduleA>
+    <scheduleB>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Brackman, Levi, Yisroel</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>CEO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Davis, Jeffery</fullLegalName>
+        <entityType>NP</entityType>
+        <typeOfAmendment>D</typeOfAmendment>
+        <titleStatus>CMO</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Invown Corp</fullLegalName>
+        <entityType>DE</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Member</titleStatus>
+        <dateOfTitleStatusAcquired>09/2021</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+      </amendEntityOrNaturalPerson>
+    </scheduleB>
+  </formData>
+</edgarSubmission>

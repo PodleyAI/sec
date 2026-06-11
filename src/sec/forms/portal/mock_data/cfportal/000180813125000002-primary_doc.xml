@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL-W</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001808131</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>false</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>Seed At The Table</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <webSiteOfPortal>www.SeedAtTheTable.com</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>85-0508265</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>2601 VICTORIA ST</com:street1>
+        <com:street2>SUITE 208 ELISA</com:street2>
+        <com:city>RANCHO DOMINGUEZ</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>90220</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>2601 VICTORIA ST</com:street1>
+        <com:street2>SUITE 208 ELISA</com:street2>
+        <com:city>RANCHO DOMINGUEZ</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>90220</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>5623100420</portalContactPhone>
+        <portalContactEmail>seedatthetable@gmail.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Pierre</com:firstName>
+        <com:middleName>Andre</com:middleName>
+        <com:lastName>Le Veaux</com:lastName>
+        <com:suffix>II</com:suffix>
+      </contactEmployeeName>
+      <contactEmployeeTitle>Founder &amp; CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>03-23-2020</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>Pierre Le Veaux II</fullLegalName>
+      </fullLegalNames>
+      <fullLegalNames>
+        <fullLegalName>Suzen Sweeney</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>PrimeTrust</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>330 S. Rampart, Suite 260</com:street1>
+          <com:city>Summerlin</com:city>
+          <com:stateOrCountry>NV</com:stateOrCountry>
+          <com:zipCode>89145</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>7256960016</investorFundsContactPhone>
+      </investorFundsContacts>
+      <investorFundsContacts>
+        <investorFundsContactName>North Capital</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>623 e Fort Union Blvd</com:street1>
+          <com:street2>suite 101</com:street2>
+          <com:city>Salt Lake City</com:city>
+          <com:stateOrCountry>UT</com:stateOrCountry>
+          <com:zipCode>84047</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>8013178428</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>Prime Trust/Fund America:
+Setup $500
+account $25/month
+escrow close $150
+
+North Capital:
+$75 Background check
+$500 per new issuer escrow</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>06-24-2025</executionDate>
+      <fullLegalNameFundingPortal>Seed At The Table</fullLegalNameFundingPortal>
+      <personSignature>Pierre A. Le Veaux II</personSignature>
+      <personTitle>Founder &amp; CEO</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Le Veaux, Pierre, Andre II</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Founder &amp; CEO</titleStatus>
+        <dateOfTitleStatusAcquired>03/2020</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>005548762</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Suzen Sweeney</fullLegalName>
+        <entityType>DE</entityType>
+        <titleStatus>Chief Compliance Officer</titleStatus>
+        <dateOfTitleStatusAcquired>06/2020</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>N</controlPerson>
+        <crdNumber>005831240</crdNumber>
+      </entityOrNaturalPerson>
+    </scheduleA>
+    <scheduleB>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Le Veaux, Pierre, Andre II</fullLegalName>
+        <entityType>DE</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Founder &amp; CEO</titleStatus>
+        <dateOfTitleStatusAcquired>03/2020</dateOfTitleStatusAcquired>
+        <ownershipCode>E</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>005548762</crdNumber>
+      </amendEntityOrNaturalPerson>
+      <amendEntityOrNaturalPerson>
+        <fullLegalName>Suzen Sweeney</fullLegalName>
+        <entityType>DE</entityType>
+        <typeOfAmendment>A</typeOfAmendment>
+        <titleStatus>Chief Compliance Officer</titleStatus>
+        <dateOfTitleStatusAcquired>06/2020</dateOfTitleStatusAcquired>
+        <ownershipCode>NA</ownershipCode>
+        <controlPerson>N</controlPerson>
+        <crdNumber>005831240</crdNumber>
+      </amendEntityOrNaturalPerson>
+    </scheduleB>
+    <scheduleC>
+      <personSignature>Pierre Le Veaux</personSignature>
+      <printedName>Pierre Le Veaux</printedName>
+      <personTitle>ceo</personTitle>
+      <signatureDate>04-29-2022</signatureDate>
+    </scheduleC>
+    <scheduleD>
+      <dateBusinessCeasedWithdrawn>06-24-2025</dateBusinessCeasedWithdrawn>
+      <bookKeepingDetails>
+        <bookKeepingEntityName>Pierre LeVeaux II</bookKeepingEntityName>
+        <bookKeepingEntityAddress>
+          <com:street1>2601 East Victoria St Suite 208 Elisa</com:street1>
+          <com:city>Compton</com:city>
+          <com:stateOrCountry>CA</com:stateOrCountry>
+          <com:zipCode>90220</com:zipCode>
+        </bookKeepingEntityAddress>
+        <bookKeepingEntityPhone>5623100420</bookKeepingEntityPhone>
+        <bookKeepingEntityType>BO</bookKeepingEntityType>
+        <isAddressPrivateResidence>N</isAddressPrivateResidence>
+        <bookKeepingLocationDesc>n/a</bookKeepingLocationDesc>
+      </bookKeepingDetails>
+      <isInvestigated>N</isInvestigated>
+      <investorInitiatedComplaint>N</investorInitiatedComplaint>
+      <privateCivilLitigation>N</privateCivilLitigation>
+    </scheduleD>
+  </formData>
+</edgarSubmission>

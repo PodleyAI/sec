@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission xmlns="http://www.sec.gov/edgar/crowdfunding" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>CFPORTAL</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <filerCik>0001738868</filerCik>
+          <filerCcc>XXXXXXXX</filerCcc>
+        </filerCredentials>
+      </filer>
+      <flags>
+        <returnCopyFlag>true</returnCopyFlag>
+        <overrideInternetFlag>true</overrideInternetFlag>
+      </flags>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <identifyingInformation>
+      <nameOfPortal>WWF Funding Portal LLC</nameOfPortal>
+      <otherNamesAndWebsiteUrls>
+        <otherNamesUsedPortal>WaterWorks</otherNamesUsedPortal>
+        <webSiteOfPortal>www.waterworksfund.com</webSiteOfPortal>
+      </otherNamesAndWebsiteUrls>
+      <irsEmployerIdNumber>82-5119598</irsEmployerIdNumber>
+      <portalAddress>
+        <com:street1>1300 BROADWAY ST</com:street1>
+        <com:street2>STE 520</com:street2>
+        <com:city>DETROIT</com:city>
+        <com:stateOrCountry>MI</com:stateOrCountry>
+        <com:zipCode>48226</com:zipCode>
+      </portalAddress>
+      <mailingAddressDifferent>true</mailingAddressDifferent>
+      <portalMailingAddress>
+        <com:street1>1300 BROADWAY ST</com:street1>
+        <com:street2>STE 520</com:street2>
+        <com:city>DETROIT</com:city>
+        <com:stateOrCountry>MI</com:stateOrCountry>
+        <com:zipCode>48226</com:zipCode>
+      </portalMailingAddress>
+      <portalContact>
+        <portalContactPhone>231-384-2712</portalContactPhone>
+        <portalContactEmail>lon@waterworksfund.com</portalContactEmail>
+      </portalContact>
+      <contactEmployeeName>
+        <com:firstName>Lonnie</com:firstName>
+        <com:middleName>Barton</com:middleName>
+        <com:lastName>Johnson</com:lastName>
+      </contactEmployeeName>
+      <contactEmployeeTitle>CEO</contactEmployeeTitle>
+      <fiscalYearEnd>December</fiscalYearEnd>
+      <anyPreviousRegistrations>N</anyPreviousRegistrations>
+      <anyForeignRegistrations>N</anyForeignRegistrations>
+    </identifyingInformation>
+    <formOfOrganization>
+      <legalStatusForm>Limited Liability Company</legalStatusForm>
+      <jurisdictionOrganization>DE</jurisdictionOrganization>
+      <dateIncorporation>04-03-2018</dateIncorporation>
+    </formOfOrganization>
+    <successions>
+      <isSucceedingBusiness>N</isSucceedingBusiness>
+    </successions>
+    <controlRelationships>
+      <fullLegalNames>
+        <fullLegalName>WWF Funding Portal, LLC is wholly-owned by WWF Holdings, LLC, which is controlled by Lonnie Johnson, Julianna Smoot, and Brian Spangle.</fullLegalName>
+      </fullLegalNames>
+    </controlRelationships>
+    <disclosureAnswers>
+      <criminalDisclosure>
+        <isConvictedOfFelony>N</isConvictedOfFelony>
+        <isChargedWithFelony>N</isChargedWithFelony>
+        <isConvictedMisdemeanor>N</isConvictedMisdemeanor>
+        <isChargedMisdemeanor>N</isChargedMisdemeanor>
+      </criminalDisclosure>
+      <regulatoryActionDisclosure>
+        <isMadeFalseStatement>N</isMadeFalseStatement>
+        <isViolatedRegulation>N</isViolatedRegulation>
+        <isCauseOfDenial>N</isCauseOfDenial>
+        <isOrderAgainst>N</isOrderAgainst>
+        <isImposedPenalty>N</isImposedPenalty>
+        <isUnEthical>N</isUnEthical>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isFoundInCauseOfDenial>N</isFoundInCauseOfDenial>
+        <isOrderAgainstActivity>N</isOrderAgainstActivity>
+        <isDeniedLicense>N</isDeniedLicense>
+        <isFoundMadeFalseStatement>N</isFoundMadeFalseStatement>
+        <isFoundInViolationOfRules>N</isFoundInViolationOfRules>
+        <isFoundInCauseOfSuspension>N</isFoundInCauseOfSuspension>
+        <isDisciplined>N</isDisciplined>
+        <isAuthorizedToActAttorney>N</isAuthorizedToActAttorney>
+        <isRegulatoryComplaint>N</isRegulatoryComplaint>
+      </regulatoryActionDisclosure>
+      <civilJudicialActionDisclosure>
+        <isEnjoined>N</isEnjoined>
+        <isFoundInViolationOfRegulation>N</isFoundInViolationOfRegulation>
+        <isDismissed>N</isDismissed>
+        <isNamedInCivilProceeding>N</isNamedInCivilProceeding>
+      </civilJudicialActionDisclosure>
+      <financialDisclosure>
+        <hasSubjectOfBankruptcy>N</hasSubjectOfBankruptcy>
+        <hasTrusteeAppointed>N</hasTrusteeAppointed>
+        <hasBondDenied>N</hasBondDenied>
+        <doesAppHaveLiens>N</doesAppHaveLiens>
+      </financialDisclosure>
+    </disclosureAnswers>
+    <nonSecuritiesRelatedBusiness>
+      <isEngagedInNonSecurities>N</isEngagedInNonSecurities>
+    </nonSecuritiesRelatedBusiness>
+    <escrowArrangements>
+      <investorFundsContacts>
+        <investorFundsContactName>Prime Trust, LLC</investorFundsContactName>
+        <investorFundsAddress>
+          <com:street1>10890 S. Eastern Ave Suite 114</com:street1>
+          <com:city>Henderson</com:city>
+          <com:stateOrCountry>NV</com:stateOrCountry>
+          <com:zipCode>89052</com:zipCode>
+        </investorFundsAddress>
+        <investorFundsContactPhone>702-840-4000</investorFundsContactPhone>
+      </investorFundsContacts>
+      <compensationDesc>WWF Funding Portal may charge commissions and other fees payable in cash and/or securities of the issuer.</compensationDesc>
+    </escrowArrangements>
+    <execution>
+      <executionDate>05-02-2018</executionDate>
+      <fullLegalNameFundingPortal>WWF Funding Portal LLC</fullLegalNameFundingPortal>
+      <personSignature>/s/ Lonnie Johnson</personSignature>
+      <personTitle>Chief Executive Officer</personTitle>
+    </execution>
+    <scheduleA>
+      <entityOrNaturalPerson>
+        <fullLegalName>Johnson, Lonnie, Barton</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Executive Officer</titleStatus>
+        <dateOfTitleStatusAcquired>04/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>D</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Smoot, Julianna, Skinner</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Advisor</titleStatus>
+        <dateOfTitleStatusAcquired>04/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>C</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </entityOrNaturalPerson>
+      <entityOrNaturalPerson>
+        <fullLegalName>Spangle, Brian, Morgan</fullLegalName>
+        <entityType>NP</entityType>
+        <titleStatus>Chief Operating Officer</titleStatus>
+        <dateOfTitleStatusAcquired>04/2018</dateOfTitleStatusAcquired>
+        <ownershipCode>A</ownershipCode>
+        <controlPerson>Y</controlPerson>
+        <crdNumber>000000000</crdNumber>
+      </entityOrNaturalPerson>
+    </scheduleA>
+  </formData>
+</edgarSubmission>
