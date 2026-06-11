@@ -10,6 +10,7 @@ import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUn
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
 import { IssuerTickerRepo } from "../storage/offering/IssuerTickerRepo";
+import { registerIssuerDealCommand } from "./issuerDeal";
 
 /**
  * Returns the issuer CIKs of every IPO underwritten by the named family.
@@ -104,7 +105,9 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         console.error(`error: no underwriter-family found for '${name}'`);
         process.exit(1);
       }
-      await new CanonicalUnderwriterFamilyAliasRepo().remove(family.canonical_underwriter_family_id);
+      await new CanonicalUnderwriterFamilyAliasRepo().remove(
+        family.canonical_underwriter_family_id
+      );
       console.log(`removed alias for ${family.canonical_underwriter_family_id}`);
     });
 
@@ -150,7 +153,7 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         })
     );
 
-  program
+  const issuer = program
     .command("issuer")
     .description("Issuer queries")
     .addCommand(
@@ -166,4 +169,5 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
           }
         })
     );
+  registerIssuerDealCommand(issuer);
 }

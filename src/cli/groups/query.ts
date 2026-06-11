@@ -8,6 +8,7 @@ import { queryFacts } from "../queries/FactsQuery";
 import { queryFilings } from "../queries/FilingQuery";
 import { queryOfferings } from "../queries/OfferingQuery";
 import { queryPersons } from "../queries/PersonQuery";
+import { formatXbrlPeriod, queryXbrlFacts } from "../queries/XbrlQuery";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
@@ -266,6 +267,53 @@ export function addQueryCommands(program: Command): void {
 
       console.log(
         renderTable(result.rows as Record<string, unknown>[], columns, {
+          format,
+          total: result.total,
+          totalApprox: result.totalApprox,
+          offset,
+          limit,
+        })
+      );
+    });
+
+  query
+    .command("xbrl <accession>")
+    .description("XBRL facts extracted from a filing (inline iXBRL or instance document)")
+    .option("--concept <substr>", "Filter by concept QName substring (e.g. TrustAccount)")
+    .option("--numeric-only", "Only numeric (ix:nonFraction) facts", false)
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(async (accession: string, options: Record<string, unknown>) => {
+      const limit = options.limit as number;
+      const offset = options.offset as number;
+      const format = validateFormat(options.format as string);
+      const result = await queryXbrlFacts({
+        accession,
+        concept: options.concept as string | undefined,
+        numericOnly: Boolean(options.numericOnly),
+        limit,
+        offset,
+      });
+
+      const rows = result.rows.map((r) => ({
+        concept: r.concept,
+        period: formatXbrlPeriod(r),
+        unit: r.unit ?? "",
+        value: r.is_numeric ? (r.value_numeric ?? r.value_text) : r.value_text,
+        source: r.source,
+      }));
+
+      const columns = [
+        { key: "concept", header: "Concept", width: 45 },
+        { key: "period", header: "Period", width: 22 },
+        { key: "unit", header: "Unit", width: 10 },
+        { key: "value", header: "Value", width: 30 },
+        { key: "source", header: "Source", width: 8 },
+      ];
+
+      console.log(
+        renderTable(rows as Record<string, unknown>[], columns, {
           format,
           total: result.total,
           totalApprox: result.totalApprox,

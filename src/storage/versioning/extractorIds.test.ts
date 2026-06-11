@@ -18,11 +18,18 @@ describe("extractorIds", () => {
       "144",
       "3",
       "4",
+      "424",
       "5",
       "C",
       "D",
       "S-1",
     ]);
+  });
+
+  it("maps the 424 prospectus variants to extractor id '424'", () => {
+    for (const form of ["424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7"]) {
+      expect(formToExtractorId(form)).toBe("424");
+    }
   });
 
   it("maps Form 3/4/5 and amendments to their document-type extractor ids", () => {
