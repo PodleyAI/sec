@@ -12,6 +12,8 @@ import { processFormS1 } from "./Form_S_1.storage";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
+import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
+import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const CIK = 2114227;
@@ -96,6 +98,7 @@ describe("processForm424", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: B4_FEE_EXHIBIT,
       },
+      model: fakeS1Model(),
     });
 
     const facts = await new XbrlFactRepo().getByAccession(B4_ACCESSION);
@@ -122,7 +125,106 @@ describe("processForm424", () => {
     expect(s1Link?.canonical_company_id).toBe(b4Link?.canonical_company_id!);
   });
 
+  it("extracts FINAL offering terms from a priced 424B4 under extractor id '424'", async () => {
+    // Sections present: The Offering + Underwriting -> offering-terms (1st model
+    // call), then underwriters (2nd). Use-of-proceeds absent.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Units",
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 300000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: 30000000,
+        price_per_unit: 10,
+        unit_composition: "one share and one-quarter warrant",
+        warrant_fraction_per_unit: 0.25,
+        right_fraction_per_unit: null,
+        trust_per_unit: 10.0,
+        over_allotment_units: 4500000,
+        exchange: "NASDAQ",
+        par_value: null,
+        confidence: 0.9,
+        source_span: "each unit",
+        tickers: [
+          { ticker: "CCXII", exchange: "NASDAQ", security_type: "Units", is_primary: true },
+        ],
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    const OFFERING_HTML = [
+      "<h1>THE OFFERING</h1><p>We are offering 30,000,000 units at $10.00.</p>",
+      "<h1>UNDERWRITING</h1><p>BTIG, LLC is the book-running manager.</p>",
+    ].join("");
+    const SPAC_HEADER = {
+      sic: 6770,
+      sicDescription: "BLANK CHECKS",
+      cik: CIK,
+      companyName: "Synthetic SPAC Corp",
+      filingDate: "20260428",
+    };
+
+    await processForm424({
+      cik: CIK,
+      file_number: "333-000001",
+      accession_number: B4_ACCESSION,
+      filing_date: "2026-04-28",
+      primary_doc: "424b4.htm",
+      form: "424B4",
+      form424: {
+        header: SPAC_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const unit = await new SpacUnitTermsRepo().get("424", B4_ACCESSION);
+    expect(unit?.units_offered).toBe(30000000);
+    expect(unit?.price_per_unit).toBe(10);
+    expect(unit?.gross_proceeds).toBe(300000000);
+    expect(unit?.ticker).toBe("CCXII");
+    // Final terms live under extractor id "424"; the S-1 rows are untouched.
+    expect(await new SpacUnitTermsRepo().get("S-1", B4_ACCESSION)).toBeUndefined();
+    const history = await new IssuerTickerRepo().history(CIK);
+    expect(history.map((t) => t.ticker)).toEqual(["CCXII"]);
+  });
+
+  it("does not run AI extraction for shelf-takedown variants (424B2)", async () => {
+    // No fake provider registered: a model call would throw, so completing
+    // cleanly proves the deterministic-only path.
+    await processForm424({
+      cik: CIK,
+      file_number: "333-000001",
+      accession_number: B4_ACCESSION,
+      filing_date: "2026-04-28",
+      primary_doc: "424b2.htm",
+      form: "424B2",
+      form424: {
+        header: NULL_HEADER,
+        html: "<h1>THE OFFERING</h1><p>Notes linked to an index.</p>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+    });
+
+    expect(await new SpacUnitTermsRepo().get("424", B4_ACCESSION)).toBeUndefined();
+    const issuer = (await new CompanyObservationRepo().listAll()).find(
+      (o) => o.accession_number === B4_ACCESSION
+    )!;
+    expect(JSON.parse(issuer.source_context!).relation).toBe("424:issuer");
+  });
+
   it("handles a 424 with no XBRL anywhere (fees prepaid at registration)", async () => {
+    const { unregister } = registerFakeStructuredProvider([]);
+    cleanup = unregister;
+
     await processForm424({
       cik: CIK,
       file_number: "333-000001",
@@ -136,6 +238,7 @@ describe("processForm424", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
+      model: fakeS1Model(),
     });
 
     expect(await new XbrlFactRepo().countByAccession(B4_ACCESSION)).toBe(0);

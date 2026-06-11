@@ -4,16 +4,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, type ModelConfig } from "workglow";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { parseEdgarHtml } from "../../html/parseEdgarHtml";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+import type { S1SectionName } from "./s1/DocumentSegmenter";
+import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
+import { getS1Model } from "./s1/s1Model";
+import { makeRunSection } from "./s1/sectionRunner";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "424";
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+
+/**
+ * The 424 variants that are full priced-IPO prospectuses (Rule 430A pricing
+ * after effectiveness) and therefore worth the AI offering-sections pass.
+ * Shelf takedowns and supplements (424B2/B3/B5, 424A) stay deterministic-only.
+ */
+const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
 
 export interface ProcessForm424Args {
   readonly cik: number;
@@ -23,29 +38,33 @@ export interface ProcessForm424Args {
   readonly primary_doc: string;
   readonly form: string;
   readonly form424: FormS1Parsed;
+  readonly model?: ModelConfig;
 }
 
 /**
- * Deterministic-only processing for 424 prospectuses: run the XBRL pass
- * (final / takedown pricing arrives in the iXBRL `EX-FILING FEES` exhibit on
- * pay-as-you-go filings; the prospectus body itself is usually untagged) and
- * observe the issuer so the filing resolves to the same canonical company as
- * its registration statement. No AI section extraction.
+ * Processes 424 prospectuses. All variants run the deterministic XBRL pass
+ * (fee-exhibit / inline facts) and observe the issuer so the filing resolves
+ * to the same canonical company as its registration statement. The priced
+ * forms (424B1 / 424B4) additionally run the AI offering sections — offering
+ * terms, underwriters, use of proceeds — recording the FINAL deal under
+ * extractor id `424` (the S-1 rows keep the registered/anticipated terms).
  */
 export async function processForm424(args: ProcessForm424Args): Promise<void> {
-  const { cik, accession_number, form424 } = args;
+  const { cik, accession_number, form424, form } = args;
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const [extractorSlot, personSlot, companySlot] = await Promise.all([
+  const [extractorSlot, personSlot, companySlot, underwriterFamilySlot] = await Promise.all([
     getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID),
     getActiveSlot(versionRegistry, "resolver", "person"),
     getActiveSlot(versionRegistry, "resolver", "company"),
+    getActiveSlot(versionRegistry, "resolver", "underwriter-family"),
   ]);
   const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+  const activeUnderwriterFamilyVersion = underwriterFamilySlot?.semver ?? "1.0.0";
 
   const xbrl = await extractAndStoreXbrl({
     cik,
@@ -59,6 +78,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });
+  let idx = 0;
   const hasXbrlIssuerAttributes =
     xbrl.name !== null ||
     xbrl.jurisdiction !== null ||
@@ -68,7 +88,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     accession_number,
     extractor_id: EXTRACTOR_ID,
     extractor_version,
-    observation_index: 0,
+    observation_index: idx++,
     cik,
     name: xbrl.name,
     jurisdiction: xbrl.jurisdiction,
@@ -79,5 +99,67 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
         ? { relation: "424:issuer", attributes_source: "xbrl-dei" }
         : { relation: "424:issuer" }
     ),
+  });
+
+  if (!PRICED_PROSPECTUS_FORMS.has(form)) return;
+
+  // --- AI offering sections (priced prospectuses only) ---
+  const model = args.model ?? (await getS1Model());
+  const modelRef = model as { model_id?: unknown; model?: unknown };
+  const model_id =
+    typeof modelRef.model_id === "string"
+      ? modelRef.model_id
+      : typeof modelRef.model === "string"
+        ? modelRef.model
+        : null;
+
+  const deadLetters = new ExtractionDeadLetterRepo();
+  const recordFail = (section: string, reason: string, detail: string | null) =>
+    deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: section,
+      reason_code: reason,
+      detail,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+
+  // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
+  // offering sections so the filing stays on the retry worklist.
+  let byName: Map<S1SectionName, string>;
+  try {
+    const doc = parseEdgarHtml(form424.html, `${form} ${accession_number}`);
+    const sections = new DocumentTreeSegmenter().segment(doc);
+    byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    for (const section of OFFERING_SECTION_NAMES) {
+      await recordFail(section, "PARSE_ERROR", detail);
+    }
+    return;
+  }
+
+  const isSpac = form424.header?.sic === 6770;
+  await runOfferingSections({
+    runSection: makeRunSection({
+      deadLetters,
+      extractor_id: EXTRACTOR_ID,
+      extractor_version,
+      accession_number,
+    }),
+    observer,
+    provenance: new ObservationProvenanceRepo(),
+    nextIndex: () => idx++,
+    accession_number,
+    extractor_id: EXTRACTOR_ID,
+    extractor_version,
+    cik,
+    filing_date: args.filing_date,
+    isSpac,
+    model,
+    model_id,
+    activeUnderwriterFamilyVersion,
+    byName,
   });
 }
