@@ -204,11 +204,19 @@ export async function processFormCFPORTAL({
       ownershipCode: owner.ownershipCode ?? null,
       controlPerson: owner.controlPerson ?? null,
     });
-    // entityType is optional in the schema; when absent, fall back to the
-    // same company-ending heuristic Form C uses for signature names.
+    // entityType is optional in the schema. When absent and neither CIK nor
+    // CRD is provided, prefer person: natural persons rarely carry CIK/CRD
+    // on Schedule A, and "John Smith Holdings LLC" otherwise trips the
+    // company-ending heuristic and contaminates the canonical company pool.
+    // When at least one identifier is present we keep the hasCompanyEnding
+    // tiebreaker.
+    const ownerCikRaw = parseCikSafely(owner.cikNumber);
+    const ownerCrdNormalized = crdOrNull(owner.crdNumber);
+    const hasAnyIdentifier = ownerCikRaw > 0 || ownerCrdNormalized !== null;
     const isNaturalPerson =
       owner.entityType === "NP" ||
-      (owner.entityType === undefined && !hasCompanyEnding(owner.fullLegalName));
+      (owner.entityType === undefined &&
+        (!hasAnyIdentifier || !hasCompanyEnding(owner.fullLegalName)));
     if (isNaturalPerson) {
       const name = splitScheduleAName(owner.fullLegalName);
       await observer.observePerson({
@@ -225,14 +233,13 @@ export async function processFormCFPORTAL({
         source_context,
       });
     } else {
-      const ownerCik = parseCikSafely(owner.cikNumber);
       await observer.observeCompany({
         accession_number,
         extractor_id: EXTRACTOR_ID,
         extractor_version: EXTRACTOR_VERSION,
         observation_index: index,
-        cik: ownerCik > 0 ? ownerCik : null,
-        crd_number: crdOrNull(owner.crdNumber),
+        cik: ownerCikRaw > 0 ? ownerCikRaw : null,
+        crd_number: ownerCrdNormalized,
         name: owner.fullLegalName,
         source_context,
       });
