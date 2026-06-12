@@ -119,14 +119,17 @@ export async function processFormCFPORTAL({
 
   // The mutable row reflects the latest filing by *filing date*, not by
   // processing order — a back-catalog replay of the original registration
-  // must not resurrect a withdrawn portal. Unknown dates ("") can't be
-  // ordered and apply as-is. Observations below are keyed by accession and
-  // always record the older filing too.
+  // must not resurrect a withdrawn portal. An undated incoming filing ("")
+  // cannot be ordered against a dated existing row and is treated as
+  // stale, so a filer error with no SGML date in the header does not
+  // clobber a known-dated mutable row. (When the existing row is also
+  // undated or absent, an undated filing still applies — there's nothing
+  // to regress.) Observations below are keyed by accession and always
+  // record the older filing too.
   const isStale =
-    filing_date !== "" &&
     existing?.as_of != null &&
     existing.as_of !== "" &&
-    filing_date < existing.as_of;
+    (filing_date === "" || filing_date < existing.as_of);
 
   if (!isStale) {
     // Absent fields inherit from the existing portal row — a CFPORTAL/A may

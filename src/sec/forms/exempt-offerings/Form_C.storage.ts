@@ -434,14 +434,17 @@ export async function processFormC({
 
   // The mutable row reflects the latest filing by *filing date*, not by
   // processing order: a back-catalog replay of an older filing must not
-  // regress it. Unknown dates ("") can't be ordered and apply as-is. The
-  // per-filing tables (offerings, disclosure reports, observations) below
-  // are keyed by filing/accession and always record the older filing too.
+  // regress it. An undated incoming filing ("") cannot be ordered against
+  // a dated existing row and is treated as stale, so a filer error with no
+  // SGML date in the header does not clobber a known-dated mutable row.
+  // (When the existing row is also undated or absent, an undated filing
+  // still applies — there's nothing to regress.) The per-filing tables
+  // (offerings, disclosure reports, observations) below are keyed by
+  // filing/accession and always record the older filing too.
   const isStale =
-    filing_date !== "" &&
     existing?.filing_date !== undefined &&
     existing.filing_date !== "" &&
-    filing_date < existing.filing_date;
+    (filing_date === "" || filing_date < existing.filing_date);
 
   // Always build and write the history snapshot — a stale replay still
   // belongs in the time series, only the mutable row write is suppressed

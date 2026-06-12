@@ -444,6 +444,42 @@ describe("Form_C storage test", () => {
       expect(mutable?.filing_date).toBe("2026-05-01");
     });
 
+    // Regression guard: an undated filing must not clobber the dated current
+    // row. Filers occasionally submit with no date in the SGML header.
+    it("undated stale replay does not regress a dated mutable row", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-stale-und";
+
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-und-newer",
+        filing_date: "2026-05-01",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const seeded = await crowdfundingRepo.getCrowdfunding(cik, fileNumber);
+      expect(seeded?.filing_date).toBe("2026-05-01");
+
+      // Undated replay (filer error). Any dated row must win.
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-und-replay",
+        filing_date: "",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const after = await crowdfundingRepo.getCrowdfunding(cik, fileNumber);
+      expect(after?.filing_date).toBe("2026-05-01");
+    });
+
     // Regression guard: `currentEmployees` is schema-typed
     // DECIMAL_TYPE7_2_NONNEGATIVE. The string-decimal migration moved
     // the parse-time `minimum: 0` invariant into storage. A malformed
