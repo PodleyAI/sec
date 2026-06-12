@@ -208,6 +208,89 @@ describe("CrowdfundingTemporalRepo", () => {
     expect(changes).toHaveLength(0);
   });
 
+  // Regression: closed-immediately (stale-replay) history rows must be
+  // visible to getCrowdfundingAtTime. Approach: half-open intervals stay
+  // [valid_from, valid_to) for normal rows, but rows where valid_from ===
+  // valid_to are matched at the single instant valid_from. When a dominant
+  // (open or non-closed-immediately) row also matches the same instant the
+  // dominant row wins.
+  test("getCrowdfundingAtTime surfaces a stale-replay snapshot at its instant", async () => {
+    const stale: Crowdfunding = {
+      cik: 88888,
+      file_number: "020-88888",
+      filing_date: "2024-01-01",
+      name: "Stale Replay Snapshot",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "http://example.com",
+      portal_cik: 11111,
+      status: "annual-report",
+    };
+
+    await temporalRepo.saveCrowdfundingWithHistory(stale, "Form C-AR", {
+      skipMutableUpdate: true,
+    });
+
+    const history = await temporalRepo.getCrowdfundingHistory(88888, "020-88888");
+    expect(history).toHaveLength(1);
+    expect(history[0].valid_to).toBe(history[0].valid_from);
+
+    // The snapshot's instant: getCrowdfundingAtTime must surface it (was
+    // invisible under strict `>` on valid_to).
+    const at = await temporalRepo.getCrowdfundingAtTime(
+      88888,
+      "020-88888",
+      new Date(history[0].valid_from)
+    );
+    expect(at?.name).toBe("Stale Replay Snapshot");
+  });
+
+  test("getCrowdfundingAtTime prefers dominant row when both match the same instant", async () => {
+    // Seed an open dominant row, then write a stale-replay snapshot whose
+    // valid_from happens to fall inside the dominant row's interval. The
+    // dominant row should win at the snapshot's instant.
+    const dominant: Crowdfunding = {
+      cik: 77777,
+      file_number: "020-77777",
+      filing_date: "2024-01-01",
+      name: "Dominant Open Row",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "http://example.com",
+      portal_cik: 22222,
+      status: "active",
+    };
+    await temporalRepo.saveCrowdfundingWithHistory(dominant, "Form C");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const replay: Crowdfunding = {
+      ...dominant,
+      name: "Stale Older Snapshot",
+      status: "annual-report",
+    };
+    await temporalRepo.saveCrowdfundingWithHistory(replay, "Form C-AR", {
+      skipMutableUpdate: true,
+    });
+
+    const history = await temporalRepo.getCrowdfundingHistory(77777, "020-77777");
+    const closedImmediate = history.find((h) => h.valid_to !== null && h.valid_to === h.valid_from);
+    expect(closedImmediate).toBeDefined();
+
+    const at = await temporalRepo.getCrowdfundingAtTime(
+      77777,
+      "020-77777",
+      new Date(closedImmediate!.valid_from)
+    );
+    // Dominant row wins at the overlap instant.
+    expect(at?.name).toBe("Dominant Open Row");
+
+    // Stale-replay snapshot still discoverable via history listing.
+    expect(history.some((h) => h.name === "Stale Older Snapshot")).toBe(true);
+  });
+
   test("should retrieve crowdfunding entity at specific time", async () => {
     const initial: Crowdfunding = {
       cik: 12345,

@@ -5,6 +5,8 @@
  */
 
 import { Command } from "commander";
+import { globalServiceRegistry } from "workglow";
+import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import type { OfferingTerms } from "../storage/offering/OfferingTermsSchema";
 import { OfferingTermsRepo } from "../storage/offering/OfferingTermsRepo";
 import type { SpacUnitTerms } from "../storage/offering/SpacUnitTermsSchema";
@@ -43,6 +45,37 @@ function latestFor<T extends { extractor_id: string }>(
   extractor_id: string
 ): T | null {
   return rows.find((r) => r.extractor_id === extractor_id) ?? null;
+}
+
+/**
+ * Re-sort offering rows by the underlying filing's filing_date (DESC), with
+ * accession_number and created_at as tie-breakers. `listByCik` orders by
+ * extract recency (`created_at`), which inverts the desired result when an
+ * older amendment is re-extracted after a newer one (re-extraction bumps
+ * `created_at` but not filing_date). The offering-terms tables don't carry
+ * filing_date, so we look it up from the filings table by accession_number.
+ */
+async function sortByFilingDate<T extends { accession_number: string; created_at: string }>(
+  cik: number,
+  rows: readonly T[]
+): Promise<T[]> {
+  if (rows.length === 0) return [];
+  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const accessionToFilingDate = new Map<string, string>();
+  for (const row of rows) {
+    if (accessionToFilingDate.has(row.accession_number)) continue;
+    const filing = await filingRepo.get({ cik, accession_number: row.accession_number });
+    accessionToFilingDate.set(row.accession_number, filing?.filing_date ?? "");
+  }
+  return [...rows].sort((a, b) => {
+    const fdA = accessionToFilingDate.get(a.accession_number) ?? "";
+    const fdB = accessionToFilingDate.get(b.accession_number) ?? "";
+    return (
+      fdB.localeCompare(fdA) ||
+      b.accession_number.localeCompare(a.accession_number) ||
+      b.created_at.localeCompare(a.created_at)
+    );
+  });
 }
 
 function spacFields(reg: SpacUnitTerms | null, fin: SpacUnitTerms | null): DealField[] {
@@ -87,8 +120,8 @@ function equityFields(reg: OfferingTerms | null, fin: OfferingTerms | null): Dea
  * terms exist for the CIK, the table containing the priced row wins.
  */
 export async function compareIssuerDeal(cik: number): Promise<DealComparison | null> {
-  const spacRows = await new SpacUnitTermsRepo().listByCik(cik);
-  const equityRows = await new OfferingTermsRepo().listByCik(cik);
+  const spacRows = await sortByFilingDate(cik, await new SpacUnitTermsRepo().listByCik(cik));
+  const equityRows = await sortByFilingDate(cik, await new OfferingTermsRepo().listByCik(cik));
 
   const spacReg = latestFor(spacRows, "S-1");
   const spacFin = latestFor(spacRows, "424");

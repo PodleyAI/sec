@@ -136,6 +136,111 @@ describe("Form_CFPORTAL storage", () => {
     expect((await portalRepo.getPortal(cik))?.live).toBe(true);
   });
 
+  // Regression: a person whose name happens to include a company-ending
+  // word ("Holdings LLC") was routed to observeCompany when entityType was
+  // absent — contaminating the canonical company pool. With no CIK/CRD
+  // identifier, the heuristic now prefers person.
+  it("Schedule A: missing entityType + no CIK/CRD routes the owner to observePerson", async () => {
+    const personObs = new PersonObservationRepo();
+    const companyObs = new CompanyObservationRepo();
+
+    const cik = 5555555;
+    const accession = "0000000001-26-000099";
+
+    // Synthetic CFPORTAL parse with one Schedule A owner whose entityType
+    // is absent and who carries no CIK/CRD.
+    const synthetic: any = {
+      headerData: {
+        submissionType: "CFPORTAL",
+        filerInfo: {
+          filer: {
+            filerCredentials: {
+              filerCik: String(cik),
+            },
+          },
+        },
+      },
+      formData: {
+        identifyingInformation: {
+          nameOfPortal: "Test Portal LLC",
+        },
+        scheduleA: {
+          entityOrNaturalPerson: [
+            {
+              fullLegalName: "John Smith Holdings LLC",
+              // entityType intentionally absent
+              titleStatus: "Director",
+              ownershipCode: "A",
+              controlPerson: "Y",
+              // cikNumber / crdNumber absent
+            },
+          ],
+        },
+      },
+    };
+
+    await processFormCFPORTAL({
+      cik,
+      accession_number: accession,
+      filing_date: "2026-06-01",
+      formCfportal: synthetic,
+    });
+
+    const persons = await personObs.listByAccession(accession);
+    const companies = await companyObs.listByAccession(accession);
+
+    // The owner (index 100) must be a person, not a company.
+    expect(persons.some((o) => o.observation_index === 100)).toBe(true);
+    expect(companies.some((o) => o.observation_index === 100)).toBe(false);
+  });
+
+  // Companion to the above: when a CIK is present, the company-ending
+  // heuristic still routes to observeCompany (companies typically carry an
+  // identifier).
+  it("Schedule A: missing entityType + a CIK still routes a company-ending name to observeCompany", async () => {
+    const personObs = new PersonObservationRepo();
+    const companyObs = new CompanyObservationRepo();
+
+    const cik = 5555556;
+    const accession = "0000000001-26-000100";
+
+    const synthetic: any = {
+      headerData: {
+        submissionType: "CFPORTAL",
+        filerInfo: {
+          filer: {
+            filerCredentials: { filerCik: String(cik) },
+          },
+        },
+      },
+      formData: {
+        identifyingInformation: { nameOfPortal: "Test Portal LLC" },
+        scheduleA: {
+          entityOrNaturalPerson: [
+            {
+              fullLegalName: "Acme Holdings LLC",
+              titleStatus: "Member",
+              cikNumber: "1234567",
+            },
+          ],
+        },
+      },
+    };
+
+    await processFormCFPORTAL({
+      cik,
+      accession_number: accession,
+      filing_date: "2026-06-01",
+      formCfportal: synthetic,
+    });
+
+    const persons = await personObs.listByAccession(accession);
+    const companies = await companyObs.listByAccession(accession);
+
+    expect(companies.some((o) => o.observation_index === 100)).toBe(true);
+    expect(persons.some((o) => o.observation_index === 100)).toBe(false);
+  });
+
   it("CFPORTAL/A with absent identifyingInformation fields preserves existing name/brand/url", async () => {
     const portalRepo = new PortalRepo();
     const files = fixtureFiles();

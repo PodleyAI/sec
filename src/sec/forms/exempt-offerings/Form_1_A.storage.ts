@@ -428,13 +428,16 @@ export async function processForm1A({
   const existing = await regARepo.getOffering(cik, file_number);
 
   // Mutable row = latest filing by filing date; skip stale out-of-order
-  // writes (unknown "" dates can't be ordered and apply as-is). The history
-  // row below is per-accession and always recorded.
+  // writes. An undated incoming filing ("") cannot be ordered against a
+  // dated existing row and is treated as stale, so a filer error with no
+  // SGML date in the header does not clobber a known-dated mutable row.
+  // (When the existing row is also undated or absent, an undated filing
+  // still applies — there's nothing to regress.) The history row below is
+  // per-accession and always recorded.
   const isStale =
-    filing_date !== "" &&
     existing?.as_of != null &&
     existing.as_of !== "" &&
-    filing_date < existing.as_of;
+    (filing_date === "" || filing_date < existing.as_of);
 
   if (!isStale) {
     const offering: RegAOffering = {

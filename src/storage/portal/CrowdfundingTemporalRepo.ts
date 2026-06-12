@@ -173,13 +173,28 @@ export class CrowdfundingTemporalRepo {
       return undefined;
     }
 
-    // Find the record that was valid at the given timestamp
+    // Find the record(s) valid at the given timestamp. A normal interval is
+    // [valid_from, valid_to) — strict on the right so a row that closes at
+    // `t` does not also match at `t`. A stale-replay snapshot is
+    // closed-immediately (valid_from === valid_to): without a half-open
+    // exception it would match at no timestamp, leaving the row write-only.
+    // For those rows we widen to a single-point match at valid_from. If a
+    // dominant (non-closed-immediately) row also matches at the same
+    // instant, prefer the dominant row — the stale-replay snapshot stays
+    // discoverable via getCrowdfundingHistory.
     const timestampStr = timestamp.toISOString();
-    const validRecord = history.find((record) => {
+    const matches = history.filter((record) => {
       const isAfterStart = record.valid_from <= timestampStr;
-      const isBeforeEnd = !record.valid_to || record.valid_to > timestampStr;
+      const isClosedImmediately =
+        record.valid_to !== null && record.valid_to === record.valid_from;
+      const isBeforeEnd = isClosedImmediately
+        ? record.valid_to! >= timestampStr
+        : !record.valid_to || record.valid_to > timestampStr;
       return isAfterStart && isBeforeEnd;
     });
+
+    const dominant = matches.find((r) => r.valid_to === null || r.valid_to !== r.valid_from);
+    const validRecord = dominant ?? matches[0];
 
     if (validRecord) {
       const { change_source, change_date, valid_from, valid_to, ...crowdfunding } = validRecord;
