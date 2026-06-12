@@ -389,6 +389,61 @@ describe("Form_C storage test", () => {
       }
     });
 
+    // Regression guard: a stale (older) replay must snapshot its OWN
+    // filing_date into CrowdfundingHistory, not the dated existing row's.
+    // Otherwise the time series reads back the wrong date for the replay.
+    it("stale replay snapshots its own filing_date in history (not the existing row's)", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-stale-fd";
+
+      // Seed: a dated current row from a newer filing.
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-stale-newer",
+        filing_date: "2026-05-01",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const { CrowdfundingTemporalRepo } = await import(
+        "../../../storage/portal/CrowdfundingTemporalRepo"
+      );
+      const temporalRepo = new CrowdfundingTemporalRepo();
+      const beforeHistory = await temporalRepo.getCrowdfundingHistory(cik, fileNumber);
+      const seedHistoryCount = beforeHistory.length;
+
+      // Replay an OLDER filing (different accession). The mutable row stays
+      // anchored at 2026-05-01; the history snapshot must carry 2026-04-01.
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-stale-older",
+        filing_date: "2026-04-01",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const afterHistory = await temporalRepo.getCrowdfundingHistory(cik, fileNumber);
+      expect(afterHistory.length).toBe(seedHistoryCount + 1);
+
+      // The most recently appended row (closed-immediately, change_source
+      // starts with "Form ") is the stale-replay snapshot.
+      const replaySnapshot = afterHistory.find(
+        (h) => h.valid_to !== null && h.valid_to === h.valid_from
+      );
+      expect(replaySnapshot).toBeDefined();
+      expect(replaySnapshot?.filing_date).toBe("2026-04-01");
+
+      // Mutable row stays anchored at the newer filing_date.
+      const mutable = await crowdfundingRepo.getCrowdfunding(cik, fileNumber);
+      expect(mutable?.filing_date).toBe("2026-05-01");
+    });
+
     // Regression guard: `currentEmployees` is schema-typed
     // DECIMAL_TYPE7_2_NONNEGATIVE. The string-decimal migration moved
     // the parse-time `minimum: 0` invariant into storage. A malformed

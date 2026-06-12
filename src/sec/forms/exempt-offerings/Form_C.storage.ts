@@ -447,11 +447,15 @@ export async function processFormC({
   // belongs in the time series, only the mutable row write is suppressed
   // (via skipMutableUpdate) so out-of-order processing doesn't regress it.
   // Falling back to existing fields keeps the snapshot meaningful when the
-  // older filing carried sparser data than the current state.
+  // older filing carried sparser data than the current state. The
+  // filing_date is exempt from that fallback: when stale, the snapshot must
+  // record this replay's own filing_date so the time series reflects when
+  // each filing was actually made. The schema requires a string, so unknown
+  // dates are stored as "" rather than inheriting the existing row's date.
   const crowdfunding: Crowdfunding = {
     cik,
     file_number,
-    filing_date: filing_date || existing?.filing_date || "",
+    filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
     name: issuer.nameOfIssuer,
     legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
     state_jurisdiction:
