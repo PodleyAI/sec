@@ -5,7 +5,7 @@
  */
 
 import type { CheerioAPI } from "cheerio";
-import type { AnyNode, Element } from "domhandler";
+import type { CheerioAcceptedNode, DomElement, DomNode } from "./domNodes";
 import { applyIxtTransform } from "./ixtTransforms";
 import type { XbrlContext, XbrlDimension, XbrlUnit } from "./types";
 
@@ -62,7 +62,7 @@ export function localName(tagName: string): string {
  * Case-insensitive attribute lookup: HTML-mode parsing lowercases attribute
  * names (contextRef -> contextref) while XML mode preserves them.
  */
-export function getAttr(el: Element, name: string): string | null {
+export function getAttr(el: DomElement, name: string): string | null {
   const attribs = el.attribs ?? {};
   const lower = name.toLowerCase();
   for (const key of Object.keys(attribs)) {
@@ -71,11 +71,11 @@ export function getAttr(el: Element, name: string): string | null {
   return null;
 }
 
-function findByLocalName(el: Element, local: string): Element[] {
-  const out: Element[] = [];
-  const walk = (node: AnyNode): void => {
+function findByLocalName(el: DomElement, local: string): DomElement[] {
+  const out: DomElement[] = [];
+  const walk = (node: DomNode): void => {
     if (node.type === "tag" || node.type === "script" || node.type === "style") {
-      const child = node as Element;
+      const child = node as DomElement;
       if (localName(child.tagName) === local) out.push(child);
       for (const c of child.children) walk(c);
     }
@@ -84,14 +84,14 @@ function findByLocalName(el: Element, local: string): Element[] {
   return out;
 }
 
-function textOf($: CheerioAPI, el: Element | undefined): string | null {
+function textOf($: CheerioAPI, el: DomElement | undefined): string | null {
   if (!el) return null;
-  const t = $(el).text().trim();
+  const t = $(el as CheerioAcceptedNode).text().trim();
   return t.length > 0 ? t : null;
 }
 
 /** Parses one xbrli:context element (entity, period, segment/scenario dimensions). */
-export function parseContextElement($: CheerioAPI, el: Element): XbrlContext | null {
+export function parseContextElement($: CheerioAPI, el: DomElement): XbrlContext | null {
   const id = getAttr(el, "id");
   if (id === null) return null;
 
@@ -139,7 +139,7 @@ function normalizeMeasure(measure: string): string {
 }
 
 /** Parses one xbrli:unit element, normalizing divide units to "num/den". */
-export function parseUnitElement($: CheerioAPI, el: Element): XbrlUnit | null {
+export function parseUnitElement($: CheerioAPI, el: DomElement): XbrlUnit | null {
   const id = getAttr(el, "id");
   if (id === null) return null;
 

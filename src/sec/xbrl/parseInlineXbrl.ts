@@ -5,7 +5,7 @@
  */
 
 import * as cheerio from "cheerio";
-import type { AnyNode, Element } from "domhandler";
+import type { DomElement, DomNode, DomTextNode } from "./domNodes";
 import {
   INLINE_XBRL_NAMESPACES,
   XBRL_INSTANCE_NAMESPACE,
@@ -24,16 +24,16 @@ import type { XbrlContext, XbrlDocument, XbrlFact, XbrlUnit } from "./types";
  * Text content of an inline fact element, dropping ix:exclude subtrees (their
  * content is presentation-only and not part of the fact value).
  */
-function factText(el: Element, ixPrefix: string): string {
+function factText(el: DomElement, ixPrefix: string): string {
   const excludeTag = `${ixPrefix}:exclude`;
   const parts: string[] = [];
-  const walk = (node: AnyNode): void => {
+  const walk = (node: DomNode): void => {
     if (node.type === "text") {
-      parts.push((node as { data: string }).data);
+      parts.push((node as DomTextNode).data);
       return;
     }
     if (node.type === "tag" || node.type === "script" || node.type === "style") {
-      const child = node as Element;
+      const child = node as DomElement;
       if (child.tagName.toLowerCase() === excludeTag) return;
       for (const c of child.children) walk(c);
     }
@@ -44,9 +44,9 @@ function factText(el: Element, ixPrefix: string): string {
 
 /** Follows a continuedAt chain, concatenating continuation text. Cycle-safe. */
 function resolveContinuations(
-  el: Element,
+  el: DomElement,
   ixPrefix: string,
-  continuations: ReadonlyMap<string, Element>
+  continuations: ReadonlyMap<string, DomElement>
 ): string {
   let text = factText(el, ixPrefix);
   let nextId = getAttr(el, "continuedAt");
@@ -61,10 +61,10 @@ function resolveContinuations(
   return text;
 }
 
-function hasHiddenAncestor(el: Element, hiddenTag: string): boolean {
+function hasHiddenAncestor(el: DomElement, hiddenTag: string): boolean {
   let parent = el.parent;
   while (parent !== null) {
-    if (parent.type === "tag" && (parent as Element).tagName.toLowerCase() === hiddenTag) {
+    if (parent.type === "tag" && (parent as DomElement).tagName.toLowerCase() === hiddenTag) {
       return true;
     }
     parent = parent.parent;
@@ -72,7 +72,7 @@ function hasHiddenAncestor(el: Element, hiddenTag: string): boolean {
   return false;
 }
 
-function parseIntAttr(el: Element, name: string): number | null {
+function parseIntAttr(el: DomElement, name: string): number | null {
   const raw = getAttr(el, name);
   if (raw === null) return null;
   const n = Number(raw);
@@ -104,19 +104,19 @@ export function parseInlineXbrl(html: string): XbrlDocument {
   ).toLowerCase();
 
   const contexts = new Map<string, XbrlContext>();
-  for (const el of $(`${xbrliPrefix}\\:context, context`).toArray() as Element[]) {
+  for (const el of $(`${xbrliPrefix}\\:context, context`).toArray() as DomElement[]) {
     const ctx = parseContextElement($, el);
     if (ctx !== null) contexts.set(ctx.id, ctx);
   }
 
   const units = new Map<string, XbrlUnit>();
-  for (const el of $(`${xbrliPrefix}\\:unit, unit`).toArray() as Element[]) {
+  for (const el of $(`${xbrliPrefix}\\:unit, unit`).toArray() as DomElement[]) {
     const unit = parseUnitElement($, el);
     if (unit !== null) units.set(unit.id, unit);
   }
 
-  const continuations = new Map<string, Element>();
-  for (const el of $(`${ixPrefix}\\:continuation`).toArray() as Element[]) {
+  const continuations = new Map<string, DomElement>();
+  for (const el of $(`${ixPrefix}\\:continuation`).toArray() as DomElement[]) {
     const id = getAttr(el, "id");
     if (id !== null) continuations.set(id, el);
   }
@@ -126,7 +126,7 @@ export function parseInlineXbrl(html: string): XbrlDocument {
   let order = 0;
   for (const el of $(
     `${ixPrefix}\\:nonfraction, ${ixPrefix}\\:nonnumeric`
-  ).toArray() as Element[]) {
+  ).toArray() as DomElement[]) {
     const concept = getAttr(el, "name");
     if (concept === null) continue;
 

@@ -5,7 +5,7 @@
  */
 
 import * as cheerio from "cheerio";
-import type { Element } from "domhandler";
+import type { CheerioAcceptedNode, DomElement } from "./domNodes";
 import {
   collectNamespacePrefixes,
   getAttr,
@@ -28,7 +28,7 @@ export function parseXbrlInstance(xml: string): XbrlDocument {
 
   const rootEl = $(":root")
     .toArray()
-    .find((el) => localName((el as Element).tagName) === "xbrl") as Element | undefined;
+    .find((el) => localName((el as DomElement).tagName) === "xbrl") as DomElement | undefined;
   if (!rootEl) {
     return { facts: [], contexts: new Map(), units: new Map(), hasXbrl: false };
   }
@@ -38,7 +38,7 @@ export function parseXbrlInstance(xml: string): XbrlDocument {
   const facts: XbrlFact[] = [];
   let order = 0;
 
-  const visit = (el: Element): void => {
+  const visit = (el: DomElement): void => {
     const local = localName(el.tagName);
     if (local === "context") {
       const ctx = parseContextElement($, el);
@@ -57,7 +57,7 @@ export function parseXbrlInstance(xml: string): XbrlDocument {
       const unitRef = getAttr(el, "unitRef");
       const isNumeric = unitRef !== null;
       const isNil = (getAttr(el, "xsi:nil") ?? "").toLowerCase() === "true";
-      const rawText = $(el).text();
+      const rawText = $(el as CheerioAcceptedNode).text();
       const { value, numericValue } = normalizeFactValue({
         rawText,
         format: null,
@@ -88,12 +88,12 @@ export function parseXbrlInstance(xml: string): XbrlDocument {
     }
 
     for (const child of el.children) {
-      if (child.type === "tag") visit(child as Element);
+      if (child.type === "tag") visit(child as DomElement);
     }
   };
 
   for (const child of rootEl.children) {
-    if (child.type === "tag") visit(child as Element);
+    if (child.type === "tag") visit(child as DomElement);
   }
 
   return { facts, contexts, units, hasXbrl: true };
