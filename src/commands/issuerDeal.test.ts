@@ -5,10 +5,34 @@
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
+import { FILING_REPOSITORY_TOKEN, type Filing } from "../storage/filing/FilingSchema";
 import { OfferingTermsRepo } from "../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../storage/offering/SpacUnitTermsRepo";
 import { compareIssuerDeal } from "./issuerDeal";
+
+async function seedFiling(cik: number, accession_number: string, filing_date: string) {
+  const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const row: Filing = {
+    cik,
+    accession_number,
+    filing_date,
+    report_date: null,
+    acceptance_date: `${filing_date}T00:00:00.000Z`,
+    form: "S-1",
+    file_number: null,
+    film_number: null,
+    primary_doc: "primary_doc.htm",
+    primary_doc_description: null,
+    size: null,
+    is_xbrl: null,
+    is_inline_xbrl: null,
+    items: null,
+    act: null,
+  };
+  await repo.put(row);
+}
 
 const CIK = 2114227;
 
@@ -75,6 +99,38 @@ describe("compareIssuerDeal", () => {
       delta: null,
     });
     expect(byField.get("ticker")?.delta).toBeNull();
+  });
+
+  // Regression: re-extracting an older amendment after the newer one used
+  // to make the older row "win" because the offerings table was sorted by
+  // created_at. The latest-by-filing-date filing must always be reported as
+  // "registered".
+  it("orders by filing_date, not extract created_at (re-extracted older amendment loses)", async () => {
+    const repo = new SpacUnitTermsRepo();
+    // Newer amendment: extracted earlier.
+    const newerAccession = "0000000000-26-000900";
+    await seedFiling(CIK, newerAccession, "2026-04-15");
+    await repo.save(
+      spacRow("S-1", newerAccession, {
+        units_offered: 30000000,
+        created_at: "2026-04-15T00:00:00.000Z",
+      })
+    );
+
+    // Older amendment: re-extracted LATER (so its created_at is newer).
+    const olderAccession = "0000000000-26-000800";
+    await seedFiling(CIK, olderAccession, "2026-04-01");
+    await repo.save(
+      spacRow("S-1", olderAccession, {
+        units_offered: 25000000,
+        created_at: "2026-05-01T00:00:00.000Z",
+      })
+    );
+
+    const result = (await compareIssuerDeal(CIK))!;
+    // Latest by filing_date wins as "registered", not latest by created_at.
+    expect(result.registered_accession).toBe(newerAccession);
+    expect(result.fields.find((f) => f.field === "units_offered")?.registered).toBe(30000000);
   });
 
   it("uses the latest registration extract when amendments exist", async () => {
