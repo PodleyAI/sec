@@ -268,5 +268,45 @@ describe("Form_1_K storage test", () => {
       });
       expect(history?.price_per_security).toBe(0);
     });
+
+    it("undated stale replay does not regress a dated mutable row", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-k");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const cik = 990010;
+      const fileNumber = "024-1k-und";
+
+      await processForm1K({
+        cik,
+        file_number: fileNumber,
+        accession_number: "1k-dated-seed",
+        filing_date: "2024-06-15",
+        primary_doc: xmlFiles[0],
+        form1K,
+      });
+
+      const seeded = await regARepo.getOffering(cik, fileNumber);
+      expect(seeded?.as_of).toBe("2024-06-15");
+      const seededTier = seeded?.tier ?? null;
+      const seededIssuerName = seeded?.issuer_name ?? null;
+      const seededSicCode = seeded?.sic_code ?? null;
+
+      // Undated replay (filer error). Any dated row must win.
+      await processForm1K({
+        cik,
+        file_number: fileNumber,
+        accession_number: "1k-undated-replay",
+        filing_date: "",
+        primary_doc: xmlFiles[0],
+        form1K,
+      });
+
+      const after = await regARepo.getOffering(cik, fileNumber);
+      expect(after?.as_of).toBe("2024-06-15");
+      expect(after?.tier ?? null).toBe(seededTier);
+      expect(after?.issuer_name ?? null).toBe(seededIssuerName);
+      expect(after?.sic_code ?? null).toBe(seededSicCode);
+    });
   });
 });
