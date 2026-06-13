@@ -193,6 +193,17 @@ export class CrowdfundingTemporalRepo {
       return isAfterStart && isBeforeEnd;
     });
 
+    // Deterministic tie-break: when multiple closed-immediately stale-replay
+    // snapshots share `valid_from === valid_to` at the same instant, the
+    // backend's natural row order is not portable (SQLite usually preserves
+    // insertion order; Postgres does not). Sort by recency so the most
+    // recently recorded snapshot wins, with `valid_from` as a stable
+    // secondary key. The dominant-row find below still wins precedence.
+    matches.sort((a, b) => {
+      if (a.change_date !== b.change_date) return b.change_date.localeCompare(a.change_date);
+      return b.valid_from.localeCompare(a.valid_from);
+    });
+
     const dominant = matches.find((r) => r.valid_to === null || r.valid_to !== r.valid_from);
     const validRecord = dominant ?? matches[0];
 

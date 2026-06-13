@@ -291,6 +291,89 @@ describe("CrowdfundingTemporalRepo", () => {
     expect(history.some((h) => h.name === "Stale Older Snapshot")).toBe(true);
   });
 
+  // Regression: when multiple closed-immediately stale-replay snapshots
+  // match at the same query instant, `matches[0]` (pre-sort) was
+  // non-deterministic across backends — SQLite usually preserved
+  // insertion order, Postgres did not. The explicit
+  // (change_date desc, valid_from desc) sort in getCrowdfundingAtTime
+  // pins the later-recorded snapshot regardless of how the underlying
+  // store yielded the rows. We simulate the bug condition by stubbing
+  // the history-repo query so multiple closed-immediately rows are
+  // returned for a single instant (the schema PK `(cik, valid_from)`
+  // would otherwise collide on a real put).
+  test("getCrowdfundingAtTime sorts matches deterministically when stale replays share an instant", async () => {
+    const cik = 66666;
+    const fileNumber = "020-66666";
+    const instant = "2024-03-15T10:00:00.000Z";
+
+    const earlier: CrowdfundingHistory = {
+      cik,
+      file_number: fileNumber,
+      filing_date: "2024-01-01",
+      name: "Earlier Snapshot",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "http://example.com",
+      portal_cik: 33333,
+      status: "annual-report",
+      progress_update: null,
+      nature_of_amendment: null,
+      valid_from: instant,
+      valid_to: instant,
+      change_source: "Form C-AR",
+      change_date: "2024-03-15T10:00:00.000Z",
+    };
+    const later: CrowdfundingHistory = {
+      ...earlier,
+      name: "Later Snapshot",
+      status: "termination",
+      change_source: "Form C-TR",
+      change_date: "2024-03-15T10:00:05.000Z",
+    };
+
+    // Stubbed history-repo query that yields rows in an "adversarial"
+    // order (later first, earlier second). With the deterministic sort
+    // the later row still wins.
+    const stubHistoryRepo = {
+      query: async () => [later, earlier],
+    } as unknown as CrowdfundingHistoryRepositoryStorage;
+    const stubTemporal = new CrowdfundingTemporalRepo({
+      crowdfundingRepo: new CrowdfundingRepo({
+        crowdfundingRepository: mockCrowdfundingRepo as unknown as CrowdfundingRepositoryStorage,
+        crowdfundingOfferingsRepository: {} as any,
+        crowdfundingReportsRepository: {} as any,
+      }),
+      crowdfundingHistoryRepository: stubHistoryRepo,
+      changeLogRepository: mockChangeLogRepo as unknown as ChangeLogRepositoryStorage,
+    });
+
+    const at = await stubTemporal.getCrowdfundingAtTime(cik, fileNumber, new Date(instant));
+    expect(at?.name).toBe("Later Snapshot");
+    expect(at?.status).toBe("termination");
+
+    // Reverse the adversarial order — the result must not change.
+    const stubHistoryRepoReversed = {
+      query: async () => [earlier, later],
+    } as unknown as CrowdfundingHistoryRepositoryStorage;
+    const stubTemporalReversed = new CrowdfundingTemporalRepo({
+      crowdfundingRepo: new CrowdfundingRepo({
+        crowdfundingRepository: mockCrowdfundingRepo as unknown as CrowdfundingRepositoryStorage,
+        crowdfundingOfferingsRepository: {} as any,
+        crowdfundingReportsRepository: {} as any,
+      }),
+      crowdfundingHistoryRepository: stubHistoryRepoReversed,
+      changeLogRepository: mockChangeLogRepo as unknown as ChangeLogRepositoryStorage,
+    });
+    const atReversed = await stubTemporalReversed.getCrowdfundingAtTime(
+      cik,
+      fileNumber,
+      new Date(instant)
+    );
+    expect(atReversed?.name).toBe("Later Snapshot");
+    expect(atReversed?.status).toBe("termination");
+  });
+
   test("should retrieve crowdfunding entity at specific time", async () => {
     const initial: Crowdfunding = {
       cik: 12345,
