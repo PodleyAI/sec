@@ -247,10 +247,9 @@ export async function processForm1K({
   // out-of-order writes (unknown "" dates apply as-is).
   const existing = await regARepo.getOffering(cik, file_number);
   const isStale =
-    filing_date !== "" &&
     existing?.as_of != null &&
     existing.as_of !== "" &&
-    filing_date < existing.as_of;
+    (filing_date === "" || filing_date < existing.as_of);
 
   if (!isStale) {
     const offering: RegAOffering = {
