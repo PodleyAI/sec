@@ -356,5 +356,55 @@ describe("Form_1_A storage test", () => {
       });
       expect(history?.price_per_security).toBe(0);
     });
+
+    // Regression guard: an undated filing must not clobber a dated RegA
+    // mutable row. Filers occasionally submit 1-A variants with no SGML
+    // header date. The mutable row stays anchored at the prior `as_of`;
+    // the per-accession history row still records the undated replay.
+    it("undated stale replay does not regress a dated RegA mutable row", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const form1A = await Form_1_A.parse("1-A", xmlContent);
+      const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+      const fileNumber = "024-stale-und";
+
+      await processForm1A({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-1a-und-newer",
+        filing_date: "2026-05-01",
+        primary_doc: xmlFiles[0],
+        form1A,
+      });
+
+      const seeded = await regARepo.getOffering(cik, fileNumber);
+      expect(seeded).toBeDefined();
+      expect(seeded?.as_of).toBe("2026-05-01");
+
+      // Undated replay (filer error). Any dated row must win.
+      await processForm1A({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-1a-und-replay",
+        filing_date: "",
+        primary_doc: xmlFiles[0],
+        form1A,
+      });
+
+      const after = await regARepo.getOffering(cik, fileNumber);
+      expect(after?.as_of).toBe("2026-05-01");
+      expect(after?.tier).toBe(seeded!.tier);
+      expect(after?.status).toBe(seeded!.status);
+      expect(after?.issuer_name).toBe(seeded!.issuer_name);
+
+      // Undated filing still produces a per-accession history row.
+      const replayHistory = await regARepo.getOfferingHistory(
+        cik,
+        fileNumber,
+        "test-1a-und-replay"
+      );
+      expect(replayHistory).toBeDefined();
+    });
   });
 });
