@@ -480,6 +480,64 @@ describe("Form_C storage test", () => {
       expect(after?.filing_date).toBe("2026-05-01");
     });
 
+    // Regression guard: a stale replay with a blank `nameOfIssuer` must
+    // inherit the existing row's name in the history snapshot rather than
+    // writing an empty string. The mutable row also stays unchanged
+    // (skipMutableUpdate suppresses the write entirely on stale replays).
+    it("stale replay with empty nameOfIssuer inherits existing row's name in history snapshot", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-c");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+      const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
+      const formC = await Form_C.parse("C", xmlContent);
+      const cik = parseInt(formC.headerData.filerInfo.filer.filerCredentials.filerCik);
+      const fileNumber = "020-stale-name";
+
+      const seededName = formC.formData.issuerInformation.issuerInfo.nameOfIssuer;
+
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-name-newer",
+        filing_date: "2026-05-01",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      // Mutate the parsed form to simulate a sparser older filing that
+      // dropped `nameOfIssuer`.
+      const issuerInfoRecord = formC.formData.issuerInformation.issuerInfo as Record<
+        string,
+        unknown
+      >;
+      issuerInfoRecord.nameOfIssuer = "";
+
+      await processFormC({
+        cik,
+        file_number: fileNumber,
+        accession_number: "test-name-replay",
+        filing_date: "2026-04-01",
+        primary_doc: xmlFiles[0],
+        formC,
+      });
+
+      const { CrowdfundingTemporalRepo } = await import(
+        "../../../storage/portal/CrowdfundingTemporalRepo"
+      );
+      const temporalRepo = new CrowdfundingTemporalRepo();
+      const history = await temporalRepo.getCrowdfundingHistory(cik, fileNumber);
+
+      const replaySnapshot = history.find(
+        (h) =>
+          h.valid_to !== null && h.valid_to === h.valid_from && h.filing_date === "2026-04-01"
+      );
+      expect(replaySnapshot).toBeDefined();
+      expect(replaySnapshot?.name).toBe(seededName);
+
+      // Mutable row stays unchanged.
+      const mutable = await crowdfundingRepo.getCrowdfunding(cik, fileNumber);
+      expect(mutable?.name).toBe(seededName);
+    });
+
     // Regression guard: `currentEmployees` is schema-typed
     // DECIMAL_TYPE7_2_NONNEGATIVE. The string-decimal migration moved
     // the parse-time `minimum: 0` invariant into storage. A malformed
