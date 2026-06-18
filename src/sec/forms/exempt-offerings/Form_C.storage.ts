@@ -459,7 +459,7 @@ export async function processFormC({
     cik,
     file_number,
     filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
-    name: issuer.nameOfIssuer,
+    name: issuer.nameOfIssuer || existing?.name || issuer.nameOfIssuer,
     legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
     state_jurisdiction:
       issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
