@@ -26,14 +26,6 @@ export function createStorage<
   schema: Schema,
   primaryKeyNames: PrimaryKeyNames,
   indexes?: readonly (keyof Entity | readonly (keyof Entity)[])[],
-  // TODO(libs-upgrade): upstream `@workglow/storage` is gaining a
-  // `uniqueIndexes` parameter on BaseTabularStorage and emitting
-  // `CREATE UNIQUE INDEX IF NOT EXISTS` in the SQLite / Postgres DDL.
-  // Until that lands, the extra columns we forward here are silently
-  // dropped by the constructors (they only declare positional params up to
-  // `tabularMigrations`) and uniqueness is NOT enforced at the storage
-  // level. Resolver concurrency is still serialised per-process by
-  // AsyncMutex; multi-process safety arrives with the upstream change.
   uniqueIndexes?: readonly (readonly (keyof Entity)[])[]
 ): ITabularStorage<Schema, PrimaryKeyNames, Entity> {
   const dbType = globalServiceRegistry.get(SEC_DB_TYPE);

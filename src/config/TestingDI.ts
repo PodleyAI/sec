@@ -613,11 +613,6 @@ export function resetDependencyInjectionsForTesting() {
     S1_CLASSIFICATION_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(S1ClassificationSchema, S1ClassificationPrimaryKeyNames)
   );
-  // TODO(libs-upgrade): match the DefaultDI wiring — once
-  // `@workglow/storage` accepts `uniqueIndexes`, the in-memory backend
-  // will enforce the same UNIQUE constraints under tests as production.
-  // The positional 6th argument is forwarded ahead of that landing and
-  // is silently ignored by the current constructor signature.
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
     new (InMemoryTabularStorage as any)(
