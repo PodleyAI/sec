@@ -613,20 +613,48 @@ export function resetDependencyInjectionsForTesting() {
     S1_CLASSIFICATION_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(S1ClassificationSchema, S1ClassificationPrimaryKeyNames)
   );
+  // TODO(libs-upgrade): match the DefaultDI wiring — once
+  // `@workglow/storage` accepts `uniqueIndexes`, the in-memory backend
+  // will enforce the same UNIQUE constraints under tests as production.
+  // The positional 6th argument is forwarded ahead of that landing and
+  // is silently ignored by the current constructor signature.
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalPersonSchema, CanonicalPersonPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "normalized_last"],
-    ])
+    new (InMemoryTabularStorage as any)(
+      CanonicalPersonSchema,
+      CanonicalPersonPrimaryKeyNames,
+      [["resolver_version", "normalized_last"]],
+      undefined,
+      undefined,
+      undefined,
+      [
+        ["resolver_version", "cik"],
+        [
+          "resolver_version",
+          "normalized_first",
+          "normalized_middle",
+          "normalized_last",
+          "normalized_suffix",
+          "source_filing_issuer_cik",
+        ],
+      ]
+    )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalCompanySchema, CanonicalCompanyPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "crd_number"],
-      ["resolver_version", "normalized_name"],
-    ])
+    new (InMemoryTabularStorage as any)(
+      CanonicalCompanySchema,
+      CanonicalCompanyPrimaryKeyNames,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        ["resolver_version", "cik"],
+        ["resolver_version", "crd_number"],
+        ["resolver_version", "normalized_name"],
+      ]
+    )
   );
   globalServiceRegistry.registerInstance(
     PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,

@@ -16,7 +16,9 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
  * rows for the same logical person; `resolver_version` disambiguates. The
  * `current_canonical_person` view filters to the active resolver slot.
  *
- * Resolver natural keys (enforced as UNIQUE constraints in DDL):
+ * Resolver natural keys (uniqueness enforced via `uniqueIndexes` wiring in
+ * createStorage / DefaultDI, mirroring the lookup tuples used by
+ * PersonResolver.personKey):
  *   - (resolver_version, cik) — when the observation carried a CIK
  *   - (resolver_version, normalized_first, normalized_middle, normalized_last,
  *      normalized_suffix, source_filing_issuer_cik) — name-keyed fallback

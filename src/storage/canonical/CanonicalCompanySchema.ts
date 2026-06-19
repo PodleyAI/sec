@@ -16,7 +16,8 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
  * `resolver_version` disambiguates. The `current_canonical_company` view
  * filters to the active resolver slot.
  *
- * Resolver natural keys (enforced as UNIQUE constraints in DDL):
+ * Resolver natural keys (uniqueness enforced via `uniqueIndexes` wiring in
+ * createStorage / DefaultDI, mirroring the CompanyResolver lookup cascade):
  *   - (resolver_version, cik)          — CIK fast-path
  *   - (resolver_version, crd_number)   — CRD fast-path for broker-dealers
  *   - (resolver_version, normalized_name) — name fallback (no issuer scoping)

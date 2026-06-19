@@ -678,20 +678,48 @@ export const DefaultDI = () => {
     S1_CLASSIFICATION_REPOSITORY_TOKEN,
     createStorage("s1_classification", S1ClassificationSchema, S1ClassificationPrimaryKeyNames)
   );
+  // TODO(libs-upgrade): the `uniqueIndexes` argument below requires the
+  // upstream `@workglow/storage` change adding a `uniqueIndexes`
+  // constructor param on BaseTabularStorage + UNIQUE-emitting DDL on the
+  // SQLite/Postgres backends. Until that lands, the values are forwarded
+  // through `createStorage` but silently dropped by the storage
+  // constructors; resolver concurrency is still serialised per-process by
+  // PersonResolver/CompanyResolver's AsyncMutex. A separate `sec`
+  // invocation can still race — see PersonResolver.race.test.ts /
+  // CompanyResolver.race.test.ts for the regression test.
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
-    createStorage("canonical_person", CanonicalPersonSchema, CanonicalPersonPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "normalized_last"],
-    ])
+    createStorage(
+      "canonical_person",
+      CanonicalPersonSchema,
+      CanonicalPersonPrimaryKeyNames,
+      [["resolver_version", "normalized_last"]],
+      [
+        ["resolver_version", "cik"],
+        [
+          "resolver_version",
+          "normalized_first",
+          "normalized_middle",
+          "normalized_last",
+          "normalized_suffix",
+          "source_filing_issuer_cik",
+        ],
+      ]
+    )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    createStorage("canonical_company", CanonicalCompanySchema, CanonicalCompanyPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "crd_number"],
-      ["resolver_version", "normalized_name"],
-    ])
+    createStorage(
+      "canonical_company",
+      CanonicalCompanySchema,
+      CanonicalCompanyPrimaryKeyNames,
+      [],
+      [
+        ["resolver_version", "cik"],
+        ["resolver_version", "crd_number"],
+        ["resolver_version", "normalized_name"],
+      ]
+    )
   );
   globalServiceRegistry.registerInstance(
     PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
