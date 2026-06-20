@@ -10,6 +10,7 @@ import type { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPer
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import type { CanonicalPerson } from "../storage/canonical/CanonicalPersonSchema";
 import { AsyncMutex } from "../util/AsyncMutex";
+import { isUniqueConstraintError } from "./isUniqueConstraintError";
 
 interface PersonResolverOptions {
   canonicalPersonRepo: CanonicalPersonRepo;
@@ -44,7 +45,7 @@ function personKey(obs: PersonObservation, resolverVersion: string): string {
  * key_kind, key_value) used to race — both observed no canonical row, both
  * minted a fresh UUID, both inserted, yielding two distinct canonical ids
  * for what should have been the same person. We now serialise the
- * find-or-create critical section per key with a process-wide `AsyncMutex`,
+ * find-or-create critical section per key with an `AsyncMutex`,
  * kept alive for as long as any caller still holds or is queued behind it
  * via a simple refcount. Once the count drops to zero the entry is
  * removed from the map so the map stays bounded for long-running
@@ -56,12 +57,16 @@ function personKey(obs: PersonObservation, resolverVersion: string): string {
  * even when one races an alias rewrite that happens between the create
  * and the alias lookup.
  *
- * Multi-process callers (workers, separate `sec` invocations) still need
- * a backend-level UNIQUE constraint to be race-free — single-process
- * mutexes are not visible to other processes.
+ * The mutex map is instance-scoped: intra-instance contention is
+ * serialised via per-key mutexes; multi-instance / multi-process
+ * contention is collapsed at the storage layer via UNIQUE constraints on
+ * (resolver_version, cik). Every production call site constructs one
+ * resolver and reuses it for the duration of its work (a filing
+ * extraction, a CLI batch resolve), so intra-instance serialisation
+ * covers all observations sharing a scope.
  */
 export class PersonResolver {
-  private static readonly _keyMutexes = new Map<
+  private readonly _keyMutexes = new Map<
     string,
     { mutex: AsyncMutex; refs: number }
   >();
@@ -70,10 +75,10 @@ export class PersonResolver {
 
   async resolve(obs: PersonObservation): Promise<string> {
     const key = personKey(obs, this.opts.activeResolverVersion);
-    let entry = PersonResolver._keyMutexes.get(key);
+    let entry = this._keyMutexes.get(key);
     if (entry === undefined) {
       entry = { mutex: new AsyncMutex(), refs: 0 };
-      PersonResolver._keyMutexes.set(key, entry);
+      this._keyMutexes.set(key, entry);
     }
     entry.refs += 1;
 
@@ -120,8 +125,33 @@ export class PersonResolver {
               obs.cik === null ? obs.source_filing_issuer_cik : null,
             created_at: new Date().toISOString(),
           };
-          await this.opts.canonicalPersonRepo.create(fresh);
-          candidateId = freshId;
+          try {
+            await this.opts.canonicalPersonRepo.create(fresh);
+            candidateId = freshId;
+          } catch (err) {
+            // A concurrent writer in a different process / resolver
+            // instance won the UNIQUE constraint race. Re-query so we
+            // converge on the winner's canonical id instead of failing.
+            if (!isUniqueConstraintError(err)) throw err;
+            let winner: CanonicalPerson | undefined;
+            if (obs.cik !== null && obs.cik !== undefined) {
+              winner = await this.opts.canonicalPersonRepo.findByResolverAndCik(
+                this.opts.activeResolverVersion,
+                obs.cik
+              );
+            } else {
+              winner = await this.opts.canonicalPersonRepo.findByResolverAndName(
+                this.opts.activeResolverVersion,
+                obs.normalized_first,
+                obs.normalized_middle,
+                obs.normalized_last,
+                obs.normalized_suffix,
+                obs.source_filing_issuer_cik
+              );
+            }
+            if (winner === undefined) throw err;
+            candidateId = winner.canonical_person_id;
+          }
         }
         // Resolve the alias INSIDE the mutex so a concurrent caller that
         // queues behind us cannot observe the freshly-minted candidate
@@ -135,9 +165,9 @@ export class PersonResolver {
       if (entry.refs === 0) {
         // Same identity check guards against a race where another caller
         // recreated the entry after we decremented but before this line.
-        const current = PersonResolver._keyMutexes.get(key);
+        const current = this._keyMutexes.get(key);
         if (current === entry) {
-          PersonResolver._keyMutexes.delete(key);
+          this._keyMutexes.delete(key);
         }
       }
     }

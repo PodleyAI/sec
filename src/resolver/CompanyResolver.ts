@@ -10,6 +10,7 @@ import type { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCo
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
 import type { CanonicalCompany } from "../storage/canonical/CanonicalCompanySchema";
 import { AsyncMutex } from "../util/AsyncMutex";
+import { isUniqueConstraintError } from "./isUniqueConstraintError";
 
 interface CompanyResolverOptions {
   canonicalCompanyRepo: CanonicalCompanyRepo;
@@ -45,11 +46,14 @@ function companyKey(
  * the queued caller observes both the canonical row and its alias
  * resolution, so concurrent resolves converge to the same final
  * canonical_company_id even when one races an alias rewrite that happens
- * between the create and the alias lookup. Multi-process callers still
- * need a backend UNIQUE constraint.
+ * between the create and the alias lookup. The mutex map is
+ * instance-scoped: intra-instance contention is serialised via per-key
+ * mutexes; multi-instance / multi-process contention is collapsed at the
+ * storage layer via UNIQUE constraints on (resolver_version, cik) and
+ * (resolver_version, crd_number).
  */
 export class CompanyResolver {
-  private static readonly _keyMutexes = new Map<
+  private readonly _keyMutexes = new Map<
     string,
     { mutex: AsyncMutex; refs: number }
   >();
@@ -63,10 +67,10 @@ export class CompanyResolver {
         `cannot resolve company observation ${obs.observation_id}: no CIK, CRD, or name`
       );
     }
-    let entry = CompanyResolver._keyMutexes.get(k.key);
+    let entry = this._keyMutexes.get(k.key);
     if (entry === undefined) {
       entry = { mutex: new AsyncMutex(), refs: 0 };
-      CompanyResolver._keyMutexes.set(k.key, entry);
+      this._keyMutexes.set(k.key, entry);
     }
     entry.refs += 1;
 
@@ -106,8 +110,29 @@ export class CompanyResolver {
             normalized_name: obs.normalized_name ?? null,
             created_at: new Date().toISOString(),
           };
-          await this.opts.canonicalCompanyRepo.create(fresh);
-          candidateId = freshId;
+          try {
+            await this.opts.canonicalCompanyRepo.create(fresh);
+            candidateId = freshId;
+          } catch (err) {
+            // A concurrent writer in a different process / resolver
+            // instance won the UNIQUE constraint race. Re-query so we
+            // converge on the winner's canonical id instead of failing.
+            if (!isUniqueConstraintError(err)) throw err;
+            let winner: CanonicalCompany | undefined;
+            if (k.kind === "cik" && obs.cik !== null && obs.cik !== undefined) {
+              winner = await this.opts.canonicalCompanyRepo.findByResolverAndCik(
+                this.opts.activeResolverVersion,
+                obs.cik
+              );
+            } else if (k.kind === "crd" && obs.crd_number) {
+              winner = await this.opts.canonicalCompanyRepo.findByResolverAndCrd(
+                this.opts.activeResolverVersion,
+                obs.crd_number
+              );
+            }
+            if (winner === undefined) throw err;
+            candidateId = winner.canonical_company_id;
+          }
         }
         // Resolve the alias INSIDE the mutex so a concurrent caller that
         // queues behind us cannot observe the freshly-minted candidate
@@ -119,9 +144,9 @@ export class CompanyResolver {
     } finally {
       entry.refs -= 1;
       if (entry.refs === 0) {
-        const current = CompanyResolver._keyMutexes.get(k.key);
+        const current = this._keyMutexes.get(k.key);
         if (current === entry) {
-          CompanyResolver._keyMutexes.delete(k.key);
+          this._keyMutexes.delete(k.key);
         }
       }
     }

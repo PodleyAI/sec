@@ -173,10 +173,13 @@ async function storageEnforcesCompanyUniqueness(): Promise<boolean> {
 }
 
 // Multi-process race: a separate `sec` invocation has its own
-// CompanyResolver._keyMutexes static, so its mutex map does NOT serialise
-// against ours. We model two processes here with TWO CompanyResolver
-// instances. The storage's UNIQUE index is then the only thing keeping
-// twin canonical rows from being minted.
+// CompanyResolver instance with its own instance-scoped `_keyMutexes`
+// map, so the in-process mutex does NOT serialise across instances. We
+// model that here with TWO CompanyResolver instances sharing the same
+// underlying repos. The storage's UNIQUE index is the real thing
+// keeping twin canonical rows from being minted, and the resolver's
+// UNIQUE-rejection retry path is what makes the loser converge on the
+// winner's canonical id instead of failing.
 describe("CompanyResolver multi-process race (storage-level UNIQUE constraint)", () => {
   beforeEach(async () => {
     // Fail loud if a future workglow regression silently drops UNIQUE
@@ -188,6 +191,29 @@ describe("CompanyResolver multi-process race (storage-level UNIQUE constraint)",
 
   it("twin resolver instances racing the same CIK still collapse to one canonical row", async () => {
     const setup = makeRepos();
+    // Count UNIQUE rejections at the storage layer so we can assert the
+    // constraint actually fired — proving the test exercises the
+    // storage backstop, not just an accidental id match.
+    let uniqueRejections = 0;
+    const originalPut = setup.canonStorage.put.bind(setup.canonStorage);
+    setup.canonStorage.put = async (value) => {
+      try {
+        return await originalPut(value);
+      } catch (err) {
+        if (
+          err !== null &&
+          typeof err === "object" &&
+          typeof (err as { message?: unknown }).message === "string" &&
+          ((err as { message: string }).message).startsWith(
+            "UNIQUE constraint failed"
+          )
+        ) {
+          uniqueRejections += 1;
+        }
+        throw err;
+      }
+    };
+
     const resolverA = new CompanyResolver({
       canonicalCompanyRepo: setup.canonRepo,
       canonicalCompanyAliasRepo: setup.aliasRepo,
@@ -208,6 +234,10 @@ describe("CompanyResolver multi-process race (storage-level UNIQUE constraint)",
     expect(new Set(results).size).toBe(1);
     const rows = await setup.canonStorage.getAll();
     expect(rows.length).toBe(1);
+    // At least one storage-level UNIQUE rejection must have fired —
+    // otherwise the two instances accidentally never raced and the test
+    // doesn't actually exercise the multi-process backstop.
+    expect(uniqueRejections).toBeGreaterThanOrEqual(1);
   });
 
   // No name-race counterpart: the (resolver_version, normalized_name) tuple

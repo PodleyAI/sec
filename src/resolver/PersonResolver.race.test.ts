@@ -187,13 +187,16 @@ async function storageEnforcesPersonUniqueness(): Promise<boolean> {
   }
 }
 
-// Multi-process race: a separate `sec` invocation gets its own copy of the
-// PersonResolver class, so its `_keyMutexes` static does NOT serialise
-// against ours. We simulate that here with TWO PersonResolver instances
-// sharing the same underlying repos AND patching the static map to a
-// per-instance Map so the in-process mutex no longer collapses concurrent
-// callers. The storage's UNIQUE index is then the only thing keeping
-// twin canonical rows from being minted.
+// Multi-process race: a separate `sec` invocation gets its own
+// PersonResolver instance, so its instance-scoped `_keyMutexes` does NOT
+// serialise against ours. We model that here with TWO PersonResolver
+// instances sharing the same underlying repos: each gets its own mutex
+// map by construction, so the in-process mutex no longer collapses
+// concurrent callers across the two instances. The storage's UNIQUE
+// index is then the real thing keeping twin canonical rows from being
+// minted, and PersonResolver.resolve()'s UNIQUE-rejection retry path is
+// what makes the loser converge on the winner's canonical id instead of
+// failing.
 describe("PersonResolver multi-process race (storage-level UNIQUE constraint)", () => {
   beforeEach(async () => {
     // Fail loud if a future workglow regression silently drops UNIQUE
@@ -205,6 +208,29 @@ describe("PersonResolver multi-process race (storage-level UNIQUE constraint)", 
 
   it("twin resolver instances racing the same CIK still collapse to one canonical row", async () => {
     const setup = makeRepos();
+    // Count UNIQUE rejections at the storage layer so we can assert the
+    // constraint actually fired — proving the test exercises the
+    // storage backstop, not just an accidental id match.
+    let uniqueRejections = 0;
+    const originalPut = setup.canonStorage.put.bind(setup.canonStorage);
+    setup.canonStorage.put = async (value) => {
+      try {
+        return await originalPut(value);
+      } catch (err) {
+        if (
+          err !== null &&
+          typeof err === "object" &&
+          typeof (err as { message?: unknown }).message === "string" &&
+          ((err as { message: string }).message).startsWith(
+            "UNIQUE constraint failed"
+          )
+        ) {
+          uniqueRejections += 1;
+        }
+        throw err;
+      }
+    };
+
     const resolverA = new PersonResolver({
       canonicalPersonRepo: setup.canonRepo,
       canonicalPersonAliasRepo: setup.aliasRepo,
@@ -215,12 +241,6 @@ describe("PersonResolver multi-process race (storage-level UNIQUE constraint)", 
       canonicalPersonAliasRepo: setup.aliasRepo,
       activeResolverVersion: "1.0.0",
     });
-    // Force each resolver instance to use its own mutex map so the
-    // static class-level serialisation does not mask the storage race.
-    // The cast is intentional — we are deliberately violating the
-    // static-on-class invariant to model two processes.
-    (resolverA as unknown as { _ownMutexes?: Map<string, unknown> })._ownMutexes = new Map();
-    (resolverB as unknown as { _ownMutexes?: Map<string, unknown> })._ownMutexes = new Map();
 
     const fanout = 50;
     const results = await Promise.all(
@@ -232,6 +252,10 @@ describe("PersonResolver multi-process race (storage-level UNIQUE constraint)", 
     expect(new Set(results).size).toBe(1);
     const rows = await setup.canonStorage.getAll();
     expect(rows.length).toBe(1);
+    // At least one storage-level UNIQUE rejection must have fired —
+    // otherwise the two instances accidentally never raced and the test
+    // doesn't actually exercise the multi-process backstop.
+    expect(uniqueRejections).toBeGreaterThanOrEqual(1);
   });
 
   // No name-race counterpart: the (resolver_version, normalized_name, ...)
