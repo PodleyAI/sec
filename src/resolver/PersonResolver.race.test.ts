@@ -26,10 +26,17 @@ function makeRepos() {
     typeof CanonicalPersonSchema,
     typeof CanonicalPersonPrimaryKeyNames,
     CanonicalPerson
-  >(CanonicalPersonSchema, CanonicalPersonPrimaryKeyNames, [
-    ["resolver_version", "cik"],
-    ["resolver_version", "normalized_last"],
-  ]);
+  >(
+    CanonicalPersonSchema,
+    CanonicalPersonPrimaryKeyNames,
+    [["resolver_version", "normalized_last"]],
+    undefined,
+    undefined,
+    undefined,
+    // Mirrors DefaultDI: only CIK is enforced unique. Name tuples are not
+    // unique because two distinct CIKs can legitimately share a name.
+    [["resolver_version", "cik"]]
+  );
   const aliasStorage = new InMemoryTabularStorage<
     typeof CanonicalPersonAliasSchema,
     typeof CanonicalPersonAliasPrimaryKeyNames,
@@ -141,4 +148,95 @@ describe("PersonResolver concurrent resolution", () => {
     const rows = await setup.canonStorage.getAll();
     expect(rows.length).toBe(2);
   });
+});
+
+/**
+ * Probes whether the underlying storage actually enforces uniqueness on the
+ * canonical resolver key tuples. The single-process AsyncMutex protects
+ * the in-process case; a parallel `sec` invocation can only be made safe by
+ * a storage-level UNIQUE constraint. Until the upstream `@workglow/storage`
+ * `uniqueIndexes` change lands, the in-memory backend lets duplicates
+ * through and the multi-process tests below are skipped.
+ */
+async function storageEnforcesPersonUniqueness(): Promise<boolean> {
+  const setup = makeRepos();
+  const a = {
+    canonical_person_id: "11111111-1111-1111-1111-111111111111",
+    resolver_version: "1.0.0",
+    display_first: null,
+    display_middle: null,
+    display_last: null,
+    display_suffix: null,
+    cik: 4242,
+    normalized_first: null,
+    normalized_middle: null,
+    normalized_last: null,
+    normalized_suffix: null,
+    source_filing_issuer_cik: null,
+    created_at: "2026-05-22T00:00:00.000Z",
+  } as const;
+  await setup.canonStorage.put(a);
+  try {
+    await setup.canonStorage.put({
+      ...a,
+      canonical_person_id: "22222222-2222-2222-2222-222222222222",
+    });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+// Multi-process race: a separate `sec` invocation gets its own copy of the
+// PersonResolver class, so its `_keyMutexes` static does NOT serialise
+// against ours. We simulate that here with TWO PersonResolver instances
+// sharing the same underlying repos AND patching the static map to a
+// per-instance Map so the in-process mutex no longer collapses concurrent
+// callers. The storage's UNIQUE index is then the only thing keeping
+// twin canonical rows from being minted.
+describe("PersonResolver multi-process race (storage-level UNIQUE constraint)", () => {
+  beforeEach(async () => {
+    // Fail loud if a future workglow regression silently drops UNIQUE
+    // enforcement — the rest of the suite assumes the storage layer is the
+    // backstop when the in-process AsyncMutex is bypassed.
+    const enforces = await storageEnforcesPersonUniqueness();
+    expect(enforces).toBe(true);
+  });
+
+  it("twin resolver instances racing the same CIK still collapse to one canonical row", async () => {
+    const setup = makeRepos();
+    const resolverA = new PersonResolver({
+      canonicalPersonRepo: setup.canonRepo,
+      canonicalPersonAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "1.0.0",
+    });
+    const resolverB = new PersonResolver({
+      canonicalPersonRepo: setup.canonRepo,
+      canonicalPersonAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "1.0.0",
+    });
+    // Force each resolver instance to use its own mutex map so the
+    // static class-level serialisation does not mask the storage race.
+    // The cast is intentional — we are deliberately violating the
+    // static-on-class invariant to model two processes.
+    (resolverA as unknown as { _ownMutexes?: Map<string, unknown> })._ownMutexes = new Map();
+    (resolverB as unknown as { _ownMutexes?: Map<string, unknown> })._ownMutexes = new Map();
+
+    const fanout = 50;
+    const results = await Promise.all(
+      Array.from({ length: fanout }, (_, i) => {
+        const r = i % 2 === 0 ? resolverA : resolverB;
+        return r.resolve(obs({ cik: 5555, observation_id: i + 1 }));
+      })
+    );
+    expect(new Set(results).size).toBe(1);
+    const rows = await setup.canonStorage.getAll();
+    expect(rows.length).toBe(1);
+  });
+
+  // No name-race counterpart: the (resolver_version, normalized_name, ...)
+  // tuple is intentionally NOT a storage-level UNIQUE constraint because
+  // two distinct CIKs can legitimately share a name. The in-process
+  // AsyncMutex is the only collapse mechanism for name-only resolution;
+  // multi-process callers can race and mint duplicate rows.
 });

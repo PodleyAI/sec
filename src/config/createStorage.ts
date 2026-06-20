@@ -25,7 +25,8 @@ export function createStorage<
   table: string,
   schema: Schema,
   primaryKeyNames: PrimaryKeyNames,
-  indexes?: readonly (keyof Entity | readonly (keyof Entity)[])[]
+  indexes?: readonly (keyof Entity | readonly (keyof Entity)[])[],
+  uniqueIndexes?: readonly (readonly (keyof Entity)[])[]
 ): ITabularStorage<Schema, PrimaryKeyNames, Entity> {
   const dbType = globalServiceRegistry.get(SEC_DB_TYPE);
   let storage: ITabularStorage<Schema, PrimaryKeyNames, Entity>;
@@ -35,10 +36,22 @@ export function createStorage<
       table,
       schema,
       primaryKeyNames,
-      indexes as any
+      indexes,
+      undefined, // clientProvidedKeys (default)
+      undefined, // tabularMigrations (default)
+      uniqueIndexes
     );
   } else {
-    storage = new SqliteTabularStorage(getDb(), table, schema, primaryKeyNames, indexes as any);
+    storage = new SqliteTabularStorage(
+      getDb(),
+      table,
+      schema,
+      primaryKeyNames,
+      indexes,
+      undefined, // clientProvidedKeys (default)
+      undefined, // tabularMigrations (default)
+      uniqueIndexes
+    );
   }
 
   if (isDryRun()) {

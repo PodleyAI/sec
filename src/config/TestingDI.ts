@@ -615,18 +615,30 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalPersonSchema, CanonicalPersonPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "normalized_last"],
-    ])
+    new InMemoryTabularStorage(
+      CanonicalPersonSchema,
+      CanonicalPersonPrimaryKeyNames,
+      [["resolver_version", "normalized_last"]],
+      undefined,
+      undefined,
+      undefined,
+      [["resolver_version", "cik"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CanonicalCompanySchema, CanonicalCompanyPrimaryKeyNames, [
-      ["resolver_version", "cik"],
-      ["resolver_version", "crd_number"],
-      ["resolver_version", "normalized_name"],
-    ])
+    new InMemoryTabularStorage(
+      CanonicalCompanySchema,
+      CanonicalCompanyPrimaryKeyNames,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        ["resolver_version", "cik"],
+        ["resolver_version", "crd_number"],
+      ]
+    )
   );
   globalServiceRegistry.registerInstance(
     PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
