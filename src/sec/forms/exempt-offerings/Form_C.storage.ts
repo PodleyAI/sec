@@ -17,7 +17,7 @@ import type {
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import type { FormC } from "./Form_C.schema";
 import { parseCikSafely } from "../../../util/parseCik";
-import { numScalar } from "../_valueHelpers";
+import { numScalar, strScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
@@ -459,7 +459,7 @@ export async function processFormC({
     cik,
     file_number,
     filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
-    name: issuer.nameOfIssuer || existing?.name || issuer.nameOfIssuer,
+    name: strScalar(issuer.nameOfIssuer) || existing?.name || "",
     legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
     state_jurisdiction:
       issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",

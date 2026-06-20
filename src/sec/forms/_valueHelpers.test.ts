@@ -96,6 +96,18 @@ describe("strWrapped", () => {
   it("unwraps and trims a non-empty .value", () => {
     expect(strWrapped({ value: "  hi  " })).toBe("hi");
   });
+  it("returns null for a wrapper with no .value", () => {
+    expect(strWrapped({})).toBe(null);
+    expect(strWrapped({ value: undefined })).toBe(null);
+  });
+  // Bare-string call sites: the Ownership Document passes untagged leaves
+  // (e.g. documentType, issuerName) straight through, so the wrapped form
+  // must trim-or-null a plain string rather than null it out.
+  it("accepts and trims a bare string", () => {
+    expect(strWrapped("  hi  ")).toBe("hi");
+    expect(strWrapped("")).toBe(null);
+    expect(strWrapped("   ")).toBe(null);
+  });
 });
 
 describe("numWrapped", () => {
@@ -122,5 +134,15 @@ describe("numWrapped", () => {
   });
   it("returns null for .value === '1e309'", () => {
     expect(numWrapped({ value: "1e309" })).toBe(null);
+  });
+  it("returns null for a wrapper with no .value", () => {
+    expect(numWrapped({})).toBe(null);
+    expect(numWrapped({ value: undefined })).toBe(null);
+  });
+  // A bare string at a wrapped numeric call site is a schema mismatch and
+  // is refused rather than coerced.
+  it("refuses a bare string", () => {
+    expect(numWrapped("42")).toBe(null);
+    expect(numWrapped("")).toBe(null);
   });
 });

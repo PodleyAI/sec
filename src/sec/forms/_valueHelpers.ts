@@ -16,11 +16,10 @@
  *
  * Wrapped variants (`*Wrapped`) handle the `{ value: "..." }` shape that
  * the XML parser emits when an element has both attributes and a text
- * value — the scalar form is used directly on the unwrapped string.
- *
- * NOTE: This file is an inline copy of the helpers introduced by PR #118
- * (`src/sec/forms/insider-trading/_valueHelpers.ts`). When #118 merges
- * the duplicate should be removed in favour of a single shared module.
+ * value. A wrapped call site may also receive a bare string when the same
+ * extractor reads a mix of tagged and untagged leaves (e.g. the Ownership
+ * Document, whose `documentType`/`issuerName` are bare while `securityTitle`
+ * is wrapped), so `strWrapped` accepts both shapes.
  */
 
 export function strScalar(v: unknown): string | null {
@@ -37,10 +36,14 @@ export function numScalar(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function strWrapped(v: { value?: unknown } | undefined | null): string | null {
+export function strWrapped(v: { value?: unknown } | string | undefined | null): string | null {
+  if (typeof v === "string") return strScalar(v);
   return strScalar(v?.value);
 }
 
-export function numWrapped(v: { value?: unknown } | undefined | null): number | null {
+export function numWrapped(v: { value?: unknown } | string | undefined | null): number | null {
+  // A bare string at a wrapped call site is a schema mismatch; refuse it
+  // rather than guessing (matches the original insider-trading helper).
+  if (typeof v === "string") return null;
   return numScalar(v?.value);
 }

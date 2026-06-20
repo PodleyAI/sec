@@ -35,7 +35,7 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
 import { parseCikSafely } from "../../../util/parseCik";
 import type { OwnershipDocument } from "./OwnershipDocument.schema";
-import { numWrapped as num, strWrapped as str } from "./_valueHelpers";
+import { numWrapped as num, strWrapped as str } from "../_valueHelpers";
 
 // EDGAR ownership flags appear as "1"/"0" (X0609) or "true"/"false" (X0607).
 function toBool(raw: string | undefined): boolean {
