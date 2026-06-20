@@ -31,22 +31,11 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { formToExtractorId } from "../../../storage/versioning/extractorIds";
 import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import type { Form144 } from "./Form_144.schema";
+import { numScalar as num, strScalar as str } from "../_valueHelpers";
 
 type AddressShape = NonNullable<
   NonNullable<Form144["formData"]>["issuerInfo"]
 >["issuerAddress"];
-
-function str(s: string | undefined | null): string | null {
-  if (s === undefined || s === null) return null;
-  const t = String(s).trim();
-  return t === "" ? null : t;
-}
-
-function num(n: number | string | undefined | null): number | null {
-  if (n === undefined || n === null || n === "") return null;
-  const v = typeof n === "number" ? n : Number(n);
-  return Number.isFinite(v) ? v : null;
-}
 
 // EDGAR Y/N flags.
 function toBoolYN(raw: string | undefined): boolean {
@@ -113,7 +102,9 @@ export async function processForm144({
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
-  const extractor_version = "1.0.0";
+  // 1.1.0: num() now treats whitespace-only numeric elements as null instead
+  // of fabricating 0 via Number("   "). Bumped to force production re-extract.
+  const extractor_version = "1.1.0";
   const extractor_id = formToExtractorId(form) ?? "144";
 
   const formData = doc.formData ?? {};
