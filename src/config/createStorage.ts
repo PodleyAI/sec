@@ -31,26 +31,26 @@ export function createStorage<
   const dbType = globalServiceRegistry.get(SEC_DB_TYPE);
   let storage: ITabularStorage<Schema, PrimaryKeyNames, Entity>;
   if (dbType === "postgres") {
-    storage = new (PostgresTabularStorage as any)(
+    storage = new PostgresTabularStorage(
       getPgPool(),
       table,
       schema,
       primaryKeyNames,
-      indexes as any,
+      indexes,
       undefined, // clientProvidedKeys (default)
       undefined, // tabularMigrations (default)
-      uniqueIndexes as any
+      uniqueIndexes
     );
   } else {
-    storage = new (SqliteTabularStorage as any)(
+    storage = new SqliteTabularStorage(
       getDb(),
       table,
       schema,
       primaryKeyNames,
-      indexes as any,
+      indexes,
       undefined, // clientProvidedKeys (default)
       undefined, // tabularMigrations (default)
-      uniqueIndexes as any
+      uniqueIndexes
     );
   }
 

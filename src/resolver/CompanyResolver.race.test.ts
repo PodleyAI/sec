@@ -26,11 +26,20 @@ function makeRepos() {
     typeof CanonicalCompanySchema,
     typeof CanonicalCompanyPrimaryKeyNames,
     CanonicalCompany
-  >(CanonicalCompanySchema, CanonicalCompanyPrimaryKeyNames, [
-    ["resolver_version", "cik"],
-    ["resolver_version", "crd_number"],
-    ["resolver_version", "normalized_name"],
-  ]);
+  >(
+    CanonicalCompanySchema,
+    CanonicalCompanyPrimaryKeyNames,
+    [],
+    undefined,
+    undefined,
+    undefined,
+    // Mirrors DefaultDI: CIK + CRD are enforced unique. normalized_name is
+    // NOT unique because two distinct CIKs can legitimately share a name.
+    [
+      ["resolver_version", "cik"],
+      ["resolver_version", "crd_number"],
+    ]
+  );
   const aliasStorage = new InMemoryTabularStorage<
     typeof CanonicalCompanyAliasSchema,
     typeof CanonicalCompanyAliasPrimaryKeyNames,
@@ -169,75 +178,40 @@ async function storageEnforcesCompanyUniqueness(): Promise<boolean> {
 // instances. The storage's UNIQUE index is then the only thing keeping
 // twin canonical rows from being minted.
 describe("CompanyResolver multi-process race (storage-level UNIQUE constraint)", () => {
-  let enforcesUnique = false;
-
   beforeEach(async () => {
-    enforcesUnique = await storageEnforcesCompanyUniqueness();
+    // Fail loud if a future workglow regression silently drops UNIQUE
+    // enforcement — the rest of the suite assumes the storage layer is the
+    // backstop when the in-process AsyncMutex is bypassed.
+    const enforces = await storageEnforcesCompanyUniqueness();
+    expect(enforces).toBe(true);
   });
 
-  it.skipIf(!enforcesUnique)(
-    "twin resolver instances racing the same CIK still collapse to one canonical row",
-    async () => {
-      const setup = makeRepos();
-      const resolverA = new CompanyResolver({
-        canonicalCompanyRepo: setup.canonRepo,
-        canonicalCompanyAliasRepo: setup.aliasRepo,
-        activeResolverVersion: "1.0.0",
-      });
-      const resolverB = new CompanyResolver({
-        canonicalCompanyRepo: setup.canonRepo,
-        canonicalCompanyAliasRepo: setup.aliasRepo,
-        activeResolverVersion: "1.0.0",
-      });
-      const fanout = 50;
-      const results = await Promise.all(
-        Array.from({ length: fanout }, (_, i) => {
-          const r = i % 2 === 0 ? resolverA : resolverB;
-          return r.resolve(obs({ cik: 5555, observation_id: i + 1 }));
-        })
-      );
-      expect(new Set(results).size).toBe(1);
-      const rows = await setup.canonStorage.getAll();
-      expect(rows.length).toBe(1);
-    }
-  );
-
-  it.skipIf(!enforcesUnique)(
-    "twin resolver instances racing the same normalized name collapse to one canonical row",
-    async () => {
-      const setup = makeRepos();
-      const resolverA = new CompanyResolver({
-        canonicalCompanyRepo: setup.canonRepo,
-        canonicalCompanyAliasRepo: setup.aliasRepo,
-        activeResolverVersion: "1.0.0",
-      });
-      const resolverB = new CompanyResolver({
-        canonicalCompanyRepo: setup.canonRepo,
-        canonicalCompanyAliasRepo: setup.aliasRepo,
-        activeResolverVersion: "1.0.0",
-      });
-      const claim = obs({ normalized_name: "acme widgets inc" });
-      const fanout = 50;
-      const results = await Promise.all(
-        Array.from({ length: fanout }, (_, i) => {
-          const r = i % 2 === 0 ? resolverA : resolverB;
-          return r.resolve({ ...claim, observation_id: i + 1 });
-        })
-      );
-      expect(new Set(results).size).toBe(1);
-      const rows = await setup.canonStorage.getAll();
-      expect(rows.length).toBe(1);
-    }
-  );
-
-  it("storage-level uniqueness detection is wired (fails closed when upstream lands)", () => {
-    // Sentinel: leaves a breadcrumb so a green run on a new libs version
-    // is obvious in the test output even though the skipIf'd tests are
-    // the real regression guard.
-    if (!enforcesUnique) {
-      expect(enforcesUnique).toBe(false);
-    } else {
-      expect(enforcesUnique).toBe(true);
-    }
+  it("twin resolver instances racing the same CIK still collapse to one canonical row", async () => {
+    const setup = makeRepos();
+    const resolverA = new CompanyResolver({
+      canonicalCompanyRepo: setup.canonRepo,
+      canonicalCompanyAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "1.0.0",
+    });
+    const resolverB = new CompanyResolver({
+      canonicalCompanyRepo: setup.canonRepo,
+      canonicalCompanyAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "1.0.0",
+    });
+    const fanout = 50;
+    const results = await Promise.all(
+      Array.from({ length: fanout }, (_, i) => {
+        const r = i % 2 === 0 ? resolverA : resolverB;
+        return r.resolve(obs({ cik: 5555, observation_id: i + 1 }));
+      })
+    );
+    expect(new Set(results).size).toBe(1);
+    const rows = await setup.canonStorage.getAll();
+    expect(rows.length).toBe(1);
   });
+
+  // No name-race counterpart: the (resolver_version, normalized_name) tuple
+  // is intentionally NOT a storage-level UNIQUE constraint because two
+  // distinct CIKs can legitimately share a normalized name. The in-process
+  // AsyncMutex is the only collapse mechanism for name-only resolution.
 });

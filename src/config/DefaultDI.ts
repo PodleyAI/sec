@@ -685,17 +685,13 @@ export const DefaultDI = () => {
       CanonicalPersonSchema,
       CanonicalPersonPrimaryKeyNames,
       [["resolver_version", "normalized_last"]],
-      [
-        ["resolver_version", "cik"],
-        [
-          "resolver_version",
-          "normalized_first",
-          "normalized_middle",
-          "normalized_last",
-          "normalized_suffix",
-          "source_filing_issuer_cik",
-        ],
-      ]
+      // Only CIK is a stable identity discriminator. Name tuples are NOT
+      // unique: two distinct CIKs can legitimately share a normalized name
+      // (e.g., parent/subsidiary, two registrations under the same legal
+      // name). The resolver still uses name as a fallback lookup when no
+      // CIK is present, but the storage layer cannot enforce uniqueness on
+      // it without rejecting legitimate distinct entities.
+      [["resolver_version", "cik"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -705,10 +701,12 @@ export const DefaultDI = () => {
       CanonicalCompanySchema,
       CanonicalCompanyPrimaryKeyNames,
       [],
+      // CIK + CRD are stable identity discriminators. normalized_name is
+      // NOT unique — see the CANONICAL_PERSON_REPOSITORY_TOKEN wiring for
+      // the same rationale.
       [
         ["resolver_version", "cik"],
         ["resolver_version", "crd_number"],
-        ["resolver_version", "normalized_name"],
       ]
     )
   );

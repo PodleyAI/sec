@@ -615,29 +615,19 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_REPOSITORY_TOKEN,
-    new (InMemoryTabularStorage as any)(
+    new InMemoryTabularStorage(
       CanonicalPersonSchema,
       CanonicalPersonPrimaryKeyNames,
       [["resolver_version", "normalized_last"]],
       undefined,
       undefined,
       undefined,
-      [
-        ["resolver_version", "cik"],
-        [
-          "resolver_version",
-          "normalized_first",
-          "normalized_middle",
-          "normalized_last",
-          "normalized_suffix",
-          "source_filing_issuer_cik",
-        ],
-      ]
+      [["resolver_version", "cik"]]
     )
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_COMPANY_REPOSITORY_TOKEN,
-    new (InMemoryTabularStorage as any)(
+    new InMemoryTabularStorage(
       CanonicalCompanySchema,
       CanonicalCompanyPrimaryKeyNames,
       [],
@@ -647,7 +637,6 @@ export function resetDependencyInjectionsForTesting() {
       [
         ["resolver_version", "cik"],
         ["resolver_version", "crd_number"],
-        ["resolver_version", "normalized_name"],
       ]
     )
   );
