@@ -6,6 +6,7 @@
 
 import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
 import { AsyncMutex } from "../util/AsyncMutex";
+import { isUniqueConstraintError } from "./isUniqueConstraintError";
 
 /**
  * The single source of truth for a family natural key (sponsor or underwriter).
@@ -50,12 +51,17 @@ interface FamilyResolverOptions {
  * returns the pre-alias id. Mirrors the {@link PersonResolver} /
  * {@link CompanyResolver} fix.
  *
- * Multi-process callers (workers, separate `sec` invocations) still need a
- * backend-level UNIQUE constraint to be race-free — single-process mutexes
- * are not visible to other processes.
+ * The mutex map is instance-scoped (well, static-instance-scoped here): it
+ * collapses intra-process contention on a shared key. Multi-process /
+ * multi-instance contention is collapsed at the storage layer via the UNIQUE
+ * index on (resolver_version, normalized_name) wired in DefaultDI /
+ * TestingDI. When a concurrent writer in another process wins the UNIQUE
+ * race, the loser's `createFamily` rejects with a UNIQUE constraint error;
+ * the catch below re-queries `findIdByNormalizedName` and converges on the
+ * winner's id rather than failing the resolve.
  */
 export class FamilyResolver {
-  private static readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
+  private readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
 
   constructor(private opts: FamilyResolverOptions) {}
 
@@ -66,10 +72,10 @@ export class FamilyResolver {
     }
     const key = `${this.opts.activeResolverVersion}|${this.opts.kind}-family|${normalized}`;
 
-    let entry = FamilyResolver._keyMutexes.get(key);
+    let entry = this._keyMutexes.get(key);
     if (entry === undefined) {
       entry = { mutex: new AsyncMutex(), refs: 0 };
-      FamilyResolver._keyMutexes.set(key, entry);
+      this._keyMutexes.set(key, entry);
     }
     entry.refs += 1;
 
@@ -77,13 +83,28 @@ export class FamilyResolver {
     try {
       resolvedId = await entry.mutex.lock(async () => {
         const existing = await this.opts.findIdByNormalizedName(normalized);
-        const candidateId = existing ?? (await this.opts.createFamily(commonName, normalized));
+        let candidateId: string;
+        if (existing !== undefined) {
+          candidateId = existing;
+        } else {
+          try {
+            candidateId = await this.opts.createFamily(commonName, normalized);
+          } catch (err) {
+            // A concurrent writer in a different process / resolver instance
+            // won the UNIQUE constraint race. Re-query so we converge on the
+            // winner's canonical family id instead of failing.
+            if (!isUniqueConstraintError(err)) throw err;
+            const winner = await this.opts.findIdByNormalizedName(normalized);
+            if (winner === undefined) throw err;
+            candidateId = winner;
+          }
+        }
         return await this.opts.resolveAlias(candidateId);
       });
     } finally {
       entry.refs -= 1;
-      if (entry.refs === 0 && FamilyResolver._keyMutexes.get(key) === entry) {
-        FamilyResolver._keyMutexes.delete(key);
+      if (entry.refs === 0 && this._keyMutexes.get(key) === entry) {
+        this._keyMutexes.delete(key);
       }
     }
 

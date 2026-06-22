@@ -68,7 +68,10 @@ describe("processFormS1", () => {
             is_selling_stockholder: false,
             footnote: null,
             confidence: 0.8,
-            source_span: "ACME Fund 1,000,000 12.5%",
+            // The segmenter renders the HTML table as Markdown, so the
+            // verifyRow gate needs a substring that matches the rendered
+            // table row literally.
+            source_span: "| ACME Fund | 1,000,000 | 12.5% |",
           },
         ],
       },

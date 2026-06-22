@@ -699,6 +699,12 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(
       CanonicalSponsorFamilySchema,
       CanonicalSponsorFamilyPrimaryKeyNames,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      // (resolver_version, normalized_name) is the family natural key — see
+      // DefaultDI for the multi-process race rationale.
       [["resolver_version", "normalized_name"]]
     )
   );
@@ -745,6 +751,12 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(
       CanonicalUnderwriterFamilySchema,
       CanonicalUnderwriterFamilyPrimaryKeyNames,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      // (resolver_version, normalized_name) is the family natural key — see
+      // DefaultDI for the multi-process race rationale.
       [["resolver_version", "normalized_name"]]
     )
   );

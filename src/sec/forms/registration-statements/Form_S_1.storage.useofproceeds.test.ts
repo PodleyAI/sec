@@ -11,7 +11,9 @@ import { processFormS1 } from "./Form_S_1.storage";
 import { UseOfProceedsRepo } from "../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
-const HTML = "<h1>USE OF PROCEEDS</h1><p>We intend to use net proceeds as follows.</p>";
+const HTML =
+  "<h1>USE OF PROCEEDS</h1>" +
+  "<p>We intend to use net proceeds to repay debt and for working capital.</p>";
 const NULL_HEADER = { sic: null, sicDescription: null, cik: null, companyName: null, filingDate: null };
 
 let cleanup: (() => void) | undefined;
@@ -34,8 +36,8 @@ describe("processFormS1 use of proceeds", () => {
     const { unregister } = registerFakeStructuredProvider([
       {
         line_items: [
-          { purpose: "repay debt", amount: 20000000, percent: 40, note: null, confidence: 0.8, source_span: "repay" },
-          { purpose: "working capital", amount: null, percent: null, note: "remainder", confidence: 0.6, source_span: "wc" },
+          { purpose: "repay debt", amount: 20000000, percent: 40, note: null, confidence: 0.8, source_span: "repay debt" },
+          { purpose: "working capital", amount: null, percent: null, note: "remainder", confidence: 0.6, source_span: "working capital" },
         ],
       },
     ]);
