@@ -5,12 +5,29 @@
  */
 
 import { Form } from "../Form";
+import type { Form8K } from "./Form_8_K.schema";
+import { Form8KSubmissionSchema, type Form8KSubmission } from "./Form_8_K.schema";
 
 export class Form_8_K extends Form {
   static readonly name = "Form 8-K";
   static readonly description =
     "A report of unscheduled material events or corporate changes which could be of importance to the shareholders or to the SEC. Examples include acquisition, bankruptcy, resignation of directors, or a change in the fiscal year.";
   static readonly forms = ["8-K", "8-K/A"] as const;
+
+  static async parse(form: (typeof Form_8_K.forms)[number], xml: string): Promise<Form8K> {
+    if (!Form_8_K.forms.includes(form as (typeof Form_8_K.forms)[number])) {
+      throw new Error(`Invalid form: ${form}`);
+    }
+
+    const hasEdgarSubmission = /\bedgarSubmission\b/i.test(xml.slice(0, 500));
+    if (hasEdgarSubmission) {
+      const parser = Form_8_K.getParser(Form8KSubmissionSchema);
+      const json = parser.parse(xml) as Form8KSubmission;
+      return json.edgarSubmission;
+    }
+
+    return {};
+  }
 }
 
 export const Form_8_K_ITEMS: Record<string, string> = {

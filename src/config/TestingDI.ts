@@ -234,6 +234,11 @@ import {
   XbrlFactRowSchema,
 } from "../storage/xbrl/XbrlFactSchema";
 import {
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
+  Form8KEventPrimaryKeyNames,
+  Form8KEventSchema,
+} from "../storage/form-8k-event/Form8KEventSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -780,5 +785,15 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     XBRL_FACT_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(XbrlFactRowSchema, XbrlFactPrimaryKeyNames, [["cik"], ["concept"]])
+  );
+
+  // Form 8-K Events
+  globalServiceRegistry.registerInstance(
+    FORM_8K_EVENT_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(Form8KEventSchema, Form8KEventPrimaryKeyNames, [
+      ["cik", "filing_date"],
+      ["item_code"],
+      ["accession_number"],
+    ])
   );
 }

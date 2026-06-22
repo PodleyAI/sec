@@ -59,6 +59,7 @@ describe("sec version CLI", () => {
         "4",
         "424",
         "5",
+        "8-K",
         "C",
         "CFPORTAL",
         "D",

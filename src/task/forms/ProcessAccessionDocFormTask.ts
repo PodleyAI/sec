@@ -24,6 +24,7 @@ import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipD
 import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage";
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
+import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -150,6 +151,8 @@ export class ProcessAccessionDocFormTask extends Task<
     let fileName = input.fileName;
     let filing_date: string | null | undefined;
     let file_number: string | null | undefined;
+    let items: string | null | undefined;
+    let report_date: string | null | undefined;
 
     if (!cik || !form || !fileName) {
       const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -160,6 +163,8 @@ export class ProcessAccessionDocFormTask extends Task<
       form = filing.form ?? undefined;
       filing_date = filing.filing_date;
       file_number = filing.file_number;
+      items = filing.items;
+      report_date = filing.report_date;
       fileName = fileName ?? filing.primary_doc;
     } else {
       // Callers like FetchAndStoreFormsTask pass cik/form/fileName but not the
@@ -172,6 +177,8 @@ export class ProcessAccessionDocFormTask extends Task<
       const filing = filings?.[0];
       filing_date = filing?.filing_date;
       file_number = filing?.file_number;
+      items = filing?.items;
+      report_date = filing?.report_date;
     }
 
     if (!form) {
@@ -345,6 +352,18 @@ export class ProcessAccessionDocFormTask extends Task<
         case "424B5":
         case "424B7":
           await processForm424({ ...storageArgs, form: form!, form424: parsed });
+          break;
+        case "8-K":
+        case "8-K/A":
+          await processForm8K({
+            cik: cik!,
+            accession_number: accessionNumber,
+            filing_date: filing_date ?? "",
+            form: form!,
+            items,
+            report_date,
+            form8K: parsed,
+          });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);

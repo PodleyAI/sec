@@ -22,6 +22,7 @@ describe("componentRegistry", () => {
       "144",
       "S-1",
       "424",
+      "8-K",
     ]) {
       expect(isRegisteredComponent("extractor", id)).toBe(true);
     }
@@ -40,7 +41,7 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 12 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(16);
+    // 13 extractors + 4 resolvers (person, company, sponsor-family, underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(17);
   });
 });
