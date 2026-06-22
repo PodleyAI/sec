@@ -109,7 +109,8 @@ describe("processFormS1 offering terms", () => {
         exchange: "NASDAQ",
         par_value: null,
         confidence: 0.9,
-        source_span: "each unit",
+        // Substring of the offering-terms section text (verifyRow gate).
+        source_span: "5,000,000 shares",
         tickers: [
           { ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true },
           { ticker: "ACQ", exchange: "NASDAQ", security_type: "Class A", is_primary: false },

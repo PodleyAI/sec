@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { normalizeForSpanMatch, spanAppearsIn } from "./verifySourceSpan";
+import { MAX_SPAN_CHARS, normalizeForSpanMatch, spanAppearsIn } from "./verifySourceSpan";
 
 describe("normalizeForSpanMatch", () => {
   it("returns empty string for null / undefined", () => {
@@ -68,5 +68,19 @@ describe("spanAppearsIn", () => {
   it("returns true when straight quotes in span match curly quotes in haystack", () => {
     const haystackQ = "Our sponsor, “Acme Sponsor LLC”, was formed in 2024.";
     expect(spanAppearsIn(haystackQ, '"Acme Sponsor LLC"')).toBe(true);
+  });
+
+  it("rejects spans longer than MAX_SPAN_CHARS even when verbatim-present", () => {
+    // A 1001-char span that appears verbatim in the haystack still fails the
+    // gate — under prompt-injection a model coerced into echoing the whole
+    // filer-controlled body would pass span verification trivially otherwise.
+    const long = "X".repeat(MAX_SPAN_CHARS + 1);
+    expect(long.length).toBe(1001);
+    const haystackLong = `before... ${long} ...after`;
+    expect(spanAppearsIn(haystackLong, long)).toBe(false);
+    // Right at the cap still passes (the cap is inclusive of MAX_SPAN_CHARS).
+    const atCap = "X".repeat(MAX_SPAN_CHARS);
+    const haystackAtCap = `before... ${atCap} ...after`;
+    expect(spanAppearsIn(haystackAtCap, atCap)).toBe(true);
   });
 });
