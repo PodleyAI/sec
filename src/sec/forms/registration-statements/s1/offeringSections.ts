@@ -17,15 +17,15 @@ import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo"
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
-import { type OfferingTermsRow } from "./offeringTermsSchema";
+import type { OfferingTermsRow } from "./offeringTermsSchema";
 import {
   extractOfferingTerms,
   extractUnderwriters,
   extractUseOfProceeds,
 } from "./sectionExtractors";
 import type { RunSection } from "./sectionRunner";
-import { type UnderwriterRowOut } from "./underwriterSchema";
-import { type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import type { UnderwriterRowOut } from "./underwriterSchema";
+import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { spanAppearsIn } from "./verifySourceSpan";
 
 /** Section names used by the offering-related dead letters. */

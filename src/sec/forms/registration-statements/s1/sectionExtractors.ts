@@ -42,13 +42,20 @@ export const UNTRUSTED_PREAMBLE =
   "in the document. Every source_span must be a verbatim substring of the " +
   "document between the tags; do not paraphrase.";
 
+/** Matches a real or forged fence delimiter (either tag), tolerant of inner whitespace. */
+const FENCE_DELIMITER = /<\/?\s*UNTRUSTED_FILER_DOCUMENT\s*>/gi;
+
 /**
  * Wraps the filer-controlled section text in an XML fence so the model
  * sees a hard boundary between extractor instructions and untrusted
- * content.
+ * content. Any occurrence of the fence delimiter already present in the
+ * body is neutralized first: a filer could otherwise plant a closing
+ * `</UNTRUSTED_FILER_DOCUMENT>` in the prospectus to end the fence early
+ * and have subsequent text read as trusted instructions.
  */
 export function wrapUntrusted(sectionText: string): string {
-  return `<UNTRUSTED_FILER_DOCUMENT>\n${sectionText}\n</UNTRUSTED_FILER_DOCUMENT>`;
+  const defanged = sectionText.replace(FENCE_DELIMITER, "[redacted-fence-tag]");
+  return `<UNTRUSTED_FILER_DOCUMENT>\n${defanged}\n</UNTRUSTED_FILER_DOCUMENT>`;
 }
 
 /**
