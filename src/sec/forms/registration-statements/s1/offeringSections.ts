@@ -17,12 +17,16 @@ import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo"
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
+import { type OfferingTermsRow } from "./offeringTermsSchema";
 import {
   extractOfferingTerms,
   extractUnderwriters,
   extractUseOfProceeds,
 } from "./sectionExtractors";
 import type { RunSection } from "./sectionRunner";
+import { type UnderwriterRowOut } from "./underwriterSchema";
+import { type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { spanAppearsIn } from "./verifySourceSpan";
 
 /** Section names used by the offering-related dead letters. */
 export const OFFERING_SECTION_NAMES = [
@@ -109,12 +113,19 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   const offeringText = [byName.get(S1_SECTIONS.THE_OFFERING), byName.get(S1_SECTIONS.UNDERWRITING)]
     .filter((t): t is string => typeof t === "string")
     .join("\n\n");
-  await runSection({
+  await runSection<OfferingTermsRow>({
     sectionName: "offering-terms",
     text: offeringText,
     notFoundDetail: "no The Offering / Underwriting section text",
     emptyDetail: "no offering terms returned",
     lowConfidenceDetail: "below confidence floor",
+    // Prompt-injection backstop: refuse to persist a model-emitted offering-terms
+    // row whose source_span is not a verbatim substring of the section text.
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident offering-terms rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident offering-terms rows had source_span not present in section text",
     extract: async (text) => {
       const terms = await extractOfferingTerms(text, model);
       return terms === null ? [] : [terms];
@@ -185,12 +196,19 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   });
 
   // --- Underwriters (Underwriting section; all filings) ---
-  await runSection({
+  await runSection<UnderwriterRowOut>({
     sectionName: "underwriters",
     text: byName.get(S1_SECTIONS.UNDERWRITING),
     emptyDetail: "no underwriters returned",
     lowConfidenceDetail: "all rows below confidence floor",
     invalidWriteDetail: "no underwriter rows had usable legal and common names",
+    // Prompt-injection backstop: refuse to persist any underwriter row whose
+    // source_span is not a verbatim substring of the Underwriting section text.
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident underwriter rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident underwriter rows had source_span not present in section text",
     extract: (text) => extractUnderwriters(text, model),
     persist: async (rows) => {
       let wrote = 0;
@@ -241,11 +259,18 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   });
 
   // --- Use of proceeds ---
-  await runSection({
+  await runSection<UseOfProceedsLineRow>({
     sectionName: "use-of-proceeds",
     text: byName.get(S1_SECTIONS.USE_OF_PROCEEDS),
     emptyDetail: "no line items returned",
     lowConfidenceDetail: "all rows below confidence floor",
+    // Prompt-injection backstop: refuse to persist any use-of-proceeds row whose
+    // source_span is not a verbatim substring of the Use of Proceeds section text.
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident use-of-proceeds rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident use-of-proceeds rows had source_span not present in section text",
     extract: (text) => extractUseOfProceeds(text, model),
     persist: async (rows) => {
       const now = new Date().toISOString();

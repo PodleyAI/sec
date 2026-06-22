@@ -31,6 +31,11 @@ import {
   extractRelatedParty,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
+import type {
+  BeneficialOwnerRow,
+  ManagementPersonRow,
+  RelatedPartyRow,
+} from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
 import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
@@ -41,7 +46,13 @@ const EXTRACTOR_ID = "S-1";
 // v1.1.0: SPAC sponsor extraction now requires the LLM-returned source_span to
 // appear verbatim (after light normalization) in the section text before a
 // canonical sponsor row is persisted.
-const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
+// v1.2.0: prompt-injection hardening — UNTRUSTED_FILER_DOCUMENT XML wrap +
+// preamble in every section prompt, plus verifyRow source_span verification
+// on management / beneficial-ownership / related-party / offering-terms /
+// underwriters / use-of-proceeds (previously only SPAC sponsors). The wrap
+// changes the prompt the model sees, so confidence calibration drifts
+// downstream; treat as a fresh dev cycle.
+const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
 
 export interface ProcessFormS1Args {
   readonly cik: number;
@@ -195,11 +206,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // emits non-empty section bodies), so the two checks coincide in practice.
 
   // --- Management ---
-  await runSection({
+  await runSection<ManagementPersonRow>({
     sectionName: S1_SECTIONS.MANAGEMENT,
     text: byName.get(S1_SECTIONS.MANAGEMENT),
     emptyDetail: "no people returned",
     lowConfidenceDetail: "all rows below confidence floor",
+    // Prompt-injection backstop: a filer can plant adversarial prose in the
+    // section body; this gate refuses to persist any row whose source_span
+    // is not a verbatim substring of the text we actually sent the model.
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident management rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident management rows had source_span not present in section text",
     extract: (text) => extractManagement(text, model),
     persist: async (rows) => {
       for (const r of rows) {
@@ -232,11 +251,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   });
 
   // --- Beneficial ownership ---
-  await runSection({
+  await runSection<BeneficialOwnerRow>({
     sectionName: S1_SECTIONS.BENEFICIAL_OWNERSHIP,
     text: byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP),
     emptyDetail: "no owners returned",
     lowConfidenceDetail: "all rows below confidence floor",
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident ownership rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident ownership rows had source_span not present in section text",
     extract: (text) => extractBeneficialOwnership(text, model),
     persist: async (rows) => {
       for (const r of rows) {
@@ -294,11 +318,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   });
 
   // --- Related-party transactions ---
-  await runSection({
+  await runSection<RelatedPartyRow>({
     sectionName: S1_SECTIONS.RELATED_PARTY,
     text: byName.get(S1_SECTIONS.RELATED_PARTY),
     emptyDetail: "no parties returned",
     lowConfidenceDetail: "all rows below confidence floor",
+    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident related-party rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident related-party rows had source_span not present in section text",
     extract: (text) => extractRelatedParty(text, model),
     persist: async (rows) => {
       let txIndex = 0;

@@ -21,7 +21,11 @@ import { makeRunSection } from "./s1/sectionRunner";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "424";
-const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+// v1.1.0: shares the prompt-injection hardening rolled out on the S-1
+// offering sections — UNTRUSTED_FILER_DOCUMENT wrap + verifyRow source_span
+// verification on offering-terms / underwriters / use-of-proceeds. Prompt
+// shape change ⇒ confidence calibration drifts ⇒ fresh dev cycle.
+const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
 
 /**
  * The 424 variants that are full priced-IPO prospectuses (Rule 430A pricing

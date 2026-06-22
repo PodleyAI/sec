@@ -148,7 +148,8 @@ describe("processForm424", () => {
         exchange: "NASDAQ",
         par_value: null,
         confidence: 0.9,
-        source_span: "each unit",
+        // Substring of the offering-terms section text (verifyRow gate).
+        source_span: "30,000,000 units",
         tickers: [
           { ticker: "CCXII", exchange: "NASDAQ", security_type: "Units", is_primary: true },
         ],
