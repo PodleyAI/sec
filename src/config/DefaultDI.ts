@@ -788,6 +788,11 @@ export const DefaultDI = () => {
       "canonical_sponsor_family",
       CanonicalSponsorFamilySchema,
       CanonicalSponsorFamilyPrimaryKeyNames,
+      [],
+      // (resolver_version, normalized_name) is the family natural key — must be
+      // enforced at the storage layer so two processes racing to mint the same
+      // family converge on one row. Without this, the family-tier identity
+      // tables silently forked under multi-process load.
       [["resolver_version", "normalized_name"]]
     )
   );
@@ -837,6 +842,11 @@ export const DefaultDI = () => {
       "canonical_underwriter_family",
       CanonicalUnderwriterFamilySchema,
       CanonicalUnderwriterFamilyPrimaryKeyNames,
+      [],
+      // (resolver_version, normalized_name) is the family natural key — must be
+      // enforced at the storage layer so two processes racing to mint the same
+      // family converge on one row. Without this, the family-tier identity
+      // tables silently forked under multi-process load.
       [["resolver_version", "normalized_name"]]
     )
   );
