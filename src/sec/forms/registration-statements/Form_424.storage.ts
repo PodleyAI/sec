@@ -162,9 +162,10 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   // Consolidated SPAC report: record the IPO event for priced SPAC prospectuses.
   if (isSpac) {
     const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
-    const tickers = (await new IssuerTickerRepo().history(cik))
-      .filter((t) => t.accession_number === accession_number && t.is_primary)
-      .map((t) => t.ticker);
+    const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
+      (t) => t.accession_number === accession_number
+    );
+    const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
     await new SpacReportWriter().recordIpo({
       cik,
       accession_number,
