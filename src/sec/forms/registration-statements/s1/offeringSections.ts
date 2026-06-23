@@ -26,7 +26,7 @@ import {
 import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
-import { spanAppearsIn } from "./verifySourceSpan";
+import { boundSourceSpan, verifyRowSpan } from "./verifySourceSpan";
 
 /** Section names used by the offering-related dead letters. */
 export const OFFERING_SECTION_NAMES = [
@@ -121,7 +121,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: "below confidence floor",
     // Prompt-injection backstop: refuse to persist a model-emitted offering-terms
     // row whose source_span is not a verbatim substring of the section text.
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident offering-terms rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -150,7 +150,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           gross_proceeds: terms.gross_proceeds,
           net_proceeds: terms.net_proceeds,
           confidence: terms.confidence,
-          source_span: terms.source_span,
+          source_span: boundSourceSpan(terms.source_span),
           created_at: now,
         });
       } else {
@@ -170,7 +170,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           ticker: terms.tickers.find((t) => t.is_primary)?.ticker ?? null,
           par_value: terms.par_value,
           confidence: terms.confidence,
-          source_span: terms.source_span,
+          source_span: boundSourceSpan(terms.source_span),
           created_at: now,
         });
       }
@@ -187,7 +187,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           security_type: t.security_type,
           is_primary: t.is_primary,
           confidence: terms.confidence,
-          source_span: terms.source_span,
+          source_span: boundSourceSpan(terms.source_span),
           created_at: now,
         });
       }
@@ -204,7 +204,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     invalidWriteDetail: "no underwriter rows had usable legal and common names",
     // Prompt-injection backstop: refuse to persist any underwriter row whose
     // source_span is not a verbatim substring of the Underwriting section text.
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -227,7 +227,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           kind: "company",
           observation_id,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           section_name: "underwriters",
           model_id,
           prompt_version: extractor_version,
@@ -266,7 +266,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: "all rows below confidence floor",
     // Prompt-injection backstop: refuse to persist any use-of-proceeds row whose
     // source_span is not a verbatim substring of the Use of Proceeds section text.
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -286,7 +286,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           percent: r.percent,
           note: r.note,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           created_at: now,
         });
       }

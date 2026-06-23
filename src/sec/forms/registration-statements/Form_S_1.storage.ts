@@ -25,7 +25,7 @@ import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
-import { spanAppearsIn } from "./s1/verifySourceSpan";
+import { boundSourceSpan, verifyRowSpan } from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
   extractManagement,
@@ -53,7 +53,12 @@ const EXTRACTOR_ID = "S-1";
 // underwriters / use-of-proceeds (previously only SPAC sponsors). The wrap
 // changes the prompt the model sees, so confidence calibration drifts
 // downstream; treat as a fresh dev cycle.
-const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
+// v1.3.0: deepened the injection seal — the fence tag now carries a per-call
+// random nonce, the section body is HTML-entity-decoded + NFKC-normalized +
+// zero-width-stripped before defang so obfuscated fence-tag lookalikes are
+// caught, and stored source_span columns are capped at the raw-byte level
+// to deny adversarial spans unbounded storage.
+const DEFAULT_EXTRACTOR_VERSION = "1.3.0";
 
 export interface ProcessFormS1Args {
   readonly cik: number;
@@ -228,7 +233,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // Prompt-injection backstop: a filer can plant adversarial prose in the
     // section body; this gate refuses to persist any row whose source_span
     // is not a verbatim substring of the text we actually sent the model.
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -253,7 +258,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           kind: "person",
           observation_id,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           section_name: S1_SECTIONS.MANAGEMENT,
           model_id,
           prompt_version: extractor_version,
@@ -270,7 +275,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     text: byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP),
     emptyDetail: "no owners returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -320,7 +325,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           kind: r.owner_kind,
           observation_id,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           section_name: S1_SECTIONS.BENEFICIAL_OWNERSHIP,
           model_id,
           prompt_version: extractor_version,
@@ -337,7 +342,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     text: byName.get(S1_SECTIONS.RELATED_PARTY),
     emptyDetail: "no parties returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -373,7 +378,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           kind: r.party_kind,
           observation_id,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           section_name: S1_SECTIONS.RELATED_PARTY,
           model_id,
           prompt_version: extractor_version,
@@ -438,7 +443,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // is absent), so an LLM can hallucinate company names from director bios;
     // this gate stops unverified rows from being written as fact-claims keyed
     // to the issuer CIK.
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -464,7 +469,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           kind: "company",
           observation_id,
           confidence: r.confidence,
-          source_span: r.source_span,
+          source_span: boundSourceSpan(r.source_span),
           section_name: "spac-sponsors",
           model_id,
           prompt_version: extractor_version,
