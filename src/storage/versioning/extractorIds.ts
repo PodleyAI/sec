@@ -80,6 +80,10 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "8-K/A": "8-K",
   DEFM14A: "merger-proxy",
   PREM14A: "merger-proxy",
+  DEFM14C: "merger-proxy",
+  PREM14C: "merger-proxy",
+  DEFR14A: "merger-proxy",
+  PRER14A: "merger-proxy",
 };
 
 export function formToExtractorId(form: string): ExtractorId | undefined {

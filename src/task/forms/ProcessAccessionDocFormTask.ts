@@ -360,6 +360,10 @@ export class ProcessAccessionDocFormTask extends Task<
           break;
         case "DEFM14A":
         case "PREM14A":
+        case "DEFM14C":
+        case "PREM14C":
+        case "DEFR14A":
+        case "PRER14A":
           await processMergerProxy({ ...storageArgs, form: form!, formMergerProxy: parsed });
           break;
         default:
