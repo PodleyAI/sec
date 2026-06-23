@@ -1,0 +1,95 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, expect, it } from "bun:test";
+import { makeRunSection, parseConfidenceFloor } from "./sectionRunner";
+import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+
+interface RecordedLetter {
+  section_name: string;
+  reason_code: string;
+}
+
+/** Minimal stub: runSection only calls `record` and `markResolved`. */
+function stubDeadLetters(): { repo: ExtractionDeadLetterRepo; letters: RecordedLetter[]; resolved: string[] } {
+  const letters: RecordedLetter[] = [];
+  const resolved: string[] = [];
+  const repo = {
+    record: async (args: { section_name: string; reason_code: string }) => {
+      letters.push({ section_name: args.section_name, reason_code: args.reason_code });
+    },
+    markResolved: async (_id: string, _acc: string, section: string) => {
+      resolved.push(section);
+    },
+  } as unknown as ExtractionDeadLetterRepo;
+  return { repo, letters, resolved };
+}
+
+describe("parseConfidenceFloor", () => {
+  it("returns the fallback for undefined, empty, or non-numeric input", () => {
+    expect(parseConfidenceFloor(undefined, 0.3)).toBe(0.3);
+    expect(parseConfidenceFloor("", 0.3)).toBe(0.3);
+    expect(parseConfidenceFloor("  ", 0.3)).toBe(0.3);
+    expect(parseConfidenceFloor("abc", 0.3)).toBe(0.3);
+  });
+  it("parses a numeric floor", () => {
+    expect(parseConfidenceFloor("0.8", 0)).toBe(0.8);
+    expect(parseConfidenceFloor("0", 0.5)).toBe(0);
+  });
+});
+
+describe("makeRunSection confidenceFloor", () => {
+  const baseRow = { confidence: 0.5, value: 1 };
+
+  it("dead-letters LOW_CONFIDENCE_ALL when rows fall below an explicit floor", async () => {
+    const { repo, letters } = stubDeadLetters();
+    let persisted = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      accession_number: "acc-1",
+      confidenceFloor: 0.8,
+    });
+    await runSection<typeof baseRow>({
+      sectionName: "merger",
+      text: "some text",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "all rows below confidence floor",
+      extract: async () => [baseRow],
+      persist: async () => {
+        persisted++;
+        return 1;
+      },
+    });
+    expect(persisted).toBe(0);
+    expect(letters).toEqual([{ section_name: "merger", reason_code: "LOW_CONFIDENCE_ALL" }]);
+  });
+
+  it("persists the same rows under the default floor (0)", async () => {
+    const { repo, resolved } = stubDeadLetters();
+    let persisted = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      accession_number: "acc-2",
+    });
+    await runSection<typeof baseRow>({
+      sectionName: "merger",
+      text: "some text",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "all rows below confidence floor",
+      extract: async () => [baseRow],
+      persist: async () => {
+        persisted++;
+        return 1;
+      },
+    });
+    expect(persisted).toBe(1);
+    expect(resolved).toEqual(["merger"]);
+  });
+});

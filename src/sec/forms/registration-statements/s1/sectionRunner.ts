@@ -6,10 +6,19 @@
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 
-const RAW_CONFIDENCE_FLOOR = Number(process.env.SEC_S1_CONFIDENCE_FLOOR ?? "0");
-// A non-numeric SEC_S1_CONFIDENCE_FLOOR would be NaN, and `confidence >= NaN` is
-// always false — silently dropping every row. Fall back to 0 (no floor).
-export const CONFIDENCE_FLOOR = Number.isFinite(RAW_CONFIDENCE_FLOOR) ? RAW_CONFIDENCE_FLOOR : 0;
+/**
+ * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
+ * (which `Number` would turn into `0` or `NaN`, silently dropping every row)
+ * falls back to `fallback`.
+ */
+export function parseConfidenceFloor(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** Shared default floor (S-1 / 424); merger-proxy overrides via makeRunSection. */
+export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDENCE_FLOOR, 0);
 
 export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly sectionName: string;
@@ -59,8 +68,10 @@ export function makeRunSection(opts: {
   readonly extractor_id: string;
   readonly extractor_version: string;
   readonly accession_number: string;
+  readonly confidenceFloor?: number;
 }): RunSection {
   const { deadLetters, extractor_id, extractor_version, accession_number } = opts;
+  const floor = opts.confidenceFloor ?? CONFIDENCE_FLOOR;
 
   return async function runSection<TRow extends { confidence: number }>(
     sargs: RunSectionArgs<TRow>
@@ -85,7 +96,7 @@ export function makeRunSection(opts: {
 
     try {
       const raw = await sargs.extract(sargs.text);
-      const confident = raw.filter((r) => r.confidence >= CONFIDENCE_FLOOR);
+      const confident = raw.filter((r) => r.confidence >= floor);
       const text = sargs.text;
       const verifyRow = sargs.verifyRow;
       let rows: TRow[];
