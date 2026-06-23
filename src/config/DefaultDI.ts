@@ -344,6 +344,11 @@ import {
   SpacHistoryPrimaryKeyNames,
   SpacHistorySchema,
 } from "../storage/spac/SpacHistorySchema";
+import {
+  SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
+  SpacMergerExtractionPrimaryKeyNames,
+  SpacMergerExtractionSchema,
+} from "../storage/spac/SpacMergerExtractionSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -664,6 +669,15 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     SPAC_HISTORY_REPOSITORY_TOKEN,
     createStorage("spac_history", SpacHistorySchema, SpacHistoryPrimaryKeyNames, [["cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
+    createStorage(
+      "spac_merger_extraction",
+      SpacMergerExtractionSchema,
+      SpacMergerExtractionPrimaryKeyNames,
+      [["cik"]]
+    )
   );
 
   // ----- Observation / Canonical / Resolver -----

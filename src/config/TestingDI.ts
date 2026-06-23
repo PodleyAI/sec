@@ -259,6 +259,11 @@ import {
   SpacHistorySchema,
 } from "../storage/spac/SpacHistorySchema";
 import {
+  SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
+  SpacMergerExtractionPrimaryKeyNames,
+  SpacMergerExtractionSchema,
+} from "../storage/spac/SpacMergerExtractionSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -492,6 +497,14 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     SPAC_HISTORY_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(SpacHistorySchema, SpacHistoryPrimaryKeyNames, [["cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      SpacMergerExtractionSchema,
+      SpacMergerExtractionPrimaryKeyNames,
+      [["cik"]]
+    )
   );
 
   // Initialize Crowdfunding repositories
