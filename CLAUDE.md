@@ -165,6 +165,25 @@ sec issuer deal <cik> [--format json]
 > operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
 > status doc's deferred cleanups).
 
+### SPAC consolidated report
+
+A CIK-keyed `spac` row consolidates the SPAC lifecycle for a quick report:
+status, three-era names/SIC/tickers (`spac_*` / `post_merger_*` / `current_*`),
+amounts (`ipo_proceeds`, `trust_amount`, `pipe_amount`, `total_redemption_amount`),
+and rolled-up key dates. It is **derived** from two append-only tables — `spac_deal`
+(one row per business-combination attempt) and `spac_event` (the dated timeline) —
+so replays are idempotent; an `as_of` guard protects filing-sourced scalar fields
+from out-of-order writes, and `spac_history` + `ChangeLog` version the row.
+
+Today only the IPO half is populated (S-1/DRS → `registration`, priced 424B1/424B4
+→ `ipo`); de-SPAC events (8-K items, S-4/proxy, redemptions, PIPE, de-registration)
+are defined-but-deferred slots.
+
+```bash
+sec spac report <cik> [--format json]   # consolidated report
+sec spac history <cik> [--format json]  # state-change history
+```
+
 ### Reg A / Reg CF / funding portals
 
 All 12 Form C submission types (including post-offering C-U / C-AR / C-TR),
