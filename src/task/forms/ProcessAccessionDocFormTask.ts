@@ -355,15 +355,7 @@ export class ProcessAccessionDocFormTask extends Task<
           break;
         case "8-K":
         case "8-K/A":
-          await processForm8K({
-            cik: cik!,
-            accession_number: accessionNumber,
-            filing_date: filing_date ?? "",
-            form: form!,
-            items,
-            report_date,
-            form8K: parsed,
-          });
+          await processForm8K({ ...storageArgs, form: form!, items, report_date, form8K: parsed });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);

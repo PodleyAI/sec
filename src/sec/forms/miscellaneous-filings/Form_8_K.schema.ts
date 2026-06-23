@@ -5,7 +5,7 @@
  */
 
 import { Type, Static } from "typebox";
-import { ENTITY_NAME_TYPE, SCHEMA_VERSION_TYPE, CIK_TYPE } from "../FormSchemaUtil";
+import { SCHEMA_VERSION_TYPE, CIK_TYPE } from "../FormSchemaUtil";
 
 export const SubTypeList = Type.Union([Type.Literal("8-K"), Type.Literal("8-K/A")], {
   description: "Submission Type Form",

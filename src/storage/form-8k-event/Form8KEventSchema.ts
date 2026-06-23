@@ -20,7 +20,7 @@ export const Form8KEventSchema = Type.Object({
     description: "Central Index Key (CIK) - unique identifier for entity",
   }),
   accession_number: Type.String({
-    maxLength: 20,
+    maxLength: 25,
     description: "SEC accession number - unique identifier for the filing",
   }),
   item_code: Type.String({

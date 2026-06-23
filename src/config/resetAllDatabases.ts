@@ -45,6 +45,7 @@ import {
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
 } from "../storage/canonical/CanonicalAliasSchemas";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
+import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
   CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
@@ -112,4 +113,5 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
 }

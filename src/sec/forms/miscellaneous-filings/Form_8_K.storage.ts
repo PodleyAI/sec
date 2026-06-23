@@ -5,7 +5,7 @@
  */
 
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
-import { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
+import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
 import type { Form8K } from "./Form_8_K.schema";
 import { Form_8_K_ITEMS } from "./Form_8_K";
 
@@ -49,18 +49,18 @@ export async function processForm8K({
   report_date,
   form8K,
 }: {
-  cik: number;
-  accession_number: string;
-  filing_date: string;
-  form: string;
-  items: string | undefined | null;
-  report_date: string | undefined | null;
-  form8K: Form8K;
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly form: string;
+  readonly items: string | undefined | null;
+  readonly report_date: string | undefined | null;
+  readonly form8K: Form8K;
 }): Promise<void> {
   const eventRepo = new Form8KEventRepo();
   const isAmendment = form === "8-K/A";
 
-  const effectiveReportDate = form8K.formData?.periodOfReport ?? report_date ?? null;
+  const effectiveReportDate = form8K.formData?.periodOfReport || report_date || null;
 
   const itemCodes = extractItemCodes(items, form8K);
 
