@@ -114,10 +114,19 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   const applied: SpacRowPatch = isStale ? {} : patch;
 
   // Filing-sourced scalar fields: take the applied patch value, else keep existing.
+  // When the patch is stale, it may still fill a null field but cannot overwrite a
+  // non-null existing value — preserving the most-informative data across replays.
   const pick = <K extends keyof SpacRowPatch>(key: K): Spac[K & keyof Spac] => {
-    const fromPatch = applied[key];
-    if (fromPatch !== undefined) return fromPatch as Spac[K & keyof Spac];
-    return (existing ? (existing as any)[key] : null) as Spac[K & keyof Spac];
+    const existingVal = (existing ? (existing as any)[key] : null) as Spac[K & keyof Spac];
+    const fromPatch = patch[key];
+    if (isStale) {
+      // Stale filing may fill a null slot but must not clobber a non-null value.
+      if (existingVal == null && fromPatch !== undefined) return fromPatch as Spac[K & keyof Spac];
+      return existingVal;
+    }
+    const fromApplied = applied[key];
+    if (fromApplied !== undefined) return fromApplied as Spac[K & keyof Spac];
+    return existingVal;
   };
 
   const spac_name = pick("spac_name");
