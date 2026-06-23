@@ -319,6 +319,11 @@ import {
   VersionEventPrimaryKeyNames,
   VersionEventSchema,
 } from "../storage/versioning/VersionEventSchema";
+import {
+  FORM_8K_EVENT_REPOSITORY_TOKEN,
+  Form8KEventPrimaryKeyNames,
+  Form8KEventSchema,
+} from "../storage/form-8k-event/Form8KEventSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -884,5 +889,15 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     XBRL_FACT_REPOSITORY_TOKEN,
     createStorage("xbrl_fact", XbrlFactRowSchema, XbrlFactPrimaryKeyNames, [["cik"], ["concept"]])
+  );
+
+  // ------------------------------ Form 8-K Events --------------------------------
+  globalServiceRegistry.registerInstance(
+    FORM_8K_EVENT_REPOSITORY_TOKEN,
+    createStorage("form_8k_events", Form8KEventSchema, Form8KEventPrimaryKeyNames, [
+      ["cik", "filing_date"],
+      ["item_code"],
+      ["accession_number"],
+    ])
   );
 };

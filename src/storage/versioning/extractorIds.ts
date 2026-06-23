@@ -17,6 +17,7 @@ export const EXTRACTOR_IDS = [
   "144",
   "S-1",
   "424",
+  "8-K",
 ] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
@@ -74,6 +75,8 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "424B4": "424",
   "424B5": "424",
   "424B7": "424",
+  "8-K": "8-K",
+  "8-K/A": "8-K",
 };
 
 export function formToExtractorId(form: string): ExtractorId | undefined {
