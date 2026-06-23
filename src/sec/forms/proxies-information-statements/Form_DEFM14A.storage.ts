@@ -22,7 +22,11 @@ import { makeRunSection } from "../registration-statements/s1/sectionRunner";
 import { spanAppearsIn } from "../registration-statements/s1/verifySourceSpan";
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";
 import type { MergerDealRow } from "../registration-statements/s1/mergerDealSchema";
-import { getMergerProxyModel, resolveModelId } from "../registration-statements/s1/mergerModel";
+import {
+  getMergerProxyModel,
+  getMergerProxyConfidenceFloor,
+  resolveModelId,
+} from "../registration-statements/s1/mergerModel";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 const EXTRACTOR_ID = "merger-proxy";
@@ -109,6 +113,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     extractor_id: EXTRACTOR_ID,
     extractor_version,
     accession_number,
+    confidenceFloor: getMergerProxyConfidenceFloor(),
   });
   let idx = 0;
 

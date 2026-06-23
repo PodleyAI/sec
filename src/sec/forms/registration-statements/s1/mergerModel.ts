@@ -7,6 +7,7 @@
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
 import { resolveModelId } from "./s1Model";
+import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
 export { resolveModelId };
 
@@ -28,4 +29,13 @@ export async function getMergerProxyModel(): Promise<ModelConfig> {
     );
   }
   return record as ModelConfig;
+}
+
+/**
+ * Confidence floor for merger-proxy extraction. `SEC_MERGER_PROXY_CONFIDENCE_FLOOR`
+ * overrides; when unset it falls back to the shared `CONFIDENCE_FLOOR`
+ * (`SEC_S1_CONFIDENCE_FLOOR`), so behavior is unchanged unless explicitly set.
+ */
+export function getMergerProxyConfidenceFloor(): number {
+  return parseConfidenceFloor(process.env.SEC_MERGER_PROXY_CONFIDENCE_FLOOR, CONFIDENCE_FLOOR);
 }
