@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { Spac, SPAC_REPOSITORY_TOKEN, SpacRepositoryStorage } from "./SpacSchema";
+import { Spac, SpacStatus, SPAC_REPOSITORY_TOKEN, SpacRepositoryStorage } from "./SpacSchema";
 import { SpacDeal, SPAC_DEAL_REPOSITORY_TOKEN, SpacDealRepositoryStorage } from "./SpacDealSchema";
 import { SpacEvent, SPAC_EVENT_REPOSITORY_TOKEN, SpacEventRepositoryStorage } from "./SpacEventSchema";
 import {
@@ -45,8 +45,12 @@ export class SpacRepo {
     await this.spacRepository.put(row);
   }
 
-  async getSpacsByStatus(status: string): Promise<Spac[]> {
-    return (await this.spacRepository.query({ status })) || [];
+  async getSpacsByStatus(status: SpacStatus): Promise<Spac[]> {
+    // `status` is a union-literal column, which the storage's generic query
+    // typing resolves to SearchCondition<never>; cast the criteria to the
+    // method's own parameter type rather than reaching for `any`.
+    const criteria = { status } as unknown as Parameters<typeof this.spacRepository.query>[0];
+    return (await this.spacRepository.query(criteria)) || [];
   }
 
   async saveDeal(deal: SpacDeal): Promise<void> {
