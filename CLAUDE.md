@@ -175,9 +175,16 @@ and rolled-up key dates. It is **derived** from two append-only tables — `spac
 so replays are idempotent; an `as_of` guard protects filing-sourced scalar fields
 from out-of-order writes, and `spac_history` + `ChangeLog` version the row.
 
-Today only the IPO half is populated (S-1/DRS → `registration`, priced 424B1/424B4
-→ `ipo`); de-SPAC events (8-K items, S-4/proxy, redemptions, PIPE, de-registration)
-are defined-but-deferred slots.
+The IPO half is populated from S-1/DRS (`registration`) and priced 424B1/424B4
+(`ipo`). De-SPAC **milestone dates** are populated deterministically from 8-K
+item codes (known SPACs only — a `spac` row must already exist): item `1.01` →
+`definitive_agreement`, `1.02` → `terminated`, `2.01` → `completed`, `5.07` →
+`vote`. These group into `spac_deal` attempts via `deriveDealsFromEvents`
+(recomputed from the event stream on every write, so `deal_index` is stable
+across replays) and roll up automatically. `target_name`, `pipe_amount`, and
+redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
+425) land — 8-K item codes carry no names or amounts. Still deferred: name/SIC/
+ticker transitions and Form 25/15 de-registration.
 
 ```bash
 sec spac report <cik> [--format json]   # consolidated report
