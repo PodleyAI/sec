@@ -35,6 +35,14 @@ export abstract class Form {
       trimValues: true,
       parseTagValue: false,
       parseAttributeValue: false,
+      // Disable entity expansion. A filer-controlled XML payload that
+      // declares N references each pointing at a node containing N
+      // references explodes geometrically under expansion ("billion laughs"),
+      // and the parser hands us untrusted SGML/XML directly from the filer.
+      // Stays-literal preserves the raw `&entity;` byte sequence — the
+      // downstream consumers either don't read it or HTML-decode their own
+      // entity references explicitly.
+      processEntities: false,
       isArray: (_name, jpath) => {
         return typeof jpath === "string" && paths.includes(jpath);
       },
