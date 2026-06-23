@@ -157,6 +157,18 @@ describe("processMergerProxy (e2e)", () => {
     expect(row?.target_name).toBe("Acme Target Inc."); // still correlated
   });
 
+  it("does not emit a proxy event for a preliminary revised proxy (PRER14A)", async () => {
+    await seedSpacWithOpenDeal(113);
+    cleanup = scriptMergerDeal();
+    await runProxy(113, "113-prer14a", "PRER14A");
+
+    const events = await repo.getEvents(113);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(113);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.target_name).toBe("Acme Target Inc."); // extraction-only, still correlated
+  });
+
   it("a revised proxy (DEFR14A) supersedes target/pipe without a second proxy event", async () => {
     await seedSpacWithOpenDeal(112);
     const dealWithPipe = (pipe_amount: number) => [
