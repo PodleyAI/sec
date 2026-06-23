@@ -239,6 +239,26 @@ import {
   Form8KEventSchema,
 } from "../storage/form-8k-event/Form8KEventSchema";
 import {
+  SPAC_REPOSITORY_TOKEN,
+  SpacPrimaryKeyNames,
+  SpacSchema,
+} from "../storage/spac/SpacSchema";
+import {
+  SPAC_DEAL_REPOSITORY_TOKEN,
+  SpacDealPrimaryKeyNames,
+  SpacDealSchema,
+} from "../storage/spac/SpacDealSchema";
+import {
+  SPAC_EVENT_REPOSITORY_TOKEN,
+  SpacEventPrimaryKeyNames,
+  SpacEventSchema,
+} from "../storage/spac/SpacEventSchema";
+import {
+  SPAC_HISTORY_REPOSITORY_TOKEN,
+  SpacHistoryPrimaryKeyNames,
+  SpacHistorySchema,
+} from "../storage/spac/SpacHistorySchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -451,6 +471,27 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
+  );
+
+  // SPAC repositories
+  globalServiceRegistry.registerInstance(
+    SPAC_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacSchema, SpacPrimaryKeyNames, [["status"], ["current_cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_DEAL_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacDealSchema, SpacDealPrimaryKeyNames, [["cik"], ["outcome"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_EVENT_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacEventSchema, SpacEventPrimaryKeyNames, [
+      ["cik"],
+      ["event_type"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_HISTORY_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacHistorySchema, SpacHistoryPrimaryKeyNames, [["cik"]])
   );
 
   // Initialize Crowdfunding repositories

@@ -324,6 +324,26 @@ import {
   Form8KEventPrimaryKeyNames,
   Form8KEventSchema,
 } from "../storage/form-8k-event/Form8KEventSchema";
+import {
+  SPAC_REPOSITORY_TOKEN,
+  SpacPrimaryKeyNames,
+  SpacSchema,
+} from "../storage/spac/SpacSchema";
+import {
+  SPAC_DEAL_REPOSITORY_TOKEN,
+  SpacDealPrimaryKeyNames,
+  SpacDealSchema,
+} from "../storage/spac/SpacDealSchema";
+import {
+  SPAC_EVENT_REPOSITORY_TOKEN,
+  SpacEventPrimaryKeyNames,
+  SpacEventSchema,
+} from "../storage/spac/SpacEventSchema";
+import {
+  SPAC_HISTORY_REPOSITORY_TOKEN,
+  SpacHistoryPrimaryKeyNames,
+  SpacHistorySchema,
+} from "../storage/spac/SpacHistorySchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -623,6 +643,27 @@ export const DefaultDI = () => {
     createStorage("rega_equity_classes", RegAEquityClassSchema, RegAEquityClassPrimaryKeyNames, [
       ["cik", "file_number"],
     ])
+  );
+
+  // ------------------------------ SPAC ------------------------------------------
+  globalServiceRegistry.registerInstance(
+    SPAC_REPOSITORY_TOKEN,
+    createStorage("spac", SpacSchema, SpacPrimaryKeyNames, [["status"], ["current_cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_DEAL_REPOSITORY_TOKEN,
+    createStorage("spac_deal", SpacDealSchema, SpacDealPrimaryKeyNames, [["cik"], ["outcome"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_EVENT_REPOSITORY_TOKEN,
+    createStorage("spac_event", SpacEventSchema, SpacEventPrimaryKeyNames, [
+      ["cik"],
+      ["event_type"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_HISTORY_REPOSITORY_TOKEN,
+    createStorage("spac_history", SpacHistorySchema, SpacHistoryPrimaryKeyNames, [["cik"]])
   );
 
   // ----- Observation / Canonical / Resolver -----

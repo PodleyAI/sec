@@ -29,6 +29,7 @@ export const ChangeLogSchema = Type.Object({
       Type.Literal("entity_person_junction"),
       Type.Literal("entity_phone_junction"),
       Type.Literal("crowdfunding"),
+      Type.Literal("spac"),
     ],
     {
       description: "Type of entity that changed",

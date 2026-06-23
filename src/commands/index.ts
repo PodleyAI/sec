@@ -20,6 +20,7 @@ import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
+import { registerSpacCommands } from "./spac";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { SEC_DRY_RUN } from "../config/tokens";
@@ -70,5 +71,6 @@ export const AddCommands = (program: Command): void => {
   addCanonicalCommands(program);
   registerSponsorFamilyCommands(program);
   registerUnderwriterFamilyCommands(program);
+  registerSpacCommands(program);
   addExtractorCommands(program);
 };

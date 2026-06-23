@@ -8,6 +8,9 @@ import { globalServiceRegistry, type ModelConfig } from "workglow";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
+import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
+import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -155,4 +158,26 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     activeUnderwriterFamilyVersion,
     byName,
   });
+
+  // Consolidated SPAC report: record the IPO event for priced SPAC prospectuses.
+  if (isSpac) {
+    const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
+    const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
+      (t) => t.accession_number === accession_number
+    );
+    const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
+    await new SpacReportWriter().recordIpo({
+      cik,
+      accession_number,
+      filing_date: args.filing_date,
+      form,
+      primary_document: null,
+      ipo_proceeds: unitTerms?.gross_proceeds ?? null,
+      trust_amount:
+        unitTerms?.trust_per_unit != null && unitTerms?.units_offered != null
+          ? unitTerms.trust_per_unit * unitTerms.units_offered
+          : null,
+      spac_tickers: tickers.length > 0 ? tickers : null,
+    });
+  }
 }

@@ -50,6 +50,10 @@ import { REGA_FINANCIAL_DATA_REPOSITORY_TOKEN } from "../storage/reg-a/RegAFinan
 import { REGA_OFFERING_HISTORY_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingHistorySchema";
 import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN } from "../storage/reg-a/RegAServiceProviderSchema";
+import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
+import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
+import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
+import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
 import {
   CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
@@ -137,6 +141,10 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).setupDatabase();

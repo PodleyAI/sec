@@ -20,6 +20,7 @@ import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/Cano
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
 import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
@@ -151,6 +152,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     classifier_source: headerSic === null ? "sic-unknown" : "sgml-header",
     created_at: new Date().toISOString(),
   });
+
+  // Consolidated SPAC report: record the registration event (SPAC filings only).
+  if (isSpac) {
+    await new SpacReportWriter().recordRegistration({
+      cik,
+      accession_number,
+      filing_date: args.filing_date,
+      form: args.form,
+      primary_document: null,
+      spac_name: xbrl.name ?? formS1.header?.companyName ?? null,
+      spac_sic: headerSic,
+    });
+  }
 
   const recordFail = (section: string, reason: string, detail: string | null) =>
     deadLetters.record({
