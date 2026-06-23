@@ -32,8 +32,8 @@ import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 const EXTRACTOR_ID = "merger-proxy";
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
 const MERGER_SECTION = "merger";
-/** Definitive proxies emit a `proxy` lifecycle event; preliminary ones do not. */
-const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A"]);
+/** Definitive merger statements emit a `proxy` lifecycle event; others do not. */
+const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A", "DEFM14C"]);
 
 export interface ProcessMergerProxyArgs {
   readonly cik: number;
@@ -47,12 +47,15 @@ export interface ProcessMergerProxyArgs {
 }
 
 /**
- * Extract the deal identity + PIPE from a SPAC merger proxy (DEFM14A/PREM14A).
- * Gated on a known SPAC. Persists a `spac_merger_extraction` row, observes the
- * target company, then records the proxy event and recomputes deals (correlation
- * derives target/pipe onto the matching `spac_deal`). Degrades gracefully: when
- * the merger section is absent or low-confidence, it dead-letters and still emits
- * the proxy event so `proxy_date` advances.
+ * Extract the deal identity + PIPE from a SPAC merger proxy — the 14A/14C merger
+ * and revised-proxy family (`DEFM14A`/`PREM14A`, `DEFM14C`/`PREM14C`,
+ * `DEFR14A`/`PRER14A`); see {@link DEFINITIVE_PROXY_FORMS} for which emit the
+ * proxy event. Gated on a known SPAC. Persists a `spac_merger_extraction` row,
+ * observes the target company, then records the proxy event and recomputes deals
+ * (correlation derives target/pipe onto the matching `spac_deal`). Degrades
+ * gracefully: when the merger section is absent or low-confidence, it dead-letters
+ * and still emits the proxy event (for definitive merger statements) so
+ * `proxy_date` advances.
  */
 export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<void> {
   const { cik, accession_number, form, filing_date, formMergerProxy } = args;

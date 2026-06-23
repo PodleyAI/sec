@@ -69,16 +69,21 @@ describe("processMergerProxy (e2e)", () => {
     });
   }
 
-  async function runProxy(cik: number, accession_number: string): Promise<void> {
+  async function runProxy(
+    cik: number,
+    accession_number: string,
+    form = "DEFM14A",
+    filing_date = "2021-05-01"
+  ): Promise<void> {
     const txt = await Bun.file(FIXTURE).text();
-    const parsed = await Form_DEFM14A.parse("DEFM14A", txt);
+    const parsed = await Form_DEFM14A.parse(form, txt);
     await processMergerProxy({
       cik,
       file_number: "",
       accession_number,
-      filing_date: "2021-05-01",
-      primary_doc: "defm14a.htm",
-      form: "DEFM14A",
+      filing_date,
+      primary_doc: "proxy.htm",
+      form,
       formMergerProxy: parsed,
       model: fakeS1Model(),
     });
@@ -126,5 +131,59 @@ describe("processMergerProxy (e2e)", () => {
     const events = await repo.getEvents(300);
     expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1);
     expect(await repo.getDeals(300)).toHaveLength(1);
+  });
+
+  it("emits a proxy event for a definitive consent statement (DEFM14C)", async () => {
+    await seedSpacWithOpenDeal(110);
+    cleanup = scriptMergerDeal();
+    await runProxy(110, "110-defm14c", "DEFM14C");
+
+    const events = await repo.getEvents(110);
+    expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1);
+    const row = await repo.getSpac(110);
+    expect(row?.status).toBe("proxy");
+    expect(row?.target_name).toBe("Acme Target Inc.");
+  });
+
+  it("does not emit a proxy event for a preliminary consent statement (PREM14C)", async () => {
+    await seedSpacWithOpenDeal(111);
+    cleanup = scriptMergerDeal();
+    await runProxy(111, "111-prem14c", "PREM14C");
+
+    const events = await repo.getEvents(111);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(111);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.target_name).toBe("Acme Target Inc."); // still correlated
+  });
+
+  it("a revised proxy (DEFR14A) supersedes target/pipe without a second proxy event", async () => {
+    await seedSpacWithOpenDeal(112);
+    const dealWithPipe = (pipe_amount: number) => [
+      {
+        target_name: "Acme Target Inc.",
+        pipe_amount,
+        merger_consideration: "$10.00 per share in stock",
+        confidence: 0.95,
+        source_span: "business combination with Acme Target Inc.",
+      },
+    ];
+
+    // Definitive proxy first: emits the proxy event + initial PIPE.
+    let registration = registerFakeStructuredProvider(dealWithPipe(150000000));
+    cleanup = registration.unregister; // guard against a throw inside runProxy
+    await runProxy(112, "112-defm", "DEFM14A", "2021-05-01");
+    registration.unregister();
+    cleanup = undefined;
+
+    // Revised definitive proxy, filed later -> its extraction wins correlation.
+    registration = registerFakeStructuredProvider(dealWithPipe(225000000));
+    cleanup = registration.unregister;
+    await runProxy(112, "112-defr", "DEFR14A", "2021-05-10");
+
+    const events = await repo.getEvents(112);
+    expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1); // only DEFM14A
+    const deals = await repo.getDeals(112);
+    expect(deals[0].pipe_amount).toBe(225000000); // revised value wins (later filing_date)
   });
 });
