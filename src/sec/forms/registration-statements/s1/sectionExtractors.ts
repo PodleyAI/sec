@@ -18,6 +18,7 @@ import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchem
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -209,6 +210,24 @@ export async function extractSpacSponsors(
   const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
   const obj = await runStructured(model, prompt, SpacSponsorOutputSchema);
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
+}
+
+export async function extractMergerDeal(
+  sectionText: string,
+  model: ModelConfig
+): Promise<MergerDealRow | null> {
+  const instructions =
+    "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
+    "Identify the business-combination target and deal terms. Give target_name (the " +
+    "operating company the SPAC will merge with), pipe_amount (the total PIPE " +
+    "investment in dollars, or null), merger_consideration (a short verbatim phrase " +
+    "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
+    "confidence in [0,1], and the verbatim source_span you drew the target from. " +
+    "Return JSON matching the schema.";
+  const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
+  const obj = await runStructured(model, prompt, MergerDealOutputSchema);
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return obj as unknown as MergerDealRow;
 }
 
 export async function extractUseOfProceeds(
