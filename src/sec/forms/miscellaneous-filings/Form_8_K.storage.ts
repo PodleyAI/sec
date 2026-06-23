@@ -83,8 +83,12 @@ export async function processForm8K({
   // --- Consolidated SPAC report: map de-SPAC milestone items (known SPACs only) ---
   const spacRow = await new SpacRepo().getSpac(cik);
   if (spacRow) {
+    // Skip when no usable date is available: an undated milestone (empty
+    // event_date) would write junk announced_date/definitive_agreement_date
+    // onto the deal/row. Reachable only on the best-effort path where the
+    // filing-metadata row is absent (report_date null, filing_date "").
     const eventDate = effectiveReportDate || filing_date;
-    const spacEvents = mapItemCodesToSpacEvents(itemCodes, eventDate);
+    const spacEvents = eventDate ? mapItemCodesToSpacEvents(itemCodes, eventDate) : [];
     if (spacEvents.length > 0) {
       await new SpacReportWriter().recordDealMilestones({
         cik,

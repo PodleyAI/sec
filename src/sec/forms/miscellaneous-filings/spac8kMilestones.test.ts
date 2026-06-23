@@ -137,4 +137,23 @@ describe("processForm8K SPAC milestone wiring", () => {
     const deals = await repo.getDeals(400);
     expect(deals[0].definitive_agreement_date).toBe("2021-03-01");
   });
+
+  it("records no milestone when neither report_date nor filing_date is available", async () => {
+    await seedSpac(500);
+    const form8K = await Form_8_K.parse("8-K", "<html/>");
+    await processForm8K({
+      cik: 500,
+      accession_number: "500-da",
+      filing_date: "", // best-effort path: filing-metadata row absent
+      form: "8-K",
+      items: "1.01",
+      report_date: null,
+      form8K,
+    });
+
+    // An undated 8-K must not write a milestone (empty event_date would be junk).
+    const events = await repo.getEvents(500);
+    expect(events.some((e) => e.event_type === "definitive_agreement")).toBe(false);
+    expect(await repo.getDeals(500)).toEqual([]);
+  });
 });
