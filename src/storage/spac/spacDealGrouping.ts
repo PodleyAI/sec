@@ -48,7 +48,7 @@ export function deriveDealsFromEvents(
   existingDeals: readonly SpacDeal[]
 ): SpacDeal[] {
   const relevant = events
-    .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type))
+    .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type as SpacEventType))
     .sort(
       (a, b) =>
         a.event_date.localeCompare(b.event_date) ||
