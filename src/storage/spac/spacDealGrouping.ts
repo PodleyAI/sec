@@ -30,9 +30,17 @@ interface DealSkeleton {
  *
  * Deterministic + replay-safe: events are ordered by `(event_date,
  * accession_number)` and walked with a single "open deal" cursor, so the same
- * event set always yields the same `deal_index` assignments. The result
- * merge-preserves §4b-owned columns (`target_*`, `pipe_amount`, `redemption_*`,
- * `proxy_date`) and `created_at` from any matching existing deal row.
+ * event set always yields the same `deal_index` assignments. `source_accession`
+ * reflects the latest event that shaped the deal (the completion accession for a
+ * completed deal; the latest DA for a pending one).
+ *
+ * The result merge-preserves §4b-owned columns (`target_*`, `pipe_amount`,
+ * `redemption_*`, `proxy_date`) and `created_at` from any existing deal row.
+ * That merge binds existing rows to recomputed deals positionally by
+ * `deal_index`, which assumes the upstream event set stays append-only and
+ * stable: a back-filled earlier-dated DA that renumbers attempts would rebind
+ * enriched data to a different attempt — an accepted, rare property of strict
+ * chronological ordinals.
  */
 export function deriveDealsFromEvents(
   cik: number,
@@ -40,8 +48,7 @@ export function deriveDealsFromEvents(
   existingDeals: readonly SpacDeal[]
 ): SpacDeal[] {
   const relevant = events
-    .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type as SpacEventType))
-    .slice()
+    .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type))
     .sort(
       (a, b) =>
         a.event_date.localeCompare(b.event_date) ||
