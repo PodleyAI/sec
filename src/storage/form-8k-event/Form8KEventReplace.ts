@@ -34,14 +34,26 @@ export async function replaceForm8KEvents(
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
 
+  // SEC_DB_TYPE lives in the global ServiceRegistry, which has no unregister
+  // API — once any test (or production code path) registers it, it sticks
+  // for the lifetime of the process. The test harness wires
+  // FORM_8K_EVENT_REPOSITORY_TOKEN to an InMemoryTabularStorage but cannot
+  // clear SEC_DB_TYPE, so dispatching on dbType alone would route writes
+  // for the in-memory test repo into a real SQLite/Postgres backend that
+  // was never set up. Trust the actual repo: when it is non-durable
+  // (in-memory) take the repo path regardless of dbType.
+  const isInMemoryRepo = typeof (repo as { isDurable?: () => boolean }).isDurable === "function"
+    && (repo as { isDurable: () => boolean }).isDurable() === false;
+
   if (
+    !isInMemoryRepo &&
     dbType === "sqlite" &&
     globalServiceRegistry.has(SEC_DB_FOLDER) &&
     globalServiceRegistry.has(SEC_DB_NAME)
   ) {
     return replaceSqlite(args);
   }
-  if (dbType === "postgres") {
+  if (!isInMemoryRepo && dbType === "postgres") {
     return replacePostgres(args);
   }
   return replaceRepository(repo, args);
