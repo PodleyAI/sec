@@ -7,8 +7,9 @@
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
+import { deriveDealsFromEvents } from "./spacDealGrouping";
 import type { Spac } from "./SpacSchema";
-import type { SpacEvent } from "./SpacEventSchema";
+import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 
@@ -31,6 +32,16 @@ interface RecordIpoArgs {
   readonly ipo_proceeds: number | null;
   readonly trust_amount: number | null;
   readonly spac_tickers: readonly string[] | null;
+}
+
+interface RecordDealMilestonesArgs {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly form: string;
+  readonly primary_document: string | null;
+  /** event_date is pre-resolved by the caller (report_date ?? filing_date). */
+  readonly events: readonly { event_type: SpacEventType; event_date: string }[];
 }
 
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
@@ -87,6 +98,32 @@ export class SpacReportWriter {
           ? JSON.stringify(args.spac_tickers)
           : null,
     });
+  }
+
+  /**
+   * Record de-SPAC milestone events mapped from 8-K item codes: append each
+   * event (idempotent by PK), recompute the deal set from the full event
+   * stream (merge-preserving §4b-owned columns), then rebuild the row.
+   */
+  async recordDealMilestones(args: RecordDealMilestonesArgs): Promise<void> {
+    if (args.events.length === 0) return;
+    for (const e of args.events) {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: e.event_type,
+        event_date: e.event_date,
+        form: args.form,
+        primary_document: args.primary_document,
+      });
+    }
+    const events = await this.repo.getEvents(args.cik);
+    const existingDeals = await this.repo.getDeals(args.cik);
+    const deals = deriveDealsFromEvents(args.cik, events, existingDeals);
+    for (const deal of deals) {
+      await this.repo.saveDeal(deal);
+    }
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
   }
 
   private async appendEvent(

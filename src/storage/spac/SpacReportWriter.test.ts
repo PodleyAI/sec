@@ -179,4 +179,88 @@ describe("SpacReportWriter", () => {
     const row = await repo.getSpac(9);
     expect(JSON.parse(row!.spac_tickers!)).toEqual(["NEO.U", "NEO"]);
   });
+
+  it("rolls a registered SPAC forward through DA, vote, and completion", async () => {
+    await writer.recordRegistration({
+      cik: 10,
+      accession_number: "0000-reg",
+      filing_date: "2020-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Merge SPAC",
+      spac_sic: 6770,
+    });
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-da",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-03-01" }],
+    });
+    let row = await repo.getSpac(10);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.definitive_agreement_date).toBe("2021-03-01");
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-vote",
+      filing_date: "2021-06-02",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2021-06-01" }],
+    });
+    row = await repo.getSpac(10);
+    expect(row?.status).toBe("proxy");
+    expect(row?.vote_date).toBe("2021-06-01");
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-close",
+      filing_date: "2021-06-16",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "completed", event_date: "2021-06-15" }],
+    });
+    row = await repo.getSpac(10);
+    expect(row?.status).toBe("completed");
+    expect(row?.completed_date).toBe("2021-06-15");
+
+    const deals = await repo.getDeals(10);
+    expect(deals.length).toBe(1);
+    expect(deals[0].outcome).toBe("completed");
+    expect(deals[0].target_name).toBeNull(); // not available from item codes
+  });
+
+  it("is idempotent when the same milestone 8-K is reprocessed", async () => {
+    const call = {
+      cik: 11,
+      accession_number: "0000-da",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement" as const, event_date: "2021-03-01" }],
+    };
+    await writer.recordDealMilestones(call);
+    await writer.recordDealMilestones(call);
+
+    const events = await repo.getEvents(11);
+    expect(events.filter((e) => e.event_type === "definitive_agreement").length).toBe(1);
+    const deals = await repo.getDeals(11);
+    expect(deals.length).toBe(1);
+  });
+
+  it("does nothing when given no events", async () => {
+    await writer.recordDealMilestones({
+      cik: 12,
+      accession_number: "0000-none",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [],
+    });
+    expect(await repo.getSpac(12)).toBeUndefined();
+    expect(await repo.getEvents(12)).toEqual([]);
+  });
 });
