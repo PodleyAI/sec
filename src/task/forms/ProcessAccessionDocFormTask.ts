@@ -25,6 +25,7 @@ import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
@@ -356,6 +357,10 @@ export class ProcessAccessionDocFormTask extends Task<
         case "8-K":
         case "8-K/A":
           await processForm8K({ ...storageArgs, form: form!, items, report_date, form8K: parsed });
+          break;
+        case "DEFM14A":
+        case "PREM14A":
+          await processMergerProxy({ ...storageArgs, form: form!, formMergerProxy: parsed });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);
