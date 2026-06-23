@@ -7,7 +7,8 @@
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
-import { deriveDealsFromEvents } from "./spacDealGrouping";
+import { deriveDeals } from "./spacDealGrouping";
+import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
 import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
@@ -44,6 +45,16 @@ interface RecordDealMilestonesArgs {
   readonly events: readonly { event_type: SpacEventType; event_date: string }[];
 }
 
+interface RecordMergerProxyArgs {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly form: string;
+  readonly primary_document: string | null;
+  /** true for DEFM14A (definitive); false for PREM14A (preliminary). */
+  readonly emitProxyEvent: boolean;
+}
+
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
 const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik", "status", "spac_name", "target_name", "surviving_name", "current_name",
@@ -60,6 +71,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
  */
 export class SpacReportWriter {
   private readonly repo: SpacRepo;
+  private readonly mergerExtractions = new SpacMergerExtractionRepo();
 
   constructor(repo: SpacRepo = new SpacRepo()) {
     this.repo = repo;
@@ -117,13 +129,44 @@ export class SpacReportWriter {
         primary_document: args.primary_document,
       });
     }
-    const events = await this.repo.getEvents(args.cik);
-    const existingDeals = await this.repo.getDeals(args.cik);
-    const deals = deriveDealsFromEvents(args.cik, events, existingDeals);
-    for (const deal of deals) {
-      await this.repo.saveDeal(deal);
-    }
+    await this.recomputeAndSaveDeals(args.cik);
     await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
+   * Record a merger proxy: emit a `proxy` event for the definitive proxy
+   * (DEFM14A), recompute deals from the event stream + stored merger
+   * extractions (correlation derives target/pipe), then rebuild the row. The
+   * extraction itself is persisted by the caller (`processMergerProxy`) before
+   * this runs.
+   */
+  async recordMergerProxy(args: RecordMergerProxyArgs): Promise<void> {
+    if (args.emitProxyEvent) {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "proxy",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: args.primary_document,
+      });
+    }
+    await this.recomputeAndSaveDeals(args.cik);
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
+   * Rebuild the deal set from the CIK's full event stream + merger extractions
+   * (the single derivation path shared by the 8-K and merger-proxy writers).
+   */
+  private async recomputeAndSaveDeals(cik: number): Promise<void> {
+    const [events, extractions, existingDeals] = await Promise.all([
+      this.repo.getEvents(cik),
+      this.mergerExtractions.getByCik(cik),
+      this.repo.getDeals(cik),
+    ]);
+    const deals = deriveDeals(cik, events, extractions, existingDeals);
+    for (const deal of deals) await this.repo.saveDeal(deal);
   }
 
   private async appendEvent(

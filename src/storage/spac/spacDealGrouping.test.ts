@@ -153,7 +153,9 @@ describe("deriveDeals", () => {
       [],
       []
     );
-    expect(shuffled).toEqual(ordered);
+    // created_at is a wall-clock stamp for new rows; compare the derived fields.
+    const strip = (ds: typeof ordered) => ds.map(({ created_at, ...rest }) => rest);
+    expect(strip(shuffled)).toEqual(strip(ordered));
   });
 
   it("preserves created_at from an existing deal row", () => {
