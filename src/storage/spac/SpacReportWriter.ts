@@ -82,7 +82,10 @@ export class SpacReportWriter {
     await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
       ipo_proceeds: args.ipo_proceeds,
       trust_amount: args.trust_amount,
-      spac_tickers: args.spac_tickers ? JSON.stringify(args.spac_tickers) : null,
+      spac_tickers:
+        args.spac_tickers && args.spac_tickers.length > 0
+          ? JSON.stringify(args.spac_tickers)
+          : null,
     });
   }
 
@@ -119,15 +122,20 @@ export class SpacReportWriter {
     const changed = TRACKED_FIELDS.filter((f) => (prev ? prev[f] : null) !== next[f]);
     if (changed.length === 0) return;
 
-    const now = next.updated_at;
-
-    // Close the open history row, then append the new snapshot.
+    // Close the open history row, then append the new snapshot. Guarantee a
+    // strictly increasing valid_from: two writes for the same CIK in the same
+    // millisecond would otherwise collide on the (cik, valid_from) primary key
+    // and the new snapshot would overwrite the just-closed row, losing history.
     const history = await this.repo.getHistory(next.cik);
-    const open = history.find((h) => h.valid_to === null);
-    if (open) {
-      await this.repo.saveHistory({ ...open, valid_to: now });
+    const open = history.find((h) => h.valid_to == null);
+    let validFrom = next.updated_at;
+    if (open && validFrom <= open.valid_from) {
+      validFrom = new Date(Date.parse(open.valid_from) + 1).toISOString();
     }
-    await this.repo.saveHistory(this.toHistory(next, now, changeSource));
+    if (open) {
+      await this.repo.saveHistory({ ...open, valid_to: validFrom });
+    }
+    await this.repo.saveHistory(this.toHistory(next, validFrom, changeSource));
 
     const changeLog = globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN);
     for (const field of changed) {
@@ -140,7 +148,7 @@ export class SpacReportWriter {
         new_value: serialize(next[field]),
         change_type: prev ? "update" : "create",
         change_source: changeSource,
-        change_date: now,
+        change_date: validFrom,
         filing_accession_number: null,
         batch_id: null,
         user_id: null,

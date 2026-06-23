@@ -49,6 +49,17 @@ export async function assembleSpacReport(cik: number, repo: SpacRepo = new SpacR
   };
 }
 
+/** Parse a CLI CIK argument, returning null (after printing an error) when it is not a non-negative integer. */
+function parseCikArg(cikArg: string): number | null {
+  const cik = Number(cikArg);
+  if (!Number.isInteger(cik) || cik < 0) {
+    console.error(`Invalid CIK: ${cikArg}`);
+    process.exitCode = 1;
+    return null;
+  }
+  return cik;
+}
+
 export function registerSpacCommands(program: Command): void {
   // The sponsorFamily module may have already created the `spac` command (for
   // `by-family`); reuse it so Commander doesn't see a duplicate subcommand.
@@ -62,7 +73,8 @@ export function registerSpacCommands(program: Command): void {
     .description("Consolidated SPAC report for a CIK")
     .option("--format <format>", "output format: text | json", "text")
     .action(async (cikArg: string, opts: { format: string }) => {
-      const cik = Number(cikArg);
+      const cik = parseCikArg(cikArg);
+      if (cik === null) return;
       const report = await assembleSpacReport(cik);
       if (opts.format === "json") {
         console.log(JSON.stringify(report, null, 2));
@@ -85,7 +97,8 @@ export function registerSpacCommands(program: Command): void {
     .description("State-change history for a SPAC")
     .option("--format <format>", "output format: text | json", "text")
     .action(async (cikArg: string, opts: { format: string }) => {
-      const cik = Number(cikArg);
+      const cik = parseCikArg(cikArg);
+      if (cik === null) return;
       const history = await new SpacRepo().getHistory(cik);
       if (opts.format === "json") {
         console.log(JSON.stringify(history, null, 2));

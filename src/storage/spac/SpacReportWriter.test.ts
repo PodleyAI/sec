@@ -101,4 +101,82 @@ describe("SpacReportWriter", () => {
     const changes = (await changeLog.query({ entity_type: "spac", entity_id: "7" })) || [];
     expect(changes.length).toBeGreaterThan(0);
   });
+
+  it("keeps a coherent history chain when two writes land in the same millisecond", async () => {
+    // Freeze the no-arg clock so registration and ipo get an identical
+    // updated_at, forcing a (cik, valid_from) collision in the history table.
+    // Explicit-arg `new Date(ms)` (used to bump the colliding timestamp) stays real.
+    const RealDate = Date;
+    const FIXED = RealDate.parse("2026-06-01T00:00:00.000Z");
+    class FakeDate extends RealDate {
+      constructor(...args: ConstructorParameters<typeof Date> | []) {
+        if (args.length === 0) super(FIXED);
+        else super(...(args as ConstructorParameters<typeof Date>));
+      }
+      static now(): number {
+        return FIXED;
+      }
+    }
+    globalThis.Date = FakeDate as DateConstructor;
+    try {
+      await writer.recordRegistration({
+        cik: 8,
+        accession_number: "0000-reg",
+        filing_date: "2020-12-01",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Same MS SPAC",
+        spac_sic: 6770,
+      });
+      await writer.recordIpo({
+        cik: 8,
+        accession_number: "0000-ipo",
+        filing_date: "2021-01-15",
+        form: "424B4",
+        primary_document: "424.htm",
+        ipo_proceeds: 100_000_000,
+        trust_amount: 100_000_000,
+        spac_tickers: ["SMS.U"],
+      });
+    } finally {
+      globalThis.Date = RealDate;
+    }
+
+    const history = await repo.getHistory(8);
+    // Both changes are retained (no silent overwrite), and exactly one row is open.
+    expect(history.length).toBe(2);
+    expect(history.filter((h) => h.valid_to == null).length).toBe(1);
+    const closed = history.find((h) => h.valid_to != null);
+    const openRow = history.find((h) => h.valid_to == null);
+    expect(closed).toBeDefined();
+    // The closed row hands off to the open row at the same instant (contiguous).
+    expect(closed!.valid_to).toBe(openRow!.valid_from);
+    expect(closed!.valid_from < openRow!.valid_from).toBe(true);
+  });
+
+  it("does not erase existing tickers when a later filing carries none", async () => {
+    await writer.recordIpo({
+      cik: 9,
+      accession_number: "0000-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["NEO.U", "NEO"],
+    });
+    // A same-or-newer reprocess that found no tickers must NOT clobber them.
+    await writer.recordIpo({
+      cik: 9,
+      accession_number: "0000-ipo",
+      filing_date: "2021-02-01",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: null,
+    });
+    const row = await repo.getSpac(9);
+    expect(JSON.parse(row!.spac_tickers!)).toEqual(["NEO.U", "NEO"]);
+  });
 });

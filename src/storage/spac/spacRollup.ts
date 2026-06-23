@@ -68,8 +68,7 @@ function deriveStatus(
   events: readonly SpacEvent[],
   active: SpacDeal | null,
   hasFailed: boolean,
-  hasIpo: boolean,
-  hasRegistration: boolean
+  hasIpo: boolean
 ): SpacStatus {
   if (active?.outcome === "completed") return "completed";
   if (hasFailed) return "liquidated";
@@ -78,7 +77,6 @@ function deriveStatus(
     if (active.definitive_agreement_date || active.announced_date) return "deal_announced";
   }
   if (hasIpo) return events.some((e) => e.event_type === "unit_split") ? "searching" : "ipo";
-  if (hasRegistration) return "registered";
   return "registered";
 }
 
@@ -125,7 +123,9 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
       return existingVal;
     }
     const fromApplied = applied[key];
-    if (fromApplied !== undefined) return fromApplied as Spac[K & keyof Spac];
+    // Treat an explicit null like an absent field: a newer filing that does not
+    // carry a value must not clobber an existing non-null one (merge, not erase).
+    if (fromApplied != null) return fromApplied as Spac[K & keyof Spac];
     return existingVal;
   };
 
@@ -146,19 +146,16 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     events.some((e) => e.event_type === "liquidation" || e.event_type === "deregistration") &&
     !deals.some((d) => d.outcome === "completed");
   const hasIpo = events.some((e) => e.event_type === "ipo");
-  const hasRegistration = events.some((e) => e.event_type === "registration");
 
-  const nextAsOf =
-    isStale || filingDate === ""
-      ? (existing?.as_of ?? (filingDate === "" ? null : filingDate))
-      : existing?.as_of != null && existing.as_of > filingDate
-        ? existing.as_of
-        : filingDate;
+  // A non-stale dated filing advances the anchor to its filing date; a stale or
+  // undated write keeps the existing anchor (never regresses it). The arms the
+  // isStale/"" guards would otherwise reach are dead, so this collapses cleanly.
+  const nextAsOf = isStale || filingDate === "" ? (existing?.as_of ?? null) : filingDate;
 
   return {
     cik,
     current_cik: pick("current_cik"),
-    status: deriveStatus(events, active, hasFailed, hasIpo, hasRegistration),
+    status: deriveStatus(events, active, hasFailed, hasIpo),
     spac_name,
     target_name: active?.target_name ?? null,
     surviving_name,
