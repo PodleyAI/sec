@@ -46,11 +46,7 @@ export class SpacRepo {
   }
 
   async getSpacsByStatus(status: SpacStatus): Promise<Spac[]> {
-    // `status` is a union-literal column, which the storage's generic query
-    // typing resolves to SearchCondition<never>; cast the criteria to the
-    // method's own parameter type rather than reaching for `any`.
-    const criteria = { status } as unknown as Parameters<typeof this.spacRepository.query>[0];
-    return (await this.spacRepository.query(criteria)) || [];
+    return (await this.spacRepository.query({ status })) || [];
   }
 
   async saveDeal(deal: SpacDeal): Promise<void> {

@@ -149,7 +149,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   return {
     cik,
     current_cik: pick("current_cik"),
-    status: deriveStatus(events, active, hasFailed, hasIpo, hasRegistration) as Spac["status"],
+    status: deriveStatus(events, active, hasFailed, hasIpo, hasRegistration),
     spac_name,
     target_name: active?.target_name ?? null,
     surviving_name,

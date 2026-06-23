@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 
 /** Outcome of a business-combination attempt. */
 export const SPAC_DEAL_OUTCOMES = ["pending", "completed", "terminated"] as const;
@@ -26,10 +26,7 @@ export const SpacDealSchema = Type.Object({
   pipe_amount: TypeNullable(Type.Number()),
   redemption_amount: TypeNullable(Type.Number()),
   redemption_shares: TypeNullable(Type.Integer({ minimum: 0 })),
-  outcome: Type.Union(
-    SPAC_DEAL_OUTCOMES.map((o) => Type.Literal(o)),
-    { description: "pending | completed | terminated" }
-  ),
+  outcome: TypeStringEnum(SPAC_DEAL_OUTCOMES, { description: "pending | completed | terminated" }),
   outcome_date: TypeNullable(Type.String({ format: "date" })),
   source_accession: TypeNullable(Type.String({ maxLength: 25 })),
   created_at: Type.String({ format: "date-time" }),

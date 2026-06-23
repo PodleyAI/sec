@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 
 /** Lifecycle event vocabulary. Only `registration` and `ipo` are written today. */
 export const SPAC_EVENT_TYPES = [
@@ -32,10 +32,7 @@ export type SpacEventType = (typeof SPAC_EVENT_TYPES)[number];
 export const SpacEventSchema = Type.Object({
   cik: Type.Integer({ minimum: 0, description: "SPAC origin CIK" }),
   accession_number: Type.String({ maxLength: 25 }),
-  event_type: Type.Union(
-    SPAC_EVENT_TYPES.map((t) => Type.Literal(t)),
-    { description: "Event type" }
-  ),
+  event_type: TypeStringEnum(SPAC_EVENT_TYPES, { description: "Event type" }),
   event_date: Type.String({ format: "date" }),
   form: TypeNullable(Type.String({ maxLength: 20 })),
   primary_document: TypeNullable(Type.String({ maxLength: 200 })),

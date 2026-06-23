@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 
 /** Lifecycle status of a SPAC. Terminal states: completed, liquidated, withdrawn. */
 export const SPAC_STATUSES = [
@@ -32,10 +32,7 @@ export const SpacSchema = Type.Object({
   current_cik: TypeNullable(
     Type.Integer({ minimum: 0, description: "Surviving entity CIK if it differs from cik" })
   ),
-  status: Type.Union(
-    SPAC_STATUSES.map((s) => Type.Literal(s)),
-    { description: "Lifecycle status" }
-  ),
+  status: TypeStringEnum(SPAC_STATUSES, { description: "Lifecycle status" }),
 
   // Names (three eras + close-time snapshot)
   spac_name: TypeNullable(Type.String({ maxLength: 200, description: "Blank-check shell name at IPO" })),
