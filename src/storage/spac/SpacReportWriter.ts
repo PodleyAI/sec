@@ -8,7 +8,7 @@ import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import type { Spac } from "./SpacSchema";
-import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
+import type { SpacEvent } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 
