@@ -21,8 +21,8 @@ export interface SpacMilestoneEvent {
 
 /**
  * Map a filing's 8-K item codes to SPAC lifecycle events. `eventDate` is the
- * triggering-event date the caller resolved (`report_date ?? filing_date`).
- * Non-milestone items are dropped.
+ * caller's resolved triggering-event date (the 8-K period-of-report, falling
+ * back to the filing date). Non-milestone items are dropped.
  */
 export function mapItemCodesToSpacEvents(
   itemCodes: readonly string[],

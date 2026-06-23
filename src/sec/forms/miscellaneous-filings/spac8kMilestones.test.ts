@@ -117,4 +117,24 @@ describe("processForm8K SPAC milestone wiring", () => {
     const deals = await repo.getDeals(300);
     expect(deals.length).toBe(1);
   });
+
+  it("prefers report_date over filing_date for the event date", async () => {
+    await seedSpac(400);
+    const form8K = await Form_8_K.parse("8-K", "<html/>");
+    await processForm8K({
+      cik: 400,
+      accession_number: "400-da",
+      filing_date: "2021-03-10", // later than the report/triggering date
+      form: "8-K",
+      items: "1.01",
+      report_date: "2021-03-01", // the actual triggering-event date
+      form8K,
+    });
+
+    const events = await repo.getEvents(400);
+    const da = events.find((e) => e.event_type === "definitive_agreement");
+    expect(da?.event_date).toBe("2021-03-01");
+    const deals = await repo.getDeals(400);
+    expect(deals[0].definitive_agreement_date).toBe("2021-03-01");
+  });
 });
