@@ -186,19 +186,25 @@ redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
 425) land — 8-K item codes carry no names or amounts. Still deferred: name/SIC/
 ticker transitions and Form 25/15 de-registration.
 
-**Merger proxies** (`DEFM14A`, `PREM14A`; extractor id `merger-proxy`) run
+**Merger proxies** (`DEFM14A`/`PREM14A`, the `DEFM14C`/`PREM14C` consent statements,
+and the `DEFR14A`/`PRER14A` revised proxies; extractor id `merger-proxy`) run
 `processMergerProxy` (known SPACs only — a `spac` row must already exist): AI
 extraction over the merger / business-combination / PIPE sections records a
 per-accession `spac_merger_extraction` row (target name/CIK, PIPE amount, merger
 consideration) and observes the target company (`relation: "merger-proxy:target"`,
 `target_cik` resolved from the canonical company when it has one). `deriveDeals`
 correlates each extraction onto the matching `spac_deal` by filing-date window —
-*deriving* `target_name` / `target_cik` / `pipe_amount` (definitive DEFM14A
-supersedes preliminary PREM14A), which retires the 8-K path's positional
-merge-preserve. DEFM14A also emits a `proxy` event (→ `proxy_date` /
-`status = proxy`); PREM14A emits none. Redemption actuals stay null (post-vote
-8-K, deferred) and S-4 is deferred (newco-CIK linkage). Configure the model via
-`SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`).
+*deriving* `target_name` / `target_cik` / `pipe_amount` (a later filing supersedes
+an earlier one — definitive over preliminary, revised over definitive), which
+retires the 8-K path's positional merge-preserve. Only the **definitive merger**
+statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
+`status = proxy`): a consent deal (14C) has no `8-K 5.07` vote, so the definitive
+14C is its only approval-stage signal. Preliminary (`PREM14A`/`PREM14C`) and revised
+(`DEFR14A`/`PRER14A`) proxies are extraction-only. Redemption actuals stay null
+(post-vote 8-K, deferred) and S-4 is deferred (newco-CIK linkage). Configure the
+model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`) and an optional
+confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
+`SEC_S1_CONFIDENCE_FLOOR` when unset).
 
 ```bash
 sec fetch form <cik> DEFM14A             # fetch + extract a merger proxy
