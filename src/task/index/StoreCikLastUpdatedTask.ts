@@ -57,7 +57,6 @@ export class StoreCikLastUpdatedTask extends Task<
 
     const length = updateList.length;
     let progress = 0;
-    let index = 0;
     const batchSize = 1000;
     const batches = Math.ceil(length / batchSize);
     for (let i = 0; i < batches; i++) {
@@ -73,7 +72,10 @@ export class StoreCikLastUpdatedTask extends Task<
         }));
 
       await cikLastUpdateRepo.putBulk(batch);
-      const newProgress = Math.round((index++ / length) * 1000) / 10;
+      // Progress is over ROWS processed, not batches — index++ / length (the
+      // old form) divided a batch counter by the row count and never advanced.
+      const processed = Math.min((i + 1) * batchSize, length);
+      const newProgress = Math.round((processed / length) * 1000) / 10;
       if (newProgress > progress) {
         context.updateProgress(newProgress);
         progress = newProgress;

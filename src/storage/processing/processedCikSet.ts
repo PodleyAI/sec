@@ -7,22 +7,22 @@
 import type { ITabularStorage } from "workglow";
 
 /**
- * Streams every row in a `processed_*` repository and returns the set of
- * `cik` values. Peak memory is bounded to `pageSize` rows + the final
- * set (~24 bytes/entry — ~25 MB for a 1M-CIK corpus).
+ * Streams a `processed_*` repository and returns the set of `cik` values whose
+ * last processing **succeeded**. Peak memory is bounded to `pageSize` rows +
+ * the final set (~24 bytes/entry — ~25 MB for a 1M-CIK corpus).
  *
- * Used by `BootstrapSubmissionsTask` and `BootstrapCompanyFactsTask` to
- * compute the unprocessed-CIK set difference. The previous
- * `await repo.getAll()` materialised every row + every column into RAM
- * just to discard everything except `cik`; this avoids that intermediate.
+ * Used by `BootstrapSubmissionsTask` and `BootstrapCompanyFactsTask` to compute
+ * the unprocessed-CIK set difference. Failure rows (`success: false`, e.g. a
+ * transient FETCH_ERROR / STORE_ERROR) are excluded so a flaky pass is retried
+ * on the next non-`--force` bootstrap instead of being skipped forever.
  */
-export async function streamProcessedCikSet<T extends { cik: number }>(
+export async function streamProcessedCikSet<T extends { cik: number; success: boolean }>(
   repo: Pick<ITabularStorage<any, any, T>, "records">,
   pageSize: number = 5000
 ): Promise<Set<number>> {
   const seen = new Set<number>();
   for await (const row of repo.records(pageSize)) {
-    seen.add(row.cik);
+    if (row.success) seen.add(row.cik);
   }
   return seen;
 }

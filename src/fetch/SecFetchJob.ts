@@ -47,7 +47,7 @@ interface MaybeHttpError {
 /** Error code / message heuristics shared with consumers classifying fetch failures. */
 export const NETWORK_ERRNO_PATTERN =
   /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/;
-export const NETWORK_MESSAGE_PATTERN = /network|timeout|fetch failed|socket hang up/i;
+export const NETWORK_MESSAGE_PATTERN = /network|timeout|timed out|fetch failed|socket hang up/i;
 
 function getStatus(error: MaybeHttpError): number | undefined {
   return error.status ?? error.statusCode ?? error.httpStatus ?? error.response?.status;
@@ -159,25 +159,47 @@ function backoffDelay(attempt: number): number {
   return Math.floor(base * (0.5 + Math.random() * 0.5));
 }
 
-function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
+/**
+ * Combine abort signals into one. Returns the combined signal plus a `cleanup`
+ * the caller must invoke (e.g. in `finally`): the fallback path attaches abort
+ * listeners to the source signals (including the long-lived `context.signal`),
+ * which otherwise accumulate one per attempt for the lifetime of the job/
+ * workflow. `cleanup` is a no-op when no listeners were attached.
+ */
+function combineSignals(signals: Array<AbortSignal | undefined>): {
+  signal: AbortSignal;
+  cleanup: () => void;
+} {
+  const noop = () => {};
   const live = signals.filter((s): s is AbortSignal => Boolean(s));
-  if (live.length === 0) return new AbortController().signal;
-  if (live.length === 1) return live[0];
+  if (live.length === 0) return { signal: new AbortController().signal, cleanup: noop };
+  if (live.length === 1) return { signal: live[0], cleanup: noop };
   if (
     typeof (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any ===
     "function"
   ) {
-    return (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any(live);
+    return {
+      signal: (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any(live),
+      cleanup: noop,
+    };
   }
   const controller = new AbortController();
+  const attached: Array<[AbortSignal, () => void]> = [];
   for (const s of live) {
     if (s.aborted) {
       controller.abort(s.reason);
       break;
     }
-    s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
+    const onAbort = () => controller.abort(s.reason);
+    attached.push([s, onAbort]);
+    s.addEventListener("abort", onAbort);
   }
-  return controller.signal;
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const [s, onAbort] of attached) s.removeEventListener("abort", onAbort);
+    },
+  };
 }
 
 export class SecFetchJob<
@@ -209,19 +231,27 @@ export class SecFetchJob<
               DEFAULT_TIMEOUT_MS
             )
           : undefined;
-      const signal = combineSignals([context.signal, timeoutController?.signal]);
+      const { signal, cleanup } = combineSignals([context.signal, timeoutController?.signal]);
 
       try {
         return (await super.execute(input, { ...context, signal })) as Output;
       } catch (error) {
         lastError = error;
         if (context.signal.aborted) throw error;
-        if (!isRetriableError(error) || attempt === MAX_FETCH_ATTEMPTS - 1) throw error;
+        // A per-attempt timeout is a transient condition the retry loop exists
+        // to absorb, but the abort surfaces as a bare Error/AbortError whose
+        // shape isRetriableError can't recognise — so key off the timeout
+        // controller directly rather than the (lossy) error message.
+        const timedOut = timeoutController?.signal.aborted === true;
+        if ((!timedOut && !isRetriableError(error)) || attempt === MAX_FETCH_ATTEMPTS - 1) {
+          throw error;
+        }
         const retryAfter = getRetryAfterMs(error as MaybeHttpError);
         const delay = retryAfter ?? backoffDelay(attempt);
         await sleepWithAbort(delay, context.signal);
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+        cleanup();
       }
     }
     throw lastError;

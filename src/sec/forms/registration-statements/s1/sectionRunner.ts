@@ -130,21 +130,31 @@ export function makeRunSection(opts: {
       const wrote = await sargs.persist(rows);
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
-      } else {
-        await deadLetters.markResolved(extractor_id, accession_number, sargs.sectionName);
+        return;
       }
-      if (droppedUnverified > 0 && sargs.unverifiedPartialDetail !== undefined) {
-        await deadLetters.record({
-          extractor_id,
-          accession_number,
-          section_name: `${sargs.sectionName}-partial`,
-          reason_code: "UNVERIFIED_SOURCE_SPAN",
-          detail: sargs.unverifiedPartialDetail
-            .replace(/\$N/g, String(droppedUnverified))
-            .replace(/\$T/g, String(confident.length)),
-          failed_extractor_version: extractor_version,
-          source_run_id: null,
-        });
+      await deadLetters.markResolved(extractor_id, accession_number, sargs.sectionName);
+      // Reconcile the sibling `-partial` triage entry (only sections that can
+      // emit one carry unverifiedPartialDetail). Record it when THIS run dropped
+      // unverified rows; otherwise resolve any `-partial` left pending by a
+      // prior run, so a now-clean filing stops lingering forever on the
+      // version-gated retry worklist (markResolved no-ops when none exists).
+      if (sargs.unverifiedPartialDetail !== undefined) {
+        const partialSection = `${sargs.sectionName}-partial`;
+        if (droppedUnverified > 0) {
+          await deadLetters.record({
+            extractor_id,
+            accession_number,
+            section_name: partialSection,
+            reason_code: "UNVERIFIED_SOURCE_SPAN",
+            detail: sargs.unverifiedPartialDetail
+              .replace(/\$N/g, String(droppedUnverified))
+              .replace(/\$T/g, String(confident.length)),
+            failed_extractor_version: extractor_version,
+            source_run_id: null,
+          });
+        } else {
+          await deadLetters.markResolved(extractor_id, accession_number, partialSection);
+        }
       }
     } catch (e) {
       await record(

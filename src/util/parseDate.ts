@@ -17,9 +17,9 @@ export function parseDate(dateStr: string): { year: number; month: string; day: 
   const regexes = [
     /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // yyyy-MM-dd
     /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // MM/dd/yyyy
-    /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // dd-MM-yyyy
+    /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // MM-dd-yyyy
     /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/, // yyyy/MM/dd
-    /^(\d{4})(\d{1,2})(\d{1,2})$/, // yyyyMMdd
+    /^(\d{4})(\d{2})(\d{2})$/, // yyyyMMdd (EDGAR index filenames)
   ];
 
   for (const regex of regexes) {
@@ -27,13 +27,13 @@ export function parseDate(dateStr: string): { year: number; month: string; day: 
     if (match) {
       let year: number, month: number, day: number;
 
-      if (regex === regexes[0] || regex === regexes[3]) {
-        // yyyy-MM-dd or yyyy/MM/dd
+      if (regex === regexes[0] || regex === regexes[3] || regex === regexes[4]) {
+        // year-first: yyyy-MM-dd, yyyy/MM/dd, or yyyyMMdd
         year = parseInt(match[1], 10);
         month = parseInt(match[2], 10);
         day = parseInt(match[3], 10);
       } else {
-        // MM/dd/yyyy or dd-MM-yyyy
+        // month-first: MM/dd/yyyy or MM-dd-yyyy
         year = parseInt(match[3], 10);
         month = parseInt(match[1], 10);
         day = parseInt(match[2], 10);

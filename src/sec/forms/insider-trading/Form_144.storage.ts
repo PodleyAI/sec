@@ -140,8 +140,11 @@ export async function processForm144({
   const addressRepo = new AddressRepo();
   const repo = new Form144Repo();
 
-  const securitiesInfo = formData.securitiesInformation;
-  const broker = securitiesInfo?.brokerOrMarketmakerDetails;
+  // firstOf guards the single-element-becomes-array case: if a filing repeats
+  // securitiesInformation/broker, fast-xml-parser yields an array and reading a
+  // field off it would silently null the whole proposed-sale block.
+  const securitiesInfo = firstOf(formData.securitiesInformation);
+  const broker = firstOf(securitiesInfo?.brokerOrMarketmakerDetails);
   const relationships = (issuerInfo?.relationshipsToIssuer?.relationshipToIssuer ?? [])
     .map((r) => str(r))
     .filter((r): r is string => r !== null);

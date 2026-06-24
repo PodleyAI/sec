@@ -9,6 +9,19 @@ import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacMergerExtraction } from "./SpacMergerExtractionSchema";
 import type { SpacRedemptionExtraction } from "./SpacRedemptionExtractionSchema";
 
+/**
+ * Supersession precedence for merger-proxy forms when two land on the same
+ * filing_date: revised (DEFR / PRER) supersedes definitive (DEFM) supersedes
+ * preliminary (PREM). Used only as a same-date tiebreak; filing_date still
+ * dominates.
+ */
+function mergerFormRank(form: string): number {
+  const f = form.toUpperCase();
+  if (f.startsWith("DEFR") || f.startsWith("PRER")) return 2;
+  if (f.startsWith("DEFM")) return 1;
+  return 0;
+}
+
 /** Event types that shape a business-combination attempt. */
 const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
   "definitive_agreement",
@@ -161,7 +174,16 @@ export function deriveDeals(
         (m) =>
           (lower == null || m.filing_date >= lower) && (upper == null || m.filing_date < upper)
       )
-      .sort((a, b) => a.filing_date.localeCompare(b.filing_date));
+      // Deterministic supersession: by filing_date, then by form precedence
+      // (definitive > preliminary, revised > definitive — see CLAUDE.md), then
+      // by accession so ties resolve identically on every backend rather than
+      // depending on getByCik()'s unspecified row order.
+      .sort(
+        (a, b) =>
+          a.filing_date.localeCompare(b.filing_date) ||
+          mergerFormRank(a.form) - mergerFormRank(b.form) ||
+          a.accession_number.localeCompare(b.accession_number)
+      );
     // Latest non-null wins per field; earlier non-nulls survive when later is null.
     for (const m of matched) {
       if (m.target_name != null) d.target_name = m.target_name;
@@ -190,7 +212,12 @@ export function deriveDeals(
         (r) =>
           (lower == null || r.filing_date >= lower) && (upper == null || r.filing_date < upper)
       )
-      .sort((a, b) => a.filing_date.localeCompare(b.filing_date));
+      // accession is the deterministic tiebreak for same-date 8-Ks.
+      .sort(
+        (a, b) =>
+          a.filing_date.localeCompare(b.filing_date) ||
+          a.accession_number.localeCompare(b.accession_number)
+      );
     // Latest non-null wins per field; earlier non-nulls survive when a later filing omits them.
     for (const r of matched) {
       if (r.redemption_amount != null) d.redemption_amount = r.redemption_amount;
