@@ -349,6 +349,11 @@ import {
   SpacMergerExtractionPrimaryKeyNames,
   SpacMergerExtractionSchema,
 } from "../storage/spac/SpacMergerExtractionSchema";
+import {
+  SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
+  SpacRedemptionExtractionPrimaryKeyNames,
+  SpacRedemptionExtractionSchema,
+} from "../storage/spac/SpacRedemptionExtractionSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -676,6 +681,15 @@ export const DefaultDI = () => {
       "spac_merger_extraction",
       SpacMergerExtractionSchema,
       SpacMergerExtractionPrimaryKeyNames,
+      [["cik"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
+    createStorage(
+      "spac_redemption_extraction",
+      SpacRedemptionExtractionSchema,
+      SpacRedemptionExtractionPrimaryKeyNames,
       [["cik"]]
     )
   );

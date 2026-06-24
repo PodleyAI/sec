@@ -264,6 +264,11 @@ import {
   SpacMergerExtractionSchema,
 } from "../storage/spac/SpacMergerExtractionSchema";
 import {
+  SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
+  SpacRedemptionExtractionPrimaryKeyNames,
+  SpacRedemptionExtractionSchema,
+} from "../storage/spac/SpacRedemptionExtractionSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -503,6 +508,14 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(
       SpacMergerExtractionSchema,
       SpacMergerExtractionPrimaryKeyNames,
+      [["cik"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      SpacRedemptionExtractionSchema,
+      SpacRedemptionExtractionPrimaryKeyNames,
       [["cik"]]
     )
   );
