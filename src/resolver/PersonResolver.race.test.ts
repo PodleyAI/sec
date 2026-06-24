@@ -20,7 +20,7 @@ import {
 } from "../storage/canonical/CanonicalAliasSchemas";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import { PersonResolver } from "./PersonResolver";
-import { isUniqueConstraintError } from "./isUniqueConstraintError";
+import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 type ErrorShape = "sqlite" | "pg";
 

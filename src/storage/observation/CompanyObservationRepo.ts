@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { isUniqueConstraintError } from "../../util/isUniqueConstraintError";
 import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   type CompanyObservation,
@@ -69,27 +70,42 @@ export class CompanyObservationRepo {
   }
 
   async upsertByNaturalKey(draft: CompanyObservationDraft): Promise<CompanyObservation> {
-    const matches = await this.repo.query({
-      accession_number: draft.accession_number,
-      extractor_id: draft.extractor_id,
-      observation_index: draft.observation_index,
-    });
-    const existing = matches?.[0];
-    if (existing) {
-      const merged: CompanyObservation = {
-        ...existing,
-        ...this.applyNullDefaults(draft),
-        observation_id: existing.observation_id,
-      };
-      await this.repo.put(merged);
-      return merged;
-    }
-    // See PersonObservationRepo for the rationale on dropping the
-    // process-wide mutex: the backend's auto-generated PK closes the
-    // TOCTOU race on its own.
-    return await this.repo.put(
-      this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
+    const existing = await this.getByNaturalKey(
+      draft.accession_number,
+      draft.extractor_id,
+      draft.observation_index
     );
+    if (existing) return this.mergeOnto(existing, draft);
+
+    try {
+      return await this.repo.put(
+        this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
+      );
+    } catch (err) {
+      // Concurrent insert of the same natural key — the UNIQUE index rejects
+      // the duplicate; re-read the winner and merge. See PersonObservationRepo.
+      if (!isUniqueConstraintError(err)) throw err;
+      const winner = await this.getByNaturalKey(
+        draft.accession_number,
+        draft.extractor_id,
+        draft.observation_index
+      );
+      if (!winner) throw err;
+      return this.mergeOnto(winner, draft);
+    }
+  }
+
+  private async mergeOnto(
+    existing: CompanyObservation,
+    draft: CompanyObservationDraft
+  ): Promise<CompanyObservation> {
+    const merged: CompanyObservation = {
+      ...existing,
+      ...this.applyNullDefaults(draft),
+      observation_id: existing.observation_id,
+    };
+    await this.repo.put(merged);
+    return merged;
   }
 
   async getByNaturalKey(
