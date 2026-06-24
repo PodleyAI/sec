@@ -26,7 +26,9 @@ import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
@@ -193,6 +195,21 @@ export class ProcessAccessionDocFormTask extends Task<
       fileName = fullSubmissionFileName(accessionNumber);
     }
 
+    // Known-SPAC 8-Ks carrying a redemption-trigger item are fetched as the full
+    // submission .txt so the redemption pass can read the EX-99 vote-results
+    // exhibit, not just the primary document. Other 8-Ks keep their primary-doc
+    // fetch.
+    let redemptionFullSubmission = false;
+    if (
+      (form === "8-K" || form === "8-K/A") &&
+      hasRedemptionTriggerItem(items) &&
+      cik !== undefined &&
+      (await new SpacRepo().getSpac(cik)) !== undefined
+    ) {
+      fileName = fullSubmissionFileName(accessionNumber);
+      redemptionFullSubmission = true;
+    }
+
     const extractorId = formToExtractorId(form);
     if (!extractorId) {
       throw new TaskError(`No extractor registered for form '${form}'`);
@@ -356,7 +373,14 @@ export class ProcessAccessionDocFormTask extends Task<
           break;
         case "8-K":
         case "8-K/A":
-          await processForm8K({ ...storageArgs, form: form!, items, report_date, form8K: parsed });
+          await processForm8K({
+            ...storageArgs,
+            form: form!,
+            items,
+            report_date,
+            form8K: parsed,
+            fullSubmissionText: redemptionFullSubmission ? text : undefined,
+          });
           break;
         case "DEFM14A":
         case "PREM14A":
