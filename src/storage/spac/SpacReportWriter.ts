@@ -158,6 +158,24 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record a realized redemption: recompute deals from the event stream +
+   * stored redemption extractions (correlation derives redemption_amount /
+   * redemption_shares onto the matching deal), then rebuild the row. No event
+   * is appended — redemptions never advance the lifecycle and an extra event
+   * would double-count in the rollup. The extraction itself is persisted by the
+   * caller (`processRedemption8K`) before this runs.
+   */
+  async recordRedemption(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await this.recomputeAndSaveDeals(args.cik);
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
    * Rebuild the deal set from the CIK's full event stream + merger extractions
    * (the single derivation path shared by the 8-K and merger-proxy writers).
    */
