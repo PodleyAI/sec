@@ -10,6 +10,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SpacRepo } from "./SpacRepo";
 import { SpacReportWriter } from "./SpacReportWriter";
+import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 
 describe("SpacReportWriter", () => {
@@ -178,5 +179,153 @@ describe("SpacReportWriter", () => {
     });
     const row = await repo.getSpac(9);
     expect(JSON.parse(row!.spac_tickers!)).toEqual(["NEO.U", "NEO"]);
+  });
+
+  it("rolls a registered SPAC forward through DA, vote, and completion", async () => {
+    await writer.recordRegistration({
+      cik: 10,
+      accession_number: "0000-reg",
+      filing_date: "2020-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Merge SPAC",
+      spac_sic: 6770,
+    });
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-da",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-03-01" }],
+    });
+    let row = await repo.getSpac(10);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.definitive_agreement_date).toBe("2021-03-01");
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-vote",
+      filing_date: "2021-06-02",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2021-06-01" }],
+    });
+    row = await repo.getSpac(10);
+    expect(row?.status).toBe("proxy");
+    expect(row?.vote_date).toBe("2021-06-01");
+
+    await writer.recordDealMilestones({
+      cik: 10,
+      accession_number: "0000-close",
+      filing_date: "2021-06-16",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "completed", event_date: "2021-06-15" }],
+    });
+    row = await repo.getSpac(10);
+    expect(row?.status).toBe("completed");
+    expect(row?.completed_date).toBe("2021-06-15");
+
+    const deals = await repo.getDeals(10);
+    expect(deals.length).toBe(1);
+    expect(deals[0].outcome).toBe("completed");
+    expect(deals[0].target_name).toBeNull(); // not available from item codes
+  });
+
+  it("is idempotent when the same milestone 8-K is reprocessed", async () => {
+    const call = {
+      cik: 11,
+      accession_number: "0000-da",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement" as const, event_date: "2021-03-01" }],
+    };
+    await writer.recordDealMilestones(call);
+    await writer.recordDealMilestones(call);
+
+    const events = await repo.getEvents(11);
+    expect(events.filter((e) => e.event_type === "definitive_agreement").length).toBe(1);
+    const deals = await repo.getDeals(11);
+    expect(deals.length).toBe(1);
+  });
+
+  it("does nothing when given no events", async () => {
+    await writer.recordDealMilestones({
+      cik: 12,
+      accession_number: "0000-none",
+      filing_date: "2021-03-05",
+      form: "8-K",
+      primary_document: null,
+      events: [],
+    });
+    expect(await repo.getSpac(12)).toBeUndefined();
+    expect(await repo.getEvents(12)).toEqual([]);
+  });
+
+  it("derives target/pipe + proxy from a recorded merger proxy and rolls up", async () => {
+    await writer.recordRegistration({
+      cik: 20, accession_number: "20-reg", filing_date: "2020-12-01", form: "S-1",
+      primary_document: "s1.htm", spac_name: "Merge SPAC", spac_sic: 6770,
+    });
+    await writer.recordDealMilestones({
+      cik: 20, accession_number: "20-da", filing_date: "2021-03-05", form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-03-01" }],
+    });
+
+    await new SpacMergerExtractionRepo().save({
+      accession_number: "20-defm", cik: 20, form: "DEFM14A", filing_date: "2021-05-01",
+      extractor_id: "merger-proxy", extractor_version: "1.0.0",
+      target_name: "Acme Target Inc.", target_cik: 999, target_observation_id: 1,
+      pipe_amount: 150_000_000, merger_consideration: "$10.00 per share in stock",
+      confidence: 0.95, source_span: "merger with Acme Target Inc.", model_id: "claude-sonnet-4-6",
+      created_at: new Date().toISOString(),
+    });
+    await writer.recordMergerProxy({
+      cik: 20, accession_number: "20-defm", filing_date: "2021-05-01",
+      form: "DEFM14A", primary_document: "defm.htm", emitProxyEvent: true,
+    });
+
+    const row = await repo.getSpac(20);
+    expect(row?.status).toBe("proxy");
+    expect(row?.target_name).toBe("Acme Target Inc.");
+    expect(row?.pipe_amount).toBe(150_000_000);
+    expect(row?.proxy_date).toBe("2021-05-01");
+
+    const deals = await repo.getDeals(20);
+    expect(deals[0].target_name).toBe("Acme Target Inc.");
+    expect(deals[0].target_cik).toBe(999);
+  });
+
+  it("does not emit a proxy event for a preliminary proxy (PREM14A)", async () => {
+    await writer.recordRegistration({
+      cik: 21, accession_number: "21-reg", filing_date: "2020-12-01", form: "S-1",
+      primary_document: "s1.htm", spac_name: "Merge SPAC", spac_sic: 6770,
+    });
+    await writer.recordDealMilestones({
+      cik: 21, accession_number: "21-da", filing_date: "2021-03-05", form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-03-01" }],
+    });
+    await new SpacMergerExtractionRepo().save({
+      accession_number: "21-prem", cik: 21, form: "PREM14A", filing_date: "2021-04-01",
+      extractor_id: "merger-proxy", extractor_version: "1.0.0",
+      target_name: "Acme Target Inc.", target_cik: null, target_observation_id: null,
+      pipe_amount: null, merger_consideration: null, confidence: 0.9, source_span: null,
+      model_id: null, created_at: new Date().toISOString(),
+    });
+    await writer.recordMergerProxy({
+      cik: 21, accession_number: "21-prem", filing_date: "2021-04-01",
+      form: "PREM14A", primary_document: "prem.htm", emitProxyEvent: false,
+    });
+
+    const events = await repo.getEvents(21);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(21);
+    expect(row?.target_name).toBe("Acme Target Inc."); // still correlated
+    expect(row?.status).toBe("deal_announced"); // no proxy event -> not "proxy"
   });
 });

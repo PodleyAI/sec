@@ -18,6 +18,8 @@ export const EXTRACTOR_IDS = [
   "S-1",
   "424",
   "8-K",
+  "merger-proxy",
+  "redemption",
 ] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
@@ -77,6 +79,12 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "424B7": "424",
   "8-K": "8-K",
   "8-K/A": "8-K",
+  DEFM14A: "merger-proxy",
+  PREM14A: "merger-proxy",
+  DEFM14C: "merger-proxy",
+  PREM14C: "merger-proxy",
+  DEFR14A: "merger-proxy",
+  PRER14A: "merger-proxy",
 };
 
 export function formToExtractorId(form: string): ExtractorId | undefined {

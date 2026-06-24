@@ -5,10 +5,16 @@
  */
 
 import { Form } from "../Form";
+import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
+import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 export class Form_DEFM14A extends Form {
   static readonly name = "Definitive Proxy Statement for Merger or Acquisition";
   static readonly description =
     "Provides official notification to designated classes of shareholders of matters relating to a merger or acquisition.";
   static readonly forms = ["DEFM14A"] as const;
+
+  static override async parse(form: string, txt: string): Promise<FormS1Parsed> {
+    return parseRegistrationSubmission(form, txt);
+  }
 }

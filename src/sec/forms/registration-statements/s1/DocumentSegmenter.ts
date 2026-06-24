@@ -15,6 +15,10 @@ export const S1_SECTIONS = {
   UNDERWRITING: "Underwriting",
   USE_OF_PROCEEDS: "Use of Proceeds",
   THE_SPONSOR: "The Sponsor",
+  // Merger-proxy (DEFM14A/PREM14A) sections; read by the merger-proxy extractor.
+  THE_MERGER: "The Merger",
+  BUSINESS_COMBINATION: "The Business Combination",
+  PIPE_FINANCING: "PIPE Financing",
 } as const;
 export type S1SectionName = (typeof S1_SECTIONS)[keyof typeof S1_SECTIONS];
 
@@ -50,6 +54,16 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
   [S1_SECTIONS.THE_SPONSOR]: [
     /^\s*(the|our) sponsor\s*$/i,
     /^\s*the sponsor and its affiliates\s*$/i,
+  ],
+  [S1_SECTIONS.THE_MERGER]: [/^\s*the merger\s*$/i, /^\s*the merger agreement\s*$/i],
+  [S1_SECTIONS.BUSINESS_COMBINATION]: [
+    /^\s*the business combination\s*$/i,
+    /^\s*the business combination agreement\s*$/i,
+    /^\s*proposal no\.?\s*1[^\n]*business combination\s*$/i,
+  ],
+  [S1_SECTIONS.PIPE_FINANCING]: [
+    /^\s*pipe (financing|investment|subscription)\s*$/i,
+    /^\s*the pipe\s*$/i,
   ],
 };
 

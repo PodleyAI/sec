@@ -6,9 +6,11 @@
 
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
+import { withCli } from "@workglow/cli";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
+import { BackfillRedemptionsTask } from "../task/spac/BackfillRedemptionsTask";
 
 export interface SpacReport {
   readonly cik: number;
@@ -109,5 +111,16 @@ export function registerSpacCommands(program: Command): void {
           `${h.valid_from} [${h.status ?? "-"}] via ${h.change_source}${h.valid_to ? "" : " (current)"}`
         );
       }
+    });
+
+  spacCmd
+    .command("backfill-redemptions")
+    .description("Re-process known-SPAC trigger-item 8-Ks to extract realized redemptions")
+    .action(async () => {
+      const out = (await withCli(new BackfillRedemptionsTask()).run({})) as {
+        selected: number;
+        processed: number;
+      };
+      console.log(`selected ${out.selected} filing(s); processed ${out.processed}`);
     });
 }

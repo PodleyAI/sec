@@ -175,9 +175,58 @@ and rolled-up key dates. It is **derived** from two append-only tables — `spac
 so replays are idempotent; an `as_of` guard protects filing-sourced scalar fields
 from out-of-order writes, and `spac_history` + `ChangeLog` version the row.
 
-Today only the IPO half is populated (S-1/DRS → `registration`, priced 424B1/424B4
-→ `ipo`); de-SPAC events (8-K items, S-4/proxy, redemptions, PIPE, de-registration)
-are defined-but-deferred slots.
+The IPO half is populated from S-1/DRS (`registration`) and priced 424B1/424B4
+(`ipo`). De-SPAC **milestone dates** are populated deterministically from 8-K
+item codes (known SPACs only — a `spac` row must already exist): item `1.01` →
+`definitive_agreement`, `1.02` → `terminated`, `2.01` → `completed`, `5.07` →
+`vote`. These group into `spac_deal` attempts via `deriveDeals`
+(recomputed from the event stream on every write, so `deal_index` is stable
+across replays) and roll up automatically. `target_name`, `pipe_amount`, and
+redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
+425) land — 8-K item codes carry no names or amounts. Still deferred: name/SIC/
+ticker transitions and Form 25/15 de-registration.
+
+**Merger proxies** (`DEFM14A`/`PREM14A`, the `DEFM14C`/`PREM14C` consent statements,
+and the `DEFR14A`/`PRER14A` revised proxies; extractor id `merger-proxy`) run
+`processMergerProxy` (known SPACs only — a `spac` row must already exist): AI
+extraction over the merger / business-combination / PIPE sections records a
+per-accession `spac_merger_extraction` row (target name/CIK, PIPE amount, merger
+consideration) and observes the target company (`relation: "merger-proxy:target"`,
+`target_cik` resolved from the canonical company when it has one). `deriveDeals`
+correlates each extraction onto the matching `spac_deal` by filing-date window —
+*deriving* `target_name` / `target_cik` / `pipe_amount` (a later filing supersedes
+an earlier one — definitive over preliminary, revised over definitive), which
+retires the 8-K path's positional merge-preserve. Only the **definitive merger**
+statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
+`status = proxy`): a consent deal (14C) has no `8-K 5.07` vote, so the definitive
+14C is its only approval-stage signal. Preliminary (`PREM14A`/`PREM14C`) and revised
+(`DEFR14A`/`PRER14A`) proxies are extraction-only. S-4 is deferred (newco-CIK linkage). Configure the
+model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`) and an optional
+confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
+`SEC_S1_CONFIDENCE_FLOOR` when unset).
+
+```bash
+sec fetch form <cik> DEFM14A             # fetch + extract a merger proxy
+sec extractor dead-letters merger-proxy  # version-fixable extraction failures
+sec extractor retry-dead-letters merger-proxy
+```
+
+**Redemption actuals** (extractor id `redemption`) are AI-extracted from a known
+SPAC's post-vote 8-K narrative. When an 8-K carries item `5.07`, `2.01`, or `8.01`
+for a known SPAC, ingestion escalates the fetch to the full submission `.txt` and
+reads the primary document + `EX-99.x` exhibits; `processRedemption8K` records a
+per-accession `spac_redemption_extraction` row, and `deriveDeals` correlates
+`redemption_amount` / `redemption_shares` onto the matching `spac_deal`. The deal
+column is the sole source `total_redemption_amount` sums, so redemptions are counted
+once. Configure the model via `SEC_REDEMPTION_MODEL` (default `claude-sonnet-4-6`)
+and an optional confidence floor via `SEC_REDEMPTION_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`).
+
+```bash
+sec spac backfill-redemptions            # sweep historical known-SPAC trigger 8-Ks
+sec extractor dead-letters redemption    # version-fixable extraction failures
+sec extractor retry-dead-letters redemption
+```
 
 ```bash
 sec spac report <cik> [--format json]   # consolidated report
