@@ -324,7 +324,8 @@ export async function extractMergerDeal(
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
     "Return JSON matching the schema.";
-  const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
+  const { wrapped, nonce } = wrapUntrusted(sectionText);
+  const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, MergerDealOutputSchema);
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
@@ -360,7 +361,8 @@ export async function extractRedemption(
     "only figures explicitly stated — do NOT multiply shares by price to " +
     "synthesize an amount. If the text does not report realized redemptions, " +
     "return confidence 0 and null fields.";
-  const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
+  const { wrapped, nonce } = wrapUntrusted(sectionText);
+  const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, RedemptionOutputSchema);
   if (obj.confidence == null || obj.source_span == null) return null;
   // A "no realized redemption" response carries neither figure — not a redemption.
