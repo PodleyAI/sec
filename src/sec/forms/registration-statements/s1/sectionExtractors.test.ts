@@ -13,6 +13,7 @@ import {
   extractOfferingTerms,
   extractUnderwriters,
   extractUseOfProceeds,
+  extractMergerDeal,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -126,6 +127,37 @@ it("extractOfferingTerms returns the parsed offering object", async () => {
     const got = await extractOfferingTerms("THE OFFERING ...", fakeS1Model());
     expect(got?.units_offered).toBe(20000000);
     expect(got?.tickers[0].ticker).toBe("ACQU");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractMergerDeal returns the parsed merger object", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      target_name: "Acme Target Inc.",
+      pipe_amount: 150000000,
+      merger_consideration: "$10.00 per share in stock",
+      confidence: 0.92,
+      source_span: "merger with Acme Target Inc.",
+    },
+  ]);
+  try {
+    const got = await extractMergerDeal("THE MERGER ...", fakeS1Model());
+    expect(got?.target_name).toBe("Acme Target Inc.");
+    expect(got?.pipe_amount).toBe(150000000);
+  } finally {
+    unregister();
+  }
+});
+
+it("extractMergerDeal throws on schema-invalid model output (caller dead-letters it)", async () => {
+  // Missing the required `confidence` field -> schema validation rejects it.
+  const { unregister } = registerFakeStructuredProvider([
+    { target_name: "Acme Target Inc.", pipe_amount: null, merger_consideration: null },
+  ]);
+  try {
+    await expect(extractMergerDeal("THE MERGER ...", fakeS1Model())).rejects.toThrow();
   } finally {
     unregister();
   }

@@ -64,6 +64,8 @@ describe("sec version CLI", () => {
         "CFPORTAL",
         "D",
         "S-1",
+        "merger-proxy",
+        "redemption",
       ]);
       const extractorRows = parsed.filter(
         (r: { component_kind: string }) => r.component_kind === "extractor"

@@ -33,6 +33,12 @@ function headerSlice(txt: string): string {
   return firstDoc !== -1 ? txt.slice(0, firstDoc) : txt;
 }
 
+/** Body after the SGML `</SEC-HEADER>` boundary, else the whole input. */
+function bodyAfterHeader(txt: string): string {
+  const end = txt.indexOf("</SEC-HEADER>");
+  return end !== -1 ? txt.slice(end + "</SEC-HEADER>".length) : txt;
+}
+
 /**
  * Parses the human-readable EDGAR submission header (and the older tagged
  * `<ASSIGNED-SIC>` form as a fallback). Tolerant: any missing field is null.
@@ -124,8 +130,7 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
     // No <DOCUMENT> envelope: treat the input as a bare body. If a SEC-HEADER is
     // present (a malformed/truncated submission missing its document blocks), drop
     // it so the header lines aren't fed to the HTML converter as body text.
-    const end = txt.indexOf("</SEC-HEADER>");
-    const html = end !== -1 ? txt.slice(end + "</SEC-HEADER>".length) : txt;
+    const html = bodyAfterHeader(txt);
     return { header, html, xbrlInstanceXml: null, feeExhibitHtml: null };
   }
   const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
@@ -137,4 +142,32 @@ export function parseRegistrationSubmission(form: string, txt: string): FormS1Pa
     xbrlInstanceXml: findXbrlInstance(docs),
     feeExhibitHtml: findFeeExhibit(docs),
   };
+}
+
+/** Primary document body + EX-99.x exhibit bodies sliced from an 8-K submission. */
+export interface EightKSubmissionDocs {
+  readonly primaryHtml: string;
+  readonly exhibitsHtml: readonly string[];
+}
+
+/**
+ * Slices a full-submission `.txt` (or bare primary-doc body) into the primary
+ * document and its `EX-99.x` exhibits. The primary is the block whose `<TYPE>`
+ * equals `form`, else `<SEQUENCE> 1`, else the first; exhibits are every block
+ * whose `<TYPE>` starts with `EX-99`. With no `<DOCUMENT>` envelope the whole
+ * input is the primary body and there are no exhibits.
+ */
+export function parseEightKSubmission(form: string, txt: string): EightKSubmissionDocs {
+  const docs = parseDocuments(txt);
+  if (docs.length === 0) {
+    const html = bodyAfterHeader(txt);
+    return { primaryHtml: html, exhibitsHtml: [] };
+  }
+  const byType = docs.find((d) => d.type !== null && d.type.toUpperCase() === form.toUpperCase());
+  const bySeq = docs.find((d) => d.sequence === 1);
+  const primary = byType ?? bySeq ?? docs[0];
+  const exhibitsHtml = docs
+    .filter((d) => d.type !== null && d.type.toUpperCase().startsWith("EX-99"))
+    .map((d) => d.body);
+  return { primaryHtml: primary.body, exhibitsHtml };
 }

@@ -1,0 +1,39 @@
+<SEC-HEADER>0001234567-21-000001.hdr.sgml : 20210501
+ACCESSION NUMBER:		0001234567-21-000001
+CONFORMED SUBMISSION TYPE:	DEFM14A
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20210501
+FILED AS OF DATE:		20210501
+FILER:
+	COMPANY DATA:
+		COMPANY CONFORMED NAME:			MERGE SPAC INC.
+		CENTRAL INDEX KEY:			0001234567
+		STANDARD INDUSTRIAL CLASSIFICATION:	BLANK CHECKS [6770]
+		STATE OF INCORPORATION:			DE
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>DEFM14A
+<SEQUENCE>1
+<FILENAME>defm14a.htm
+<TEXT>
+<html>
+<head><title>Merge SPAC Inc. — Definitive Merger Proxy</title></head>
+<body>
+<h1>The Business Combination</h1>
+<p>
+Merge SPAC Inc., a blank check company, has entered into a business combination
+with Acme Target Inc., a leading operating company in its sector. Upon the closing
+of the business combination with Acme Target Inc., the post-combination company
+will continue the business of Acme Target Inc.
+</p>
+<h1>PIPE Financing</h1>
+<p>
+In connection with the business combination, certain institutional investors have
+agreed to purchase, in a private placement, shares for an aggregate PIPE investment
+of $150,000,000, to be funded immediately prior to the closing of the business
+combination.
+</p>
+</body>
+</html>
+</TEXT>
+</DOCUMENT>

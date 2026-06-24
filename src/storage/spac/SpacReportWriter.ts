@@ -7,8 +7,11 @@
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
+import { deriveDeals } from "./spacDealGrouping";
+import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "./SpacRedemptionExtractionRepo";
 import type { Spac } from "./SpacSchema";
-import type { SpacEvent } from "./SpacEventSchema";
+import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 
@@ -33,6 +36,26 @@ interface RecordIpoArgs {
   readonly spac_tickers: readonly string[] | null;
 }
 
+interface RecordDealMilestonesArgs {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly form: string;
+  readonly primary_document: string | null;
+  /** event_date is pre-resolved by the caller (report_date ?? filing_date). */
+  readonly events: readonly { event_type: SpacEventType; event_date: string }[];
+}
+
+interface RecordMergerProxyArgs {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly form: string;
+  readonly primary_document: string | null;
+  /** true for DEFM14A (definitive); false for PREM14A (preliminary). */
+  readonly emitProxyEvent: boolean;
+}
+
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
 const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik", "status", "spac_name", "target_name", "surviving_name", "current_name",
@@ -49,6 +72,8 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
  */
 export class SpacReportWriter {
   private readonly repo: SpacRepo;
+  private readonly mergerExtractions = new SpacMergerExtractionRepo();
+  private readonly redemptionExtractions = new SpacRedemptionExtractionRepo();
 
   constructor(repo: SpacRepo = new SpacRepo()) {
     this.repo = repo;
@@ -87,6 +112,92 @@ export class SpacReportWriter {
           ? JSON.stringify(args.spac_tickers)
           : null,
     });
+  }
+
+  /**
+   * Record de-SPAC milestone events mapped from 8-K item codes: append each
+   * event (idempotent by PK), recompute the deal set from the full event
+   * stream (merge-preserving §4b-owned columns), then rebuild the row.
+   */
+  async recordDealMilestones(args: RecordDealMilestonesArgs): Promise<void> {
+    if (args.events.length === 0) return;
+    for (const e of args.events) {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: e.event_type,
+        event_date: e.event_date,
+        form: args.form,
+        primary_document: args.primary_document,
+      });
+    }
+    await this.recomputeAndSaveDeals(args.cik);
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
+   * Record a merger proxy: emit a `proxy` event for the definitive proxy
+   * (DEFM14A), recompute deals from the event stream + stored merger
+   * extractions (correlation derives target/pipe), then rebuild the row. The
+   * extraction itself is persisted by the caller (`processMergerProxy`) before
+   * this runs.
+   */
+  async recordMergerProxy(args: RecordMergerProxyArgs): Promise<void> {
+    if (args.emitProxyEvent) {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "proxy",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: args.primary_document,
+      });
+    }
+    await this.recomputeAndSaveDeals(args.cik);
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
+   * Record a realized redemption: recompute deals from the event stream +
+   * stored redemption extractions (correlation derives redemption_amount /
+   * redemption_shares onto the matching deal), then rebuild the row. No event
+   * is appended — redemptions never advance the lifecycle and an extra event
+   * would double-count in the rollup. The extraction itself is persisted by the
+   * caller (`processRedemption8K`) before this runs.
+   */
+  async recordRedemption(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await this.recomputeAndSaveDeals(args.cik);
+    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+  }
+
+  /**
+   * Rebuild the deal set from the CIK's full event stream + merger extractions
+   * (the single derivation path shared by the 8-K and merger-proxy writers).
+   */
+  private async recomputeAndSaveDeals(cik: number): Promise<void> {
+    const [events, extractions, redemptions, existingDeals] = await Promise.all([
+      this.repo.getEvents(cik),
+      this.mergerExtractions.getByCik(cik),
+      this.redemptionExtractions.getByCik(cik),
+      this.repo.getDeals(cik),
+    ]);
+    const deals = deriveDeals(cik, events, extractions, redemptions, existingDeals);
+    // Reconcile: if a prior derivation yielded more deals than this one (the
+    // event stream or derivation logic changed), delete the orphaned rows.
+    // saveDeal only upserts, so without this their stale columns — notably
+    // redemption_amount — would still be summed into the rolled-up totals.
+    const liveIndexes = new Set(deals.map((d) => d.deal_index));
+    for (const existing of existingDeals) {
+      if (!liveIndexes.has(existing.deal_index)) {
+        await this.repo.deleteDeal(existing.cik, existing.deal_index);
+      }
+    }
+    for (const deal of deals) await this.repo.saveDeal(deal);
   }
 
   private async appendEvent(

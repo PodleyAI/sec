@@ -25,7 +25,15 @@ describe("extractorIds", () => {
       "CFPORTAL",
       "D",
       "S-1",
+      "merger-proxy",
+      "redemption",
     ]);
+  });
+
+  it("maps the merger proxies to extractor id 'merger-proxy'", () => {
+    for (const form of ["DEFM14A", "PREM14A", "DEFM14C", "PREM14C", "DEFR14A", "PRER14A"]) {
+      expect(formToExtractorId(form)).toBe("merger-proxy");
+    }
   });
 
   it("maps the 424 prospectus variants to extractor id '424'", () => {

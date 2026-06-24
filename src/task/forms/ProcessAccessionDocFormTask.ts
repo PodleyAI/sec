@@ -26,7 +26,10 @@ import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
+import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
+import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
@@ -191,6 +194,21 @@ export class ProcessAccessionDocFormTask extends Task<
     // primary <DOCUMENT>. Other forms keep their primary-doc fetch.
     if (REGISTRATION_PROSPECTUS_FORMS.has(form)) {
       fileName = fullSubmissionFileName(accessionNumber);
+    }
+
+    // Known-SPAC 8-Ks carrying a redemption-trigger item are fetched as the full
+    // submission .txt so the redemption pass can read the EX-99 vote-results
+    // exhibit, not just the primary document. Other 8-Ks keep their primary-doc
+    // fetch.
+    let redemptionFullSubmission = false;
+    if (
+      (form === "8-K" || form === "8-K/A") &&
+      hasRedemptionTriggerItem(items) &&
+      cik !== undefined &&
+      (await new SpacRepo().getSpac(cik)) !== undefined
+    ) {
+      fileName = fullSubmissionFileName(accessionNumber);
+      redemptionFullSubmission = true;
     }
 
     const extractorId = formToExtractorId(form);
@@ -364,7 +382,16 @@ export class ProcessAccessionDocFormTask extends Task<
             form8K: parsed,
             extractor_id: extractorId,
             extractor_version: extractorVersion,
+            fullSubmissionText: redemptionFullSubmission ? text : undefined,
           });
+          break;
+        case "DEFM14A":
+        case "PREM14A":
+        case "DEFM14C":
+        case "PREM14C":
+        case "DEFR14A":
+        case "PRER14A":
+          await processMergerProxy({ ...storageArgs, form: form!, formMergerProxy: parsed });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);

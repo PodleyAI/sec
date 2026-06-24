@@ -18,6 +18,8 @@ import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchem
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
+import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 
 const MAX_TOKENS = 4096;
 
@@ -310,6 +312,24 @@ export async function extractSpacSponsors(
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }
 
+export async function extractMergerDeal(
+  sectionText: string,
+  model: ModelConfig
+): Promise<MergerDealRow | null> {
+  const instructions =
+    "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
+    "Identify the business-combination target and deal terms. Give target_name (the " +
+    "operating company the SPAC will merge with), pipe_amount (the total PIPE " +
+    "investment in dollars, or null), merger_consideration (a short verbatim phrase " +
+    "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
+    "confidence in [0,1], and the verbatim source_span you drew the target from. " +
+    "Return JSON matching the schema.";
+  const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
+  const obj = await runStructured(model, prompt, MergerDealOutputSchema);
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return obj as unknown as MergerDealRow;
+}
+
 export async function extractUseOfProceeds(
   sectionText: string,
   model: ModelConfig
@@ -323,4 +343,27 @@ export async function extractUseOfProceeds(
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, UseOfProceedsOutputSchema);
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
+}
+
+/**
+ * Extracts realized redemptions (shares, dollars, per-share value) from an 8-K
+ * narrative (vote-results / closing press release). Returns null when the model
+ * is not confident or cites no source span. Mirrors {@link extractMergerDeal}.
+ */
+export async function extractRedemption(
+  sectionText: string,
+  model: ModelConfig
+): Promise<RedemptionRow | null> {
+  const instructions =
+    "From the SEC 8-K text below, extract the REALIZED redemption of public " +
+    "shares (e.g. reported after a shareholder vote or upon closing). Report " +
+    "only figures explicitly stated — do NOT multiply shares by price to " +
+    "synthesize an amount. If the text does not report realized redemptions, " +
+    "return confidence 0 and null fields.";
+  const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
+  const obj = await runStructured(model, prompt, RedemptionOutputSchema);
+  if (obj.confidence == null || obj.source_span == null) return null;
+  // A "no realized redemption" response carries neither figure — not a redemption.
+  if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
+  return obj as unknown as RedemptionRow;
 }
