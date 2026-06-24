@@ -74,6 +74,56 @@ describe("CrowdfundingTemporalRepo", () => {
     });
   });
 
+  test("same-millisecond stale snapshots for one CIK don't collide (distinct accessions)", async () => {
+    const base: Crowdfunding = {
+      cik: 77777,
+      file_number: "020-77777",
+      filing_date: "2024-01-01",
+      name: "Same MS Co",
+      legal_status: "Corporation",
+      state_jurisdiction: "DE",
+      date_incorporation: "2020-01-01",
+      url: "http://example.com",
+      portal_cik: 11111,
+      status: "annual-report",
+    };
+
+    // Freeze the wall clock so both stale-replay snapshots get an identical
+    // valid_from — reproducing a batch re-process landing two filings of one
+    // CIK in the same millisecond.
+    const RealDate = Date;
+    const FIXED = RealDate.parse("2026-06-01T00:00:00.000Z");
+    class FakeDate extends RealDate {
+      constructor(...args: ConstructorParameters<typeof Date> | []) {
+        if (args.length === 0) super(FIXED);
+        else super(...(args as ConstructorParameters<typeof Date>));
+      }
+      static now(): number {
+        return FIXED;
+      }
+    }
+    globalThis.Date = FakeDate as DateConstructor;
+    try {
+      await temporalRepo.saveCrowdfundingWithHistory(base, "Form C-AR", {
+        skipMutableUpdate: true,
+        accessionNumber: "acc-A",
+      });
+      await temporalRepo.saveCrowdfundingWithHistory(base, "Form C-TR", {
+        skipMutableUpdate: true,
+        accessionNumber: "acc-B",
+      });
+    } finally {
+      globalThis.Date = RealDate;
+    }
+
+    // Both snapshots survive. Without accession_number in the PK they would
+    // collide on (cik, valid_from) and the second would silently overwrite the
+    // first, losing a history version.
+    const rows = (await mockHistoryRepo.query({ cik: base.cik })) ?? [];
+    expect(rows.length).toBe(2);
+    expect(rows.map((r) => r.accession_number).sort()).toEqual(["acc-A", "acc-B"]);
+  });
+
   test("should save new crowdfunding entity with history and change log", async () => {
     const crowdfunding: Crowdfunding = {
       cik: 12345,
@@ -309,6 +359,7 @@ describe("CrowdfundingTemporalRepo", () => {
     const earlier: CrowdfundingHistory = {
       cik,
       file_number: fileNumber,
+      accession_number: "acc-earlier",
       filing_date: "2024-01-01",
       name: "Earlier Snapshot",
       legal_status: "Corporation",

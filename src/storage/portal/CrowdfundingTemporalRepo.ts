@@ -53,16 +53,20 @@ export class CrowdfundingTemporalRepo {
   async saveCrowdfundingWithHistory(
     crowdfunding: Crowdfunding,
     changeSource: string,
-    options?: { skipMutableUpdate?: boolean } | undefined,
+    options?: { skipMutableUpdate?: boolean; accessionNumber?: string } | undefined,
     batchId?: string
   ): Promise<void> {
     const changeDate = new Date().toISOString();
+    // Part of the history PK so same-millisecond snapshots for one CIK don't
+    // collide and drop a version. "" when unknown (callers should pass it).
+    const accession_number = options?.accessionNumber ?? "";
 
     if (options?.skipMutableUpdate === true) {
       // Snapshot the older filing as a closed history row; do not touch the
       // mutable row, do not emit a ChangeLog entry.
       const history: CrowdfundingHistory = {
         ...crowdfunding,
+        accession_number,
         valid_from: changeDate,
         valid_to: changeDate,
         change_source: changeSource,
@@ -95,6 +99,7 @@ export class CrowdfundingTemporalRepo {
         // Create new history record
         const history: CrowdfundingHistory = {
           ...crowdfunding,
+          accession_number,
           valid_from: changeDate,
           valid_to: null,
           change_source: changeSource,
@@ -126,6 +131,7 @@ export class CrowdfundingTemporalRepo {
       // New entity - create initial history record
       const history: CrowdfundingHistory = {
         ...crowdfunding,
+        accession_number,
         valid_from: changeDate,
         valid_to: null,
         change_source: changeSource,
@@ -208,7 +214,8 @@ export class CrowdfundingTemporalRepo {
     const validRecord = dominant ?? matches[0];
 
     if (validRecord) {
-      const { change_source, change_date, valid_from, valid_to, ...crowdfunding } = validRecord;
+      const { change_source, change_date, valid_from, valid_to, accession_number, ...crowdfunding } =
+        validRecord;
       return crowdfunding as Crowdfunding;
     }
 

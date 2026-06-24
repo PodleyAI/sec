@@ -90,6 +90,15 @@ export const InvestmentOfferingSchema = Type.Object({
       description: "Description of other security types if is_other_type is true",
     })
   ),
+  as_of: TypeNullable(
+    Type.String({
+      format: "date",
+      description:
+        "Filing date of the latest Form D/D-A reflected in this mutable row. " +
+        "Writes guard against out-of-order processing with it (skip a stale " +
+        "older filing); null when the filing date is unknown.",
+    })
+  ),
 });
 
 export type InvestmentOffering = Static<typeof InvestmentOfferingSchema>;

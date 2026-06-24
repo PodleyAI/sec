@@ -474,6 +474,7 @@ export async function processFormC({
 
   await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`, {
     skipMutableUpdate: isStale,
+    accessionNumber: accession_number,
   });
 
   // Issuers: index 0 (issuer), 1+ (co-issuers)

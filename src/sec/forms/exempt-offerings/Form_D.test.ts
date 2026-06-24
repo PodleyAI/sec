@@ -73,6 +73,7 @@ describe("Form_D comprehensive storage test", () => {
             cik,
             file_number: fileNumber,
             accession_number: accessionNumber,
+            filing_date: "",
             primary_doc: file,
             formD,
           });
@@ -140,6 +141,7 @@ describe("Form_D comprehensive storage test", () => {
         cik,
         file_number: `file-${accessionNumber}`,
         accession_number: accessionNumber,
+        filing_date: "",
         primary_doc: "000175724818000002-primary_doc.xml",
         formD,
       });
@@ -167,6 +169,7 @@ describe("Form_D comprehensive storage test", () => {
         cik,
         file_number: `file-${accessionNumber}`,
         accession_number: accessionNumber,
+        filing_date: "",
         primary_doc: "000192959422000001-primary_doc.xml",
         formD,
       });
@@ -191,6 +194,52 @@ describe("Form_D comprehensive storage test", () => {
       expect(history?.total_amount_sold).toBe(900000);
     });
 
+    it("does not regress the mutable offering row on an out-of-order older replay", async () => {
+      const xmlContent = readFileSync(
+        join(__dirname, "mock_data", "form-d", "000192959422000001-primary_doc.xml"),
+        "utf-8"
+      );
+      const formD = await Form_D.parse("D", xmlContent);
+      const cik = parseInt(formD.primaryIssuer.cik);
+      const fileNumber = `file-stale-${cik}`;
+
+      // The newer filing (by filing date) establishes the current row.
+      await processFormD({
+        cik,
+        file_number: fileNumber,
+        accession_number: "acc-new",
+        filing_date: "2023-06-01",
+        primary_doc: "x.xml",
+        formD,
+      });
+
+      // A back-catalog older D/A for the same offering carrying different data
+      // is processed AFTER it (out of order). It must not clobber the row.
+      const olderFormD = structuredClone(formD);
+      olderFormD.offeringData.industryGroup.industryGroupType = "Pooled Investment Fund";
+      await processFormD({
+        cik,
+        file_number: fileNumber,
+        accession_number: "acc-old",
+        filing_date: "2023-01-01",
+        primary_doc: "x.xml",
+        formD: olderFormD,
+      });
+
+      // Mutable row still reflects the newer filing (industry_group not regressed).
+      const offering = await investmentOfferingRepo.getInvestmentOffering(cik, fileNumber);
+      expect(offering?.industry_group).toBe("Commercial");
+      expect(offering?.as_of).toBe("2023-06-01");
+
+      // Both filings remain in the append-only history.
+      const histories =
+        await investmentOfferingRepo.getInvestmentOfferingHistoriesByCikAndFileNumber(
+          cik,
+          fileNumber
+        );
+      expect(histories.map((h) => h.accession_number).sort()).toEqual(["acc-new", "acc-old"]);
+    });
+
     it("should store signature data correctly", async () => {
       const xmlContent = readFileSync(
         join(__dirname, "mock_data", "form-d", "000192959422000001-primary_doc.xml"),
@@ -205,6 +254,7 @@ describe("Form_D comprehensive storage test", () => {
         cik,
         file_number: `file-${accessionNumber}`,
         accession_number: accessionNumber,
+        filing_date: "",
         primary_doc: "000192959422000001-primary_doc.xml",
         formD,
       });
@@ -233,6 +283,7 @@ describe("Form_D comprehensive storage test", () => {
         cik,
         file_number: `file-${accessionNumber}`,
         accession_number: accessionNumber,
+        filing_date: "",
         primary_doc: "000192959422000001-primary_doc.xml",
         formD,
       });
@@ -273,6 +324,7 @@ describe("Form_D comprehensive storage test", () => {
         cik,
         file_number: `file-${accessionNumber}`,
         accession_number: accessionNumber,
+        filing_date: "",
         primary_doc: "000175724718000001-primary_doc.xml",
         formD,
       });

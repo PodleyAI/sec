@@ -68,6 +68,7 @@ describe("Form_D pipeline", () => {
         cik,
         file_number: fileNumber,
         accession_number: accession,
+        filing_date: "",
         primary_doc: file,
         formD,
       });
@@ -160,6 +161,7 @@ describe("Form_D pipeline", () => {
         cik,
         file_number: fileNumber,
         accession_number: accession,
+        filing_date: "",
         primary_doc: file,
         formD,
       });
