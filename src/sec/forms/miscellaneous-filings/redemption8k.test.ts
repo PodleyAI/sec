@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedemptionExtractionRepo";
+import { ExtractorRunRepo } from "../../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../../storage/versioning/ExtractorRunSchema";
 import {
   fakeS1Model,
   registerFakeStructuredProvider,
@@ -343,5 +346,117 @@ describe("processRedemption8K", () => {
     expect(deals).toHaveLength(1);
     expect(deals[0].redemption_amount).toBe(12400000);
     expect(deals[0].redemption_shares).toBe(1234567);
+  });
+
+  describe("extractor_runs recording", () => {
+    it("records a successful run after a clean extraction", async () => {
+      await seedSpacWithOpenDeal(50);
+      const registration = registerFakeStructuredProvider([
+        {
+          redemption_shares: 1234567,
+          redemption_amount: 12400000,
+          price_per_share: 10.05,
+          confidence: 0.95,
+          source_span: "1,234,567 shares elected to redeem for $12,400,000",
+        },
+      ]);
+      cleanup = registration.unregister;
+
+      await processRedemption8K({
+        cik: 50,
+        accession_number: "0000000000-26-000050",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["5.07"],
+        fullSubmissionText: FULL_TXT,
+        model: fakeS1Model(),
+      });
+
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      const run = await runRepo.findRun(50, "0000000000-26-000050", "redemption", "1.0.0");
+      expect(run?.success).toBe(true);
+      expect(run?.error).toBeNull();
+      expect(run?.slot_at_run).toBe("current");
+    });
+
+    it("records a successful run when the SPAC has no deals (orphan)", async () => {
+      await new SpacReportWriter().recordRegistration({
+        cik: 51,
+        accession_number: "51-reg",
+        filing_date: "2025-12-01",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Orphan SPAC Inc.",
+        spac_sic: 6770,
+      });
+      const registration = registerFakeStructuredProvider([
+        {
+          redemption_shares: 1234567,
+          redemption_amount: 12400000,
+          price_per_share: 10.05,
+          confidence: 0.95,
+          source_span: "1,234,567 shares elected to redeem for $12,400,000",
+        },
+      ]);
+      cleanup = registration.unregister;
+
+      await processRedemption8K({
+        cik: 51,
+        accession_number: "0000000000-26-000051",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["5.07"],
+        fullSubmissionText: FULL_TXT,
+        model: fakeS1Model(),
+      });
+
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      const run = await runRepo.findRun(51, "0000000000-26-000051", "redemption", "1.0.0");
+      expect(run?.success).toBe(true);
+      expect(run?.error).toBeNull();
+    });
+
+    it("does NOT record a run when the trigger-item gate skips the filing", async () => {
+      await seedSpacWithOpenDeal(53);
+
+      await processRedemption8K({
+        cik: 53,
+        accession_number: "0000000000-26-000053",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["2.02"],
+        fullSubmissionText: FULL_TXT,
+        model: fakeS1Model(),
+      });
+
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      const run = await runRepo.findRun(53, "0000000000-26-000053", "redemption", "1.0.0");
+      expect(run).toBeUndefined();
+    });
+
+    it("does NOT record a run when the SPAC gate skips the filing", async () => {
+      // No spac row seeded for cik 54.
+      await processRedemption8K({
+        cik: 54,
+        accession_number: "0000000000-26-000054",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["5.07"],
+        fullSubmissionText: FULL_TXT,
+        model: fakeS1Model(),
+      });
+
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      const run = await runRepo.findRun(54, "0000000000-26-000054", "redemption", "1.0.0");
+      expect(run).toBeUndefined();
+    });
   });
 });

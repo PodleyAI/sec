@@ -19,6 +19,8 @@ import {
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
+import { ExtractorRunRepo } from "../../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../../storage/versioning/ExtractorRunSchema";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -71,9 +73,33 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   );
   const extractorSlot = await getActiveSlot(versionRegistry, "extractor", EXTRACTOR_ID);
   const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
+  // bootstrapComponentVersions seeds the current slot for every known
+  // extractor; the fallback only protects tests that bypass setupAllDatabases.
+  const slot_at_run = extractorSlot?.slot ?? "current";
   const deadLetters = new ExtractionDeadLetterRepo();
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   const model = args.model ?? (await getRedemptionModel());
   const model_id = resolveModelId(model);
+
+  const recordRedemptionRun = async (success: boolean, error: string | null): Promise<void> => {
+    try {
+      await runRepo.recordRun({
+        cik,
+        accession_number,
+        form,
+        extractor_id: EXTRACTOR_ID,
+        extractor_version,
+        slot_at_run,
+        success,
+        error: error === null ? null : error.slice(0, 4096),
+      });
+    } catch (recordErr) {
+      console.error(
+        `Failed to record extractor_runs row for ${cik}/${accession_number}@${EXTRACTOR_ID}:${extractor_version}:`,
+        recordErr
+      );
+    }
+  };
 
   // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
   // events and milestone deals already wrote); a malformed body dead-letters the
@@ -86,15 +112,17 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       .filter((t) => t.length > 0)
       .join("\n\n");
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,
       section_name: REDEMPTION_SECTION,
       reason_code: "PARSE_ERROR",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: message,
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+    await recordRedemptionRun(false, `PARSE_ERROR: ${message}`);
     return;
   }
 
@@ -107,39 +135,47 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   });
 
   let persisted = 0;
-  await runSection<RedemptionRow>({
-    sectionName: REDEMPTION_SECTION,
-    text: text === "" ? undefined : text,
-    notFoundDetail: "no primary/EX-99 narrative text",
-    emptyDetail: "no redemption returned",
-    lowConfidenceDetail: "below confidence floor",
-    verifyRow: (t, r) => spanAppearsIn(t, r.source_span),
-    unverifiedAllDetail: "redemption source_span not present in narrative text",
-    extract: async (t) => {
-      const row = await extractRedemption(t, model);
-      return row === null ? [] : [row];
-    },
-    persist: async (rows) => {
-      const row = rows[0];
-      await new SpacRedemptionExtractionRepo().save({
-        accession_number,
-        cik,
-        form,
-        filing_date,
-        extractor_id: EXTRACTOR_ID,
-        extractor_version,
-        redemption_shares: row.redemption_shares,
-        redemption_amount: row.redemption_amount,
-        price_per_share: row.price_per_share,
-        confidence: row.confidence,
-        source_span: row.source_span,
-        model_id,
-        created_at: new Date().toISOString(),
-      });
-      persisted = 1;
-      return 1;
-    },
-  });
+  try {
+    await runSection<RedemptionRow>({
+      sectionName: REDEMPTION_SECTION,
+      text: text === "" ? undefined : text,
+      notFoundDetail: "no primary/EX-99 narrative text",
+      emptyDetail: "no redemption returned",
+      lowConfidenceDetail: "below confidence floor",
+      verifyRow: (t, r) => spanAppearsIn(t, r.source_span),
+      unverifiedAllDetail: "redemption source_span not present in narrative text",
+      extract: async (t) => {
+        const row = await extractRedemption(t, model);
+        return row === null ? [] : [row];
+      },
+      persist: async (rows) => {
+        const row = rows[0];
+        await new SpacRedemptionExtractionRepo().save({
+          accession_number,
+          cik,
+          form,
+          filing_date,
+          extractor_id: EXTRACTOR_ID,
+          extractor_version,
+          redemption_shares: row.redemption_shares,
+          redemption_amount: row.redemption_amount,
+          price_per_share: row.price_per_share,
+          confidence: row.confidence,
+          source_span: row.source_span,
+          model_id,
+          created_at: new Date().toISOString(),
+        });
+        persisted = 1;
+        return 1;
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await recordRedemptionRun(false, message);
+    throw err;
+  }
+
+  await recordRedemptionRun(true, null);
 
   if (persisted > 0) {
     await new SpacReportWriter().recordRedemption({ cik, accession_number, filing_date, form });
