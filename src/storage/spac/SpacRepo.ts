@@ -58,6 +58,10 @@ export class SpacRepo {
     await this.dealRepository.put(deal);
   }
 
+  async deleteDeal(cik: number, deal_index: number): Promise<void> {
+    await this.dealRepository.delete({ cik, deal_index });
+  }
+
   /** Deals for a CIK, ascending by deal_index. */
   async getDeals(cik: number): Promise<SpacDeal[]> {
     const rows = (await this.dealRepository.query({ cik })) || [];

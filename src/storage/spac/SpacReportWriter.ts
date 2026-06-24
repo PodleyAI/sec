@@ -187,6 +187,16 @@ export class SpacReportWriter {
       this.repo.getDeals(cik),
     ]);
     const deals = deriveDeals(cik, events, extractions, redemptions, existingDeals);
+    // Reconcile: if a prior derivation yielded more deals than this one (the
+    // event stream or derivation logic changed), delete the orphaned rows.
+    // saveDeal only upserts, so without this their stale columns — notably
+    // redemption_amount — would still be summed into the rolled-up totals.
+    const liveIndexes = new Set(deals.map((d) => d.deal_index));
+    for (const existing of existingDeals) {
+      if (!liveIndexes.has(existing.deal_index)) {
+        await this.repo.deleteDeal(existing.cik, existing.deal_index);
+      }
+    }
     for (const deal of deals) await this.repo.saveDeal(deal);
   }
 
