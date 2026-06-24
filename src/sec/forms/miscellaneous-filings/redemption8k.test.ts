@@ -149,7 +149,7 @@ describe("processRedemption8K", () => {
     ).toBeUndefined();
   });
 
-  it("does not extract when the SPAC has no deals", async () => {
+  it("persists the extraction when the SPAC has no deals yet (orphan)", async () => {
     await new SpacReportWriter().recordRegistration({
       cik: 44,
       accession_number: "44-reg",
@@ -161,11 +161,11 @@ describe("processRedemption8K", () => {
     });
     const registration = registerFakeStructuredProvider([
       {
-        redemption_shares: 1,
-        redemption_amount: 1,
-        price_per_share: 10,
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
         confidence: 0.95,
-        source_span: "elected to redeem",
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
       },
     ]);
     cleanup = registration.unregister;
@@ -180,8 +180,168 @@ describe("processRedemption8K", () => {
       model: fakeS1Model(),
     });
 
-    expect(
-      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000012")
-    ).toBeUndefined();
+    const ext = await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000012");
+    expect(ext?.redemption_amount).toBe(12400000);
+    expect(ext?.redemption_shares).toBe(1234567);
+
+    // No deal exists yet, so there's nothing to roll up onto.
+    const deals = await new SpacRepo().getDeals(44);
+    expect(deals).toHaveLength(0);
+  });
+
+  it("correlates an orphan redemption onto a deal added later", async () => {
+    await new SpacReportWriter().recordRegistration({
+      cik: 45,
+      accession_number: "45-reg",
+      filing_date: "2025-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Late Deal SPAC Inc.",
+      spac_sic: 6770,
+    });
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
+        confidence: 0.95,
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    // Vote 8-K arrives before any definitive-agreement 8-K.
+    await processRedemption8K({
+      cik: 45,
+      accession_number: "0000000000-26-000013",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    // Later, the definitive-agreement 8-K lands (dated earlier than the vote).
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 45,
+      accession_number: "45-da",
+      filing_date: "2026-01-10",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2026-01-10" }],
+    });
+
+    const deals = await new SpacRepo().getDeals(45);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].redemption_amount).toBe(12400000);
+    expect(deals[0].redemption_shares).toBe(1234567);
+  });
+
+  it("correlates an orphan redemption onto a completed-only deal added later", async () => {
+    await new SpacReportWriter().recordRegistration({
+      cik: 46,
+      accession_number: "46-reg",
+      filing_date: "2025-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Completed-Only SPAC Inc.",
+      spac_sic: 6770,
+    });
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
+        confidence: 0.95,
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 46,
+      accession_number: "0000000000-26-000014",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["2.01"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    // The completion (2.01) 8-K is later recorded as a milestone; no 1.01.
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 46,
+      accession_number: "46-comp",
+      filing_date: "2026-03-25",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "completed", event_date: "2026-03-25" }],
+    });
+
+    const deals = await new SpacRepo().getDeals(46);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].redemption_amount).toBe(12400000);
+    expect(deals[0].redemption_shares).toBe(1234567);
+  });
+
+  it("is idempotent under replay — reprocessing before the deal lands does not double up", async () => {
+    await new SpacReportWriter().recordRegistration({
+      cik: 47,
+      accession_number: "47-reg",
+      filing_date: "2025-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Replay SPAC Inc.",
+      spac_sic: 6770,
+    });
+
+    const args = {
+      cik: 47,
+      accession_number: "0000000000-26-000015",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    } as const;
+
+    const reg1 = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
+        confidence: 0.95,
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
+      },
+    ]);
+    await processRedemption8K(args);
+    reg1.unregister();
+
+    const reg2 = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
+        confidence: 0.95,
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
+      },
+    ]);
+    cleanup = reg2.unregister;
+    await processRedemption8K(args);
+
+    // Now the definitive-agreement 8-K lands.
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 47,
+      accession_number: "47-da",
+      filing_date: "2026-01-10",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2026-01-10" }],
+    });
+
+    const deals = await new SpacRepo().getDeals(47);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].redemption_amount).toBe(12400000);
+    expect(deals[0].redemption_shares).toBe(1234567);
   });
 });

@@ -51,9 +51,11 @@ function renderBody(html: string, title: string): string {
 
 /**
  * AI-extract realized redemptions from a known SPAC's vote-results / closing
- * 8-K (primary document + EX-99.x exhibits). Gated on a trigger item and an
- * existing deal to attach to. Persists a redemption-extraction row and
- * recomputes deals so the redemption is correlated onto the matching deal.
+ * 8-K (primary document + EX-99.x exhibits). Gated on a trigger item and a
+ * known SPAC. The extraction is persisted regardless of whether the SPAC
+ * already has a `spac_deal` row: `deriveDeals` reads the full extraction set
+ * on every recompute, so a deal minted by a later 1.01 8-K automatically
+ * correlates an orphan redemption recorded here.
  */
 export async function processRedemption8K(args: ProcessRedemption8KArgs): Promise<void> {
   const { cik, accession_number, filing_date, form, itemCodes, fullSubmissionText } = args;
@@ -63,8 +65,6 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   const spacRepo = new SpacRepo();
   const spac = await spacRepo.getSpac(cik);
   if (!spac) return;
-  const deals = await spacRepo.getDeals(cik);
-  if (deals.length === 0) return;
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
