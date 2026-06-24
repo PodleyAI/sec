@@ -26,6 +26,7 @@ describe("extractorIds", () => {
       "D",
       "S-1",
       "merger-proxy",
+      "redemption",
     ]);
   });
 
