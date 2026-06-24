@@ -8,8 +8,9 @@ import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/E
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
- * (which `Number` would turn into `0` or `NaN`, silently dropping every row)
- * falls back to `fallback`.
+ * falls back to `fallback` — `Number` would otherwise coerce these to `0`
+ * (disabling the floor, admitting every row) or `NaN` (which, since
+ * `confidence >= NaN` is always false, silently drops every row).
  */
 export function parseConfidenceFloor(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw.trim() === "") return fallback;

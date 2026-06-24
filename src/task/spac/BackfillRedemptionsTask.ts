@@ -20,10 +20,14 @@ export async function selectRedemptionBackfillAccessions(): Promise<string[]> {
   const out: string[] = [];
   const spacs = await spacRepo.getAllSpacs();
   for (const spac of spacs) {
-    const filings = (await filingRepo.query({ cik: spac.cik })) ?? [];
-    for (const f of filings) {
-      if ((f.form === "8-K" || f.form === "8-K/A") && hasRedemptionTriggerItem(f.items)) {
-        out.push(f.accession_number);
+    // Query by (form, cik) — the filings storage is indexed on ["form", "cik"],
+    // so this loads only the SPAC's 8-Ks instead of scanning all its filings.
+    for (const form of ["8-K", "8-K/A"]) {
+      const filings = (await filingRepo.query({ form, cik: spac.cik })) ?? [];
+      for (const f of filings) {
+        if (hasRedemptionTriggerItem(f.items)) {
+          out.push(f.accession_number);
+        }
       }
     }
   }
