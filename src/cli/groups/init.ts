@@ -164,9 +164,9 @@ export function addInitCommand(parent: Command): void {
           console.log("Database tables created.");
 
           console.log("\nSetup complete! Next steps:");
-          console.log("  sec db status          — verify database connection");
-          console.log("  sec bootstrap cik      — download CIK name lookup");
-          console.log("  sec bootstrap index    — download filing indexes");
+          console.log("  sec db status                    — verify database connection");
+          console.log("  sec bootstrap download ciks      — download the CIK name lookup");
+          console.log("  sec bootstrap ingest cik-names   — load CIK names into the database");
         } finally {
           rl.close();
         }

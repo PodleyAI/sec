@@ -71,7 +71,8 @@ export function registerSponsorFamilyCommands(program: Command): void {
         );
         if (!from || !into) {
           console.error("error: both family names must already exist");
-          process.exit(1);
+          process.exitCode = 1;
+          return;
         }
         try {
           await new CanonicalSponsorFamilyAliasRepo().add(
@@ -83,7 +84,8 @@ export function registerSponsorFamilyCommands(program: Command): void {
           console.log(`aliased '${fromName}' -> '${intoName}'`);
         } catch (e) {
           console.error(`error: ${(e as Error).message}`);
-          process.exit(1);
+          process.exitCode = 1;
+          return;
         }
       }
     );

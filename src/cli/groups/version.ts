@@ -192,10 +192,15 @@ export function addVersionCommands(program: Command): void {
           );
           const slot = await getActiveSlot(versionRegistry, "resolver", id);
           if (!slot) {
-            console.error(`No active slot for resolver:${id}`);
-            process.exit(1);
+            // Throw (not process.exit) so runCommand renders the error and sets
+            // the exit code without bypassing the top-level teardown.
+            throw new Error(`No active slot for resolver:${id}`);
           }
           const result = await computeResolverCoverage(id as ResolverId, slot.semver);
+          if (options.format === "json") {
+            console.log(JSON.stringify(result, null, 2));
+            return;
+          }
           console.log(
             `resolver:${result.kind}@${result.resolver_version}: ${result.numerator}/${result.denominator} (${(result.fraction * 100).toFixed(1)}%)`
           );

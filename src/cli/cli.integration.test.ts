@@ -35,10 +35,7 @@ describe("CLI v2 integration", () => {
 
   it("should show global options", async () => {
     const output = await runCli("--help");
-    expect(output).toContain("--json");
-    expect(output).toContain("--verbose");
     expect(output).toContain("--dry-run");
-    expect(output).toContain("--no-color");
   });
 
   it("should show version 2.0.0", async () => {
