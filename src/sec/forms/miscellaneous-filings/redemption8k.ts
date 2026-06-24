@@ -75,11 +75,28 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   const model = args.model ?? (await getRedemptionModel());
   const model_id = resolveModelId(model);
 
-  const { primaryHtml, exhibitsHtml } = parseEightKSubmission(form, fullSubmissionText);
-  const text = [primaryHtml, ...exhibitsHtml]
-    .map((h, i) => renderBody(h, `${form} ${accession_number} #${i}`))
-    .filter((t) => t.length > 0)
-    .join("\n\n");
+  // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
+  // events and milestone deals already wrote); a malformed body dead-letters the
+  // section so a version bump can retry it, mirroring the merger-proxy path.
+  let text: string;
+  try {
+    const { primaryHtml, exhibitsHtml } = parseEightKSubmission(form, fullSubmissionText);
+    text = [primaryHtml, ...exhibitsHtml]
+      .map((h, i) => renderBody(h, `${form} ${accession_number} #${i}`))
+      .filter((t) => t.length > 0)
+      .join("\n\n");
+  } catch (err) {
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: REDEMPTION_SECTION,
+      reason_code: "PARSE_ERROR",
+      detail: err instanceof Error ? err.message : String(err),
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+    return;
+  }
 
   const runSection = makeRunSection({
     deadLetters,

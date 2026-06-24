@@ -83,4 +83,16 @@ describe("deriveDeals redemption correlation", () => {
     const deals = deriveDeals(1, [], [], [red("r-1", "2026-03-01", 100, 1000)], []);
     expect(deals).toEqual([]);
   });
+
+  it("attaches a vote-results redemption filed before a completion-only deal's date", () => {
+    // A SPAC whose only ingested milestone is the completion 8-K (no 1.01 DA);
+    // the `vote` event opens no deal, so the deal is opened solely by `completed`
+    // and its only date is the later outcome_date. A redemption reported at the
+    // vote (filed before closing) must still attach to that single deal.
+    const events = [ev("vote", "2026-03-19", "vote-1"), ev("completed", "2026-03-20", "close-1")];
+    const deals = deriveDeals(1, events, [], [red("r-1", "2026-03-19", 400000, 4_000_000)], []);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].redemption_amount).toBe(4_000_000);
+    expect(deals[0].redemption_shares).toBe(400000);
+  });
 });

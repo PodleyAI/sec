@@ -13,10 +13,10 @@ export const RedemptionOutputSchema = Type.Object({
     Type.Integer({ minimum: 0, description: "Shares redeemed (public shares tendered)" })
   ),
   redemption_amount: TypeNullable(
-    Type.Number({ description: "Total dollars paid to redeeming holders" })
+    Type.Number({ minimum: 0, description: "Total dollars paid to redeeming holders" })
   ),
   price_per_share: TypeNullable(
-    Type.Number({ description: "Per-share redemption / trust value, when stated" })
+    Type.Number({ minimum: 0, description: "Per-share redemption / trust value, when stated" })
   ),
   confidence: Type.Number({ minimum: 0, maximum: 1 }),
   source_span: TypeNullable(Type.String()),

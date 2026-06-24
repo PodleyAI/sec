@@ -50,4 +50,42 @@ describe("extractRedemption", () => {
     const row = await extractRedemption("no redemption here", fakeS1Model());
     expect(row).toBeNull();
   });
+
+  it("returns null for a figure-less response (no shares and no amount)", async () => {
+    // The prompt tells the model to return confidence 0 with null fields when no
+    // realized redemption is present; even with a span, a row carrying neither a
+    // share count nor a dollar amount is not a redemption and must not persist.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        redemption_shares: null,
+        redemption_amount: null,
+        price_per_share: null,
+        confidence: 0,
+        source_span: "no public shares were tendered for redemption",
+      },
+    ]);
+    cleanup = unregister;
+    const row = await extractRedemption(
+      "No public shares were tendered for redemption.",
+      fakeS1Model()
+    );
+    expect(row).toBeNull();
+  });
+
+  it("rejects a negative redemption amount via schema validation", async () => {
+    // A sign-error / hallucinated negative amount would otherwise subtract from
+    // total_redemption_amount; minimum:0 makes runStructured throw so the caller
+    // dead-letters it instead of persisting corrupt data.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        redemption_shares: 100,
+        redemption_amount: -8_200_000,
+        price_per_share: null,
+        confidence: 0.9,
+        source_span: "shares redeemed",
+      },
+    ]);
+    cleanup = unregister;
+    await expect(extractRedemption("shares redeemed", fakeS1Model())).rejects.toThrow();
+  });
 });

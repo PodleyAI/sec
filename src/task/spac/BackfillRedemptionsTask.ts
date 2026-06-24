@@ -73,12 +73,18 @@ export class BackfillRedemptionsTask extends Task<
     if (input.dryRun) {
       return { selected: accessions.length, processed: 0 };
     }
+    // Isolate per-filing failures: one bad 8-K (fetch error, malformed body)
+    // must not abort the sweep over the remaining accessions.
     let processed = 0;
     for (const accessionNumber of accessions) {
-      const wf = context.own(new Workflow());
-      wf.pipe(new ProcessAccessionDocFormTask());
-      await wf.run({ accessionNumber });
-      processed++;
+      try {
+        const wf = context.own(new Workflow());
+        wf.pipe(new ProcessAccessionDocFormTask());
+        await wf.run({ accessionNumber });
+        processed++;
+      } catch (err) {
+        console.error(`backfill-redemptions: failed to reprocess ${accessionNumber}:`, err);
+      }
     }
     return { selected: accessions.length, processed };
   }

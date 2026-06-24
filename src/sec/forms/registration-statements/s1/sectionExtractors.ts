@@ -263,5 +263,7 @@ export async function extractRedemption(
   const prompt = `${UNTRUSTED_PREAMBLE}\n\n${instructions}\n\n${wrapUntrusted(sectionText)}`;
   const obj = await runStructured(model, prompt, RedemptionOutputSchema);
   if (obj.confidence == null || obj.source_span == null) return null;
+  // A "no realized redemption" response carries neither figure — not a redemption.
+  if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
   return obj as unknown as RedemptionRow;
 }

@@ -171,15 +171,19 @@ export function deriveDeals(
   }
 
   // --- Correlate redemption extractions onto deals by announcement window ---
-  // A deal owns [lower, nextLower): lower = its announced/DA/outcome date, upper
-  // = the next deal's same lower bound. Unlike the merger window this ignores
-  // outcome_date for the upper bound, so a redemption reported at/after closing
-  // still attaches to the deal being closed.
+  // The deals contiguously partition the timeline: deal i owns [B(i-1), B(i)),
+  // where B(k) is the boundary between deal k and deal k+1 = the next deal's
+  // earliest date (announced/DA/outcome). The first deal's lower bound is
+  // unbounded (B(-1) = null) so a redemption reported before the first recorded
+  // deal date — e.g. a vote-results 8-K for a deal opened only by `completed`
+  // (no 1.01), whose only date is its later outcome_date — still attaches.
+  // Unlike the merger window this ignores outcome_date for the upper bound, so a
+  // redemption reported at/after closing still attaches to the deal being closed.
   const dealLower = (d: DealSkeleton): string | null =>
     d.announced_date ?? d.definitive_agreement_date ?? d.outcome_date ?? null;
   for (let i = 0; i < skeletons.length; i++) {
     const d = skeletons[i];
-    const lower = dealLower(d);
+    const lower = i === 0 ? null : dealLower(d);
     const upper = skeletons[i + 1] ? dealLower(skeletons[i + 1]) : null;
     const matched = redemptionExtractions
       .filter(
