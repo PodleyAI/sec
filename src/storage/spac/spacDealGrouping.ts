@@ -7,6 +7,7 @@
 import type { SpacDeal, SpacDealOutcome } from "./SpacDealSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacMergerExtraction } from "./SpacMergerExtractionSchema";
+import type { SpacRedemptionExtraction } from "./SpacRedemptionExtractionSchema";
 
 /** Event types that shape a business-combination attempt. */
 const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
@@ -30,6 +31,9 @@ interface DealSkeleton {
   target_name: string | null;
   target_cik: number | null;
   pipe_amount: number | null;
+  // Columns derived by correlating redemption extractions (below).
+  redemption_amount: number | null;
+  redemption_shares: number | null;
 }
 
 /**
@@ -46,13 +50,18 @@ interface DealSkeleton {
  * §4b-owned columns (`target_name`, `target_cik`, `pipe_amount`) are **derived**
  * by correlating each {@link SpacMergerExtraction} to the deal whose
  * `[announced, closed)` window contains the proxy's `filing_date` (definitive
- * supersedes preliminary; latest non-null wins). Redemption actuals are deferred
- * (post-vote 8-K) and stay null. `created_at` is preserved from any existing row.
+ * supersedes preliminary; latest non-null wins). Redemption columns
+ * (`redemption_amount`, `redemption_shares`) are derived from
+ * {@link SpacRedemptionExtraction} rows by announcement window (upper bound is the
+ * next deal's announcement, not the current deal's outcome_date, so a redemption
+ * reported at or after closing still attaches to that deal). `created_at` is
+ * preserved from any existing row.
  */
 export function deriveDeals(
   cik: number,
   events: readonly SpacEvent[],
   mergerExtractions: readonly SpacMergerExtraction[],
+  redemptionExtractions: readonly SpacRedemptionExtraction[],
   existingDeals: readonly SpacDeal[]
 ): SpacDeal[] {
   const relevant = events
@@ -80,6 +89,8 @@ export function deriveDeals(
       target_name: null,
       target_cik: null,
       pipe_amount: null,
+      redemption_amount: null,
+      redemption_shares: null,
     };
     skeletons.push(d);
     return d;
@@ -159,6 +170,30 @@ export function deriveDeals(
     }
   }
 
+  // --- Correlate redemption extractions onto deals by announcement window ---
+  // A deal owns [lower, nextLower): lower = its announced/DA/outcome date, upper
+  // = the next deal's same lower bound. Unlike the merger window this ignores
+  // outcome_date for the upper bound, so a redemption reported at/after closing
+  // still attaches to the deal being closed.
+  const dealLower = (d: DealSkeleton): string | null =>
+    d.announced_date ?? d.definitive_agreement_date ?? d.outcome_date ?? null;
+  for (let i = 0; i < skeletons.length; i++) {
+    const d = skeletons[i];
+    const lower = dealLower(d);
+    const upper = skeletons[i + 1] ? dealLower(skeletons[i + 1]) : null;
+    const matched = redemptionExtractions
+      .filter(
+        (r) =>
+          (lower == null || r.filing_date >= lower) && (upper == null || r.filing_date < upper)
+      )
+      .sort((a, b) => a.filing_date.localeCompare(b.filing_date));
+    // Latest non-null wins per field; earlier non-nulls survive when a later filing omits them.
+    for (const r of matched) {
+      if (r.redemption_amount != null) d.redemption_amount = r.redemption_amount;
+      if (r.redemption_shares != null) d.redemption_shares = r.redemption_shares;
+    }
+  }
+
   const existingByIndex = new Map(existingDeals.map((d) => [d.deal_index, d]));
   return skeletons.map((s) => ({
     cik,
@@ -169,9 +204,9 @@ export function deriveDeals(
     pipe_amount: s.pipe_amount,
     // proxy_date: derived from the proxy event in the walk.
     proxy_date: s.proxy_date,
-    // redemption actuals: deferred (post-vote 8-K) — no source yet.
-    redemption_amount: null,
-    redemption_shares: null,
+    // Columns derived from correlated redemption extractions.
+    redemption_amount: s.redemption_amount,
+    redemption_shares: s.redemption_shares,
     // 8-K-owned columns:
     announced_date: s.announced_date,
     definitive_agreement_date: s.definitive_agreement_date,

@@ -86,6 +86,7 @@ describe("deriveDeals", () => {
         ev("completed", "2021-06-15"),
       ],
       [],
+      [],
       []
     );
     expect(deals.length).toBe(1);
@@ -107,6 +108,7 @@ describe("deriveDeals", () => {
         ev("completed", "2021-09-01"),
       ],
       [],
+      [],
       []
     );
     expect(deals.map((d) => d.deal_index)).toEqual([0, 1]);
@@ -118,12 +120,12 @@ describe("deriveDeals", () => {
   });
 
   it("ignores an extension vote with no open deal", () => {
-    const deals = deriveDeals(1, [ev("vote", "2021-04-01")], [], []);
+    const deals = deriveDeals(1, [ev("vote", "2021-04-01")], [], [], []);
     expect(deals.length).toBe(0);
   });
 
   it("opens an already-completed deal when 2.01 has no preceding DA", () => {
-    const deals = deriveDeals(1, [ev("completed", "2021-09-01")], [], []);
+    const deals = deriveDeals(1, [ev("completed", "2021-09-01")], [], [], []);
     expect(deals.length).toBe(1);
     expect(deals[0].outcome).toBe("completed");
     expect(deals[0].announced_date).toBeNull();
@@ -140,6 +142,7 @@ describe("deriveDeals", () => {
         ev("completed", "2021-09-01"),
       ],
       [],
+      [],
       []
     );
     const shuffled = deriveDeals(
@@ -151,6 +154,7 @@ describe("deriveDeals", () => {
         ev("terminated", "2021-02-01"),
       ],
       [],
+      [],
       []
     );
     // created_at is a wall-clock stamp for new rows; compare the derived fields.
@@ -160,7 +164,7 @@ describe("deriveDeals", () => {
 
   it("preserves created_at from an existing deal row", () => {
     const existing = [deal({ deal_index: 0, outcome: "pending", created_at: "2020-01-01T00:00:00.000Z" })];
-    const deals = deriveDeals(1, [ev("definitive_agreement", "2021-03-01")], [], existing);
+    const deals = deriveDeals(1, [ev("definitive_agreement", "2021-03-01")], [], [], existing);
     expect(deals[0].created_at).toBe("2020-01-01T00:00:00.000Z");
   });
 
@@ -169,6 +173,7 @@ describe("deriveDeals", () => {
       1,
       [ev("definitive_agreement", "2021-03-01"), ev("completed", "2021-06-15")],
       [ext("p1", "2021-05-01", { target_name: "Acme Target Inc.", pipe_amount: 150_000_000 })],
+      [],
       []
     );
     expect(deals.length).toBe(1);
@@ -184,6 +189,7 @@ describe("deriveDeals", () => {
         ext("prem", "2021-04-01", { form: "PREM14A", target_name: "Acme Target Inc.", pipe_amount: null }),
         ext("defm", "2021-05-10", { form: "DEFM14A", target_name: "Acme Target, Inc.", pipe_amount: 200_000_000 }),
       ],
+      [],
       []
     );
     expect(deals[0].target_name).toBe("Acme Target, Inc."); // definitive wins
@@ -192,7 +198,7 @@ describe("deriveDeals", () => {
 
   it("leaves an extraction with no matching open deal unattached", () => {
     // proxy filed before any DA event -> no deal yet
-    const deals = deriveDeals(1, [], [ext("p1", "2021-05-01", { target_name: "Acme" })], []);
+    const deals = deriveDeals(1, [], [ext("p1", "2021-05-01", { target_name: "Acme" })], [], []);
     expect(deals.length).toBe(0);
   });
 
@@ -209,6 +215,7 @@ describe("deriveDeals", () => {
         ext("p0", "2021-01-20", { target_name: "First Target" }),
         ext("p1", "2021-06-01", { target_name: "Second Target" }),
       ],
+      [],
       []
     );
     expect(deals.map((d) => d.target_name)).toEqual(["First Target", "Second Target"]);
@@ -218,6 +225,7 @@ describe("deriveDeals", () => {
     const deals = deriveDeals(
       1,
       [ev("definitive_agreement", "2021-03-01"), ev("proxy", "2021-05-20")],
+      [],
       [],
       []
     );

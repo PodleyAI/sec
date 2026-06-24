@@ -165,7 +165,7 @@ export class SpacReportWriter {
       this.mergerExtractions.getByCik(cik),
       this.repo.getDeals(cik),
     ]);
-    const deals = deriveDeals(cik, events, extractions, existingDeals);
+    const deals = deriveDeals(cik, events, extractions, [], existingDeals);
     for (const deal of deals) await this.repo.saveDeal(deal);
   }
 
