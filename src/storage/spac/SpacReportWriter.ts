@@ -9,6 +9,7 @@ import { SpacRepo } from "./SpacRepo";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "./SpacRedemptionExtractionRepo";
 import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
@@ -72,6 +73,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
 export class SpacReportWriter {
   private readonly repo: SpacRepo;
   private readonly mergerExtractions = new SpacMergerExtractionRepo();
+  private readonly redemptionExtractions = new SpacRedemptionExtractionRepo();
 
   constructor(repo: SpacRepo = new SpacRepo()) {
     this.repo = repo;
@@ -160,12 +162,13 @@ export class SpacReportWriter {
    * (the single derivation path shared by the 8-K and merger-proxy writers).
    */
   private async recomputeAndSaveDeals(cik: number): Promise<void> {
-    const [events, extractions, existingDeals] = await Promise.all([
+    const [events, extractions, redemptions, existingDeals] = await Promise.all([
       this.repo.getEvents(cik),
       this.mergerExtractions.getByCik(cik),
+      this.redemptionExtractions.getByCik(cik),
       this.repo.getDeals(cik),
     ]);
-    const deals = deriveDeals(cik, events, extractions, [], existingDeals);
+    const deals = deriveDeals(cik, events, extractions, redemptions, existingDeals);
     for (const deal of deals) await this.repo.saveDeal(deal);
   }
 
