@@ -11,6 +11,7 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SpacRepo } from "./SpacRepo";
 import { SpacReportWriter } from "./SpacReportWriter";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
+import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 
 describe("SpacReportWriter", () => {
@@ -327,5 +328,68 @@ describe("SpacReportWriter", () => {
     const row = await repo.getSpac(21);
     expect(row?.target_name).toBe("Acme Target Inc."); // still correlated
     expect(row?.status).toBe("deal_announced"); // no proxy event -> not "proxy"
+  });
+
+  it("serialises concurrent same-CIK writes (no interleaved read-derive-write)", async () => {
+    // Two filings for the same SPAC processed concurrently (as the form tasks
+    // do with concurrencyLimit > 1). Each record* method is an unsynchronised
+    // read-derive-write over the CIK's rows; if two overlap they lost-update the
+    // derived row / fork the history chain. The repo here makes its writes
+    // observably slow and tracks how many record* critical sections are in
+    // flight at once: the per-CIK lock must keep that at 1.
+    let inFlight = 0;
+    let maxInFlight = 0;
+    class InstrumentedSpacRepo extends SpacRepo {
+      async saveHistory(history: SpacHistory): Promise<void> {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return await super.saveHistory(history);
+        } finally {
+          inFlight -= 1;
+        }
+      }
+    }
+    const slowRepo = new InstrumentedSpacRepo();
+    // Distinct writer instances sharing the storage — the lock map is
+    // module-scoped, so it must serialise across instances, not just within one.
+    const w1 = new SpacReportWriter(slowRepo);
+    const w2 = new SpacReportWriter(slowRepo);
+
+    await Promise.all([
+      w1.recordRegistration({
+        cik: 99,
+        accession_number: "99-reg",
+        filing_date: "2020-12-01",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Race SPAC",
+        spac_sic: 6770,
+      }),
+      w2.recordIpo({
+        cik: 99,
+        accession_number: "99-ipo",
+        filing_date: "2021-01-15",
+        form: "424B4",
+        primary_document: "424.htm",
+        ipo_proceeds: 150_000_000,
+        trust_amount: 150_000_000,
+        spac_tickers: ["RACE.U"],
+      }),
+    ]);
+
+    // The two critical sections never overlapped.
+    expect(maxInFlight).toBe(1);
+    // Exactly one open history row, and the derived row reflects both events.
+    const history = await repo.getHistory(99);
+    expect(history.filter((h) => h.valid_to == null).length).toBe(1);
+    const events = await repo.getEvents(99);
+    expect(events.some((e) => e.event_type === "registration")).toBe(true);
+    expect(events.some((e) => e.event_type === "ipo")).toBe(true);
+    const row = await repo.getSpac(99);
+    expect(row?.registration_date).toBe("2020-12-01");
+    expect(row?.ipo_date).toBe("2021-01-15");
+    expect(row?.ipo_proceeds).toBe(150_000_000);
   });
 });
