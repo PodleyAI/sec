@@ -49,6 +49,11 @@ export class SpacRepo {
     return (await this.spacRepository.query({ status })) || [];
   }
 
+  /** Every spac row, regardless of status. */
+  async getAllSpacs(): Promise<Spac[]> {
+    return (await this.spacRepository.getAll()) || [];
+  }
+
   async saveDeal(deal: SpacDeal): Promise<void> {
     await this.dealRepository.put(deal);
   }
