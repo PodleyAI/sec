@@ -458,5 +458,33 @@ describe("processRedemption8K", () => {
       const run = await runRepo.findRun(54, "0000000000-26-000054", "redemption", "1.0.0");
       expect(run).toBeUndefined();
     });
+
+    it("records a failed run + dead-letter when the configured model is not registered", async () => {
+      await seedSpacWithOpenDeal(55);
+      // Deliberately do NOT register a fake model and do NOT pass args.model
+      // — getRedemptionModel() will throw "not registered" against the empty
+      // test model repository.
+      await processRedemption8K({
+        cik: 55,
+        accession_number: "0000000000-26-000055",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["5.07"],
+        fullSubmissionText: FULL_TXT,
+        // model omitted on purpose
+      });
+
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      const run = await runRepo.findRun(55, "0000000000-26-000055", "redemption", "1.0.0");
+      expect(run?.success).toBe(false);
+      expect(run?.error).toContain("MODEL_RESOLUTION_ERROR");
+
+      // No extraction row was persisted.
+      expect(
+        await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000055")
+      ).toBeUndefined();
+    });
   });
 });

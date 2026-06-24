@@ -120,26 +120,26 @@ export class BackfillRedemptionsTask extends Task<
     );
     const extractorVersion = activeSlot?.semver ?? DEFAULT_REDEMPTION_VERSION;
 
+    // One bulk anti-join against extractor_runs instead of N per-candidate
+    // queries; also picks up the codebase's patch-ceremony semantics (a
+    // successful run at any "major.minor.*" satisfies the current
+    // "major.minor.x" gate) so a patch-only bump doesn't reprocess everything.
+    const todo = input.force
+      ? [...candidates]
+      : await runRepo.listFilingsWithoutSuccessfulRun(
+          candidates,
+          REDEMPTION_EXTRACTOR_ID,
+          extractorVersion
+        );
+    const skipped = candidates.length - todo.length;
+
     const signal = (context as unknown as { signal?: AbortSignal }).signal;
 
     // Isolate per-filing failures: one bad 8-K (fetch error, malformed body)
     // must not abort the sweep over the remaining candidates.
     let processed = 0;
-    let skipped = 0;
-    for (const c of candidates) {
+    for (const c of todo) {
       if (signal?.aborted) break;
-      if (!input.force) {
-        const already = await runRepo.hasSuccessfulRun(
-          c.cik,
-          c.accession_number,
-          REDEMPTION_EXTRACTOR_ID,
-          extractorVersion
-        );
-        if (already) {
-          skipped++;
-          continue;
-        }
-      }
       try {
         const wf = context.own(new Workflow());
         wf.pipe(new ProcessAccessionDocFormTask());
@@ -151,7 +151,7 @@ export class BackfillRedemptionsTask extends Task<
           err
         );
       }
-      if ((processed + skipped) % 100 === 0 && processed + skipped > 0) {
+      if (processed % 100 === 0 && processed > 0) {
         console.log(
           `backfill-redemptions: progress — processed=${processed}, skipped=${skipped}, total=${candidates.length}`
         );

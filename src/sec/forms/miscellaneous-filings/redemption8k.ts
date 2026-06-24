@@ -78,8 +78,6 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   const slot_at_run = extractorSlot?.slot ?? "current";
   const deadLetters = new ExtractionDeadLetterRepo();
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-  const model = args.model ?? (await getRedemptionModel());
-  const model_id = resolveModelId(model);
 
   const recordRedemptionRun = async (success: boolean, error: string | null): Promise<void> => {
     try {
@@ -100,6 +98,31 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       );
     }
   };
+
+  // Model resolution must not abort the surrounding 8-K processing — the
+  // outer filing's events and milestone deals are already written, and a
+  // misconfigured SEC_REDEMPTION_MODEL must not regress the unrelated 8-K
+  // path. Treat resolution failure like PARSE_ERROR: dead-letter the section,
+  // record the failed run, return cleanly.
+  let model: ModelConfig;
+  let model_id: string | null;
+  try {
+    model = args.model ?? (await getRedemptionModel());
+    model_id = resolveModelId(model);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: REDEMPTION_SECTION,
+      reason_code: "MODEL_RESOLUTION_ERROR",
+      detail: message,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+    await recordRedemptionRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
+    return;
+  }
 
   // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
   // events and milestone deals already wrote); a malformed body dead-letters the
