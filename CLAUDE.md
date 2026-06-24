@@ -200,8 +200,7 @@ retires the 8-K path's positional merge-preserve. Only the **definitive merger**
 statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
 `status = proxy`): a consent deal (14C) has no `8-K 5.07` vote, so the definitive
 14C is its only approval-stage signal. Preliminary (`PREM14A`/`PREM14C`) and revised
-(`DEFR14A`/`PRER14A`) proxies are extraction-only. Redemption actuals stay null
-(post-vote 8-K, deferred) and S-4 is deferred (newco-CIK linkage). Configure the
+(`DEFR14A`/`PRER14A`) proxies are extraction-only. S-4 is deferred (newco-CIK linkage). Configure the
 model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
@@ -210,6 +209,23 @@ confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shar
 sec fetch form <cik> DEFM14A             # fetch + extract a merger proxy
 sec extractor dead-letters merger-proxy  # version-fixable extraction failures
 sec extractor retry-dead-letters merger-proxy
+```
+
+**Redemption actuals** (extractor id `redemption`) are AI-extracted from a known
+SPAC's post-vote 8-K narrative. When an 8-K carries item `5.07`, `2.01`, or `8.01`
+for a known SPAC, ingestion escalates the fetch to the full submission `.txt` and
+reads the primary document + `EX-99.x` exhibits; `processRedemption8K` records a
+per-accession `spac_redemption_extraction` row, and `deriveDeals` correlates
+`redemption_amount` / `redemption_shares` onto the matching `spac_deal`. The deal
+column is the sole source `total_redemption_amount` sums, so redemptions are counted
+once. Configure the model via `SEC_REDEMPTION_MODEL` (default `claude-sonnet-4-6`)
+and an optional confidence floor via `SEC_REDEMPTION_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`).
+
+```bash
+sec spac backfill-redemptions            # sweep historical known-SPAC trigger 8-Ks
+sec extractor dead-letters redemption    # version-fixable extraction failures
+sec extractor retry-dead-letters redemption
 ```
 
 ```bash
