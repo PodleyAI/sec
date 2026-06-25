@@ -147,6 +147,18 @@ export class PersonObservationRepo {
     return rows.sort((a, b) => a.observation_index - b.observation_index);
   }
 
+  /** All observations for one filing + extractor (the reaping scope). */
+  async listByAccessionAndExtractor(
+    accession_number: string,
+    extractor_id: string
+  ): Promise<PersonObservation[]> {
+    return (await this.repo.query({ accession_number, extractor_id })) ?? [];
+  }
+
+  async deleteByObservationId(observation_id: number): Promise<void> {
+    await this.repo.delete({ observation_id });
+  }
+
   async listAll(): Promise<PersonObservation[]> {
     return (await this.repo.getAll()) ?? [];
   }

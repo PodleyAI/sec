@@ -37,6 +37,7 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { reapStaleObservations } from "../../resolver/reapStaleObservations";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
@@ -290,6 +291,9 @@ export class ProcessAccessionDocFormTask extends Task<
     }
 
     // --- Domain 3: parse + store (hard error -> record + rethrow, unchanged) ---
+    // Captured before any observe so the post-run reap can tell rows this run
+    // refreshed (created_at >= runStart) from stale orphans of a prior run.
+    const runStart = new Date().toISOString();
     let parseError: unknown = undefined;
     try {
       const formCls = ALL_FORMS_MAP.get(form!);
@@ -409,6 +413,22 @@ export class ProcessAccessionDocFormTask extends Task<
         console.error(
           `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
           dlErr
+        );
+      }
+      // Remove observation rows this re-extraction superseded (a smaller or
+      // reclassified entity set leaves stale orphans joined to canonical
+      // entities). Best-effort, like recordRun — a reaper hiccup must not mask
+      // the successful extraction.
+      try {
+        await reapStaleObservations({
+          accession_number: accessionNumber,
+          extractor_id: extractorId,
+          before: runStart,
+        });
+      } catch (reapErr) {
+        console.error(
+          `Failed to reap stale observations for ${accessionNumber}@${extractorId}:`,
+          reapErr
         );
       }
       try {

@@ -57,6 +57,26 @@ export class CanonicalPersonAddressRepo {
     return fresh;
   }
 
+  /**
+   * Remove one observation's contribution: decrement the co-occurrence count,
+   * deleting the row when it reaches zero. The inverse of {@link recordObservation},
+   * used when an observation is reaped (orphan) or re-observed (idempotent replay)
+   * so the count tracks live observations rather than blindly accumulating.
+   */
+  async removeObservation(pk: {
+    canonical_person_id: string;
+    address_hash_id: string;
+    resolver_version: string;
+  }): Promise<void> {
+    const existing = await this.repo.get(pk);
+    if (!existing) return;
+    if (existing.observation_count <= 1) {
+      await this.repo.delete(pk);
+      return;
+    }
+    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+  }
+
   async listForCanonical(
     canonical_person_id: string,
     resolver_version: string
