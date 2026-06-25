@@ -19,13 +19,30 @@ export class XbrlFactRepo {
   }
 
   /**
-   * Idempotent re-extract: clears any facts already stored for the filing
-   * (a re-run may yield fewer facts, so stale high indexes must go) and bulk
-   * writes the new rows.
+   * Idempotent re-extract that never leaves the filing with zero facts. Writes
+   * the new rows FIRST (an upsert by the `(accession_number, fact_index)` PK),
+   * THEN deletes any rows a prior, longer extract left whose `fact_index` the
+   * new set does not include.
+   *
+   * The previous order — delete-all, then `putBulk` — wiped every fact for the
+   * filing if the `putBulk` then failed (e.g. a schema/maxLength rejection of one
+   * row aborts the batch), and the "never throws" caller masked that loss as a
+   * `NO_XBRL` success. Writing first means a `putBulk` failure throws before any
+   * delete, leaving the prior facts intact; the stale-tail delete only runs once
+   * the new rows are committed. There is no surrounding transaction (the storage
+   * abstraction exposes none), so the worst residual case — a failure during the
+   * stale-tail delete — leaves a superset of facts, which the next re-extract
+   * cleans up, rather than data loss.
    */
   async replaceForAccession(accession_number: string, rows: readonly XbrlFactRow[]): Promise<void> {
-    await this.storage.deleteSearch({ accession_number });
     if (rows.length > 0) await this.storage.putBulk([...rows]);
+    const keep = new Set(rows.map((r) => r.fact_index));
+    const existing = (await this.storage.query({ accession_number })) ?? [];
+    for (const r of existing) {
+      if (!keep.has(r.fact_index)) {
+        await this.storage.delete({ accession_number, fact_index: r.fact_index });
+      }
+    }
   }
 
   /** All facts for a filing in extraction order. */

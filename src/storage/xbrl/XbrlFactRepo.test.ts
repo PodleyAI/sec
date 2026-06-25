@@ -8,8 +8,13 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { parseInlineXbrl } from "../../sec/xbrl/parseInlineXbrl";
 import { toXbrlFactRows } from "../../sec/xbrl/toFactRows";
+import { globalServiceRegistry } from "workglow";
 import { XbrlFactRepo } from "./XbrlFactRepo";
-import type { XbrlFactRow } from "./XbrlFactSchema";
+import {
+  XBRL_FACT_REPOSITORY_TOKEN,
+  type XbrlFactRow,
+  type XbrlFactRepositoryStorage,
+} from "./XbrlFactSchema";
 
 const ACCESSION = "0001213900-26-039320";
 
@@ -61,6 +66,34 @@ describe("XbrlFactRepo", () => {
     await repo.replaceForAccession(ACCESSION, rows);
     await repo.replaceForAccession(ACCESSION, rows.slice(0, 1));
     expect(await repo.countByAccession(ACCESSION)).toBe(1);
+  });
+
+  it("keeps the prior facts when a re-extract's putBulk fails (no zero-facts window)", async () => {
+    // Seed a complete prior extract.
+    await new XbrlFactRepo().replaceForAccession(ACCESSION, rowsFromInline());
+    expect(await new XbrlFactRepo().countByAccession(ACCESSION)).toBe(2);
+
+    // A re-extract whose putBulk rejects (e.g. a maxLength overflow on one row)
+    // must not have already deleted the prior facts.
+    const real = globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN);
+    const failingPutBulk = {
+      putBulk: async () => {
+        throw new Error("simulated putBulk rejection");
+      },
+      query: (criteria: unknown) => (real.query as (c: unknown) => unknown)(criteria),
+      delete: (pk: unknown) => (real.delete as (p: unknown) => unknown)(pk),
+      // Delegated so the OLD delete-then-put order would genuinely wipe the prior
+      // facts here (and fail the count assertion below), not error on a missing method.
+      deleteSearch: (c: unknown) => (real.deleteSearch as (c: unknown) => unknown)(c),
+    } as unknown as XbrlFactRepositoryStorage;
+
+    await expect(
+      new XbrlFactRepo(failingPutBulk).replaceForAccession(ACCESSION, rowsFromInline())
+    ).rejects.toThrow("simulated putBulk rejection");
+
+    // The prior facts are still there — the old delete-then-put order would have
+    // wiped them before the put failed.
+    expect(await new XbrlFactRepo().countByAccession(ACCESSION)).toBe(2);
   });
 
   it("queries one concept across an issuer's filings", async () => {
