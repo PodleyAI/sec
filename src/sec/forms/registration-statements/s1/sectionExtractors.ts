@@ -63,9 +63,19 @@ const NAMED_ENTITY_TABLE: Record<string, string> = {
   apos: "'",
   nbsp: " ",
   // Common space-equivalents an attacker could use for intra-tag spacing.
+  // The decoder lowercases entity names before lookup, so `tab` / `newline`
+  // cover the HTML5 `&Tab;` / `&NewLine;` named entities (case is folded at
+  // lookup time). The remaining named whitespace entities cover EM/EN/THIN
+  // spaces. Zero-width entities decode to empty so they vanish under
+  // `stripFormatChars`'s regex.
+  tab: " ",
+  newline: " ",
   ensp: " ",
   emsp: " ",
   thinsp: " ",
+  zwsp: "",
+  zwnj: "",
+  zwj: "",
 };
 
 /**
@@ -144,7 +154,18 @@ const TAG_SHAPED = /<\s*\/?\s*[_A-Z][\w \t-]*\s*>/gi;
 export function wrapUntrusted(sectionText: string): { wrapped: string; nonce: string } {
   const decoded = decodeHtmlEntities(sectionText).normalize("NFKC");
   const stripped = stripFormatChars(decoded);
-  const defanged = stripped.replace(TAG_SHAPED, (match) => {
+  // Defense-in-depth: collapse any numeric whitespace entity that survived the
+  // multi-pass decoder (e.g. a deeply stacked `&amp;amp;amp;amp;amp;#9;` that
+  // ran past the iteration cap) to a single space. The TAG_SHAPED middle
+  // character class already admits `\s` so an in-band whitespace codepoint
+  // would match the fence shape; this normalizes encodings the decoder didn't
+  // unwrap so the same defang catches `</UNTRUSTED&#9;FILER...>` even under
+  // pathological stacking.
+  const numericCollapsed = stripped.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex, dec) => {
+    const cp = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+    return Number.isFinite(cp) && /\s/.test(String.fromCodePoint(cp)) ? " " : match;
+  });
+  const defanged = numericCollapsed.replace(TAG_SHAPED, (match) => {
     const squashed = match.replace(/[^A-Za-z]/g, "").toUpperCase();
     return squashed.startsWith("UNTRUSTEDFILERDOCUMENT") ? "[redacted-fence-tag]" : match;
   });

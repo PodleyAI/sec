@@ -19,7 +19,7 @@ import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "../registration-statements/s1/DocumentSegmenter";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
-import { spanAppearsIn } from "../registration-statements/s1/verifySourceSpan";
+import { boundSourceSpan, verifyRowSpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";
 import type { MergerDealRow } from "../registration-statements/s1/mergerDealSchema";
 import {
@@ -126,7 +126,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     notFoundDetail: "no merger / business-combination / PIPE section text",
     emptyDetail: "no merger deal returned",
     lowConfidenceDetail: "below confidence floor",
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
     unverifiedAllDetail: "merger deal source_span not present in section text",
     extract: async (text) => {
       const deal = await extractMergerDeal(text, model);
@@ -155,7 +155,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
           kind: "company",
           observation_id,
           confidence: deal.confidence,
-          source_span: deal.source_span,
+          source_span: boundSourceSpan(deal.source_span),
           section_name: MERGER_SECTION,
           model_id,
           prompt_version: extractor_version,
@@ -175,7 +175,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
         pipe_amount: deal.pipe_amount,
         merger_consideration: deal.merger_consideration,
         confidence: deal.confidence,
-        source_span: deal.source_span,
+        source_span: boundSourceSpan(deal.source_span),
         model_id,
         created_at: now,
       });

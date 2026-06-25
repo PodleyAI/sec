@@ -8,7 +8,7 @@ import { globalServiceRegistry, renderMarkdown } from "workglow";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
-import { spanAppearsIn } from "../registration-statements/s1/verifySourceSpan";
+import { boundSourceSpan, verifyRowSpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractRedemption } from "../registration-statements/s1/sectionExtractors";
 import type { RedemptionRow } from "../registration-statements/s1/redemptionSchema";
 import {
@@ -113,7 +113,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     notFoundDetail: "no primary/EX-99 narrative text",
     emptyDetail: "no redemption returned",
     lowConfidenceDetail: "below confidence floor",
-    verifyRow: (t, r) => spanAppearsIn(t, r.source_span),
+    verifyRow: (t, r) => verifyRowSpan(t, r.source_span),
     unverifiedAllDetail: "redemption source_span not present in narrative text",
     extract: async (t) => {
       const row = await extractRedemption(t, model);
@@ -132,7 +132,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
         redemption_amount: row.redemption_amount,
         price_per_share: row.price_per_share,
         confidence: row.confidence,
-        source_span: row.source_span,
+        source_span: boundSourceSpan(row.source_span),
         model_id,
         created_at: new Date().toISOString(),
       });
