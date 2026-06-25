@@ -205,8 +205,15 @@ model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
 
+A proxy ingested before its issuer's `spac` row exists (e.g. the S-1 lands later)
+hits the known-SPAC gate and no-ops — recording a successful run, so the normal
+unprocessed-run sweep never revisits it. `sec spac backfill-merger-proxies`
+recovers these: it re-processes known-SPAC merger proxies that still lack a
+`spac_merger_extraction` row (mirroring `backfill-redemptions`).
+
 ```bash
 sec fetch form <cik> DEFM14A             # fetch + extract a merger proxy
+sec spac backfill-merger-proxies         # recover proxies gated before their spac row existed
 sec extractor dead-letters merger-proxy  # version-fixable extraction failures
 sec extractor retry-dead-letters merger-proxy
 ```
