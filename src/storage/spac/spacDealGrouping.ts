@@ -11,15 +11,19 @@ import type { SpacRedemptionExtraction } from "./SpacRedemptionExtractionSchema"
 
 /**
  * Supersession precedence for merger-proxy forms when two land on the same
- * filing_date: revised (DEFR / PRER) supersedes definitive (DEFM) supersedes
- * preliminary (PREM). Used only as a same-date tiebreak; filing_date still
- * dominates.
+ * filing_date, ordered by the filing lifecycle PREM -> PRER -> DEFM -> DEFR:
+ * definitive supersedes preliminary, and within each stage the revised form
+ * supersedes its base. A preliminary-revised proxy (PRER) therefore outranks
+ * the preliminary it revises (PREM) but is still superseded by the definitive
+ * (DEFM) — it does NOT outrank DEFM the way the definitive-revised (DEFR) does.
+ * Used only as a same-date tiebreak; filing_date still dominates.
  */
 function mergerFormRank(form: string): number {
   const f = form.toUpperCase();
-  if (f.startsWith("DEFR") || f.startsWith("PRER")) return 2;
-  if (f.startsWith("DEFM")) return 1;
-  return 0;
+  if (f.startsWith("DEFR")) return 3; // definitive, revised
+  if (f.startsWith("DEFM")) return 2; // definitive
+  if (f.startsWith("PRER")) return 1; // preliminary, revised
+  return 0; // PREM (preliminary) and anything else
 }
 
 /** Event types that shape a business-combination attempt. */

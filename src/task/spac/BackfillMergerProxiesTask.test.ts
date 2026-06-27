@@ -4,13 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { beforeEach, describe, expect, it } from "bun:test";
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, TaskAbortedError, type IExecuteContext } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
-import { selectMergerProxyBackfillAccessions } from "./BackfillMergerProxiesTask";
+import {
+  BackfillMergerProxiesTask,
+  selectMergerProxyBackfillAccessions,
+} from "./BackfillMergerProxiesTask";
 
 async function seedSpac(cik: number): Promise<void> {
   await new SpacReportWriter().recordRegistration({
@@ -90,5 +93,32 @@ describe("selectMergerProxyBackfillAccessions", () => {
 
     const accessions = await selectMergerProxyBackfillAccessions();
     expect(accessions.sort()).toEqual(["acc-defm", "acc-prem"]);
+  });
+});
+
+describe("BackfillMergerProxiesTask abort handling", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("rethrows TaskAbortedError and processes nothing when the signal is aborted", async () => {
+    await seedSpac(7);
+    await seedFiling({ cik: 7, accession_number: "acc-defm-7", form: "DEFM14A" });
+    // Sanity: there is a selectable filing, so the loop body is reached.
+    expect((await selectMergerProxyBackfillAccessions()).length).toBeGreaterThan(0);
+
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = { signal: controller.signal } as IExecuteContext;
+
+    // A cooperative cancellation must surface as TaskAbortedError, not be
+    // swallowed by the per-accession catch like a fetch/parse failure.
+    await expect(new BackfillMergerProxiesTask().execute({}, ctx)).rejects.toBeInstanceOf(
+      TaskAbortedError
+    );
+
+    // Nothing was reprocessed -> still no extraction row for the filing.
+    expect(await new SpacMergerExtractionRepo().getByAccession("acc-defm-7")).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Static, Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task, Workflow } from "workglow";
+import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError, Workflow } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
@@ -94,12 +94,16 @@ export class BackfillMergerProxiesTask extends Task<
     // must not abort the sweep over the remaining accessions.
     let processed = 0;
     for (const accessionNumber of accessions) {
+      if (context.signal?.aborted) throw new TaskAbortedError();
       try {
         const wf = context.own(new Workflow());
         wf.pipe(new ProcessAccessionDocFormTask());
         await wf.run({ accessionNumber });
         processed++;
       } catch (err) {
+        // A cooperative cancellation must stop the sweep, not be swallowed as a
+        // per-filing failure like a fetch/parse error.
+        if (err instanceof TaskAbortedError) throw err;
         console.error(`backfill-merger-proxies: failed to reprocess ${accessionNumber}:`, err);
       }
     }

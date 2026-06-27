@@ -196,6 +196,38 @@ describe("deriveDeals", () => {
     expect(deals[0].pipe_amount).toBe(200_000_000);
   });
 
+  it("ranks a same-date definitive proxy above a preliminary-revised one (PRER < DEFM)", () => {
+    // PRER (preliminary-revised) and DEFM (definitive) land on the SAME
+    // filing_date. Per the PREM<PRER<DEFM<DEFR lifecycle the definitive wins —
+    // a preliminary-revised proxy must NOT outrank the definitive the way a
+    // definitive-revised (DEFR) does.
+    const deals = deriveDeals(
+      1,
+      [ev("definitive_agreement", "2021-03-01"), ev("completed", "2021-06-15")],
+      [
+        ext("prer", "2021-05-10", { form: "PRER14A", target_name: "Preliminary Revised Target" }),
+        ext("defm", "2021-05-10", { form: "DEFM14A", target_name: "Definitive Target" }),
+      ],
+      [],
+      []
+    );
+    expect(deals[0].target_name).toBe("Definitive Target");
+  });
+
+  it("ranks a same-date preliminary-revised proxy above the preliminary it revises (PREM < PRER)", () => {
+    const deals = deriveDeals(
+      1,
+      [ev("definitive_agreement", "2021-03-01"), ev("completed", "2021-06-15")],
+      [
+        ext("prem", "2021-05-10", { form: "PREM14A", target_name: "Preliminary Target" }),
+        ext("prer", "2021-05-10", { form: "PRER14A", target_name: "Preliminary Revised Target" }),
+      ],
+      [],
+      []
+    );
+    expect(deals[0].target_name).toBe("Preliminary Revised Target");
+  });
+
   it("leaves an extraction with no matching open deal unattached", () => {
     // proxy filed before any DA event -> no deal yet
     const deals = deriveDeals(1, [], [ext("p1", "2021-05-01", { target_name: "Acme" })], [], []);

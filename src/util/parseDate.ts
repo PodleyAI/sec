@@ -39,6 +39,14 @@ export function parseDate(dateStr: string): { year: number; month: string; day: 
         day = parseInt(match[2], 10);
       }
 
+      // The shapes above only constrain digit counts, so "20251301" (month 13)
+      // or "2025-00-45" pass the regex but are not real dates. Reject
+      // out-of-range months/days rather than silently emitting "13"/"45", which
+      // would corrupt date ordering and as_of guards downstream.
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        throw new Error("Invalid date format");
+      }
+
       return {
         year,
         month: month.toString().padStart(2, "0"),
