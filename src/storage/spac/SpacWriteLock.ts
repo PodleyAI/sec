@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_TYPE } from "../../config/tokens";
+import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import type { SpacDealRepositoryStorage } from "./SpacDealSchema";
@@ -64,14 +64,28 @@ async function withInProcessLock<T>(cik: number, fn: () => Promise<T>): Promise<
  */
 export async function withSpacCikLock<T>(
   cik: number,
-  _dealRepo: SpacDealRepositoryStorage,
+  dealRepo: SpacDealRepositoryStorage,
   fn: () => Promise<T>
 ): Promise<T> {
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
 
-  if (dbType === "sqlite") {
+  // The dispatch follows the *active* repository class, not the SEC_DB_TYPE
+  // token. Tests stamp SEC_DB_TYPE="sqlite" then back the storages with
+  // InMemoryTabularStorage; trusting the env there would spuriously open a
+  // stray SQLite file via getDb(). The constructor-name check resolves the
+  // ambiguity without requiring callers to pass the backend explicitly.
+  const dealCtor = (dealRepo as { constructor?: { name?: string } })?.constructor?.name ?? "";
+  const isSqliteBacked = dealCtor.includes("Sqlite");
+  const isPostgresBacked = dealCtor.includes("Postgres");
+
+  if (
+    isSqliteBacked &&
+    dbType === "sqlite" &&
+    globalServiceRegistry.has(SEC_DB_FOLDER) &&
+    globalServiceRegistry.has(SEC_DB_NAME)
+  ) {
     const db = getDb();
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -88,7 +102,7 @@ export async function withSpacCikLock<T>(
     }
   }
 
-  if (dbType === "postgres") {
+  if (isPostgresBacked && dbType === "postgres") {
     const pool = getPgPool();
     const client = await pool.connect();
     try {

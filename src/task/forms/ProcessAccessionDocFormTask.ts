@@ -241,6 +241,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
           success: false,
+          outcome: "failure",
           error: message.slice(0, 4096),
         });
       } catch (recordErr) {
@@ -411,6 +412,23 @@ export class ProcessAccessionDocFormTask extends Task<
           dlErr
         );
       }
+      // Detect partial-success: parse+store ran end-to-end, but at least one
+      // section dead-lettered. A pending section-level entry (section_name !== "")
+      // for this filing means coverage-as-success would be a lie. Filing-level
+      // (section_name === "") entries were already markResolved above.
+      let outcome: "success" | "partial" = "success";
+      try {
+        const pending = await deadLetters.listPending(extractorId);
+        const hasPendingSection = pending.some(
+          (r) => r.accession_number === accessionNumber && r.section_name !== ""
+        );
+        if (hasPendingSection) outcome = "partial";
+      } catch (dlErr) {
+        console.error(
+          `Failed to query pending dead-letters for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
       try {
         await runRepo.recordRun({
           cik: cik!,
@@ -419,7 +437,8 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_id: extractorId,
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
-          success: true,
+          success: outcome === "success",
+          outcome,
           error: null,
         });
       } catch (recordErr) {
