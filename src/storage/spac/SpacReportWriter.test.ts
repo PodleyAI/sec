@@ -328,4 +328,121 @@ describe("SpacReportWriter", () => {
     expect(row?.target_name).toBe("Acme Target Inc."); // still correlated
     expect(row?.status).toBe("deal_announced"); // no proxy event -> not "proxy"
   });
+
+  it("valid_from is strictly increasing across writes even when the wall clock rewinds", async () => {
+    // First write at "now"; second write with the wall clock rewound 90 days.
+    // A snapshot derived from `new Date()` would emit a valid_from earlier than
+    // the previously-closed row's valid_to and invert the chain.
+    const RealDate = Date;
+    const setNow = (ms: number): void => {
+      class FakeDate extends RealDate {
+        constructor(...args: ConstructorParameters<typeof Date> | []) {
+          if (args.length === 0) super(ms);
+          else super(...(args as ConstructorParameters<typeof Date>));
+        }
+        static now(): number {
+          return ms;
+        }
+      }
+      globalThis.Date = FakeDate as DateConstructor;
+    };
+    const T_LATE = RealDate.parse("2026-06-01T00:00:00.000Z");
+    const T_REWOUND = RealDate.parse("2026-03-01T00:00:00.000Z"); // 90 days earlier
+    try {
+      setNow(T_LATE);
+      await writer.recordRegistration({
+        cik: 30,
+        accession_number: "30-reg",
+        filing_date: "2021-01-10", // forward
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Clock Rewind SPAC",
+        spac_sic: 6770,
+      });
+      setNow(T_REWOUND);
+      await writer.recordIpo({
+        cik: 30,
+        accession_number: "30-ipo",
+        filing_date: "2021-02-15", // forward
+        form: "424B4",
+        primary_document: "424.htm",
+        ipo_proceeds: 100_000_000,
+        trust_amount: 100_000_000,
+        spac_tickers: ["CRW.U"],
+      });
+    } finally {
+      globalThis.Date = RealDate;
+    }
+
+    const history = await repo.getHistory(30);
+    expect(history.length).toBe(2);
+    const sorted = [...history].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    expect(sorted[0].valid_from < sorted[1].valid_from).toBe(true);
+    expect(sorted[0].valid_to).toBe(sorted[1].valid_from); // contiguous
+    expect(history.filter((h) => h.valid_to == null).length).toBe(1);
+  });
+
+  it("stale-replay history is anchored at existing as_of, not wall clock", async () => {
+    // Seed at "2021-06-01"; then replay a stale write with filing_date older
+    // than the as_of guard. The history row must not be stamped at current
+    // wall clock — that lets stale data sneak into the most recent slot.
+    await writer.recordIpo({
+      cik: 31,
+      accession_number: "31-ipo",
+      filing_date: "2021-06-01",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["STALE.U"],
+    });
+    const after = await repo.getSpac(31);
+    expect(after?.as_of).toBe("2021-06-01");
+
+    // Stale replay: older filing_date than as_of.
+    await writer.recordRegistration({
+      cik: 31,
+      accession_number: "31-reg",
+      filing_date: "2020-12-01", // older
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Stale Replay SPAC",
+      spac_sic: 6770,
+    });
+
+    const history = await repo.getHistory(31);
+    // Find the newest history row (the stale-replay snapshot).
+    const sorted = [...history].sort((a, b) => b.valid_from.localeCompare(a.valid_from));
+    const newest = sorted[0];
+    // Anchor must be the existing as_of (2021-06-01), not current wall clock.
+    // We assert it's NOT the current year — a wall-clock anchor would be 2026+.
+    expect(newest.valid_from.startsWith("2021-06")).toBe(true);
+  });
+
+  it("the closed-row chain is never overlapped across many writes", async () => {
+    // Three writes; assert valid_to of each closed row matches valid_from of
+    // the next row, and the chain is strictly increasing.
+    await writer.recordRegistration({
+      cik: 32, accession_number: "32-reg", filing_date: "2021-01-01", form: "S-1",
+      primary_document: "s1.htm", spac_name: "Chain SPAC", spac_sic: 6770,
+    });
+    await writer.recordIpo({
+      cik: 32, accession_number: "32-ipo", filing_date: "2021-02-01", form: "424B4",
+      primary_document: "424.htm", ipo_proceeds: 50_000_000, trust_amount: 50_000_000,
+      spac_tickers: ["CHN.U"],
+    });
+    await writer.recordDealMilestones({
+      cik: 32, accession_number: "32-da", filing_date: "2021-03-01", form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-03-01" }],
+    });
+
+    const history = await repo.getHistory(32);
+    const sorted = [...history].sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+    for (let i = 0; i + 1 < sorted.length; i++) {
+      expect(sorted[i].valid_to).toBe(sorted[i + 1].valid_from);
+      expect(sorted[i].valid_from < sorted[i + 1].valid_from).toBe(true);
+    }
+    expect(sorted[sorted.length - 1].valid_to).toBeNull();
+  });
 });
