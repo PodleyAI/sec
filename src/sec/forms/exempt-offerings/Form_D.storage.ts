@@ -131,25 +131,14 @@ async function processOffering(
 
   // History is per-(cik, file_number, accession) and always recorded — it is
   // the append-only time series. The mutable current row must reflect the
-  // latest filing BY FILING DATE, not by processing order: skip an out-of-order
-  // older D / D-A so a back-catalog replay can't regress industry_group /
-  // security-type flags / date_of_first_sale. An undated incoming filing ("")
-  // cannot be ordered against a dated row and is treated as stale; when the
-  // existing row is also undated or absent it still applies. (Each Form D fully
+  // latest filing BY FILING DATE, not by processing order: an out-of-order
+  // older D / D-A is skipped so a back-catalog replay can't regress
+  // industry_group / security-type flags / date_of_first_sale. The read-guard-
+  // write is atomic per (cik, file_number) so two filings for the same offering
+  // processed concurrently can't lost-update the row. (Each Form D fully
   // restates the offering, so no field-merge is needed — only the date guard.)
   await investmentOfferingRepo.saveInvestmentOfferingHistory(investmentOfferingHistory);
-
-  const existing = await investmentOfferingRepo.getInvestmentOffering(cik, file_number);
-  const isStale =
-    existing?.as_of != null &&
-    existing.as_of !== "" &&
-    (filing_date === "" || filing_date < existing.as_of);
-  if (!isStale) {
-    await investmentOfferingRepo.saveInvestmentOffering({
-      ...investmentOffering,
-      as_of: filing_date || existing?.as_of || null,
-    });
-  }
+  await investmentOfferingRepo.saveInvestmentOfferingAsOf(investmentOffering, filing_date);
 
   if (offering.salesCompensationList.recipient) {
     let salesIndex = 100;
