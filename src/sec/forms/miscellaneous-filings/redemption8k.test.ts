@@ -15,6 +15,7 @@ import {
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
 import { hasRedemptionTriggerItem } from "./spac8kRedemptionTriggers";
 import { processRedemption8K } from "./redemption8k";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 
 const FULL_TXT =
   "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-000009\n</SEC-HEADER>\n" +
@@ -183,5 +184,158 @@ describe("processRedemption8K", () => {
     expect(
       await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000012")
     ).toBeUndefined();
+  });
+
+  it("drops every exhibit when each exceeds the per-exhibit cap and records OVERSIZED_INPUT", async () => {
+    await seedSpacWithOpenDeal(50);
+    // Build a submission whose primary and EX-99 each exceed the 200k cap.
+    // Each <p> body has > 250k chars of repeated filler.
+    const filler = "A".repeat(260_000);
+    const oversizedTxt =
+      "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-OVER01\n</SEC-HEADER>\n" +
+      "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n" +
+      "<DOCUMENT>\n<TYPE>EX-99.1\n<SEQUENCE>2\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n";
+
+    let modelInvocations = 0;
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1,
+        redemption_amount: 1,
+        price_per_share: 10,
+        confidence: 0.99,
+        source_span: "should never be reached",
+      },
+    ]);
+    cleanup = () => {
+      registration.unregister();
+    };
+    // The fake provider tracks calls via its `calls` array.
+    const baseLen = registration.calls.length;
+
+    await processRedemption8K({
+      cik: 50,
+      accession_number: "0000000000-26-OVER01",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: oversizedTxt,
+      model: fakeS1Model(),
+    });
+
+    modelInvocations = registration.calls.length - baseLen;
+    expect(modelInvocations).toBe(0);
+
+    expect(
+      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-OVER01")
+    ).toBeUndefined();
+
+    const dl = await new ExtractionDeadLetterRepo().get(
+      "redemption",
+      "0000000000-26-OVER01",
+      "redemption"
+    );
+    expect(dl?.reason_code).toBe("OVERSIZED_INPUT");
+  });
+
+  it("proceeds with surviving exhibits when one is dropped and records a partial-oversized dead-letter", async () => {
+    await seedSpacWithOpenDeal(51);
+    // Primary doc is small + has the canonical sentence; EX-99.2 is oversized
+    // and gets dropped. Extraction must still succeed on the survivors.
+    const filler = "B".repeat(260_000);
+    const partialTxt =
+      "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-PART01\n</SEC-HEADER>\n" +
+      "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n" +
+      "<p>Holders of 5,000,000 shares elected to redeem for $50,000,000.</p>\n" +
+      "</TEXT>\n</DOCUMENT>\n" +
+      "<DOCUMENT>\n<TYPE>EX-99.1\n<SEQUENCE>2\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n";
+
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 5_000_000,
+        redemption_amount: 50_000_000,
+        price_per_share: 10.0,
+        confidence: 0.95,
+        source_span: "5,000,000 shares elected to redeem for $50,000,000",
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 51,
+      accession_number: "0000000000-26-PART01",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: partialTxt,
+      model: fakeS1Model(),
+    });
+
+    // Extraction proceeded with the surviving primary doc.
+    const ext = await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-PART01");
+    expect(ext?.redemption_amount).toBe(50_000_000);
+
+    // Partial-oversized informational dead-letter recorded.
+    const dlRepo = new ExtractionDeadLetterRepo();
+    const partial = await dlRepo.get(
+      "redemption",
+      "0000000000-26-PART01",
+      "redemption-partial-oversized"
+    );
+    expect(partial?.reason_code).toBe("OVERSIZED_INPUT");
+  });
+
+  it("extracts successfully with a moderately large EX-99 (~150 KB)", async () => {
+    await seedSpacWithOpenDeal(52);
+    // 150 KB filler stays under the 200 KB per-exhibit cap; the canonical
+    // sentence still extracts cleanly. Integration baseline that the cap
+    // does not regress reasonable filing sizes.
+    const filler = "C".repeat(150_000);
+    const okTxt =
+      "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-OK0001\n</SEC-HEADER>\n" +
+      "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n" +
+      "<p>Vote results.</p>\n" +
+      "</TEXT>\n</DOCUMENT>\n" +
+      "<DOCUMENT>\n<TYPE>EX-99.1\n<SEQUENCE>2\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "<p>Holders of 2,500,000 shares elected to redeem for $25,000,000.</p>\n" +
+      "</TEXT>\n</DOCUMENT>\n";
+
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 2_500_000,
+        redemption_amount: 25_000_000,
+        price_per_share: 10.0,
+        confidence: 0.95,
+        source_span: "2,500,000 shares elected to redeem for $25,000,000",
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 52,
+      accession_number: "0000000000-26-OK0001",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: okTxt,
+      model: fakeS1Model(),
+    });
+
+    const ext = await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-OK0001");
+    expect(ext?.redemption_amount).toBe(25_000_000);
+
+    // No OVERSIZED_INPUT dead-letter was recorded.
+    const dl = await new ExtractionDeadLetterRepo().get(
+      "redemption",
+      "0000000000-26-OK0001",
+      "redemption-partial-oversized"
+    );
+    expect(dl).toBeUndefined();
   });
 });
