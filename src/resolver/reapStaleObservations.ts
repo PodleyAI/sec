@@ -29,6 +29,51 @@ export interface ReapStaleObservationsArgs {
   readonly before: string;
 }
 
+/** Minimal shape of a dead-letter the reap gate inspects. */
+export interface ReapGateDeadLetter {
+  readonly accession_number: string;
+  readonly reason_code: string;
+  readonly section_name: string;
+  readonly last_attempt_at: string;
+}
+
+/**
+ * Whether the just-finished run recorded a dead-letter meaning a section FAILED
+ * to produce its entities — in which case the reaper must NOT run, because the
+ * failed section wrote no observations and its prior-run rows would be deleted
+ * as false orphans (silent data loss).
+ *
+ * `sectionRunner` records several reason codes without aborting the filing; only
+ * two are safe to reap through:
+ * - `SECTION_NOT_FOUND` — the section is genuinely absent from this filing, so
+ *   its old observations really are stale and should be reaped. (Common: most
+ *   filings lack some optional section, so blocking on this would disable the
+ *   reaper entirely.)
+ * - a `<section>-partial` marker — the section DID persist its verified rows
+ *   (partial success), so the reap can safely remove the dropped orphans.
+ *
+ * Every other fresh code — `MODEL_EMPTY`, `LOW_CONFIDENCE_ALL`, a whole-section
+ * `UNVERIFIED_SOURCE_SPAN`, `MODEL_INVALID_OUTPUT` — denotes a section that
+ * yielded zero rows this run for a reason that may be transient (rate limit,
+ * truncated/empty model response, a swallowed exception), so the reap is
+ * suppressed until a clean re-extraction. Only dead-letters touched THIS run
+ * (`last_attempt_at >= since`) count; a stale entry from a prior run does not
+ * pin the reaper forever.
+ */
+export function hasBlockingSectionFailure(
+  deadLetters: readonly ReapGateDeadLetter[],
+  accession_number: string,
+  since: string
+): boolean {
+  return deadLetters.some(
+    (d) =>
+      d.accession_number === accession_number &&
+      d.last_attempt_at >= since &&
+      d.reason_code !== "SECTION_NOT_FOUND" &&
+      !d.section_name.endsWith("-partial")
+  );
+}
+
 export interface ReapStaleObservationsDeps {
   personObservationRepo?: PersonObservationRepo;
   companyObservationRepo?: CompanyObservationRepo;

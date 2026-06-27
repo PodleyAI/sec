@@ -37,7 +37,10 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { reapStaleObservations } from "../../resolver/reapStaleObservations";
+import {
+  hasBlockingSectionFailure,
+  reapStaleObservations,
+} from "../../resolver/reapStaleObservations";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
@@ -419,17 +422,47 @@ export class ProcessAccessionDocFormTask extends Task<
       // reclassified entity set leaves stale orphans joined to canonical
       // entities). Best-effort, like recordRun — a reaper hiccup must not mask
       // the successful extraction.
+      //
+      // BUT: a narrative section that yields zero rows this run — a transient
+      // throw (network blip, rate limit, malformed output → MODEL_INVALID_OUTPUT),
+      // an empty/truncated model response (MODEL_EMPTY), all rows below the
+      // confidence floor (LOW_CONFIDENCE_ALL), or all rows unverifiable
+      // (UNVERIFIED_SOURCE_SPAN) — is swallowed into a dead-letter WITHOUT
+      // aborting the filing (see sectionRunner). That section writes no
+      // observations this run, so its prior-run rows look stale
+      // (created_at < runStart) and the reap would delete the last good
+      // extraction for a section that merely failed transiently — silent data
+      // loss. Skip the reap whenever any such section failure was recorded THIS
+      // run; the worst case is a retained superset that the next clean
+      // re-extraction reaps safely. (A genuinely-absent section records
+      // SECTION_NOT_FOUND and a partial success records a `-partial` marker —
+      // neither blocks; see hasBlockingSectionFailure.)
+      let transientSectionFailure = false;
       try {
-        await reapStaleObservations({
-          accession_number: accessionNumber,
-          extractor_id: extractorId,
-          before: runStart,
-        });
-      } catch (reapErr) {
+        const pending = await deadLetters.listPending(extractorId);
+        transientSectionFailure = hasBlockingSectionFailure(pending, accessionNumber, runStart);
+      } catch (dlErr) {
+        // If we cannot tell, default to NOT reaping — preserving stale rows is
+        // recoverable; deleting still-valid ones is not.
         console.error(
-          `Failed to reap stale observations for ${accessionNumber}@${extractorId}:`,
-          reapErr
+          `Failed to check section dead-letters before reap for ${accessionNumber}@${extractorId}:`,
+          dlErr
         );
+        transientSectionFailure = true;
+      }
+      if (!transientSectionFailure) {
+        try {
+          await reapStaleObservations({
+            accession_number: accessionNumber,
+            extractor_id: extractorId,
+            before: runStart,
+          });
+        } catch (reapErr) {
+          console.error(
+            `Failed to reap stale observations for ${accessionNumber}@${extractorId}:`,
+            reapErr
+          );
+        }
       }
       try {
         await runRepo.recordRun({
