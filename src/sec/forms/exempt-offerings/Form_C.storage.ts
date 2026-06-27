@@ -424,58 +424,45 @@ export async function processFormC({
   const issuer = issuerInfo.issuerInfo;
   const submissionType = formC.headerData.submissionType;
 
-  // Post-offering filings (C-AR / C-TR) carry no <commissionCik> and often no
-  // legal-status block; preserve what the original Form C established for the
-  // same (cik, file_number) instead of clobbering the portal link and issuer
-  // details with empties.
-  const crowdfundingRepo = new CrowdfundingRepo();
-  const existing = await crowdfundingRepo.getCrowdfunding(cik, file_number);
   const parsedPortalCik = parseCikSafely(issuerInfo.commissionCik);
 
   // The mutable row reflects the latest filing by *filing date*, not by
-  // processing order: a back-catalog replay of an older filing must not
-  // regress it. An undated incoming filing ("") cannot be ordered against
-  // a dated existing row and is treated as stale, so a filer error with no
-  // SGML date in the header does not clobber a known-dated mutable row.
-  // (When the existing row is also undated or absent, an undated filing
-  // still applies — there's nothing to regress.) The per-filing tables
+  // processing order: a back-catalog replay of an older filing must not regress
+  // it. The read-merge-write is atomic per (cik, file_number) and treats an
+  // undated incoming filing ("") as stale, so a filer header with no SGML date
+  // does not clobber a known-dated mutable row. Post-offering filings (C-AR /
+  // C-TR) carry no <commissionCik> and often no legal-status block, so the
+  // builder merges those fields forward from the existing row instead of
+  // clobbering them with empties. The history snapshot is always written (a
+  // stale replay still belongs in the time series); only the mutable-row write
+  // is suppressed via skipMutableUpdate. The filing_date is exempt from the
+  // merge fallback: a stale replay records its own filing_date so the series
+  // reflects when each filing was actually made. The per-filing tables
   // (offerings, disclosure reports, observations) below are keyed by
   // filing/accession and always record the older filing too.
-  const isStale =
-    existing?.filing_date !== undefined &&
-    existing.filing_date !== "" &&
-    (filing_date === "" || filing_date < existing.filing_date);
-
-  // Always build and write the history snapshot — a stale replay still
-  // belongs in the time series, only the mutable row write is suppressed
-  // (via skipMutableUpdate) so out-of-order processing doesn't regress it.
-  // Falling back to existing fields keeps the snapshot meaningful when the
-  // older filing carried sparser data than the current state. The
-  // filing_date is exempt from that fallback: when stale, the snapshot must
-  // record this replay's own filing_date so the time series reflects when
-  // each filing was actually made. The schema requires a string, so unknown
-  // dates are stored as "" rather than inheriting the existing row's date.
-  const crowdfunding: Crowdfunding = {
+  await temporalRepo.saveCurrentByFilingDate(
     cik,
     file_number,
-    filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
-    name: strScalar(issuer.nameOfIssuer) || existing?.name || "",
-    legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
-    state_jurisdiction:
-      issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
-    date_incorporation:
-      issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
-    url: issuer.issuerWebsite ?? existing?.url ?? "",
-    portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
-    status: determineStatus(submissionType),
-    progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
-    nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
-  };
-
-  await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, `Form ${submissionType}`, {
-    skipMutableUpdate: isStale,
-    accessionNumber: accession_number,
-  });
+    filing_date,
+    `Form ${submissionType}`,
+    accession_number,
+    (existing, isStale) => ({
+      cik,
+      file_number,
+      filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
+      name: strScalar(issuer.nameOfIssuer) || existing?.name || "",
+      legal_status: issuer.legalStatus?.legalStatusForm ?? existing?.legal_status ?? "",
+      state_jurisdiction:
+        issuer.legalStatus?.jurisdictionOrganization ?? existing?.state_jurisdiction ?? "",
+      date_incorporation:
+        issuer.legalStatus?.dateIncorporation ?? existing?.date_incorporation ?? "",
+      url: issuer.issuerWebsite ?? existing?.url ?? "",
+      portal_cik: parsedPortalCik > 0 ? parsedPortalCik : (existing?.portal_cik ?? 0),
+      status: determineStatus(submissionType),
+      progress_update: issuerInfo.progressUpdate ?? existing?.progress_update ?? null,
+      nature_of_amendment: issuerInfo.natureOfAmendment ?? existing?.nature_of_amendment ?? null,
+    })
+  );
 
   // Issuers: index 0 (issuer), 1+ (co-issuers)
   await processIssuer(cik, formC, ctx, 0);

@@ -243,31 +243,22 @@ export async function processForm1K({
   // Upsert the offering. A 1-K carries no tier/SIC/audit/securities data, so
   // preserve whatever the 1-A wrote — a full-row put with nulls here clobbers
   // the tier and makes queries like `reg-a --tier Tier2 --status reporting`
-  // unsatisfiable. The mutable row is latest-by-filing-date: skip stale
-  // out-of-order writes (unknown "" dates apply as-is).
-  const existing = await regARepo.getOffering(cik, file_number);
-  const isStale =
-    existing?.as_of != null &&
-    existing.as_of !== "" &&
-    (filing_date === "" || filing_date < existing.as_of);
-
-  if (!isStale) {
-    const offering: RegAOffering = {
-      cik,
-      file_number,
-      issuer_name: primaryIssuer?.issuerName ?? existing?.issuer_name ?? null,
-      jurisdiction: primaryIssuer?.jurisdictionOrganization ?? existing?.jurisdiction ?? null,
-      sic_code: existing?.sic_code ?? null,
-      tier: existing?.tier ?? null,
-      financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
-      securities_offered_type: existing?.securities_offered_type ?? null,
-      industry_group: existing?.industry_group ?? null,
-      status: "reporting",
-      as_of: filing_date || existing?.as_of || null,
-    };
-
-    await regARepo.saveOffering(offering);
-  }
+  // unsatisfiable. The mutable row is latest-by-filing-date; the read-merge-write
+  // is atomic per (cik, file_number) and skips stale out-of-order writes (unknown
+  // "" dates apply as-is).
+  await regARepo.saveOfferingAsOf(cik, file_number, filing_date, (existing) => ({
+    cik,
+    file_number,
+    issuer_name: primaryIssuer?.issuerName ?? existing?.issuer_name ?? null,
+    jurisdiction: primaryIssuer?.jurisdictionOrganization ?? existing?.jurisdiction ?? null,
+    sic_code: existing?.sic_code ?? null,
+    tier: existing?.tier ?? null,
+    financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+    securities_offered_type: existing?.securities_offered_type ?? null,
+    industry_group: existing?.industry_group ?? null,
+    status: "reporting",
+    as_of: filing_date || existing?.as_of || null,
+  }));
 
   await processIssuer(cik, form1K, ctx, 0);
   await processOfferingHistory(cik, file_number, accession_number, filing_date, form1K, ctx, 100);

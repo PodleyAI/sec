@@ -138,6 +138,69 @@ describe("RegAOfferingRepo", () => {
     });
   });
 
+  describe("saveOfferingAsOf", () => {
+    const CIK = 55555;
+    const FN = "024-09999";
+
+    // 1-A: full row with tier; status carried forward from existing.
+    const save1A = (filing_date: string) =>
+      repo.saveOfferingAsOf(CIK, FN, filing_date, (existing) => ({
+        cik: CIK,
+        file_number: FN,
+        issuer_name: "RegA Issuer Inc",
+        jurisdiction: "DE",
+        sic_code: 7372,
+        tier: "Tier2",
+        financial_statement_audit_status: "Audited",
+        securities_offered_type: "Equity (common or preferred stock)",
+        industry_group: "Other",
+        status: existing?.status ?? "pending",
+        as_of: filing_date || existing?.as_of || null,
+      }));
+
+    // 1-K: carries no tier/SIC — merges them forward from the existing row.
+    const save1K = (filing_date: string) =>
+      repo.saveOfferingAsOf(CIK, FN, filing_date, (existing) => ({
+        cik: CIK,
+        file_number: FN,
+        issuer_name: existing?.issuer_name ?? null,
+        jurisdiction: existing?.jurisdiction ?? null,
+        sic_code: existing?.sic_code ?? null,
+        tier: existing?.tier ?? null,
+        financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+        securities_offered_type: existing?.securities_offered_type ?? null,
+        industry_group: existing?.industry_group ?? null,
+        status: "reporting",
+        as_of: filing_date || existing?.as_of || null,
+      }));
+
+    it("merges a later 1-K onto the 1-A and skips a stale out-of-order replay", async () => {
+      await save1A("2024-01-01");
+      await save1K("2024-06-01");
+      await save1A("2023-01-01"); // out-of-order older replay -> skipped
+
+      const final = await repo.getOffering(CIK, FN);
+      expect(final?.as_of).toBe("2024-06-01");
+      expect(final?.status).toBe("reporting");
+      expect(final?.tier).toBe("Tier2"); // merged forward, not clobbered to null
+    });
+
+    it("lets the newer filing win regardless of concurrent submission order", async () => {
+      // The guarded invariant: the newest filing's as_of and authoritative
+      // status win; the older 1-A can never lost-update them. (The merged tier
+      // is order-dependent by design — only asserted in the sequential case.)
+      for (const ops of [
+        [save1A("2024-01-01"), save1K("2024-06-01")],
+        [save1K("2024-06-01"), save1A("2024-01-01")],
+      ]) {
+        await Promise.all(ops);
+        const final = await repo.getOffering(CIK, FN);
+        expect(final?.as_of).toBe("2024-06-01");
+        expect(final?.status).toBe("reporting");
+      }
+    });
+  });
+
   describe("Offering History", () => {
     it("should save and retrieve offering history", async () => {
       const history: RegAOfferingHistory = {

@@ -138,7 +138,12 @@ async function processOffering(
   // processed concurrently can't lost-update the row. (Each Form D fully
   // restates the offering, so no field-merge is needed — only the date guard.)
   await investmentOfferingRepo.saveInvestmentOfferingHistory(investmentOfferingHistory);
-  await investmentOfferingRepo.saveInvestmentOfferingAsOf(investmentOffering, filing_date);
+  await investmentOfferingRepo.saveInvestmentOfferingAsOf(
+    cik,
+    file_number,
+    filing_date,
+    (existing) => ({ ...investmentOffering, as_of: filing_date || existing?.as_of || null })
+  );
 
   if (offering.salesCompensationList.recipient) {
     let salesIndex = 100;

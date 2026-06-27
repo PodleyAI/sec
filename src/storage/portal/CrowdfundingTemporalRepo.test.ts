@@ -458,4 +458,65 @@ describe("CrowdfundingTemporalRepo", () => {
     const entityAtTime2 = await temporalRepo.getCrowdfundingAtTime(12345, "020-12345", time2);
     expect(entityAtTime2?.name).toBe("Updated Name");
   });
+
+  describe("saveCurrentByFilingDate", () => {
+    const CIK = 44444;
+    const FN = "020-44444";
+
+    // Mirrors Form_C.storage: merge fields forward from the existing row; a
+    // stale replay records its own filing_date in the snapshot.
+    const save = (
+      filing_date: string,
+      status: string,
+      portalCik: number,
+      source: string,
+      acc: string
+    ) =>
+      temporalRepo.saveCurrentByFilingDate(CIK, FN, filing_date, source, acc, (existing, isStale) => ({
+        cik: CIK,
+        file_number: FN,
+        filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
+        name: existing?.name || "Issuer Co",
+        legal_status: existing?.legal_status ?? "Corporation",
+        state_jurisdiction: existing?.state_jurisdiction ?? "DE",
+        date_incorporation: existing?.date_incorporation ?? "2020-01-01",
+        url: existing?.url ?? "http://example.com",
+        portal_cik: portalCik > 0 ? portalCik : (existing?.portal_cik ?? 0),
+        status,
+        progress_update: null,
+        nature_of_amendment: null,
+      }));
+
+    test("merges a later C-AR onto the C and a stale replay snapshots without regressing", async () => {
+      await save("2024-01-01", "active", 54321, "Form C", "acc-c");
+      await save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car"); // no portal cik -> merged
+
+      let mutable = await temporalRepo.getCrowdfunding(CIK, FN);
+      expect(mutable?.filing_date).toBe("2024-06-01");
+      expect(mutable?.status).toBe("annual-report");
+      expect(mutable?.portal_cik).toBe(54321); // merged forward, not clobbered to 0
+
+      // An out-of-order older replay must not regress the mutable row...
+      await save("2023-01-01", "active", 0, "Form C-AR", "acc-stale");
+      mutable = await temporalRepo.getCrowdfunding(CIK, FN);
+      expect(mutable?.filing_date).toBe("2024-06-01");
+      expect(mutable?.status).toBe("annual-report");
+
+      // ...but still lands in the history time series as a closed snapshot.
+      const history = await temporalRepo.getCrowdfundingHistory(CIK, FN);
+      expect(history.some((h) => h.accession_number === "acc-stale")).toBe(true);
+    });
+
+    test("lets the newer filing win regardless of concurrent submission order", async () => {
+      for (const ops of [
+        [save("2024-01-01", "active", 54321, "Form C", "acc-c"), save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car")],
+        [save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car"), save("2024-01-01", "active", 54321, "Form C", "acc-c")],
+      ]) {
+        await Promise.all(ops);
+        const mutable = await temporalRepo.getCrowdfunding(CIK, FN);
+        expect(mutable?.filing_date).toBe("2024-06-01");
+        expect(mutable?.status).toBe("annual-report");
+      }
+    });
+  });
 });

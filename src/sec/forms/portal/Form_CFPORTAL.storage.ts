@@ -115,36 +115,24 @@ export async function processFormCFPORTAL({
 
   const portalRepo = new PortalRepo();
   const isWithdrawal = submissionType === "CFPORTAL-W";
-  const existing = await portalRepo.getPortal(cik);
 
   // The mutable row reflects the latest filing by *filing date*, not by
-  // processing order — a back-catalog replay of the original registration
-  // must not resurrect a withdrawn portal. An undated incoming filing ("")
-  // cannot be ordered against a dated existing row and is treated as
-  // stale, so a filer error with no SGML date in the header does not
-  // clobber a known-dated mutable row. (When the existing row is also
-  // undated or absent, an undated filing still applies — there's nothing
-  // to regress.) Observations below are keyed by accession and always
-  // record the older filing too.
-  const isStale =
-    existing?.as_of != null &&
-    existing.as_of !== "" &&
-    (filing_date === "" || filing_date < existing.as_of);
-
-  if (!isStale) {
-    // Absent fields inherit from the existing portal row — a CFPORTAL/A may
-    // omit identifying info the registered portal still carries. A fresh
-    // CFPORTAL with an absent field stays null (no existing row).
-    const hasName = identifying?.nameOfPortal !== undefined;
-    await portalRepo.savePortal({
-      cik,
-      name: hasName ? (identifying!.nameOfPortal ?? null) : (existing?.name ?? null),
-      brand: brand ?? existing?.brand ?? null,
-      url: url ?? existing?.url ?? null,
-      live: !isWithdrawal,
-      as_of: filing_date || existing?.as_of || null,
-    });
-  }
+  // processing order — a back-catalog replay of the original registration must
+  // not resurrect a withdrawn portal. The read-merge-write is atomic per CIK and
+  // skips stale out-of-order writes (an undated "" filing is treated as stale).
+  // Absent fields inherit from the existing portal row — a CFPORTAL/A may omit
+  // identifying info the registered portal still carries; a fresh CFPORTAL with
+  // an absent field stays null. Observations below are keyed by accession and
+  // always record the older filing too.
+  const hasName = identifying?.nameOfPortal !== undefined;
+  await portalRepo.savePortalAsOf(cik, filing_date, (existing) => ({
+    cik,
+    name: hasName ? (identifying!.nameOfPortal ?? null) : (existing?.name ?? null),
+    brand: brand ?? existing?.brand ?? null,
+    url: url ?? existing?.url ?? null,
+    live: !isWithdrawal,
+    as_of: filing_date || existing?.as_of || null,
+  }));
 
   // Observation tier. Index layout: 0 = the portal company itself,
   // 1 = contact employee, 100+ = Schedule A direct/indirect owners.

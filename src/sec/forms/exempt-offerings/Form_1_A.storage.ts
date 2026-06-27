@@ -423,39 +423,25 @@ export async function processForm1A({
   const employeesInfo = form1A.formData.employeesInfo[0];
 
   // 1-A/A and 1-A POS restate the offering data but say nothing about the
-  // lifecycle: a post-qualification amendment processed after a 1-K / 1-Z
-  // must not regress a "reporting"/"exit" offering back to "pending".
-  const existing = await regARepo.getOffering(cik, file_number);
-
-  // Mutable row = latest filing by filing date; skip stale out-of-order
-  // writes. An undated incoming filing ("") cannot be ordered against a
-  // dated existing row and is treated as stale, so a filer error with no
-  // SGML date in the header does not clobber a known-dated mutable row.
-  // (When the existing row is also undated or absent, an undated filing
-  // still applies — there's nothing to regress.) The history row below is
-  // per-accession and always recorded.
-  const isStale =
-    existing?.as_of != null &&
-    existing.as_of !== "" &&
-    (filing_date === "" || filing_date < existing.as_of);
-
-  if (!isStale) {
-    const offering: RegAOffering = {
-      cik,
-      file_number,
-      issuer_name: employeesInfo.issuerName,
-      jurisdiction: employeesInfo.jurisdictionOrganization,
-      sic_code: employeesInfo.sicCode,
-      tier: summaryInfo.indicateTier1Tier2Offering,
-      financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
-      securities_offered_type: summaryInfo.securitiesOfferedTypes,
-      industry_group: form1A.formData.issuerInfo.industryGroup,
-      status: existing?.status ?? "pending",
-      as_of: filing_date || existing?.as_of || null,
-    };
-
-    await regARepo.saveOffering(offering);
-  }
+  // lifecycle: a post-qualification amendment processed after a 1-K / 1-Z must
+  // not regress a "reporting"/"exit" offering back to "pending" — so the status
+  // is carried forward from the existing row. The mutable row is latest-by-
+  // filing-date; the read-merge-write is atomic per (cik, file_number) and skips
+  // stale out-of-order writes (an undated "" filing is treated as stale). The
+  // history row below is per-accession and always recorded.
+  await regARepo.saveOfferingAsOf(cik, file_number, filing_date, (existing) => ({
+    cik,
+    file_number,
+    issuer_name: employeesInfo.issuerName,
+    jurisdiction: employeesInfo.jurisdictionOrganization,
+    sic_code: employeesInfo.sicCode,
+    tier: summaryInfo.indicateTier1Tier2Offering,
+    financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
+    securities_offered_type: summaryInfo.securitiesOfferedTypes,
+    industry_group: form1A.formData.issuerInfo.industryGroup,
+    status: existing?.status ?? "pending",
+    as_of: filing_date || existing?.as_of || null,
+  }));
 
   const history: RegAOfferingHistory = {
     cik,
