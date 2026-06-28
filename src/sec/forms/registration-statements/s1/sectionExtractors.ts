@@ -137,7 +137,7 @@ function generateFenceNonce(): string {
  * directly so we also catch obfuscations that normalize / spacing-strip
  * to that prefix.
  */
-const TAG_SHAPED = /<\s*\/?\s*[_A-Z][\w \t-]*\s*>/gi;
+const TAG_SHAPED = /<\s*\/?\s*[_A-Z][\w\s-]*\s*>/gi;
 
 /**
  * Wraps the filer-controlled section text in a per-call nonced XML fence so
