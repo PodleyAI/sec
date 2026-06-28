@@ -45,6 +45,15 @@ async function withInProcessLock<T>(cik: number, fn: () => Promise<T>): Promise<
 }
 
 /**
+ * Sentinel key for the process-wide SQLite serialization gate. All SPAC
+ * writes share this slot regardless of CIK because `getDb()` returns the
+ * singleton `better-sqlite3` connection — nesting a second `BEGIN IMMEDIATE`
+ * on the same conn throws "cannot start a transaction within a transaction",
+ * so even distinct-CIK writers have to queue at the connection.
+ */
+const SQLITE_GLOBAL_LOCK_KEY = 0;
+
+/**
  * Run `fn` while holding a per-CIK write lock so that the
  * `getSpac → buildSpacRow → saveSpac` + history snapshot critical section in
  * `SpacReportWriter.rebuild` is serialized across concurrent writers.
@@ -52,7 +61,11 @@ async function withInProcessLock<T>(cik: number, fn: () => Promise<T>): Promise<
  * Dispatch mirrors `cikNameBulkWriter`:
  *   - SQLite (`SEC_DB_TYPE=sqlite`): raw `BEGIN IMMEDIATE`/`COMMIT` on the
  *     shared connection. SQLite is single-writer, so this also serializes
- *     against any other writer holding the database lock.
+ *     against any other writer holding the database lock. The branch is
+ *     gated by a process-wide mutex (`SQLITE_GLOBAL_LOCK_KEY`) because the
+ *     singleton `better-sqlite3` connection cannot nest a second
+ *     `BEGIN IMMEDIATE` — distinct CIKs concurrently entering this branch
+ *     would otherwise throw "cannot start a transaction within a transaction".
  *   - Postgres (`SEC_DB_TYPE=postgres`): per-transaction advisory lock keyed
  *     on (`PG_ADVISORY_LOCK_NAMESPACE_SPAC`, `cik`).
  *   - Anything else (in-memory tests / unregistered): per-process keyed
@@ -86,20 +99,22 @@ export async function withSpacCikLock<T>(
     globalServiceRegistry.has(SEC_DB_FOLDER) &&
     globalServiceRegistry.has(SEC_DB_NAME)
   ) {
-    const db = getDb();
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const result = await fn();
-      db.exec("COMMIT");
-      return result;
-    } catch (err) {
+    return withInProcessLock(SQLITE_GLOBAL_LOCK_KEY, async () => {
+      const db = getDb();
+      db.exec("BEGIN IMMEDIATE");
       try {
-        db.exec("ROLLBACK");
-      } catch {
-        // ignore — the original error is what callers care about
+        const result = await fn();
+        db.exec("COMMIT");
+        return result;
+      } catch (err) {
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          // ignore — the original error is what callers care about
+        }
+        throw err;
       }
-      throw err;
-    }
+    });
   }
 
   if (isPostgresBacked && dbType === "postgres") {

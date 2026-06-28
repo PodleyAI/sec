@@ -4,9 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { globalServiceRegistry, Sqlite } from "workglow";
+import { DefaultDI } from "../../config/DefaultDI";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
+import { closeDb } from "../../util/db";
 import { SpacRepo } from "./SpacRepo";
 import { SpacReportWriter } from "./SpacReportWriter";
 import { withSpacCikLock } from "./SpacWriteLock";
@@ -64,6 +71,66 @@ describe("withSpacCikLock", () => {
     ]);
 
     expect(bothInFlightAtSomePoint).toBe(true);
+  });
+
+  it("five parallel writers across distinct CIKs serialize on the singleton SQLite conn", async () => {
+    // The SQLite branch issues `BEGIN IMMEDIATE` on the shared
+    // `better-sqlite3` connection. Without the process-wide gate added by
+    // SQLITE_GLOBAL_LOCK_KEY, distinct-CIK writers that race past the
+    // per-CIK in-memory mutex would all hit BEGIN on the same conn and
+    // throw "cannot start a transaction within a transaction".
+    closeDb();
+    resetDependencyInjectionsForTesting();
+    if (typeof Sqlite.init === "function") {
+      await Sqlite.init();
+    }
+    const tmpDir = mkdtempSync(join(tmpdir(), "sec-spac-lock-sqlite-"));
+    try {
+      globalServiceRegistry.registerInstance(SEC_DB_TYPE, "sqlite");
+      globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
+      globalServiceRegistry.registerInstance(SEC_DB_NAME, "spac_lock_sqlite");
+      DefaultDI();
+      await setupAllDatabases();
+
+      const repo = new SpacRepo();
+      const writer = new SpacReportWriter(repo);
+      const ciks = [100, 200, 300, 400, 500];
+
+      // Capture any rejection — the regression we're guarding against shows
+      // up as a "transaction within a transaction" throw from better-sqlite3.
+      const results = await Promise.allSettled(
+        ciks.map((cik) =>
+          writer.recordRegistration({
+            cik,
+            accession_number: `${cik}-reg`,
+            filing_date: "2026-01-01",
+            form: "S-1",
+            primary_document: "s1.htm",
+            spac_name: `SPAC ${cik}`,
+            spac_sic: 6770,
+          })
+        )
+      );
+
+      const rejections = results.filter((r) => r.status === "rejected");
+      // Surface the actual error texts for easier triage if this regresses.
+      const errors = rejections.map((r) =>
+        String((r as PromiseRejectedResult).reason?.message ?? r)
+      );
+      expect(errors).toEqual([]);
+      expect(
+        errors.some((e) => /transaction within a transaction/i.test(e))
+      ).toBe(false);
+      expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+    } finally {
+      closeDb();
+      rmSync(tmpDir, { recursive: true, force: true });
+      globalServiceRegistry.registerInstance(
+        SEC_DB_TYPE,
+        "memory" as unknown as "sqlite" | "postgres"
+      );
+      resetDependencyInjectionsForTesting();
+    }
   });
 
   it("three parallel SpacReportWriter rebuilds on the same CIK leave exactly one open history row", async () => {
