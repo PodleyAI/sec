@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { PoolClient } from "pg";
 import { globalServiceRegistry } from "workglow";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
@@ -15,6 +16,17 @@ export interface RecomputeSpacDealsArgs {
   readonly cik: number;
   readonly toDelete: ReadonlyArray<SpacDeal>;
   readonly toUpsert: ReadonlyArray<SpacDeal>;
+  /**
+   * Optional caller-owned Postgres client. When supplied, the Postgres branch
+   * runs DELETE/INSERT directly on this client and does **not** issue
+   * BEGIN/COMMIT/ROLLBACK or `release()` — the caller owns the surrounding
+   * transaction (e.g. `withSpacCikLock` already holds an outer `BEGIN` for
+   * advisory-lock serialization, so checking out a *second* client from the
+   * shared pool here would deadlock once the pool was saturated). When
+   * `undefined`, the Postgres branch falls back to its own pool checkout +
+   * BEGIN/COMMIT/ROLLBACK wrap (the defensive default).
+   */
+  readonly pgClient?: PoolClient;
 }
 
 /**
@@ -31,7 +43,7 @@ export interface RecomputeSpacDealsArgs {
  * `redemption_amount` no longer rolls up).
  */
 export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<void> {
-  const { dealRepo, cik, toDelete, toUpsert } = args;
+  const { dealRepo, cik, toDelete, toUpsert, pgClient } = args;
 
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
@@ -56,7 +68,7 @@ export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<
     return replaceSqlite(cik, toDelete, toUpsert);
   }
   if (!isInMemoryRepo && dbType === "postgres") {
-    return replacePostgres(cik, toDelete, toUpsert);
+    return replacePostgres(cik, toDelete, toUpsert, pgClient);
   }
   return replaceRepository(dealRepo, toDelete, toUpsert);
 }
@@ -133,59 +145,27 @@ function replaceSqlite(
 async function replacePostgres(
   _cik: number,
   toDelete: ReadonlyArray<SpacDeal>,
-  toUpsert: ReadonlyArray<SpacDeal>
+  toUpsert: ReadonlyArray<SpacDeal>,
+  pgClient: PoolClient | undefined
 ): Promise<void> {
+  // Caller-supplied client: the surrounding transaction is owned by the
+  // caller (e.g. `withSpacCikLock` already wraps a BEGIN around the entire
+  // critical section for advisory-lock serialization). Issuing our own
+  // BEGIN/COMMIT here would either nest or, more practically, force a
+  // second pool checkout — which deadlocks once the pool is saturated by
+  // concurrent CIK locks. Skip the wrap and the release; the caller cleans
+  // up on its own commit/rollback path.
+  if (pgClient) {
+    await runPostgresOps(pgClient, toDelete, toUpsert);
+    return;
+  }
+
+  // Defensive default: no outer transaction was provided, so own one.
   const pool = getPgPool();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const d of toDelete) {
-      await client.query(
-        `DELETE FROM "spac_deal" WHERE "cik" = $1 AND "deal_index" = $2`,
-        [d.cik, d.deal_index]
-      );
-    }
-    for (const d of toUpsert) {
-      await client.query(
-        `INSERT INTO "spac_deal"
-          ("cik", "deal_index", "target_name", "target_cik", "announced_date",
-           "definitive_agreement_date", "proxy_date", "vote_date", "pipe_amount",
-           "redemption_amount", "redemption_shares", "outcome", "outcome_date",
-           "source_accession", "created_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-         ON CONFLICT ("cik", "deal_index") DO UPDATE SET
-           "target_name" = EXCLUDED."target_name",
-           "target_cik" = EXCLUDED."target_cik",
-           "announced_date" = EXCLUDED."announced_date",
-           "definitive_agreement_date" = EXCLUDED."definitive_agreement_date",
-           "proxy_date" = EXCLUDED."proxy_date",
-           "vote_date" = EXCLUDED."vote_date",
-           "pipe_amount" = EXCLUDED."pipe_amount",
-           "redemption_amount" = EXCLUDED."redemption_amount",
-           "redemption_shares" = EXCLUDED."redemption_shares",
-           "outcome" = EXCLUDED."outcome",
-           "outcome_date" = EXCLUDED."outcome_date",
-           "source_accession" = EXCLUDED."source_accession",
-           "created_at" = EXCLUDED."created_at"`,
-        [
-          d.cik,
-          d.deal_index,
-          d.target_name,
-          d.target_cik,
-          d.announced_date,
-          d.definitive_agreement_date,
-          d.proxy_date,
-          d.vote_date,
-          d.pipe_amount,
-          d.redemption_amount,
-          d.redemption_shares,
-          d.outcome,
-          d.outcome_date,
-          d.source_accession,
-          d.created_at,
-        ]
-      );
-    }
+    await runPostgresOps(client, toDelete, toUpsert);
     await client.query("COMMIT");
   } catch (e) {
     try {
@@ -196,6 +176,60 @@ async function replacePostgres(
     throw e;
   } finally {
     client.release();
+  }
+}
+
+async function runPostgresOps(
+  client: PoolClient,
+  toDelete: ReadonlyArray<SpacDeal>,
+  toUpsert: ReadonlyArray<SpacDeal>
+): Promise<void> {
+  for (const d of toDelete) {
+    await client.query(
+      `DELETE FROM "spac_deal" WHERE "cik" = $1 AND "deal_index" = $2`,
+      [d.cik, d.deal_index]
+    );
+  }
+  for (const d of toUpsert) {
+    await client.query(
+      `INSERT INTO "spac_deal"
+        ("cik", "deal_index", "target_name", "target_cik", "announced_date",
+         "definitive_agreement_date", "proxy_date", "vote_date", "pipe_amount",
+         "redemption_amount", "redemption_shares", "outcome", "outcome_date",
+         "source_accession", "created_at")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT ("cik", "deal_index") DO UPDATE SET
+         "target_name" = EXCLUDED."target_name",
+         "target_cik" = EXCLUDED."target_cik",
+         "announced_date" = EXCLUDED."announced_date",
+         "definitive_agreement_date" = EXCLUDED."definitive_agreement_date",
+         "proxy_date" = EXCLUDED."proxy_date",
+         "vote_date" = EXCLUDED."vote_date",
+         "pipe_amount" = EXCLUDED."pipe_amount",
+         "redemption_amount" = EXCLUDED."redemption_amount",
+         "redemption_shares" = EXCLUDED."redemption_shares",
+         "outcome" = EXCLUDED."outcome",
+         "outcome_date" = EXCLUDED."outcome_date",
+         "source_accession" = EXCLUDED."source_accession",
+         "created_at" = EXCLUDED."created_at"`,
+      [
+        d.cik,
+        d.deal_index,
+        d.target_name,
+        d.target_cik,
+        d.announced_date,
+        d.definitive_agreement_date,
+        d.proxy_date,
+        d.vote_date,
+        d.pipe_amount,
+        d.redemption_amount,
+        d.redemption_shares,
+        d.outcome,
+        d.outcome_date,
+        d.source_accession,
+        d.created_at,
+      ]
+    );
   }
 }
 

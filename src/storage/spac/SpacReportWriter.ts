@@ -185,8 +185,17 @@ export class SpacReportWriter {
    * error between the two cannot leave the SPAC report row inconsistent with
    * its derived deals (a stale orphan whose `redemption_amount` continues to
    * roll up was the failure mode without this).
+   *
+   * Callers that already hold an outer Postgres transaction (e.g. a
+   * per-CIK advisory lock that wraps a BEGIN around the critical section)
+   * MUST forward their `PoolClient` so the inner ops run on the same
+   * connection — checking out a second pool client here would deadlock
+   * once the pool is saturated by concurrent CIK locks.
    */
-  private async recomputeAndSaveDeals(cik: number): Promise<void> {
+  private async recomputeAndSaveDeals(
+    cik: number,
+    pgClient?: import("pg").PoolClient
+  ): Promise<void> {
     const [events, extractions, redemptions, existingDeals] = await Promise.all([
       this.repo.getEvents(cik),
       this.mergerExtractions.getByCik(cik),
@@ -201,6 +210,7 @@ export class SpacReportWriter {
       cik,
       toDelete,
       toUpsert: deals,
+      pgClient,
     });
   }
 
