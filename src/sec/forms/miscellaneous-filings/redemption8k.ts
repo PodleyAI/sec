@@ -200,16 +200,21 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   // Partial-drop: at least one exhibit was skipped but a non-empty survivor set
   // ran through extraction. Record an informational dead-letter so operators
   // can triage filings whose largest exhibit was dropped (mirrors the
-  // "<section>-partial" pattern in sectionRunner.ts).
+  // "<section>-partial" pattern in sectionRunner.ts), then immediately mark
+  // it resolved: this is informational, auto-resolved (no retry recovers a
+  // deterministic-cap drop); the attempts counter preserves the audit trail
+  // across replays.
   if (dropped > 0 && !totalDropped) {
+    const partialSection = `${REDEMPTION_SECTION}-partial-oversized`;
     await deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,
-      section_name: `${REDEMPTION_SECTION}-partial-oversized`,
+      section_name: partialSection,
       reason_code: "OVERSIZED_INPUT",
       detail: `dropped ${dropped} exhibit(s) over ${MAX_PER_EXHIBIT_CHARS} char cap (chars=${droppedChars})`,
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+    await deadLetters.markResolved(EXTRACTOR_ID, accession_number, partialSection);
   }
 }

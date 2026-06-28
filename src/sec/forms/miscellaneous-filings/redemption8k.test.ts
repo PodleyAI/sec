@@ -280,7 +280,8 @@ describe("processRedemption8K", () => {
     const ext = await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-PART01");
     expect(ext?.redemption_amount).toBe(50_000_000);
 
-    // Partial-oversized informational dead-letter recorded.
+    // Partial-oversized informational dead-letter recorded — and auto-resolved
+    // (no retry recovers a deterministic-cap drop).
     const dlRepo = new ExtractionDeadLetterRepo();
     const partial = await dlRepo.get(
       "redemption",
@@ -288,6 +289,86 @@ describe("processRedemption8K", () => {
       "redemption-partial-oversized"
     );
     expect(partial?.reason_code).toBe("OVERSIZED_INPUT");
+    expect(partial?.status).toBe("resolved");
+  });
+
+  it("auto-resolves the partial-oversized dead-letter across replays — never appears in listEligible", async () => {
+    await seedSpacWithOpenDeal(53);
+    // Same shape as the partial-oversized test: small primary doc with the
+    // canonical sentence + an EX-99 over the cap that gets dropped.
+    const filler = "D".repeat(260_000);
+    const partialTxt =
+      "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-RES001\n</SEC-HEADER>\n" +
+      "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n" +
+      "<p>Holders of 7,500,000 shares elected to redeem for $75,000,000.</p>\n" +
+      "</TEXT>\n</DOCUMENT>\n" +
+      "<DOCUMENT>\n<TYPE>EX-99.1\n<SEQUENCE>2\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n";
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: 7_500_000,
+        redemption_amount: 75_000_000,
+        price_per_share: 10.0,
+        confidence: 0.95,
+        source_span: "7,500,000 shares elected to redeem for $75,000,000",
+      },
+      // Second-run replay produces the same row.
+      {
+        redemption_shares: 7_500_000,
+        redemption_amount: 75_000_000,
+        price_per_share: 10.0,
+        confidence: 0.95,
+        source_span: "7,500,000 shares elected to redeem for $75,000,000",
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    const dlRepo = new ExtractionDeadLetterRepo();
+    const sectionKey = "redemption-partial-oversized";
+
+    // Run #1: record + auto-resolve.
+    await processRedemption8K({
+      cik: 53,
+      accession_number: "0000000000-26-RES001",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: partialTxt,
+      model: fakeS1Model(),
+    });
+
+    let entry = await dlRepo.get("redemption", "0000000000-26-RES001", sectionKey);
+    expect(entry?.status).toBe("resolved");
+    expect(entry?.attempts).toBe(1);
+
+    // The current extractor version must be derivable; we use the version on the
+    // recorded entry itself as the source of truth.
+    const currentVersion = entry!.failed_extractor_version;
+    let eligible = await dlRepo.listEligible("redemption", currentVersion);
+    expect(
+      eligible.filter((e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001")
+    ).toHaveLength(0);
+
+    // Run #2: idempotent — the entry stays resolved, attempts increments (audit
+    // trail), and listEligible still excludes it.
+    await processRedemption8K({
+      cik: 53,
+      accession_number: "0000000000-26-RES001",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: partialTxt,
+      model: fakeS1Model(),
+    });
+
+    entry = await dlRepo.get("redemption", "0000000000-26-RES001", sectionKey);
+    expect(entry?.status).toBe("resolved");
+    expect(entry?.attempts).toBe(2);
+    eligible = await dlRepo.listEligible("redemption", currentVersion);
+    expect(
+      eligible.filter((e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001")
+    ).toHaveLength(0);
   });
 
   it("extracts successfully with a moderately large EX-99 (~150 KB)", async () => {
