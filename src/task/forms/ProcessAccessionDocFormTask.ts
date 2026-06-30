@@ -25,6 +25,7 @@ import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -73,7 +74,7 @@ function fullSubmissionFileName(accessionNumber: string): string {
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({
-    accessionNumber: Type.String({
+    accessionNumber: TypeAccessionNumber({
       title: "Accession Doc",
       description: "The accession doc to process",
     }),
@@ -386,6 +387,8 @@ export class ProcessAccessionDocFormTask extends Task<
             items,
             report_date,
             form8K: parsed,
+            extractor_id: extractorId,
+            extractor_version: extractorVersion,
             fullSubmissionText: redemptionFullSubmission ? text : undefined,
           });
           break;

@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
+import { recomputeSpacDeals } from "./SpacDealReplace";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
@@ -225,8 +226,23 @@ export class SpacReportWriter {
   /**
    * Rebuild the deal set from the CIK's full event stream + merger extractions
    * (the single derivation path shared by the 8-K and merger-proxy writers).
+   *
+   * The delete-orphans + upsert-derived pass runs inside one
+   * {@link recomputeSpacDeals} transaction so a crash, AbortSignal, or DB
+   * error between the two cannot leave the SPAC report row inconsistent with
+   * its derived deals (a stale orphan whose `redemption_amount` continues to
+   * roll up was the failure mode without this).
+   *
+   * Callers that already hold an outer Postgres transaction (e.g. a
+   * per-CIK advisory lock that wraps a BEGIN around the critical section)
+   * MUST forward their `PoolClient` so the inner ops run on the same
+   * connection — checking out a second pool client here would deadlock
+   * once the pool is saturated by concurrent CIK locks.
    */
-  private async recomputeAndSaveDeals(cik: number): Promise<void> {
+  private async recomputeAndSaveDeals(
+    cik: number,
+    pgClient?: import("pg").PoolClient
+  ): Promise<void> {
     const [events, extractions, redemptions, existingDeals] = await Promise.all([
       this.repo.getEvents(cik),
       this.mergerExtractions.getByCik(cik),
@@ -234,17 +250,15 @@ export class SpacReportWriter {
       this.repo.getDeals(cik),
     ]);
     const deals = deriveDeals(cik, events, extractions, redemptions, existingDeals);
-    // Reconcile: if a prior derivation yielded more deals than this one (the
-    // event stream or derivation logic changed), delete the orphaned rows.
-    // saveDeal only upserts, so without this their stale columns — notably
-    // redemption_amount — would still be summed into the rolled-up totals.
     const liveIndexes = new Set(deals.map((d) => d.deal_index));
-    for (const existing of existingDeals) {
-      if (!liveIndexes.has(existing.deal_index)) {
-        await this.repo.deleteDeal(existing.cik, existing.deal_index);
-      }
-    }
-    for (const deal of deals) await this.repo.saveDeal(deal);
+    const toDelete = existingDeals.filter((d) => !liveIndexes.has(d.deal_index));
+    await recomputeSpacDeals({
+      dealRepo: this.repo.dealRepository,
+      cik,
+      toDelete,
+      toUpsert: deals,
+      pgClient,
+    });
   }
 
   private async appendEvent(

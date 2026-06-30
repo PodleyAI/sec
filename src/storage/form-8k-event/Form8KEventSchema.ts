@@ -7,21 +7,41 @@
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { Static, Type } from "typebox";
+import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
- * Form 8-K Event schema - represents individual items reported in 8-K filings.
- * Each 8-K filing can report multiple items (e.g., "1.01", "2.02", "9.01").
- * This table stores one row per item per filing.
+ * Form 8-K Event schema — one row per item reported in an 8-K filing
+ * (`(cik, accession_number, item_code)` is the natural identity within a
+ * single extractor version, e.g. `"1.01"`, `"2.02"`, `"9.01"`).
+ *
+ * `event_id` is a synthetic surrogate primary key so an extractor re-run
+ * under a newer `extractor_version` can co-exist with the prior version's
+ * rows for the same filing without colliding on the primary key; that
+ * way diffs across versions stay queryable. The natural key
+ * `(cik, accession_number, extractor_id, extractor_version, item_code)`
+ * is enforced UNIQUE in the DI wiring (Postgres/SQLite emit a real UNIQUE
+ * index; the in-memory backend enforces it programmatically).
  */
 export const Form8KEventSchema = Type.Object({
+  event_id: Type.Integer({
+    description: "Synthetic surrogate key; AUTOINCREMENT INTEGER PRIMARY KEY",
+    "x-auto-generated": true,
+  }),
   cik: Type.Integer({
     minimum: 0,
     description: "Central Index Key (CIK) - unique identifier for entity",
   }),
-  accession_number: Type.String({
-    maxLength: 25,
+  accession_number: TypeAccessionNumber({
     description: "SEC accession number - unique identifier for the filing",
+  }),
+  extractor_id: Type.String({
+    maxLength: 16,
+    description: "Form-mapped extractor id (e.g. '8-K')",
+  }),
+  extractor_version: Type.String({
+    maxLength: 32,
+    description: "Semver of the extractor that produced this row",
   }),
   item_code: Type.String({
     maxLength: 10,
@@ -48,7 +68,16 @@ export const Form8KEventSchema = Type.Object({
 
 export type Form8KEvent = Static<typeof Form8KEventSchema>;
 
-export const Form8KEventPrimaryKeyNames = ["cik", "accession_number", "item_code"] as const;
+export const Form8KEventPrimaryKeyNames = ["event_id"] as const;
+
+/**
+ * Natural-key UNIQUE constraint columns — `(cik, accession_number,
+ * extractor_id, extractor_version, item_code)`. Wired through `createStorage`
+ * so the underlying tabular backend emits the matching UNIQUE index.
+ */
+export const Form8KEventUniqueIndexes = [
+  ["cik", "accession_number", "extractor_id", "extractor_version", "item_code"] as const,
+] as const;
 
 export type Form8KEventRepositoryStorage = ITabularStorage<
   typeof Form8KEventSchema,

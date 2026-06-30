@@ -237,6 +237,7 @@ import {
   FORM_8K_EVENT_REPOSITORY_TOKEN,
   Form8KEventPrimaryKeyNames,
   Form8KEventSchema,
+  Form8KEventUniqueIndexes,
 } from "../storage/form-8k-event/Form8KEventSchema";
 import {
   SPAC_REPOSITORY_TOKEN,
@@ -882,10 +883,19 @@ export function resetDependencyInjectionsForTesting() {
   // Form 8-K Events
   globalServiceRegistry.registerInstance(
     FORM_8K_EVENT_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(Form8KEventSchema, Form8KEventPrimaryKeyNames, [
-      ["cik", "filing_date"],
-      ["item_code"],
-      ["accession_number"],
-    ])
+    new InMemoryTabularStorage(
+      Form8KEventSchema,
+      Form8KEventPrimaryKeyNames,
+      [
+        ["cik", "filing_date"],
+        ["item_code"],
+        ["accession_number"],
+        ["extractor_id", "extractor_version"],
+      ],
+      undefined, // clientProvidedKeys (default)
+      undefined, // tabularMigrations
+      undefined, // migrationName
+      Form8KEventUniqueIndexes
+    )
   );
 }
