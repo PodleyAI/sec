@@ -120,12 +120,20 @@ export function registerSpacCommands(program: Command): void {
   spacCmd
     .command("backfill-redemptions")
     .description("Re-process known-SPAC trigger-item 8-Ks to extract realized redemptions")
-    .action(async () => {
-      const out = (await withCli(new BackfillRedemptionsTask()).run({})) as {
+    .option("--force", "Re-process filings even when a successful run already exists", false)
+    .option("--dry-run", "Report selected filing count without reprocessing", false)
+    .action(async (opts: { force?: boolean; dryRun?: boolean }) => {
+      const out = (await withCli(new BackfillRedemptionsTask()).run({
+        force: opts.force === true,
+        dryRun: opts.dryRun === true,
+      } as never)) as {
         selected: number;
         processed: number;
+        skipped: number;
       };
-      console.log(`selected ${out.selected} filing(s); processed ${out.processed}`);
+      console.log(
+        `selected ${out.selected} filing(s); processed ${out.processed}; skipped ${out.skipped}`
+      );
     });
 
   spacCmd

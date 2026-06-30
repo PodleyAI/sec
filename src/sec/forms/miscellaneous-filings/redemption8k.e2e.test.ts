@@ -134,8 +134,9 @@ describe("processForm8K — redemption e2e", () => {
     expect(spacRow?.total_redemption_amount).toBe(8200000);
   });
 
-  it("known SPAC with no deal yields no redemption rollup", async () => {
-    // Seed SPAC row but no deal milestone
+  it("known SPAC with no deal persists the orphan extraction and rolls up once the deal lands", async () => {
+    // Seed SPAC row but no deal milestone — the redemption is recorded
+    // anyway; deriveDeals correlates it as soon as a deal exists.
     await new SpacReportWriter().recordRegistration({
       cik: 21,
       accession_number: "21-reg",
@@ -169,11 +170,27 @@ describe("processForm8K — redemption e2e", () => {
       model: fakeS1Model(),
     });
 
-    const spacRow = await new SpacRepo().getSpac(21);
-    expect(spacRow).toBeDefined();
-    expect(spacRow?.total_redemption_amount ?? null).toBeNull();
+    // No deal yet — nothing to roll up against.
+    expect((await new SpacRepo().getDeals(21)).length).toBe(0);
+    const orphanSpac = await new SpacRepo().getSpac(21);
+    expect(orphanSpac?.total_redemption_amount ?? null).toBeNull();
+
+    // Later, the definitive-agreement 8-K lands; the orphan extraction
+    // is correlated automatically.
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 21,
+      accession_number: "21-da",
+      filing_date: "2026-01-10",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2026-01-10" }],
+    });
 
     const deals = await new SpacRepo().getDeals(21);
-    expect(deals).toHaveLength(0);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].redemption_amount).toBe(8200000);
+
+    const spacRow = await new SpacRepo().getSpac(21);
+    expect(spacRow?.total_redemption_amount).toBe(8200000);
   });
 });

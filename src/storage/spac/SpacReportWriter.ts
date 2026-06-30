@@ -209,7 +209,10 @@ export class SpacReportWriter {
    * redemption_shares onto the matching deal), then rebuild the row. No event
    * is appended — redemptions never advance the lifecycle and an extra event
    * would double-count in the rollup. The extraction itself is persisted by the
-   * caller (`processRedemption8K`) before this runs.
+   * caller (`processRedemption8K`) before this runs; extraction may have been
+   * persisted before any `spac_deal` row existed, in which case `deriveDeals`
+   * — which reads the full extraction set on every invocation — automatically
+   * correlates the orphan extraction once a later filing mints the deal.
    */
   async recordRedemption(args: {
     readonly cik: number;
