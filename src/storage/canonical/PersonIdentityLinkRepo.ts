@@ -52,6 +52,20 @@ export class PersonIdentityLinkRepo {
     return await this.repo.get({ observation_id, resolver_version });
   }
 
+  /** All links for an observation across resolver versions. */
+  async listForObservation(observation_id: number): Promise<PersonIdentityLink[]> {
+    return (await this.repo.query({ observation_id })) ?? [];
+  }
+
+  /** Delete every link for an observation (all resolver versions) — used when the
+   * underlying observation row is reaped so no link is left dangling. */
+  async deleteForObservation(observation_id: number): Promise<void> {
+    const rows = (await this.repo.query({ observation_id })) ?? [];
+    for (const r of rows) {
+      await this.repo.delete({ observation_id: r.observation_id, resolver_version: r.resolver_version });
+    }
+  }
+
   async listForCanonical(
     canonical_person_id: string,
     resolver_version: string

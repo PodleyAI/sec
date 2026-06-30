@@ -1,27 +1,21 @@
 import type { Command } from "commander";
 
 export interface GlobalOptions {
-  readonly json: boolean;
-  readonly verbose: boolean;
   readonly dryRun: boolean;
-  readonly color: boolean;
 }
 
+// Only `--dry-run` is wired (it gates writes via SEC_DRY_RUN). Previous
+// `--json` / `--verbose` / `--no-color` flags were parsed but never consumed —
+// read commands carry their own `--format`, and output is plain text — so they
+// were removed rather than advertised in --help while doing nothing.
 export function applyGlobalOptions(program: Command): Command {
-  return program
-    .option("--json", "Force JSON output", false)
-    .option("--verbose", "Show detailed logs", false)
-    .option("--dry-run", "Show what would happen without changes", false)
-    .option("--no-color", "Disable colored output");
+  return program.option("--dry-run", "Show what would happen without changes", false);
 }
 
 export function parseGlobalOptions(cmd: Command): GlobalOptions {
   const opts = cmd.opts();
   return {
-    json: opts.json ?? false,
-    verbose: opts.verbose ?? false,
     dryRun: opts.dryRun ?? false,
-    color: opts.color ?? true,
   };
 }
 

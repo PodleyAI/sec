@@ -17,6 +17,7 @@ import { PersonResolver } from "../../resolver/PersonResolver";
 import { CompanyResolver } from "../../resolver/CompanyResolver";
 import { RESOLVER_IDS, isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 import { isValidSemver } from "../../storage/versioning/VersionRegistry";
+import { runCommand } from "../runCommand";
 
 export function addResolveCommands(program: Command): void {
   const cmd = program.command("resolve");
@@ -26,72 +27,78 @@ export function addResolveCommands(program: Command): void {
     .requiredOption("--resolver-version <semver>", "target resolver semver")
     .option("--all", "process all observations of the kind", false)
     .action(async (opts: { kind: string; resolverVersion: string; all: boolean }) => {
-      if (!RESOLVER_IDS.includes(opts.kind as ResolverId)) {
-        console.error(`error: --kind must be one of ${RESOLVER_IDS.join("|")}`);
-        process.exit(1);
-      }
-      // Family-tier resolvers run inline during S-1 extraction (keyed off the
-      // sponsor/underwriter common name), not as a batch pass over observations.
-      // Refuse here rather than silently running the company resolver and writing
-      // mislabeled company identity-link rows.
-      if (isFamilyResolverId(opts.kind)) {
-        console.error(
-          `error: 'sec resolve' does not support family resolver kind '${opts.kind}'; ` +
-            `family resolution happens inline during S-1 extraction`
-        );
-        process.exit(1);
-      }
-      if (!opts.all) {
-        console.error("error: --all is required (no other mode supported in v1)");
-        process.exit(1);
-      }
-      if (!isValidSemver(opts.resolverVersion)) {
-        console.error(
-          `error: --resolver-version must be a valid semver (got '${opts.resolverVersion}')`
-        );
-        process.exit(1);
-      }
+      // runCommand: a validation throw renders a clean error + sets exit code
+      // 1 without bypassing the top-level queue/DB teardown (process.exit would).
+      await runCommand(async () => {
+        if (!RESOLVER_IDS.includes(opts.kind as ResolverId)) {
+          throw new Error(`--kind must be one of ${RESOLVER_IDS.join("|")}`);
+        }
+        // Family-tier resolvers run inline during S-1 extraction (keyed off the
+        // sponsor/underwriter common name), not as a batch pass over
+        // observations. Refuse here rather than silently running the company
+        // resolver and writing mislabeled company identity-link rows.
+        if (isFamilyResolverId(opts.kind)) {
+          throw new Error(
+            `'sec resolve' does not support family resolver kind '${opts.kind}'; ` +
+              `family resolution happens inline during S-1 extraction`
+          );
+        }
+        if (!opts.all) {
+          throw new Error("--all is required (no other mode supported in v1)");
+        }
+        if (!isValidSemver(opts.resolverVersion)) {
+          throw new Error(
+            `--resolver-version must be a valid semver (got '${opts.resolverVersion}')`
+          );
+        }
 
-      if (opts.kind === "person") {
-        const obsRepo = new PersonObservationRepo();
-        const canonRepo = new CanonicalPersonRepo();
-        const aliasRepo = new CanonicalPersonAliasRepo();
-        const linkRepo = new PersonIdentityLinkRepo();
-        const resolver = new PersonResolver({
-          canonicalPersonRepo: canonRepo,
-          canonicalPersonAliasRepo: aliasRepo,
-          activeResolverVersion: opts.resolverVersion,
-        });
-        const all = await obsRepo.listAll();
-        let count = 0;
-        for (const obs of all) {
-          const id = await resolver.resolve(obs);
-          await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
-          count++;
-        }
-        console.log(`resolved ${count} person observation(s) at v${opts.resolverVersion}`);
-      } else {
-        const obsRepo = new CompanyObservationRepo();
-        const canonRepo = new CanonicalCompanyRepo();
-        const aliasRepo = new CanonicalCompanyAliasRepo();
-        const linkRepo = new CompanyIdentityLinkRepo();
-        const resolver = new CompanyResolver({
-          canonicalCompanyRepo: canonRepo,
-          canonicalCompanyAliasRepo: aliasRepo,
-          activeResolverVersion: opts.resolverVersion,
-        });
-        const all = await obsRepo.listAll();
-        let count = 0;
-        for (const obs of all) {
-          try {
-            const id = await resolver.resolve(obs);
-            await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
-            count++;
-          } catch (e) {
-            console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
+        if (opts.kind === "person") {
+          const obsRepo = new PersonObservationRepo();
+          const canonRepo = new CanonicalPersonRepo();
+          const aliasRepo = new CanonicalPersonAliasRepo();
+          const linkRepo = new PersonIdentityLinkRepo();
+          const resolver = new PersonResolver({
+            canonicalPersonRepo: canonRepo,
+            canonicalPersonAliasRepo: aliasRepo,
+            activeResolverVersion: opts.resolverVersion,
+          });
+          const all = await obsRepo.listAll();
+          let count = 0;
+          for (const obs of all) {
+            // Isolate per-observation failures so one bad row can't abort the
+            // whole batch (mirrors the company branch below).
+            try {
+              const id = await resolver.resolve(obs);
+              await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
+              count++;
+            } catch (e) {
+              console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
+            }
           }
+          console.log(`resolved ${count} person observation(s) at v${opts.resolverVersion}`);
+        } else {
+          const obsRepo = new CompanyObservationRepo();
+          const canonRepo = new CanonicalCompanyRepo();
+          const aliasRepo = new CanonicalCompanyAliasRepo();
+          const linkRepo = new CompanyIdentityLinkRepo();
+          const resolver = new CompanyResolver({
+            canonicalCompanyRepo: canonRepo,
+            canonicalCompanyAliasRepo: aliasRepo,
+            activeResolverVersion: opts.resolverVersion,
+          });
+          const all = await obsRepo.listAll();
+          let count = 0;
+          for (const obs of all) {
+            try {
+              const id = await resolver.resolve(obs);
+              await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
+              count++;
+            } catch (e) {
+              console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
+            }
+          }
+          console.log(`resolved ${count} company observation(s) at v${opts.resolverVersion}`);
         }
-        console.log(`resolved ${count} company observation(s) at v${opts.resolverVersion}`);
-      }
+      });
     });
 }

@@ -95,11 +95,13 @@ export function addCanonicalCommands(program: Command): void {
         intoId = await resolveCanonicalPersonRef(into, canonRepo);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       if (fromId === intoId) {
         console.error("error: cannot alias an id to itself");
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       const aliasRepo = new CanonicalPersonAliasRepo();
       try {
@@ -112,7 +114,8 @@ export function addCanonicalCommands(program: Command): void {
         console.log(`aliased ${row.alias_canonical_id} → ${row.target_canonical_id}`);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
     });
 
@@ -125,7 +128,8 @@ export function addCanonicalCommands(program: Command): void {
         fromId = await resolveCanonicalPersonRef(from, canonRepo);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       const aliasRepo = new CanonicalPersonAliasRepo();
       await aliasRepo.remove(fromId);
@@ -167,11 +171,13 @@ export function addCanonicalCommands(program: Command): void {
         intoId = await resolveCanonicalCompanyRef(into, canonRepo);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       if (fromId === intoId) {
         console.error("error: cannot alias an id to itself");
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       const aliasRepo = new CanonicalCompanyAliasRepo();
       try {
@@ -184,7 +190,8 @@ export function addCanonicalCommands(program: Command): void {
         console.log(`aliased ${row.alias_canonical_id} → ${row.target_canonical_id}`);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
     });
 
@@ -197,7 +204,8 @@ export function addCanonicalCommands(program: Command): void {
         fromId = await resolveCanonicalCompanyRef(from, canonRepo);
       } catch (e) {
         console.error(`error: ${(e as Error).message}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       const aliasRepo = new CanonicalCompanyAliasRepo();
       await aliasRepo.remove(fromId);

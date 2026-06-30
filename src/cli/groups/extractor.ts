@@ -56,9 +56,11 @@ export function addExtractorCommands(program: Command): void {
         const out = (await withCli(new RetryDeadLettersTask()).run({ extractorId })) as {
           eligibleAccessions: string[];
           reprocessed: number;
+          failed: number;
         };
+        const failedSuffix = out.failed > 0 ? `, ${out.failed} failed` : "";
         console.log(
-          `reprocessed ${out.reprocessed} filing(s) from ${out.eligibleAccessions.length} eligible`
+          `reprocessed ${out.reprocessed} filing(s) from ${out.eligibleAccessions.length} eligible${failedSuffix}`
         );
       });
     });

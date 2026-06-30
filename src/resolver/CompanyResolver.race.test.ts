@@ -20,7 +20,7 @@ import {
 } from "../storage/canonical/CanonicalAliasSchemas";
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
 import { CompanyResolver } from "./CompanyResolver";
-import { isUniqueConstraintError } from "./isUniqueConstraintError";
+import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 type ErrorShape = "sqlite" | "pg";
 type CompanyKey = "cik" | "crd";

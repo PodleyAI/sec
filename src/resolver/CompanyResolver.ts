@@ -10,7 +10,7 @@ import type { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCo
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
 import type { CanonicalCompany } from "../storage/canonical/CanonicalCompanySchema";
 import { AsyncMutex } from "../util/AsyncMutex";
-import { isUniqueConstraintError } from "./isUniqueConstraintError";
+import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 interface CompanyResolverOptions {
   canonicalCompanyRepo: CanonicalCompanyRepo;

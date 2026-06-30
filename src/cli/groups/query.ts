@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { parseIntOption } from "../GlobalOptions";
+import { runCommand } from "../runCommand";
 import { renderTable } from "../output/TableRenderer";
 import { queryCiks } from "../queries/CikQuery";
 import { queryCrowdfunding } from "../queries/CrowdfundingQuery";
@@ -21,6 +22,19 @@ function validateFormat(value: string): OutputFormat {
   return value as OutputFormat;
 }
 
+/**
+ * Wraps a Commander action so a thrown error (bad --format, repo failure)
+ * renders as a clean `x <message>` with exit code 1 — via runCommand — instead
+ * of an uncaught stack-trace dump, matching the rest of the CLI surface.
+ */
+function wrapAction<A extends unknown[]>(
+  fn: (...args: A) => Promise<void>
+): (...args: A) => Promise<void> {
+  return async (...args: A): Promise<void> => {
+    await runCommand(() => fn(...args));
+  };
+}
+
 export function addQueryCommands(program: Command): void {
   const query = program.command("query").description("Query stored SEC data");
 
@@ -31,7 +45,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (name: string, options: Record<string, unknown>) => {
+    .action(wrapAction(async (name: string, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -62,7 +76,7 @@ export function addQueryCommands(program: Command): void {
           "\nThe cik_names table is empty. Run `sec bootstrap ingest cik-names` to populate it."
         );
       }
-    });
+    }));
 
   query
     .command("entities [search]")
@@ -74,7 +88,7 @@ export function addQueryCommands(program: Command): void {
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--sort <field>", "Sort by field")
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -104,7 +118,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("filings [search]")
@@ -116,7 +130,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -147,7 +161,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("offerings [search]")
@@ -160,7 +174,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -191,7 +205,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("crowdfunding [search]")
@@ -203,7 +217,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -233,7 +247,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("reg-a [search]")
@@ -245,7 +259,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -277,7 +291,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("reg-a-summary [cik]")
@@ -285,7 +299,7 @@ export function addQueryCommands(program: Command): void {
       "Roll up Regulation A offerings: counts by status/tier, plus the latest aggregate offering amount when a CIK is given"
     )
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (cik: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (cik: string | undefined, options: Record<string, unknown>) => {
       const format = validateFormat(options.format as string);
       const summary = await summarizeRegA(cik ? parseIntOption(cik) : undefined);
 
@@ -317,7 +331,7 @@ export function addQueryCommands(program: Command): void {
           { format }
         )
       );
-    });
+    }));
 
   query
     .command("facts <cik>")
@@ -328,7 +342,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (cik: string, options: Record<string, unknown>) => {
+    .action(wrapAction(async (cik: string, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -359,7 +373,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("xbrl <accession>")
@@ -369,7 +383,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (accession: string, options: Record<string, unknown>) => {
+    .action(wrapAction(async (accession: string, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -406,7 +420,7 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 
   query
     .command("persons [search]")
@@ -416,7 +430,7 @@ export function addQueryCommands(program: Command): void {
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
-    .action(async (search: string | undefined, options: Record<string, unknown>) => {
+    .action(wrapAction(async (search: string | undefined, options: Record<string, unknown>) => {
       const limit = options.limit as number;
       const offset = options.offset as number;
       const format = validateFormat(options.format as string);
@@ -444,5 +458,5 @@ export function addQueryCommands(program: Command): void {
           limit,
         })
       );
-    });
+    }));
 }

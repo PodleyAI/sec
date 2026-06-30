@@ -77,6 +77,7 @@ async function processOffering(
   cik: number,
   file_number: string,
   accession_number: string,
+  filing_date: string,
   offering: OfferingData,
   ctx: FormDStorageContext
 ): Promise<void> {
@@ -109,6 +110,7 @@ async function processOffering(
       offering.businessCombinationTransaction.isBusinessCombinationTransaction === "true",
     is_other_type: typesOfSecOff.isOtherType === "true" ? true : null,
     description_of_other: typesOfSecOff.descriptionOfOtherType || null,
+    as_of: null,
   };
 
   const investmentOfferingHistory: InvestmentOfferingHistory = {
@@ -127,9 +129,20 @@ async function processOffering(
     non_accredited_count: offering.investors.numberNonAccreditedInvestors || null,
   };
 
-  await investmentOfferingRepo.saveInvestmentOfferingWithHistory(
-    investmentOffering,
-    investmentOfferingHistory
+  // History is per-(cik, file_number, accession) and always recorded — it is
+  // the append-only time series. The mutable current row must reflect the
+  // latest filing BY FILING DATE, not by processing order: an out-of-order
+  // older D / D-A is skipped so a back-catalog replay can't regress
+  // industry_group / security-type flags / date_of_first_sale. The read-guard-
+  // write is atomic per (cik, file_number) so two filings for the same offering
+  // processed concurrently can't lost-update the row. (Each Form D fully
+  // restates the offering, so no field-merge is needed — only the date guard.)
+  await investmentOfferingRepo.saveInvestmentOfferingHistory(investmentOfferingHistory);
+  await investmentOfferingRepo.saveInvestmentOfferingAsOf(
+    cik,
+    file_number,
+    filing_date,
+    (existing) => ({ ...investmentOffering, as_of: filing_date || existing?.as_of || null })
   );
 
   if (offering.salesCompensationList.recipient) {
@@ -423,12 +436,14 @@ export async function processFormD({
   cik,
   file_number,
   accession_number,
+  filing_date,
   primary_doc,
   formD,
 }: {
   cik: number;
   file_number: string;
   accession_number: string;
+  filing_date: string;
   primary_doc: string;
   formD: FormD;
 }): Promise<void> {
@@ -501,7 +516,7 @@ export async function processFormD({
   }
 
   // Sales compensation: indices 100–199 (handled inside processOffering)
-  await processOffering(cik, file_number, accession_number, formD.offeringData, ctx);
+  await processOffering(cik, file_number, accession_number, filing_date, formD.offeringData, ctx);
 
   // Related persons: indices 200–299
   let relatedPersonIndex = 200;

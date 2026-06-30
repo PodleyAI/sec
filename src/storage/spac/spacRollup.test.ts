@@ -144,19 +144,21 @@ describe("buildSpacRow", () => {
     expect(row.status).toBe("liquidated");
   });
 
-  it("sums redemptions across a standalone event and a deal", () => {
+  it("sums redemptions only from the deal column (events are not double-counted)", () => {
     const row = buildSpacRow({
       existing: undefined,
       cik: 1,
       deals: [deal({ deal_index: 0, outcome: "completed", redemption_amount: 50_000_000, outcome_date: "2022-05-01" })],
       events: [
         ev({ event_type: "ipo", event_date: "2021-01-15" }),
+        // A stray redemption-typed event must NOT add on top of the deal column
+        // that deriveDeals already correlated the redemption onto.
         ev({ event_type: "redemption", event_date: "2022-01-01", amount: 10_000_000 }),
       ],
       patch: {},
       filingDate: "2022-05-01",
     });
-    expect(row.total_redemption_amount).toBe(60_000_000);
+    expect(row.total_redemption_amount).toBe(50_000_000);
   });
 
   it("stale patch (older filing_date) does not overwrite merged scalar fields", () => {

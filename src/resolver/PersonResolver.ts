@@ -10,7 +10,7 @@ import type { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPer
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import type { CanonicalPerson } from "../storage/canonical/CanonicalPersonSchema";
 import { AsyncMutex } from "../util/AsyncMutex";
-import { isUniqueConstraintError } from "./isUniqueConstraintError";
+import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 interface PersonResolverOptions {
   canonicalPersonRepo: CanonicalPersonRepo;

@@ -78,6 +78,41 @@ describe("PortalRepo", () => {
     });
   });
 
+  describe("savePortalAsOf", () => {
+    const CIK = 1234567;
+    const save = (name: string, live: boolean, filing_date: string) =>
+      portalRepo.savePortalAsOf(CIK, filing_date, (existing) => ({
+        cik: CIK,
+        name,
+        brand: existing?.brand ?? "Brand",
+        url: existing?.url ?? null,
+        live,
+        as_of: filing_date || existing?.as_of || null,
+      }));
+
+    it("skips an out-of-order older filing (as_of guard)", async () => {
+      await save("Withdrawn", false, "2024-06-01");
+      await save("Registered", true, "2023-01-01");
+
+      const final = await portalRepo.getPortal(CIK);
+      expect(final?.as_of).toBe("2024-06-01");
+      expect(final?.name).toBe("Withdrawn");
+      expect(final?.live).toBe(false); // not resurrected by the older registration
+    });
+
+    it("lets the newer filing win regardless of concurrent submission order", async () => {
+      for (const ops of [
+        [save("Registered", true, "2023-01-01"), save("Withdrawn", false, "2024-06-01")],
+        [save("Withdrawn", false, "2024-06-01"), save("Registered", true, "2023-01-01")],
+      ]) {
+        await Promise.all(ops);
+        const final = await portalRepo.getPortal(CIK);
+        expect(final?.as_of).toBe("2024-06-01");
+        expect(final?.live).toBe(false);
+      }
+    });
+  });
+
   describe("deletePortal", () => {
     it("should successfully delete a portal", async () => {
       await portalStorage.put(mockPortal1);

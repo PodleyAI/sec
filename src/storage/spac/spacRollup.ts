@@ -80,18 +80,19 @@ function deriveStatus(
   return "registered";
 }
 
-function sumRedemptions(deals: readonly SpacDeal[], events: readonly SpacEvent[]): number | null {
+/**
+ * The per-deal `redemption_amount` column (derived by `deriveDeals` correlating
+ * each redemption extraction onto exactly one deal) is the SOLE source of the
+ * rolled-up total, so each realized redemption is counted once. We deliberately
+ * do NOT also sum `redemption`-typed events: `recordRedemption` appends none,
+ * and summing both would double-count an extraction that is already on a deal.
+ */
+function sumRedemptions(deals: readonly SpacDeal[]): number | null {
   let sum = 0;
   let seen = false;
   for (const d of deals) {
     if (d.redemption_amount != null) {
       sum += d.redemption_amount;
-      seen = true;
-    }
-  }
-  for (const e of events) {
-    if (e.event_type === "redemption" && e.amount != null) {
-      sum += e.amount;
       seen = true;
     }
   }
@@ -169,7 +170,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     ipo_proceeds: pick("ipo_proceeds"),
     trust_amount: pick("trust_amount"),
     pipe_amount: active?.pipe_amount ?? null,
-    total_redemption_amount: sumRedemptions(deals, events),
+    total_redemption_amount: sumRedemptions(deals),
     registration_date: minEventDate(events, "registration"),
     ipo_date: minEventDate(events, "ipo"),
     unit_split_date: minEventDate(events, "unit_split"),

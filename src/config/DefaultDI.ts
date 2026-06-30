@@ -701,7 +701,12 @@ export const DefaultDI = () => {
       "person_observations",
       PersonObservationSchema,
       PersonObservationPrimaryKeyNames,
-      [["accession_number"], ["accession_number", "extractor_id", "observation_index"]]
+      [["accession_number"]],
+      // The natural key is UNIQUE (one row per mention). Enforcing it at the
+      // storage layer closes the find-or-insert race in upsertByNaturalKey
+      // (two concurrent inserts both saw no row) the same way the resolver
+      // relies on (resolver_version, cik) — the repo recovers by re-querying.
+      [["accession_number", "extractor_id", "observation_index"]]
     )
   );
   globalServiceRegistry.registerInstance(
@@ -710,7 +715,9 @@ export const DefaultDI = () => {
       "company_observations",
       CompanyObservationSchema,
       CompanyObservationPrimaryKeyNames,
-      [["accession_number"], ["accession_number", "extractor_id", "observation_index"]]
+      [["accession_number"]],
+      // The natural key is UNIQUE — see person_observations above.
+      [["accession_number", "extractor_id", "observation_index"]]
     )
   );
   globalServiceRegistry.registerInstance(

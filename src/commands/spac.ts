@@ -11,6 +11,7 @@ import { SpacRepo } from "../storage/spac/SpacRepo";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import { BackfillRedemptionsTask } from "../task/spac/BackfillRedemptionsTask";
+import { BackfillMergerProxiesTask } from "../task/spac/BackfillMergerProxiesTask";
 
 export interface SpacReport {
   readonly cik: number;
@@ -26,7 +27,10 @@ export interface SpacReport {
  * Sponsor and underwriter counts are obtained by querying the link tables by issuer_cik,
  * since neither SpacSponsorLinkRepo nor UnderwriterLinkRepo exposes a listByIssuer method.
  */
-export async function assembleSpacReport(cik: number, repo: SpacRepo = new SpacRepo()): Promise<SpacReport> {
+export async function assembleSpacReport(
+  cik: number,
+  repo: SpacRepo = new SpacRepo()
+): Promise<SpacReport> {
   const [spac, deals, events] = await Promise.all([
     repo.getSpac(cik),
     repo.getDeals(cik),
@@ -118,6 +122,19 @@ export function registerSpacCommands(program: Command): void {
     .description("Re-process known-SPAC trigger-item 8-Ks to extract realized redemptions")
     .action(async () => {
       const out = (await withCli(new BackfillRedemptionsTask()).run({})) as {
+        selected: number;
+        processed: number;
+      };
+      console.log(`selected ${out.selected} filing(s); processed ${out.processed}`);
+    });
+
+  spacCmd
+    .command("backfill-merger-proxies")
+    .description(
+      "Re-process known-SPAC merger proxies that were ingested before their spac row existed"
+    )
+    .action(async () => {
+      const out = (await withCli(new BackfillMergerProxiesTask()).run({})) as {
         selected: number;
         processed: number;
       };

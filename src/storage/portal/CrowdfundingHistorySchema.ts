@@ -27,6 +27,14 @@ export const CrowdfundingHistorySchema = Type.Object({
       description: "When this version ceased to be valid (null = current)",
     })
   ),
+  accession_number: Type.String({
+    maxLength: 25,
+    description:
+      "Accession of the filing that produced this version. Part of the PK so " +
+      "two snapshots for one CIK landing in the same wall-clock millisecond " +
+      "(e.g. a batch re-process) get distinct rows instead of colliding on " +
+      "(cik, valid_from) and silently dropping a history version.",
+  }),
   file_number: Type.String({
     maxLength: 10,
     description: "File number",
@@ -103,7 +111,7 @@ export type CrowdfundingHistory = Static<typeof CrowdfundingHistorySchema>;
 /**
  * Crowdfunding History repository storage type and primary key definitions
  */
-export const CrowdfundingHistoryPrimaryKeyNames = ["cik", "valid_from"] as const;
+export const CrowdfundingHistoryPrimaryKeyNames = ["cik", "valid_from", "accession_number"] as const;
 export type CrowdfundingHistoryRepositoryStorage = ITabularStorage<
   typeof CrowdfundingHistorySchema,
   typeof CrowdfundingHistoryPrimaryKeyNames,

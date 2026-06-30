@@ -330,32 +330,23 @@ export async function processForm1Z({
   const item1 = form1Z.formData.item1;
 
   // A 1-Z exit report carries only the issuer name; preserve the descriptive
-  // fields the 1-A wrote instead of clobbering them with nulls. The mutable
-  // row is latest-by-filing-date: skip stale out-of-order writes (unknown ""
-  // dates apply as-is).
-  const existing = await regARepo.getOffering(cik, file_number);
-  const isStale =
-    existing?.as_of != null &&
-    existing.as_of !== "" &&
-    (filing_date === "" || filing_date < existing.as_of);
-
-  if (!isStale) {
-    const offering: RegAOffering = {
-      cik,
-      file_number,
-      issuer_name: item1.issuerName ?? existing?.issuer_name ?? null,
-      jurisdiction: existing?.jurisdiction ?? null,
-      sic_code: existing?.sic_code ?? null,
-      tier: existing?.tier ?? null,
-      financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
-      securities_offered_type: existing?.securities_offered_type ?? null,
-      industry_group: existing?.industry_group ?? null,
-      status: "exit",
-      as_of: filing_date || existing?.as_of || null,
-    };
-
-    await regARepo.saveOffering(offering);
-  }
+  // fields the 1-A wrote instead of clobbering them with nulls. The mutable row
+  // is latest-by-filing-date; the read-merge-write is atomic per
+  // (cik, file_number) and skips stale out-of-order writes (unknown "" dates
+  // apply as-is).
+  await regARepo.saveOfferingAsOf(cik, file_number, filing_date, (existing) => ({
+    cik,
+    file_number,
+    issuer_name: item1.issuerName ?? existing?.issuer_name ?? null,
+    jurisdiction: existing?.jurisdiction ?? null,
+    sic_code: existing?.sic_code ?? null,
+    tier: existing?.tier ?? null,
+    financial_statement_audit_status: existing?.financial_statement_audit_status ?? null,
+    securities_offered_type: existing?.securities_offered_type ?? null,
+    industry_group: existing?.industry_group ?? null,
+    status: "exit",
+    as_of: filing_date || existing?.as_of || null,
+  }));
 
   await processIssuer(cik, form1Z, ctx, 0);
   await processOfferingSummaries(cik, file_number, accession_number, filing_date, form1Z, ctx, 100);

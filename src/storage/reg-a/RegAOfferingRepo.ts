@@ -5,6 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
+import { isStaleByAsOf } from "../../util/asOfGuard";
 import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClass,
@@ -38,6 +40,14 @@ interface RegAOfferingRepoOptions {
   financialDataRepository?: RegAFinancialDataRepositoryStorage;
   equityClassRepository?: RegAEquityClassRepositoryStorage;
 }
+
+/**
+ * Serialises the read-guard-write of the mutable current Reg-A offering row per
+ * `(cik, file_number)`. Module-scoped because every caller builds a fresh
+ * {@link RegAOfferingRepo}. The ` ` separator never occurs in an EDGAR file
+ * number, so distinct keys can't collide.
+ */
+const regAOfferingWriteLock = new KeyedMutex<string>();
 
 /**
  * Reg-A Offering repository - aggregates all Reg-A schemas
@@ -76,6 +86,33 @@ export class RegAOfferingRepo {
 
   async saveOffering(offering: RegAOffering): Promise<void> {
     await this.offeringRepository.put(offering);
+  }
+
+  /**
+   * Persist the mutable current Reg-A offering row under an `as_of` staleness
+   * guard, atomically. Reads the existing row, skips the write when the incoming
+   * `filing_date` is older than the stored `as_of` (an out-of-order amendment —
+   * see {@link isStaleByAsOf}), and otherwise writes the row `build` returns.
+   * `build` receives the row read inside the lock so a 1-K / 1-Z (which carry no
+   * tier / SIC / audit data) can merge those fields forward from the 1-A instead
+   * of clobbering them with nulls.
+   *
+   * The whole read-merge-write runs inside a per-`(cik, file_number)` lock so a
+   * 1-A and a 1-K / 1-Z for the same offering processed concurrently (forms map
+   * over a CIK's filings with `concurrencyLimit` 5/10) cannot both read the same
+   * prior row and lost-update it.
+   */
+  async saveOfferingAsOf(
+    cik: number,
+    fileNumber: string,
+    filing_date: string,
+    build: (existing: RegAOffering | undefined) => RegAOffering
+  ): Promise<void> {
+    await regAOfferingWriteLock.lock(`${cik} ${fileNumber}`, async () => {
+      const existing = await this.getOffering(cik, fileNumber);
+      if (isStaleByAsOf(existing?.as_of, filing_date)) return;
+      await this.saveOffering(build(existing));
+    });
   }
 
   async getOfferingsByCik(cik: number): Promise<RegAOffering[]> {

@@ -5,6 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
+import { isStaleByAsOf } from "../../util/asOfGuard";
 import {
   CHANGE_LOG_REPOSITORY_TOKEN,
   ChangeLog,
@@ -23,6 +25,14 @@ interface CrowdfundingTemporalRepoOptions {
   crowdfundingHistoryRepository?: CrowdfundingHistoryRepositoryStorage;
   changeLogRepository?: ChangeLogRepositoryStorage;
 }
+
+/**
+ * Serialises the read-guard-write of the mutable current crowdfunding row per
+ * `(cik, file_number)`. Module-scoped because every caller builds a fresh
+ * {@link CrowdfundingTemporalRepo}. The ` ` separator never occurs in an EDGAR
+ * file number, so distinct keys can't collide.
+ */
+const crowdfundingWriteLock = new KeyedMutex<string>();
 
 /**
  * Temporal Crowdfunding repository - extends CrowdfundingRepo with history tracking
@@ -53,16 +63,20 @@ export class CrowdfundingTemporalRepo {
   async saveCrowdfundingWithHistory(
     crowdfunding: Crowdfunding,
     changeSource: string,
-    options?: { skipMutableUpdate?: boolean } | undefined,
+    options?: { skipMutableUpdate?: boolean; accessionNumber?: string } | undefined,
     batchId?: string
   ): Promise<void> {
     const changeDate = new Date().toISOString();
+    // Part of the history PK so same-millisecond snapshots for one CIK don't
+    // collide and drop a version. "" when unknown (callers should pass it).
+    const accession_number = options?.accessionNumber ?? "";
 
     if (options?.skipMutableUpdate === true) {
       // Snapshot the older filing as a closed history row; do not touch the
       // mutable row, do not emit a ChangeLog entry.
       const history: CrowdfundingHistory = {
         ...crowdfunding,
+        accession_number,
         valid_from: changeDate,
         valid_to: changeDate,
         change_source: changeSource,
@@ -95,6 +109,7 @@ export class CrowdfundingTemporalRepo {
         // Create new history record
         const history: CrowdfundingHistory = {
           ...crowdfunding,
+          accession_number,
           valid_from: changeDate,
           valid_to: null,
           change_source: changeSource,
@@ -126,6 +141,7 @@ export class CrowdfundingTemporalRepo {
       // New entity - create initial history record
       const history: CrowdfundingHistory = {
         ...crowdfunding,
+        accession_number,
         valid_from: changeDate,
         valid_to: null,
         change_source: changeSource,
@@ -154,6 +170,40 @@ export class CrowdfundingTemporalRepo {
 
     // Save to main entity table
     await this.crowdfundingRepo.saveCrowdfunding(crowdfunding);
+  }
+
+  /**
+   * Atomically refresh the mutable current crowdfunding row from the latest
+   * filing BY FILING DATE. Under a per-`(cik, file_number)` lock: read the
+   * existing row, decide staleness against its `filing_date` (its as-of marker —
+   * see {@link isStaleByAsOf}), let `build` construct the row (it receives both
+   * the existing row, for field merges, and `isStale`, since a stale replay
+   * records its own filing_date in the snapshot), then delegate to
+   * {@link saveCrowdfundingWithHistory} with `skipMutableUpdate` so a stale
+   * filing still lands in the history time series but does not regress the
+   * mutable row.
+   *
+   * The lock spans this read AND saveCrowdfundingWithHistory's own
+   * read-modify-write, so two C / C-AR filings for the same offering processed
+   * concurrently cannot lost-update the mutable row.
+   */
+  async saveCurrentByFilingDate(
+    cik: number,
+    file_number: string,
+    filing_date: string,
+    changeSource: string,
+    accessionNumber: string,
+    build: (existing: Crowdfunding | undefined, isStale: boolean) => Crowdfunding
+  ): Promise<void> {
+    await crowdfundingWriteLock.lock(`${cik} ${file_number}`, async () => {
+      const existing = await this.crowdfundingRepo.getCrowdfunding(cik, file_number);
+      const isStale = isStaleByAsOf(existing?.filing_date, filing_date);
+      const crowdfunding = build(existing, isStale);
+      await this.saveCrowdfundingWithHistory(crowdfunding, changeSource, {
+        skipMutableUpdate: isStale,
+        accessionNumber,
+      });
+    });
   }
 
   /**
@@ -208,7 +258,8 @@ export class CrowdfundingTemporalRepo {
     const validRecord = dominant ?? matches[0];
 
     if (validRecord) {
-      const { change_source, change_date, valid_from, valid_to, ...crowdfunding } = validRecord;
+      const { change_source, change_date, valid_from, valid_to, accession_number, ...crowdfunding } =
+        validRecord;
       return crowdfunding as Crowdfunding;
     }
 

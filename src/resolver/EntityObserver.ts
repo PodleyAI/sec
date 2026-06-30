@@ -76,6 +76,11 @@ export class EntityObserver {
   async observePerson(
     claim: PersonClaim
   ): Promise<{ canonical_person_id: string; observation_id: number }> {
+    // Re-observing this natural key would blindly +1 the address/phone
+    // co-occurrence counts. Remove the prior observation's contribution first
+    // so a replay nets out to the same count (idempotent) instead of inflating.
+    await this.removePriorPersonJunctions(claim);
+
     // Normalize name parts into normalized fields
     const fullName = [claim.first_name, claim.middle_name, claim.last_name, claim.suffix]
       .filter(Boolean)
@@ -145,6 +150,9 @@ export class EntityObserver {
   async observeCompany(
     claim: CompanyClaim
   ): Promise<{ canonical_company_id: string; observation_id: number }> {
+    // Idempotent replay: drop the prior contribution before re-recording.
+    await this.removePriorCompanyJunctions(claim);
+
     const normalized_name = claim.name ? normalizeCompanyName(claim.name) : null;
     const now = new Date().toISOString();
 
@@ -196,5 +204,69 @@ export class EntityObserver {
     }
 
     return { canonical_company_id, observation_id: upserted.observation_id };
+  }
+
+  /**
+   * If an observation already exists for this natural key, decrement its
+   * address/phone junction contribution at the active resolver version (using
+   * its *prior* address/phone + its current link's canonical id) so the
+   * subsequent re-record nets out instead of double-counting. No-op on first
+   * sight or when the prior observation has no link at the active version.
+   */
+  private async removePriorPersonJunctions(claim: PersonClaim): Promise<void> {
+    const prior = await this.opts.personObservationRepo.getByNaturalKey(
+      claim.accession_number,
+      claim.extractor_id,
+      claim.observation_index
+    );
+    if (!prior) return;
+    const link = await this.opts.personIdentityLinkRepo.getForObservation(
+      prior.observation_id,
+      this.opts.activeResolverPersonVersion
+    );
+    if (!link) return;
+    if (prior.raw_address_id) {
+      await this.opts.canonicalPersonAddressRepo.removeObservation({
+        canonical_person_id: link.canonical_person_id,
+        address_hash_id: prior.raw_address_id,
+        resolver_version: this.opts.activeResolverPersonVersion,
+      });
+    }
+    if (prior.raw_phone_id) {
+      await this.opts.canonicalPersonPhoneRepo.removeObservation({
+        canonical_person_id: link.canonical_person_id,
+        international_number: prior.raw_phone_id,
+        resolver_version: this.opts.activeResolverPersonVersion,
+      });
+    }
+  }
+
+  /** Company counterpart of {@link removePriorPersonJunctions}. */
+  private async removePriorCompanyJunctions(claim: CompanyClaim): Promise<void> {
+    const prior = await this.opts.companyObservationRepo.getByNaturalKey(
+      claim.accession_number,
+      claim.extractor_id,
+      claim.observation_index
+    );
+    if (!prior) return;
+    const link = await this.opts.companyIdentityLinkRepo.getForObservation(
+      prior.observation_id,
+      this.opts.activeResolverCompanyVersion
+    );
+    if (!link) return;
+    if (prior.raw_address_id) {
+      await this.opts.canonicalCompanyAddressRepo.removeObservation({
+        canonical_company_id: link.canonical_company_id,
+        address_hash_id: prior.raw_address_id,
+        resolver_version: this.opts.activeResolverCompanyVersion,
+      });
+    }
+    if (prior.raw_phone_id) {
+      await this.opts.canonicalCompanyPhoneRepo.removeObservation({
+        canonical_company_id: link.canonical_company_id,
+        international_number: prior.raw_phone_id,
+        resolver_version: this.opts.activeResolverCompanyVersion,
+      });
+    }
   }
 }

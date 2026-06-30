@@ -644,17 +644,30 @@ export function resetDependencyInjectionsForTesting() {
   // Initialize Observation / Canonical / Resolver repositories
   globalServiceRegistry.registerInstance(
     PERSON_OBSERVATION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonObservationSchema, PersonObservationPrimaryKeyNames, [
-      ["accession_number"],
-      ["accession_number", "extractor_id", "observation_index"],
-    ])
+    new InMemoryTabularStorage(
+      PersonObservationSchema,
+      PersonObservationPrimaryKeyNames,
+      [["accession_number"]],
+      undefined,
+      undefined,
+      undefined,
+      // Natural key is UNIQUE — must mirror DefaultDI so the upsert race
+      // recovery (and the test that exercises it) sees the same constraint.
+      [["accession_number", "extractor_id", "observation_index"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     COMPANY_OBSERVATION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(CompanyObservationSchema, CompanyObservationPrimaryKeyNames, [
-      ["accession_number"],
-      ["accession_number", "extractor_id", "observation_index"],
-    ])
+    new InMemoryTabularStorage(
+      CompanyObservationSchema,
+      CompanyObservationPrimaryKeyNames,
+      [["accession_number"]],
+      undefined,
+      undefined,
+      undefined,
+      // Natural key is UNIQUE — see person_observations above.
+      [["accession_number", "extractor_id", "observation_index"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,

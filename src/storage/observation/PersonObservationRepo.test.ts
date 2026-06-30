@@ -26,10 +26,16 @@ describe("PersonObservationRepo", () => {
       typeof PersonObservationSchema,
       typeof PersonObservationPrimaryKeyNames,
       PersonObservation
-    >(PersonObservationSchema, PersonObservationPrimaryKeyNames, [
-      ["accession_number"],
-      ["accession_number", "extractor_id", "observation_index"],
-    ]);
+    >(
+      PersonObservationSchema,
+      PersonObservationPrimaryKeyNames,
+      [["accession_number"]],
+      undefined,
+      undefined,
+      undefined,
+      // Mirror DefaultDI/TestingDI: the natural key is UNIQUE.
+      [["accession_number", "extractor_id", "observation_index"]]
+    );
     repo = new PersonObservationRepo({ personObservationRepository: storage });
   });
 
@@ -173,6 +179,29 @@ describe("PersonObservationRepo", () => {
     expect(b.observation_id).toBeGreaterThan(0);
     expect(a.observation_id).not.toBe(b.observation_id);
     expect(await storage.size()).toBe(2);
+  });
+
+  it("concurrent inserts on the SAME natural key converge to one row", async () => {
+    // Two extractions racing the same (accession, extractor_id, index): both
+    // query an empty store, both attempt to insert. The UNIQUE index rejects
+    // the loser, whose upsert recovers by re-reading and merging onto the
+    // winner — so exactly one row survives, not two forked observations.
+    const claim = {
+      accession_number: "0001-25-000009",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      last_name: "Race",
+      normalized_last: "race",
+      created_at: "2026-05-22T00:00:00.000Z",
+    };
+    const [a, b] = await Promise.all([
+      repo.upsertByNaturalKey(claim),
+      repo.upsertByNaturalKey(claim),
+    ]);
+    expect(a.observation_id).toBe(b.observation_id);
+    expect(await storage.size()).toBe(1);
+    expect(await repo.count()).toBe(1);
   });
 
   it("concurrent update-of-existing keeps original id while parallel insert gets a new id", async () => {

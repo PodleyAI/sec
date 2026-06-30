@@ -6,7 +6,7 @@
 
 import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
 import { AsyncMutex } from "../util/AsyncMutex";
-import { isUniqueConstraintError } from "./isUniqueConstraintError";
+import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 /**
  * The single source of truth for a family natural key (sponsor or underwriter).

@@ -14,6 +14,42 @@ import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
+import { AsyncMutex } from "../../util/AsyncMutex";
+
+/**
+ * Per-CIK write serialisation. Each public `record*` method runs a
+ * read-derive-write cycle over the CIK's spac / spac_deal / spac_history rows
+ * (append event → recompute deals → rebuild row → snapshot history). Two
+ * filings for the SAME CIK can be processed concurrently — the form tasks map
+ * over filings with `concurrencyLimit > 1` — so without a lock their cycles
+ * interleave across `await` boundaries and either lost-update the derived row
+ * or fork the history chain (two open rows).
+ *
+ * The map is module-scoped because every caller constructs a fresh
+ * `SpacReportWriter` (an instance field would not serialise across writers),
+ * and is refcounted / evicted at zero to stay bounded — mirroring the resolver
+ * per-key mutex. Single-process only: multi-process callers still rely on the
+ * append-only event PK `(cik, accession_number, event_type)` for idempotency.
+ */
+const cikWriteMutexes = new Map<number, { mutex: AsyncMutex; refs: number }>();
+
+function withCikLock<T>(cik: number, fn: () => Promise<T>): Promise<T> {
+  let entry = cikWriteMutexes.get(cik);
+  if (entry === undefined) {
+    entry = { mutex: new AsyncMutex(), refs: 0 };
+    cikWriteMutexes.set(cik, entry);
+  }
+  entry.refs += 1;
+  const held = entry;
+  return held.mutex.lock(fn).finally(() => {
+    held.refs -= 1;
+    // Same-identity check guards against a caller recreating the entry between
+    // the decrement and the delete.
+    if (held.refs === 0 && cikWriteMutexes.get(cik) === held) {
+      cikWriteMutexes.delete(cik);
+    }
+  });
+}
 
 interface RecordRegistrationArgs {
   readonly cik: number;
@@ -80,59 +116,66 @@ export class SpacReportWriter {
   }
 
   async recordRegistration(args: RecordRegistrationArgs): Promise<void> {
-    await this.appendEvent({
-      cik: args.cik,
-      accession_number: args.accession_number,
-      event_type: "registration",
-      event_date: args.filing_date,
-      form: args.form,
-      primary_document: args.primary_document,
-    });
-    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
-      spac_name: args.spac_name,
-      spac_sic: args.spac_sic,
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "registration",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: args.primary_document,
+      });
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
+        spac_name: args.spac_name,
+        spac_sic: args.spac_sic,
+      });
     });
   }
 
   async recordIpo(args: RecordIpoArgs): Promise<void> {
-    await this.appendEvent({
-      cik: args.cik,
-      accession_number: args.accession_number,
-      event_type: "ipo",
-      event_date: args.filing_date,
-      form: args.form,
-      primary_document: args.primary_document,
-      amount: args.ipo_proceeds,
-    });
-    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
-      ipo_proceeds: args.ipo_proceeds,
-      trust_amount: args.trust_amount,
-      spac_tickers:
-        args.spac_tickers && args.spac_tickers.length > 0
-          ? JSON.stringify(args.spac_tickers)
-          : null,
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "ipo",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: args.primary_document,
+        amount: args.ipo_proceeds,
+      });
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
+        ipo_proceeds: args.ipo_proceeds,
+        trust_amount: args.trust_amount,
+        spac_tickers:
+          args.spac_tickers && args.spac_tickers.length > 0
+            ? JSON.stringify(args.spac_tickers)
+            : null,
+      });
     });
   }
 
   /**
    * Record de-SPAC milestone events mapped from 8-K item codes: append each
    * event (idempotent by PK), recompute the deal set from the full event
-   * stream (merge-preserving §4b-owned columns), then rebuild the row.
+   * stream + stored extractions (target/pipe/redemption derived by
+   * correlation, not merge-preserved), then rebuild the row.
    */
   async recordDealMilestones(args: RecordDealMilestonesArgs): Promise<void> {
     if (args.events.length === 0) return;
-    for (const e of args.events) {
-      await this.appendEvent({
-        cik: args.cik,
-        accession_number: args.accession_number,
-        event_type: e.event_type,
-        event_date: e.event_date,
-        form: args.form,
-        primary_document: args.primary_document,
-      });
-    }
-    await this.recomputeAndSaveDeals(args.cik);
-    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    await withCikLock(args.cik, async () => {
+      for (const e of args.events) {
+        await this.appendEvent({
+          cik: args.cik,
+          accession_number: args.accession_number,
+          event_type: e.event_type,
+          event_date: e.event_date,
+          form: args.form,
+          primary_document: args.primary_document,
+        });
+      }
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
   }
 
   /**
@@ -143,18 +186,20 @@ export class SpacReportWriter {
    * this runs.
    */
   async recordMergerProxy(args: RecordMergerProxyArgs): Promise<void> {
-    if (args.emitProxyEvent) {
-      await this.appendEvent({
-        cik: args.cik,
-        accession_number: args.accession_number,
-        event_type: "proxy",
-        event_date: args.filing_date,
-        form: args.form,
-        primary_document: args.primary_document,
-      });
-    }
-    await this.recomputeAndSaveDeals(args.cik);
-    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    await withCikLock(args.cik, async () => {
+      if (args.emitProxyEvent) {
+        await this.appendEvent({
+          cik: args.cik,
+          accession_number: args.accession_number,
+          event_type: "proxy",
+          event_date: args.filing_date,
+          form: args.form,
+          primary_document: args.primary_document,
+        });
+      }
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
   }
 
   /**
@@ -171,8 +216,10 @@ export class SpacReportWriter {
     readonly filing_date: string;
     readonly form: string;
   }): Promise<void> {
-    await this.recomputeAndSaveDeals(args.cik);
-    await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    await withCikLock(args.cik, async () => {
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
   }
 
   /**

@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry } from "workglow";
 import type { SearchCriteria } from "workglow";
+import { isUniqueConstraintError } from "../../util/isUniqueConstraintError";
 import {
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   type PersonObservation,
@@ -81,30 +82,47 @@ export class PersonObservationRepo {
   }
 
   async upsertByNaturalKey(draft: PersonObservationDraft): Promise<PersonObservation> {
-    const matches = await this.repo.query({
-      accession_number: draft.accession_number,
-      extractor_id: draft.extractor_id,
-      observation_index: draft.observation_index,
-    });
-    const existing = matches?.[0];
-    if (existing) {
-      const merged: PersonObservation = {
-        ...existing,
-        ...this.applyNullDefaults(draft),
-        observation_id: existing.observation_id,
-      };
-      await this.repo.put(merged);
-      return merged;
-    }
+    const existing = await this.getByNaturalKey(
+      draft.accession_number,
+      draft.extractor_id,
+      draft.observation_index
+    );
+    if (existing) return this.mergeOnto(existing, draft);
+
     // No prior row for this natural key: hand the storage backend a draft
     // without `observation_id` and let the auto-generated PK assign one.
-    // This closes the TOCTOU race the previous size()+1 path had — the
-    // backend's monotonic counter / AUTOINCREMENT serialises ID
-    // assignment, so the previous process-wide AsyncMutex is unnecessary.
     // `put()` returns the persisted row including the assigned key.
-    return await this.repo.put(
-      this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
-    );
+    try {
+      return await this.repo.put(
+        this.applyNullDefaults(draft) as Parameters<typeof this.repo.put>[0]
+      );
+    } catch (err) {
+      // A concurrent caller inserted the same natural key between our query and
+      // this put. The (accession_number, extractor_id, observation_index)
+      // UNIQUE index rejects the duplicate; re-read the winner and merge onto
+      // it so both callers converge on one row instead of forking two.
+      if (!isUniqueConstraintError(err)) throw err;
+      const winner = await this.getByNaturalKey(
+        draft.accession_number,
+        draft.extractor_id,
+        draft.observation_index
+      );
+      if (!winner) throw err;
+      return this.mergeOnto(winner, draft);
+    }
+  }
+
+  private async mergeOnto(
+    existing: PersonObservation,
+    draft: PersonObservationDraft
+  ): Promise<PersonObservation> {
+    const merged: PersonObservation = {
+      ...existing,
+      ...this.applyNullDefaults(draft),
+      observation_id: existing.observation_id,
+    };
+    await this.repo.put(merged);
+    return merged;
   }
 
   async getByNaturalKey(
@@ -127,6 +145,18 @@ export class PersonObservationRepo {
   async listByAccession(accession_number: string): Promise<PersonObservation[]> {
     const rows = (await this.repo.query({ accession_number })) ?? [];
     return rows.sort((a, b) => a.observation_index - b.observation_index);
+  }
+
+  /** All observations for one filing + extractor (the reaping scope). */
+  async listByAccessionAndExtractor(
+    accession_number: string,
+    extractor_id: string
+  ): Promise<PersonObservation[]> {
+    return (await this.repo.query({ accession_number, extractor_id })) ?? [];
+  }
+
+  async deleteByObservationId(observation_id: number): Promise<void> {
+    await this.repo.delete({ observation_id });
   }
 
   async listAll(): Promise<PersonObservation[]> {

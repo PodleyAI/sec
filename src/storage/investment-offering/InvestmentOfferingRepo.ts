@@ -5,6 +5,8 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
+import { isStaleByAsOf } from "../../util/asOfGuard";
 import {
   INVESTMENT_OFFERING_HISTORY_REPOSITORY_TOKEN,
   InvestmentOfferingHistory,
@@ -15,6 +17,15 @@ import {
   InvestmentOffering,
   InvestmentOfferingRepositoryStorage,
 } from "./InvestmentOfferingSchema";
+
+/**
+ * Serialises the read-guard-write of the mutable current offering row per
+ * `(cik, file_number)`. Module-scoped because every caller builds a fresh
+ * {@link InvestmentOfferingRepo}, so an instance field would not serialise
+ * across them. The ` ` separator never occurs in an EDGAR file number, so
+ * distinct keys can't collide.
+ */
+const offeringWriteLock = new KeyedMutex<string>();
 
 // Options for the InvestmentOfferingRepo
 interface InvestmentOfferingRepoOptions {
@@ -52,6 +63,34 @@ export class InvestmentOfferingRepo implements InvestmentOfferingRepoOptions {
   async saveInvestmentOffering(offering: InvestmentOffering): Promise<InvestmentOffering> {
     await this.investmentOfferingRepository.put(offering);
     return offering;
+  }
+
+  /**
+   * Persist the mutable current offering row under an `as_of` staleness guard,
+   * atomically. Reads the existing row, skips the write when the incoming
+   * `filing_date` is older than the stored `as_of` (an out-of-order older D /
+   * D-A — see {@link isStaleByAsOf}), and otherwise writes the row `build`
+   * returns. `build` receives the row read inside the lock so it can carry the
+   * prior `as_of` forward (Form D fully restates the rest, so it needs no other
+   * field merge).
+   *
+   * The whole read-guard-write runs inside a per-`(cik, file_number)` lock so two
+   * filings for the same offering processed concurrently (the form tasks map over
+   * a CIK's filings with `concurrencyLimit` 5/10) cannot both read the same prior
+   * row and let the older filing's write land last — the lost-update the bare
+   * guard could not prevent. Mirrors {@link SpacReportWriter}'s per-CIK lock.
+   */
+  async saveInvestmentOfferingAsOf(
+    cik: number,
+    file_number: string,
+    filing_date: string,
+    build: (existing: InvestmentOffering | undefined) => InvestmentOffering
+  ): Promise<void> {
+    await offeringWriteLock.lock(`${cik} ${file_number}`, async () => {
+      const existing = await this.getInvestmentOffering(cik, file_number);
+      if (isStaleByAsOf(existing?.as_of, filing_date)) return;
+      await this.saveInvestmentOffering(build(existing));
+    });
   }
 
   async getInvestmentOfferingsByCik(cik: number): Promise<InvestmentOffering[]> {

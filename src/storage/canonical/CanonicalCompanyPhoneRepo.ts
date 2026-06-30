@@ -57,6 +57,21 @@ export class CanonicalCompanyPhoneRepo {
     return fresh;
   }
 
+  /** Remove one observation's contribution; see CanonicalPersonAddressRepo.removeObservation. */
+  async removeObservation(pk: {
+    canonical_company_id: string;
+    international_number: string;
+    resolver_version: string;
+  }): Promise<void> {
+    const existing = await this.repo.get(pk);
+    if (!existing) return;
+    if (existing.observation_count <= 1) {
+      await this.repo.delete(pk);
+      return;
+    }
+    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+  }
+
   async listForCanonical(
     canonical_company_id: string,
     resolver_version: string

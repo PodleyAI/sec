@@ -74,7 +74,8 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         );
         if (!from || !into) {
           console.error("error: both family names must already exist");
-          process.exit(1);
+          process.exitCode = 1;
+          return;
         }
         try {
           await new CanonicalUnderwriterFamilyAliasRepo().add(
@@ -86,7 +87,8 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
           console.log(`aliased '${fromName}' -> '${intoName}'`);
         } catch (e) {
           console.error(`error: ${(e as Error).message}`);
-          process.exit(1);
+          process.exitCode = 1;
+          return;
         }
       }
     );
@@ -103,7 +105,8 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
       );
       if (!family) {
         console.error(`error: no underwriter-family found for '${name}'`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       await new CanonicalUnderwriterFamilyAliasRepo().remove(
         family.canonical_underwriter_family_id

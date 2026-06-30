@@ -33,6 +33,11 @@ export class ObservationProvenanceRepo {
     return this.storage.get({ kind, observation_id });
   }
 
+  /** Delete the provenance row for a reaped observation (no-op when absent). */
+  async deleteForObservation(kind: "person" | "company", observation_id: number): Promise<void> {
+    await this.storage.delete({ kind, observation_id });
+  }
+
   /**
    * Audit helper: every row whose confidence is non-null and below the floor.
    * Scans all rows — not a hot path.

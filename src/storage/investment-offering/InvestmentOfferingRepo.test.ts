@@ -128,6 +128,49 @@ describe("InvestmentOfferingRepo", () => {
       });
     });
 
+    describe("saveInvestmentOfferingAsOf", () => {
+      const save = (industry_group: string, filing_date: string) =>
+        investmentOfferingRepo.saveInvestmentOfferingAsOf(
+          mockOffering.cik,
+          mockOffering.file_number,
+          filing_date,
+          (existing) => ({
+            ...mockOffering,
+            industry_group,
+            as_of: filing_date || existing?.as_of || null,
+          })
+        );
+
+      it("skips an out-of-order older filing (as_of guard)", async () => {
+        await save("New", "2024-01-01");
+        await save("Old", "2023-01-01");
+
+        const final = await investmentOfferingRepo.getInvestmentOffering(
+          mockOffering.cik,
+          mockOffering.file_number
+        );
+        expect(final?.as_of).toBe("2024-01-01");
+        expect(final?.industry_group).toBe("New");
+      });
+
+      it("lets the newer filing win regardless of concurrent submission order", async () => {
+        // Both orders: the per-(cik,file_number) lock serialises the
+        // read-guard-write so the older filing can never lost-update the row.
+        for (const ops of [
+          [save("Old", "2023-01-01"), save("New", "2024-01-01")],
+          [save("New", "2024-01-01"), save("Old", "2023-01-01")],
+        ]) {
+          await Promise.all(ops);
+          const final = await investmentOfferingRepo.getInvestmentOffering(
+            mockOffering.cik,
+            mockOffering.file_number
+          );
+          expect(final?.as_of).toBe("2024-01-01");
+          expect(final?.industry_group).toBe("New");
+        }
+      });
+    });
+
     describe("getInvestmentOfferingsByCik", () => {
       it("should return offerings associated with a cik", async () => {
         const offering1 = { ...mockOffering };

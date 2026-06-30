@@ -5,7 +5,14 @@
  */
 
 import { Static, Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } from "workglow";
+import {
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskAbortedError,
+  TaskError,
+  Workflow,
+} from "workglow";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -23,6 +30,7 @@ const OutputSchema = () =>
   Type.Object({
     eligibleAccessions: Type.Array(Type.String()),
     reprocessed: Type.Number(),
+    failed: Type.Number(),
   });
 type RetryDeadLettersTaskOutput = Static<ReturnType<typeof OutputSchema>>;
 
@@ -58,16 +66,28 @@ export class RetryDeadLettersTask extends Task<
     const accessions = [...new Set(eligible.map((e) => e.accession_number))];
 
     if (input.dryRun) {
-      return { eligibleAccessions: accessions, reprocessed: 0 };
+      return { eligibleAccessions: accessions, reprocessed: 0, failed: 0 };
     }
 
     let reprocessed = 0;
+    let failed = 0;
     for (const accessionNumber of accessions) {
-      const wf = context.own(new Workflow());
-      wf.pipe(new ProcessAccessionDocFormTask());
-      await wf.run({ accessionNumber });
-      reprocessed++;
+      if (context.signal?.aborted) throw new TaskAbortedError();
+      // Isolate each accession: ProcessAccessionDocFormTask rethrows hard
+      // parse/store errors, and a recovery sweep must grind through the whole
+      // worklist rather than abandon every later accession on one bad filing.
+      try {
+        const wf = context.own(new Workflow());
+        wf.pipe(new ProcessAccessionDocFormTask());
+        await wf.run({ accessionNumber });
+        reprocessed++;
+      } catch (e) {
+        if (e instanceof TaskAbortedError) throw e;
+        failed++;
+        const message = e instanceof Error ? e.message : String(e);
+        console.warn(`retry-dead-letters: ${accessionNumber} failed to reprocess: ${message}`);
+      }
     }
-    return { eligibleAccessions: accessions, reprocessed };
+    return { eligibleAccessions: accessions, reprocessed, failed };
   }
 }

@@ -92,4 +92,56 @@ describe("makeRunSection confidenceFloor", () => {
     expect(persisted).toBe(1);
     expect(resolved).toEqual(["merger"]);
   });
+
+  it("records a <section>-partial dead letter when some rows fail span verification", async () => {
+    const { repo, letters, resolved } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      accession_number: "acc-3",
+    });
+    await runSection<typeof baseRow>({
+      sectionName: "merger",
+      text: "keep drop",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      unverifiedPartialDetail: "$N of $T dropped",
+      extract: async () => [
+        { confidence: 0.9, value: 1 },
+        { confidence: 0.9, value: 2 },
+      ],
+      verifyRow: (_text, r) => r.value === 1, // drop value:2
+      persist: async () => 1,
+    });
+    expect(resolved).toEqual(["merger"]); // base section resolved (survivors persisted)
+    expect(letters).toContainEqual({
+      section_name: "merger-partial",
+      reason_code: "UNVERIFIED_SOURCE_SPAN",
+    });
+  });
+
+  it("resolves a stale <section>-partial on a clean re-run (no drops)", async () => {
+    const { repo, letters, resolved } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      accession_number: "acc-4",
+    });
+    await runSection<typeof baseRow>({
+      sectionName: "merger",
+      text: "all good",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      unverifiedPartialDetail: "$N of $T dropped",
+      extract: async () => [{ confidence: 0.9, value: 1 }],
+      verifyRow: () => true, // nothing dropped
+      persist: async () => 1,
+    });
+    // No new -partial recorded, and the base + sibling -partial are resolved so
+    // a previously-pending -partial cannot linger forever on the worklist.
+    expect(letters).toEqual([]);
+    expect(resolved).toEqual(["merger", "merger-partial"]);
+  });
 });
