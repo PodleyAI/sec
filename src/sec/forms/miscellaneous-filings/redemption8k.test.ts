@@ -544,6 +544,48 @@ describe("processRedemption8K", () => {
     expect(dl?.reason_code).toBe("OVERSIZED_INPUT");
   });
 
+  it("records a successful run on full-drop so the backfill sweep stays idempotent", async () => {
+    await seedSpacWithOpenDeal(56);
+    const filler = "A".repeat(260_000);
+    const oversizedTxt =
+      "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-000056\n</SEC-HEADER>\n" +
+      "<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n" +
+      "<DOCUMENT>\n<TYPE>EX-99.1\n<SEQUENCE>2\n<TEXT>\n" +
+      `<p>${filler}</p>\n` +
+      "</TEXT>\n</DOCUMENT>\n";
+    const registration = registerFakeStructuredProvider([]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 56,
+      accession_number: "0000000000-26-000056",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: oversizedTxt,
+      model: fakeS1Model(),
+    });
+
+    // The OVERSIZED_INPUT dead-letter is recorded (pending, for triage).
+    const dl = await new ExtractionDeadLetterRepo().get(
+      "redemption",
+      "0000000000-26-000056",
+      "redemption"
+    );
+    expect(dl?.reason_code).toBe("OVERSIZED_INPUT");
+
+    // ...but a SUCCESSFUL run is also recorded, so the deterministic-cap drop is
+    // idempotent: listFilingsWithoutSuccessfulRun excludes this filing and the
+    // backfill sweep no longer re-fetches/re-drops the oversized submission.
+    const runRepo = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+    const run = await runRepo.findRun(56, "0000000000-26-000056", "redemption", "1.0.0");
+    expect(run?.success).toBe(true);
+  });
+
   it("proceeds with surviving exhibits when one is dropped and records a partial-oversized dead-letter", async () => {
     await seedSpacWithOpenDeal(51);
     // Primary doc is small + has the canonical sentence; EX-99.2 is oversized

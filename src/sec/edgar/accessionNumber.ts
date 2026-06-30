@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Type } from "typebox";
+import { Type, type TString } from "typebox";
 
 /**
  * EDGAR accession numbers are exactly 20 characters: a 10-digit filer ID, a
@@ -17,7 +17,7 @@ import { Type } from "typebox";
 export const ACCESSION_NUMBER_MAX_LENGTH = 20;
 export const ACCESSION_NUMBER_PATTERN = "^\\d{10}-\\d{2}-\\d{6}$";
 
-export const TypeAccessionNumber = (annotations: Record<string, unknown> = {}) =>
+export const TypeAccessionNumber = (annotations: Record<string, unknown> = {}): TString =>
   Type.String({
     maxLength: ACCESSION_NUMBER_MAX_LENGTH,
     pattern: ACCESSION_NUMBER_PATTERN,

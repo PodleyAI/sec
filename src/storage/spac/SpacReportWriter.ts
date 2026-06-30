@@ -317,11 +317,12 @@ export class SpacReportWriter {
       prev?.as_of != null &&
       prev.as_of !== "" &&
       (filingDate === "" || filingDate < prev.as_of);
-    const anchorMs = isStale
-      ? prev?.as_of != null && prev.as_of !== ""
+    // When stale, `isStale` already guarantees prev.as_of is a non-empty
+    // string (the `&&` also narrows it for TS); anchor to it, else to filing.
+    const anchorMs =
+      isStale && prev?.as_of != null && prev.as_of !== ""
         ? Date.parse(`${prev.as_of}T00:00:00.000Z`)
-        : filingDateMs
-      : filingDateMs;
+        : filingDateMs;
 
     const validFromMs = Math.max(
       Number.isFinite(anchorMs) ? anchorMs : 0,

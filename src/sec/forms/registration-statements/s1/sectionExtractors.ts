@@ -84,17 +84,28 @@ const NAMED_ENTITY_TABLE: Record<string, string> = {
  * (`&amp;lt;` → `&lt;` → `<`); we cap iterations to bound the work even on
  * adversarial input that intentionally stacks encodings.
  */
+/**
+ * A Unicode scalar value `String.fromCodePoint` accepts (0..0x10FFFF).
+ * `Number.isFinite` alone is insufficient: a filer-planted `&#x110000;` /
+ * `&#1114112;` parses to a finite number above the Unicode max, and
+ * `String.fromCodePoint` then throws a RangeError that would abort the whole
+ * defang pass and permanently dead-letter the section.
+ */
+function isCodePoint(n: number): boolean {
+  return Number.isInteger(n) && n >= 0 && n <= 0x10ffff;
+}
+
 function decodeHtmlEntities(s: string): string {
   let prev = s;
   for (let i = 0; i < 4; i++) {
     const next = prev
       .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
         const code = parseInt(hex, 16);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+        return isCodePoint(code) ? String.fromCodePoint(code) : "";
       })
       .replace(/&#(\d+);/g, (_, dec) => {
         const code = parseInt(dec, 10);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+        return isCodePoint(code) ? String.fromCodePoint(code) : "";
       })
       .replace(/&([a-zA-Z]+);/g, (match, name) => {
         const v = NAMED_ENTITY_TABLE[name.toLowerCase()];
@@ -166,7 +177,7 @@ export function wrapUntrusted(sectionText: string): { wrapped: string; nonce: st
   // pathological stacking.
   const numericCollapsed = stripped.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (match, hex, dec) => {
     const cp = hex ? parseInt(hex, 16) : parseInt(dec, 10);
-    return Number.isFinite(cp) && /\s/.test(String.fromCodePoint(cp)) ? " " : match;
+    return isCodePoint(cp) && /\s/.test(String.fromCodePoint(cp)) ? " " : match;
   });
   const defanged = numericCollapsed.replace(TAG_SHAPED, (match) => {
     const squashed = match.replace(/[^A-Za-z]/g, "").toUpperCase();

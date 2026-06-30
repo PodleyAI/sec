@@ -441,24 +441,27 @@ export class ProcessAccessionDocFormTask extends Task<
       //    SECTION_NOT_FOUND and a partial success records a `-partial` marker —
       //    neither blocks; see hasBlockingSectionFailure.)
       //
-      // 2. Classify the run outcome: a pending section-level entry
-      //    (section_name !== "") for this filing means parse+store succeeded but
-      //    a section dead-lettered, so coverage-as-success would be a lie —
-      //    record `partial` instead. Filing-level (section_name === "") entries
-      //    were already markResolved above.
+      // 2. Classify the run outcome: a blocking section failure THIS run means
+      //    parse+store succeeded but a section dead-lettered, so
+      //    coverage-as-success would be a lie — record `partial` instead. This
+      //    is the SAME question as the reap gate, so it reuses
+      //    `hasBlockingSectionFailure` rather than a raw "any pending section
+      //    entry" scan: a stale entry from a prior version, a genuinely-absent
+      //    SECTION_NOT_FOUND section, or an informational `-partial` marker must
+      //    NOT mark a clean run partial (which, via the version-gated
+      //    `listFilingsWithoutSuccessfulRun` sweep, would reprocess the filing
+      //    forever).
       let transientSectionFailure = false;
       let outcome: "success" | "partial" = "success";
       try {
         const pending = await deadLetters.listPending(extractorId);
         transientSectionFailure = hasBlockingSectionFailure(pending, accessionNumber, runStart);
-        const hasPendingSection = pending.some(
-          (r) => r.accession_number === accessionNumber && r.section_name !== ""
-        );
-        if (hasPendingSection) outcome = "partial";
+        outcome = transientSectionFailure ? "partial" : "success";
       } catch (dlErr) {
         // If we cannot tell, default to NOT reaping — preserving stale rows is
         // recoverable; deleting still-valid ones is not. Leave outcome as
-        // "success" (best-effort, like recordRun).
+        // "success": a transient listPending failure must not mark a clean run
+        // partial and force endless reprocessing.
         console.error(
           `Failed to check section dead-letters for ${accessionNumber}@${extractorId}:`,
           dlErr

@@ -198,6 +198,12 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+    // Record a successful run so the deterministic-cap drop is idempotent: the
+    // backfill sweep (`listFilingsWithoutSuccessfulRun`) must not re-fetch and
+    // re-drop this oversized submission on every invocation. The OVERSIZED_INPUT
+    // dead-letter stays pending for triage and becomes retry-eligible only after
+    // a version bump that raises the cap (mirrors the partial-oversized path).
+    await recordRedemptionRun(true, null);
     return;
   }
 

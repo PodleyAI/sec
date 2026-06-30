@@ -16,16 +16,6 @@ export interface RecomputeSpacDealsArgs {
   readonly cik: number;
   readonly toDelete: ReadonlyArray<SpacDeal>;
   readonly toUpsert: ReadonlyArray<SpacDeal>;
-  /**
-   * Optional caller-owned Postgres client. When supplied, the Postgres branch
-   * runs DELETE/INSERT directly on this client and does **not** issue
-   * BEGIN/COMMIT/ROLLBACK or `release()` — the caller owns the surrounding
-   * transaction, so checking out a *second* client from the shared pool here
-   * would risk deadlocking once the pool was saturated. When `undefined`, the
-   * Postgres branch falls back to its own pool checkout + BEGIN/COMMIT/ROLLBACK
-   * wrap — the defensive default that every in-tree caller currently uses.
-   */
-  readonly pgClient?: PoolClient;
 }
 
 /**
@@ -42,7 +32,7 @@ export interface RecomputeSpacDealsArgs {
  * `redemption_amount` no longer rolls up).
  */
 export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<void> {
-  const { dealRepo, cik, toDelete, toUpsert, pgClient } = args;
+  const { dealRepo, cik, toDelete, toUpsert } = args;
 
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
@@ -67,7 +57,7 @@ export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<
     return replaceSqlite(cik, toDelete, toUpsert);
   }
   if (!isInMemoryRepo && dbType === "postgres") {
-    return replacePostgres(cik, toDelete, toUpsert, pgClient);
+    return replacePostgres(cik, toDelete, toUpsert);
   }
   return replaceRepository(dealRepo, toDelete, toUpsert);
 }
@@ -144,20 +134,11 @@ function replaceSqlite(
 async function replacePostgres(
   _cik: number,
   toDelete: ReadonlyArray<SpacDeal>,
-  toUpsert: ReadonlyArray<SpacDeal>,
-  pgClient: PoolClient | undefined
+  toUpsert: ReadonlyArray<SpacDeal>
 ): Promise<void> {
-  // Caller-supplied client: the surrounding transaction is owned by the
-  // caller. Issuing our own BEGIN/COMMIT here would either nest or, more
-  // practically, force a second pool checkout — which deadlocks once the pool
-  // is saturated. Skip the wrap and the release; the caller cleans up on its
-  // own commit/rollback path.
-  if (pgClient) {
-    await runPostgresOps(pgClient, toDelete, toUpsert);
-    return;
-  }
-
-  // Defensive default: no outer transaction was provided, so own one.
+  // Own the transaction: every caller reaches this through the per-CIK
+  // in-process `withCikLock` (which holds no DB connection), so there is no
+  // outer DB transaction to nest inside.
   const pool = getPgPool();
   const client = await pool.connect();
   try {
