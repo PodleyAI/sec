@@ -20,11 +20,10 @@ export interface RecomputeSpacDealsArgs {
    * Optional caller-owned Postgres client. When supplied, the Postgres branch
    * runs DELETE/INSERT directly on this client and does **not** issue
    * BEGIN/COMMIT/ROLLBACK or `release()` — the caller owns the surrounding
-   * transaction (e.g. `withSpacCikLock` already holds an outer `BEGIN` for
-   * advisory-lock serialization, so checking out a *second* client from the
-   * shared pool here would deadlock once the pool was saturated). When
-   * `undefined`, the Postgres branch falls back to its own pool checkout +
-   * BEGIN/COMMIT/ROLLBACK wrap (the defensive default).
+   * transaction, so checking out a *second* client from the shared pool here
+   * would risk deadlocking once the pool was saturated. When `undefined`, the
+   * Postgres branch falls back to its own pool checkout + BEGIN/COMMIT/ROLLBACK
+   * wrap — the defensive default that every in-tree caller currently uses.
    */
   readonly pgClient?: PoolClient;
 }
@@ -149,12 +148,10 @@ async function replacePostgres(
   pgClient: PoolClient | undefined
 ): Promise<void> {
   // Caller-supplied client: the surrounding transaction is owned by the
-  // caller (e.g. `withSpacCikLock` already wraps a BEGIN around the entire
-  // critical section for advisory-lock serialization). Issuing our own
-  // BEGIN/COMMIT here would either nest or, more practically, force a
-  // second pool checkout — which deadlocks once the pool is saturated by
-  // concurrent CIK locks. Skip the wrap and the release; the caller cleans
-  // up on its own commit/rollback path.
+  // caller. Issuing our own BEGIN/COMMIT here would either nest or, more
+  // practically, force a second pool checkout — which deadlocks once the pool
+  // is saturated. Skip the wrap and the release; the caller cleans up on its
+  // own commit/rollback path.
   if (pgClient) {
     await runPostgresOps(pgClient, toDelete, toUpsert);
     return;

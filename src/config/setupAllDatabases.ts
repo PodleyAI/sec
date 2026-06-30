@@ -205,6 +205,23 @@ export async function setupAllDatabases(): Promise<void> {
     for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
       db.exec(ddl);
     }
+    backfillExtractorRunsOutcome(db);
   }
   await bootstrapComponentVersions();
+}
+
+/**
+ * One-shot migration: pre-`outcome` extractor_runs rows on a previously-set-up
+ * SQLite database lack the new column. CREATE TABLE IF NOT EXISTS is a no-op
+ * once the table exists, so add the column if missing and seed it from the
+ * existing `success` boolean (partial is unknowable for legacy rows).
+ */
+function backfillExtractorRunsOutcome(db: Sqlite.Database): void {
+  const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`extractor_runs\`)`).all();
+  if (cols.length === 0) return; // table not created yet (clean DB)
+  if (cols.some((c) => c.name === "outcome")) return; // already migrated
+  db.exec(`ALTER TABLE \`extractor_runs\` ADD COLUMN outcome TEXT NOT NULL DEFAULT 'failure'`);
+  db.exec(
+    `UPDATE \`extractor_runs\` SET outcome = CASE WHEN success = 1 OR success = 'true' THEN 'success' ELSE 'failure' END`
+  );
 }

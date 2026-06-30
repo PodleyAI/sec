@@ -17,6 +17,7 @@ export const DEAD_LETTER_REASON_CODES = [
   "PRIMARY_DOC_UNRESOLVED",
   "FETCH_ERROR",
   "PARSE_ERROR",
+  "OVERSIZED_INPUT",
 ] as const;
 export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 

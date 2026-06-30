@@ -28,8 +28,22 @@ import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedempti
 import { REDEMPTION_TRIGGER_ITEMS } from "./spac8kRedemptionTriggers";
 
 const EXTRACTOR_ID = "redemption";
-const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+// v1.1.0: per-exhibit + total input caps. Oversized exhibits are dropped (a
+// truncated span would break source-span verification); a full-drop dead-letters
+// without invoking the model. The dropped-exhibit accounting changes the prompt
+// shape, so confidence calibration drifts — treat as a fresh dev cycle.
+const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
 const REDEMPTION_SECTION = "redemption";
+
+/**
+ * Per-exhibit cap on rendered markdown handed to the model. ~200 KB covers any
+ * realistic vote-results / closing 8-K narrative; anything larger is almost
+ * certainly an EX-99 dump (or an injection vector) that won't fit in context
+ * regardless.
+ */
+const MAX_PER_EXHIBIT_CHARS = 200_000;
+/** Total cap across primary doc + surviving exhibits. */
+const MAX_TOTAL_CHARS = 400_000;
 
 export interface ProcessRedemption8KArgs {
   readonly cik: number;
@@ -128,12 +142,32 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   // events and milestone deals already wrote); a malformed body dead-letters the
   // section so a version bump can retry it, mirroring the merger-proxy path.
   let text: string;
+  let dropped = 0;
+  let droppedChars = 0;
+  let totalDropped = false;
   try {
     const { primaryHtml, exhibitsHtml } = parseEightKSubmission(form, fullSubmissionText);
-    text = [primaryHtml, ...exhibitsHtml]
-      .map((h, i) => renderBody(h, `${form} ${accession_number} #${i}`))
-      .filter((t) => t.length > 0)
-      .join("\n\n");
+    const survivors: string[] = [];
+    [primaryHtml, ...exhibitsHtml].forEach((h, i) => {
+      const rendered = renderBody(h, `${form} ${accession_number} #${i}`);
+      if (rendered.length === 0) return;
+      if (rendered.length > MAX_PER_EXHIBIT_CHARS) {
+        dropped += 1;
+        droppedChars += rendered.length;
+        return;
+      }
+      survivors.push(rendered);
+    });
+    text = survivors.join("\n\n");
+    if (text.length > MAX_TOTAL_CHARS) {
+      // Survivors still too large in aggregate. Drop everything — partial
+      // truncation breaks source-span verification and a doubly-skewed prompt
+      // is worse for calibration than a clean dead-letter.
+      totalDropped = true;
+      dropped += survivors.length;
+      droppedChars += text.length;
+      text = "";
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
@@ -146,6 +180,24 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       source_run_id: null,
     });
     await recordRedemptionRun(false, `PARSE_ERROR: ${message}`);
+    return;
+  }
+
+  // Full-drop (every part oversized, or surviving aggregate exceeded the total
+  // cap): record an OVERSIZED_INPUT dead-letter and return without invoking
+  // the model. Surfaces in `sec extractor dead-letters redemption` for triage.
+  if (text === "" && dropped > 0) {
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: REDEMPTION_SECTION,
+      reason_code: "OVERSIZED_INPUT",
+      detail: totalDropped
+        ? `surviving exhibits exceeded ${MAX_TOTAL_CHARS} char total cap (dropped=${dropped}, chars=${droppedChars})`
+        : `every primary/EX-99 exhibit exceeded ${MAX_PER_EXHIBIT_CHARS} char per-exhibit cap (dropped=${dropped}, chars=${droppedChars})`,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
     return;
   }
 
@@ -202,5 +254,26 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
 
   if (persisted > 0) {
     await new SpacReportWriter().recordRedemption({ cik, accession_number, filing_date, form });
+  }
+
+  // Partial-drop: at least one exhibit was skipped but a non-empty survivor set
+  // ran through extraction. Record an informational dead-letter so operators
+  // can triage filings whose largest exhibit was dropped (mirrors the
+  // "<section>-partial" pattern in sectionRunner.ts), then immediately mark
+  // it resolved: this is informational, auto-resolved (no retry recovers a
+  // deterministic-cap drop); the attempts counter preserves the audit trail
+  // across replays.
+  if (dropped > 0 && !totalDropped) {
+    const partialSection = `${REDEMPTION_SECTION}-partial-oversized`;
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: partialSection,
+      reason_code: "OVERSIZED_INPUT",
+      detail: `dropped ${dropped} exhibit(s) over ${MAX_PER_EXHIBIT_CHARS} char cap (chars=${droppedChars})`,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+    await deadLetters.markResolved(EXTRACTOR_ID, accession_number, partialSection);
   }
 }

@@ -246,6 +246,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
           success: false,
+          outcome: "failure",
           error: message.slice(0, 4096),
         });
       } catch (recordErr) {
@@ -421,34 +422,45 @@ export class ProcessAccessionDocFormTask extends Task<
           dlErr
         );
       }
-      // Remove observation rows this re-extraction superseded (a smaller or
-      // reclassified entity set leaves stale orphans joined to canonical
-      // entities). Best-effort, like recordRun — a reaper hiccup must not mask
-      // the successful extraction.
+      // One pending-dead-letter scan drives two independent decisions:
       //
-      // BUT: a narrative section that yields zero rows this run — a transient
-      // throw (network blip, rate limit, malformed output → MODEL_INVALID_OUTPUT),
-      // an empty/truncated model response (MODEL_EMPTY), all rows below the
-      // confidence floor (LOW_CONFIDENCE_ALL), or all rows unverifiable
-      // (UNVERIFIED_SOURCE_SPAN) — is swallowed into a dead-letter WITHOUT
-      // aborting the filing (see sectionRunner). That section writes no
-      // observations this run, so its prior-run rows look stale
-      // (created_at < runStart) and the reap would delete the last good
-      // extraction for a section that merely failed transiently — silent data
-      // loss. Skip the reap whenever any such section failure was recorded THIS
-      // run; the worst case is a retained superset that the next clean
-      // re-extraction reaps safely. (A genuinely-absent section records
-      // SECTION_NOT_FOUND and a partial success records a `-partial` marker —
-      // neither blocks; see hasBlockingSectionFailure.)
+      // 1. Reap superseded observation rows (a smaller or reclassified entity
+      //    set leaves stale orphans joined to canonical entities). Best-effort,
+      //    like recordRun. BUT a narrative section that yields zero rows this
+      //    run — a transient throw (network blip, rate limit, MODEL_INVALID_OUTPUT),
+      //    an empty/truncated response (MODEL_EMPTY), all rows below the
+      //    confidence floor (LOW_CONFIDENCE_ALL), or all rows unverifiable
+      //    (UNVERIFIED_SOURCE_SPAN) — is swallowed into a dead-letter WITHOUT
+      //    aborting the filing (see sectionRunner). That section writes no
+      //    observations this run, so its prior-run rows look stale
+      //    (created_at < runStart) and the reap would delete the last good
+      //    extraction for a section that merely failed transiently — silent data
+      //    loss. Skip the reap whenever any such blocking section failure was
+      //    recorded THIS run; the worst case is a retained superset that the next
+      //    clean re-extraction reaps safely. (A genuinely-absent section records
+      //    SECTION_NOT_FOUND and a partial success records a `-partial` marker —
+      //    neither blocks; see hasBlockingSectionFailure.)
+      //
+      // 2. Classify the run outcome: a pending section-level entry
+      //    (section_name !== "") for this filing means parse+store succeeded but
+      //    a section dead-lettered, so coverage-as-success would be a lie —
+      //    record `partial` instead. Filing-level (section_name === "") entries
+      //    were already markResolved above.
       let transientSectionFailure = false;
+      let outcome: "success" | "partial" = "success";
       try {
         const pending = await deadLetters.listPending(extractorId);
         transientSectionFailure = hasBlockingSectionFailure(pending, accessionNumber, runStart);
+        const hasPendingSection = pending.some(
+          (r) => r.accession_number === accessionNumber && r.section_name !== ""
+        );
+        if (hasPendingSection) outcome = "partial";
       } catch (dlErr) {
         // If we cannot tell, default to NOT reaping — preserving stale rows is
-        // recoverable; deleting still-valid ones is not.
+        // recoverable; deleting still-valid ones is not. Leave outcome as
+        // "success" (best-effort, like recordRun).
         console.error(
-          `Failed to check section dead-letters before reap for ${accessionNumber}@${extractorId}:`,
+          `Failed to check section dead-letters for ${accessionNumber}@${extractorId}:`,
           dlErr
         );
         transientSectionFailure = true;
@@ -475,7 +487,8 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_id: extractorId,
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
-          success: true,
+          success: outcome === "success",
+          outcome,
           error: null,
         });
       } catch (recordErr) {

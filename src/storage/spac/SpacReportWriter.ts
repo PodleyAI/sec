@@ -235,17 +235,8 @@ export class SpacReportWriter {
    * error between the two cannot leave the SPAC report row inconsistent with
    * its derived deals (a stale orphan whose `redemption_amount` continues to
    * roll up was the failure mode without this).
-   *
-   * Callers that already hold an outer Postgres transaction (e.g. a
-   * per-CIK advisory lock that wraps a BEGIN around the critical section)
-   * MUST forward their `PoolClient` so the inner ops run on the same
-   * connection — checking out a second pool client here would deadlock
-   * once the pool is saturated by concurrent CIK locks.
    */
-  private async recomputeAndSaveDeals(
-    cik: number,
-    pgClient?: import("pg").PoolClient
-  ): Promise<void> {
+  private async recomputeAndSaveDeals(cik: number): Promise<void> {
     const [events, extractions, redemptions, existingDeals] = await Promise.all([
       this.repo.getEvents(cik),
       this.mergerExtractions.getByCik(cik),
@@ -260,7 +251,6 @@ export class SpacReportWriter {
       cik,
       toDelete,
       toUpsert: deals,
-      pgClient,
     });
   }
 
@@ -286,27 +276,60 @@ export class SpacReportWriter {
     changeSource: string,
     patch: SpacRowPatch
   ): Promise<void> {
+    // Per-CIK write serialisation is already provided by `withCikLock` around
+    // every public `record*` entry point (which is the only path into rebuild),
+    // so no inner lock is needed here.
     const existing = await this.repo.getSpac(cik);
-    const [deals, events] = await Promise.all([this.repo.getDeals(cik), this.repo.getEvents(cik)]);
+    const [deals, events] = await Promise.all([
+      this.repo.getDeals(cik),
+      this.repo.getEvents(cik),
+    ]);
     const next = buildSpacRow({ existing, cik, deals, events, patch, filingDate });
     await this.repo.saveSpac(next);
-    await this.snapshot(existing, next, changeSource);
+    await this.snapshot(existing, next, changeSource, filingDate);
   }
 
-  private async snapshot(prev: Spac | undefined, next: Spac, changeSource: string): Promise<void> {
+  private async snapshot(
+    prev: Spac | undefined,
+    next: Spac,
+    changeSource: string,
+    filingDate: string
+  ): Promise<void> {
     const changed = TRACKED_FIELDS.filter((f) => (prev ? prev[f] : null) !== next[f]);
     if (changed.length === 0) return;
 
-    // Close the open history row, then append the new snapshot. Guarantee a
-    // strictly increasing valid_from: two writes for the same CIK in the same
-    // millisecond would otherwise collide on the (cik, valid_from) primary key
-    // and the new snapshot would overwrite the just-closed row, losing history.
+    // Anchor valid_from to the filing's data (not wall-clock updated_at), then
+    // enforce strict monotonicity against every prior history row (closed and
+    // open alike). Wall-clock anchors invert the chain under clock skew or DST
+    // rollback; comparing only the open row lets a same-instant stale replay
+    // back-date past a closed snapshot.
     const history = await this.repo.getHistory(next.cik);
     const open = history.find((h) => h.valid_to == null);
-    let validFrom = next.updated_at;
-    if (open && validFrom <= open.valid_from) {
-      validFrom = new Date(Date.parse(open.valid_from) + 1).toISOString();
-    }
+    const closedTimes = history
+      .filter((h) => h.valid_to != null)
+      .flatMap((h) => [Date.parse(h.valid_from), Date.parse(h.valid_to as string)])
+      .filter((n) => Number.isFinite(n));
+    const maxClosedTo = closedTimes.length > 0 ? Math.max(...closedTimes) : Number.NEGATIVE_INFINITY;
+    const openValidFromMs = open ? Date.parse(open.valid_from) : Number.NEGATIVE_INFINITY;
+
+    const filingDateMs = filingDate === "" ? 0 : Date.parse(`${filingDate}T00:00:00.000Z`);
+    const isStale =
+      prev?.as_of != null &&
+      prev.as_of !== "" &&
+      (filingDate === "" || filingDate < prev.as_of);
+    const anchorMs = isStale
+      ? prev?.as_of != null && prev.as_of !== ""
+        ? Date.parse(`${prev.as_of}T00:00:00.000Z`)
+        : filingDateMs
+      : filingDateMs;
+
+    const validFromMs = Math.max(
+      Number.isFinite(anchorMs) ? anchorMs : 0,
+      Number.isFinite(maxClosedTo) ? maxClosedTo + 1 : Number.NEGATIVE_INFINITY,
+      Number.isFinite(openValidFromMs) ? openValidFromMs + 1 : Number.NEGATIVE_INFINITY
+    );
+    const validFrom = new Date(validFromMs).toISOString();
+
     if (open) {
       await this.repo.saveHistory({ ...open, valid_to: validFrom });
     }
