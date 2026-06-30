@@ -107,12 +107,15 @@ function decodeHtmlEntities(s: string): string {
 }
 
 /**
- * Strips zero-width and bidi format characters that a filer could splice into
- * a fence-looking string to slip past a naive case/spacing match. The set
- * covers ZWSP, ZWNJ, ZWJ, LRM, RLM, WJ, BOM, soft hyphen.
+ * Strips all Unicode `Cf` (format) codepoints and variation selectors
+ * (VS1–VS256). `Cf` subsumes ZWSP/ZWNJ/ZWJ/LRM/RLM/WJ/BOM/SHY and also covers
+ * Mongolian Vowel Separator (U+180E) and the math invisibles
+ * (U+2061–U+2064) that JS `\s` does NOT cover; variation selectors are `Mn`,
+ * not `Cf`, so they need an explicit range. BMP variation selectors VS1–VS16
+ * live at U+FE00–U+FE0F; supplementary VS17–VS256 live at U+E0100–U+E01EF.
  */
 function stripFormatChars(s: string): string {
-  return s.replace(/[​‌‍‎‏⁠﻿­]/g, "");
+  return s.replace(/[\p{Cf}︀-️\u{E0100}-\u{E01EF}]/gu, "");
 }
 
 /**
