@@ -96,6 +96,74 @@ describe("XbrlFactRepo", () => {
     expect(await new XbrlFactRepo().countByAccession(ACCESSION)).toBe(2);
   });
 
+  it("no-ops (does not delete) when passed 0 rows without intentionalClear", async () => {
+    const repo = new XbrlFactRepo();
+    await repo.replaceForAccession(ACCESSION, rowsFromInline());
+    expect(await repo.countByAccession(ACCESSION)).toBe(2);
+
+    const originalWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (msg: unknown) => {
+      warnings.push(String(msg));
+    };
+    try {
+      await repo.replaceForAccession(ACCESSION, []);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(await repo.countByAccession(ACCESSION)).toBe(2);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(ACCESSION);
+    expect(warnings[0]).toContain("intentionalClear");
+  });
+
+  it("clears prior facts when passed 0 rows with intentionalClear: true", async () => {
+    const repo = new XbrlFactRepo();
+    await repo.replaceForAccession(ACCESSION, rowsFromInline());
+    expect(await repo.countByAccession(ACCESSION)).toBe(2);
+
+    await repo.replaceForAccession(ACCESSION, [], { intentionalClear: true });
+    expect(await repo.countByAccession(ACCESSION)).toBe(0);
+  });
+
+  it("replaces prior facts on non-empty input", async () => {
+    const repo = new XbrlFactRepo();
+    const original = rowsFromInline();
+    await repo.replaceForAccession(ACCESSION, original);
+    expect(await repo.countByAccession(ACCESSION)).toBe(2);
+
+    const replacement: XbrlFactRow[] = [
+      { ...original[0], fact_index: 10, concept: "dei:DocumentType", value_text: "S-1" },
+      {
+        ...original[1],
+        fact_index: 11,
+        concept: "spac:PublicUnitsOfferedGross",
+        value_numeric: 25000000,
+      },
+    ];
+    await repo.replaceForAccession(ACCESSION, replacement);
+
+    const rows = await repo.getByAccession(ACCESSION);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.fact_index).sort((a, b) => a - b)).toEqual([10, 11]);
+  });
+
+  it("clearForAccession removes all facts for accession", async () => {
+    const repo = new XbrlFactRepo();
+    const otherAcc = "0001213900-26-047229";
+
+    await repo.replaceForAccession(ACCESSION, rowsFromInline());
+    const other = rowsFromInline().map((r) => ({ ...r, accession_number: otherAcc }));
+    await repo.replaceForAccession(otherAcc, other);
+    expect(await repo.countByAccession(ACCESSION)).toBe(2);
+    expect(await repo.countByAccession(otherAcc)).toBe(2);
+
+    await repo.clearForAccession(ACCESSION);
+    expect(await repo.countByAccession(ACCESSION)).toBe(0);
+    expect(await repo.countByAccession(otherAcc)).toBe(2);
+  });
+
   it("queries one concept across an issuer's filings", async () => {
     const repo = new XbrlFactRepo();
     await repo.replaceForAccession(ACCESSION, rowsFromInline());
