@@ -47,6 +47,21 @@ export function parseDate(dateStr: string): { year: number; month: string; day: 
         throw new Error("Invalid date format");
       }
 
+      // Range-valid but calendar-invalid dates (Feb 30, Feb 29 in non-leap
+      // years, Apr/Jun/Sep/Nov 31) would otherwise flow through as-is and
+      // silently roll forward when downstream code hands the string to
+      // `new Date(...)` — shifting point-in-time semantics of ChangeLog /
+      // spac_history / offering-history rows. Probe via a UTC Date and reject
+      // any input the calendar refused to preserve.
+      const probe = new Date(Date.UTC(year, month - 1, day));
+      if (
+        probe.getUTCFullYear() !== year ||
+        probe.getUTCMonth() !== month - 1 ||
+        probe.getUTCDate() !== day
+      ) {
+        throw new Error(`Invalid calendar date: ${dateStr}`);
+      }
+
       return {
         year,
         month: month.toString().padStart(2, "0"),
