@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import {
   CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
   type CanonicalPersonAddress,
@@ -22,6 +23,23 @@ interface RecordPersonAddressArgs {
   seen_at: string;
 }
 
+/**
+ * Serialises the read-modify-write of the mutable `observation_count` per
+ * composite PK `(canonical_person_id, address_hash_id, resolver_version)`.
+ * Module-scoped because every caller builds a fresh {@link CanonicalPersonAddressRepo};
+ * different composite keys still run concurrently. The `\x00` separator never
+ * occurs in the string PK components, so distinct keys can't collide.
+ */
+const junctionLocks = new KeyedMutex<string>();
+
+function junctionKey(pk: {
+  canonical_person_id: string;
+  address_hash_id: string;
+  resolver_version: string;
+}): string {
+  return `${pk.canonical_person_id}\x00${pk.address_hash_id}\x00${pk.resolver_version}`;
+}
+
 export class CanonicalPersonAddressRepo {
   private repo: CanonicalPersonAddressRepositoryStorage;
 
@@ -37,24 +55,26 @@ export class CanonicalPersonAddressRepo {
       address_hash_id: args.address_hash_id,
       resolver_version: args.resolver_version,
     };
-    const existing = await this.repo.get(pk);
-    if (existing) {
-      const updated: CanonicalPersonAddress = {
-        ...existing,
-        observation_count: existing.observation_count + 1,
+    return junctionLocks.lock(junctionKey(pk), async () => {
+      const existing = await this.repo.get(pk);
+      if (existing) {
+        const updated: CanonicalPersonAddress = {
+          ...existing,
+          observation_count: existing.observation_count + 1,
+          last_seen_at: args.seen_at,
+        };
+        await this.repo.put(updated);
+        return updated;
+      }
+      const fresh: CanonicalPersonAddress = {
+        ...pk,
+        observation_count: 1,
+        first_seen_at: args.seen_at,
         last_seen_at: args.seen_at,
       };
-      await this.repo.put(updated);
-      return updated;
-    }
-    const fresh: CanonicalPersonAddress = {
-      ...pk,
-      observation_count: 1,
-      first_seen_at: args.seen_at,
-      last_seen_at: args.seen_at,
-    };
-    await this.repo.put(fresh);
-    return fresh;
+      await this.repo.put(fresh);
+      return fresh;
+    });
   }
 
   /**
@@ -68,13 +88,15 @@ export class CanonicalPersonAddressRepo {
     address_hash_id: string;
     resolver_version: string;
   }): Promise<void> {
-    const existing = await this.repo.get(pk);
-    if (!existing) return;
-    if (existing.observation_count <= 1) {
-      await this.repo.delete(pk);
-      return;
-    }
-    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+    await junctionLocks.lock(junctionKey(pk), async () => {
+      const existing = await this.repo.get(pk);
+      if (!existing) return;
+      if (existing.observation_count <= 1) {
+        await this.repo.delete(pk);
+        return;
+      }
+      await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+    });
   }
 
   async listForCanonical(
