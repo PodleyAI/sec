@@ -14,8 +14,7 @@ import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/Extrac
 
 // A SPAC prospectus body carrying a "PROSPECTUS SUMMARY" heading (so the profile
 // section segments) plus the standard entity headings with placeholder bodies.
-const SUMMARY_SENTENCE =
-  "We intend to focus on financial technology businesses in Latin America.";
+const SUMMARY_SENTENCE = "We intend to focus on financial technology businesses in Latin America.";
 const BODY = [
   `<h1>PROSPECTUS SUMMARY</h1><p>${SUMMARY_SENTENCE}</p>`,
   "<h1>MANAGEMENT</h1><p>x</p>",
@@ -97,13 +96,47 @@ describe("SPAC profile end-to-end", () => {
     expect(row!.details).toBeNull();
   });
 
+  it("stores null (not '[]') for an empty focus so a later filing can't be clobbered", async () => {
+    ({ unregister } = registerFakeStructuredProvider([
+      {
+        focus: [],
+        focus_location: [],
+        description: "A generalist blank-check company.",
+        team: null,
+        url_spac: null,
+        confidence: 0.9,
+        source_span: "financial technology businesses in Latin America",
+      },
+      { people: [] },
+      { owners: [] },
+      { parties: [] },
+    ]));
+
+    await processFormS1(runArgs(1848507, "0000000000-26-000904", 6770));
+
+    const row = await new SpacRepo().getSpac(1848507);
+    expect(row).toBeDefined();
+    // Empty arrays must serialize to null (mirrors spac_tickers), so the
+    // rollup's non-null-wins merge preserves any prior tags across filings.
+    expect(row!.focus).toBeNull();
+    expect(row!.focus_location).toBeNull();
+    // Non-empty narrative still lands.
+    expect(row!.description).toBe("A generalist blank-check company.");
+  });
+
   it("dead-letters spac-profile when the summary heading is absent, row still created", async () => {
     ({ unregister } = registerFakeStructuredProvider([{ people: [] }]));
     // A body without a PROSPECTUS SUMMARY heading: profile section not found.
     const noSummary = {
       ...runArgs(222333, "0000000000-26-000902", 6770),
       formS1: {
-        header: { sic: 6770, sicDescription: "BLANK CHECKS", cik: null, companyName: "No Summary Corp", filingDate: null },
+        header: {
+          sic: 6770,
+          sicDescription: "BLANK CHECKS",
+          cik: null,
+          companyName: "No Summary Corp",
+          filingDate: null,
+        },
         html: "<h1>MANAGEMENT</h1><p>x</p>",
       } as never,
     };

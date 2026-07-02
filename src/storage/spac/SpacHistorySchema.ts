@@ -49,7 +49,10 @@ export const SpacHistorySchema = Type.Object({
   vote_date: TypeNullable(Type.String({ format: "date" })),
   completed_date: TypeNullable(Type.String({ format: "date" })),
   failed_date: TypeNullable(Type.String({ format: "date" })),
-  change_source: Type.String({ maxLength: 50, description: "Form/accession that drove the change" }),
+  change_source: Type.String({
+    maxLength: 50,
+    description: "Form/accession that drove the change",
+  }),
   change_date: Type.String({ format: "date-time" }),
 });
 

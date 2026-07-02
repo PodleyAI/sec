@@ -9,7 +9,7 @@ import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyRes
 import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
+import { registerFamilyDescribeCommands } from "./familyDescribe";
 import { IssuerTickerRepo } from "../storage/offering/IssuerTickerRepo";
 import { registerIssuerDealCommand } from "./issuerDeal";
 
@@ -141,30 +141,7 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
       }
     });
 
-  fam
-    .command("describe <name> <text>")
-    .description("Set the editorial description for an underwriter family (manual/embarc)")
-    .action(async (name: string, text: string) => {
-      const normalized = normalizeUnderwriterFamilyName(name);
-      if (!normalized) {
-        console.error("error: name normalizes to empty");
-        process.exitCode = 1;
-        return;
-      }
-      await new FamilyDescriptionRepo().setDescription("underwriter-family", normalized, text);
-      console.log(`described '${name}'`);
-    });
-
-  fam
-    .command("description <name>")
-    .description("Show the editorial description for an underwriter family")
-    .action(async (name: string) => {
-      const desc = await new FamilyDescriptionRepo().getDescription(
-        "underwriter-family",
-        normalizeUnderwriterFamilyName(name)
-      );
-      console.log(desc ?? "");
-    });
+  registerFamilyDescribeCommands(fam, "underwriter-family", normalizeUnderwriterFamilyName);
 
   canonical.addCommand(fam);
 

@@ -219,39 +219,30 @@ export async function setupAllDatabases(): Promise<void> {
  * no-op once the table exists, so add each missing column on a previously-set-up
  * SQLite database. Fresh DBs create them from the TypeBox schema; nullable
  * columns need no default backfill. Mirrors {@link backfillExtractorRunsOutcome}.
+ *
+ * Scope note: SQLite only, consistent with the other in-place migrations here.
+ * An existing Postgres database would need the analogous ALTERs; that gap is
+ * systemic (every prior schema addition shares it) and left to the general
+ * Postgres migration story rather than special-cased for these columns.
  */
 function migrateSpacNarrativeColumns(db: Sqlite.Database): void {
+  // The spac report row and its history snapshot carry the identical narrative
+  // column set, so share one list rather than restating it per table.
+  const SPAC_NARRATIVE_COLUMNS: ReadonlyArray<[string, string]> = [
+    ["focus", "TEXT"],
+    ["focus_location", "TEXT"],
+    ["description", "TEXT"],
+    ["target_description", "TEXT"],
+    ["team", "TEXT"],
+    ["details", "TEXT"],
+    ["url_spac", "TEXT"],
+    ["url_sponsor", "TEXT"],
+    ["investorpres_url", "TEXT"],
+    ["investorpres_date", "TEXT"],
+  ];
   const ADDITIONS: ReadonlyArray<{ table: string; columns: ReadonlyArray<[string, string]> }> = [
-    {
-      table: "spac",
-      columns: [
-        ["focus", "TEXT"],
-        ["focus_location", "TEXT"],
-        ["description", "TEXT"],
-        ["target_description", "TEXT"],
-        ["team", "TEXT"],
-        ["details", "TEXT"],
-        ["url_spac", "TEXT"],
-        ["url_sponsor", "TEXT"],
-        ["investorpres_url", "TEXT"],
-        ["investorpres_date", "TEXT"],
-      ],
-    },
-    {
-      table: "spac_history",
-      columns: [
-        ["focus", "TEXT"],
-        ["focus_location", "TEXT"],
-        ["description", "TEXT"],
-        ["target_description", "TEXT"],
-        ["team", "TEXT"],
-        ["details", "TEXT"],
-        ["url_spac", "TEXT"],
-        ["url_sponsor", "TEXT"],
-        ["investorpres_url", "TEXT"],
-        ["investorpres_date", "TEXT"],
-      ],
-    },
+    { table: "spac", columns: SPAC_NARRATIVE_COLUMNS },
+    { table: "spac_history", columns: SPAC_NARRATIVE_COLUMNS },
     { table: "spac_deal", columns: [["target_description", "TEXT"]] },
     { table: "spac_merger_extraction", columns: [["target_description", "TEXT"]] },
     { table: "portals", columns: [["featured", "BOOLEAN"]] },

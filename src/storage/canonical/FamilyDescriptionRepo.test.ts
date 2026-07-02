@@ -17,7 +17,11 @@ describe("FamilyDescriptionRepo", () => {
 
   it("round-trips a description per (kind, name) and overwrites in place", async () => {
     const repo = new FamilyDescriptionRepo();
-    await repo.setDescription("sponsor-family", "pershing square sponsor", "Bill Ackman's SPAC vehicle.");
+    await repo.setDescription(
+      "sponsor-family",
+      "pershing square sponsor",
+      "Bill Ackman's SPAC vehicle."
+    );
     await repo.setDescription("underwriter-family", "goldman sachs", "Bulge-bracket bank.");
 
     expect(await repo.getDescription("sponsor-family", "pershing square sponsor")).toBe(

@@ -49,7 +49,9 @@ export interface BuildSpacRowInput {
 }
 
 function minEventDate(events: readonly SpacEvent[], type: string): string | null {
-  const dates = events.filter((e) => e.event_type === type && e.event_date).map((e) => e.event_date);
+  const dates = events
+    .filter((e) => e.event_type === type && e.event_date)
+    .map((e) => e.event_date);
   if (dates.length === 0) return null;
   return dates.reduce((a, b) => (a.localeCompare(b) <= 0 ? a : b));
 }
@@ -66,7 +68,11 @@ function latestInvestorPres(events: readonly SpacEvent[]): {
 } {
   const pres = events
     .filter((e) => e.event_type === "investor_presentation")
-    .sort((a, b) => a.event_date.localeCompare(b.event_date) || a.accession_number.localeCompare(b.accession_number));
+    .sort(
+      (a, b) =>
+        a.event_date.localeCompare(b.event_date) ||
+        a.accession_number.localeCompare(b.accession_number)
+    );
   const latest = pres.length > 0 ? pres[pres.length - 1] : null;
   return { url: latest?.source_document_url ?? null, date: latest?.event_date ?? null };
 }
@@ -163,10 +169,15 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
 
   // Pre-merger, current_* mirrors spac_* unless a later filing set them explicitly.
   const surviving_name = pick("surviving_name");
-  const current_name = applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
-  const current_sic = applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
+  const current_name =
+    applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
+  const current_sic =
+    applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
   const current_tickers =
-    applied.current_tickers ?? existing?.current_tickers ?? pick("post_merger_tickers") ?? spac_tickers;
+    applied.current_tickers ??
+    existing?.current_tickers ??
+    pick("post_merger_tickers") ??
+    spac_tickers;
 
   // Event/deal-derived fields: always recomputed (order-independent, idempotent).
   const active = activeDeal(deals);
@@ -216,7 +227,9 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     proxy_date: active?.proxy_date ?? null,
     vote_date: active?.vote_date ?? null,
     completed_date: active?.outcome === "completed" ? (active.outcome_date ?? null) : null,
-    failed_date: hasFailed ? minEventDate(events, "liquidation") ?? minEventDate(events, "deregistration") : null,
+    failed_date: hasFailed
+      ? (minEventDate(events, "liquidation") ?? minEventDate(events, "deregistration"))
+      : null,
     as_of: nextAsOf,
     updated_at: new Date().toISOString(),
   };

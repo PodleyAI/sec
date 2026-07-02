@@ -165,7 +165,9 @@ describe("deriveDeals", () => {
   });
 
   it("preserves created_at from an existing deal row", () => {
-    const existing = [deal({ deal_index: 0, outcome: "pending", created_at: "2020-01-01T00:00:00.000Z" })];
+    const existing = [
+      deal({ deal_index: 0, outcome: "pending", created_at: "2020-01-01T00:00:00.000Z" }),
+    ];
     const deals = deriveDeals(1, [ev("definitive_agreement", "2021-03-01")], [], [], existing);
     expect(deals[0].created_at).toBe("2020-01-01T00:00:00.000Z");
   });
@@ -188,8 +190,16 @@ describe("deriveDeals", () => {
       1,
       [ev("definitive_agreement", "2021-03-01"), ev("completed", "2021-06-15")],
       [
-        ext("prem", "2021-04-01", { form: "PREM14A", target_name: "Acme Target Inc.", pipe_amount: null }),
-        ext("defm", "2021-05-10", { form: "DEFM14A", target_name: "Acme Target, Inc.", pipe_amount: 200_000_000 }),
+        ext("prem", "2021-04-01", {
+          form: "PREM14A",
+          target_name: "Acme Target Inc.",
+          pipe_amount: null,
+        }),
+        ext("defm", "2021-05-10", {
+          form: "DEFM14A",
+          target_name: "Acme Target, Inc.",
+          pipe_amount: 200_000_000,
+        }),
       ],
       [],
       []

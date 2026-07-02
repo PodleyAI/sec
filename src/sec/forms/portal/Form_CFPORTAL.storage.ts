@@ -131,6 +131,9 @@ export async function processFormCFPORTAL({
     brand: brand ?? existing?.brand ?? null,
     url: url ?? existing?.url ?? null,
     live: !isWithdrawal,
+    // `featured` is editorial (no SEC source); preserve it across amendments /
+    // withdrawals rather than clobbering with null on the full-row put.
+    featured: existing?.featured ?? null,
     as_of: filing_date || existing?.as_of || null,
   }));
 

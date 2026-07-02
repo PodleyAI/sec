@@ -89,8 +89,6 @@ export const FOCUS_VOCABULARY = [
   "Wellness",
 ] as const;
 
-export type FocusTag = (typeof FOCUS_VOCABULARY)[number];
-
 const CONFIDENCE = { type: "number", minimum: 0, maximum: 1 } as const;
 
 /**

@@ -15,7 +15,11 @@ import {
   type RelatedPartyRow,
 } from "./sectionSchemas";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
-import { FOCUS_VOCABULARY, SpacProfileOutputSchema, type SpacProfileRow } from "./spacProfileSchema";
+import {
+  FOCUS_VOCABULARY,
+  SpacProfileOutputSchema,
+  type SpacProfileRow,
+} from "./spacProfileSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";

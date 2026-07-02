@@ -275,6 +275,10 @@ describe("Form_CFPORTAL storage", () => {
     const seededBrand = seeded?.brand;
     const seededUrl = seeded?.url;
 
+    // An editor marks the portal featured (no SEC source); a later amendment
+    // must NOT clobber the editorial flag.
+    await portalRepo.savePortal({ ...seeded!, featured: true });
+
     // Build a follow-up parse that strips identifying fields (simulating an
     // amendment that only touched other sections).
     const followUp = await Form_CFPORTAL.parse("CFPORTAL", seedXml);
@@ -292,6 +296,7 @@ describe("Form_CFPORTAL storage", () => {
     expect(after?.name).toBe(seededName ?? null);
     expect(after?.brand).toBe(seededBrand ?? null);
     expect(after?.url).toBe(seededUrl ?? null);
+    expect(after?.featured).toBe(true); // editorial flag preserved across the amendment
     expect(after?.as_of).toBe("2025-06-01");
   });
 });

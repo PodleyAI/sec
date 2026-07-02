@@ -52,7 +52,10 @@ describe("buildSpacRow", () => {
       existing: undefined,
       cik: 1,
       deals: [],
-      events: [ev({ event_type: "registration", event_date: "2020-12-01" }), ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      events: [
+        ev({ event_type: "registration", event_date: "2020-12-01" }),
+        ev({ event_type: "ipo", event_date: "2021-01-15" }),
+      ],
       patch: { spac_name: "Foo SPAC", spac_sic: 6770 },
       filingDate: "2021-01-15",
     });
@@ -196,8 +199,20 @@ describe("buildSpacRow", () => {
       existing: undefined,
       cik: 1,
       deals: [
-        deal({ deal_index: 0, outcome: "terminated", target_name: "Dead Co", definitive_agreement_date: "2022-01-01", proxy_date: "2022-03-01" }),
-        deal({ deal_index: 1, outcome: "pending", target_name: "Live Co", announced_date: "2022-06-01", definitive_agreement_date: "2022-07-01" }),
+        deal({
+          deal_index: 0,
+          outcome: "terminated",
+          target_name: "Dead Co",
+          definitive_agreement_date: "2022-01-01",
+          proxy_date: "2022-03-01",
+        }),
+        deal({
+          deal_index: 1,
+          outcome: "pending",
+          target_name: "Live Co",
+          announced_date: "2022-06-01",
+          definitive_agreement_date: "2022-07-01",
+        }),
       ],
       events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
       patch: {},
@@ -235,8 +250,19 @@ describe("buildSpacRow", () => {
       existing: undefined,
       cik: 1,
       deals: [
-        deal({ deal_index: 0, outcome: "completed", target_name: "Won Co", definitive_agreement_date: "2022-01-01", outcome_date: "2022-05-01" }),
-        deal({ deal_index: 1, outcome: "pending", target_name: "Later Co", announced_date: "2023-01-01" }),
+        deal({
+          deal_index: 0,
+          outcome: "completed",
+          target_name: "Won Co",
+          definitive_agreement_date: "2022-01-01",
+          outcome_date: "2022-05-01",
+        }),
+        deal({
+          deal_index: 1,
+          outcome: "pending",
+          target_name: "Later Co",
+          announced_date: "2023-01-01",
+        }),
       ],
       events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
       patch: {},
@@ -252,8 +278,18 @@ describe("buildSpacRow", () => {
       existing: undefined,
       cik: 1,
       deals: [
-        deal({ deal_index: 0, outcome: "pending", target_name: "Older", announced_date: "2022-01-01" }),
-        deal({ deal_index: 1, outcome: "pending", target_name: "Newer", announced_date: "2022-09-01" }),
+        deal({
+          deal_index: 0,
+          outcome: "pending",
+          target_name: "Older",
+          announced_date: "2022-01-01",
+        }),
+        deal({
+          deal_index: 1,
+          outcome: "pending",
+          target_name: "Newer",
+          announced_date: "2022-09-01",
+        }),
       ],
       events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
       patch: {},
@@ -282,7 +318,14 @@ describe("buildSpacRow", () => {
     const row = buildSpacRow({
       existing: undefined,
       cik: 1,
-      deals: [deal({ deal_index: 0, outcome: "completed", redemption_amount: 50_000_000, outcome_date: "2022-05-01" })],
+      deals: [
+        deal({
+          deal_index: 0,
+          outcome: "completed",
+          redemption_amount: 50_000_000,
+          outcome_date: "2022-05-01",
+        }),
+      ],
       events: [
         ev({ event_type: "ipo", event_date: "2021-01-15" }),
         // A stray redemption-typed event must NOT add on top of the deal column

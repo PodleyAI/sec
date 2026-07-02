@@ -103,13 +103,40 @@ interface RecordMergerProxyArgs {
 
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
 const TRACKED_FIELDS: readonly (keyof Spac)[] = [
-  "current_cik", "status", "spac_name", "target_name", "surviving_name", "current_name",
-  "spac_sic", "post_merger_sic", "current_sic", "spac_tickers", "post_merger_tickers",
-  "current_tickers", "ipo_proceeds", "trust_amount", "pipe_amount", "total_redemption_amount",
-  "focus", "focus_location", "description", "target_description", "team", "details",
-  "url_spac", "url_sponsor", "investorpres_url", "investorpres_date",
-  "registration_date", "ipo_date", "unit_split_date", "definitive_agreement_date", "proxy_date",
-  "vote_date", "completed_date", "failed_date",
+  "current_cik",
+  "status",
+  "spac_name",
+  "target_name",
+  "surviving_name",
+  "current_name",
+  "spac_sic",
+  "post_merger_sic",
+  "current_sic",
+  "spac_tickers",
+  "post_merger_tickers",
+  "current_tickers",
+  "ipo_proceeds",
+  "trust_amount",
+  "pipe_amount",
+  "total_redemption_amount",
+  "focus",
+  "focus_location",
+  "description",
+  "target_description",
+  "team",
+  "details",
+  "url_spac",
+  "url_sponsor",
+  "investorpres_url",
+  "investorpres_date",
+  "registration_date",
+  "ipo_date",
+  "unit_split_date",
+  "definitive_agreement_date",
+  "proxy_date",
+  "vote_date",
+  "completed_date",
+  "failed_date",
 ];
 
 /**
@@ -270,7 +297,10 @@ export class SpacReportWriter {
   }
 
   private async appendEvent(
-    partial: Pick<SpacEvent, "cik" | "accession_number" | "event_type" | "event_date" | "form" | "primary_document"> &
+    partial: Pick<
+      SpacEvent,
+      "cik" | "accession_number" | "event_type" | "event_date" | "form" | "primary_document"
+    > &
       Partial<SpacEvent>
   ): Promise<void> {
     await this.repo.saveEvent({
@@ -295,10 +325,7 @@ export class SpacReportWriter {
     // every public `record*` entry point (which is the only path into rebuild),
     // so no inner lock is needed here.
     const existing = await this.repo.getSpac(cik);
-    const [deals, events] = await Promise.all([
-      this.repo.getDeals(cik),
-      this.repo.getEvents(cik),
-    ]);
+    const [deals, events] = await Promise.all([this.repo.getDeals(cik), this.repo.getEvents(cik)]);
     const next = buildSpacRow({ existing, cik, deals, events, patch, filingDate });
     await this.repo.saveSpac(next);
     await this.snapshot(existing, next, changeSource, filingDate);
@@ -324,14 +351,13 @@ export class SpacReportWriter {
       .filter((h) => h.valid_to != null)
       .flatMap((h) => [Date.parse(h.valid_from), Date.parse(h.valid_to as string)])
       .filter((n) => Number.isFinite(n));
-    const maxClosedTo = closedTimes.length > 0 ? Math.max(...closedTimes) : Number.NEGATIVE_INFINITY;
+    const maxClosedTo =
+      closedTimes.length > 0 ? Math.max(...closedTimes) : Number.NEGATIVE_INFINITY;
     const openValidFromMs = open ? Date.parse(open.valid_from) : Number.NEGATIVE_INFINITY;
 
     const filingDateMs = filingDate === "" ? 0 : Date.parse(`${filingDate}T00:00:00.000Z`);
     const isStale =
-      prev?.as_of != null &&
-      prev.as_of !== "" &&
-      (filingDate === "" || filingDate < prev.as_of);
+      prev?.as_of != null && prev.as_of !== "" && (filingDate === "" || filingDate < prev.as_of);
     // When stale, `isStale` already guarantees prev.as_of is a non-empty
     // string (the `&&` also narrows it for TS); anchor to it, else to filing.
     const anchorMs =

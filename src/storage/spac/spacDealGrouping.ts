@@ -177,8 +177,7 @@ export function deriveDeals(
     const upper = d.outcome_date ?? skeletons[i + 1]?.announced_date ?? null;
     const matched = mergerExtractions
       .filter(
-        (m) =>
-          (lower == null || m.filing_date >= lower) && (upper == null || m.filing_date < upper)
+        (m) => (lower == null || m.filing_date >= lower) && (upper == null || m.filing_date < upper)
       )
       // Deterministic supersession: by filing_date, then by form precedence
       // (definitive > preliminary, revised > definitive — see CLAUDE.md), then
@@ -216,8 +215,7 @@ export function deriveDeals(
     const upper = skeletons[i + 1] ? dealLower(skeletons[i + 1]) : null;
     const matched = redemptionExtractions
       .filter(
-        (r) =>
-          (lower == null || r.filing_date >= lower) && (upper == null || r.filing_date < upper)
+        (r) => (lower == null || r.filing_date >= lower) && (upper == null || r.filing_date < upper)
       )
       // accession is the deterministic tiebreak for same-date 8-Ks.
       .sort(
