@@ -28,7 +28,10 @@ const EXTRACTOR_ID = "424";
 // offering sections — UNTRUSTED_FILER_DOCUMENT wrap + verifyRow source_span
 // verification on offering-terms / underwriters / use-of-proceeds. Prompt
 // shape change ⇒ confidence calibration drifts ⇒ fresh dev cycle.
-const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
+// v1.2.0: picks up the deepened injection seal from the shared offering
+// section extractors — per-call nonce fence, entity-decode + NFKC + zero-
+// width strip before defang, and raw-byte cap on stored source_span.
+const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
 
 /**
  * The 424 variants that are full priced-IPO prospectuses (Rule 430A pricing

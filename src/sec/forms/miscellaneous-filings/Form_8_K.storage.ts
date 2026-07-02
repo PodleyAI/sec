@@ -53,6 +53,8 @@ export async function processForm8K({
   items,
   report_date,
   form8K,
+  extractor_id,
+  extractor_version,
   fullSubmissionText,
   model,
 }: {
@@ -63,6 +65,8 @@ export async function processForm8K({
   readonly items: string | undefined | null;
   readonly report_date: string | undefined | null;
   readonly form8K: Form8K;
+  readonly extractor_id: string;
+  readonly extractor_version: string;
   readonly fullSubmissionText?: string;
   readonly model?: ModelConfig;
 }): Promise<void> {
@@ -73,20 +77,30 @@ export async function processForm8K({
 
   const itemCodes = extractItemCodes(items, form8K);
 
-  for (const itemCode of itemCodes) {
-    const event: Form8KEvent = {
-      cik,
-      accession_number,
-      item_code: itemCode,
-      item_description: Form_8_K_ITEMS[itemCode] ?? null,
-      filing_date,
-      report_date: effectiveReportDate,
-      is_amendment: isAmendment,
-    };
-    await eventRepo.saveEvent(event);
-  }
+  // Build the full row set first so the atomic replace either lands all
+  // items for this (filing, version) or none of them. A torn write would
+  // otherwise leave the table with a partial item list that downstream
+  // queries can't distinguish from a real partial-disclosure filing.
+  const events: Array<Omit<Form8KEvent, "event_id">> = itemCodes.map((itemCode) => ({
+    cik,
+    accession_number,
+    extractor_id,
+    extractor_version,
+    item_code: itemCode,
+    item_description: Form_8_K_ITEMS[itemCode] ?? null,
+    filing_date,
+    report_date: effectiveReportDate,
+    is_amendment: isAmendment,
+  }));
 
-  // --- Consolidated SPAC report: map de-SPAC milestone items (known SPACs only) ---
+  await eventRepo.replaceEvents(
+    cik,
+    accession_number,
+    extractor_id,
+    extractor_version,
+    events
+  );
+
   const spacRow = await new SpacRepo().getSpac(cik);
   if (spacRow) {
     // Skip when no usable date is available: an undated milestone (empty

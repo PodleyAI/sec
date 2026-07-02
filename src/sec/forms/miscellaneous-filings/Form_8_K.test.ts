@@ -259,6 +259,8 @@ describe("Form_8_K", () => {
             items: metadata.items,
             report_date: metadata.report_date,
             form8K,
+            extractor_id: "8-K",
+            extractor_version: "1.0.0",
           });
 
           const events = await eventRepo.getEventsByAccession(metadata.cik, accessionNumber);
@@ -292,6 +294,8 @@ describe("Form_8_K", () => {
             items: metadata.items,
             report_date: metadata.report_date,
             form8K,
+            extractor_id: "8-K",
+            extractor_version: "1.0.0",
           });
         } catch {
           continue;
@@ -321,6 +325,8 @@ describe("Form_8_K", () => {
         items: "1.01,7.01,8.01,9.01",
         report_date: "2026-02-27",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(1018724, "000110465926021050");
@@ -346,6 +352,8 @@ describe("Form_8_K", () => {
         items: "2.02,9.01",
         report_date: "2025-01-30",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "000032019325000007");
@@ -372,6 +380,8 @@ describe("Form_8_K", () => {
         items: "5.02",
         report_date: "2025-09-30",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(789019, "000119312525225125");
@@ -395,6 +405,8 @@ describe("Form_8_K", () => {
         items: "5.07",
         report_date: "2025-02-25",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "000114036125005876");
@@ -420,6 +432,8 @@ describe("Form_8_K", () => {
         items: "7.01",
         report_date: "2024-09-10",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "000114036124040659");
@@ -443,6 +457,8 @@ describe("Form_8_K", () => {
         items: "8.01,9.01",
         report_date: "2025-11-03",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(1326801, "000119312525262593");
@@ -468,6 +484,8 @@ describe("Form_8_K", () => {
         items: "5.02,5.07,9.01",
         report_date: "2025-11-07",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(1318605, "000110465925108507");
@@ -490,6 +508,8 @@ describe("Form_8_K", () => {
         items: "1.01,7.01,8.01,9.01",
         report_date: "2026-02-27",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(1018724, "000110465926021050");
@@ -516,6 +536,8 @@ describe("Form_8_K", () => {
           items: metadata.items,
           report_date: metadata.report_date,
           form8K,
+          extractor_id: "8-K",
+          extractor_version: "1.0.0",
         });
       }
 
@@ -541,6 +563,8 @@ describe("Form_8_K", () => {
           items: metadata.items,
           report_date: metadata.report_date,
           form8K,
+          extractor_id: "8-K",
+          extractor_version: "1.0.0",
         });
       }
 
@@ -567,6 +591,8 @@ describe("Form_8_K", () => {
         items: "1.01,9.01",
         report_date: "2025-01-10",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-amendment-001");
@@ -585,6 +611,8 @@ describe("Form_8_K", () => {
         items: "2.02,9.01",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-regular-001");
@@ -604,6 +632,8 @@ describe("Form_8_K", () => {
         items: null,
         report_date: null,
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-null-items");
@@ -621,6 +651,8 @@ describe("Form_8_K", () => {
         items: "",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-empty-items");
@@ -638,6 +670,8 @@ describe("Form_8_K", () => {
         items: "2.02;9.01",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-semicolon-items");
@@ -665,6 +699,8 @@ describe("Form_8_K", () => {
         items: "2.02,9.01",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-dedup-items");
@@ -691,6 +727,8 @@ describe("Form_8_K", () => {
         items: "9.01",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-merge-items");
@@ -719,6 +757,8 @@ describe("Form_8_K", () => {
         items: "2.02",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-period-override");
@@ -736,6 +776,8 @@ describe("Form_8_K", () => {
         items: "99.99",
         report_date: "2025-01-15",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-unknown-item");
@@ -779,6 +821,8 @@ describe("Form_8_K", () => {
         items: "2.02,9.01",
         report_date: "2025-01-30",
         form8K,
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
       });
 
       const events = await eventRepo.getEventsByAccession(320193, "test-xml-form-data");

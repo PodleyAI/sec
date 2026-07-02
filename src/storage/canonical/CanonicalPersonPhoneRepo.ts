@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { CanonicalJunctionRepo } from "./CanonicalJunctionRepo";
 import {
   CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN,
   type CanonicalPersonPhone,
@@ -22,72 +23,36 @@ interface RecordPersonPhoneArgs {
   seen_at: string;
 }
 
-export class CanonicalPersonPhoneRepo {
-  private repo: CanonicalPersonPhoneRepositoryStorage;
-
+/**
+ * Person↔phone co-occurrence junction. Logic lives in
+ * {@link CanonicalJunctionRepo}; this subclass binds the row type, DI token, and
+ * the two composite-PK column names.
+ */
+export class CanonicalPersonPhoneRepo extends CanonicalJunctionRepo<CanonicalPersonPhone> {
   constructor(options: CanonicalPersonPhoneRepoOptions = {}) {
-    this.repo =
+    super(
       options.canonicalPersonPhoneRepository ??
-      globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN);
+        globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN),
+      "person-phone",
+      "canonical_person_id",
+      "international_number"
+    );
   }
 
-  async recordObservation(args: RecordPersonPhoneArgs): Promise<CanonicalPersonPhone> {
-    const pk = {
-      canonical_person_id: args.canonical_person_id,
-      international_number: args.international_number,
-      resolver_version: args.resolver_version,
-    };
-    const existing = await this.repo.get(pk);
-    if (existing) {
-      const updated: CanonicalPersonPhone = {
-        ...existing,
-        observation_count: existing.observation_count + 1,
-        last_seen_at: args.seen_at,
-      };
-      await this.repo.put(updated);
-      return updated;
-    }
-    const fresh: CanonicalPersonPhone = {
-      ...pk,
-      observation_count: 1,
-      first_seen_at: args.seen_at,
-      last_seen_at: args.seen_at,
-    };
-    await this.repo.put(fresh);
-    return fresh;
+  recordObservation(args: RecordPersonPhoneArgs): Promise<CanonicalPersonPhone> {
+    return this.record(
+      args.canonical_person_id,
+      args.international_number,
+      args.resolver_version,
+      args.seen_at
+    );
   }
 
-  /** Remove one observation's contribution; see CanonicalPersonAddressRepo.removeObservation. */
-  async removeObservation(pk: {
+  removeObservation(pk: {
     canonical_person_id: string;
     international_number: string;
     resolver_version: string;
   }): Promise<void> {
-    const existing = await this.repo.get(pk);
-    if (!existing) return;
-    if (existing.observation_count <= 1) {
-      await this.repo.delete(pk);
-      return;
-    }
-    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
-  }
-
-  async listForCanonical(
-    canonical_person_id: string,
-    resolver_version: string
-  ): Promise<CanonicalPersonPhone[]> {
-    return (await this.repo.query({ canonical_person_id, resolver_version })) ?? [];
-  }
-
-  async deleteForResolverVersion(resolver_version: string): Promise<number> {
-    const rows = (await this.repo.query({ resolver_version })) ?? [];
-    for (const r of rows) {
-      await this.repo.delete({
-        canonical_person_id: r.canonical_person_id,
-        international_number: r.international_number,
-        resolver_version: r.resolver_version,
-      });
-    }
-    return rows.length;
+    return this.remove(pk.canonical_person_id, pk.international_number, pk.resolver_version);
   }
 }

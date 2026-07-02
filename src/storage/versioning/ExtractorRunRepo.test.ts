@@ -370,4 +370,87 @@ describe("ExtractorRunRepo with SQLite backend", () => {
     );
     expect(unprocessed.map((f) => f.cik).sort((a, b) => a - b)).toEqual([2000000, 3000000]);
   });
+
+  it("recordRun with outcome=partial sets success=false and partial outcome", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: FILING.cik,
+      accession_number: FILING.accession_number,
+      form: FILING.form,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: false, // overridden by outcome
+      outcome: "partial",
+      error: null,
+    });
+    const found = await repo.findRun(FILING.cik, FILING.accession_number, "S-1", "1.0.0");
+    expect(found?.outcome).toBe("partial");
+    expect(found?.success).toBe(false);
+  });
+
+  it("countSuccessfulAtVersion does not count partial runs", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      outcome: "success",
+      error: null,
+    });
+    await repo.recordRun({
+      cik: 2000000,
+      accession_number: "0002000000-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: false,
+      outcome: "partial",
+      error: null,
+    });
+    expect(await repo.countSuccessfulAtVersion("S-1", "1.0.0")).toBe(1);
+  });
+
+  it("listFilingsWithoutSuccessfulRun treats partial runs as not-successful", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: 1000000,
+      accession_number: "0001000000-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: false,
+      outcome: "partial",
+      error: null,
+    });
+    const unprocessed = await repo.listFilingsWithoutSuccessfulRun(
+      [{ cik: 1000000, accession_number: "0001000000-25-000001" }],
+      "S-1",
+      "1.0.0"
+    );
+    expect(unprocessed.length).toBe(1);
+  });
+
+  it("legacy rows without outcome are inferred from success boolean", async () => {
+    // Default recordRun (no outcome) infers from success: true -> success;
+    // false -> failure. countSuccessfulAtVersion counts the inferred success.
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: FILING.cik,
+      accession_number: FILING.accession_number,
+      form: FILING.form,
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    expect(await repo.countSuccessfulAtVersion("D", "1.0.0")).toBe(1);
+  });
 });

@@ -160,4 +160,47 @@ describe("processFormS1 prompt-injection backstop", () => {
     );
     expect(partial?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });
+
+  it("drops a row whose raw source_span is bulk whitespace exceeding the storage cap, even if it would normalize to a substring", async () => {
+    // The model returns a row whose source_span is a real fragment padded
+    // with ~1500 chars of raw whitespace. Under whitespace-collapse the
+    // normalized span would still appear in the section text and pass the
+    // legacy spanAppearsIn check; the storage-side raw-cap rejects it
+    // BEFORE normalization to keep an attacker from staging unbounded raw
+    // bytes through a verifier-passing row.
+    const paddedSpan = "Jane Roe — Director" + " ".repeat(1500);
+    expect(paddedSpan.length).toBeGreaterThan(1000);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: "Jane Roe",
+            title: "Director",
+            relationship: null,
+            confidence: 0.9,
+            source_span: paddedSpan,
+          },
+        ],
+      },
+      { owners: [] },
+      { parties: [] },
+    ]);
+    cleanup = unregister;
+
+    const accession = "0000000000-26-injection-3";
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: accession,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    const mgmt = dl.find((d) => d.section_name === "Management");
+    expect(mgmt?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+  });
 });

@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { CanonicalJunctionRepo } from "./CanonicalJunctionRepo";
 import {
   CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,
   type CanonicalPersonAddress,
@@ -22,77 +23,37 @@ interface RecordPersonAddressArgs {
   seen_at: string;
 }
 
-export class CanonicalPersonAddressRepo {
-  private repo: CanonicalPersonAddressRepositoryStorage;
-
+/**
+ * Person↔address co-occurrence junction. All logic lives in
+ * {@link CanonicalJunctionRepo}; this subclass only binds the row type, DI
+ * token, and the two composite-PK column names, and adapts the named-field
+ * public API to the base's generic (idValue, assocValue) methods.
+ */
+export class CanonicalPersonAddressRepo extends CanonicalJunctionRepo<CanonicalPersonAddress> {
   constructor(options: CanonicalPersonAddressRepoOptions = {}) {
-    this.repo =
+    super(
       options.canonicalPersonAddressRepository ??
-      globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN);
+        globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN),
+      "person-address",
+      "canonical_person_id",
+      "address_hash_id"
+    );
   }
 
-  async recordObservation(args: RecordPersonAddressArgs): Promise<CanonicalPersonAddress> {
-    const pk = {
-      canonical_person_id: args.canonical_person_id,
-      address_hash_id: args.address_hash_id,
-      resolver_version: args.resolver_version,
-    };
-    const existing = await this.repo.get(pk);
-    if (existing) {
-      const updated: CanonicalPersonAddress = {
-        ...existing,
-        observation_count: existing.observation_count + 1,
-        last_seen_at: args.seen_at,
-      };
-      await this.repo.put(updated);
-      return updated;
-    }
-    const fresh: CanonicalPersonAddress = {
-      ...pk,
-      observation_count: 1,
-      first_seen_at: args.seen_at,
-      last_seen_at: args.seen_at,
-    };
-    await this.repo.put(fresh);
-    return fresh;
+  recordObservation(args: RecordPersonAddressArgs): Promise<CanonicalPersonAddress> {
+    return this.record(
+      args.canonical_person_id,
+      args.address_hash_id,
+      args.resolver_version,
+      args.seen_at
+    );
   }
 
-  /**
-   * Remove one observation's contribution: decrement the co-occurrence count,
-   * deleting the row when it reaches zero. The inverse of {@link recordObservation},
-   * used when an observation is reaped (orphan) or re-observed (idempotent replay)
-   * so the count tracks live observations rather than blindly accumulating.
-   */
-  async removeObservation(pk: {
+  removeObservation(pk: {
     canonical_person_id: string;
     address_hash_id: string;
     resolver_version: string;
   }): Promise<void> {
-    const existing = await this.repo.get(pk);
-    if (!existing) return;
-    if (existing.observation_count <= 1) {
-      await this.repo.delete(pk);
-      return;
-    }
-    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
-  }
-
-  async listForCanonical(
-    canonical_person_id: string,
-    resolver_version: string
-  ): Promise<CanonicalPersonAddress[]> {
-    return (await this.repo.query({ canonical_person_id, resolver_version })) ?? [];
-  }
-
-  async deleteForResolverVersion(resolver_version: string): Promise<number> {
-    const rows = (await this.repo.query({ resolver_version })) ?? [];
-    for (const r of rows) {
-      await this.repo.delete({
-        canonical_person_id: r.canonical_person_id,
-        address_hash_id: r.address_hash_id,
-        resolver_version: r.resolver_version,
-      });
-    }
-    return rows.length;
+    return this.remove(pk.canonical_person_id, pk.address_hash_id, pk.resolver_version);
   }
 }

@@ -115,10 +115,21 @@ export class FetchQuarterlyIndexTask extends Task<
             const cikStr = parseInt(record[0]);
             const date = record[3];
             if (cikStr && date) {
-              const currentDate = secDate(date);
-              const prevDate = cikMap.get(cikStr);
-              if (prevDate === undefined || prevDate < currentDate) {
-                cikMap.set(cikStr, currentDate);
+              try {
+                const currentDate = secDate(date);
+                const prevDate = cikMap.get(cikStr);
+                if (prevDate === undefined || prevDate < currentDate) {
+                  cikMap.set(cikStr, currentDate);
+                }
+              } catch (err) {
+                // A single calendar-invalid `Date Filed` must not abort the
+                // whole quarter's CIK-update batch (parseDate now throws on
+                // e.g. Feb 30). Skip the row and continue.
+                console.warn(
+                  `FetchQuarterlyIndexTask: skipping cik ${cikStr} row with unparseable date "${date}": ${
+                    err instanceof Error ? err.message : String(err)
+                  }`
+                );
               }
             }
 

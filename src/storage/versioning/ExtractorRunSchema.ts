@@ -9,6 +9,9 @@ import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 
+export const EXTRACTOR_RUN_OUTCOMES = ["success", "partial", "failure"] as const;
+export type ExtractorRunOutcome = (typeof EXTRACTOR_RUN_OUTCOMES)[number];
+
 export const ExtractorRunSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key" }),
   accession_number: Type.String({
@@ -35,8 +38,15 @@ export const ExtractorRunSchema = Type.Object({
     description: "ISO 8601 timestamp",
   }),
   success: Type.Boolean({
-    description: "Whether the extractor completed without error",
+    description: "Whether the extractor completed without error (mirrors outcome === 'success')",
   }),
+  outcome: Type.Union(
+    [Type.Literal("success"), Type.Literal("partial"), Type.Literal("failure")],
+    {
+      description:
+        "Tri-state run result: success (every section persisted), partial (parse+store ran but at least one section dead-lettered), failure (filing-level failure).",
+    }
+  ),
   error: Type.Union(
     [Type.String({ maxLength: 4096 }), Type.Null()],
     { description: "Error message if success=false, else null" }

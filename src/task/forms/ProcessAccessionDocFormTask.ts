@@ -25,6 +25,7 @@ import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
@@ -73,7 +74,7 @@ function fullSubmissionFileName(accessionNumber: string): string {
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
   Type.Object({
-    accessionNumber: Type.String({
+    accessionNumber: TypeAccessionNumber({
       title: "Accession Doc",
       description: "The accession doc to process",
     }),
@@ -245,6 +246,7 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
           success: false,
+          outcome: "failure",
           error: message.slice(0, 4096),
         });
       } catch (recordErr) {
@@ -386,6 +388,8 @@ export class ProcessAccessionDocFormTask extends Task<
             items,
             report_date,
             form8K: parsed,
+            extractor_id: extractorId,
+            extractor_version: extractorVersion,
             fullSubmissionText: redemptionFullSubmission ? text : undefined,
           });
           break;
@@ -418,34 +422,48 @@ export class ProcessAccessionDocFormTask extends Task<
           dlErr
         );
       }
-      // Remove observation rows this re-extraction superseded (a smaller or
-      // reclassified entity set leaves stale orphans joined to canonical
-      // entities). Best-effort, like recordRun — a reaper hiccup must not mask
-      // the successful extraction.
+      // One pending-dead-letter scan drives two independent decisions:
       //
-      // BUT: a narrative section that yields zero rows this run — a transient
-      // throw (network blip, rate limit, malformed output → MODEL_INVALID_OUTPUT),
-      // an empty/truncated model response (MODEL_EMPTY), all rows below the
-      // confidence floor (LOW_CONFIDENCE_ALL), or all rows unverifiable
-      // (UNVERIFIED_SOURCE_SPAN) — is swallowed into a dead-letter WITHOUT
-      // aborting the filing (see sectionRunner). That section writes no
-      // observations this run, so its prior-run rows look stale
-      // (created_at < runStart) and the reap would delete the last good
-      // extraction for a section that merely failed transiently — silent data
-      // loss. Skip the reap whenever any such section failure was recorded THIS
-      // run; the worst case is a retained superset that the next clean
-      // re-extraction reaps safely. (A genuinely-absent section records
-      // SECTION_NOT_FOUND and a partial success records a `-partial` marker —
-      // neither blocks; see hasBlockingSectionFailure.)
+      // 1. Reap superseded observation rows (a smaller or reclassified entity
+      //    set leaves stale orphans joined to canonical entities). Best-effort,
+      //    like recordRun. BUT a narrative section that yields zero rows this
+      //    run — a transient throw (network blip, rate limit, MODEL_INVALID_OUTPUT),
+      //    an empty/truncated response (MODEL_EMPTY), all rows below the
+      //    confidence floor (LOW_CONFIDENCE_ALL), or all rows unverifiable
+      //    (UNVERIFIED_SOURCE_SPAN) — is swallowed into a dead-letter WITHOUT
+      //    aborting the filing (see sectionRunner). That section writes no
+      //    observations this run, so its prior-run rows look stale
+      //    (created_at < runStart) and the reap would delete the last good
+      //    extraction for a section that merely failed transiently — silent data
+      //    loss. Skip the reap whenever any such blocking section failure was
+      //    recorded THIS run; the worst case is a retained superset that the next
+      //    clean re-extraction reaps safely. (A genuinely-absent section records
+      //    SECTION_NOT_FOUND and a partial success records a `-partial` marker —
+      //    neither blocks; see hasBlockingSectionFailure.)
+      //
+      // 2. Classify the run outcome: a blocking section failure THIS run means
+      //    parse+store succeeded but a section dead-lettered, so
+      //    coverage-as-success would be a lie — record `partial` instead. This
+      //    is the SAME question as the reap gate, so it reuses
+      //    `hasBlockingSectionFailure` rather than a raw "any pending section
+      //    entry" scan: a stale entry from a prior version, a genuinely-absent
+      //    SECTION_NOT_FOUND section, or an informational `-partial` marker must
+      //    NOT mark a clean run partial (which, via the version-gated
+      //    `listFilingsWithoutSuccessfulRun` sweep, would reprocess the filing
+      //    forever).
       let transientSectionFailure = false;
+      let outcome: "success" | "partial" = "success";
       try {
         const pending = await deadLetters.listPending(extractorId);
         transientSectionFailure = hasBlockingSectionFailure(pending, accessionNumber, runStart);
+        outcome = transientSectionFailure ? "partial" : "success";
       } catch (dlErr) {
         // If we cannot tell, default to NOT reaping — preserving stale rows is
-        // recoverable; deleting still-valid ones is not.
+        // recoverable; deleting still-valid ones is not. Leave outcome as
+        // "success": a transient listPending failure must not mark a clean run
+        // partial and force endless reprocessing.
         console.error(
-          `Failed to check section dead-letters before reap for ${accessionNumber}@${extractorId}:`,
+          `Failed to check section dead-letters for ${accessionNumber}@${extractorId}:`,
           dlErr
         );
         transientSectionFailure = true;
@@ -472,7 +490,8 @@ export class ProcessAccessionDocFormTask extends Task<
           extractor_id: extractorId,
           extractor_version: extractorVersion,
           slot_at_run: slotAtRun,
-          success: true,
+          success: outcome === "success",
+          outcome,
           error: null,
         });
       } catch (recordErr) {

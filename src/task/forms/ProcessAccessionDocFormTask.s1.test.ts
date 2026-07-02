@@ -110,7 +110,7 @@ describe("ProcessAccessionDocFormTask (S-1 end-to-end)", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("dispatches an S-1 filing to processFormS1 and records a successful run", async () => {
+  it("dispatches an S-1 filing to processFormS1 and records a partial run when some sections dead-letter", async () => {
     const { unregister } = registerFakeStructuredProvider([
       // management
       {
@@ -144,7 +144,10 @@ describe("ProcessAccessionDocFormTask (S-1 end-to-end)", () => {
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const run = await runRepo.findRun(CIK, ACCESSION, "S-1", "1.0.0");
     expect(run).toBeDefined();
-    expect(run?.success).toBe(true);
+    // ownership / related-party returned empty arrays so they dead-letter
+    // MODEL_EMPTY; the run is therefore "partial" rather than fully successful.
+    expect(run?.outcome).toBe("partial");
+    expect(run?.success).toBe(false);
 
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => c.cik === CIK)).toBe(true);

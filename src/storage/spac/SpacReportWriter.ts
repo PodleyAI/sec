@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
+import { recomputeSpacDeals } from "./SpacDealReplace";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
@@ -208,7 +209,10 @@ export class SpacReportWriter {
    * redemption_shares onto the matching deal), then rebuild the row. No event
    * is appended — redemptions never advance the lifecycle and an extra event
    * would double-count in the rollup. The extraction itself is persisted by the
-   * caller (`processRedemption8K`) before this runs.
+   * caller (`processRedemption8K`) before this runs; extraction may have been
+   * persisted before any `spac_deal` row existed, in which case `deriveDeals`
+   * — which reads the full extraction set on every invocation — automatically
+   * correlates the orphan extraction once a later filing mints the deal.
    */
   async recordRedemption(args: {
     readonly cik: number;
@@ -225,6 +229,12 @@ export class SpacReportWriter {
   /**
    * Rebuild the deal set from the CIK's full event stream + merger extractions
    * (the single derivation path shared by the 8-K and merger-proxy writers).
+   *
+   * The delete-orphans + upsert-derived pass runs inside one
+   * {@link recomputeSpacDeals} transaction so a crash, AbortSignal, or DB
+   * error between the two cannot leave the SPAC report row inconsistent with
+   * its derived deals (a stale orphan whose `redemption_amount` continues to
+   * roll up was the failure mode without this).
    */
   private async recomputeAndSaveDeals(cik: number): Promise<void> {
     const [events, extractions, redemptions, existingDeals] = await Promise.all([
@@ -234,17 +244,14 @@ export class SpacReportWriter {
       this.repo.getDeals(cik),
     ]);
     const deals = deriveDeals(cik, events, extractions, redemptions, existingDeals);
-    // Reconcile: if a prior derivation yielded more deals than this one (the
-    // event stream or derivation logic changed), delete the orphaned rows.
-    // saveDeal only upserts, so without this their stale columns — notably
-    // redemption_amount — would still be summed into the rolled-up totals.
     const liveIndexes = new Set(deals.map((d) => d.deal_index));
-    for (const existing of existingDeals) {
-      if (!liveIndexes.has(existing.deal_index)) {
-        await this.repo.deleteDeal(existing.cik, existing.deal_index);
-      }
-    }
-    for (const deal of deals) await this.repo.saveDeal(deal);
+    const toDelete = existingDeals.filter((d) => !liveIndexes.has(d.deal_index));
+    await recomputeSpacDeals({
+      dealRepo: this.repo.dealRepository,
+      cik,
+      toDelete,
+      toUpsert: deals,
+    });
   }
 
   private async appendEvent(
@@ -269,27 +276,61 @@ export class SpacReportWriter {
     changeSource: string,
     patch: SpacRowPatch
   ): Promise<void> {
+    // Per-CIK write serialisation is already provided by `withCikLock` around
+    // every public `record*` entry point (which is the only path into rebuild),
+    // so no inner lock is needed here.
     const existing = await this.repo.getSpac(cik);
-    const [deals, events] = await Promise.all([this.repo.getDeals(cik), this.repo.getEvents(cik)]);
+    const [deals, events] = await Promise.all([
+      this.repo.getDeals(cik),
+      this.repo.getEvents(cik),
+    ]);
     const next = buildSpacRow({ existing, cik, deals, events, patch, filingDate });
     await this.repo.saveSpac(next);
-    await this.snapshot(existing, next, changeSource);
+    await this.snapshot(existing, next, changeSource, filingDate);
   }
 
-  private async snapshot(prev: Spac | undefined, next: Spac, changeSource: string): Promise<void> {
+  private async snapshot(
+    prev: Spac | undefined,
+    next: Spac,
+    changeSource: string,
+    filingDate: string
+  ): Promise<void> {
     const changed = TRACKED_FIELDS.filter((f) => (prev ? prev[f] : null) !== next[f]);
     if (changed.length === 0) return;
 
-    // Close the open history row, then append the new snapshot. Guarantee a
-    // strictly increasing valid_from: two writes for the same CIK in the same
-    // millisecond would otherwise collide on the (cik, valid_from) primary key
-    // and the new snapshot would overwrite the just-closed row, losing history.
+    // Anchor valid_from to the filing's data (not wall-clock updated_at), then
+    // enforce strict monotonicity against every prior history row (closed and
+    // open alike). Wall-clock anchors invert the chain under clock skew or DST
+    // rollback; comparing only the open row lets a same-instant stale replay
+    // back-date past a closed snapshot.
     const history = await this.repo.getHistory(next.cik);
     const open = history.find((h) => h.valid_to == null);
-    let validFrom = next.updated_at;
-    if (open && validFrom <= open.valid_from) {
-      validFrom = new Date(Date.parse(open.valid_from) + 1).toISOString();
-    }
+    const closedTimes = history
+      .filter((h) => h.valid_to != null)
+      .flatMap((h) => [Date.parse(h.valid_from), Date.parse(h.valid_to as string)])
+      .filter((n) => Number.isFinite(n));
+    const maxClosedTo = closedTimes.length > 0 ? Math.max(...closedTimes) : Number.NEGATIVE_INFINITY;
+    const openValidFromMs = open ? Date.parse(open.valid_from) : Number.NEGATIVE_INFINITY;
+
+    const filingDateMs = filingDate === "" ? 0 : Date.parse(`${filingDate}T00:00:00.000Z`);
+    const isStale =
+      prev?.as_of != null &&
+      prev.as_of !== "" &&
+      (filingDate === "" || filingDate < prev.as_of);
+    // When stale, `isStale` already guarantees prev.as_of is a non-empty
+    // string (the `&&` also narrows it for TS); anchor to it, else to filing.
+    const anchorMs =
+      isStale && prev?.as_of != null && prev.as_of !== ""
+        ? Date.parse(`${prev.as_of}T00:00:00.000Z`)
+        : filingDateMs;
+
+    const validFromMs = Math.max(
+      Number.isFinite(anchorMs) ? anchorMs : 0,
+      Number.isFinite(maxClosedTo) ? maxClosedTo + 1 : Number.NEGATIVE_INFINITY,
+      Number.isFinite(openValidFromMs) ? openValidFromMs + 1 : Number.NEGATIVE_INFINITY
+    );
+    const validFrom = new Date(validFromMs).toISOString();
+
     if (open) {
       await this.repo.saveHistory({ ...open, valid_to: validFrom });
     }

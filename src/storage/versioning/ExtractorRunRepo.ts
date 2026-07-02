@@ -4,8 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ExtractorRun, ExtractorRunRepositoryStorage } from "./ExtractorRunSchema";
+import type {
+  ExtractorRun,
+  ExtractorRunOutcome,
+  ExtractorRunRepositoryStorage,
+} from "./ExtractorRunSchema";
 import { semverMajorMinorPrefix } from "./semver";
+
+/**
+ * Pre-`outcome` rows (success / failure boolean only) are inferred to
+ * outcome=success when success=true, outcome=failure otherwise. Partial is
+ * unknowable for legacy rows — the boolean alone can't distinguish a
+ * fully-successful run from one whose sections silently dead-lettered.
+ */
+function inferOutcome(row: ExtractorRun): ExtractorRunOutcome {
+  if (row.outcome) return row.outcome;
+  return row.success ? "success" : "failure";
+}
 
 export interface FilingKey {
   readonly cik: number;
@@ -25,9 +40,15 @@ export interface FilingKey {
 export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
-  async recordRun(row: Omit<ExtractorRun, "ran_at">): Promise<void> {
+  async recordRun(row: Omit<ExtractorRun, "ran_at" | "outcome"> & {
+    outcome?: ExtractorRunOutcome;
+  }): Promise<void> {
+    const outcome: ExtractorRunOutcome = row.outcome ?? (row.success ? "success" : "failure");
     await this.storage.put({
       ...row,
+      // success stays as the back-compat boolean mirror of outcome === "success".
+      success: outcome === "success",
+      outcome,
       ran_at: new Date().toISOString(),
     } as ExtractorRun);
   }
@@ -54,21 +75,24 @@ export class ExtractorRunRepo {
     extractor_version: string
   ): Promise<boolean> {
     const row = await this.findRun(cik, accession_number, extractor_id, extractor_version);
-    return row?.success === true;
+    return row !== undefined && inferOutcome(row) === "success";
   }
 
   /**
    * Counts successful runs for a specific (extractor_id, extractor_version).
    * Used by the major-promote coverage gate. Exact-match (not major.minor
    * prefix) because the gate measures actual production at the new version.
+   * Partial runs do NOT count — coverage measures fully-successful production.
    */
   async countSuccessfulAtVersion(extractor_id: string, extractor_version: string): Promise<number> {
-    const rows = await this.storage.query({
+    const rows = (await this.storage.query({
       extractor_id,
       extractor_version,
       success: true,
-    });
-    return rows?.length ?? 0;
+    })) ?? [];
+    // success=true narrows the storage scan; inferOutcome is the source of truth
+    // (legacy rows lack outcome and fall back to success).
+    return rows.filter((r) => inferOutcome(r) === "success").length;
   }
 
   /**
@@ -142,6 +166,9 @@ export class ExtractorRunRepo {
     const successfulKeys = new Set(
       (successful ?? [])
         .filter((r) => r.extractor_version.startsWith(prefix))
+        // Partial rows have success=true but outcome="partial"; they are NOT
+        // "successful enough" — retry-dead-letters should still pick them up.
+        .filter((r) => inferOutcome(r) === "success")
         .map((r) => `${r.cik}::${r.accession_number}`)
     );
     return filings.filter((f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`));

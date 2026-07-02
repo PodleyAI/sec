@@ -105,11 +105,25 @@ export function parseQuarterlyFormIdx(content: string): QuarterlyFormIdxRow[] {
     const [formType, companyName, cikStr, dateFiled, fileName] = parts;
     const cik = parseInt(cikStr, 10);
     if (!Number.isFinite(cik)) continue;
+    let dateFiledParsed: YYYYdMMdDD;
+    try {
+      dateFiledParsed = secDate(dateFiled);
+    } catch (err) {
+      // A single calendar-invalid dateFiled must not discard the whole
+      // quarter's parsed rows (parseDate now throws on e.g. Feb 30). Skip
+      // the row and continue.
+      console.warn(
+        `parseQuarterlyFormIdx: skipping row with unparseable date "${dateFiled}": ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      continue;
+    }
     rows.push({
       formType,
       companyName,
       cik,
-      dateFiled: secDate(dateFiled),
+      dateFiled: dateFiledParsed,
       fileName,
     });
   }

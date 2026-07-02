@@ -33,8 +33,23 @@ export class XbrlFactRepo {
    * abstraction exposes none), so the worst residual case — a failure during the
    * stale-tail delete — leaves a superset of facts, which the next re-extract
    * cleans up, rather than data loss.
+   *
+   * A 0-row input is refused by default: a parser regression, disabled XBRL,
+   * or a degrade path returning `[]` would otherwise wipe every prior fact for
+   * the filing. Callers that genuinely want to purge (an operator forcing a
+   * reset) pass `intentionalClear: true`, or call {@link clearForAccession}.
    */
-  async replaceForAccession(accession_number: string, rows: readonly XbrlFactRow[]): Promise<void> {
+  async replaceForAccession(
+    accession_number: string,
+    rows: readonly XbrlFactRow[],
+    opts: { readonly intentionalClear?: boolean } = {}
+  ): Promise<void> {
+    if (rows.length === 0 && !opts.intentionalClear) {
+      console.warn(
+        `XbrlFactRepo.replaceForAccession: 0 rows for ${accession_number} without intentionalClear — no-op`
+      );
+      return;
+    }
     if (rows.length > 0) await this.storage.putBulk([...rows]);
     const keep = new Set(rows.map((r) => r.fact_index));
     const existing = (await this.storage.query({ accession_number })) ?? [];
@@ -43,6 +58,16 @@ export class XbrlFactRepo {
         await this.storage.delete({ accession_number, fact_index: r.fact_index });
       }
     }
+  }
+
+  /**
+   * Unconditionally deletes every fact for the given accession. The explicit
+   * purge path — use when an operator is intentionally resetting a filing.
+   */
+  async clearForAccession(accession_number: string): Promise<void> {
+    // Empty rows + intentionalClear reuses the single delete implementation in
+    // replaceForAccession (keep-set empty → every fact deleted).
+    await this.replaceForAccession(accession_number, [], { intentionalClear: true });
   }
 
   /** All facts for a filing in extraction order. */

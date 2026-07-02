@@ -74,6 +74,7 @@ import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Underwri
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
+import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -188,6 +189,10 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
+  // Drop the legacy form_8k_events shape (no event_id / extractor_id /
+  // extractor_version) before creating the current one; the natural-key PK
+  // of the legacy table cannot be ALTERed away on either backend.
+  await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
@@ -200,6 +205,23 @@ export async function setupAllDatabases(): Promise<void> {
     for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
       db.exec(ddl);
     }
+    backfillExtractorRunsOutcome(db);
   }
   await bootstrapComponentVersions();
+}
+
+/**
+ * One-shot migration: pre-`outcome` extractor_runs rows on a previously-set-up
+ * SQLite database lack the new column. CREATE TABLE IF NOT EXISTS is a no-op
+ * once the table exists, so add the column if missing and seed it from the
+ * existing `success` boolean (partial is unknowable for legacy rows).
+ */
+function backfillExtractorRunsOutcome(db: Sqlite.Database): void {
+  const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`extractor_runs\`)`).all();
+  if (cols.length === 0) return; // table not created yet (clean DB)
+  if (cols.some((c) => c.name === "outcome")) return; // already migrated
+  db.exec(`ALTER TABLE \`extractor_runs\` ADD COLUMN outcome TEXT NOT NULL DEFAULT 'failure'`);
+  db.exec(
+    `UPDATE \`extractor_runs\` SET outcome = CASE WHEN success = 1 OR success = 'true' THEN 'success' ELSE 'failure' END`
+  );
 }

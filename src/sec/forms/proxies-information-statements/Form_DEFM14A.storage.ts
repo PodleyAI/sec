@@ -10,6 +10,8 @@ import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompan
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { ExtractorRunRepo } from "../../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../../storage/versioning/ExtractorRunSchema";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
@@ -19,7 +21,7 @@ import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "../registration-statements/s1/DocumentSegmenter";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
-import { spanAppearsIn } from "../registration-statements/s1/verifySourceSpan";
+import { boundSourceSpan, verifyRowSpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";
 import type { MergerDealRow } from "../registration-statements/s1/mergerDealSchema";
 import {
@@ -73,14 +75,38 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     getActiveSlot(versionRegistry, "resolver", "company"),
   ]);
   const extractor_version = extractorSlot?.semver ?? DEFAULT_EXTRACTOR_VERSION;
+  // bootstrapComponentVersions seeds the current slot for every known
+  // extractor; the fallback only protects tests that bypass setupAllDatabases.
+  const slot_at_run = extractorSlot?.slot ?? "current";
   const observer = buildEntityObserver({
     activeResolverPersonVersion: personSlot?.semver ?? "1.0.0",
     activeResolverCompanyVersion: companySlot?.semver ?? "1.0.0",
   });
   const provenance = new ObservationProvenanceRepo();
   const deadLetters = new ExtractionDeadLetterRepo();
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   const model = args.model ?? (await getMergerProxyModel());
   const model_id = resolveModelId(model);
+
+  const recordMergerProxyRun = async (success: boolean, error: string | null): Promise<void> => {
+    try {
+      await runRepo.recordRun({
+        cik,
+        accession_number,
+        form,
+        extractor_id: EXTRACTOR_ID,
+        extractor_version,
+        slot_at_run,
+        success,
+        error: error === null ? null : error.slice(0, 4096),
+      });
+    } catch (recordErr) {
+      console.error(
+        `Failed to record extractor_runs row for ${cik}/${accession_number}@${EXTRACTOR_ID}:${extractor_version}:`,
+        recordErr
+      );
+    }
+  };
 
   // Segment; PARSE_ERROR dead-letters the merger section so a retry can resolve it.
   let byName: Map<S1SectionName, string>;
@@ -89,15 +115,17 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     const sections = new DocumentTreeSegmenter().segment(doc);
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,
       section_name: MERGER_SECTION,
       reason_code: "PARSE_ERROR",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: message,
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+    await recordMergerProxyRun(false, `PARSE_ERROR: ${message}`);
     return;
   }
 
@@ -120,76 +148,90 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   });
   let idx = 0;
 
-  await runSection<MergerDealRow>({
-    sectionName: MERGER_SECTION,
-    text: mergerText === "" ? undefined : mergerText,
-    notFoundDetail: "no merger / business-combination / PIPE section text",
-    emptyDetail: "no merger deal returned",
-    lowConfidenceDetail: "below confidence floor",
-    verifyRow: (text, r) => spanAppearsIn(text, r.source_span),
-    unverifiedAllDetail: "merger deal source_span not present in section text",
-    extract: async (text) => {
-      const deal = await extractMergerDeal(text, model);
-      return deal === null ? [] : [deal];
-    },
-    persist: async (rows) => {
-      const deal = rows[0];
-      const now = new Date().toISOString();
-      let target_observation_id: number | null = null;
-      let target_cik: number | null = null;
-      const targetName = deal.target_name?.trim() ?? "";
-      if (targetName !== "") {
-        const { observation_id, canonical_company_id } = await observer.observeCompany({
+  try {
+    await runSection<MergerDealRow>({
+      sectionName: MERGER_SECTION,
+      text: mergerText === "" ? undefined : mergerText,
+      notFoundDetail: "no merger / business-combination / PIPE section text",
+      emptyDetail: "no merger deal returned",
+      lowConfidenceDetail: "below confidence floor",
+      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+      unverifiedAllDetail: "merger deal source_span not present in section text",
+      extract: async (text) => {
+        const deal = await extractMergerDeal(text, model);
+        return deal === null ? [] : [deal];
+      },
+      persist: async (rows) => {
+        const deal = rows[0];
+        const now = new Date().toISOString();
+        let target_observation_id: number | null = null;
+        let target_cik: number | null = null;
+        const targetName = deal.target_name?.trim() ?? "";
+        if (targetName !== "") {
+          const { observation_id, canonical_company_id } = await observer.observeCompany({
+            accession_number,
+            extractor_id: EXTRACTOR_ID,
+            extractor_version,
+            observation_index: idx++,
+            name: targetName,
+            source_context: JSON.stringify({ relation: "merger-proxy:target" }),
+          });
+          target_observation_id = observation_id;
+          // target_cik only when the resolved canonical company already carries one.
+          const canon = await new CanonicalCompanyRepo().getById(canonical_company_id);
+          target_cik = canon?.cik ?? null;
+          await provenance.save({
+            kind: "company",
+            observation_id,
+            confidence: deal.confidence,
+            source_span: boundSourceSpan(deal.source_span),
+            section_name: MERGER_SECTION,
+            model_id,
+            prompt_version: extractor_version,
+            extra: null,
+          });
+        }
+        await new SpacMergerExtractionRepo().save({
           accession_number,
+          cik,
+          form,
+          filing_date,
           extractor_id: EXTRACTOR_ID,
           extractor_version,
-          observation_index: idx++,
-          name: targetName,
-          source_context: JSON.stringify({ relation: "merger-proxy:target" }),
-        });
-        target_observation_id = observation_id;
-        // target_cik only when the resolved canonical company already carries one.
-        const canon = await new CanonicalCompanyRepo().getById(canonical_company_id);
-        target_cik = canon?.cik ?? null;
-        await provenance.save({
-          kind: "company",
-          observation_id,
+          target_name: targetName === "" ? null : targetName,
+          target_cik,
+          target_observation_id,
+          pipe_amount: deal.pipe_amount,
+          merger_consideration: deal.merger_consideration,
           confidence: deal.confidence,
-          source_span: deal.source_span,
-          section_name: MERGER_SECTION,
+          source_span: boundSourceSpan(deal.source_span),
           model_id,
-          prompt_version: extractor_version,
-          extra: null,
+          created_at: now,
         });
-      }
-      await new SpacMergerExtractionRepo().save({
-        accession_number,
-        cik,
-        form,
-        filing_date,
-        extractor_id: EXTRACTOR_ID,
-        extractor_version,
-        target_name: targetName === "" ? null : targetName,
-        target_cik,
-        target_observation_id,
-        pipe_amount: deal.pipe_amount,
-        merger_consideration: deal.merger_consideration,
-        confidence: deal.confidence,
-        source_span: deal.source_span,
-        model_id,
-        created_at: now,
-      });
-      return 1;
-    },
-  });
+        return 1;
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await recordMergerProxyRun(false, message);
+    throw err;
+  }
 
   // Emit the proxy event (definitive only) + recompute/correlate + rebuild.
-  await new SpacReportWriter().recordMergerProxy({
-    cik,
-    accession_number,
-    filing_date,
-    form,
-    primary_document: args.primary_doc ?? null,
-    emitProxyEvent: DEFINITIVE_PROXY_FORMS.has(form),
-  });
+  try {
+    await new SpacReportWriter().recordMergerProxy({
+      cik,
+      accession_number,
+      filing_date,
+      form,
+      primary_document: args.primary_doc ?? null,
+      emitProxyEvent: DEFINITIVE_PROXY_FORMS.has(form),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await recordMergerProxyRun(false, message);
+    throw err;
+  }
+
+  await recordMergerProxyRun(true, null);
 }
