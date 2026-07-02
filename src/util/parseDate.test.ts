@@ -45,6 +45,15 @@ describe("parseDate", () => {
     expect(parseDate("20251231")).toEqual({ year: 2025, month: "12", day: "31" });
   });
 
+  it("accepts calendar-valid dates in years 0000-0099 (no century-remap false reject)", () => {
+    // Date.UTC maps years 0-99 to 1900-1999; the probe restores the literal
+    // year before comparing, so these valid dates are NOT wrongly rejected.
+    expect(parseDate("0099-01-01")).toEqual({ year: 99, month: "01", day: "01" });
+    expect(parseDate("0001-12-31")).toEqual({ year: 1, month: "12", day: "31" });
+    // A calendar-invalid date in that century range is still rejected.
+    expect(() => parseDate("0099-02-30")).toThrow(/Invalid calendar date/);
+  });
+
   it("rejects Feb 30 in any year", () => {
     // Without the calendar probe, `new Date("2025-02-30")` silently rolls to
     // March 2 — corrupting ChangeLog / spac_history point-in-time semantics.

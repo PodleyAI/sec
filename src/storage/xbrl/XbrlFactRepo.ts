@@ -65,10 +65,9 @@ export class XbrlFactRepo {
    * purge path — use when an operator is intentionally resetting a filing.
    */
   async clearForAccession(accession_number: string): Promise<void> {
-    const existing = (await this.storage.query({ accession_number })) ?? [];
-    for (const r of existing) {
-      await this.storage.delete({ accession_number, fact_index: r.fact_index });
-    }
+    // Empty rows + intentionalClear reuses the single delete implementation in
+    // replaceForAccession (keep-set empty → every fact deleted).
+    await this.replaceForAccession(accession_number, [], { intentionalClear: true });
   }
 
   /** All facts for a filing in extraction order. */

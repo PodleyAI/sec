@@ -54,6 +54,12 @@ export function parseDate(dateStr: string): { year: number; month: string; day: 
       // spac_history / offering-history rows. Probe via a UTC Date and reject
       // any input the calendar refused to preserve.
       const probe = new Date(Date.UTC(year, month - 1, day));
+      // `Date.UTC` remaps years 0-99 to 1900-1999; `setUTCFullYear` does not,
+      // so restore the literal year before comparing — otherwise a valid
+      // 4-digit year like "0099" would be wrongly rejected. A Feb-30-style
+      // rollover still surfaces in the month/day fields, which this leaves
+      // untouched.
+      probe.setUTCFullYear(year);
       if (
         probe.getUTCFullYear() !== year ||
         probe.getUTCMonth() !== month - 1 ||
