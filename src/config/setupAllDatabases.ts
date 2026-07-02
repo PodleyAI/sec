@@ -208,62 +208,8 @@ export async function setupAllDatabases(): Promise<void> {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
-    migrateSpacNarrativeColumns(db);
   }
   await bootstrapComponentVersions();
-}
-
-/**
- * One-shot additive migration: the embarc-facing narrative/enrichment columns
- * are new nullable columns on existing tables. `CREATE TABLE IF NOT EXISTS` is a
- * no-op once the table exists, so add each missing column on a previously-set-up
- * SQLite database. Fresh DBs create them from the TypeBox schema; nullable
- * columns need no default backfill. Mirrors {@link backfillExtractorRunsOutcome}.
- *
- * Scope note: SQLite only, consistent with the other in-place migrations here.
- * An existing Postgres database would need the analogous ALTERs; that gap is
- * systemic (every prior schema addition shares it) and left to the general
- * Postgres migration story rather than special-cased for these columns.
- */
-function migrateSpacNarrativeColumns(db: Sqlite.Database): void {
-  // The spac report row and its history snapshot carry the identical narrative
-  // column set, so share one list rather than restating it per table.
-  const SPAC_NARRATIVE_COLUMNS: ReadonlyArray<[string, string]> = [
-    ["focus", "TEXT"],
-    ["focus_location", "TEXT"],
-    ["description", "TEXT"],
-    ["target_description", "TEXT"],
-    ["team", "TEXT"],
-    ["details", "TEXT"],
-    ["url_spac", "TEXT"],
-    ["url_sponsor", "TEXT"],
-    ["investorpres_url", "TEXT"],
-    ["investorpres_date", "TEXT"],
-  ];
-  const ADDITIONS: ReadonlyArray<{ table: string; columns: ReadonlyArray<[string, string]> }> = [
-    { table: "spac", columns: SPAC_NARRATIVE_COLUMNS },
-    { table: "spac_history", columns: SPAC_NARRATIVE_COLUMNS },
-    { table: "spac_deal", columns: [["target_description", "TEXT"]] },
-    { table: "spac_merger_extraction", columns: [["target_description", "TEXT"]] },
-    { table: "portals", columns: [["featured", "BOOLEAN"]] },
-    {
-      table: "person_observations",
-      columns: [
-        ["birth_year", "INTEGER"],
-        ["bio", "TEXT"],
-      ],
-    },
-  ];
-  for (const { table, columns } of ADDITIONS) {
-    const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`${table}\`)`).all();
-    if (cols.length === 0) continue; // table not created yet (clean DB)
-    const present = new Set(cols.map((c) => c.name));
-    for (const [col, type] of columns) {
-      if (!present.has(col)) {
-        db.exec(`ALTER TABLE \`${table}\` ADD COLUMN ${col} ${type}`);
-      }
-    }
-  }
 }
 
 /**
