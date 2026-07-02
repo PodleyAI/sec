@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import {
   CANONICAL_COMPANY_PHONE_REPOSITORY_TOKEN,
   type CanonicalCompanyPhone,
@@ -22,6 +23,17 @@ interface RecordCompanyPhoneArgs {
   seen_at: string;
 }
 
+/** Per-composite-PK read-modify-write lock for `observation_count`; see CanonicalPersonAddressRepo. */
+const junctionLocks = new KeyedMutex<string>();
+
+function junctionKey(pk: {
+  canonical_company_id: string;
+  international_number: string;
+  resolver_version: string;
+}): string {
+  return `${pk.canonical_company_id}\x00${pk.international_number}\x00${pk.resolver_version}`;
+}
+
 export class CanonicalCompanyPhoneRepo {
   private repo: CanonicalCompanyPhoneRepositoryStorage;
 
@@ -37,24 +49,26 @@ export class CanonicalCompanyPhoneRepo {
       international_number: args.international_number,
       resolver_version: args.resolver_version,
     };
-    const existing = await this.repo.get(pk);
-    if (existing) {
-      const updated: CanonicalCompanyPhone = {
-        ...existing,
-        observation_count: existing.observation_count + 1,
+    return junctionLocks.lock(junctionKey(pk), async () => {
+      const existing = await this.repo.get(pk);
+      if (existing) {
+        const updated: CanonicalCompanyPhone = {
+          ...existing,
+          observation_count: existing.observation_count + 1,
+          last_seen_at: args.seen_at,
+        };
+        await this.repo.put(updated);
+        return updated;
+      }
+      const fresh: CanonicalCompanyPhone = {
+        ...pk,
+        observation_count: 1,
+        first_seen_at: args.seen_at,
         last_seen_at: args.seen_at,
       };
-      await this.repo.put(updated);
-      return updated;
-    }
-    const fresh: CanonicalCompanyPhone = {
-      ...pk,
-      observation_count: 1,
-      first_seen_at: args.seen_at,
-      last_seen_at: args.seen_at,
-    };
-    await this.repo.put(fresh);
-    return fresh;
+      await this.repo.put(fresh);
+      return fresh;
+    });
   }
 
   /** Remove one observation's contribution; see CanonicalPersonAddressRepo.removeObservation. */
@@ -63,13 +77,15 @@ export class CanonicalCompanyPhoneRepo {
     international_number: string;
     resolver_version: string;
   }): Promise<void> {
-    const existing = await this.repo.get(pk);
-    if (!existing) return;
-    if (existing.observation_count <= 1) {
-      await this.repo.delete(pk);
-      return;
-    }
-    await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+    await junctionLocks.lock(junctionKey(pk), async () => {
+      const existing = await this.repo.get(pk);
+      if (!existing) return;
+      if (existing.observation_count <= 1) {
+        await this.repo.delete(pk);
+        return;
+      }
+      await this.repo.put({ ...existing, observation_count: existing.observation_count - 1 });
+    });
   }
 
   async listForCanonical(
