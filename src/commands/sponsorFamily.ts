@@ -9,6 +9,7 @@ import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
 import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../storage/canonical/CanonicalSponsorFamilyAliasRepo";
 import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
+import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
 
 /**
  * Returns the issuer CIKs of every SPAC backed by the named sponsor family.
@@ -98,6 +99,31 @@ export function registerSponsorFamilyCommands(program: Command): void {
       for (const r of rows) {
         console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
       }
+    });
+
+  fam
+    .command("describe <name> <text>")
+    .description("Set the editorial description for a sponsor family (manual/embarc)")
+    .action(async (name: string, text: string) => {
+      const normalized = normalizeSponsorFamilyName(name);
+      if (!normalized) {
+        console.error("error: name normalizes to empty");
+        process.exitCode = 1;
+        return;
+      }
+      await new FamilyDescriptionRepo().setDescription("sponsor-family", normalized, text);
+      console.log(`described '${name}'`);
+    });
+
+  fam
+    .command("description <name>")
+    .description("Show the editorial description for a sponsor family")
+    .action(async (name: string) => {
+      const desc = await new FamilyDescriptionRepo().getDescription(
+        "sponsor-family",
+        normalizeSponsorFamilyName(name)
+      );
+      console.log(desc ?? "");
     });
 
   canonical.addCommand(fam);

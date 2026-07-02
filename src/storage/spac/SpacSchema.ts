@@ -84,6 +84,12 @@ export const SpacSchema = Type.Object({
   url_sponsor: TypeNullable(
     Type.String({ maxLength: 500, description: "Sponsor website URL (editorial/manual)" })
   ),
+  investorpres_url: TypeNullable(
+    Type.String({ maxLength: 500, description: "Investor presentation URL (derived from event stream)" })
+  ),
+  investorpres_date: TypeNullable(
+    Type.String({ format: "date", description: "Investor presentation date (derived from event stream)" })
+  ),
 
   // Rolled-up key dates
   registration_date: TypeNullable(Type.String({ format: "date" })),

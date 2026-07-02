@@ -39,6 +39,8 @@ export const SpacHistorySchema = Type.Object({
   details: TypeNullable(Type.String()),
   url_spac: TypeNullable(Type.String({ maxLength: 500 })),
   url_sponsor: TypeNullable(Type.String({ maxLength: 500 })),
+  investorpres_url: TypeNullable(Type.String({ maxLength: 500 })),
+  investorpres_date: TypeNullable(Type.String({ format: "date" })),
   registration_date: TypeNullable(Type.String({ format: "date" })),
   ipo_date: TypeNullable(Type.String({ format: "date" })),
   unit_split_date: TypeNullable(Type.String({ format: "date" })),

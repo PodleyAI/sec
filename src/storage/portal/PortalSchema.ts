@@ -45,6 +45,13 @@ export const PortalSchema = Type.Object({
       })
     )
   ),
+  featured: Type.Optional(
+    TypeNullable(
+      Type.Boolean({
+        description: "Editorial curation flag (embarc); not SEC-sourced, set manually",
+      })
+    )
+  ),
   as_of: Type.Optional(
     TypeNullable(
       Type.String({

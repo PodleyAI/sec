@@ -186,6 +186,11 @@ import {
   CanonicalSponsorFamilySchema,
 } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
+  FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+  FamilyDescriptionPrimaryKeyNames,
+  FamilyDescriptionSchema,
+} from "../storage/canonical/FamilyDescriptionSchema";
+import {
   SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
   SponsorFamilyMembershipPrimaryKeyNames,
   SponsorFamilyMembershipSchema,
@@ -885,6 +890,15 @@ export const DefaultDI = () => {
       CanonicalSponsorFamilyAliasSchema,
       CanonicalSponsorFamilyAliasPrimaryKeyNames,
       [["target_canonical_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+    createStorage(
+      "family_description",
+      FamilyDescriptionSchema,
+      FamilyDescriptionPrimaryKeyNames,
+      [["family_kind"]]
     )
   );
   globalServiceRegistry.registerInstance(

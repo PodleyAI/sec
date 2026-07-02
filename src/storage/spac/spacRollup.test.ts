@@ -138,6 +138,44 @@ describe("buildSpacRow", () => {
     expect(later.ipo_proceeds).toBe(100);
   });
 
+  it("derives investorpres_url/date from the latest investor_presentation event", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "ipo", event_date: "2021-01-15" }),
+        ev({
+          event_type: "investor_presentation",
+          event_date: "2021-06-01",
+          source_document_url: "https://sec.gov/old-deck.htm",
+        }),
+        ev({
+          event_type: "investor_presentation",
+          event_date: "2021-09-01",
+          source_document_url: "https://sec.gov/new-deck.htm",
+        }),
+      ],
+      patch: {},
+      filingDate: "2021-09-01",
+    });
+    expect(row.investorpres_url).toBe("https://sec.gov/new-deck.htm"); // latest wins
+    expect(row.investorpres_date).toBe("2021-09-01");
+  });
+
+  it("leaves investorpres null when no investor_presentation event exists", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      patch: {},
+      filingDate: "2021-01-15",
+    });
+    expect(row.investorpres_url).toBeNull();
+    expect(row.investorpres_date).toBeNull();
+  });
+
   it("earliest registration event wins for registration_date", () => {
     const row = buildSpacRow({
       existing: undefined,

@@ -55,6 +55,23 @@ function minEventDate(events: readonly SpacEvent[], type: string): string | null
 }
 
 /**
+ * Latest investor-presentation exhibit (url + date). Derived from the event
+ * stream — an `investor_presentation` event carries the deck URL in
+ * `source_document_url`. Population of these events is deferred to a dedicated
+ * 8-K Item 7.01 EX-99 exhibit extractor; until then this yields null/null.
+ */
+function latestInvestorPres(events: readonly SpacEvent[]): {
+  url: string | null;
+  date: string | null;
+} {
+  const pres = events
+    .filter((e) => e.event_type === "investor_presentation")
+    .sort((a, b) => a.event_date.localeCompare(b.event_date) || a.accession_number.localeCompare(b.accession_number));
+  const latest = pres.length > 0 ? pres[pres.length - 1] : null;
+  return { url: latest?.source_document_url ?? null, date: latest?.event_date ?? null };
+}
+
+/**
  * The active deal = the completed deal if one exists; else the latest pending
  * deal by announced_date (deal_index breaks ties). Terminated deals never win.
  */
@@ -153,6 +170,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
 
   // Event/deal-derived fields: always recomputed (order-independent, idempotent).
   const active = activeDeal(deals);
+  const investorPres = latestInvestorPres(events);
   const hasFailed =
     events.some((e) => e.event_type === "liquidation" || e.event_type === "deregistration") &&
     !deals.some((d) => d.outcome === "completed");
@@ -187,6 +205,8 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     details: pick("details"),
     url_spac: pick("url_spac"),
     url_sponsor: pick("url_sponsor"),
+    investorpres_url: investorPres.url,
+    investorpres_date: investorPres.date,
     pipe_amount: active?.pipe_amount ?? null,
     total_redemption_amount: sumRedemptions(deals),
     registration_date: minEventDate(events, "registration"),
