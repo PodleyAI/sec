@@ -106,7 +106,8 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik", "status", "spac_name", "target_name", "surviving_name", "current_name",
   "spac_sic", "post_merger_sic", "current_sic", "spac_tickers", "post_merger_tickers",
   "current_tickers", "ipo_proceeds", "trust_amount", "pipe_amount", "total_redemption_amount",
-  "focus", "focus_location", "description", "team", "details", "url_spac", "url_sponsor",
+  "focus", "focus_location", "description", "target_description", "team", "details",
+  "url_spac", "url_sponsor",
   "registration_date", "ipo_date", "unit_split_date", "definitive_agreement_date", "proxy_date",
   "vote_date", "completed_date", "failed_date",
 ];
@@ -394,6 +395,7 @@ export class SpacReportWriter {
       focus: row.focus,
       focus_location: row.focus_location,
       description: row.description,
+      target_description: row.target_description,
       team: row.team,
       details: row.details,
       url_spac: row.url_spac,

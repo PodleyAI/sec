@@ -397,8 +397,9 @@ export async function extractMergerDeal(
   const instructions =
     "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
     "Identify the business-combination target and deal terms. Give target_name (the " +
-    "operating company the SPAC will merge with), pipe_amount (the total PIPE " +
-    "investment in dollars, or null), merger_consideration (a short verbatim phrase " +
+    "operating company the SPAC will merge with), target_description (a concise 1-3 " +
+    "sentence description of the target company's business, or null), pipe_amount (the " +
+    "total PIPE investment in dollars, or null), merger_consideration (a short verbatim phrase " +
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
     "Return JSON matching the schema.";

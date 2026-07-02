@@ -31,6 +31,7 @@ function deal(p: Pick<SpacDeal, "deal_index" | "outcome"> & Partial<SpacDeal>): 
     cik: 1,
     target_name: null,
     target_cik: null,
+    target_description: null,
     announced_date: null,
     definitive_agreement_date: null,
     proxy_date: null,
@@ -168,6 +169,27 @@ describe("buildSpacRow", () => {
     expect(row.definitive_agreement_date).toBe("2022-07-01");
     expect(row.proxy_date).toBeNull();
     expect(row.status).toBe("deal_announced");
+  });
+
+  it("derives target_description from the active deal onto the row", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [
+        deal({
+          deal_index: 0,
+          outcome: "pending",
+          target_name: "Live Co",
+          target_description: "Live Co makes electric buses.",
+          announced_date: "2022-06-01",
+        }),
+      ],
+      events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      patch: {},
+      filingDate: "2022-06-01",
+    });
+    expect(row.target_name).toBe("Live Co");
+    expect(row.target_description).toBe("Live Co makes electric buses.");
   });
 
   it("a completed deal wins over a later pending one and sets completed_date + status", () => {

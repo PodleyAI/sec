@@ -226,6 +226,7 @@ function migrateSpacNarrativeColumns(db: Sqlite.Database): void {
         ["focus", "TEXT"],
         ["focus_location", "TEXT"],
         ["description", "TEXT"],
+        ["target_description", "TEXT"],
         ["team", "TEXT"],
         ["details", "TEXT"],
         ["url_spac", "TEXT"],
@@ -238,12 +239,15 @@ function migrateSpacNarrativeColumns(db: Sqlite.Database): void {
         ["focus", "TEXT"],
         ["focus_location", "TEXT"],
         ["description", "TEXT"],
+        ["target_description", "TEXT"],
         ["team", "TEXT"],
         ["details", "TEXT"],
         ["url_spac", "TEXT"],
         ["url_sponsor", "TEXT"],
       ],
     },
+    { table: "spac_deal", columns: [["target_description", "TEXT"]] },
+    { table: "spac_merger_extraction", columns: [["target_description", "TEXT"]] },
     {
       table: "person_observations",
       columns: [

@@ -34,6 +34,7 @@ export const SpacHistorySchema = Type.Object({
   focus: TypeNullable(Type.String()),
   focus_location: TypeNullable(Type.String()),
   description: TypeNullable(Type.String()),
+  target_description: TypeNullable(Type.String()),
   team: TypeNullable(Type.String()),
   details: TypeNullable(Type.String()),
   url_spac: TypeNullable(Type.String({ maxLength: 500 })),

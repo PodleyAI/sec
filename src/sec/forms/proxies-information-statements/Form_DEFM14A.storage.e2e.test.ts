@@ -25,6 +25,7 @@ function scriptMergerDeal(): () => void {
   const { unregister } = registerFakeStructuredProvider([
     {
       target_name: "Acme Target Inc.",
+      target_description: "Acme Target is a commercial EV manufacturer.",
       pipe_amount: 150000000,
       merger_consideration: "$10.00 per share in stock",
       confidence: 0.95,
@@ -110,6 +111,7 @@ describe("processMergerProxy (e2e)", () => {
     const row = await repo.getSpac(100);
     expect(row?.status).toBe("proxy");
     expect(row?.target_name).toBe("Acme Target Inc.");
+    expect(row?.target_description).toBe("Acme Target is a commercial EV manufacturer.");
     expect(row?.pipe_amount).toBe(150000000);
     expect(row?.proxy_date).toBe("2021-05-01");
   });

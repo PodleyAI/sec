@@ -47,6 +47,7 @@ function ext(
     target_name: null,
     target_cik: null,
     target_observation_id: null,
+    target_description: null,
     pipe_amount: null,
     merger_consideration: null,
     confidence: 0.9,
@@ -62,6 +63,7 @@ function deal(p: Pick<SpacDeal, "deal_index" | "outcome"> & Partial<SpacDeal>): 
     cik: 1,
     target_name: null,
     target_cik: null,
+    target_description: null,
     announced_date: null,
     definitive_agreement_date: null,
     proxy_date: null,
@@ -194,6 +196,23 @@ describe("deriveDeals", () => {
     );
     expect(deals[0].target_name).toBe("Acme Target, Inc."); // definitive wins
     expect(deals[0].pipe_amount).toBe(200_000_000);
+  });
+
+  it("correlates target_description from the merger extraction onto the deal", () => {
+    const deals = deriveDeals(
+      1,
+      [ev("definitive_agreement", "2021-03-01")],
+      [
+        ext("defm", "2021-05-10", {
+          form: "DEFM14A",
+          target_name: "Acme Target Inc.",
+          target_description: "Acme is a Latin American fintech lender.",
+        }),
+      ],
+      [],
+      []
+    );
+    expect(deals[0].target_description).toBe("Acme is a Latin American fintech lender.");
   });
 
   it("ranks a same-date definitive proxy above a preliminary-revised one (PRER < DEFM)", () => {

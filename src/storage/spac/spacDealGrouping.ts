@@ -47,6 +47,7 @@ interface DealSkeleton {
   // §4b columns, derived by correlating merger extractions (below).
   target_name: string | null;
   target_cik: number | null;
+  target_description: string | null;
   pipe_amount: number | null;
   // Columns derived by correlating redemption extractions (below).
   redemption_amount: number | null;
@@ -105,6 +106,7 @@ export function deriveDeals(
       source_accession: e.accession_number,
       target_name: null,
       target_cik: null,
+      target_description: null,
       pipe_amount: null,
       redemption_amount: null,
       redemption_shares: null,
@@ -192,6 +194,7 @@ export function deriveDeals(
     for (const m of matched) {
       if (m.target_name != null) d.target_name = m.target_name;
       if (m.target_cik != null) d.target_cik = m.target_cik;
+      if (m.target_description != null) d.target_description = m.target_description;
       if (m.pipe_amount != null) d.pipe_amount = m.pipe_amount;
     }
   }
@@ -236,6 +239,7 @@ export function deriveDeals(
     // §4b columns: derived from correlated extractions (no merge-preserve).
     target_name: s.target_name,
     target_cik: s.target_cik,
+    target_description: s.target_description,
     pipe_amount: s.pipe_amount,
     // proxy_date: derived from the proxy event in the walk.
     proxy_date: s.proxy_date,

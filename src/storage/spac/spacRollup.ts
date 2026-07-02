@@ -169,6 +169,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     status: deriveStatus(events, active, hasFailed, hasIpo),
     spac_name,
     target_name: active?.target_name ?? null,
+    target_description: active?.target_description ?? null,
     surviving_name,
     current_name,
     spac_sic,

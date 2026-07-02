@@ -32,7 +32,9 @@ import {
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 const EXTRACTOR_ID = "merger-proxy";
-const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+// v1.1.0: extract target_description (target company business summary) alongside
+// target_name / pipe_amount / merger_consideration.
+const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
 const MERGER_SECTION = "merger";
 /** Definitive merger statements emit a `proxy` lifecycle event; others do not. */
 const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A", "DEFM14C"]);
@@ -201,6 +203,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
           target_name: targetName === "" ? null : targetName,
           target_cik,
           target_observation_id,
+          target_description: deal.target_description ?? null,
           pipe_amount: deal.pipe_amount,
           merger_consideration: deal.merger_consideration,
           confidence: deal.confidence,

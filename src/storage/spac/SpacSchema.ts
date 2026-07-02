@@ -75,6 +75,9 @@ export const SpacSchema = Type.Object({
   description: TypeNullable(
     Type.String({ description: "SPAC narrative description (blank-check business purpose)" })
   ),
+  target_description: TypeNullable(
+    Type.String({ description: "Target company description (derived from the active deal)" })
+  ),
   team: TypeNullable(Type.String({ description: "Management team narrative text" })),
   details: TypeNullable(Type.String({ description: "JSON key/value freeform details map" })),
   url_spac: TypeNullable(Type.String({ maxLength: 500, description: "SPAC website URL" })),
