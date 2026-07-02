@@ -26,6 +26,16 @@ export interface SpacRowPatch {
   readonly current_tickers?: string | null;
   readonly ipo_proceeds?: number | null;
   readonly trust_amount?: number | null;
+  // Narrative / enrichment scalars (embarc-facing). `focus` / `focus_location`
+  // / `details` are JSON-encoded strings; `url_sponsor` is editorial (no SEC
+  // writer), preserved across replays like the rest.
+  readonly focus?: string | null;
+  readonly focus_location?: string | null;
+  readonly description?: string | null;
+  readonly team?: string | null;
+  readonly details?: string | null;
+  readonly url_spac?: string | null;
+  readonly url_sponsor?: string | null;
 }
 
 export interface BuildSpacRowInput {
@@ -169,6 +179,13 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     current_tickers,
     ipo_proceeds: pick("ipo_proceeds"),
     trust_amount: pick("trust_amount"),
+    focus: pick("focus"),
+    focus_location: pick("focus_location"),
+    description: pick("description"),
+    team: pick("team"),
+    details: pick("details"),
+    url_spac: pick("url_spac"),
+    url_sponsor: pick("url_sponsor"),
     pipe_amount: active?.pipe_amount ?? null,
     total_redemption_amount: sumRedemptions(deals),
     registration_date: minEventDate(events, "registration"),

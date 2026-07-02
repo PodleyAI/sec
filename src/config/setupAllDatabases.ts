@@ -206,8 +206,62 @@ export async function setupAllDatabases(): Promise<void> {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
+    migrateSpacNarrativeColumns(db);
   }
   await bootstrapComponentVersions();
+}
+
+/**
+ * One-shot additive migration: the embarc-facing narrative/enrichment columns
+ * are new nullable columns on existing tables. `CREATE TABLE IF NOT EXISTS` is a
+ * no-op once the table exists, so add each missing column on a previously-set-up
+ * SQLite database. Fresh DBs create them from the TypeBox schema; nullable
+ * columns need no default backfill. Mirrors {@link backfillExtractorRunsOutcome}.
+ */
+function migrateSpacNarrativeColumns(db: Sqlite.Database): void {
+  const ADDITIONS: ReadonlyArray<{ table: string; columns: ReadonlyArray<[string, string]> }> = [
+    {
+      table: "spac",
+      columns: [
+        ["focus", "TEXT"],
+        ["focus_location", "TEXT"],
+        ["description", "TEXT"],
+        ["team", "TEXT"],
+        ["details", "TEXT"],
+        ["url_spac", "TEXT"],
+        ["url_sponsor", "TEXT"],
+      ],
+    },
+    {
+      table: "spac_history",
+      columns: [
+        ["focus", "TEXT"],
+        ["focus_location", "TEXT"],
+        ["description", "TEXT"],
+        ["team", "TEXT"],
+        ["details", "TEXT"],
+        ["url_spac", "TEXT"],
+        ["url_sponsor", "TEXT"],
+      ],
+    },
+    {
+      table: "person_observations",
+      columns: [
+        ["birth_year", "INTEGER"],
+        ["bio", "TEXT"],
+      ],
+    },
+  ];
+  for (const { table, columns } of ADDITIONS) {
+    const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`${table}\`)`).all();
+    if (cols.length === 0) continue; // table not created yet (clean DB)
+    const present = new Set(cols.map((c) => c.name));
+    for (const [col, type] of columns) {
+      if (!present.has(col)) {
+        db.exec(`ALTER TABLE \`${table}\` ADD COLUMN ${col} ${type}`);
+      }
+    }
+  }
 }
 
 /**

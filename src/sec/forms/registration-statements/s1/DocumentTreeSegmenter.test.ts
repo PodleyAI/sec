@@ -58,6 +58,25 @@ describe("DocumentTreeSegmenter", () => {
     expect(sections.some((s) => s.name === S1_SECTIONS.MANAGEMENT)).toBe(false);
   });
 
+  it("resolves the prospectus-summary section (SPAC profile source)", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+        <p>We are a blank check company focused on fintech in Latin America.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+        <p>Directors and officers.</p>
+      </body></html>`;
+    const doc = parseEdgarHtml(html, "S-1");
+    const sections = new DocumentTreeSegmenter().segment(doc);
+    const byName = new Map(sections.map((s) => [s.name, s.text]));
+    expect(byName.has(S1_SECTIONS.PROSPECTUS_SUMMARY)).toBe(true);
+    expect(byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY)).toContain(
+      "blank check company focused on fintech in Latin America"
+    );
+    // The tight anchoring must not swallow the following Management section.
+    expect(byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY)).not.toContain("Directors and officers.");
+  });
+
   it("resolves the four new offering sections from the tree", () => {
     const html = `
       <html><body>

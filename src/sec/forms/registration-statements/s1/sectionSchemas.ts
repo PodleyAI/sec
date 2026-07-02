@@ -24,6 +24,8 @@ export const ManagementOutputSchema = {
           full_name: { type: "string" },
           title: NULLABLE_STRING,
           relationship: NULLABLE_STRING,
+          age: NULLABLE_NUMBER,
+          bio: NULLABLE_STRING,
           confidence: CONFIDENCE,
           source_span: SOURCE_SPAN,
         },
@@ -108,6 +110,8 @@ export interface ManagementPersonRow {
   full_name: string;
   title: string | null;
   relationship: string | null;
+  age: number | null;
+  bio: string | null;
   confidence: number;
   source_span: string;
 }

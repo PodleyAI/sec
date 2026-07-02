@@ -21,6 +21,7 @@ const {
   UNDERWRITING,
   USE_OF_PROCEEDS,
   THE_SPONSOR,
+  PROSPECTUS_SUMMARY,
 } = S1_SECTIONS;
 const dir = join(import.meta.dir, "mock_data", "s1");
 
@@ -31,7 +32,10 @@ const dir = join(import.meta.dir, "mock_data", "s1");
  */
 const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // SPACs (SIC 6770) — standard, complete section structure (incl. offering sections).
+  // Every real S-1 opens with a prospectus summary ("Our Company" / "Overview" /
+  // "This summary…"), which the PROSPECTUS_SUMMARY section now captures.
   "s1_1848507_000119312521066104.htm": [
+    PROSPECTUS_SUMMARY,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
@@ -39,6 +43,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
   ],
   "s1_1849470_000110465921035696.htm": [
+    PROSPECTUS_SUMMARY,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
@@ -47,6 +52,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
   ],
   "s1_1822912_000121390021001475.htm": [
+    PROSPECTUS_SUMMARY,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
@@ -57,6 +63,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // 2026 SPAC with full iXBRL tagging (spac/dei taxonomies) — also exercised
   // by parseXbrl.golden.test.ts.
   "s1_2114227_000121390026039320.htm": [
+    PROSPECTUS_SUMMARY,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
@@ -66,6 +73,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   ],
   // Operating companies — varied coverage / edge cases.
   "s1_2030954_000149315226027129.htm": [
+    PROSPECTUS_SUMMARY,
     BENEFICIAL_OWNERSHIP,
     THE_OFFERING,
     UNDERWRITING,
@@ -73,9 +81,20 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   ],
   // atypical trust (3 stitched tables) — no mgmt/ownership/related-party headings,
   // but carries the offering sections incl. a focused "The Sponsor".
-  "s1_2087989_000143774926019444.htm": [THE_OFFERING, THE_SPONSOR, UNDERWRITING, USE_OF_PROCEEDS],
+  "s1_2087989_000143774926019444.htm": [
+    PROSPECTUS_SUMMARY,
+    THE_OFFERING,
+    THE_SPONSOR,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
   // incorporation-by-reference S-1/A — offering mechanics present, entities by reference.
-  "s1_1817004_000149315226027137.htm": [THE_OFFERING, UNDERWRITING, USE_OF_PROCEEDS],
+  "s1_1817004_000149315226027137.htm": [
+    PROSPECTUS_SUMMARY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+  ],
 };
 
 const SPAC_FIXTURES = [

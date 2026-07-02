@@ -60,6 +60,14 @@ interface RecordRegistrationArgs {
   readonly primary_document: string | null;
   readonly spac_name: string | null;
   readonly spac_sic: number | null;
+  // Narrative enrichment from the S-1 "Prospectus Summary" AI section. All
+  // optional; a filing that carries none leaves the row's values untouched
+  // (the rollup merges, never clobbers with null).
+  readonly focus?: string | null;
+  readonly focus_location?: string | null;
+  readonly description?: string | null;
+  readonly team?: string | null;
+  readonly url_spac?: string | null;
 }
 
 interface RecordIpoArgs {
@@ -98,6 +106,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik", "status", "spac_name", "target_name", "surviving_name", "current_name",
   "spac_sic", "post_merger_sic", "current_sic", "spac_tickers", "post_merger_tickers",
   "current_tickers", "ipo_proceeds", "trust_amount", "pipe_amount", "total_redemption_amount",
+  "focus", "focus_location", "description", "team", "details", "url_spac", "url_sponsor",
   "registration_date", "ipo_date", "unit_split_date", "definitive_agreement_date", "proxy_date",
   "vote_date", "completed_date", "failed_date",
 ];
@@ -129,6 +138,11 @@ export class SpacReportWriter {
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
         spac_name: args.spac_name,
         spac_sic: args.spac_sic,
+        focus: args.focus,
+        focus_location: args.focus_location,
+        description: args.description,
+        team: args.team,
+        url_spac: args.url_spac,
       });
     });
   }
@@ -377,6 +391,13 @@ export class SpacReportWriter {
       trust_amount: row.trust_amount,
       pipe_amount: row.pipe_amount,
       total_redemption_amount: row.total_redemption_amount,
+      focus: row.focus,
+      focus_location: row.focus_location,
+      description: row.description,
+      team: row.team,
+      details: row.details,
+      url_spac: row.url_spac,
+      url_sponsor: row.url_sponsor,
       registration_date: row.registration_date,
       ipo_date: row.ipo_date,
       unit_split_date: row.unit_split_date,

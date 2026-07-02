@@ -30,6 +30,8 @@ export interface PersonClaim {
   readonly suffix?: string | null;
   readonly title?: string | null;
   readonly relationship?: string | null;
+  readonly birth_year?: number | null;
+  readonly bio?: string | null;
   readonly address_id?: string | null;
   readonly international_number?: string | null;
   readonly source_context?: string | null;
@@ -109,6 +111,8 @@ export class EntityObserver {
       normalized_suffix: normalized?.suffix ?? null,
       title: claim.title ?? null,
       relationship: claim.relationship ?? null,
+      birth_year: claim.birth_year ?? null,
+      bio: claim.bio ?? null,
       raw_address_id: claim.address_id ?? null,
       raw_phone_id: claim.international_number ?? null,
       source_context: claim.source_context ?? null,
