@@ -23,6 +23,7 @@ import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
+import { registerSecModels } from "../config/registerModels";
 import { SEC_DRY_RUN } from "../config/tokens";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 
@@ -47,6 +48,7 @@ export const AddCommands = (program: Command): void => {
 
     EnvToDI();
     DefaultDI();
+    await registerSecModels();
 
     getTaskQueueRegistry().registerQueue({
       server: SecJobQueueServer,
