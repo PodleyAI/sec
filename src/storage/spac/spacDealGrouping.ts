@@ -93,6 +93,14 @@ export function deriveDeals(
   const skeletons: DealSkeleton[] = [];
   let open: DealSkeleton | null = null;
   let nextIndex = 0;
+  // A completed business combination is terminal for the SPAC: the shell
+  // becomes the operating company and keeps its CIK, so its *later* item-coded
+  // 8-Ks (item 1.01 material agreements, 1.02 terminations, 5.07 annual-meeting
+  // votes) are ordinary corporate events, not de-SPAC milestones. Once a deal
+  // completes, stop the walk so those events cannot spawn phantom deals.
+  // (A *terminated* attempt is not terminal — the SPAC may still find another
+  // target — so only `completed` ends the walk.)
+  let completedTerminal = false;
 
   const openNew = (e: SpacEvent): DealSkeleton => {
     const d: DealSkeleton = {
@@ -144,6 +152,7 @@ export function deriveDeals(
         d.outcome_date = e.event_date;
         d.source_accession = e.accession_number;
         open = null;
+        completedTerminal = true;
         break;
       }
       case "vote": {
@@ -166,6 +175,8 @@ export function deriveDeals(
         break;
       }
     }
+    // Post-completion events are operating-company noise; ignore them.
+    if (completedTerminal) break;
   }
 
   // --- Correlate merger extractions onto deals by filing-date window ---
