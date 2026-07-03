@@ -72,11 +72,11 @@ export const SpacSchema = Type.Object({
   ),
 
   // Narrative / enrichment (embarc-facing). Merge-preserved filing-sourced
-  // scalars under the same `as_of` guard as the other scalars; `focus` /
-  // `focus_location` / `details` hold JSON-encoded strings (mirroring the
-  // `spac_tickers` string[] pattern). `url_sponsor` has no reliable SEC source
-  // and is editorial/manual (column only). `target_description` (merger-proxy)
-  // and `investorpres_*` (event stream) land in later phases.
+  // scalars under the same `as_of` guard as the other scalars. `focus` /
+  // `focus_location` are JSON-encoded string[] (mirroring the `spac_tickers`
+  // pattern); `details` is a JSON-encoded key/value object. `url_sponsor` has no
+  // reliable SEC source and is editorial/manual (column only). `target_description`
+  // (merger-proxy) and `investorpres_*` (event stream) land in later phases.
   focus: TypeNullable(
     Type.String({
       description: "JSON string[] of business sector focus tags (controlled vocabulary)",

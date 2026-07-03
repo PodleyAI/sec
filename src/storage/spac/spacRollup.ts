@@ -66,14 +66,19 @@ function latestInvestorPres(events: readonly SpacEvent[]): {
   url: string | null;
   date: string | null;
 } {
-  const pres = events
-    .filter((e) => e.event_type === "investor_presentation")
-    .sort(
-      (a, b) =>
-        a.event_date.localeCompare(b.event_date) ||
-        a.accession_number.localeCompare(b.accession_number)
-    );
-  const latest = pres.length > 0 ? pres[pres.length - 1] : null;
+  // Single-pass max by (event_date, accession_number); no need to sort the array.
+  let latest: SpacEvent | null = null;
+  for (const e of events) {
+    if (e.event_type !== "investor_presentation") continue;
+    if (
+      latest === null ||
+      e.event_date.localeCompare(latest.event_date) > 0 ||
+      (e.event_date === latest.event_date &&
+        e.accession_number.localeCompare(latest.accession_number) > 0)
+    ) {
+      latest = e;
+    }
+  }
   return { url: latest?.source_document_url ?? null, date: latest?.event_date ?? null };
 }
 
