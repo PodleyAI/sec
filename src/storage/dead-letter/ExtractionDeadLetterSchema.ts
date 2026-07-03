@@ -25,6 +25,17 @@ export const DEAD_LETTER_REASON_CODES = [
 ] as const;
 export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 
+/**
+ * Reason codes that reflect a transient model/provider *availability* failure
+ * rather than a version-fixable extractor bug. Entries with these codes stay
+ * eligible for retry even under the **same** extractor version — re-running the
+ * filing once the model/provider is registered is exactly what recovers them,
+ * so a version bump is neither required nor meaningful. Every other reason code
+ * (a genuine extraction/parse/output bug) remains version-gated: it retries only
+ * after the extractor code is fixed and its version bumped.
+ */
+export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR"] as const;
+
 export const DEAD_LETTER_STATUSES = ["pending", "resolved", "abandoned"] as const;
 export type DeadLetterStatus = (typeof DEAD_LETTER_STATUSES)[number];
 

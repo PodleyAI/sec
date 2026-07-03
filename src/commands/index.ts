@@ -24,6 +24,7 @@ import { registerSpacCommands } from "./spac";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
+import { registerSecProviders } from "../config/registerProviders";
 import { SEC_DRY_RUN } from "../config/tokens";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 
@@ -49,6 +50,7 @@ export const AddCommands = (program: Command): void => {
     EnvToDI();
     DefaultDI();
     await registerSecModels();
+    await registerSecProviders();
 
     getTaskQueueRegistry().registerQueue({
       server: SecJobQueueServer,

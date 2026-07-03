@@ -69,4 +69,33 @@ describe("ExtractionDeadLetterRepo", () => {
     expect(eligible.map((r) => r.accession_number)).toEqual(["old"]);
     expect(await repo.countEligible("S-1", "1.1.0")).toBe(1);
   });
+
+  it("keeps MODEL_RESOLUTION_ERROR entries eligible under the same version", async () => {
+    // A model/provider-availability failure recovers by re-running once the model
+    // is registered — no version bump — so it must stay eligible at the current
+    // version, unlike a version-fixable output bug.
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "model-err",
+      section_name: "Management",
+      reason_code: "MODEL_RESOLUTION_ERROR",
+      detail: "model not registered",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "output-bug",
+      section_name: "Management",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    // Same version: only the model-error entry is eligible.
+    const eligible = await repo.listEligible("S-1", "1.0.0");
+    expect(eligible.map((r) => r.accession_number)).toEqual(["model-err"]);
+    expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
+  });
 });
