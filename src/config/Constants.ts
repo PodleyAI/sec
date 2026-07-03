@@ -22,3 +22,13 @@ export const SecJobQueueName = "sec_job_queue";
  */
 const DEFAULT_SEC_MODEL = "claude-sonnet-5";
 export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;
+
+/**
+ * A local HuggingFace Transformers (ONNX) model, registered alongside the cloud
+ * default so it is available for the extraction comparison harness (`sec eval`)
+ * without a cloud API key. Override the repo id via `SEC_HFT_MODEL`. Its `/`
+ * (HuggingFace `org/name` form) is what routes it to the HFT provider rather
+ * than Anthropic — see `secModelRecord`.
+ */
+const DEFAULT_SEC_HFT_MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
+export const SecHftModelDefault = process.env.SEC_HFT_MODEL?.trim() || DEFAULT_SEC_HFT_MODEL;

@@ -63,10 +63,15 @@ and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`. All extractors
 share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
 set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
 env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
-model ids (the default plus any set overrides) into the global model repository
-via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
-(`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
-resolves them. Startup also registers the AI **providers** via
+model ids (the default plus any set overrides, plus the local HFT default
+`SecHftModelDefault`) into the global model repository via `registerSecModels`
+(`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape — a
+HuggingFace `org/name` id → an `HF_TRANSFORMERS_ONNX` record, otherwise an
+`ANTHROPIC` record — and both explicitly declare the `json-mode` capability
+`StructuredGenerationTask` gates on (the installed provider's capability
+inference doesn't recognize newer ids like `claude-sonnet-5`). So
+`getGlobalModelRepository().findByName(id)` resolves any of them. Startup also
+registers the AI **providers** via
 `registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
 (`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time) and
 HuggingFace Transformers ONNX **worker-backed** (`provider: "HF_TRANSFORMERS_ONNX"`;
@@ -80,6 +85,35 @@ retryable under the **same** extractor version — `retry-dead-letters` recovers
 once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
+
+### Model comparison harness
+
+`sec eval extract` compares extraction models on **correctness, speed, and cost**
+so you can find the cheapest/fastest model that still extracts correctly. It runs
+committed golden fixtures (`src/eval/fixtures.ts` — realistic section prose with
+hand-authored `expected` rows) through each candidate model and ranks them:
+
+```bash
+sec eval extract                              # default 3-way: haiku, sonnet, local HFT
+sec eval extract --models "claude-opus-4-8,claude-haiku-4-5,onnx-community/Qwen2.5-0.5B-Instruct"
+sec eval extract --extractor management --format json
+```
+
+- **Correctness** — `scoreExtraction` (`src/eval/scoreExtraction.ts`) aligns candidate
+  rows to `expected` by a key field (e.g. `full_name`) and scores field-level agreement,
+  normalized (case/whitespace) and forgiving of provenance fields. Reports `score`
+  (names + titles), `found` (entity recall), and `prec` (1 − hallucinated rows).
+- **Cost** — the generation task exposes no token usage, so cost is **estimated**
+  (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
+  Absolute dollars are approximate; the ranking is what matters.
+- **Speed** — measured wall-clock latency per extraction.
+
+Models are registered on demand via `registerModelIds`, so any candidate id works;
+a model that fails to resolve or errors on a fixture is recorded as a failed run
+rather than aborting the sweep. Add an extractor by registering it in
+`EVAL_EXTRACTORS` and adding a matching fixture. The scorer and pricing are unit-
+tested; the live run makes real Anthropic calls (and downloads the ONNX model on
+first HFT use).
 
 ### Company facts outcome tracking
 

@@ -11,7 +11,14 @@ import {
   setGlobalModelRepository,
 } from "workglow";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { anthropicModelRecord, registerSecModels } from "./registerModels";
+import { SecHftModelDefault } from "./Constants";
+import {
+  anthropicModelRecord,
+  hftModelRecord,
+  registerModelIds,
+  registerSecModels,
+  secModelRecord,
+} from "./registerModels";
 
 describe("registerSecModels", () => {
   const envKeys = [
@@ -48,27 +55,38 @@ describe("registerSecModels", () => {
     expect(record.provider_config.model_name).toBe("claude-sonnet-5");
   });
 
-  it("registers the default model so findByName resolves it", async () => {
+  it("builds a routable HFT record", () => {
+    const record = hftModelRecord("onnx-community/Qwen2.5-0.5B-Instruct");
+    expect(record.provider).toBe("HF_TRANSFORMERS_ONNX");
+    expect(record.provider_config.model_path).toBe("onnx-community/Qwen2.5-0.5B-Instruct");
+    expect(record.capabilities).toContain("json-mode");
+  });
+
+  it("dispatches secModelRecord by id shape (org/name → HFT, else Anthropic)", () => {
+    expect(secModelRecord("claude-opus-4-8").provider).toBe("ANTHROPIC");
+    expect(secModelRecord("onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(
+      "HF_TRANSFORMERS_ONNX"
+    );
+  });
+
+  it("registers the cloud default + local HFT default so findByName resolves them", async () => {
     await registerSecModels();
-    const record = await getGlobalModelRepository().findByName("claude-sonnet-5");
-    expect(record?.provider).toBe("ANTHROPIC");
-    expect(record?.provider_config?.model_name).toBe("claude-sonnet-5");
+    const repo = getGlobalModelRepository();
+    expect((await repo.findByName("claude-sonnet-5"))?.provider).toBe("ANTHROPIC");
+    expect((await repo.findByName(SecHftModelDefault))?.provider).toBe("HF_TRANSFORMERS_ONNX");
   });
 
   it("is idempotent — a second run does not duplicate or throw", async () => {
     await registerSecModels();
+    const size = await getGlobalModelRepository().size();
     await registerSecModels();
-    expect(await getGlobalModelRepository().size()).toBe(1);
+    expect(await getGlobalModelRepository().size()).toBe(size);
   });
 
-  it("also registers a per-extractor override model id", async () => {
-    // SecModelDefault is captured at import (claude-sonnet-5 with env unset); the
-    // per-extractor override is read fresh from the env by secModelIds().
-    process.env.SEC_REDEMPTION_MODEL = "claude-haiku-4-5";
-    await registerSecModels();
+  it("registerModelIds registers an explicit list by provider-appropriate record", async () => {
+    await registerModelIds(["claude-haiku-4-5", "onnx-community/tiny"]);
     const repo = getGlobalModelRepository();
-    expect((await repo.findByName("claude-sonnet-5"))?.provider).toBe("ANTHROPIC");
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
-    expect(await repo.size()).toBe(2);
+    expect((await repo.findByName("onnx-community/tiny"))?.provider).toBe("HF_TRANSFORMERS_ONNX");
   });
 });
