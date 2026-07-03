@@ -109,9 +109,6 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   if (!PRICED_PROSPECTUS_FORMS.has(form)) return;
 
   // --- AI offering sections (priced prospectuses only) ---
-  const model = args.model ?? (await getS1Model());
-  const model_id = resolveModelId(model);
-
   const deadLetters = new ExtractionDeadLetterRepo();
   const recordFail = (section: string, reason: string, detail: string | null) =>
     deadLetters.record({
@@ -123,6 +120,21 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+
+  // Model unavailable: the deterministic issuer observation above already
+  // persisted; dead-letter the offering sections (not abort the filing) so a
+  // retry can resolve them once a model is registered.
+  let model: ModelConfig;
+  try {
+    model = args.model ?? (await getS1Model());
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    for (const section of OFFERING_SECTION_NAMES) {
+      await recordFail(section, "MODEL_RESOLUTION_ERROR", detail);
+    }
+    return;
+  }
+  const model_id = resolveModelId(model);
 
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.

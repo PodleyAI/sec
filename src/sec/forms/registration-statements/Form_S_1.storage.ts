@@ -79,8 +79,19 @@ export interface ProcessFormS1Args {
 
 export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const { cik, accession_number, formS1 } = args;
-  const model = args.model ?? (await getS1Model());
-  const model_id = resolveModelId(model);
+  // A misconfigured/unregistered SEC_S1_MODEL must not discard the deterministic
+  // work below (XBRL facts, issuer identity, the SPAC registration row). Resolve
+  // to null on failure and dead-letter the AI sections, mirroring the PARSE_ERROR
+  // containment further down (and the redemption 8-K path).
+  let model: ModelConfig | null;
+  let modelError: string | null = null;
+  try {
+    model = args.model ?? (await getS1Model());
+  } catch (err) {
+    model = null;
+    modelError = err instanceof Error ? err.message : String(err);
+  }
+  const model_id = model ? resolveModelId(model) : null;
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
@@ -192,6 +203,25 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+
+  // Model unavailable: the deterministic work above (XBRL, issuer observation,
+  // SPAC classification) has persisted. Record the base SPAC registration row so
+  // the SPAC is still tracked — and its de-SPAC 8-K milestones can attach — then
+  // dead-letter every AI section so a retry resolves them once a model exists.
+  if (!model) {
+    if (isSpac) await new SpacReportWriter().recordRegistration(baseReg);
+    const sectionNames: readonly string[] = [
+      S1_SECTIONS.MANAGEMENT,
+      S1_SECTIONS.BENEFICIAL_OWNERSHIP,
+      S1_SECTIONS.RELATED_PARTY,
+      ...OFFERING_SECTION_NAMES,
+      ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
+    ];
+    for (const section of sectionNames) {
+      await recordFail(section, "MODEL_RESOLUTION_ERROR", modelError);
+    }
+    return;
+  }
 
   // Converting real-world HTML can throw on malformed/adversarial input. A throw
   // here would abort the whole filing with no record; instead dead-letter every
