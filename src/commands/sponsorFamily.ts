@@ -9,6 +9,7 @@ import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
 import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../storage/canonical/CanonicalSponsorFamilyAliasRepo";
 import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
+import { registerFamilyDescribeCommands } from "./familyDescribe";
 
 /**
  * Returns the issuer CIKs of every SPAC backed by the named sponsor family.
@@ -99,6 +100,8 @@ export function registerSponsorFamilyCommands(program: Command): void {
         console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
       }
     });
+
+  registerFamilyDescribeCommands(fam, "sponsor-family", normalizeSponsorFamilyName);
 
   canonical.addCommand(fam);
 

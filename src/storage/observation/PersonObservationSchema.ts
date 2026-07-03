@@ -54,12 +54,22 @@ export const PersonObservationSchema = Type.Object({
   normalized_suffix: TypeNullable(Type.String({ maxLength: 32 })),
   title: TypeNullable(Type.String({ maxLength: 256 })),
   relationship: TypeNullable(Type.String({ maxLength: 64 })),
+  // Leadership enrichment (embarc-facing). `birth_year` is derived from a stated
+  // age in the filing (filing_year − age) so present age stays recomputable;
+  // `bio` is the person's biography prose from the management section.
+  birth_year: TypeNullable(
+    Type.Integer({
+      minimum: 1900,
+      maximum: 2100,
+      description: "Derived from stated age (filing_year − age)",
+    })
+  ),
+  bio: TypeNullable(Type.String({ description: "Biography prose from the management section" })),
   raw_address_id: TypeNullable(Type.String({ maxLength: 64 })),
   raw_phone_id: TypeNullable(Type.String({ maxLength: 20 })),
   source_context: TypeNullable(
     Type.String({
-      description:
-        "JSON-encoded parser-specific fields that don't earn a first-class column",
+      description: "JSON-encoded parser-specific fields that don't earn a first-class column",
     })
   ),
   created_at: Type.String({ description: "ISO 8601 timestamp" }),
@@ -76,6 +86,4 @@ export type PersonObservationRepositoryStorage = ITabularStorage<
 >;
 
 export const PERSON_OBSERVATION_REPOSITORY_TOKEN =
-  createServiceToken<PersonObservationRepositoryStorage>(
-    "sec.storage.personObservationRepository"
-  );
+  createServiceToken<PersonObservationRepositoryStorage>("sec.storage.personObservationRepository");

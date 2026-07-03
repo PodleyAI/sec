@@ -32,6 +32,8 @@ import {
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 const EXTRACTOR_ID = "merger-proxy";
+// Stays 1.0.0: no persisted data to re-extract, so the target_description
+// addition needs no version bump (see the S-1 processor for the rationale).
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
 const MERGER_SECTION = "merger";
 /** Definitive merger statements emit a `proxy` lifecycle event; others do not. */
@@ -201,6 +203,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
           target_name: targetName === "" ? null : targetName,
           target_cik,
           target_observation_id,
+          target_description: deal.target_description ?? null,
           pipe_amount: deal.pipe_amount,
           merger_consideration: deal.merger_consideration,
           confidence: deal.confidence,

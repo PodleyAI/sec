@@ -35,10 +35,17 @@ export const SpacSchema = Type.Object({
   status: TypeStringEnum(SPAC_STATUSES, { description: "Lifecycle status" }),
 
   // Names (three eras + close-time snapshot)
-  spac_name: TypeNullable(Type.String({ maxLength: 200, description: "Blank-check shell name at IPO" })),
-  target_name: TypeNullable(Type.String({ maxLength: 200, description: "Active deal's target name" })),
+  spac_name: TypeNullable(
+    Type.String({ maxLength: 200, description: "Blank-check shell name at IPO" })
+  ),
+  target_name: TypeNullable(
+    Type.String({ maxLength: 200, description: "Active deal's target name" })
+  ),
   surviving_name: TypeNullable(
-    Type.String({ maxLength: 200, description: "Combined entity name as of de-SPAC close (snapshot)" })
+    Type.String({
+      maxLength: 200,
+      description: "Combined entity name as of de-SPAC close (snapshot)",
+    })
   ),
   current_name: TypeNullable(Type.String({ maxLength: 200, description: "Latest known name" })),
 
@@ -49,15 +56,58 @@ export const SpacSchema = Type.Object({
 
   // Tickers (three eras; JSON-encoded string arrays)
   spac_tickers: TypeNullable(Type.String({ description: "JSON string[] of SPAC-era tickers" })),
-  post_merger_tickers: TypeNullable(Type.String({ description: "JSON string[] of post-merger tickers" })),
+  post_merger_tickers: TypeNullable(
+    Type.String({ description: "JSON string[] of post-merger tickers" })
+  ),
   current_tickers: TypeNullable(Type.String({ description: "JSON string[] of current tickers" })),
 
   // Amounts
   ipo_proceeds: TypeNullable(Type.Number({ description: "Gross IPO proceeds" })),
-  trust_amount: TypeNullable(Type.Number({ description: "Initial trust amount (redeemable cash)" })),
+  trust_amount: TypeNullable(
+    Type.Number({ description: "Initial trust amount (redeemable cash)" })
+  ),
   pipe_amount: TypeNullable(Type.Number({ description: "PIPE financing on the active deal" })),
   total_redemption_amount: TypeNullable(
     Type.Number({ description: "Cumulative redemptions across all votes" })
+  ),
+
+  // Narrative / enrichment (embarc-facing). Merge-preserved filing-sourced
+  // scalars under the same `as_of` guard as the other scalars. `focus` /
+  // `focus_location` are JSON-encoded string[] (mirroring the `spac_tickers`
+  // pattern); `details` is a JSON-encoded key/value object. `url_sponsor` has no
+  // reliable SEC source and is editorial/manual (column only). `target_description`
+  // (merger-proxy) and `investorpres_*` (event stream) land in later phases.
+  focus: TypeNullable(
+    Type.String({
+      description: "JSON string[] of business sector focus tags (controlled vocabulary)",
+    })
+  ),
+  focus_location: TypeNullable(
+    Type.String({ description: "JSON string[] of geographic focus tags (e.g. 'Latin America')" })
+  ),
+  description: TypeNullable(
+    Type.String({ description: "SPAC narrative description (blank-check business purpose)" })
+  ),
+  target_description: TypeNullable(
+    Type.String({ description: "Target company description (derived from the active deal)" })
+  ),
+  team: TypeNullable(Type.String({ description: "Management team narrative text" })),
+  details: TypeNullable(Type.String({ description: "JSON key/value freeform details map" })),
+  url_spac: TypeNullable(Type.String({ maxLength: 500, description: "SPAC website URL" })),
+  url_sponsor: TypeNullable(
+    Type.String({ maxLength: 500, description: "Sponsor website URL (editorial/manual)" })
+  ),
+  investorpres_url: TypeNullable(
+    Type.String({
+      maxLength: 500,
+      description: "Investor presentation URL (derived from event stream)",
+    })
+  ),
+  investorpres_date: TypeNullable(
+    Type.String({
+      format: "date",
+      description: "Investor presentation date (derived from event stream)",
+    })
   ),
 
   // Rolled-up key dates
@@ -84,7 +134,11 @@ export const SpacSchema = Type.Object({
 export type Spac = Static<typeof SpacSchema>;
 
 export const SpacPrimaryKeyNames = ["cik"] as const;
-export type SpacRepositoryStorage = ITabularStorage<typeof SpacSchema, typeof SpacPrimaryKeyNames, Spac>;
+export type SpacRepositoryStorage = ITabularStorage<
+  typeof SpacSchema,
+  typeof SpacPrimaryKeyNames,
+  Spac
+>;
 
 export const SPAC_REPOSITORY_TOKEN = createServiceToken<SpacRepositoryStorage>(
   "sec.storage.spacRepository"

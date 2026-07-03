@@ -186,6 +186,11 @@ import {
   CanonicalSponsorFamilySchema,
 } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
+  FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+  FamilyDescriptionPrimaryKeyNames,
+  FamilyDescriptionSchema,
+} from "../storage/canonical/FamilyDescriptionSchema";
+import {
   SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
   SponsorFamilyMembershipPrimaryKeyNames,
   SponsorFamilyMembershipSchema,
@@ -325,11 +330,7 @@ import {
   Form8KEventSchema,
   Form8KEventUniqueIndexes,
 } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  SPAC_REPOSITORY_TOKEN,
-  SpacPrimaryKeyNames,
-  SpacSchema,
-} from "../storage/spac/SpacSchema";
+import { SPAC_REPOSITORY_TOKEN, SpacPrimaryKeyNames, SpacSchema } from "../storage/spac/SpacSchema";
 import {
   SPAC_DEAL_REPOSITORY_TOKEN,
   SpacDealPrimaryKeyNames,
@@ -886,6 +887,12 @@ export const DefaultDI = () => {
       CanonicalSponsorFamilyAliasPrimaryKeyNames,
       [["target_canonical_id"]]
     )
+  );
+  globalServiceRegistry.registerInstance(
+    FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+    createStorage("family_description", FamilyDescriptionSchema, FamilyDescriptionPrimaryKeyNames, [
+      ["family_kind"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,

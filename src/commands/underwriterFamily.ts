@@ -9,6 +9,7 @@ import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyRes
 import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
+import { registerFamilyDescribeCommands } from "./familyDescribe";
 import { IssuerTickerRepo } from "../storage/offering/IssuerTickerRepo";
 import { registerIssuerDealCommand } from "./issuerDeal";
 
@@ -139,6 +140,8 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         }
       }
     });
+
+  registerFamilyDescribeCommands(fam, "underwriter-family", normalizeUnderwriterFamilyName);
 
   canonical.addCommand(fam);
 

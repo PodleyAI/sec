@@ -30,6 +30,17 @@ export const SpacHistorySchema = Type.Object({
   trust_amount: TypeNullable(Type.Number()),
   pipe_amount: TypeNullable(Type.Number()),
   total_redemption_amount: TypeNullable(Type.Number()),
+  // Narrative / enrichment (mirrors SpacSchema).
+  focus: TypeNullable(Type.String()),
+  focus_location: TypeNullable(Type.String()),
+  description: TypeNullable(Type.String()),
+  target_description: TypeNullable(Type.String()),
+  team: TypeNullable(Type.String()),
+  details: TypeNullable(Type.String()),
+  url_spac: TypeNullable(Type.String({ maxLength: 500 })),
+  url_sponsor: TypeNullable(Type.String({ maxLength: 500 })),
+  investorpres_url: TypeNullable(Type.String({ maxLength: 500 })),
+  investorpres_date: TypeNullable(Type.String({ format: "date" })),
   registration_date: TypeNullable(Type.String({ format: "date" })),
   ipo_date: TypeNullable(Type.String({ format: "date" })),
   unit_split_date: TypeNullable(Type.String({ format: "date" })),
@@ -38,7 +49,10 @@ export const SpacHistorySchema = Type.Object({
   vote_date: TypeNullable(Type.String({ format: "date" })),
   completed_date: TypeNullable(Type.String({ format: "date" })),
   failed_date: TypeNullable(Type.String({ format: "date" })),
-  change_source: Type.String({ maxLength: 50, description: "Form/accession that drove the change" }),
+  change_source: Type.String({
+    maxLength: 50,
+    description: "Form/accession that drove the change",
+  }),
   change_date: Type.String({ format: "date-time" }),
 });
 

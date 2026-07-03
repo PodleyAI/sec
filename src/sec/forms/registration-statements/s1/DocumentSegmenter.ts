@@ -15,6 +15,9 @@ export const S1_SECTIONS = {
   UNDERWRITING: "Underwriting",
   USE_OF_PROCEEDS: "Use of Proceeds",
   THE_SPONSOR: "The Sponsor",
+  // SPAC business/summary prose feeding the profile extractor (focus, focus
+  // location, description, website).
+  PROSPECTUS_SUMMARY: "Prospectus Summary",
   // Merger-proxy (DEFM14A/PREM14A) sections; read by the merger-proxy extractor.
   THE_MERGER: "The Merger",
   BUSINESS_COMBINATION: "The Business Combination",
@@ -54,6 +57,16 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
   [S1_SECTIONS.THE_SPONSOR]: [
     /^\s*(the|our) sponsor\s*$/i,
     /^\s*the sponsor and its affiliates\s*$/i,
+  ],
+  // Whole-line anchoring keeps these from matching "Summary Financial Data",
+  // "Summary of the Offering", etc.; the segmenter keeps the longest-body
+  // occurrence so a TOC stub loses to the real section.
+  [S1_SECTIONS.PROSPECTUS_SUMMARY]: [
+    /^\s*prospectus summary\s*$/i,
+    /^\s*summary\s*$/i,
+    /^\s*(our|the) company\s*$/i,
+    /^\s*(our |the |proposed )?business\s*$/i,
+    /^\s*(our )?business strategy\s*$/i,
   ],
   [S1_SECTIONS.THE_MERGER]: [/^\s*the merger\s*$/i, /^\s*the merger agreement\s*$/i],
   [S1_SECTIONS.BUSINESS_COMBINATION]: [

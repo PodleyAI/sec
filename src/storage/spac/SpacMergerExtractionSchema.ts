@@ -25,6 +25,9 @@ export const SpacMergerExtractionSchema = Type.Object({
   target_name: TypeNullable(Type.String({ maxLength: 300 })),
   target_cik: TypeNullable(Type.Integer({ minimum: 0 })),
   target_observation_id: TypeNullable(Type.Integer({ minimum: 0 })),
+  target_description: TypeNullable(
+    Type.String({ maxLength: 4000, description: "Target company description" })
+  ),
   pipe_amount: TypeNullable(Type.Number()),
   merger_consideration: TypeNullable(Type.String({ maxLength: 2000 })),
   confidence: Type.Number(),

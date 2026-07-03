@@ -15,6 +15,11 @@ import {
   type RelatedPartyRow,
 } from "./sectionSchemas";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
+import {
+  FOCUS_VOCABULARY,
+  SpacProfileOutputSchema,
+  type SpacProfileRow,
+} from "./spacProfileSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
@@ -250,7 +255,9 @@ export async function extractManagement(
   const instructions =
     "Extract every director and executive officer named in the S-1 MANAGEMENT section " +
     "between the tags below. For each, give full_name, title (or null), relationship " +
-    "(or null), a confidence in [0,1], and the verbatim source_span you drew them from. " +
+    "(or null), age (the person's stated age as an integer, or null if not stated), bio " +
+    "(a short biography summarizing their background/experience as stated, or null), a " +
+    "confidence in [0,1], and the verbatim source_span you drew them from. " +
     "Return JSON matching the schema.";
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
@@ -347,6 +354,46 @@ export async function extractSpacSponsors(
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }
 
+/**
+ * Extracts a SPAC's blank-check business profile (sector focus, geographic
+ * focus, narrative description, team blurb, website) from the prospectus
+ * summary / proposed-business prose. Returns null when the model is not
+ * confident or cites no source span (mirrors {@link extractOfferingTerms}).
+ * `focus` values are constrained to {@link FOCUS_VOCABULARY}.
+ */
+export async function extractSpacProfile(
+  sectionText: string,
+  model: ModelConfig
+): Promise<SpacProfileRow | null> {
+  const instructions =
+    "The text between the tags below is from a SPAC (blank-check) registration " +
+    "statement's summary / proposed-business prose. Extract the SPAC's acquisition " +
+    "profile. Give focus: an array of business SECTORS the SPAC intends to target, " +
+    "chosen ONLY from this controlled list (use the exact strings, pick the closest " +
+    `matches, and use an empty array if the SPAC is a generalist with no stated sector): ` +
+    `${FOCUS_VOCABULARY.join(", ")}. ` +
+    "Give focus_location: an array of geographic regions/countries the SPAC targets " +
+    "(e.g. 'North America', 'Latin America', 'Europe', 'Southeast Asia'); empty array " +
+    "if none stated. Give description: a concise 1-3 sentence description of the SPAC " +
+    "and its business purpose (or null). Give team: a short narrative describing the " +
+    "management/sponsor team's background and experience (or null). Give url_spac: the " +
+    "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
+    "source_span you drew the focus/description from. Return JSON matching the schema.";
+  const { wrapped, nonce } = wrapUntrusted(sectionText);
+  const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
+  const obj = await runStructured(model, prompt, SpacProfileOutputSchema);
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return {
+    focus: Array.isArray(obj.focus) ? (obj.focus as string[]) : [],
+    focus_location: Array.isArray(obj.focus_location) ? (obj.focus_location as string[]) : [],
+    description: (obj.description as string | null) ?? null,
+    team: (obj.team as string | null) ?? null,
+    url_spac: (obj.url_spac as string | null) ?? null,
+    confidence: obj.confidence as number,
+    source_span: obj.source_span as string,
+  };
+}
+
 export async function extractMergerDeal(
   sectionText: string,
   model: ModelConfig
@@ -354,8 +401,9 @@ export async function extractMergerDeal(
   const instructions =
     "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
     "Identify the business-combination target and deal terms. Give target_name (the " +
-    "operating company the SPAC will merge with), pipe_amount (the total PIPE " +
-    "investment in dollars, or null), merger_consideration (a short verbatim phrase " +
+    "operating company the SPAC will merge with), target_description (a concise 1-3 " +
+    "sentence description of the target company's business, or null), pipe_amount (the " +
+    "total PIPE investment in dollars, or null), merger_consideration (a short verbatim phrase " +
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
     "Return JSON matching the schema.";

@@ -30,13 +30,11 @@ import {
   extractBeneficialOwnership,
   extractManagement,
   extractRelatedParty,
+  extractSpacProfile,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
-import type {
-  BeneficialOwnerRow,
-  ManagementPersonRow,
-  RelatedPartyRow,
-} from "./s1/sectionSchemas";
+import type { SpacProfileRow } from "./s1/spacProfileSchema";
+import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
 import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
@@ -44,21 +42,29 @@ import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "S-1";
-// v1.1.0: SPAC sponsor extraction now requires the LLM-returned source_span to
-// appear verbatim (after light normalization) in the section text before a
-// canonical sponsor row is persisted.
-// v1.2.0: prompt-injection hardening — UNTRUSTED_FILER_DOCUMENT XML wrap +
-// preamble in every section prompt, plus verifyRow source_span verification
-// on management / beneficial-ownership / related-party / offering-terms /
-// underwriters / use-of-proceeds (previously only SPAC sponsors). The wrap
-// changes the prompt the model sees, so confidence calibration drifts
-// downstream; treat as a fresh dev cycle.
-// v1.3.0: deepened the injection seal — the fence tag now carries a per-call
-// random nonce, the section body is HTML-entity-decoded + NFKC-normalized +
-// zero-width-stripped before defang so obfuscated fence-tag lookalikes are
-// caught, and stored source_span columns are capped at the raw-byte level
-// to deny adversarial spans unbounded storage.
-const DEFAULT_EXTRACTOR_VERSION = "1.3.0";
+// Stays 1.0.0: there is no persisted data to re-extract, so the version-bump
+// ceremony — which exists only to make old dead-letters retry-eligible after a
+// prompt/schema change — is moot (and the runtime version is bootstrap-seeded
+// to 1.0.0 regardless of this fallback). The prompt/schema has evolved
+// (source_span verification, prompt-injection hardening, the SPAC "Prospectus
+// Summary" profile section), but with a blank DB none of it needs a bump;
+// revisit versioning once a populated database exists.
+const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+
+/**
+ * Convert a stated age (from the management section, relative to the filing
+ * date) into a stable birth year. Returns null for a missing/implausible age or
+ * an unparseable filing date, so a garbage model value never lands on the row.
+ */
+export function birthYearFromAge(age: number | null, filingDate: string): number | null {
+  if (age == null || !Number.isFinite(age) || age < 18 || age > 120) return null;
+  const filingYear = Number.parseInt(filingDate.slice(0, 4), 10);
+  if (!Number.isFinite(filingYear) || filingYear < 1900 || filingYear > 2100) return null;
+  const birthYear = filingYear - Math.trunc(age);
+  // Keep within the PersonObservation.birth_year schema range [1900, 2100];
+  // a very old age on an early filing could otherwise fall below 1900.
+  return birthYear >= 1900 && birthYear <= 2100 ? birthYear : null;
+}
 
 export interface ProcessFormS1Args {
   readonly cik: number;
@@ -158,18 +164,23 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     created_at: new Date().toISOString(),
   });
 
-  // Consolidated SPAC report: record the registration event (SPAC filings only).
-  if (isSpac) {
-    await new SpacReportWriter().recordRegistration({
-      cik,
-      accession_number,
-      filing_date: args.filing_date,
-      form: args.form,
-      primary_document: null,
-      spac_name: xbrl.name ?? formS1.header?.companyName ?? null,
-      spac_sic: headerSic,
-    });
-  }
+  // Consolidated SPAC report: the registration event + row is recorded below,
+  // AFTER segmentation, so the AI-extracted profile (focus / description / team
+  // / website) can be merged onto the same registration write. The base row is
+  // still created on the parse-failure path so a SPAC whose HTML fails to
+  // convert is not lost.
+  const spacName = xbrl.name ?? formS1.header?.companyName ?? null;
+  // Shared base for the registration write; the success path spreads the
+  // AI-extracted profile fields onto it, the parse-failure path uses it as-is.
+  const baseReg = {
+    cik,
+    accession_number,
+    filing_date: args.filing_date,
+    form: args.form,
+    primary_document: null,
+    spac_name: spacName,
+    spac_sic: headerSic,
+  };
 
   const recordFail = (section: string, reason: string, detail: string | null) =>
     deadLetters.record({
@@ -192,6 +203,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
+    // The HTML failed to convert, so no profile can be extracted — still create
+    // the base SPAC row (registration event + name/SIC) so the SPAC is tracked.
+    if (isSpac) {
+      await new SpacReportWriter().recordRegistration(baseReg);
+    }
     // Dead-letter each section under the name its runSection ceremony uses
     // (entity sections use segment names; the derived sections use literal
     // names) so a later successful retry markResolves every entry — letters
@@ -201,7 +217,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
       ...OFFERING_SECTION_NAMES,
-      ...(isSpac ? ["spac-sponsors"] : []),
+      ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
     ];
     for (const section of sectionNames) {
       await recordFail(section, "PARSE_ERROR", detail);
@@ -223,6 +239,52 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // but the original entity blocks only checked `=== undefined`. Section text
   // sourced directly from `byName` is never the empty string (the segmenter
   // emits non-empty section bodies), so the two checks coincide in practice.
+
+  // --- SPAC profile (gated) → registration event + row ---
+  // Runs before the base registration write so the AI-extracted focus /
+  // description / team / website ride onto the same `recordRegistration` patch.
+  // Extraction is best-effort: a missing summary section or low-confidence
+  // result dead-letters `spac-profile` and leaves the row's narrative null,
+  // while still recording the registration event below.
+  // Holder (not a bare `let`) so the captured value keeps its declared type at
+  // the read site below — a `let` assigned only inside the persist closure gets
+  // pinned to its `null` initializer by TS control-flow analysis.
+  const profileHolder: { row: SpacProfileRow | null } = { row: null };
+  if (isSpac) {
+    await runSection<SpacProfileRow>({
+      sectionName: "spac-profile",
+      text: byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
+      notFoundDetail: "no prospectus summary / business section text",
+      emptyDetail: "no SPAC profile returned",
+      lowConfidenceDetail: "profile below confidence floor",
+      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+      unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
+      extract: async (text) => {
+        const p = await extractSpacProfile(text, model);
+        return p === null ? [] : [p];
+      },
+      persist: async (rows) => {
+        profileHolder.row = rows[0];
+        return 1;
+      },
+    });
+
+    const profile = profileHolder.row;
+    await new SpacReportWriter().recordRegistration({
+      ...baseReg,
+      // JSON-encode the string[] facets (mirrors spac_tickers: empty array ->
+      // null, not "[]", so a later filing that restates no tags does not clobber
+      // previously-extracted focus under the rollup's non-null-wins merge).
+      focus: profile && profile.focus.length > 0 ? JSON.stringify(profile.focus) : null,
+      focus_location:
+        profile && profile.focus_location.length > 0
+          ? JSON.stringify(profile.focus_location)
+          : null,
+      description: profile?.description ?? null,
+      team: profile?.team ?? null,
+      url_spac: profile?.url_spac ?? null,
+    });
+  }
 
   // --- Management ---
   await runSection<ManagementPersonRow>({
@@ -252,6 +314,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           suffix: name.suffix,
           title: r.title,
           relationship: r.relationship ?? "s1:management",
+          // Store birth_year (not age) so present age stays recomputable; a
+          // stated age is relative to the filing date.
+          birth_year: birthYearFromAge(r.age, args.filing_date),
+          bio: r.bio,
           source_context: JSON.stringify({ relation: "s1:management" }),
         });
         await provenance.save({

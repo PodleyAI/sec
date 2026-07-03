@@ -26,6 +26,16 @@ export interface SpacRowPatch {
   readonly current_tickers?: string | null;
   readonly ipo_proceeds?: number | null;
   readonly trust_amount?: number | null;
+  // Narrative / enrichment scalars (embarc-facing). `focus` / `focus_location`
+  // / `details` are JSON-encoded strings; `url_sponsor` is editorial (no SEC
+  // writer), preserved across replays like the rest.
+  readonly focus?: string | null;
+  readonly focus_location?: string | null;
+  readonly description?: string | null;
+  readonly team?: string | null;
+  readonly details?: string | null;
+  readonly url_spac?: string | null;
+  readonly url_sponsor?: string | null;
 }
 
 export interface BuildSpacRowInput {
@@ -39,9 +49,37 @@ export interface BuildSpacRowInput {
 }
 
 function minEventDate(events: readonly SpacEvent[], type: string): string | null {
-  const dates = events.filter((e) => e.event_type === type && e.event_date).map((e) => e.event_date);
+  const dates = events
+    .filter((e) => e.event_type === type && e.event_date)
+    .map((e) => e.event_date);
   if (dates.length === 0) return null;
   return dates.reduce((a, b) => (a.localeCompare(b) <= 0 ? a : b));
+}
+
+/**
+ * Latest investor-presentation exhibit (url + date). Derived from the event
+ * stream — an `investor_presentation` event carries the deck URL in
+ * `source_document_url`. Population of these events is deferred to a dedicated
+ * 8-K Item 7.01 EX-99 exhibit extractor; until then this yields null/null.
+ */
+function latestInvestorPres(events: readonly SpacEvent[]): {
+  url: string | null;
+  date: string | null;
+} {
+  // Single-pass max by (event_date, accession_number); no need to sort the array.
+  let latest: SpacEvent | null = null;
+  for (const e of events) {
+    if (e.event_type !== "investor_presentation") continue;
+    if (
+      latest === null ||
+      e.event_date.localeCompare(latest.event_date) > 0 ||
+      (e.event_date === latest.event_date &&
+        e.accession_number.localeCompare(latest.accession_number) > 0)
+    ) {
+      latest = e;
+    }
+  }
+  return { url: latest?.source_document_url ?? null, date: latest?.event_date ?? null };
 }
 
 /**
@@ -136,13 +174,19 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
 
   // Pre-merger, current_* mirrors spac_* unless a later filing set them explicitly.
   const surviving_name = pick("surviving_name");
-  const current_name = applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
-  const current_sic = applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
+  const current_name =
+    applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
+  const current_sic =
+    applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
   const current_tickers =
-    applied.current_tickers ?? existing?.current_tickers ?? pick("post_merger_tickers") ?? spac_tickers;
+    applied.current_tickers ??
+    existing?.current_tickers ??
+    pick("post_merger_tickers") ??
+    spac_tickers;
 
   // Event/deal-derived fields: always recomputed (order-independent, idempotent).
   const active = activeDeal(deals);
+  const investorPres = latestInvestorPres(events);
   const hasFailed =
     events.some((e) => e.event_type === "liquidation" || e.event_type === "deregistration") &&
     !deals.some((d) => d.outcome === "completed");
@@ -159,6 +203,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     status: deriveStatus(events, active, hasFailed, hasIpo),
     spac_name,
     target_name: active?.target_name ?? null,
+    target_description: active?.target_description ?? null,
     surviving_name,
     current_name,
     spac_sic,
@@ -169,6 +214,15 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     current_tickers,
     ipo_proceeds: pick("ipo_proceeds"),
     trust_amount: pick("trust_amount"),
+    focus: pick("focus"),
+    focus_location: pick("focus_location"),
+    description: pick("description"),
+    team: pick("team"),
+    details: pick("details"),
+    url_spac: pick("url_spac"),
+    url_sponsor: pick("url_sponsor"),
+    investorpres_url: investorPres.url,
+    investorpres_date: investorPres.date,
     pipe_amount: active?.pipe_amount ?? null,
     total_redemption_amount: sumRedemptions(deals),
     registration_date: minEventDate(events, "registration"),
@@ -178,7 +232,9 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     proxy_date: active?.proxy_date ?? null,
     vote_date: active?.vote_date ?? null,
     completed_date: active?.outcome === "completed" ? (active.outcome_date ?? null) : null,
-    failed_date: hasFailed ? minEventDate(events, "liquidation") ?? minEventDate(events, "deregistration") : null,
+    failed_date: hasFailed
+      ? (minEventDate(events, "liquidation") ?? minEventDate(events, "deregistration"))
+      : null,
     as_of: nextAsOf,
     updated_at: new Date().toISOString(),
   };

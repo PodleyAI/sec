@@ -33,6 +33,8 @@ export type PersonObservationDraft = Omit<
   | "normalized_suffix"
   | "title"
   | "relationship"
+  | "birth_year"
+  | "bio"
   | "raw_address_id"
   | "raw_phone_id"
   | "source_context"
@@ -52,6 +54,8 @@ export type PersonObservationDraft = Omit<
       | "normalized_suffix"
       | "title"
       | "relationship"
+      | "birth_year"
+      | "bio"
       | "raw_address_id"
       | "raw_phone_id"
       | "source_context"
@@ -192,6 +196,8 @@ export class PersonObservationRepo {
       normalized_suffix: draft.normalized_suffix ?? null,
       title: draft.title ?? null,
       relationship: draft.relationship ?? null,
+      birth_year: draft.birth_year ?? null,
+      bio: draft.bio ?? null,
       raw_address_id: draft.raw_address_id ?? null,
       raw_phone_id: draft.raw_phone_id ?? null,
       source_context: draft.source_context ?? null,

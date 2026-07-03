@@ -184,6 +184,11 @@ import {
   CanonicalSponsorFamilySchema,
 } from "../storage/canonical/CanonicalSponsorFamilySchema";
 import {
+  FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+  FamilyDescriptionPrimaryKeyNames,
+  FamilyDescriptionSchema,
+} from "../storage/canonical/FamilyDescriptionSchema";
+import {
   SPONSOR_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN,
   SponsorFamilyMembershipPrimaryKeyNames,
   SponsorFamilyMembershipSchema,
@@ -239,11 +244,7 @@ import {
   Form8KEventSchema,
   Form8KEventUniqueIndexes,
 } from "../storage/form-8k-event/Form8KEventSchema";
-import {
-  SPAC_REPOSITORY_TOKEN,
-  SpacPrimaryKeyNames,
-  SpacSchema,
-} from "../storage/spac/SpacSchema";
+import { SPAC_REPOSITORY_TOKEN, SpacPrimaryKeyNames, SpacSchema } from "../storage/spac/SpacSchema";
 import {
   SPAC_DEAL_REPOSITORY_TOKEN,
   SpacDealPrimaryKeyNames,
@@ -495,10 +496,7 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     SPAC_EVENT_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(SpacEventSchema, SpacEventPrimaryKeyNames, [
-      ["cik"],
-      ["event_type"],
-    ])
+    new InMemoryTabularStorage(SpacEventSchema, SpacEventPrimaryKeyNames, [["cik"], ["event_type"]])
   );
   globalServiceRegistry.registerInstance(
     SPAC_HISTORY_REPOSITORY_TOKEN,
@@ -506,11 +504,9 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(
-      SpacMergerExtractionSchema,
-      SpacMergerExtractionPrimaryKeyNames,
-      [["cik"]]
-    )
+    new InMemoryTabularStorage(SpacMergerExtractionSchema, SpacMergerExtractionPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN,
@@ -793,6 +789,12 @@ export function resetDependencyInjectionsForTesting() {
       // DefaultDI for the multi-process race rationale.
       [["resolver_version", "normalized_name"]]
     )
+  );
+  globalServiceRegistry.registerInstance(
+    FAMILY_DESCRIPTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(FamilyDescriptionSchema, FamilyDescriptionPrimaryKeyNames, [
+      ["family_kind"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,

@@ -30,6 +30,9 @@ export const SPAC_EVENT_TYPES = [
   "deregistration",
   "name_change",
   "ticker_change",
+  // An investor-presentation exhibit (e.g. 8-K Item 7.01 EX-99); carries the
+  // deck URL in source_document_url. Reserved for a dedicated exhibit extractor.
+  "investor_presentation",
 ] as const;
 export type SpacEventType = (typeof SPAC_EVENT_TYPES)[number];
 
@@ -42,9 +45,14 @@ export const SpacEventSchema = Type.Object({
   form: TypeNullable(Type.String({ maxLength: 20 })),
   primary_document: TypeNullable(Type.String({ maxLength: 200 })),
   source_document_url: TypeNullable(
-    Type.String({ maxLength: 500, description: "Sub-document URL, e.g. an EX-99.1 investor presentation" })
+    Type.String({
+      maxLength: 500,
+      description: "Sub-document URL, e.g. an EX-99.1 investor presentation",
+    })
   ),
-  deal_index: TypeNullable(Type.Integer({ minimum: 0, description: "Associated spac_deal attempt" })),
+  deal_index: TypeNullable(
+    Type.Integer({ minimum: 0, description: "Associated spac_deal attempt" })
+  ),
   amount: TypeNullable(Type.Number()),
   shares: TypeNullable(Type.Integer({ minimum: 0 })),
   detail: TypeNullable(Type.String({ maxLength: 1024 })),

@@ -19,6 +19,9 @@ export const SpacDealSchema = Type.Object({
   deal_index: Type.Integer({ minimum: 0, description: "0-based ordinal of the attempt" }),
   target_name: TypeNullable(Type.String({ maxLength: 200 })),
   target_cik: TypeNullable(Type.Integer({ minimum: 0 })),
+  target_description: TypeNullable(
+    Type.String({ description: "Target company description (from the merger proxy)" })
+  ),
   announced_date: TypeNullable(Type.String({ format: "date" })),
   definitive_agreement_date: TypeNullable(Type.String({ format: "date" })),
   proxy_date: TypeNullable(Type.String({ format: "date" })),
