@@ -87,8 +87,18 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   const provenance = new ObservationProvenanceRepo();
   const deadLetters = new ExtractionDeadLetterRepo();
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-  const model = args.model ?? (await getMergerProxyModel());
-  const model_id = resolveModelId(model);
+  // A misconfigured/unregistered merger-proxy model must not abort the filing:
+  // the deterministic proxy event (definitive statements) is still emitted below.
+  // Resolve to null on failure and dead-letter the merger section.
+  let model: ModelConfig | null;
+  let modelError: string | null = null;
+  try {
+    model = args.model ?? (await getMergerProxyModel());
+  } catch (err) {
+    model = null;
+    modelError = err instanceof Error ? err.message : String(err);
+  }
+  const model_id = model ? resolveModelId(model) : null;
 
   const recordMergerProxyRun = async (success: boolean, error: string | null): Promise<void> => {
     try {
@@ -141,29 +151,42 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     .filter((t): t is string => typeof t === "string")
     .join("\n\n");
 
-  const runSection = makeRunSection({
-    deadLetters,
-    extractor_id: EXTRACTOR_ID,
-    extractor_version,
-    accession_number,
-    confidenceFloor: getMergerProxyConfidenceFloor(),
-  });
   let idx = 0;
 
-  try {
-    await runSection<MergerDealRow>({
-      sectionName: MERGER_SECTION,
-      text: mergerText === "" ? undefined : mergerText,
-      notFoundDetail: "no merger / business-combination / PIPE section text",
-      emptyDetail: "no merger deal returned",
-      lowConfidenceDetail: "below confidence floor",
-      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
-      unverifiedAllDetail: "merger deal source_span not present in section text",
-      extract: async (text) => {
-        const deal = await extractMergerDeal(text, model);
-        return deal === null ? [] : [deal];
-      },
-      persist: async (rows) => {
+  if (!model) {
+    // No model: dead-letter the merger section but still emit the proxy event
+    // (deterministic, definitive statements only) so the SPAC timeline advances.
+    await deadLetters.record({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: MERGER_SECTION,
+      reason_code: "MODEL_RESOLUTION_ERROR",
+      detail: modelError,
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
+  } else {
+    const runSection = makeRunSection({
+      deadLetters,
+      extractor_id: EXTRACTOR_ID,
+      extractor_version,
+      accession_number,
+      confidenceFloor: getMergerProxyConfidenceFloor(),
+    });
+    try {
+      await runSection<MergerDealRow>({
+        sectionName: MERGER_SECTION,
+        text: mergerText === "" ? undefined : mergerText,
+        notFoundDetail: "no merger / business-combination / PIPE section text",
+        emptyDetail: "no merger deal returned",
+        lowConfidenceDetail: "below confidence floor",
+        verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+        unverifiedAllDetail: "merger deal source_span not present in section text",
+        extract: async (text) => {
+          const deal = await extractMergerDeal(text, model);
+          return deal === null ? [] : [deal];
+        },
+        persist: async (rows) => {
         const deal = rows[0];
         const now = new Date().toISOString();
         let target_observation_id: number | null = null;
@@ -214,10 +237,11 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
         return 1;
       },
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await recordMergerProxyRun(false, message);
-    throw err;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await recordMergerProxyRun(false, message);
+      throw err;
+    }
   }
 
   // Emit the proxy event (definitive only) + recompute/correlate + rebuild.

@@ -13,6 +13,10 @@ export const DEAD_LETTER_REASON_CODES = [
   "SECTION_NOT_FOUND",
   "MODEL_INVALID_OUTPUT",
   "MODEL_EMPTY",
+  // The configured extractor model id is not registered (or is misconfigured).
+  // The deterministic parts of the filing still persist; the AI sections are
+  // dead-lettered so a retry can resolve them once a model is available.
+  "MODEL_RESOLUTION_ERROR",
   "LOW_CONFIDENCE_ALL",
   "PRIMARY_DOC_UNRESOLVED",
   "FETCH_ERROR",
