@@ -25,6 +25,27 @@ const ANTHROPIC_PROVIDER = "ANTHROPIC";
 const DEFAULT_MAX_TOKENS = 8192;
 
 /**
+ * Full capability set for an Anthropic chat model, matching what the Anthropic
+ * provider infers for the claude-4 family. `StructuredGenerationTask` gates on
+ * `json-mode` (and the extractors need `text.generation` / `tool-use`), so the
+ * record must declare these — an empty `capabilities` array trips the gate.
+ * We set them explicitly rather than lean on `inferAnthropicCapabilities`
+ * because the installed provider's id regexes don't yet recognize newer ids
+ * like `claude-sonnet-5` and fall back to a bare meta-ops baseline.
+ */
+const ANTHROPIC_CAPABILITIES: readonly string[] = [
+  "text.generation",
+  "text.rewriter",
+  "text.summary",
+  "tool-use",
+  "json-mode",
+  "vision-input",
+  "model.count-tokens",
+  "model.info",
+  "model.search",
+];
+
+/**
  * Builds a fully-specified Anthropic {@link ModelRecord} for a model id. The
  * shape mirrors what the Anthropic provider's own model search emits (provider
  * discriminator + `provider_config.model_name`), so a record registered here is
@@ -36,7 +57,7 @@ export function anthropicModelRecord(modelId: string): ModelRecord {
     provider: ANTHROPIC_PROVIDER,
     title: modelId,
     description: `Anthropic ${modelId}`,
-    capabilities: [],
+    capabilities: [...ANTHROPIC_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
   };
