@@ -32,9 +32,9 @@ import {
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 const EXTRACTOR_ID = "merger-proxy";
-// v1.1.0: extract target_description (target company business summary) alongside
-// target_name / pipe_amount / merger_consideration.
-const DEFAULT_EXTRACTOR_VERSION = "1.1.0";
+// Stays 1.0.0: no persisted data to re-extract, so the target_description
+// addition needs no version bump (see the S-1 processor for the rationale).
+const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
 const MERGER_SECTION = "merger";
 /** Definitive merger statements emit a `proxy` lifecycle event; others do not. */
 const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A", "DEFM14C"]);

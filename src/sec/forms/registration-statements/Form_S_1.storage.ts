@@ -42,23 +42,14 @@ import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "S-1";
-// v1.1.0: SPAC sponsor extraction now requires the LLM-returned source_span to
-// appear verbatim (after light normalization) in the section text before a
-// canonical sponsor row is persisted.
-// v1.2.0: prompt-injection hardening — UNTRUSTED_FILER_DOCUMENT XML wrap +
-// preamble in every section prompt, plus verifyRow source_span verification
-// on management / beneficial-ownership / related-party / offering-terms /
-// underwriters / use-of-proceeds (previously only SPAC sponsors). The wrap
-// changes the prompt the model sees, so confidence calibration drifts
-// downstream; treat as a fresh dev cycle.
-// v1.3.0: deepened the injection seal — the fence tag now carries a per-call
-// random nonce, the section body is HTML-entity-decoded + NFKC-normalized +
-// zero-width-stripped before defang so obfuscated fence-tag lookalikes are
-// caught, and stored source_span columns are capped at the raw-byte level
-// to deny adversarial spans unbounded storage.
-// v1.4.0: new SPAC "Prospectus Summary" profile section (focus / focus_location
-// / description / team / url_spac) merged onto the spac report row.
-const DEFAULT_EXTRACTOR_VERSION = "1.4.0";
+// Stays 1.0.0: there is no persisted data to re-extract, so the version-bump
+// ceremony — which exists only to make old dead-letters retry-eligible after a
+// prompt/schema change — is moot (and the runtime version is bootstrap-seeded
+// to 1.0.0 regardless of this fallback). The prompt/schema has evolved
+// (source_span verification, prompt-injection hardening, the SPAC "Prospectus
+// Summary" profile section), but with a blank DB none of it needs a bump;
+// revisit versioning once a populated database exists.
+const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
 
 /**
  * Convert a stated age (from the management section, relative to the filing
