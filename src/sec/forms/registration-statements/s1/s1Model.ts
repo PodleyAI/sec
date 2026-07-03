@@ -6,13 +6,12 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-
-const DEFAULT_S1_MODEL = "claude-sonnet-4-6";
+import { SecModelDefault } from "../../../../config/Constants";
 
 /** The model id used for S-1 extraction; overridable via SEC_S1_MODEL. */
 export function getS1ModelId(): string {
   const id = (process.env.SEC_S1_MODEL ?? "").trim();
-  return id === "" ? DEFAULT_S1_MODEL : id;
+  return id === "" ? SecModelDefault : id;
 }
 
 /**

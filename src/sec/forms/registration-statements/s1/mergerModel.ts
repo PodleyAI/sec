@@ -6,17 +6,16 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
+import { SecModelDefault } from "../../../../config/Constants";
 import { resolveModelId } from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
 export { resolveModelId };
 
-const DEFAULT_MERGER_PROXY_MODEL = "claude-sonnet-4-6";
-
 /** The model id used for merger-proxy extraction; overridable via SEC_MERGER_PROXY_MODEL. */
 export function getMergerProxyModelId(): string {
   const id = (process.env.SEC_MERGER_PROXY_MODEL ?? "").trim();
-  return id === "" ? DEFAULT_MERGER_PROXY_MODEL : id;
+  return id === "" ? SecModelDefault : id;
 }
 
 /** Resolves the configured merger-proxy model into a ModelConfig. */

@@ -25,9 +25,9 @@ afterEach(() => {
 });
 
 describe("getRedemptionModelId", () => {
-  it("defaults to claude-sonnet-4-6 when unset", () => {
+  it("defaults to claude-sonnet-5 when unset", () => {
     delete process.env[MODEL_ENV];
-    expect(getRedemptionModelId()).toBe("claude-sonnet-4-6");
+    expect(getRedemptionModelId()).toBe("claude-sonnet-5");
   });
   it("honors SEC_REDEMPTION_MODEL when set", () => {
     process.env[MODEL_ENV] = "claude-opus-4-8";
