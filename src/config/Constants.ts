@@ -14,3 +14,11 @@
 const DEFAULT_SEC_USER_AGENT = "PodleyAI SEC Job Queue sroussey@gmail.com";
 export const SecUserAgent = process.env.SEC_USER_AGENT?.trim() || DEFAULT_SEC_USER_AGENT;
 export const SecJobQueueName = "sec_job_queue";
+
+/**
+ * General default model id shared by every SEC AI extractor (S-1, merger-proxy,
+ * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
+ * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
+ */
+const DEFAULT_SEC_MODEL = "claude-sonnet-5";
+export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;

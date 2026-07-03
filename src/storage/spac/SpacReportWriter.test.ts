@@ -282,7 +282,7 @@ describe("SpacReportWriter", () => {
       extractor_id: "merger-proxy", extractor_version: "1.0.0",
       target_name: "Acme Target Inc.", target_cik: 999, target_observation_id: 1,
       pipe_amount: 150_000_000, merger_consideration: "$10.00 per share in stock",
-      confidence: 0.95, source_span: "merger with Acme Target Inc.", model_id: "claude-sonnet-4-6",
+      confidence: 0.95, source_span: "merger with Acme Target Inc.", model_id: "claude-sonnet-5",
       created_at: new Date().toISOString(),
     });
     await writer.recordMergerProxy({
