@@ -71,8 +71,12 @@ export class StoreCompanyFactsTask extends Task<
           start_date: fact.start_date || null,
           end_date: fact.end_date || null,
           val: fact.val,
-          fy: fact.fy,
-          fp: fact.fp,
+          // `fy`/`fp` are primary-key columns and must be non-null. EDGAR
+          // reports null for period-agnostic facts (e.g. DEF 14A
+          // pay-vs-performance figures); coalesce to stable sentinels so the
+          // key is deterministic and replays stay idempotent.
+          fy: fact.fy ?? 0,
+          fp: fact.fp ?? "",
         }));
       await companyFactsRepo.putBulk(batch);
       const newProgress = Math.round((i / batches) * 100);

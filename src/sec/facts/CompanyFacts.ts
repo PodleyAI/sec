@@ -35,8 +35,10 @@ export interface FactSummary {
   end: YYYYdMMdDD;
   val: number;
   accn: string;
-  fy: number;
-  fp: FP;
+  // EDGAR reports `fy`/`fp` as null for period-agnostic facts (e.g. the
+  // pay-vs-performance `NetIncomeLoss` figures disclosed on DEF 14A).
+  fy: number | null;
+  fp: FP | null;
   form: AllForms;
   filed: YYYYdMMdDD;
   start?: YYYYdMMdDD;
@@ -58,8 +60,8 @@ export const FactoidSchema = Type.Object({
   accession_number: Type.String({ maxLength: 20 }),
   start_date: TypeNullable(TypeDate()),
   end_date: TypeDate(),
-  fy: Type.Number({ format: "year" }),
-  fp: TypeStringEnum(FP),
+  fy: TypeNullable(Type.Number({ format: "year" })),
+  fp: TypeNullable(TypeStringEnum(FP)),
 });
 
 export type Factoid = Static<typeof FactoidSchema>;
