@@ -293,3 +293,55 @@ describe("deriveDeals", () => {
     expect(deals[0].proxy_date).toBe("2021-05-20");
   });
 });
+
+describe("deriveDeals — completion is terminal", () => {
+  it("ignores post-completion 8-K item events (operating-company noise)", () => {
+    // Real Amprius (ex-Kensington Capital IV) shape: one 2022 de-SPAC, then the
+    // surviving operating company keeps the CIK and files 8-Ks with items
+    // 1.01 / 1.02 / 5.07 for years. Those must not spawn phantom deals.
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2022-03-01"),
+        ev("vote", "2022-09-13"),
+        ev("completed", "2022-09-14"),
+        // --- post-completion operating-company events ---
+        ev("definitive_agreement", "2023-05-09"),
+        ev("vote", "2023-06-01"),
+        ev("terminated", "2023-10-02"),
+        ev("definitive_agreement", "2026-05-06"),
+        ev("vote", "2026-06-11"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("completed");
+    expect(deals[0].outcome_date).toBe("2022-09-14");
+    expect(deals[0].vote_date).toBe("2022-09-13");
+  });
+
+  it("still allows a second attempt after a terminated (non-terminal) first deal", () => {
+    // A terminated attempt does NOT end the SPAC — only `completed` does — so a
+    // later definitive agreement legitimately opens a second deal.
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2022-01-01"),
+        ev("terminated", "2022-06-01"),
+        ev("definitive_agreement", "2022-08-01"),
+        ev("completed", "2022-12-01"),
+        // post-completion noise must still be ignored
+        ev("definitive_agreement", "2023-04-01"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(2);
+    expect(deals[0].outcome).toBe("terminated");
+    expect(deals[1].outcome).toBe("completed");
+    expect(deals[1].outcome_date).toBe("2022-12-01");
+  });
+});
