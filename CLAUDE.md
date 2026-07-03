@@ -62,7 +62,13 @@ eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-5`)
 and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`. All extractors
 share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
 set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
-env var (e.g. `SEC_S1_MODEL`) to override just one.
+env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
+model ids (the default plus any set overrides) into the global model repository
+via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
+(`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
+resolves them; running actual generation still requires the Anthropic provider
+and `ANTHROPIC_API_KEY` (absent those, each AI section dead-letters instead of
+aborting the filing).
 
 ### Company facts outcome tracking
 
