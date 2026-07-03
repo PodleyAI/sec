@@ -7,9 +7,12 @@
 import { globalServiceRegistry } from "workglow";
 import {
   EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
+  MODEL_ERROR_REASON_CODES,
   type ExtractionDeadLetter,
   type ExtractionDeadLetterRepositoryStorage,
 } from "./ExtractionDeadLetterSchema";
+
+const MODEL_ERROR_REASONS: ReadonlySet<string> = new Set(MODEL_ERROR_REASON_CODES);
 
 export interface DeadLetterInput {
   readonly extractor_id: string;
@@ -78,13 +81,19 @@ export class ExtractionDeadLetterRepo {
     return rows.filter((r) => r.status === "pending");
   }
 
-  /** Pending entries whose failing version differs from the current version. */
+  /**
+   * Pending entries eligible for retry: either the failing version differs from
+   * the current version (the usual version-fixable path), OR the reason code is a
+   * model/provider-availability error ({@link MODEL_ERROR_REASON_CODES}), which a
+   * version bump does not address — those recover by re-running once the model is
+   * registered, so they stay eligible under the same version.
+   */
   async listEligible(
     extractor_id: string,
     currentVersion: string
   ): Promise<ExtractionDeadLetter[]> {
     return (await this.listPending(extractor_id)).filter(
-      (r) => r.failed_extractor_version !== currentVersion
+      (r) => r.failed_extractor_version !== currentVersion || MODEL_ERROR_REASONS.has(r.reason_code)
     );
   }
 

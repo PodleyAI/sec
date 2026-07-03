@@ -66,9 +66,20 @@ env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
 model ids (the default plus any set overrides) into the global model repository
 via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
 (`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
-resolves them; running actual generation still requires the Anthropic provider
-and `ANTHROPIC_API_KEY` (absent those, each AI section dead-letters instead of
-aborting the filing).
+resolves them. Startup also registers the AI **providers** via
+`registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
+(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time) and
+HuggingFace Transformers ONNX **worker-backed** (`provider: "HF_TRANSFORMERS_ONNX"`;
+the heavy graph runs in `src/config/hftWorker.ts`, never the main thread) — so a
+local model can be compared against the cloud path. Each provider registers
+defensively (a load failure warns and is skipped). Absent a working provider /
+key, each AI section dead-letters instead of aborting the filing.
+
+A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
+retryable under the **same** extractor version — `retry-dead-letters` recovers it
+once the model/provider is registered, no version bump required
+(`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
+code stays version-gated (fix the extractor, bump the version, then retry).
 
 ### Company facts outcome tracking
 

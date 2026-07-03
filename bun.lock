@@ -8,7 +8,9 @@
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
+        "@workglow/anthropic": "0.3.15",
         "@workglow/cli": "0.3.15",
+        "@workglow/huggingface-transformers": "0.3.15",
         "awesome-phonenumber": "^7.8.0",
         "cheerio": "^1.2.0",
         "cheerio-json-mapper": "^1.0.4",
@@ -37,8 +39,8 @@
     },
   },
   "trustedDependencies": [
-    "onnxruntime-node",
     "@huggingface/transformers",
+    "onnxruntime-node",
   ],
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],
