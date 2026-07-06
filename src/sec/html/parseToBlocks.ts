@@ -56,6 +56,12 @@ function emitProse(buffer: string[], out: EdgarBlock[]): void {
  */
 export function parseToBlocks(html: string): EdgarBlock[] {
   const $ = cheerio.load(html);
+  // Cheerio's .text() (used by TableExtractor for cells and by the list-item
+  // handler below) recurses into every descendant regardless of the walk's
+  // tag-skip for script/style, so a filer-embedded <noscript>/<textarea>/
+  // <template> payload would otherwise land verbatim in the prose handed to
+  // AI extractors. Remove these subtrees up front, before any .text() runs.
+  $("script,style,noscript,textarea,template").remove();
   const out: EdgarBlock[] = [];
   const prose: string[] = [];
 
