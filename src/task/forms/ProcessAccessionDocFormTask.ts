@@ -234,6 +234,16 @@ export class ProcessAccessionDocFormTask extends Task<
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
 
+    // FetchAndStoreFormsTask's `sec fetch form` CLI intentionally bypasses the
+    // version gate to allow targeted re-processing of a single filing at the
+    // SAME extractor version. Capture whether THIS run is actually at a
+    // different version than the filing's most recent prior run so the reap
+    // gate below can tell "true version bump" (safe to reap superseded rows)
+    // from "same-version re-run" (LLM sampling variance alone must not delete
+    // observations that are still legitimately present).
+    const priorRun = await runRepo.findLatestRun(cik!, accessionNumber, extractorId);
+    const versionChanged = priorRun !== undefined && priorRun.extractor_version !== extractorVersion;
+
     const deadLetters = new ExtractionDeadLetterRepo();
 
     const recordRunFailed = async (message: string): Promise<void> => {
@@ -441,6 +451,15 @@ export class ProcessAccessionDocFormTask extends Task<
       //    SECTION_NOT_FOUND and a partial success records a `-partial` marker —
       //    neither blocks; see hasBlockingSectionFailure.)
       //
+      //    The reap ALSO requires `versionChanged`: a filing re-processed at
+      //    the SAME extractor version (the `sec fetch form` CLI path) that
+      //    happens to yield fewer entities this time — pure LLM sampling
+      //    variance, not a real re-extraction — must not hard-delete the
+      //    "unrefreshed" observations, identity links, and address/phone
+      //    junctions from the prior run. A genuine version bump (or the
+      //    filing's first-ever run, where no orphans can exist) is the only
+      //    signal that stale rows are actually superseded.
+      //
       // 2. Classify the run outcome: a blocking section failure THIS run means
       //    parse+store succeeded but a section dead-lettered, so
       //    coverage-as-success would be a lie — record `partial` instead. This
@@ -468,7 +487,7 @@ export class ProcessAccessionDocFormTask extends Task<
         );
         transientSectionFailure = true;
       }
-      if (!transientSectionFailure) {
+      if (!transientSectionFailure && versionChanged) {
         try {
           await reapStaleObservations({
             accession_number: accessionNumber,
