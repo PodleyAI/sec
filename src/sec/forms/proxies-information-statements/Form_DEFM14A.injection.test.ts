@@ -144,4 +144,28 @@ describe("processMergerProxy prompt-injection seal", () => {
     expect(row?.target_name ?? null).toBeNull();
     expect(row?.pipe_amount ?? null).toBeNull();
   });
+
+  it("dead-letters NONCE_MISMATCH and persists nothing when nonce_seen does not echo the fence nonce", async () => {
+    await seedSpac(703);
+    // Omitting the fence's nonce_seen simulates a model response that ignored
+    // (or was steered away from) the untrusted-fence instructions.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        target_name: "Mallory Inc.",
+        pipe_amount: 999_999,
+        merger_consideration: "fabricated",
+        confidence: 0.99,
+        source_span: "business combination with Acme Target Inc.",
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = unregister;
+
+    await runProxy(703, "703-defm");
+
+    expect(await new SpacMergerExtractionRepo().getByAccession("703-defm")).toBeUndefined();
+    const dl = await new ExtractionDeadLetterRepo().listPending("merger-proxy");
+    const merger = dl.find((d) => d.section_name === "merger");
+    expect(merger?.reason_code).toBe("NONCE_MISMATCH");
+  });
 });

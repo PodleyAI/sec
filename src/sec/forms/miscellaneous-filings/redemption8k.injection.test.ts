@@ -123,4 +123,36 @@ describe("processRedemption8K prompt-injection seal", () => {
     expect((ext?.source_span ?? "").length).toBeLessThanOrEqual(MAX_STORED_SPAN_CHARS);
     expect(ext?.source_span).toBe(verbatim);
   });
+
+  it("dead-letters NONCE_MISMATCH and persists nothing when nonce_seen does not echo the fence nonce", async () => {
+    await seedSpacWithDeal(802);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        redemption_shares: 1234567,
+        redemption_amount: 12400000,
+        price_per_share: 10.05,
+        confidence: 0.95,
+        source_span: "1,234,567 shares elected to redeem for $12,400,000",
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = unregister;
+
+    await processRedemption8K({
+      cik: 802,
+      accession_number: "0000000000-26-injection-3",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-injection-3")
+    ).toBeUndefined();
+    const dl = await new ExtractionDeadLetterRepo().listPending("redemption");
+    const red = dl.find((d) => d.section_name === "redemption");
+    expect(red?.reason_code).toBe("NONCE_MISMATCH");
+  });
 });

@@ -33,8 +33,13 @@ export const ManagementOutputSchema = {
         additionalProperties: false,
       },
     },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any `people` rows are trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["people"],
+  required: ["people", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

@@ -18,6 +18,11 @@ export const DEAD_LETTER_REASON_CODES = [
   "FETCH_ERROR",
   "PARSE_ERROR",
   "OVERSIZED_INPUT",
+  // A structured-generation response that failed to echo back the
+  // untrusted-fence nonce (see NonceMismatchError) — a real extraction
+  // failure (the response cannot be trusted), not a model-availability
+  // issue, so it is version-gated for retry like MODEL_INVALID_OUTPUT.
+  "NONCE_MISMATCH",
 ] as const;
 export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 

@@ -20,6 +20,13 @@ export const RedemptionOutputSchema = Type.Object({
   ),
   confidence: Type.Number({ minimum: 0, maximum: 1 }),
   source_span: TypeNullable(Type.String()),
+  // Required (not TypeNullable/Optional): the model must copy the untrusted-
+  // fence nonce verbatim into this field. sectionExtractors.ts compares it
+  // against the nonce generated for this call and throws NonceMismatchError
+  // on any deviation, before any other field is trusted.
+  nonce_seen: Type.String({
+    description: "Verbatim echo of the untrusted-fence nonce for this call",
+  }),
 });
 
 export type RedemptionRow = Static<typeof RedemptionOutputSchema>;

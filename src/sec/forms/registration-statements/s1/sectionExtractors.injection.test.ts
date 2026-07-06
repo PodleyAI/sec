@@ -5,7 +5,12 @@
  */
 
 import { afterEach, describe, expect, it } from "bun:test";
-import { buildUntrustedPreamble, extractManagement, wrapUntrusted } from "./sectionExtractors";
+import {
+  buildUntrustedPreamble,
+  extractManagement,
+  NonceMismatchError,
+  wrapUntrusted,
+} from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
 let cleanup: (() => void) | undefined;
@@ -559,6 +564,31 @@ describe("section extractor prompt-injection hardening", () => {
     expect(prompt).toContain("[redacted-fence-tag]");
     const matches = [...prompt.matchAll(NONCED_CLOSE_TAG_RE)];
     expect(matches).toHaveLength(1);
+  });
+
+  it("throws NonceMismatchError when the model's nonce_seen does not echo the fence nonce", async () => {
+    // The fake provider auto-echoes the correct nonce unless the canned
+    // payload already sets nonce_seen — this exercises that escape hatch to
+    // simulate a model (or an injection payload) that fabricates a row
+    // without respecting the fence.
+    const fake = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: "Mallory Attacker",
+            title: "Director",
+            relationship: null,
+            confidence: 0.99,
+            source_span: "Mallory Attacker",
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractManagement("Jane Roe — Director\n", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
   });
 
   it("defangs a combined adversarial mix of residual invisibles inside the base fence tag", async () => {

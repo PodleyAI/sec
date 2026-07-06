@@ -5,6 +5,7 @@
  */
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { NonceMismatchError } from "./sectionExtractors";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -157,10 +158,14 @@ export function makeRunSection(opts: {
         }
       }
     } catch (e) {
-      await record(
-        "MODEL_INVALID_OUTPUT",
-        (e instanceof Error ? e.message : String(e)).slice(0, 1024)
-      );
+      // A nonce echo-back failure means the model's response cannot be
+      // trusted (it either ignored the fence instructions or was steered by
+      // injected content) — distinct from a generic invalid/unparseable
+      // response, and worth its own reason code for triage. Both stay
+      // version-gated for retry: hasBlockingSectionFailure treats any
+      // non-SECTION_NOT_FOUND, non-"-partial" code as blocking.
+      const reason = e instanceof NonceMismatchError ? "NONCE_MISMATCH" : "MODEL_INVALID_OUTPUT";
+      await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
     }
   };
 }
