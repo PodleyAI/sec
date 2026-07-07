@@ -26,8 +26,13 @@ export const UnderwriterOutputSchema = {
         additionalProperties: false,
       },
     },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any `underwriters` rows are trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["underwriters"],
+  required: ["underwriters", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

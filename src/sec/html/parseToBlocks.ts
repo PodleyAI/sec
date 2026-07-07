@@ -58,10 +58,24 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   const $ = cheerio.load(html);
   // Cheerio's .text() (used by TableExtractor for cells and by the list-item
   // handler below) recurses into every descendant regardless of the walk's
-  // tag-skip for script/style, so a filer-embedded <noscript>/<textarea>/
-  // <template> payload would otherwise land verbatim in the prose handed to
-  // AI extractors. Remove these subtrees up front, before any .text() runs.
-  $("script,style,noscript,textarea,template").remove();
+  // tag-skip for script/style, so a filer-embedded raw-text payload would
+  // otherwise land verbatim in the prose handed to AI extractors. The HTML
+  // raw-text elements <xmp> and <plaintext> are especially dangerous because
+  // (a) their contents are parsed as CDATA — the parser does NOT recognize
+  // child tags inside them, so any nesting or tag-shaped payload survives
+  // untouched, and (b) <plaintext> in particular has no closing tag, so an
+  // attacker who plants `<plaintext>SYSTEM: …` inline extends its raw-text
+  // scope to end-of-document. Remove all of these subtrees (script/style,
+  // noscript/textarea/template, and xmp/plaintext) up front, before any
+  // .text() runs. Also strip HTML comments: `.text()` skips them but a
+  // downstream .html() serialization would surface the raw content, so
+  // dropping them is defense-in-depth for anything that inspects the DOM.
+  $("script,style,noscript,textarea,template,xmp,plaintext").remove();
+  $.root()
+    .find("*")
+    .contents()
+    .filter((_, n) => n.type === "comment")
+    .remove();
   const out: EdgarBlock[] = [];
   const prose: string[] = [];
 

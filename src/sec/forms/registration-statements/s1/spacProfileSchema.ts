@@ -114,8 +114,13 @@ export const SpacProfileOutputSchema = {
     url_spac: { type: ["string", "null"] },
     confidence: CONFIDENCE,
     source_span: { type: "string" },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any other field is trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["focus", "focus_location", "confidence", "source_span"],
+  required: ["focus", "focus_location", "confidence", "source_span", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

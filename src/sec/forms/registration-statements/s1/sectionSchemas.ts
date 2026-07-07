@@ -68,8 +68,13 @@ export const BeneficialOwnershipOutputSchema = {
         additionalProperties: false,
       },
     },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any `owners` rows are trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["owners"],
+  required: ["owners", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
@@ -105,8 +110,13 @@ export const RelatedPartyOutputSchema = {
         additionalProperties: false,
       },
     },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any `parties` rows are trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["parties"],
+  required: ["parties", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

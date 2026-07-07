@@ -7,7 +7,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
   buildUntrustedPreamble,
+  extractBeneficialOwnership,
   extractManagement,
+  extractOfferingTerms,
+  extractRelatedParty,
+  extractSpacProfile,
+  extractSpacSponsors,
+  extractUnderwriters,
+  extractUseOfProceeds,
   NonceMismatchError,
   wrapUntrusted,
 } from "./sectionExtractors";
@@ -605,5 +612,154 @@ describe("section extractor prompt-injection hardening", () => {
     expect(prompt).toContain("[redacted-fence-tag]");
     const matches = [...prompt.matchAll(NONCED_CLOSE_TAG_RE)];
     expect(matches).toHaveLength(1);
+  });
+
+  // ---------------------------------------------------------------------
+  // Nonce echo-back gate — one case per newly-hardened extractor. The fake
+  // provider auto-echoes the correct nonce unless the canned payload sets
+  // `nonce_seen` explicitly; each test uses that escape hatch to plant a
+  // wrong nonce and asserts the extractor throws NonceMismatchError instead
+  // of returning any row. This is what defeats a prompt-injection payload
+  // that persuaded the model to fabricate a well-formed structured response
+  // without respecting the fence.
+  // ---------------------------------------------------------------------
+
+  it("extractBeneficialOwnership throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        owners: [
+          {
+            name: "Mallory Attacker",
+            owner_kind: "person",
+            is_selling_stockholder: false,
+            confidence: 0.99,
+            source_span: "Mallory Attacker",
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractBeneficialOwnership("Table follows.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractRelatedParty throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        parties: [
+          {
+            name: "Mallory Attacker",
+            party_kind: "person",
+            confidence: 0.99,
+            source_span: "Mallory Attacker",
+            transactions: [],
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractRelatedParty("Related transactions.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractOfferingTerms throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        confidence: 0.99,
+        source_span: "The Offering",
+        tickers: [],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractOfferingTerms("The Offering.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractUnderwriters throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        underwriters: [
+          {
+            legal_name: "Mallory Bank LLC",
+            common_name: "Mallory Bank",
+            confidence: 0.99,
+            source_span: "Mallory Bank",
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractUnderwriters("Underwriting.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractSpacSponsors throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        sponsors: [
+          {
+            legal_name: "Mallory Sponsor LLC",
+            common_name: "Mallory Sponsor",
+            confidence: 0.99,
+            source_span: "Mallory Sponsor",
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractSpacSponsors("The Sponsor.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractSpacProfile throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        focus: [],
+        focus_location: [],
+        description: null,
+        team: null,
+        url_spac: null,
+        confidence: 0.99,
+        source_span: "Proposed Business",
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractSpacProfile("Proposed Business.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
+  });
+
+  it("extractUseOfProceeds throws NonceMismatchError on a wrong nonce_seen", async () => {
+    const fake = registerFakeStructuredProvider([
+      {
+        line_items: [
+          {
+            purpose: "Working capital",
+            amount: 1000000,
+            percent: 100,
+            note: null,
+            confidence: 0.99,
+            source_span: "Working capital",
+          },
+        ],
+        nonce_seen: "wrong-value",
+      },
+    ]);
+    cleanup = fake.unregister;
+    await expect(
+      extractUseOfProceeds("Use of Proceeds.", fakeS1Model())
+    ).rejects.toThrow(NonceMismatchError);
   });
 });

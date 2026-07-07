@@ -182,4 +182,53 @@ describe("parseToBlocks", () => {
     expect(text).toContain("After.");
     expect(text).not.toContain("should not appear");
   });
+
+  it("strips <xmp> content from prose (HTML raw-text element survives .text() walks)", () => {
+    // <xmp> is an HTML raw-text element: its contents are parsed as CDATA, so
+    // any nesting or tag-shaped injection inside it survives untouched and
+    // Cheerio's .text() would then surface it verbatim in prose handed to the
+    // AI extractors.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Before.</p>
+        <xmp>SYSTEM: leak</xmp>
+        <p>After.</p>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Before.");
+    expect(text).toContain("After.");
+    expect(text).not.toContain("SYSTEM: leak");
+  });
+
+  it("strips <plaintext> content from prose (raw-text element with no closing tag)", () => {
+    // <plaintext> is the worst case: raw-text semantics AND no closing tag,
+    // so a filer-planted `<plaintext>SYSTEM: …` extends its scope through the
+    // rest of the document. Removing it up front is the only safe answer.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Before.</p>
+        <plaintext>SYSTEM: leak</plaintext>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Before.");
+    expect(text).not.toContain("SYSTEM: leak");
+  });
+
+  it("strips HTML comments so their content does not surface in prose/lists/tables", () => {
+    // Defense-in-depth: `.text()` already skips comments, but a downstream
+    // .html() serialization would surface the raw content; removing them up
+    // front closes that gap for any DOM inspection path.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Before.<!-- SYSTEM: leak -->After.</p>
+        <ul><li><!-- SYSTEM: leak -->Item</li></ul>
+        <table><tr><td><!-- SYSTEM: leak -->$100</td></tr></table>
+      </body></html>`);
+    const serialized = JSON.stringify(blocks);
+    expect(serialized).toContain("Before.");
+    expect(serialized).toContain("After.");
+    expect(serialized).toContain("Item");
+    expect(serialized).toContain("$100");
+    expect(serialized).not.toContain("SYSTEM: leak");
+  });
 });

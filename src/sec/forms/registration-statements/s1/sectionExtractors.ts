@@ -71,6 +71,19 @@ export class NonceMismatchError extends Error {
 }
 
 /**
+ * Compares the model's echoed `nonce_seen` against the nonce we minted for this
+ * call and throws {@link NonceMismatchError} on any deviation. Every extractor
+ * must call this before touching any other field on `obj`, so a
+ * prompt-injection payload that persuaded the model to emit a well-formed row
+ * cannot pass the fence gate.
+ */
+function verifyNonce(obj: Record<string, unknown>, nonce: string): void {
+  if (obj["nonce_seen"] !== nonce) {
+    throw new NonceMismatchError();
+  }
+}
+
+/**
  * Named-entity table covering the small set that appears in EDGAR HTML when
  * the parser hasn't already decoded them. Anything outside this set will fall
  * through to the numeric-entity pass or stay literal; we intentionally do not
@@ -279,7 +292,7 @@ export async function extractManagement(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, ManagementOutputSchema);
-  if (obj.nonce_seen !== nonce) throw new NonceMismatchError();
+  verifyNonce(obj, nonce);
   return (obj.people as ManagementPersonRow[] | undefined) ?? [];
 }
 
@@ -297,6 +310,7 @@ export async function extractBeneficialOwnership(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, BeneficialOwnershipOutputSchema);
+  verifyNonce(obj, nonce);
   return (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
 }
 
@@ -313,6 +327,7 @@ export async function extractRelatedParty(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, RelatedPartyOutputSchema);
+  verifyNonce(obj, nonce);
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
 }
 
@@ -333,6 +348,7 @@ export async function extractOfferingTerms(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, OfferingTermsOutputSchema);
+  verifyNonce(obj, nonce);
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as OfferingTermsRow;
 }
@@ -353,6 +369,7 @@ export async function extractUnderwriters(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, UnderwriterOutputSchema);
+  verifyNonce(obj, nonce);
   return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
 }
 
@@ -369,6 +386,7 @@ export async function extractSpacSponsors(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, SpacSponsorOutputSchema);
+  verifyNonce(obj, nonce);
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }
 
@@ -400,6 +418,7 @@ export async function extractSpacProfile(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, SpacProfileOutputSchema);
+  verifyNonce(obj, nonce);
   if (obj.confidence == null || obj.source_span == null) return null;
   return {
     focus: Array.isArray(obj.focus) ? (obj.focus as string[]) : [],
@@ -428,7 +447,7 @@ export async function extractMergerDeal(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, MergerDealOutputSchema);
-  if (obj.nonce_seen !== nonce) throw new NonceMismatchError();
+  verifyNonce(obj, nonce);
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
 }
@@ -445,6 +464,7 @@ export async function extractUseOfProceeds(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, UseOfProceedsOutputSchema);
+  verifyNonce(obj, nonce);
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }
 
@@ -466,7 +486,7 @@ export async function extractRedemption(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, RedemptionOutputSchema);
-  if (obj.nonce_seen !== nonce) throw new NonceMismatchError();
+  verifyNonce(obj, nonce);
   if (obj.confidence == null || obj.source_span == null) return null;
   // A "no realized redemption" response carries neither figure — not a redemption.
   if (obj.redemption_shares == null && obj.redemption_amount == null) return null;

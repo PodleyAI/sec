@@ -23,8 +23,13 @@ export const SpacSponsorOutputSchema = {
         additionalProperties: false,
       },
     },
+    // Required: the model must copy the untrusted-fence nonce verbatim into
+    // this field. sectionExtractors.ts compares it against the nonce
+    // generated for this call and throws NonceMismatchError on any
+    // deviation, before any `sponsors` rows are trusted.
+    nonce_seen: { type: "string" },
   },
-  required: ["sponsors"],
+  required: ["sponsors", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
