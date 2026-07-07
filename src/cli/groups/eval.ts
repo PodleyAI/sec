@@ -15,10 +15,12 @@ import {
 } from "../../eval/runExtractionEval";
 
 /**
- * Default comparison set: a cheap cloud model, a mid cloud model, and the local
- * HFT model (free but slower/less accurate) — a genuine 3-way out of the box.
+ * Default comparison set: a cheap cloud model and a mid cloud model — fast out
+ * of the box. The local HFT model ({@link SecHftModelDefault}) is CPU-bound and
+ * slow (minutes per call), so it is opt-in: add it via
+ * `--models "claude-haiku-4-5,${SecHftModelDefault}"`.
  */
-const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", SecHftModelDefault];
+const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5"];
 
 function parseModels(csv: string | undefined): string[] {
   const ids = (csv ?? DEFAULT_MODELS.join(","))

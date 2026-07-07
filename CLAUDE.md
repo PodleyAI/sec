@@ -94,10 +94,19 @@ committed golden fixtures (`src/eval/fixtures.ts` — realistic section prose wi
 hand-authored `expected` rows) through each candidate model and ranks them:
 
 ```bash
-sec eval extract                              # default 3-way: haiku, sonnet, local HFT
-sec eval extract --models "claude-opus-4-8,claude-haiku-4-5,onnx-community/Qwen2.5-0.5B-Instruct"
+sec eval extract                              # default cloud 2-way: haiku, sonnet (fast)
+sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 ```
+
+The registered local model (`SecHftModelDefault`) is Qwen3-4B-Instruct-2507 — at
+4B it reaches cloud-haiku-level quality (~100% entity recall, valid schema) where
+the smaller 0.5B/1.5B Qwen models do not, but it is CPU-bound and slow (minutes
+per call + a one-time ~GB download), so it is **opt-in** rather than in the
+default set. For a fast (weaker) local baseline set
+`SEC_HFT_MODEL=onnx-community/Qwen2.5-0.5B-Instruct`. Only **non-thinking**
+instruct variants work — a thinking model wraps the JSON in reasoning and breaks
+`json-mode`.
 
 - **Correctness** — `scoreExtraction` (`src/eval/scoreExtraction.ts`) aligns candidate
   rows to `expected` by a key field (e.g. `full_name`) and scores field-level agreement,
