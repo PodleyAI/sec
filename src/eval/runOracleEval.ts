@@ -50,6 +50,9 @@ export interface OracleReport {
   readonly summaries: readonly OracleModelSummary[];
 }
 
+/** How many times to (re)try the reference extraction before giving up on a section. */
+const REFERENCE_MAX_ATTEMPTS = 3;
+
 export interface RunOracleOptions {
   readonly reference: string;
   readonly candidates: readonly string[];
@@ -148,14 +151,20 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
   };
 
   for (const section of sections) {
-    // Reference establishes truth for this section.
+    // Reference establishes truth for this section. Retry on failure: strong
+    // models intermittently emit a nested array as a JSON *string* (which the
+    // strict schema rejects), so a couple of retries recover most sections
+    // rather than dropping them from the comparison.
     let refRows: unknown[] = [];
     let refOk = false;
     if (refModel) {
-      const { rows, result } = await runSection(opts.reference, refModel, section);
-      refRows = rows;
-      refOk = result.ok;
-      push({ ...result, score: null });
+      let outcome = await runSection(opts.reference, refModel, section);
+      for (let attempt = 1; !outcome.result.ok && attempt < REFERENCE_MAX_ATTEMPTS; attempt++) {
+        outcome = await runSection(opts.reference, refModel, section);
+      }
+      refRows = outcome.rows;
+      refOk = outcome.result.ok;
+      push({ ...outcome.result, score: null });
     }
     const extractor = EVAL_EXTRACTORS[section.extractor];
     const expected = refRows as Record<string, unknown>[];
