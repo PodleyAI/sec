@@ -13,6 +13,7 @@ import {
   type EvalReport,
   type ModelSummary,
 } from "../../eval/runExtractionEval";
+import { runOracleEval, type OracleReport } from "../../eval/runOracleEval";
 
 /**
  * Default comparison set: a cheap cloud model, a mid cloud model, and the local
@@ -77,6 +78,42 @@ function printTable(report: EvalReport): void {
   }
 }
 
+function printOracleTable(report: OracleReport): void {
+  console.log(
+    `Reference (truth): ${report.reference} — over ${report.sections} real S-1 section(s)\n`
+  );
+  const cols: Array<[string, number, (m: OracleReport["summaries"][number]) => string]> = [
+    ["role", 10, (m) => m.role],
+    ["model", 34, (m) => m.model],
+    ["agree", 7, (m) => (m.role === "reference" ? "—" : pct(m.avgAgreement))],
+    ["recall", 7, (m) => (m.role === "reference" ? "—" : pct(m.avgEntityRecall))],
+    ["prec", 6, (m) => (m.role === "reference" ? "—" : pct(m.avgPrecision))],
+    ["rows", 6, (m) => String(m.totalRows)],
+    ["latency", 10, (m) => `${m.avgLatencyMs.toFixed(0)}ms`],
+    ["est.cost", 10, (m) => usd(m.totalUsd)],
+    ["ok", 6, (m) => `${m.okRuns}/${m.runs}`],
+  ];
+  console.log(cols.map(([h, w]) => pad(h, w)).join(" "));
+  console.log(cols.map(([, w]) => "-".repeat(w)).join(" "));
+  for (const m of report.summaries) {
+    console.log(cols.map(([, w, get]) => pad(get(m), w)).join(" "));
+  }
+  console.log(
+    "\nagree = field agreement with the reference (names + titles); recall = reference " +
+      "entities the model also found;\nprec = model entities the reference also had " +
+      "(1 − hallucination). Reference rows are the truth, so it has no agreement score."
+  );
+  const failed = report.results.filter((r) => !r.ok);
+  if (failed.length) {
+    console.log("\nfailures:");
+    for (const r of failed) console.log(`  ${r.model} / ${r.filing} / ${r.extractor}: ${r.error}`);
+  }
+  if (report.skipped.length) {
+    console.log("\nskipped (no such section / unparseable):");
+    for (const s of report.skipped) console.log(`  ${s}`);
+  }
+}
+
 export function addEvalCommands(program: Command): void {
   const cmd = program
     .command("eval")
@@ -110,4 +147,54 @@ export function addEvalCommands(program: Command): void {
         printTable(report);
       });
     });
+
+  cmd
+    .command("s1")
+    .description(
+      "Compare candidate models against a reference on REAL committed S-1 sections"
+    )
+    .option("--reference <id>", "reference (oracle) model id", "claude-sonnet-5")
+    .option(
+      "--candidates <csv>",
+      `candidate model ids (default: ${SecHftModelDefault})`
+    )
+    .option(
+      "--extractors <csv>",
+      `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: management`
+    )
+    .option("--format <fmt>", "table | json", "table")
+    .action(
+      async (opts: {
+        reference: string;
+        candidates?: string;
+        extractors?: string;
+        format: string;
+      }) => {
+        await runCommand(async () => {
+          const candidates = opts.candidates
+            ? opts.candidates.split(",").map((s) => s.trim()).filter(Boolean)
+            : [SecHftModelDefault];
+          const extractors = opts.extractors
+            ? opts.extractors.split(",").map((s) => s.trim()).filter(Boolean)
+            : ["management"];
+          for (const name of extractors) {
+            if (!EVAL_EXTRACTORS[name]) {
+              throw new Error(
+                `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+              );
+            }
+          }
+          const report = await runOracleEval({
+            reference: opts.reference,
+            candidates,
+            extractors,
+          });
+          if (opts.format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printOracleTable(report);
+        });
+      }
+    );
 }
