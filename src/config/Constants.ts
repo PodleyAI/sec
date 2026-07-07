@@ -30,13 +30,13 @@ export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_
  * (HuggingFace `org/name` form) is what routes it to the HFT provider rather
  * than Anthropic — see `secModelRecord`.
  *
- * Defaults to Qwen3-4B-Instruct-2507 (the non-thinking instruct variant — a
- * thinking model would wrap the JSON in reasoning and break `json-mode`). At 4B
- * it reaches cloud-haiku-level extraction quality (~100% entity recall, valid
- * schema) where the 0.5B/1.5B models do not — but it is CPU-bound and slow
- * (minutes per call, plus a one-time ~GB download), so it is an offline/batch
- * baseline, not an interactive default. For a fast (weaker) local run set
- * `SEC_HFT_MODEL=onnx-community/Qwen2.5-0.5B-Instruct`.
+ * Defaults to LiquidAI's LFM2.5-350M — an edge-optimized model that, on the
+ * management fixtures, reaches ~100% entity recall with valid schema in seconds
+ * per call. It beats much larger models on this box on every axis: it is far
+ * more accurate than Qwen2.5-0.5B/1.5B and ~50x faster than Qwen3-4B (which
+ * matches its quality but costs minutes per call on CPU). For a stronger but
+ * far slower local baseline set
+ * `SEC_HFT_MODEL=onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
  */
-const DEFAULT_SEC_HFT_MODEL = "onnx-community/Qwen3-4B-Instruct-2507-ONNX";
+const DEFAULT_SEC_HFT_MODEL = "onnx-community/LFM2.5-350M-ONNX";
 export const SecHftModelDefault = process.env.SEC_HFT_MODEL?.trim() || DEFAULT_SEC_HFT_MODEL;

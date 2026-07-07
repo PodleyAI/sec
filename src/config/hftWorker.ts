@@ -15,6 +15,11 @@ import {
   registerHuggingFaceTransformersWorker,
   setHftCacheDir,
 } from "@workglow/huggingface-transformers/ai-runtime";
+import { patchHftChatTemplateGenerationTags } from "./patchHftChatTemplate";
+
+// Must run before any tokenizer renders a chat template (see the patch's docs:
+// transformers.js 4.2.0 bundles a jinja too old to parse `{% generation %}`).
+patchHftChatTemplateGenerationTags();
 
 if (process.env.WORKGLOW_MODEL_CACHE) {
   setHftCacheDir(process.env.WORKGLOW_MODEL_CACHE);
