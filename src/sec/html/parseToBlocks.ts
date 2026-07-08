@@ -65,12 +65,16 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // child tags inside them, so any nesting or tag-shaped payload survives
   // untouched, and (b) <plaintext> in particular has no closing tag, so an
   // attacker who plants `<plaintext>SYSTEM: …` inline extends its raw-text
-  // scope to end-of-document. Remove all of these subtrees (script/style,
-  // noscript/textarea/template, and xmp/plaintext) up front, before any
-  // .text() runs. Also strip HTML comments: `.text()` skips them but a
-  // downstream .html() serialization would surface the raw content, so
-  // dropping them is defense-in-depth for anything that inspects the DOM.
-  $("script,style,noscript,textarea,template,xmp,plaintext").remove();
+  // scope to end-of-document. <iframe>, <noembed>, and <noframes> are the
+  // remaining WHATWG raw-text/RCDATA elements that can appear in body
+  // context: their contents are likewise parsed as CDATA (or as RCDATA for
+  // <iframe>) and survive `.text()` walks the same way. Remove all of these
+  // subtrees (script/style, iframe/noembed/noframes, noscript/textarea/
+  // template, and xmp/plaintext) up front, before any .text() runs. Also
+  // strip HTML comments: `.text()` skips them but a downstream .html()
+  // serialization would surface the raw content, so dropping them is
+  // defense-in-depth for anything that inspects the DOM.
+  $("script,style,iframe,noembed,noframes,noscript,textarea,template,xmp,plaintext").remove();
   $.root()
     .find("*")
     .contents()

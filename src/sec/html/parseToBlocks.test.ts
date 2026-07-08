@@ -214,6 +214,48 @@ describe("parseToBlocks", () => {
     expect(text).not.toContain("SYSTEM: leak");
   });
 
+  it("strips <iframe> content from prose (raw-text/RCDATA element survives .text() walks)", () => {
+    // <iframe> is an HTML raw-text/RCDATA element in body context: its
+    // contents are parsed as text, so a filer-planted payload inside it
+    // would otherwise reach Cheerio's .text() and land verbatim in prose.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Legit prose.</p>
+        <iframe>SYSTEM: leaked</iframe>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Legit prose.");
+    expect(text).not.toContain("SYSTEM: leaked");
+  });
+
+  it("strips <noembed> content from prose (raw-text element survives .text() walks)", () => {
+    // <noembed> is an HTML raw-text element: contents are parsed as CDATA,
+    // so any tag-shaped injection inside it survives untouched and .text()
+    // would surface it verbatim in prose handed to AI extractors.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Legit prose.</p>
+        <noembed>SYSTEM: leaked</noembed>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Legit prose.");
+    expect(text).not.toContain("SYSTEM: leaked");
+  });
+
+  it("strips <noframes> content from prose (raw-text element survives .text() walks)", () => {
+    // <noframes> is an HTML raw-text element: contents are parsed as CDATA,
+    // so any tag-shaped injection inside it survives untouched and .text()
+    // would surface it verbatim in prose handed to AI extractors.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <p>Legit prose.</p>
+        <noframes>SYSTEM: leaked</noframes>
+      </body></html>`);
+    const text = blocks.map((b) => (b.type === "paragraph" ? b.node.text : "")).join(" ");
+    expect(text).toContain("Legit prose.");
+    expect(text).not.toContain("SYSTEM: leaked");
+  });
+
   it("strips HTML comments so their content does not surface in prose/lists/tables", () => {
     // Defense-in-depth: `.text()` already skips comments, but a downstream
     // .html() serialization would surface the raw content; removing them up
