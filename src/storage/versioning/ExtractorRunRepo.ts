@@ -68,6 +68,24 @@ export class ExtractorRunRepo {
     return rows?.[0];
   }
 
+  /**
+   * Most recent run for a filing+extractor, across ALL extractor_version
+   * values (unlike `findRun`, which is exact-version). Used to detect
+   * whether a re-run is happening at the SAME extractor version as its
+   * predecessor — a same-version re-run must not reap observations that
+   * merely didn't reappear due to LLM sampling variance (see
+   * ProcessAccessionDocFormTask's reap gate).
+   */
+  async findLatestRun(
+    cik: number,
+    accession_number: string,
+    extractor_id: string
+  ): Promise<ExtractorRun | undefined> {
+    const rows = await this.storage.query({ cik, accession_number, extractor_id });
+    if (!rows || rows.length === 0) return undefined;
+    return rows.reduce((latest, r) => (r.ran_at > latest.ran_at ? r : latest));
+  }
+
   async hasSuccessfulRun(
     cik: number,
     accession_number: string,

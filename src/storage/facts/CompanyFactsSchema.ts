@@ -55,12 +55,17 @@ export const CompanyFactsSchema = Type.Object({
   val: Type.Number({
     description: "Fact value",
   }),
+  // `fy`/`fp` are part of the primary key, so they must stay NOT NULL. EDGAR
+  // reports null `fy`/`fp` for period-agnostic facts (e.g. DEF 14A
+  // pay-vs-performance figures); those are coalesced to the sentinels `0` / ""
+  // at the storage boundary (see StoreCompanyFactsTask) to keep the key stable
+  // and replays idempotent.
   fy: Type.Integer({
-    description: "Fiscal year",
+    description: "Fiscal year (fallback: year-from-end_date, then 0 sentinel)",
   }),
   fp: Type.String({
     maxLength: 2,
-    description: "Fiscal period",
+    description: "Fiscal period (empty-string sentinel when null)",
   }),
 });
 

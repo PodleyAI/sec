@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 import { parseRegistrationSubmission } from "./parseSubmission";
 
 const FIXTURE = path.join(

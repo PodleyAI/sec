@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const SPAC_CIK = 1821595;
@@ -67,7 +67,12 @@ describe("processFormS1 → SPAC report", () => {
       filing_date: FILING_DATE,
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: SPAC_HEADER, html: MINIMAL_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: SPAC_HEADER,
+        html: MINIMAL_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       model: fakeS1Model(),
     });
 
@@ -93,7 +98,12 @@ describe("processFormS1 → SPAC report", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: MINIMAL_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: NULL_HEADER,
+        html: MINIMAL_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       model: fakeS1Model(),
     });
 

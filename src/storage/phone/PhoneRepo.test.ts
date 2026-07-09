@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PhoneImport } from "./PhoneNormalization";
 import { PhoneRepo } from "./PhoneRepo";

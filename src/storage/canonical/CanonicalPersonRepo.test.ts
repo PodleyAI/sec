@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
 import { CanonicalPersonRepo } from "./CanonicalPersonRepo";
 import {
@@ -60,8 +60,12 @@ describe("CanonicalPersonRepo", () => {
   });
 
   it("findByResolverAndCik scopes by resolver_version", async () => {
-    await repo.create(makeRow({ canonical_person_id: "uuid-1", resolver_version: "1.0.0", cik: 1234 }));
-    await repo.create(makeRow({ canonical_person_id: "uuid-2", resolver_version: "2.0.0", cik: 1234 }));
+    await repo.create(
+      makeRow({ canonical_person_id: "uuid-1", resolver_version: "1.0.0", cik: 1234 })
+    );
+    await repo.create(
+      makeRow({ canonical_person_id: "uuid-2", resolver_version: "2.0.0", cik: 1234 })
+    );
 
     expect((await repo.findByResolverAndCik("1.0.0", 1234))?.canonical_person_id).toBe("uuid-1");
     expect((await repo.findByResolverAndCik("2.0.0", 1234))?.canonical_person_id).toBe("uuid-2");

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
-import { makeRunSection, parseConfidenceFloor } from "./sectionRunner";
+import { describe, expect, it } from "vitest";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
 interface RecordedLetter {
   section_name: string;
@@ -14,7 +14,11 @@ interface RecordedLetter {
 }
 
 /** Minimal stub: runSection only calls `record` and `markResolved`. */
-function stubDeadLetters(): { repo: ExtractionDeadLetterRepo; letters: RecordedLetter[]; resolved: string[] } {
+function stubDeadLetters(): {
+  repo: ExtractionDeadLetterRepo;
+  letters: RecordedLetter[];
+  resolved: string[];
+} {
   const letters: RecordedLetter[] = [];
   const resolved: string[] = [];
   const repo = {

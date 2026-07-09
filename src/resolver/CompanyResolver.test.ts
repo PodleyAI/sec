@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
 import {
-  CanonicalCompanySchema,
-  CanonicalCompanyPrimaryKeyNames,
-  type CanonicalCompany,
-} from "../storage/canonical/CanonicalCompanySchema";
-import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
-import {
-  CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
+  CanonicalCompanyAliasSchema,
   type CanonicalCompanyAlias,
 } from "../storage/canonical/CanonicalAliasSchemas";
+import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
+import {
+  CanonicalCompanyPrimaryKeyNames,
+  CanonicalCompanySchema,
+  type CanonicalCompany,
+} from "../storage/canonical/CanonicalCompanySchema";
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
 import { CompanyResolver } from "./CompanyResolver";
 

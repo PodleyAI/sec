@@ -58,8 +58,25 @@ sec extractor retry-dead-letters S-1       # re-run filings eligible under the c
 ```
 
 `sec version promote extractor S-1` announces how many dead-letter entries became
-eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-4-6`)
-and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
+eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-5`)
+and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`. All extractors
+share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
+set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
+env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
+model ids (the default plus any set overrides) into the global model repository
+via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
+(`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
+resolves them. Startup also registers the AI **provider** via
+`registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
+(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time), registered
+defensively (a load failure warns and is skipped). Absent a working provider /
+key, each AI section dead-letters instead of aborting the filing.
+
+A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
+retryable under the **same** extractor version — `retry-dead-letters` recovers it
+once the model/provider is registered, no version bump required
+(`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
+code stays version-gated (fix the extractor, bump the version, then retry).
 
 ### Company facts outcome tracking
 
@@ -201,7 +218,7 @@ statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
 `status = proxy`): a consent deal (14C) has no `8-K 5.07` vote, so the definitive
 14C is its only approval-stage signal. Preliminary (`PREM14A`/`PREM14C`) and revised
 (`DEFR14A`/`PRER14A`) proxies are extraction-only. S-4 is deferred (newco-CIK linkage). Configure the
-model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-4-6`) and an optional
+model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-5`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
 
@@ -225,7 +242,7 @@ reads the primary document + `EX-99.x` exhibits; `processRedemption8K` records a
 per-accession `spac_redemption_extraction` row, and `deriveDeals` correlates
 `redemption_amount` / `redemption_shares` onto the matching `spac_deal`. The deal
 column is the sole source `total_redemption_amount` sums, so redemptions are counted
-once. Configure the model via `SEC_REDEMPTION_MODEL` (default `claude-sonnet-4-6`)
+once. Configure the model via `SEC_REDEMPTION_MODEL` (default `claude-sonnet-5`)
 and an optional confidence floor via `SEC_REDEMPTION_CONFIDENCE_FLOOR` (falls back to
 `SEC_S1_CONFIDENCE_FLOOR`).
 

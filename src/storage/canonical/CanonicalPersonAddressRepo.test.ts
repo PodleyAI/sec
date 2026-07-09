@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { CanonicalPersonAddressRepo } from "./CanonicalPersonAddressRepo";
 import {
   CanonicalPersonAddressPrimaryKeyNames,
   CanonicalPersonAddressSchema,
   type CanonicalPersonAddress,
 } from "./CanonicalJunctionSchemas";
+import { CanonicalPersonAddressRepo } from "./CanonicalPersonAddressRepo";
 
 describe("CanonicalPersonAddressRepo", () => {
   let storage: InMemoryTabularStorage<

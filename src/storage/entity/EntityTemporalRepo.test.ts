@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "vitest";
 import { EntityHistory } from "./EntityHistorySchema";
 import { Entity } from "./EntitySchema";
 import { EntityTemporalRepo } from "./EntityTemporalRepo";

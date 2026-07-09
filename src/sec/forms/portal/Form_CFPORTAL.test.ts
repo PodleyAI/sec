@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { describe, expect, it } from "vitest";
 import { Form_CFPORTAL } from "./Form_CFPORTAL";
 
 const FIXTURE_DIR = join(__dirname, "mock_data", "cfportal");
@@ -26,9 +26,7 @@ describe("Form_CFPORTAL parser", () => {
     for (const file of fixtureFiles()) {
       const xml = readFileSync(join(FIXTURE_DIR, file), "utf-8");
       const parsed = await Form_CFPORTAL.parse("CFPORTAL", xml);
-      expect(["CFPORTAL", "CFPORTAL/A", "CFPORTAL-W"]).toContain(
-        parsed.headerData.submissionType
-      );
+      expect(["CFPORTAL", "CFPORTAL/A", "CFPORTAL-W"]).toContain(parsed.headerData.submissionType);
       expect(parsed.headerData.filerInfo.filer.filerCredentials.filerCik).toMatch(/^\d+$/);
       if (parsed.headerData.submissionType !== "CFPORTAL-W") {
         expect(parsed.formData?.identifyingInformation?.nameOfPortal).toBeTruthy();

@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
+import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
-import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const OFFERING_HTML = [
@@ -25,7 +25,13 @@ const SPAC_HEADER = {
   companyName: "Acme Acquisition Corp",
   filingDate: "20260102",
 };
-const NULL_HEADER = { sic: null, sicDescription: null, cik: null, companyName: null, filingDate: null };
+const NULL_HEADER = {
+  sic: null,
+  sicDescription: null,
+  cik: null,
+  companyName: null,
+  filingDate: null,
+};
 
 let cleanup: (() => void) | undefined;
 
@@ -64,7 +70,9 @@ describe("processFormS1 offering terms", () => {
         par_value: 0.0001,
         confidence: 0.9,
         source_span: "5,000,000 shares",
-        tickers: [{ ticker: "ACME", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true }],
+        tickers: [
+          { ticker: "ACME", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true },
+        ],
       },
       { underwriters: [] },
     ]);
@@ -77,7 +85,12 @@ describe("processFormS1 offering terms", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: NULL_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: NULL_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       model: fakeS1Model(),
     });
 
@@ -128,7 +141,12 @@ describe("processFormS1 offering terms", () => {
       filing_date: "2026-01-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: SPAC_HEADER, html: OFFERING_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: SPAC_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       model: fakeS1Model(),
     });
 

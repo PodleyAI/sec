@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 import { Form_F_1 } from "./Form_F_1";
 import { Form_F_1MEF } from "./Form_F_1MEF";
 

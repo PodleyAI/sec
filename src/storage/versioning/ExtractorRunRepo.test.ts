@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { DefaultDI } from "../../config/DefaultDI";
 import { EnvToDI } from "../../config/EnvToDI";
@@ -257,6 +257,43 @@ describe("ExtractorRunRepo", () => {
       "D"
     );
     expect(unprocessed).toEqual([]);
+  });
+
+  it("findLatestRun returns undefined when no run exists", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const found = await repo.findLatestRun(FILING.cik, FILING.accession_number, "D");
+    expect(found).toBeUndefined();
+  });
+
+  it("findLatestRun returns the row with the most recent ran_at across versions", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: FILING.cik,
+      accession_number: FILING.accession_number,
+      form: FILING.form,
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    // Force a distinct ran_at timestamp so ordering isn't a same-millisecond
+    // coin flip (recordRun stamps ran_at internally with Date.now()).
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // A later run at a different version should be reported as latest even
+    // though findLatestRun does not filter by extractor_version.
+    await repo.recordRun({
+      cik: FILING.cik,
+      accession_number: FILING.accession_number,
+      form: FILING.form,
+      extractor_id: "D",
+      extractor_version: "1.1.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    const found = await repo.findLatestRun(FILING.cik, FILING.accession_number, "D");
+    expect(found?.extractor_version).toBe("1.1.0");
   });
 
   it("listFilingsWithoutSuccessfulRun does NOT count rows across major.minor boundary", async () => {

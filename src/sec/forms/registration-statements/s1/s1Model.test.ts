@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "vitest";
 import { getS1ModelId } from "./s1Model";
 
 const ORIG = process.env.SEC_S1_MODEL;
@@ -20,6 +20,6 @@ describe("getS1ModelId", () => {
   });
   it("falls back to a default model id when unset", () => {
     delete process.env.SEC_S1_MODEL;
-    expect(getS1ModelId()).toBe("claude-sonnet-4-6");
+    expect(getS1ModelId()).toBe("claude-sonnet-5");
   });
 });

@@ -108,9 +108,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
 
   if (!PRICED_PROSPECTUS_FORMS.has(form)) return;
 
-  // --- AI offering sections (priced prospectuses only) ---
-  const model = args.model ?? (await getS1Model());
-  const model_id = resolveModelId(model);
+  const isSpac = form424.header?.sic === 6770;
 
   const deadLetters = new ExtractionDeadLetterRepo();
   const recordFail = (section: string, reason: string, detail: string | null) =>
@@ -124,6 +122,52 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       source_run_id: null,
     });
 
+  // The IPO event is deterministic SPAC lifecycle bookkeeping — the priced
+  // prospectus IS the IPO — so it must record regardless of whether the AI
+  // offering sections completed. Reads spac_unit_terms null-tolerantly:
+  // when the AI pass failed to produce a row (model resolution error, parse
+  // error, low confidence), ipo_proceeds/trust_amount fall back to null so
+  // the row still appears on the SPAC's timeline; a later replay can fill
+  // the numeric fields once the version-gated dead letters clear.
+  const recordSpacIpoEventIfEligible = async (): Promise<void> => {
+    if (!isSpac) return;
+    const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
+    const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
+      (t) => t.accession_number === accession_number
+    );
+    const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
+    await new SpacReportWriter().recordIpo({
+      cik,
+      accession_number,
+      filing_date: args.filing_date,
+      form,
+      primary_document: null,
+      ipo_proceeds: unitTerms?.gross_proceeds ?? null,
+      trust_amount:
+        unitTerms?.trust_per_unit != null && unitTerms?.units_offered != null
+          ? unitTerms.trust_per_unit * unitTerms.units_offered
+          : null,
+      spac_tickers: tickers.length > 0 ? tickers : null,
+    });
+  };
+
+  // --- AI offering sections (priced prospectuses only) ---
+  // Model resolution can throw when the configured model is not registered;
+  // catch and dead-letter the AI sections so the deterministic SPAC IPO event
+  // still records, mirroring the "XBRL failures never abort the filing" contract.
+  let model: ModelConfig;
+  try {
+    model = args.model ?? (await getS1Model());
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    for (const section of OFFERING_SECTION_NAMES) {
+      await recordFail(section, "MODEL_RESOLUTION_ERROR", detail);
+    }
+    await recordSpacIpoEventIfEligible();
+    return;
+  }
+  const model_id = resolveModelId(model);
+
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.
   let byName: Map<S1SectionName, string>;
@@ -136,10 +180,10 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     for (const section of OFFERING_SECTION_NAMES) {
       await recordFail(section, "PARSE_ERROR", detail);
     }
+    await recordSpacIpoEventIfEligible();
     return;
   }
 
-  const isSpac = form424.header?.sic === 6770;
   await runOfferingSections({
     runSection: makeRunSection({
       deadLetters,
@@ -162,25 +206,5 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     byName,
   });
 
-  // Consolidated SPAC report: record the IPO event for priced SPAC prospectuses.
-  if (isSpac) {
-    const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
-    const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
-      (t) => t.accession_number === accession_number
-    );
-    const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
-    await new SpacReportWriter().recordIpo({
-      cik,
-      accession_number,
-      filing_date: args.filing_date,
-      form,
-      primary_document: null,
-      ipo_proceeds: unitTerms?.gross_proceeds ?? null,
-      trust_amount:
-        unitTerms?.trust_per_unit != null && unitTerms?.units_offered != null
-          ? unitTerms.trust_per_unit * unitTerms.units_offered
-          : null,
-      spac_tickers: tickers.length > 0 ? tickers : null,
-    });
-  }
+  await recordSpacIpoEventIfEligible();
 }

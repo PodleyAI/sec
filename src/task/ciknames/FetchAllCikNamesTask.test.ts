@@ -4,18 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DB_TYPE } from "../../config/tokens";
-import {
-  createCikNameBulkWriter,
-  type CikNameRow,
-} from "../../storage/entity/cikNameBulkWriter";
-import {
-  CIK_NAME_REPOSITORY_TOKEN,
-  type CikNameType,
-} from "../../storage/entity/CikNameSchema";
+import { createCikNameBulkWriter, type CikNameRow } from "../../storage/entity/cikNameBulkWriter";
+import { CIK_NAME_REPOSITORY_TOKEN, type CikNameType } from "../../storage/entity/CikNameSchema";
 
 // FetchAllCikNamesTask's end-to-end path runs through the SEC job queue and
 // is exercised by manual + integration tests; these unit tests pin the bulk

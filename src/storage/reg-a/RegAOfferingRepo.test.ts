@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import type { RegAEquityClass } from "./RegAEquityClassSchema";
+import type { RegAFinancialData } from "./RegAFinancialDataSchema";
+import type { RegAOfferingHistory } from "./RegAOfferingHistorySchema";
 import { RegAOfferingRepo } from "./RegAOfferingRepo";
 import type { RegAOffering } from "./RegAOfferingSchema";
-import type { RegAOfferingHistory } from "./RegAOfferingHistorySchema";
 import type { RegAServiceProvider } from "./RegAServiceProviderSchema";
-import type { RegAFinancialData } from "./RegAFinancialDataSchema";
-import type { RegAEquityClass } from "./RegAEquityClassSchema";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 
 describe("RegAOfferingRepo", () => {
   let repo: RegAOfferingRepo;
@@ -225,11 +225,7 @@ describe("RegAOfferingRepo", () => {
       };
 
       await repo.saveOfferingHistory(history);
-      const retrieved = await repo.getOfferingHistory(
-        12345,
-        "024-00001",
-        "0001234567-24-000001"
-      );
+      const retrieved = await repo.getOfferingHistory(12345, "024-00001", "0001234567-24-000001");
 
       expect(retrieved).toBeDefined();
       expect(retrieved?.price_per_security).toBe(10.5);

@@ -4,18 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
 import { CanonicalUnderwriterFamilyRepo } from "../../../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import { UnderwriterFamilyMembershipRepo } from "../../../storage/canonical/UnderwriterFamilyMembershipRepo";
+import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML = "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC and GS Securities.</p>";
-const NULL_HEADER = { sic: null, sicDescription: null, cik: null, companyName: null, filingDate: null };
+const NULL_HEADER = {
+  sic: null,
+  sicDescription: null,
+  cik: null,
+  companyName: null,
+  filingDate: null,
+};
 
 let cleanup: (() => void) | undefined;
 
@@ -35,16 +41,47 @@ describe("processFormS1 underwriters", () => {
     // Underwriting text), then underwriters (2nd). Provide both payloads.
     const { unregister } = registerFakeStructuredProvider([
       {
-        security_type: null, shares_offered: null, price: null, price_low: null, price_high: null,
-        gross_proceeds: null, net_proceeds: null, over_allotment_shares: null, units_offered: null,
-        price_per_unit: null, unit_composition: null, warrant_fraction_per_unit: null,
-        right_fraction_per_unit: null, trust_per_unit: null, over_allotment_units: null,
-        exchange: null, par_value: null, confidence: 0.5, source_span: "x", tickers: [],
+        security_type: null,
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: null,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        par_value: null,
+        confidence: 0.5,
+        source_span: "x",
+        tickers: [],
       },
       {
         underwriters: [
-          { legal_name: "Goldman Sachs & Co. LLC", common_name: "Goldman Sachs", role: "lead", shares_allocated: 3000000, over_allotment_shares: 450000, confidence: 0.95, source_span: "Goldman Sachs & Co. LLC" },
-          { legal_name: "GS Securities LLC", common_name: "Goldman Sachs", role: "bookrunner", shares_allocated: 1000000, over_allotment_shares: null, confidence: 0.9, source_span: "GS Securities" },
+          {
+            legal_name: "Goldman Sachs & Co. LLC",
+            common_name: "Goldman Sachs",
+            role: "lead",
+            shares_allocated: 3000000,
+            over_allotment_shares: 450000,
+            confidence: 0.95,
+            source_span: "Goldman Sachs & Co. LLC",
+          },
+          {
+            legal_name: "GS Securities LLC",
+            common_name: "Goldman Sachs",
+            role: "bookrunner",
+            shares_allocated: 1000000,
+            over_allotment_shares: null,
+            confidence: 0.9,
+            source_span: "GS Securities",
+          },
         ],
       },
     ]);
@@ -64,7 +101,10 @@ describe("processFormS1 underwriters", () => {
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => c.name === "Goldman Sachs & Co. LLC")).toBe(true);
 
-    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName("1.0.0", "GOLDMAN SACHS");
+    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
+      "1.0.0",
+      "GOLDMAN SACHS"
+    );
     expect(family).toBeDefined();
     const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
       "1.0.0",

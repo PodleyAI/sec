@@ -23,8 +23,9 @@ export const SpacSponsorOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: { type: "string", pattern: "^[0-9a-f]{16}$" },
   },
-  required: ["sponsors"],
+  required: ["sponsors", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { IExecuteContext } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 class CapturingTask extends ProcessAccessionDocFormTask {
@@ -266,9 +266,7 @@ describe("ProcessAccessionDocFormTask redemption extractor_runs recording", () =
 
     await new FixedBodyTask(FULL_TXT).run({ accessionNumber: accession });
 
-    const runRepo = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const run = await runRepo.findRun(cik, accession, "redemption", "1.0.0");
     expect(run?.success).toBe(true);
     expect(run?.error).toBeNull();

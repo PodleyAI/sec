@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -27,9 +27,7 @@ describe("getVersionHistory", () => {
   });
 
   it("returns events newest-first for the component", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     await repo.recordEvent({
       component_kind: "extractor",
       component_id: "D",
@@ -59,9 +57,7 @@ describe("getVersionHistory", () => {
   });
 
   it("honors the limit parameter", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     for (let i = 0; i < 5; i++) {
       await repo.recordEvent({
         component_kind: "extractor",
@@ -80,9 +76,7 @@ describe("getVersionHistory", () => {
   });
 
   it("filters by component (kind, id)", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     await repo.recordEvent({
       component_kind: "extractor",
       component_id: "D",

@@ -5,9 +5,9 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { describe, expect, it } from "vitest";
 import { Form_C } from "./Form_C";
 
 describe("Form_C parsing test", () => {

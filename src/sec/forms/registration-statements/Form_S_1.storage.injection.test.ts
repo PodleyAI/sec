@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML = [
@@ -148,16 +148,12 @@ describe("processFormS1 prompt-injection backstop", () => {
     // canonical tier.
     const companies = await new CompanyObservationRepo().listAll();
     expect(
-      companies.some(
-        (c) => c.accession_number === accession && c.name === "Hallucinated Holdings"
-      )
+      companies.some((c) => c.accession_number === accession && c.name === "Hallucinated Holdings")
     ).toBe(false);
     // The partial-drop bookkeeping records a "<sectionName>-partial"
     // UNVERIFIED_SOURCE_SPAN dead-letter for triage.
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
-    const partial = dl.find(
-      (d) => d.section_name === "Principal and Selling Stockholders-partial"
-    );
+    const partial = dl.find((d) => d.section_name === "Principal and Selling Stockholders-partial");
     expect(partial?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });
 

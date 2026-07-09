@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { parseInlineXbrl } from "../../sec/xbrl/parseInlineXbrl";
 import { toXbrlFactRows } from "../../sec/xbrl/toFactRows";
-import { globalServiceRegistry } from "workglow";
 import { XbrlFactRepo } from "./XbrlFactRepo";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
-  type XbrlFactRow,
   type XbrlFactRepositoryStorage,
+  type XbrlFactRow,
 } from "./XbrlFactSchema";
 
 const ACCESSION = "0001213900-26-039320";

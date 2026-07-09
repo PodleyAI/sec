@@ -3,10 +3,10 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
-import { parseEdgarHtml } from "./parseEdgarHtml";
-import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
+import { describe, expect, it } from "vitest";
 import type { SectionNode } from "workglow";
+import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
+import { parseEdgarHtml } from "./parseEdgarHtml";
 
 describe("parseEdgarHtml", () => {
   it("produces a section tree with a structured table, de-paginated", () => {

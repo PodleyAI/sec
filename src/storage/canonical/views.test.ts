@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { CURRENT_CANONICAL_VIEW_DDL } from "./views";
 
 describe("current_canonical_* views DDL", () => {

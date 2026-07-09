@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getRedemptionConfidenceFloor, getRedemptionModelId } from "./redemptionModel";
 import { CONFIDENCE_FLOOR } from "./sectionRunner";
 
@@ -25,9 +25,9 @@ afterEach(() => {
 });
 
 describe("getRedemptionModelId", () => {
-  it("defaults to claude-sonnet-4-6 when unset", () => {
+  it("defaults to claude-sonnet-5 when unset", () => {
     delete process.env[MODEL_ENV];
-    expect(getRedemptionModelId()).toBe("claude-sonnet-4-6");
+    expect(getRedemptionModelId()).toBe("claude-sonnet-5");
   });
   it("honors SEC_REDEMPTION_MODEL when set", () => {
     process.env[MODEL_ENV] = "claude-opus-4-8";

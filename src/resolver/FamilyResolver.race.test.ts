@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { describe, expect, it, beforeEach } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
 import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
 import {

@@ -4,24 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AiProviderRunFn, Capability, ModelConfig } from "workglow";
 import {
   AiProvider,
   getAiProviderRegistry,
   getGlobalModelRepository,
   globalServiceRegistry,
 } from "workglow";
-import type { AiProviderRunFn, Capability, ModelConfig } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 // Full prospectus: Management / Ownership / Related-party sections all present,
@@ -110,6 +112,28 @@ async function seedFiling(): Promise<void> {
     items: null,
     act: null,
   } as never);
+}
+
+/**
+ * Seed a prior extractor_runs row at a different version than the active
+ * "1.0.0" slot bootstrapConfigComponentVersions seeds, so the reap gate's
+ * `versionChanged` check is satisfied for tests exercising the reap path
+ * itself (as opposed to the same-version re-run gate, covered separately in
+ * ProcessAccessionDocFormTask.reapVersionGate.test.ts).
+ */
+async function seedPriorRunAtVersion(version: string): Promise<void> {
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  await runRepo.recordRun({
+    cik: CIK,
+    accession_number: ACCESSION,
+    form: "S-1",
+    extractor_id: "S-1",
+    extractor_version: version,
+    slot_at_run: "current",
+    success: true,
+    outcome: "success",
+    error: null,
+  });
 }
 
 /** Insert a stale phantom company observation the reaper would delete. */
@@ -220,7 +244,11 @@ describe("ProcessAccessionDocFormTask reap gate on transient section failure", (
   it("still reaps stale observations on a fully clean run (no blocking failure)", async () => {
     // Management persists a confident person (success -> markResolved); every
     // other section is absent (SECTION_NOT_FOUND), which does not block. So no
-    // blocking dead-letter is recorded and the reaper runs.
+    // blocking dead-letter is recorded and the reaper runs — but only because
+    // this run is at a genuinely different version than its predecessor (see
+    // seedPriorRunAtVersion); a same-version re-run would suppress the reap
+    // (ProcessAccessionDocFormTask.reapVersionGate.test.ts).
+    await seedPriorRunAtVersion("0.9.0");
     const { unregister } = registerFakeStructuredProvider([
       {
         people: [

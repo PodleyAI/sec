@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
-import { Form_1_K } from "./Form_1_K";
-import { processForm1K } from "./Form_1_K.storage";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { Form_1_K } from "./Form_1_K";
+import { processForm1K } from "./Form_1_K.storage";
 
 describe("Form_1_K storage test", () => {
   let addressRepo: AddressRepo;
@@ -199,8 +199,7 @@ describe("Form_1_K storage test", () => {
         primary_doc: xmlFiles[0],
         form1K,
       });
-      const offeringFileNumber =
-        form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
+      const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
         cik,
         file_number: offeringFileNumber,
@@ -229,8 +228,7 @@ describe("Form_1_K storage test", () => {
         primary_doc: xmlFiles[0],
         form1K,
       });
-      const offeringFileNumber =
-        form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
+      const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
         cik,
         file_number: offeringFileNumber,
@@ -259,8 +257,7 @@ describe("Form_1_K storage test", () => {
         primary_doc: xmlFiles[0],
         form1K,
       });
-      const offeringFileNumber =
-        form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
+      const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
         cik,
         file_number: offeringFileNumber,

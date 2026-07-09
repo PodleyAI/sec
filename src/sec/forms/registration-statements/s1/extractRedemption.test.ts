@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "vitest";
 import { extractRedemption } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
-import { processForm424 } from "./Form_424.storage";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { processForm424 } from "./Form_424.storage";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const CIK = 2114227;
@@ -69,11 +69,7 @@ describe("processFormS1 + processForm424 → SPAC report", () => {
 
   it("registration then priced 424B4 produces an ipo-status row with tickers", async () => {
     // S-1 pass: no entity sections yield rows (empty fake responses).
-    const s1Reg = registerFakeStructuredProvider([
-      { people: [] },
-      { owners: [] },
-      { parties: [] },
-    ]);
+    const s1Reg = registerFakeStructuredProvider([{ people: [] }, { owners: [] }, { parties: [] }]);
     await processFormS1({
       cik: CIK,
       file_number: "333-000002",
@@ -81,7 +77,12 @@ describe("processFormS1 + processForm424 → SPAC report", () => {
       filing_date: "2026-04-02",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: SPAC_S1_HEADER, html: S1_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: SPAC_S1_HEADER,
+        html: S1_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       model: fakeS1Model(),
     });
     s1Reg.unregister();
@@ -167,7 +168,9 @@ describe("processFormS1 + processForm424 → SPAC report", () => {
         par_value: 0.001,
         confidence: 0.9,
         source_span: "5,000,000 shares",
-        tickers: [{ ticker: "ACME", exchange: "NYSE", security_type: "Common Stock", is_primary: true }],
+        tickers: [
+          { ticker: "ACME", exchange: "NYSE", security_type: "Common Stock", is_primary: true },
+        ],
       },
       { underwriters: [] },
     ]);

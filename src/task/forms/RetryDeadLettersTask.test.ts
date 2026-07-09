@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { RetryDeadLettersTask } from "./RetryDeadLettersTask";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { RetryDeadLettersTask } from "./RetryDeadLettersTask";
 
 describe("RetryDeadLettersTask", () => {
   beforeEach(async () => {

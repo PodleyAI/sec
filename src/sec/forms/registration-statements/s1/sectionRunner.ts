@@ -5,6 +5,7 @@
  */
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { NonceMismatchError } from "./sectionExtractors";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -157,10 +158,12 @@ export function makeRunSection(opts: {
         }
       }
     } catch (e) {
-      await record(
-        "MODEL_INVALID_OUTPUT",
-        (e instanceof Error ? e.message : String(e)).slice(0, 1024)
-      );
+      // A NonceMismatchError is a defense-in-depth signal that the model's
+      // structured response did not echo back the per-call verification token;
+      // record it under a dedicated reason code so an operator can triage
+      // nonce-check failures separately from generic invalid-output cases.
+      const reason = e instanceof NonceMismatchError ? "NONCE_MISMATCH" : "MODEL_INVALID_OUTPUT";
+      await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
     }
   };
 }
