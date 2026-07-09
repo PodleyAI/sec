@@ -13,6 +13,15 @@ const NULLABLE_NUMBER = { type: ["number", "null"] } as const;
 const CONFIDENCE = { type: "number", minimum: 0, maximum: 1 } as const;
 const SOURCE_SPAN = { type: "string" } as const;
 
+/**
+ * The per-call verification token the model must echo back into `nonce_seen`.
+ * The pattern (16 lowercase hex) matches what {@link buildUntrustedPreamble}
+ * plants; `StructuredGenerationTask`'s schema-retry loop catches a malformed
+ * echo before it reaches {@link verifyNonce} and dead-letters as
+ * `NONCE_MISMATCH`.
+ */
+const NONCE_SEEN = { type: "string", pattern: "^[0-9a-f]{16}$" } as const;
+
 export const ManagementOutputSchema = {
   type: "object",
   properties: {
@@ -33,8 +42,9 @@ export const ManagementOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: NONCE_SEEN,
   },
-  required: ["people"],
+  required: ["people", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
@@ -63,8 +73,9 @@ export const BeneficialOwnershipOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: NONCE_SEEN,
   },
-  required: ["owners"],
+  required: ["owners", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
@@ -100,8 +111,9 @@ export const RelatedPartyOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: NONCE_SEEN,
   },
-  required: ["parties"],
+  required: ["parties", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

@@ -50,8 +50,9 @@ export const OfferingTermsOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: { type: "string", pattern: "^[0-9a-f]{16}$" },
   },
-  required: ["confidence", "source_span", "tickers"],
+  required: ["confidence", "source_span", "tickers", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
