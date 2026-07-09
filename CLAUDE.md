@@ -66,12 +66,9 @@ env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
 model ids (the default plus any set overrides) into the global model repository
 via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
 (`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
-resolves them. Startup also registers the AI **providers** via
+resolves them. Startup also registers the AI **provider** via
 `registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
-(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time) and
-HuggingFace Transformers ONNX **worker-backed** (`provider: "HF_TRANSFORMERS_ONNX"`;
-the heavy graph runs in `src/config/hftWorker.ts`, never the main thread) — so a
-local model can be compared against the cloud path. Each provider registers
+(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time), registered
 defensively (a load failure warns and is skipped). Absent a working provider /
 key, each AI section dead-letters instead of aborting the filing.
 

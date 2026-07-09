@@ -25,7 +25,6 @@
     "@sroussey/parse-full-name": "^2.0.0",
     "@workglow/anthropic": "0.3.15",
     "@workglow/cli": "0.3.15",
-    "@workglow/huggingface-transformers": "0.3.15",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
