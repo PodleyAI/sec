@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { numScalar, numWrapped, strScalar, strWrapped } from "./_valueHelpers";
 
 describe("strScalar", () => {

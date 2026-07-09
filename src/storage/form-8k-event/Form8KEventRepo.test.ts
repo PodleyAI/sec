@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { Form8KEventRepo } from "./Form8KEventRepo";
 import type { Form8KEvent } from "./Form8KEventSchema";
@@ -215,12 +215,7 @@ describe("Form8KEventRepo", () => {
       },
     ]);
 
-    const v1 = await repo.getEventsByAccession(
-      320193,
-      "0001193125-24-000001",
-      "8-K",
-      "1.0.0"
-    );
+    const v1 = await repo.getEventsByAccession(320193, "0001193125-24-000001", "8-K", "1.0.0");
     expect(v1.length).toBe(1);
     expect(v1[0].item_code).toBe("1.01");
   });
@@ -244,12 +239,7 @@ describe("Form8KEventRepo", () => {
         is_amendment: false,
       },
     ]);
-    const before = await repo.getEventsByAccession(
-      320193,
-      "0001193125-24-000001",
-      "8-K",
-      "1.0.0"
-    );
+    const before = await repo.getEventsByAccession(320193, "0001193125-24-000001", "8-K", "1.0.0");
     expect(before.length).toBe(1);
   });
 
@@ -290,19 +280,9 @@ describe("Form8KEventRepo", () => {
       },
     ]);
 
-    const v1 = await repo.getEventsByAccession(
-      320193,
-      "0001193125-24-000001",
-      "8-K",
-      "1.0.0"
-    );
+    const v1 = await repo.getEventsByAccession(320193, "0001193125-24-000001", "8-K", "1.0.0");
     expect(v1.length).toBe(1);
-    const v2 = await repo.getEventsByAccession(
-      320193,
-      "0001193125-24-000001",
-      "8-K",
-      "2.0.0"
-    );
+    const v2 = await repo.getEventsByAccession(320193, "0001193125-24-000001", "8-K", "2.0.0");
     expect(v2.length).toBe(2);
   });
 });

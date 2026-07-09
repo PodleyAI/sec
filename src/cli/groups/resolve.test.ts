@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
-import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
-import { PersonResolver } from "../../resolver/PersonResolver";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import { PersonResolver } from "../../resolver/PersonResolver";
+import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
+import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
+import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 
 interface RunResult {
   stdout: string;
@@ -129,10 +129,16 @@ describe("sec resolve CLI", () => {
       const setup = await runCli(["db", "setup"], dir);
       expect(setup.exitCode).toBe(0);
 
-      const r1 = await runCli(["resolve", "--kind", "person", "--resolver-version", "1.0.0", "--all"], dir);
+      const r1 = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "1.0.0", "--all"],
+        dir
+      );
       expect(r1.exitCode).toBe(0);
 
-      const r2 = await runCli(["resolve", "--kind", "person", "--resolver-version", "1.0.0", "--all"], dir);
+      const r2 = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "1.0.0", "--all"],
+        dir
+      );
       expect(r2.exitCode).toBe(0);
       expect(r2.stdout).toBe(r1.stdout);
     } finally {
@@ -162,7 +168,10 @@ describe("sec resolve CLI", () => {
       const setup = await runCli(["db", "setup"], dir);
       expect(setup.exitCode).toBe(0);
 
-      const result = await runCli(["resolve", "--kind", "person", "--resolver-version", "1.0.0"], dir);
+      const result = await runCli(
+        ["resolve", "--kind", "person", "--resolver-version", "1.0.0"],
+        dir
+      );
       expect(result.exitCode).not.toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
@@ -50,7 +50,12 @@ describe("form processors degrade gracefully when the extractor model is unavail
       filing_date: "2022-01-20",
       primary_doc: "s1.htm",
       form: "S-1",
-      formS1: { header: SPAC_HEADER, html: MINIMAL_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      formS1: {
+        header: SPAC_HEADER,
+        html: MINIMAL_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       // no `model` — forces getS1Model() to resolve against the empty repo
     });
 
@@ -77,7 +82,12 @@ describe("form processors degrade gracefully when the extractor model is unavail
       filing_date: "2022-01-24",
       primary_doc: "424b4.htm",
       form: "424B4",
-      form424: { header: SPAC_HEADER, html: MINIMAL_HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      form424: {
+        header: SPAC_HEADER,
+        html: MINIMAL_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
       // no `model`
     });
 

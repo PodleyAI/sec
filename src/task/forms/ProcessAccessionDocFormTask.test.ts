@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -59,17 +59,12 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
     });
     const task = new ProcessAccessionDocFormTask();
     await expect(
-      task.execute(
-        { accessionNumber: "0001234567-25-000001" },
-        { own: <T>(x: T): T => x } as any
-      )
+      task.execute({ accessionNumber: "0001234567-25-000001" }, { own: <T>(x: T): T => x } as any)
     ).rejects.toThrow(/No extractor.*10-K/i);
   });
 
   it("throws if no current version is bootstrapped for the form's extractor", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     // bootstrap ran in setupAllDatabases; clear the D current slot for this test
     await reg.clearSlot("extractor", "D", "current");
 
@@ -81,10 +76,7 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
     });
     const task = new ProcessAccessionDocFormTask();
     await expect(
-      task.execute(
-        { accessionNumber: "0001234567-25-000001" },
-        { own: <T>(x: T): T => x } as any
-      )
+      task.execute({ accessionNumber: "0001234567-25-000001" }, { own: <T>(x: T): T => x } as any)
     ).rejects.toThrow(/No active slot.*extractor.*D/i);
   });
 });

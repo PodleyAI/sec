@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, Sqlite } from "workglow";
+import { DefaultDI } from "../../config/DefaultDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { closeDb, getDb } from "../../util/db";
-import { DefaultDI } from "../../config/DefaultDI";
 import { Form8KEventRepo } from "./Form8KEventRepo";
 
 const TEST_DB_NAME = "form8k_replace_sqlite_test";
@@ -102,12 +102,7 @@ describe("replaceEvents (sqlite) transactional rollback", () => {
     ).rejects.toThrow();
 
     // After rollback the original "1.01" row is still there.
-    const after = await repo.getEventsByAccession(
-      320193,
-      "0001193125-24-000001",
-      "8-K",
-      "1.0.0"
-    );
+    const after = await repo.getEventsByAccession(320193, "0001193125-24-000001", "8-K", "1.0.0");
     expect(after.length).toBe(1);
     expect(after[0].item_code).toBe("1.01");
 
@@ -116,9 +111,10 @@ describe("replaceEvents (sqlite) transactional rollback", () => {
     // pre-existing-plus-half-new state.
     const db = getDb();
     const all = db
-      .prepare<[], { item_code: string }>(
-        `SELECT item_code FROM form_8k_events WHERE cik = ? AND accession_number = ?`
-      )
+      .prepare<
+        [],
+        { item_code: string }
+      >(`SELECT item_code FROM form_8k_events WHERE cik = ? AND accession_number = ?`)
       .all(320193, "0001193125-24-000001");
     expect(all.map((r) => r.item_code).sort()).toEqual(["1.01"]);
   });

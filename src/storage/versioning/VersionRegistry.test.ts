@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -37,18 +37,14 @@ describe("VersionRegistry", () => {
   });
 
   it("returns undefined for missing slots", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     expect(await reg.getCurrent("extractor", "unbootstrapped-form")).toBeUndefined();
     expect(await reg.getPrevious("extractor", "unbootstrapped-form")).toBeUndefined();
     expect(await reg.getNext("extractor", "unbootstrapped-form")).toBeUndefined();
   });
 
   it("round-trips a single slot via putSlot/getCurrent", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -67,9 +63,7 @@ describe("VersionRegistry", () => {
   });
 
   it("keeps slots independent for the same component", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -107,9 +101,7 @@ describe("VersionRegistry", () => {
   });
 
   it("clearSlot removes only the targeted slot", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -138,9 +130,7 @@ describe("VersionRegistry", () => {
   });
 
   it("listAll returns rows across kinds and ids", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "test-extractor",
@@ -172,9 +162,7 @@ describe("VersionRegistry", () => {
   });
 
   it("listByKind filters", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "test-extractor",
@@ -205,9 +193,7 @@ describe("VersionRegistry", () => {
   });
 
   it("rejects putSlot with malformed semver", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await expect(
       reg.putSlot({
         component_kind: "extractor",
@@ -223,9 +209,7 @@ describe("VersionRegistry", () => {
   });
 
   it("rejects putSlot when current slot has coverage_complete=false", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await expect(
       reg.putSlot({
         component_kind: "extractor",
@@ -241,9 +225,7 @@ describe("VersionRegistry", () => {
   });
 
   it("allows putSlot for next slot with coverage_complete=false", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -258,9 +240,7 @@ describe("VersionRegistry", () => {
   });
 
   it("putSlot overwrites the same slot on second call", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -287,9 +267,7 @@ describe("VersionRegistry", () => {
   });
 
   it("clearSlot on a slot that doesn't exist is a no-op", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     // Should not throw
     await reg.clearSlot("extractor", "D", "next");
     expect(await reg.getNext("extractor", "D")).toBeUndefined();

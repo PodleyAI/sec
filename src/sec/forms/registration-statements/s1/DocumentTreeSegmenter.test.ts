@@ -3,10 +3,10 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
-import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 import { S1_SECTIONS } from "./DocumentSegmenter";
+import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 
 describe("DocumentTreeSegmenter", () => {
   it("resolves target sections from the tree and renders their bodies", () => {

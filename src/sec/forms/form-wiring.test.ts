@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
+import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
 import {
   ALL_FORM_NAMES,
   ALL_FORMS_MAP,
   ALL_FORMS_MAP_ARRAY,
   isFormParsingSupported,
 } from "./all-forms";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
 
 // Pre-existing stub-vs-stub duplicate registrations (both classes lack a

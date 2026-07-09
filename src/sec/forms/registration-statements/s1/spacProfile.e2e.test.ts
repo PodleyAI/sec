@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../../config/TestingDI";
 import { setupAllDatabases } from "../../../../config/setupAllDatabases";
-import { registerFakeStructuredProvider, fakeS1Model } from "./testing/fakeStructuredProvider";
-import { processFormS1 } from "../Form_S_1.storage";
-import { SpacRepo } from "../../../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { SpacRepo } from "../../../../storage/spac/SpacRepo";
+import { processFormS1 } from "../Form_S_1.storage";
+import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
 // A SPAC prospectus body carrying a "PROSPECTUS SUMMARY" heading (so the profile
 // section segments) plus the standard entity headings with placeholder bodies.

@@ -4,39 +4,39 @@
  * All Rights Reserved
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { EntityObserver, type PersonClaim } from "./EntityObserver";
-import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import {
-  PersonObservationSchema,
-  PersonObservationPrimaryKeyNames,
-  type PersonObservation,
-} from "../storage/observation/PersonObservationSchema";
-import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
-import {
-  CanonicalPersonSchema,
-  CanonicalPersonPrimaryKeyNames,
-  type CanonicalPerson,
-} from "../storage/canonical/CanonicalPersonSchema";
-import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
-import {
-  CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+  CanonicalPersonAliasSchema,
   type CanonicalPersonAlias,
 } from "../storage/canonical/CanonicalAliasSchemas";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import {
-  PersonIdentityLinkSchema,
-  PersonIdentityLinkPrimaryKeyNames,
-  type PersonIdentityLink,
-} from "../storage/canonical/PersonIdentityLinkSchema";
-import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
-import {
-  CanonicalPersonAddressSchema,
   CanonicalPersonAddressPrimaryKeyNames,
+  CanonicalPersonAddressSchema,
   type CanonicalPersonAddress,
 } from "../storage/canonical/CanonicalJunctionSchemas";
+import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
+import {
+  CanonicalPersonPrimaryKeyNames,
+  CanonicalPersonSchema,
+  type CanonicalPerson,
+} from "../storage/canonical/CanonicalPersonSchema";
+import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
+import {
+  PersonIdentityLinkPrimaryKeyNames,
+  PersonIdentityLinkSchema,
+  type PersonIdentityLink,
+} from "../storage/canonical/PersonIdentityLinkSchema";
+import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import {
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+  type PersonObservation,
+} from "../storage/observation/PersonObservationSchema";
+import { EntityObserver, type PersonClaim } from "./EntityObserver";
 import { PersonResolver } from "./PersonResolver";
 
 function makePersonRepos() {

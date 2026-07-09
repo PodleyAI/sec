@@ -4,7 +4,7 @@
  * All Rights Reserved
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
 import { CanonicalCompanyPhoneRepo } from "./CanonicalCompanyPhoneRepo";
 import {

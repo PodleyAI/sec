@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { isUniqueConstraintError } from "./isUniqueConstraintError";
 
 describe("isUniqueConstraintError", () => {
@@ -24,12 +24,8 @@ describe("isUniqueConstraintError", () => {
     });
 
     it("is case-insensitive on the SQLite/InMemory message", () => {
-      expect(isUniqueConstraintError(new Error("unique constraint failed: foo"))).toBe(
-        true
-      );
-      expect(isUniqueConstraintError(new Error("Unique Constraint Failed: foo"))).toBe(
-        true
-      );
+      expect(isUniqueConstraintError(new Error("unique constraint failed: foo"))).toBe(true);
+      expect(isUniqueConstraintError(new Error("Unique Constraint Failed: foo"))).toBe(true);
     });
   });
 
@@ -60,9 +56,7 @@ describe("isUniqueConstraintError", () => {
 
     it("is case-insensitive on the Postgres message", () => {
       expect(
-        isUniqueConstraintError(
-          new Error("DUPLICATE KEY VALUE VIOLATES UNIQUE CONSTRAINT \"foo\"")
-        )
+        isUniqueConstraintError(new Error('DUPLICATE KEY VALUE VIOLATES UNIQUE CONSTRAINT "foo"'))
       ).toBe(true);
     });
 

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import {
-  ManagementOutputSchema,
   BeneficialOwnershipOutputSchema,
+  ManagementOutputSchema,
   RelatedPartyOutputSchema,
 } from "./sectionSchemas";
 

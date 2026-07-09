@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../../config/TestingDI";
 import { setupAllDatabases } from "../../../../config/setupAllDatabases";
-import { registerFakeStructuredProvider, fakeS1Model } from "./testing/fakeStructuredProvider";
-import { processFormS1, birthYearFromAge } from "../Form_S_1.storage";
 import { PersonObservationRepo } from "../../../../storage/observation/PersonObservationRepo";
+import { birthYearFromAge, processFormS1 } from "../Form_S_1.storage";
+import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
 const MGMT_SENTENCE = "John Doe, age 55, has served as our Chief Executive Officer since 2019.";
 const BODY = [

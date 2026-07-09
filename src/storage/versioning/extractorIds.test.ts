@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
 import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID, formToExtractorId } from "./extractorIds";

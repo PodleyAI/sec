@@ -5,8 +5,8 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { describe, expect, it } from "bun:test";
 import Value from "typebox/value";
+import { describe, expect, it } from "vitest";
 import {
   AddressesEntityHistoryJunctionSchema,
   type AddressesEntityHistoryJunction,

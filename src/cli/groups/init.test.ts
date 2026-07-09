@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
-import { buildEnvConfig } from "./init";
+import { describe, expect, it } from "vitest";
 import type { InitConfig } from "./init";
+import { buildEnvConfig } from "./init";
 
 describe("buildEnvConfig", () => {
   it("generates SQLite config with required vars", () => {

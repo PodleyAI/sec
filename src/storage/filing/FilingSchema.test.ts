@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
 import { Value } from "typebox/value";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { EntityRepo } from "../entity/EntityRepo";
 import { Filing, FilingSchema } from "./FilingSchema";

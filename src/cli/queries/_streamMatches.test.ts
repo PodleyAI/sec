@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { MAX_FUZZY_MATCHES, collectPage } from "./_streamMatches";
 
 async function* gen(count: number): AsyncGenerator<number, void, undefined> {

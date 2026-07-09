@@ -4,66 +4,64 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { EntityObserver } from "./EntityObserver";
-import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import {
-  PersonObservationSchema,
-  PersonObservationPrimaryKeyNames,
-  type PersonObservation,
-} from "../storage/observation/PersonObservationSchema";
-import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import {
-  CompanyObservationSchema,
-  CompanyObservationPrimaryKeyNames,
-  type CompanyObservation,
-} from "../storage/observation/CompanyObservationSchema";
-import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
-import {
-  CanonicalPersonSchema,
-  CanonicalPersonPrimaryKeyNames,
-  type CanonicalPerson,
-} from "../storage/canonical/CanonicalPersonSchema";
-import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
-import {
-  CanonicalPersonAliasSchema,
+  CanonicalCompanyAliasPrimaryKeyNames,
+  CanonicalCompanyAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+  CanonicalPersonAliasSchema,
+  type CanonicalCompanyAlias,
   type CanonicalPersonAlias,
 } from "../storage/canonical/CanonicalAliasSchemas";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
-import {
-  PersonIdentityLinkSchema,
-  PersonIdentityLinkPrimaryKeyNames,
-  type PersonIdentityLink,
-} from "../storage/canonical/PersonIdentityLinkSchema";
-import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
-import {
-  CanonicalPersonAddressSchema,
-  CanonicalPersonAddressPrimaryKeyNames,
-  type CanonicalPersonAddress,
-} from "../storage/canonical/CanonicalJunctionSchemas";
+import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
 import {
-  CanonicalCompanySchema,
   CanonicalCompanyPrimaryKeyNames,
+  CanonicalCompanySchema,
   type CanonicalCompany,
 } from "../storage/canonical/CanonicalCompanySchema";
-import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
 import {
-  CanonicalCompanyAliasSchema,
-  CanonicalCompanyAliasPrimaryKeyNames,
-  type CanonicalCompanyAlias,
-} from "../storage/canonical/CanonicalAliasSchemas";
+  CanonicalPersonAddressPrimaryKeyNames,
+  CanonicalPersonAddressSchema,
+  type CanonicalPersonAddress,
+} from "../storage/canonical/CanonicalJunctionSchemas";
+import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
+import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
+import {
+  CanonicalPersonPrimaryKeyNames,
+  CanonicalPersonSchema,
+  type CanonicalPerson,
+} from "../storage/canonical/CanonicalPersonSchema";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
 import {
-  CompanyIdentityLinkSchema,
   CompanyIdentityLinkPrimaryKeyNames,
+  CompanyIdentityLinkSchema,
   type CompanyIdentityLink,
 } from "../storage/canonical/CompanyIdentityLinkSchema";
-import { PersonResolver } from "./PersonResolver";
+import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
+import {
+  PersonIdentityLinkPrimaryKeyNames,
+  PersonIdentityLinkSchema,
+  type PersonIdentityLink,
+} from "../storage/canonical/PersonIdentityLinkSchema";
+import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
+import {
+  CompanyObservationPrimaryKeyNames,
+  CompanyObservationSchema,
+  type CompanyObservation,
+} from "../storage/observation/CompanyObservationSchema";
+import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import {
+  PersonObservationPrimaryKeyNames,
+  PersonObservationSchema,
+  type PersonObservation,
+} from "../storage/observation/PersonObservationSchema";
 import { CompanyResolver } from "./CompanyResolver";
-import type { PersonClaim, CompanyClaim } from "./EntityObserver";
+import type { CompanyClaim, PersonClaim } from "./EntityObserver";
+import { EntityObserver } from "./EntityObserver";
+import { PersonResolver } from "./PersonResolver";
 
 function makePersonRepos() {
   const personObsStorage = new InMemoryTabularStorage<
@@ -157,7 +155,9 @@ function makeCompanyRepos() {
     companyObservationRepository: companyObsStorage,
   });
   const canonRepo = new CanonicalCompanyRepo({ canonicalCompanyRepository: canonStorage });
-  const aliasRepo = new CanonicalCompanyAliasRepo({ canonicalCompanyAliasRepository: aliasStorage });
+  const aliasRepo = new CanonicalCompanyAliasRepo({
+    canonicalCompanyAliasRepository: aliasStorage,
+  });
   const identityLinkRepo = new CompanyIdentityLinkRepo({
     companyIdentityLinkRepository: identityLinkStorage,
   });

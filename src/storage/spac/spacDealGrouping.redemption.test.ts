@@ -3,7 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { deriveDeals } from "./spacDealGrouping";
 import type { SpacEvent } from "./SpacEventSchema";
 import type { SpacRedemptionExtraction } from "./SpacRedemptionExtractionSchema";

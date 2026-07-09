@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { IExecuteContext } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import type { Filings } from "../../sec/submissions/EnititySubmissionSchema";

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { statusMessage, createProgress, createSpinner } from "./Progress";
+import { describe, expect, it } from "vitest";
+import { createProgress, createSpinner, statusMessage } from "./Progress";
 
 describe("statusMessage", () => {
   it("formats success with checkmark prefix", () => {

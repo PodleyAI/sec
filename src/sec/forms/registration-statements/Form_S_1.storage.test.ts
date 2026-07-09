@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { processFormS1 } from "./Form_S_1.storage";
+import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
+import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
-import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
-import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
+import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML = [
@@ -26,7 +26,13 @@ const HTML = [
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
-const NULL_HEADER = { sic: null, sicDescription: null, cik: null, companyName: null, filingDate: null };
+const NULL_HEADER = {
+  sic: null,
+  sicDescription: null,
+  cik: null,
+  companyName: null,
+  filingDate: null,
+};
 
 let cleanup: (() => void) | undefined;
 

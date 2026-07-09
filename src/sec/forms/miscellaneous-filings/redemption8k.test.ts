@@ -3,22 +3,22 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedemptionExtractionRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
-import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedemptionExtractionRepo";
 import { ExtractorRunRepo } from "../../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../../storage/versioning/ExtractorRunSchema";
 import {
   fakeS1Model,
   registerFakeStructuredProvider,
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
-import { hasRedemptionTriggerItem } from "./spac8kRedemptionTriggers";
 import { processRedemption8K } from "./redemption8k";
-import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { hasRedemptionTriggerItem } from "./spac8kRedemptionTriggers";
 
 const FULL_TXT =
   "<SEC-HEADER>\nACCESSION NUMBER: 0000000000-26-000009\n</SEC-HEADER>\n" +
@@ -579,9 +579,7 @@ describe("processRedemption8K", () => {
     // ...but a SUCCESSFUL run is also recorded, so the deterministic-cap drop is
     // idempotent: listFilingsWithoutSuccessfulRun excludes this filing and the
     // backfill sweep no longer re-fetches/re-drops the oversized submission.
-    const runRepo = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const run = await runRepo.findRun(56, "0000000000-26-000056", "redemption", "1.0.0");
     expect(run?.success).toBe(true);
   });
@@ -692,7 +690,9 @@ describe("processRedemption8K", () => {
     const currentVersion = entry!.failed_extractor_version;
     let eligible = await dlRepo.listEligible("redemption", currentVersion);
     expect(
-      eligible.filter((e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001")
+      eligible.filter(
+        (e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001"
+      )
     ).toHaveLength(0);
 
     // Run #2: idempotent — the entry stays resolved, attempts increments (audit
@@ -712,7 +712,9 @@ describe("processRedemption8K", () => {
     expect(entry?.attempts).toBe(2);
     eligible = await dlRepo.listEligible("redemption", currentVersion);
     expect(
-      eligible.filter((e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001")
+      eligible.filter(
+        (e) => e.section_name === sectionKey && e.accession_number === "0000000000-26-RES001"
+      )
     ).toHaveLength(0);
   });
 

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
-import { assembleSpacReport } from "./spac";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
+import { assembleSpacReport } from "./spac";
 
 describe("assembleSpacReport", () => {
   beforeEach(async () => {

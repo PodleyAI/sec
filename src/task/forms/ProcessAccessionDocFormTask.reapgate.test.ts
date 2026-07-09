@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AiProviderRunFn, Capability, ModelConfig } from "workglow";
 import {
   AiProvider,
   getAiProviderRegistry,
   getGlobalModelRepository,
   globalServiceRegistry,
 } from "workglow";
-import type { AiProviderRunFn, Capability, ModelConfig } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { registerFakeStructuredProvider } from "../../sec/forms/registration-statements/s1/testing/fakeStructuredProvider";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 // Full prospectus: Management / Ownership / Related-party sections all present,

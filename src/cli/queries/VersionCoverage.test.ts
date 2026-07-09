@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getVersionCoverage } from "./VersionCoverage";
 
@@ -33,9 +33,7 @@ describe("getVersionCoverage", () => {
   });
 
   it("returns 'no coverage gate' when next slot has minor bump", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -53,12 +51,8 @@ describe("getVersionCoverage", () => {
   });
 
   it("returns 'in progress' when major bump has incomplete coverage", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
-    const runs = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+    const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -91,12 +85,8 @@ describe("getVersionCoverage", () => {
   });
 
   it("returns 'ready to promote' when successful >= target", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
-    const runs = new ExtractorRunRepo(
-      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+    const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -125,9 +115,7 @@ describe("getVersionCoverage", () => {
   });
 
   it("returns 'ready to promote (target_count=0)' when target is zero", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",

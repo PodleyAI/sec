@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
@@ -73,10 +73,7 @@ describe("UnderwriterFamilyResolver", () => {
       return id; // alias not installed — we only care about the in-flight window
     };
 
-    await Promise.all([
-      resolver.resolve("Goldman Sachs"),
-      resolver.resolve("Goldman Sachs"),
-    ]);
+    await Promise.all([resolver.resolve("Goldman Sachs"), resolver.resolve("Goldman Sachs")]);
 
     // Post-fix: alias lookup is inside the mutex → at most one in flight.
     // Pre-fix: alias lookup is after mutex.release → both run in parallel.

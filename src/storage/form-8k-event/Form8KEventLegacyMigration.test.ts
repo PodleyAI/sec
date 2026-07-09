@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
@@ -66,9 +66,10 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
 
     const remaining = db
-      .prepare<[], { name: string }>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
-      )
+      .prepare<
+        [],
+        { name: string }
+      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
       .get();
     expect(remaining).toBeUndefined();
   });
@@ -93,9 +94,10 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
 
     const remaining = db
-      .prepare<[], { name: string }>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
-      )
+      .prepare<
+        [],
+        { name: string }
+      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
       .get();
     expect(remaining).toBeDefined();
   });
@@ -105,9 +107,10 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
     const db = getDb();
     const remaining = db
-      .prepare<[], { name: string }>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
-      )
+      .prepare<
+        [],
+        { name: string }
+      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
       .get();
     expect(remaining).toBeUndefined();
   });

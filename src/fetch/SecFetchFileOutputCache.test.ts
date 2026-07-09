@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 
 describe("SecFetchFileOutputCache path safety", () => {
@@ -40,9 +40,9 @@ describe("SecFetchFileOutputCache path safety", () => {
 
   it("rejects absolute paths on save", async () => {
     const cache = makeCache(() => "/etc/passwd");
-    await expect(
-      cache.saveOutput("T", { response_type: "text" }, { text: "hi" })
-    ).rejects.toThrow(/outside cache folder/);
+    await expect(cache.saveOutput("T", { response_type: "text" }, { text: "hi" })).rejects.toThrow(
+      /outside cache folder/
+    );
   });
 
   it("rejects relative paths that escape via ../ segments on read", async () => {

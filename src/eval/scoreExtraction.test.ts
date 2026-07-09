@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { scoreExtraction } from "./scoreExtraction";
 
 describe("scoreExtraction", () => {
@@ -16,7 +16,12 @@ describe("scoreExtraction", () => {
   it("scores a perfect, noise-tolerant match as 1", () => {
     const candidate = [
       // extra provenance fields are ignored; whitespace/case normalized
-      { full_name: "JANE  SMITH", title: "Chief Executive Officer", confidence: 0.9, source_span: "…" },
+      {
+        full_name: "JANE  SMITH",
+        title: "Chief Executive Officer",
+        confidence: 0.9,
+        source_span: "…",
+      },
       { full_name: "John Doe", title: "chief financial officer", confidence: 0.8 },
     ];
     const s = scoreExtraction(candidate, expected, { keyField: "full_name" });
@@ -46,9 +51,10 @@ describe("scoreExtraction", () => {
   });
 
   it("aligns single-object extractors by position", () => {
-    const s = scoreExtraction([{ ipo_amount: 250_000_000, share_price: "10.00" }], [
-      { ipo_amount: 250000000, share_price: "10.00" },
-    ]);
+    const s = scoreExtraction(
+      [{ ipo_amount: 250_000_000, share_price: "10.00" }],
+      [{ ipo_amount: 250000000, share_price: "10.00" }]
+    );
     expect(s.score).toBe(1);
   });
 

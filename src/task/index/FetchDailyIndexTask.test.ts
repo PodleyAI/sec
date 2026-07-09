@@ -5,9 +5,9 @@
  */
 
 import { Glob } from "bun";
-import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { afterAll, beforeAll, describe, expect, it, mock } from "vitest";
 import {
   EvenlySpacedRateLimiter,
   FetchUrlTaskInput,

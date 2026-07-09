@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { globalServiceRegistry } from "workglow";
-import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import {
   CROWDFUNDING_HISTORY_REPOSITORY_TOKEN,
   type CrowdfundingHistory,
 } from "../../../storage/portal/CrowdfundingHistorySchema";
+import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
 import { Form_C } from "./Form_C";
 import { determineStatus, processFormC } from "./Form_C.storage";
 import {
@@ -220,9 +220,7 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
 
     // History records the older filing as a closed snapshot.
     const history = (await historyRepo.query({ cik, file_number })) ?? [];
-    const staleRows = history.filter(
-      (h: CrowdfundingHistory) => h.filing_date === "2025-04-28"
-    );
+    const staleRows = history.filter((h: CrowdfundingHistory) => h.filing_date === "2025-04-28");
     expect(staleRows.length).toBeGreaterThan(0);
     for (const row of staleRows) {
       expect(row.valid_to).not.toBeNull();

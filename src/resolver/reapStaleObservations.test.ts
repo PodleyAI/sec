@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
+import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
+import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
+import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
+import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { buildEntityObserver } from "./buildEntityObserver";
 import { reapStaleObservations } from "./reapStaleObservations";
-import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
-import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPersonAddressRepo";
 
 const V = "1.0.0";
 const ACC = "0001-25-000001";

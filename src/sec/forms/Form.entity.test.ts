@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { Form_8_K } from "./miscellaneous-filings/Form_8_K";
 import { Form_D } from "./exempt-offerings/Form_D";
 import { decodePredefinedEntities, stripDoctype } from "./Form";

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, describe, expect, it, mock } from "vitest";
 import { runCommand } from "./runCommand";
 
 describe("runCommand", () => {
