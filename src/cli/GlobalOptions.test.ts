@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { Command } from "commander";
+import { describe, expect, it } from "vitest";
 import { applyGlobalOptions, parseGlobalOptions } from "./GlobalOptions";
 
 function createProgram(): Command {

@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
-import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { Form_8_K } from "./Form_8_K";
-import { processForm8K } from "./Form_8_K.storage";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { Form_8_K } from "./Form_8_K";
+import { processForm8K } from "./Form_8_K.storage";
+import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
 
 describe("mapItemCodesToSpacEvents", () => {
   it("maps the four milestone item codes to lifecycle events", () => {
@@ -35,9 +35,7 @@ describe("mapItemCodesToSpacEvents", () => {
 
   it("maps only the milestone items from a mixed filing", () => {
     const events = mapItemCodesToSpacEvents(["1.01", "7.01", "8.01", "9.01"], "2021-03-01");
-    expect(events).toEqual([
-      { event_type: "definitive_agreement", event_date: "2021-03-01" },
-    ]);
+    expect(events).toEqual([{ event_type: "definitive_agreement", event_date: "2021-03-01" }]);
   });
 });
 
@@ -111,9 +109,9 @@ describe("processForm8K SPAC milestone wiring", () => {
 
     const events = await repo.getEvents(300);
     expect(events.filter((e) => e.event_type === "definitive_agreement").length).toBe(1);
-    expect(
-      events.find((e) => e.event_type === "definitive_agreement")?.event_date
-    ).toBe("2021-03-01");
+    expect(events.find((e) => e.event_type === "definitive_agreement")?.event_date).toBe(
+      "2021-03-01"
+    );
     const deals = await repo.getDeals(300);
     expect(deals.length).toBe(1);
   });

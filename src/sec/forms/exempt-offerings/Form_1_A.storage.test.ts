@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
-import { Form_1_A } from "./Form_1_A";
-import { processForm1A } from "./Form_1_A.storage";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
+import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { RegAOfferingRepo } from "../../../storage/reg-a/RegAOfferingRepo";
-import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
-import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { Form_1_A } from "./Form_1_A";
+import { processForm1A } from "./Form_1_A.storage";
 
 describe("Form_1_A storage test", () => {
   let addressRepo: AddressRepo;
@@ -50,7 +50,8 @@ describe("Form_1_A storage test", () => {
           const accessionNumber = file.replace("-primary_doc.xml", "");
           const cik = parseInt(form1A.formData.employeesInfo[0].cik);
           const fileNumber =
-            form1A.headerData.filerInfo.filer.offeringFileNumber || `024-${accessionNumber.slice(0, 5)}`;
+            form1A.headerData.filerInfo.filer.offeringFileNumber ||
+            `024-${accessionNumber.slice(0, 5)}`;
 
           await processForm1A({
             cik,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";

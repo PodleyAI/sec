@@ -365,7 +365,7 @@ If the form contains data that doesn't fit into the existing `person/company/add
 ```typescript
 // src/sec/forms/<category>/Form_X.test.ts
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { Form_X } from "./Form_X";

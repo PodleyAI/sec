@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
+import { describe, expect, it } from "vitest";
 import { Form_144 } from "./Form_144";
 
 const CASES = [

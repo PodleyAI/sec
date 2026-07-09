@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import {
-  CanonicalPersonSchema,
-  CanonicalPersonPrimaryKeyNames,
-  type CanonicalPerson,
-} from "../storage/canonical/CanonicalPersonSchema";
-import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
-import {
-  CanonicalPersonAliasSchema,
   CanonicalPersonAliasPrimaryKeyNames,
+  CanonicalPersonAliasSchema,
   type CanonicalPersonAlias,
 } from "../storage/canonical/CanonicalAliasSchemas";
+import { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
+import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
+import {
+  CanonicalPersonPrimaryKeyNames,
+  CanonicalPersonSchema,
+  type CanonicalPerson,
+} from "../storage/canonical/CanonicalPersonSchema";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
 import { PersonResolver } from "./PersonResolver";
 
@@ -100,7 +100,12 @@ describe("PersonResolver.resolve", () => {
       obs({ normalized_first: "jane", normalized_last: "smith", source_filing_issuer_cik: 100 })
     );
     const b = await resolver.resolve(
-      obs({ normalized_first: "jane", normalized_last: "smith", source_filing_issuer_cik: 100, observation_id: 2 })
+      obs({
+        normalized_first: "jane",
+        normalized_last: "smith",
+        source_filing_issuer_cik: 100,
+        observation_id: 2,
+      })
     );
     expect(a).toBe(b);
   });
@@ -110,7 +115,12 @@ describe("PersonResolver.resolve", () => {
       obs({ normalized_first: "jane", normalized_last: "smith", source_filing_issuer_cik: 100 })
     );
     const b = await resolver.resolve(
-      obs({ normalized_first: "jane", normalized_last: "smith", source_filing_issuer_cik: 200, observation_id: 2 })
+      obs({
+        normalized_first: "jane",
+        normalized_last: "smith",
+        source_filing_issuer_cik: 200,
+        observation_id: 2,
+      })
     );
     expect(a).not.toBe(b);
   });
@@ -118,7 +128,12 @@ describe("PersonResolver.resolve", () => {
   it("CIK observation and no-CIK observation with same name stay split (D17b)", async () => {
     const a = await resolver.resolve(obs({ cik: 1234 }));
     const b = await resolver.resolve(
-      obs({ normalized_first: "jane", normalized_last: "smith", source_filing_issuer_cik: 100, observation_id: 2 })
+      obs({
+        normalized_first: "jane",
+        normalized_last: "smith",
+        source_filing_issuer_cik: 100,
+        observation_id: 2,
+      })
     );
     expect(a).not.toBe(b);
   });

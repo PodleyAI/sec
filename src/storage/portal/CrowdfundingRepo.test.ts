@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { CrowdfundingRepo } from "./CrowdfundingRepo";
 import {

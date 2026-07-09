@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "vitest";
 import { buildUntrustedPreamble, extractManagement, wrapUntrusted } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -32,10 +32,7 @@ describe("section extractor prompt-injection hardening", () => {
   it("prompt sent to the model carries the nonced UNTRUSTED preamble and XML fence", async () => {
     const fake = registerFakeStructuredProvider([{ people: [] }]);
     cleanup = fake.unregister;
-    await extractManagement(
-      "Jane Roe served as Director from 2020 to 2024.",
-      fakeS1Model()
-    );
+    await extractManagement("Jane Roe served as Director from 2020 to 2024.", fakeS1Model());
     expect(fake.calls).toHaveLength(1);
     const prompt = fake.calls[0];
     const nonce = extractFenceNonce(prompt);

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import type { SpacDeal } from "./SpacDealSchema";
 import { SpacRepo } from "./SpacRepo";
 import { SpacReportWriter } from "./SpacReportWriter";
-import type { SpacDeal } from "./SpacDealSchema";
 
 /** A stale orphan deal row carrying a redemption amount, as a prior larger derivation would leave. */
 const orphanDeal = (cik: number, deal_index: number): SpacDeal => ({

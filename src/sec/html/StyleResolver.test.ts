@@ -3,9 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
 import * as cheerio from "cheerio";
-import { resolveStyle, emphasisTraitCount } from "./StyleResolver";
+import { describe, expect, it } from "vitest";
+import { emphasisTraitCount, resolveStyle } from "./StyleResolver";
 
 function styleOf(html: string) {
   const $ = cheerio.load(html);
@@ -15,14 +15,18 @@ function styleOf(html: string) {
 
 describe("resolveStyle", () => {
   it("reads bold, centered, font-size from inline style", () => {
-    const s = styleOf(`<p data-t style="font-weight:700;text-align:center;font-size:14pt">HELLO</p>`);
+    const s = styleOf(
+      `<p data-t style="font-weight:700;text-align:center;font-size:14pt">HELLO</p>`
+    );
     expect(s.bold).toBe(true);
     expect(s.centered).toBe(true);
     expect(s.fontSizePt).toBeCloseTo(14, 1);
     expect(s.upperRatio).toBeCloseTo(1, 2);
   });
   it("inherits parent style, child wins", () => {
-    const s = styleOf(`<div style="font-weight:700"><span data-t style="font-weight:400">x</span></div>`);
+    const s = styleOf(
+      `<div style="font-weight:700"><span data-t style="font-weight:400">x</span></div>`
+    );
     expect(s.bold).toBe(false); // child override
   });
   it("converts px to pt and treats <b> as bold", () => {

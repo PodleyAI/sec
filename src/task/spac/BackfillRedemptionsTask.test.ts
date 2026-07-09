@@ -3,7 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -60,9 +60,7 @@ async function seedSuccessfulRun(opts: {
   readonly accession_number: string;
   readonly form: string;
 }): Promise<void> {
-  const runRepo = new ExtractorRunRepo(
-    globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-  );
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   await runRepo.recordRun({
     cik: opts.cik,
     accession_number: opts.accession_number,

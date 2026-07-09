@@ -3,15 +3,15 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { NodeKind, traverseDepthFirst } from "workglow";
+import { describe, expect, it } from "vitest";
 import type { TableNode } from "workglow";
-import { parseEdgarHtml } from "./parseEdgarHtml";
-import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/DocumentTreeSegmenter";
-import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { NodeKind, traverseDepthFirst } from "workglow";
 import type { S1SectionName } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/DocumentTreeSegmenter";
+import { parseEdgarHtml } from "./parseEdgarHtml";
 
 const {
   MANAGEMENT,

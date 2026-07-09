@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "vitest";
 import { getS1ModelId } from "./s1Model";
 
 const ORIG = process.env.SEC_S1_MODEL;

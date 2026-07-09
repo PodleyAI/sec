@@ -4,23 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryTabularStorage } from "workglow";
-import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
 import {
-  CanonicalCompanySchema,
-  CanonicalCompanyPrimaryKeyNames,
-  type CanonicalCompany,
-} from "../storage/canonical/CanonicalCompanySchema";
-import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
-import {
-  CanonicalCompanyAliasSchema,
   CanonicalCompanyAliasPrimaryKeyNames,
+  CanonicalCompanyAliasSchema,
   type CanonicalCompanyAlias,
 } from "../storage/canonical/CanonicalAliasSchemas";
+import { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
+import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
+import {
+  CanonicalCompanyPrimaryKeyNames,
+  CanonicalCompanySchema,
+  type CanonicalCompany,
+} from "../storage/canonical/CanonicalCompanySchema";
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
-import { CompanyResolver } from "./CompanyResolver";
 import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
+import { CompanyResolver } from "./CompanyResolver";
 
 type ErrorShape = "sqlite" | "pg";
 type CompanyKey = "cik" | "crd";
@@ -133,9 +133,7 @@ describe("CompanyResolver concurrent resolution", () => {
   it("two parallel resolves on the same normalized name collapse to one canonical row", async () => {
     const [a, b] = await Promise.all([
       resolver.resolve(obs({ normalized_name: "acme holdings llc" })),
-      resolver.resolve(
-        obs({ normalized_name: "acme holdings llc", observation_id: 2 })
-      ),
+      resolver.resolve(obs({ normalized_name: "acme holdings llc", observation_id: 2 })),
     ]);
     expect(a).toBe(b);
     expect((await setup.canonStorage.getAll()).length).toBe(1);

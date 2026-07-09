@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
-import { buildSpacRow } from "./spacRollup";
+import { describe, expect, it } from "vitest";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent } from "./SpacEventSchema";
+import { buildSpacRow } from "./spacRollup";
 
 function ev(p: Pick<SpacEvent, "event_type" | "event_date"> & Partial<SpacEvent>): SpacEvent {
   return {

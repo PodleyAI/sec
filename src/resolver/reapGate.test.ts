@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { hasBlockingSectionFailure, type ReapGateDeadLetter } from "./reapStaleObservations";
 
 const ACC = "0000000000-26-000001";

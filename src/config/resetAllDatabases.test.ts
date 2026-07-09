@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 
 /**
  * Drift guard for `sec db reset --confirm`. `resetAllDatabases()` truncates a

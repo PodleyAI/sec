@@ -3,8 +3,8 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
 import * as cheerio from "cheerio";
+import { describe, expect, it } from "vitest";
 import { extractTable } from "./TableExtractor";
 
 function tableFrom(html: string) {

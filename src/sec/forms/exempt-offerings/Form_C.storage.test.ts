@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
-import { Form_C } from "./Form_C";
-import { processFormC } from "./Form_C.storage";
-import { AddressRepo } from "../../../storage/address/AddressRepo";
-import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
-import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { AddressRepo } from "../../../storage/address/AddressRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { CrowdfundingRepo } from "../../../storage/portal/CrowdfundingRepo";
+import { Form_C } from "./Form_C";
+import { processFormC } from "./Form_C.storage";
 
 describe("Form_C storage test", () => {
   let addressRepo: AddressRepo;
@@ -284,11 +284,7 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      const offering = await crowdfundingRepo.getCrowdfundingOffering(
-        cik,
-        fileNumber,
-        filingDate
-      );
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(cik, fileNumber, filingDate);
       expect(offering?.price).toBe(null);
       expect(offering?.offering_amount).toBe(null);
       expect(offering?.maximum_offering_amount).toBe(null);
@@ -329,11 +325,7 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      const offering = await crowdfundingRepo.getCrowdfundingOffering(
-        cik,
-        fileNumber,
-        filingDate
-      );
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(cik, fileNumber, filingDate);
       expect(offering?.price).toBe(null);
       expect(offering?.offering_amount).toBe(null);
     });
@@ -370,11 +362,7 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      const offering = await crowdfundingRepo.getCrowdfundingOffering(
-        cik,
-        fileNumber,
-        filingDate
-      );
+      const offering = await crowdfundingRepo.getCrowdfundingOffering(cik, fileNumber, filingDate);
       expect(offering?.price).toBe(0);
       expect(offering?.offering_amount).toBe(0);
 
@@ -410,9 +398,8 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      const { CrowdfundingTemporalRepo } = await import(
-        "../../../storage/portal/CrowdfundingTemporalRepo"
-      );
+      const { CrowdfundingTemporalRepo } =
+        await import("../../../storage/portal/CrowdfundingTemporalRepo");
       const temporalRepo = new CrowdfundingTemporalRepo();
       const beforeHistory = await temporalRepo.getCrowdfundingHistory(cik, fileNumber);
       const seedHistoryCount = beforeHistory.length;
@@ -520,15 +507,13 @@ describe("Form_C storage test", () => {
         formC,
       });
 
-      const { CrowdfundingTemporalRepo } = await import(
-        "../../../storage/portal/CrowdfundingTemporalRepo"
-      );
+      const { CrowdfundingTemporalRepo } =
+        await import("../../../storage/portal/CrowdfundingTemporalRepo");
       const temporalRepo = new CrowdfundingTemporalRepo();
       const history = await temporalRepo.getCrowdfundingHistory(cik, fileNumber);
 
       const replaySnapshot = history.find(
-        (h) =>
-          h.valid_to !== null && h.valid_to === h.valid_from && h.filing_date === "2026-04-01"
+        (h) => h.valid_to !== null && h.valid_to === h.valid_from && h.filing_date === "2026-04-01"
       );
       expect(replaySnapshot).toBeDefined();
       expect(replaySnapshot?.name).toBe(seededName);
@@ -572,9 +557,7 @@ describe("Form_C storage test", () => {
         (r) => r.file_number === fileNumber
       );
       // The negative value must be dropped rather than stored as -1.
-      expect(
-        reports.find((r) => r.disclosure_name === "currentEmployees")
-      ).toBeUndefined();
+      expect(reports.find((r) => r.disclosure_name === "currentEmployees")).toBeUndefined();
     });
   });
 });

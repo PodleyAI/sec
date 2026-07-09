@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { SecCliConfigurationError } from "../config/EnvToDI";
 import { SEC_DB_TYPE } from "../config/tokens";

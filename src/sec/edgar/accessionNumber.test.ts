@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { Type } from "typebox";
 import Value from "typebox/value";
+import { describe, expect, it } from "vitest";
 import { TypeAccessionNumber } from "./accessionNumber";
 
 const Wrapper = Type.Object({ accessionNumber: TypeAccessionNumber() });

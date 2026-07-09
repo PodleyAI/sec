@@ -9,13 +9,13 @@
  * Securities): XML -> parse -> store -> query the repos.
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { InvestmentOfferingRepo } from "../../../storage/investment-offering/InvestmentOfferingRepo";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
-import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { Form_D } from "./Form_D";
 import { processFormD } from "./Form_D.storage";
 import {
@@ -55,9 +55,10 @@ describe("Form_D pipeline", () => {
     issuerRepo = new IssuerRepo();
   });
 
-  async function ingestAll(slug = FIXTURE_SLUG, formCode: "D" | "D/A" = "D"): Promise<
-    IngestedFixture[]
-  > {
+  async function ingestAll(
+    slug = FIXTURE_SLUG,
+    formCode: "D" | "D/A" = "D"
+  ): Promise<IngestedFixture[]> {
     const ingested: IngestedFixture[] = [];
     const summary = await runPipeline(slug, async (file, xml) => {
       const formD = await Form_D.parse(formCode, xml);
@@ -98,11 +99,8 @@ describe("Form_D pipeline", () => {
     // Each filing produces one offering row keyed on (cik, file_number). The
     // count of rows should match the filings we ingested (modulo collisions
     // where two filings share the same cik+file_number, which is rare).
-    const allOfferings =
-      (await investmentOfferingRepo.investmentOfferingRepository.getAll()) || [];
-    expect(allOfferings.length).toBeGreaterThanOrEqual(
-      Math.floor(ingested.length * 0.95)
-    );
+    const allOfferings = (await investmentOfferingRepo.investmentOfferingRepository.getAll()) || [];
+    expect(allOfferings.length).toBeGreaterThanOrEqual(Math.floor(ingested.length * 0.95));
   });
 
   it("creates an offering history row per filing", async () => {

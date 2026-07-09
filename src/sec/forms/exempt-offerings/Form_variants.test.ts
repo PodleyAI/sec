@@ -16,7 +16,7 @@
  * so we notice when an amendment XSD diverges from its parent.
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { Form_1_A } from "./Form_1_A";
 import { Form_1_K } from "./Form_1_K";
 import { Form_1_Z } from "./Form_1_Z";

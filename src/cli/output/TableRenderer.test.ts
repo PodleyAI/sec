@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
-import { renderTable, __testing } from "./TableRenderer";
+import { describe, expect, it } from "vitest";
 import type { ColumnDef, RenderOptions } from "./TableRenderer";
+import { __testing, renderTable } from "./TableRenderer";
 
 const { escapeCsvValue } = __testing;
 
@@ -300,8 +300,7 @@ describe("escapeCsvValue", () => {
 
   it("defuses every dangerous follow-up line, leaving safe interleaved lines alone", () => {
     const input = "safe\n=danger1\nstillsafe\n+danger2\n@danger3";
-    const expected =
-      '"safe\n\'=danger1\nstillsafe\n\'+danger2\n\'@danger3"';
+    const expected = "\"safe\n'=danger1\nstillsafe\n'+danger2\n'@danger3\"";
     expect(escapeCsvValue(input)).toBe(expected);
   });
 

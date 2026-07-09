@@ -4,16 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeAll, describe, expect, it, mock } from "bun:test";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeAll, describe, expect, it, mock } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { BootstrapDownloadTask, streamDownloadToFile } from "./BootstrapDownloadTask";
@@ -110,9 +104,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "aborted.bin");
-      await expect(
-        streamDownloadToFile("https://example/aborts", dest)
-      ).rejects.toThrow(/connection reset/);
+      await expect(streamDownloadToFile("https://example/aborts", dest)).rejects.toThrow(
+        /connection reset/
+      );
       // The partial file must not be left behind for the next bootstrap
       // run to mistake for a complete archive.
       expect(existsSync(dest)).toBe(false);
@@ -140,9 +134,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "short.bin");
-      await expect(
-        streamDownloadToFile("https://example/short", dest)
-      ).rejects.toThrow(/size mismatch/);
+      await expect(streamDownloadToFile("https://example/short", dest)).rejects.toThrow(
+        /size mismatch/
+      );
       expect(existsSync(dest)).toBe(false);
     } finally {
       (global as any).fetch = oldFetch;
@@ -170,9 +164,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "bad-len.bin");
-      await expect(
-        streamDownloadToFile("https://example/bad-len", dest)
-      ).rejects.toThrow(/Invalid Content-Length/);
+      await expect(streamDownloadToFile("https://example/bad-len", dest)).rejects.toThrow(
+        /Invalid Content-Length/
+      );
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "bad-len.bin"), { force: true });
@@ -227,9 +221,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "neg-len.bin");
-      await expect(
-        streamDownloadToFile("https://example/neg-len", dest)
-      ).rejects.toThrow(/Invalid Content-Length/);
+      await expect(streamDownloadToFile("https://example/neg-len", dest)).rejects.toThrow(
+        /Invalid Content-Length/
+      );
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "neg-len.bin"), { force: true });
@@ -290,9 +284,9 @@ describe("streamDownloadToFile", () => {
     });
     try {
       const dest = path.join(tmpRoot, "dup-mismatched-len.bin");
-      await expect(
-        streamDownloadToFile("https://example/dup-mismatched", dest)
-      ).rejects.toThrow(/Conflicting Content-Length/);
+      await expect(streamDownloadToFile("https://example/dup-mismatched", dest)).rejects.toThrow(
+        /Conflicting Content-Length/
+      );
     } finally {
       (global as any).fetch = oldFetch;
       rmSync(path.join(tmpRoot, "dup-mismatched-len.bin"), { force: true });
@@ -386,12 +380,10 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
   }): () => void {
     const realSpawn = Bun.spawn;
     const realWhich = Bun.which;
-    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((
-      cmd: readonly string[]
-    ) => opts.spawn(cmd)) as typeof Bun.spawn;
-    (Bun as unknown as { which: typeof Bun.which }).which = ((
-      _name: string
-    ) => "/usr/bin/unzip") as typeof Bun.which;
+    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((cmd: readonly string[]) =>
+      opts.spawn(cmd)) as typeof Bun.spawn;
+    (Bun as unknown as { which: typeof Bun.which }).which = ((_name: string) =>
+      "/usr/bin/unzip") as typeof Bun.which;
     return () => {
       (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = realSpawn;
       (Bun as unknown as { which: typeof Bun.which }).which = realWhich;

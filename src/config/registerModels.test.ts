@@ -10,7 +10,7 @@ import {
   InMemoryModelRepository,
   setGlobalModelRepository,
 } from "workglow";
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { anthropicModelRecord, registerSecModels } from "./registerModels";
 
 describe("registerSecModels", () => {

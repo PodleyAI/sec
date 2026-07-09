@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
 import { Value } from "typebox/value";
+import { describe, expect, it } from "vitest";
 import { CompanyObservationSchema } from "./CompanyObservationSchema";
 
 describe("CompanyObservationSchema", () => {

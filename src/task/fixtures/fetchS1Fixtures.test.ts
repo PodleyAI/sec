@@ -3,9 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "bun:test";
-import { isSpac, selectS1Sample, SPAC_SIC_CODE } from "./fetchS1Fixtures";
+import { describe, expect, it } from "vitest";
 import type { S1Candidate } from "./fetchS1Fixtures";
+import { isSpac, selectS1Sample, SPAC_SIC_CODE } from "./fetchS1Fixtures";
 
 const cand = (n: number, o: Partial<S1Candidate> = {}): S1Candidate => ({
   cik: String(1000 + n),
@@ -33,11 +33,7 @@ describe("selectS1Sample", () => {
   });
 
   it("excludes candidates without a primary doc", () => {
-    const picked = selectS1Sample(
-      [cand(1, { primaryDoc: undefined }), cand(2), cand(3)],
-      5,
-      0
-    );
+    const picked = selectS1Sample([cand(1, { primaryDoc: undefined }), cand(2), cand(3)], 5, 0);
     expect(picked.map((c) => c.accession)).toEqual(["000-2", "000-3"]);
   });
 

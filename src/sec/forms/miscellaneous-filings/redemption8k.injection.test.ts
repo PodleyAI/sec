@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
-import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
-import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedemptionExtractionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { MAX_STORED_SPAN_CHARS } from "../registration-statements/s1/verifySourceSpan";
+import { SpacRedemptionExtractionRepo } from "../../../storage/spac/SpacRedemptionExtractionRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import {
   fakeS1Model,
   registerFakeStructuredProvider,
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
+import { MAX_STORED_SPAN_CHARS } from "../registration-statements/s1/verifySourceSpan";
 import { processRedemption8K } from "./redemption8k";
 
 const FULL_TXT =

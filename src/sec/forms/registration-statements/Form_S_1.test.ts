@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { Form_S_1 } from "./Form_S_1";
 
 describe("Form_S_1.parse", () => {
