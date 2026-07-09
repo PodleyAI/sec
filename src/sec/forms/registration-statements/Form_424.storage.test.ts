@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
@@ -14,6 +14,10 @@ import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
 import { processForm424 } from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+import { OFFERING_SECTION_NAMES } from "./s1/offeringSections";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const CIK = 2114227;
@@ -220,6 +224,134 @@ describe("processForm424", () => {
       (o) => o.accession_number === B4_ACCESSION
     )!;
     expect(JSON.parse(issuer.source_context!).relation).toBe("424:issuer");
+  });
+
+  describe("SPAC IPO event on AI degradation", () => {
+    // The priced prospectus IS the SPAC IPO — the deterministic lifecycle
+    // event must record even when the AI offering-sections pass degrades
+    // (model resolution fails, HTML fails to segment). Otherwise the SPAC
+    // report's ipo_date, spac_deal correlation, and status advance are held
+    // hostage to model availability.
+
+    const SPAC_HEADER = {
+      sic: 6770,
+      sicDescription: "BLANK CHECKS",
+      cik: CIK,
+      companyName: "Synthetic SPAC Corp",
+      filingDate: "20260428",
+    };
+
+    it("records the IPO event + deal even when the AI model fails to resolve (424B4)", async () => {
+      // No fake provider registered; getS1Model() throws with the configured
+      // model unregistered, which used to abort the whole filing before it
+      // reached the deterministic IPO-event bookkeeping. The catch now
+      // dead-letters the AI sections under MODEL_RESOLUTION_ERROR and calls
+      // the shared recordSpacIpoEventIfEligible helper.
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2026-04-28",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+        // No `model:` — forces getS1Model() through and fail.
+      });
+
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac).toBeDefined();
+      // The consolidated SPAC row exists and has recorded the IPO event's
+      // filing_date. ipo_proceeds / trust_amount stay null because no
+      // unitTerms row was produced (AI never ran).
+      expect(spac?.ipo_date).toBe("2026-04-28");
+      expect(spac?.ipo_proceeds ?? null).toBeNull();
+      expect(spac?.trust_amount ?? null).toBeNull();
+
+      // The lifecycle ipo event was appended (recordIpo -> appendEvent),
+      // so the SPAC's event stream carries an `ipo` at this filing_date.
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+
+      const dl = await new ExtractionDeadLetterRepo().listPending("424");
+      // Every AI offering section dead-lettered under MODEL_RESOLUTION_ERROR.
+      const sectionReasons = new Map(dl.map((d) => [d.section_name, d.reason_code]));
+      for (const s of OFFERING_SECTION_NAMES) {
+        expect(sectionReasons.get(s)).toBe("MODEL_RESOLUTION_ERROR");
+      }
+    });
+
+    it("records the IPO event + deal even when HTML segmentation fails (424B4)", async () => {
+      // Force the PARSE_ERROR branch by making the segmenter throw. The catch
+      // must still call recordSpacIpoEventIfEligible so the deterministic
+      // SPAC lifecycle advances.
+      const spy = spyOn(DocumentTreeSegmenter.prototype, "segment").mockImplementation(() => {
+        throw new Error("synthetic segmenter failure");
+      });
+      try {
+        const { unregister } = registerFakeStructuredProvider([]);
+        cleanup = unregister;
+
+        await processForm424({
+          cik: CIK,
+          file_number: "333-000001",
+          accession_number: B4_ACCESSION,
+          filing_date: "2026-04-28",
+          primary_doc: "424b4.htm",
+          form: "424B4",
+          form424: {
+            header: SPAC_HEADER,
+            html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+            xbrlInstanceXml: null,
+            feeExhibitHtml: null,
+          },
+          model: fakeS1Model(),
+        });
+
+        const spac = await new SpacRepo().getSpac(CIK);
+        expect(spac).toBeDefined();
+        expect(spac?.ipo_date).toBe("2026-04-28");
+
+        const events = await new SpacRepo().getEvents(CIK);
+        expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+
+        const dl = await new ExtractionDeadLetterRepo().listPending("424");
+        const sectionReasons = new Map(dl.map((d) => [d.section_name, d.reason_code]));
+        for (const s of OFFERING_SECTION_NAMES) {
+          expect(sectionReasons.get(s)).toBe("PARSE_ERROR");
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("does NOT record an IPO event for a non-priced 424 (424B2)", async () => {
+      // A shelf-takedown 424B2 is not an IPO event and must not advance the
+      // SPAC lifecycle — even though the header claims sic=6770. This
+      // regression protects against the helper being called from too high
+      // up the control flow.
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2026-04-28",
+        primary_doc: "424b2.htm",
+        form: "424B2",
+        form424: {
+          header: SPAC_HEADER,
+          html: "<h1>THE OFFERING</h1><p>Notes linked to an index.</p>",
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      // No spac row (this filing didn't create one).
+      expect(await new SpacRepo().getSpac(CIK)).toBeUndefined();
+    });
   });
 
   it("handles a 424 with no XBRL anywhere (fees prepaid at registration)", async () => {
