@@ -35,8 +35,9 @@ export interface FactSummary {
   end: YYYYdMMdDD;
   val: number;
   accn: string;
-  // EDGAR reports `fy`/`fp` as null for period-agnostic facts (e.g. the
-  // pay-vs-performance `NetIncomeLoss` figures disclosed on DEF 14A).
+  // EDGAR reports period-agnostic facts (e.g. DEF 14A pay-vs-performance) with
+  // fy/fp explicitly null. Keep the in-memory shape faithful; the storage
+  // boundary coalesces to sentinels so the primary key stays NOT NULL.
   fy: number | null;
   fp: FP | null;
   form: AllForms;
@@ -59,7 +60,14 @@ export const FactoidSchema = Type.Object({
   frame: TypeNullable(Type.String({ maxLength: 12 })),
   accession_number: Type.String({ maxLength: 20 }),
   start_date: TypeNullable(TypeDate()),
-  end_date: TypeDate(),
+  // end_date is nullable to match EDGAR's period-agnostic facts (some pay-vs-
+  // performance rows arrive without an end period). StoreCompanyFactsTask
+  // derives the fy sentinel from end_date when present, so making this
+  // nullable is a prerequisite for the sentinel derivation.
+  end_date: TypeNullable(TypeDate()),
+  // Nullable at the boundary: EDGAR emits `null` for period-agnostic facts;
+  // StoreCompanyFactsTask coalesces to a deterministic sentinel derived from
+  // end_date (fy) or an empty string (fp) before hitting the primary key.
   fy: TypeNullable(Type.Number({ format: "year" })),
   fp: TypeNullable(TypeStringEnum(FP)),
 });

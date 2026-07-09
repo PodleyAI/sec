@@ -61,11 +61,11 @@ export const CompanyFactsSchema = Type.Object({
   // at the storage boundary (see StoreCompanyFactsTask) to keep the key stable
   // and replays idempotent.
   fy: Type.Integer({
-    description: "Fiscal year (0 sentinel for period-agnostic facts)",
+    description: "Fiscal year (fallback: year-from-end_date, then 0 sentinel)",
   }),
   fp: Type.String({
     maxLength: 2,
-    description: 'Fiscal period ("" sentinel for period-agnostic facts)',
+    description: "Fiscal period (empty-string sentinel when null)",
   }),
 });
 
