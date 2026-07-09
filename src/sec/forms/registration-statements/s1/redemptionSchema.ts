@@ -20,6 +20,7 @@ export const RedemptionOutputSchema = Type.Object({
   ),
   confidence: Type.Number({ minimum: 0, maximum: 1 }),
   source_span: TypeNullable(Type.String()),
+  nonce_seen: Type.String({ pattern: "^[0-9a-f]{16}$" }),
 });
 
 export type RedemptionRow = Static<typeof RedemptionOutputSchema>;

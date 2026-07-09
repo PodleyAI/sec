@@ -144,4 +144,30 @@ describe("processMergerProxy prompt-injection seal", () => {
     expect(row?.target_name ?? null).toBeNull();
     expect(row?.pipe_amount ?? null).toBeNull();
   });
+
+  it("a wrong nonce_seen dead-letters NONCE_MISMATCH and persists nothing", async () => {
+    await seedSpac(703);
+    // The canned payload sets `nonce_seen` to a valid-shaped but WRONG value,
+    // bypassing the fake provider's auto-echo. `verifyNonce` inside
+    // extractMergerDeal throws NonceMismatchError, which `sectionRunner`
+    // records under the dedicated `NONCE_MISMATCH` reason code.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        target_name: "Acme Target Inc.",
+        pipe_amount: 150_000_000,
+        merger_consideration: "$10 per share",
+        confidence: 0.99,
+        source_span: "business combination with Acme Target Inc.",
+        nonce_seen: "deadbeefdeadbeef",
+      },
+    ]);
+    cleanup = unregister;
+
+    await runProxy(703, "703-defm");
+
+    expect(await new SpacMergerExtractionRepo().getByAccession("703-defm")).toBeUndefined();
+    const dl = await new ExtractionDeadLetterRepo().listPending("merger-proxy");
+    const merger = dl.find((d) => d.section_name === "merger");
+    expect(merger?.reason_code).toBe("NONCE_MISMATCH");
+  });
 });

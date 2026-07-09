@@ -114,8 +114,9 @@ export const SpacProfileOutputSchema = {
     url_spac: { type: ["string", "null"] },
     confidence: CONFIDENCE,
     source_span: { type: "string" },
+    nonce_seen: { type: "string", pattern: "^[0-9a-f]{16}$" },
   },
-  required: ["focus", "focus_location", "confidence", "source_span"],
+  required: ["focus", "focus_location", "confidence", "source_span", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

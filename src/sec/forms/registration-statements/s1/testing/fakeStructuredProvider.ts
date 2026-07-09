@@ -37,9 +37,31 @@ export function fakeS1Model(): ModelConfig {
 }
 
 /**
+ * Scans the prompt for the verification token planted by
+ * `buildUntrustedPreamble`. The token lives in the trusted preamble prose
+ * (`"Copy the verification token '<16-hex>' verbatim into nonce_seen"`) and
+ * NEVER appears inside the fenced untrusted body — that quarantine is exactly
+ * what {@link verifyNonce} relies on. Returns `null` when the prompt does not
+ * carry the shape (older callers that predate the token).
+ */
+const NONCE_RE = /verification token '([0-9a-f]{16})'/;
+
+export function extractVerifyNonce(prompt: string): string | null {
+  const m = prompt.match(NONCE_RE);
+  return m ? m[1] : null;
+}
+
+/**
  * Registers a fake json-mode provider that returns scripted payloads, one per
  * prompt invocation. Each payload is emitted as an object-delta and a finish
  * event whose `data.object` carries the full object (json-mode convention).
+ *
+ * The provider auto-echoes the trusted-preamble verification token into
+ * `nonce_seen` when the canned payload doesn't already set it, so existing
+ * fixture-driven tests keep passing without every test having to plant the
+ * shared secret manually. Tests that want to model a wrong-nonce attack set
+ * `nonce_seen` on the canned payload themselves — that "already set" branch
+ * is the escape hatch.
  */
 export function registerFakeStructuredProvider(attempts: ReadonlyArray<Record<string, unknown>>): {
   calls: ReadonlyArray<string>;
@@ -48,9 +70,13 @@ export function registerFakeStructuredProvider(attempts: ReadonlyArray<Record<st
   const calls: string[] = [];
   let index = 0;
   const runFn: AiProviderRunFn<any, any, ModelConfig> = async (input, _model, _signal, emit) => {
-    calls.push(input.prompt as string);
-    const payload = attempts[Math.min(index, attempts.length - 1)];
+    const prompt = input.prompt as string;
+    calls.push(prompt);
+    const canned = attempts[Math.min(index, attempts.length - 1)];
     index++;
+    const nonce = extractVerifyNonce(prompt);
+    const payload: Record<string, unknown> =
+      nonce !== null && !("nonce_seen" in canned) ? { ...canned, nonce_seen: nonce } : { ...canned };
     emit({ type: "object-delta", port: "object", objectDelta: payload });
     emit({ type: "finish", data: { object: payload } as any });
   };

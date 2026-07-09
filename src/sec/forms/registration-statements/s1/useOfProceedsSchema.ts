@@ -25,8 +25,9 @@ export const UseOfProceedsOutputSchema = {
         additionalProperties: false,
       },
     },
+    nonce_seen: { type: "string", pattern: "^[0-9a-f]{16}$" },
   },
-  required: ["line_items"],
+  required: ["line_items", "nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 
