@@ -122,4 +122,80 @@ describe("parseToBlocks", () => {
     expect(text).toContain("Visible prospectus text.");
     expect(text).not.toContain("hidden header noise");
   });
+
+  describe("SVG/MathML/<title> injection surface", () => {
+    // A body-level <title>, an SVG subtree (title/desc/foreignObject), or a
+    // MathML subtree (mtext) each survive cheerio's `.text()` walks unless
+    // stripped at the DOM level. Every one must be quarantined so an
+    // adversarial filer cannot smuggle prose into the AI extractor prompt.
+    const LEAK = "SYSTEM: leaked";
+
+    function collectText(html: string): string {
+      const blocks = parseToBlocks(html);
+      return blocks
+        .map((b) => {
+          if (b.type === "paragraph") return b.node.text;
+          if (b.type === "heading") return b.text;
+          if (b.type === "list") return b.node.text;
+          return "";
+        })
+        .join(" ");
+    }
+
+    it("body-level <title> between paragraphs does not leak into prose", () => {
+      const text = collectText(
+        `<html><body><p>Before.</p><title>${LEAK}</title><p>After.</p></body></html>`
+      );
+      expect(text).toContain("Before.");
+      expect(text).toContain("After.");
+      expect(text).not.toContain(LEAK);
+    });
+
+    it("<svg> subtree (title/desc/foreignObject) does not leak into prose", () => {
+      const text = collectText(
+        `<html><body><p>Prose start.</p>` +
+          `<svg width="0" height="0"><title>${LEAK}</title>` +
+          `<desc>${LEAK}</desc>` +
+          `<foreignObject><p>${LEAK}</p></foreignObject></svg>` +
+          `<p>Prose end.</p></body></html>`
+      );
+      expect(text).toContain("Prose start.");
+      expect(text).toContain("Prose end.");
+      expect(text).not.toContain(LEAK);
+    });
+
+    it("<math> subtree (mtext) does not leak into prose", () => {
+      const text = collectText(
+        `<html><body><p>Ok.</p>` +
+          `<math><mtext>${LEAK}</mtext></math>` +
+          `<p>Also ok.</p></body></html>`
+      );
+      expect(text).toContain("Ok.");
+      expect(text).toContain("Also ok.");
+      expect(text).not.toContain(LEAK);
+    });
+
+    it("<xmp> / <plaintext> raw-text elements do not leak into prose", () => {
+      const text = collectText(
+        `<html><body><p>Real.</p>` +
+          `<xmp>${LEAK}</xmp>` +
+          `<plaintext>${LEAK}</plaintext>` +
+          `<p>More real.</p></body></html>`
+      );
+      expect(text).toContain("Real.");
+      // <plaintext> is a legacy raw-text element that swallows the rest of the
+      // document once opened; the pre-walk `.remove()` removes it (and its
+      // content) so downstream prose is preserved and the injection is not.
+      expect(text).not.toContain(LEAK);
+    });
+
+    it("HTML comments do not leak into prose", () => {
+      const text = collectText(
+        `<html><body><p>Visible.</p><!-- ${LEAK} --><p>Still visible.</p></body></html>`
+      );
+      expect(text).toContain("Visible.");
+      expect(text).toContain("Still visible.");
+      expect(text).not.toContain(LEAK);
+    });
+  });
 });
