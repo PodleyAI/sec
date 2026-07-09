@@ -56,11 +56,11 @@ export const CompanyFactsSchema = Type.Object({
     description: "Fact value",
   }),
   fy: Type.Integer({
-    description: "Fiscal year",
+    description: "Fiscal year (fallback: year-from-end_date, then 0 sentinel)",
   }),
   fp: Type.String({
     maxLength: 2,
-    description: "Fiscal period",
+    description: "Fiscal period (empty-string sentinel when null)",
   }),
 });
 

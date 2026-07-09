@@ -17,6 +17,24 @@ export type StoreCompanyFactsTaskOutput = {
 };
 
 /**
+ * Coalesces a nullable EDGAR fiscal-year into a NOT-NULL primary-key value.
+ * Prefer the reported `fy` verbatim; when EDGAR reports it null (period-
+ * agnostic facts like DEF 14A pay-vs-performance), derive it from the
+ * first four characters of `end_date` so multiple facts with the same
+ * (cik, grouping, name, accession_number, val_unit, val) but distinct
+ * `end_date`s stay distinct in the primary key. Only when both `fy` and
+ * `end_date` are absent — or the derived year isn't a finite number — do
+ * we fall back to the deterministic `0` sentinel (still idempotent for
+ * replays; only period-agnostic rows without any end date collide).
+ */
+export function coalesceFy(fy: number | null, end_date: string | null): number {
+  if (fy != null) return fy;
+  if (end_date == null) return 0;
+  const year = Number(end_date.slice(0, 4));
+  return Number.isFinite(year) ? year : 0;
+}
+
+/**
  * Task for storing company facts
  */
 export class StoreCompanyFactsTask extends Task<
@@ -71,8 +89,8 @@ export class StoreCompanyFactsTask extends Task<
           start_date: fact.start_date || null,
           end_date: fact.end_date || null,
           val: fact.val,
-          fy: fact.fy,
-          fp: fact.fp,
+          fy: coalesceFy(fact.fy, fact.end_date),
+          fp: fact.fp ?? "",
         }));
       await companyFactsRepo.putBulk(batch);
       const newProgress = Math.round((i / batches) * 100);
