@@ -89,6 +89,7 @@ function printOracleTable(report: OracleReport): void {
     ["recall", 7, (m) => (m.role === "reference" ? "—" : pct(m.avgEntityRecall))],
     ["prec", 6, (m) => (m.role === "reference" ? "—" : pct(m.avgPrecision))],
     ["rows", 6, (m) => String(m.totalRows)],
+    ["dist", 6, (m) => String(m.totalDistinctRows)],
     ["latency", 10, (m) => `${m.avgLatencyMs.toFixed(0)}ms`],
     ["est.cost", 10, (m) => usd(m.totalUsd)],
     ["ok", 6, (m) => `${m.okRuns}/${m.runs}`],
@@ -101,7 +102,9 @@ function printOracleTable(report: OracleReport): void {
   console.log(
     "\nagree = field agreement with the reference (names + titles); recall = reference " +
       "entities the model also found;\nprec = model entities the reference also had " +
-      "(1 − hallucination). Reference rows are the truth, so it has no agreement score."
+      "(1 − hallucination), over DISTINCT rows; rows = raw rows emitted, dist = distinct " +
+      "after de-duping on the key field (gap = duplicate over-production).\nReference rows " +
+      "are the truth, so it has no agreement score."
   );
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
@@ -162,12 +165,18 @@ export function addEvalCommands(program: Command): void {
       "--extractors <csv>",
       `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: management`
     )
+    .option(
+      "--dir <path>",
+      "directory of real S-1 HTML to segment (default: committed mock_data; " +
+        "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
+    )
     .option("--format <fmt>", "table | json", "table")
     .action(
       async (opts: {
         reference: string;
         candidates?: string;
         extractors?: string;
+        dir?: string;
         format: string;
       }) => {
         await runCommand(async () => {
@@ -188,6 +197,9 @@ export function addEvalCommands(program: Command): void {
             reference: opts.reference,
             candidates,
             extractors,
+            dir: opts.dir,
+            // Progress to stderr so `--format json` on stdout stays parseable.
+            onProgress: (m) => console.error(m),
           });
           if (opts.format === "json") {
             console.log(JSON.stringify(report, null, 2));

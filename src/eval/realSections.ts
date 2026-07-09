@@ -37,18 +37,21 @@ export interface RealSection {
  * extractor's section, skipping documents where that section is absent/empty.
  * A document that fails to parse is skipped (logged to the returned `skipped`).
  */
-export function loadRealS1Sections(extractorNames: readonly string[]): {
+export function loadRealS1Sections(
+  extractorNames: readonly string[],
+  dir: string = S1_MOCK_DIR
+): {
   readonly sections: RealSection[];
   readonly skipped: string[];
 } {
-  const files = readdirSync(S1_MOCK_DIR).filter((f) => f.endsWith(".htm"));
+  const files = readdirSync(dir).filter((f) => f.endsWith(".htm"));
   const sections: RealSection[] = [];
   const skipped: string[] = [];
 
   for (const file of files.sort()) {
     let byName: Map<string, string>;
     try {
-      const html = readFileSync(join(S1_MOCK_DIR, file), "utf8");
+      const html = readFileSync(join(dir, file), "utf8");
       const doc = parseEdgarHtml(html, file);
       const segmented = new DocumentTreeSegmenter().segment(doc);
       byName = new Map(segmented.map((s) => [s.name as string, s.text]));
