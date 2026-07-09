@@ -14,6 +14,25 @@ import { extractTable } from "./TableExtractor";
 
 const BLOCK_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"]);
 
+/**
+ * Selector for elements whose contents must be dropped before prose is
+ * gathered. Two classes:
+ *
+ * - HTML raw-text / RCDATA elements whose bodies are not rendered as prose
+ *   (`script`, `style`, `noscript`, `textarea`, `template`, `xmp`,
+ *   `plaintext`, `iframe`, `noembed`, `noframes`). A filer-planted
+ *   `SYSTEM: hijack` inside these elements survives cheerio's `.text()`
+ *   walks and would otherwise leak into the prompt for every downstream
+ *   prose extractor.
+ * - Body-level metadata (`title`) and foreign-content roots (`svg`,
+ *   `math`) whose descendants (`svg > title/desc/foreignObject`,
+ *   `math > mtext`) similarly slip past HTML block heuristics and can
+ *   smuggle prompt-injection payloads.
+ */
+const STRIP_BEFORE_WALK_SELECTOR =
+  "script, style, noscript, textarea, template, xmp, plaintext, " +
+  "iframe, noembed, noframes, title, svg, math";
+
 /** True if `el` has a CSS/structural page-break signal (edgartools heuristics). */
 function isPageBreak($: CheerioAPI, el: unknown): boolean {
   const $el = $(el as never);
@@ -56,6 +75,22 @@ function emitProse(buffer: string[], out: EdgarBlock[]): void {
  */
 export function parseToBlocks(html: string): EdgarBlock[] {
   const $ = cheerio.load(html);
+
+  // Drop non-prose subtrees at the DOM level before any prose walk runs.
+  // Removing them here (rather than skipping tags mid-walk) ensures nested
+  // descendants — svg > title/desc/foreignObject, math > mtext, template
+  // shadow content — cannot leak into `.text()` calls performed elsewhere.
+  $(STRIP_BEFORE_WALK_SELECTOR).remove();
+
+  // Defense-in-depth: strip HTML comments. Cheerio treats them as nodes with
+  // `type === "comment"`, and while the walker only reads element/text
+  // children, any consumer that later calls `.text()` on a raw parent would
+  // otherwise see their contents.
+  $("*")
+    .contents()
+    .filter((_i, el) => (el as { type?: string }).type === "comment")
+    .remove();
+
   const out: EdgarBlock[] = [];
   const prose: string[] = [];
 
@@ -76,6 +111,9 @@ export function parseToBlocks(html: string): EdgarBlock[] {
       return;
     }
 
+    // The pre-walk `.remove()` on {@link STRIP_BEFORE_WALK_SELECTOR} already
+    // dropped these subtrees; the mid-walk guard is defense-in-depth against
+    // a future consumer that reloads DOM state.
     if (tag === "script" || tag === "style") return;
 
     // display:none subtrees are invisible to a reader and, in iXBRL filings,
