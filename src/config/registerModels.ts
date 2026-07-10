@@ -6,16 +6,23 @@
 
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
-import { SecModelDefault } from "./Constants";
+import { SecHftModelDefault, SecModelDefault } from "./Constants";
 
 /**
- * Provider discriminator for Anthropic models. Mirrors the `ANTHROPIC` constant
- * the Anthropic provider registers under (in the `providers/anthropic` package,
- * which is not re-exported from `workglow`, so the string is duplicated here).
- * A model's `provider` must equal this for the AI provider registry to route
- * structured generation to Anthropic.
+ * Provider discriminators. Mirror the constants the provider packages register
+ * under (`providers/anthropic` → `ANTHROPIC`, `providers/huggingface-transformers`
+ * → `HF_TRANSFORMERS_ONNX`); neither is re-exported from `workglow`, so the
+ * strings are duplicated here. A model's `provider` must equal one of these for
+ * the AI provider registry to route generation to that provider — see
+ * `registerSecProviders`.
  */
 const ANTHROPIC_PROVIDER = "ANTHROPIC";
+const HFT_PROVIDER = "HF_TRANSFORMERS_ONNX";
+
+/** HuggingFace repo ids are `org/name`; Anthropic ids (`claude-*`) never contain `/`. */
+function isHftModelId(modelId: string): boolean {
+  return modelId.includes("/");
+}
 
 /**
  * Default per-response token ceiling recorded on the model. The extractors pass
@@ -64,13 +71,64 @@ export function anthropicModelRecord(modelId: string): ModelRecord {
 }
 
 /**
- * The distinct model ids the SEC AI extractors may resolve: the shared default
- * ({@link SecModelDefault}) plus any per-extractor env override that names a
- * different id. Reading the env directly (rather than importing the extractor
- * getters) keeps this config module decoupled from `src/sec/`.
+ * Full capability set for a local HFT (ONNX) text-generation model. The provider
+ * serves `json-mode` via a dedicated run function, but a text-generation model's
+ * *inferred* capabilities omit it — so, as for Anthropic, we declare `json-mode`
+ * (plus `text.generation`) explicitly, otherwise `StructuredGenerationTask`'s
+ * capability gate rejects the model.
+ */
+const HFT_CAPABILITIES: readonly string[] = [
+  "text.generation",
+  "json-mode",
+  "tool-use",
+  "model.count-tokens",
+  "model.download-remove",
+  "model.info",
+  "model.search",
+];
+
+/**
+ * Builds a fully-specified HuggingFace Transformers (ONNX) {@link ModelRecord}.
+ * `provider_config.model_path` is the HuggingFace repo id (`org/name`), loaded on
+ * first use into the worker; `pipeline: "text-generation"` selects the causal-LM
+ * pipeline the structured-generation path drives.
+ */
+export function hftModelRecord(modelId: string): ModelRecord {
+  return {
+    model_id: modelId,
+    provider: HFT_PROVIDER,
+    title: modelId,
+    description: `HuggingFace Transformers ONNX ${modelId}`,
+    capabilities: [...HFT_CAPABILITIES],
+    provider_config: {
+      model_path: modelId,
+      pipeline: "text-generation",
+      device: "cpu",
+      dtype: "q4",
+    },
+    metadata: {},
+  };
+}
+
+/**
+ * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
+ * on id shape: a HuggingFace `org/name` id → HFT (local), otherwise Anthropic
+ * (cloud). Shared by {@link registerSecModels} and the `sec eval` harness so both
+ * mint identical records for the same id.
+ */
+export function secModelRecord(modelId: string): ModelRecord {
+  return isHftModelId(modelId) ? hftModelRecord(modelId) : anthropicModelRecord(modelId);
+}
+
+/**
+ * The distinct model ids the SEC pipeline registers: the shared cloud default
+ * ({@link SecModelDefault}), any per-extractor env override, and the local HFT
+ * default ({@link SecHftModelDefault}, available for `sec eval` comparisons).
+ * Reading the env directly (rather than importing the extractor getters) keeps
+ * this config module decoupled from `src/sec/`.
  */
 function secModelIds(): string[] {
-  const ids = new Set<string>([SecModelDefault]);
+  const ids = new Set<string>([SecModelDefault, SecHftModelDefault]);
   for (const key of ["SEC_S1_MODEL", "SEC_MERGER_PROXY_MODEL", "SEC_REDEMPTION_MODEL"]) {
     const id = process.env[key]?.trim();
     if (id) ids.add(id);
@@ -79,19 +137,28 @@ function secModelIds(): string[] {
 }
 
 /**
- * Registers the SEC AI models in the global model repository so the extractors
- * can resolve them via `getGlobalModelRepository().findByName(...)`. Covers the
- * shared default (`claude-sonnet-5` unless `SEC_MODEL_DEFAULT` overrides) and any
- * per-extractor override. Idempotent: an id already present is left untouched,
- * so repeat CLI bootstraps are safe and an operator-registered record wins over
- * this default.
+ * Registers `modelIds` in the global model repository so generation can resolve
+ * them via `getGlobalModelRepository().findByName(...)`. Idempotent: an id already
+ * present is left untouched, so repeat bootstraps are safe and an operator- or
+ * harness-registered record wins over this default.
+ */
+export async function registerModelIds(
+  modelIds: readonly string[],
+  registry: ServiceRegistry = globalServiceRegistry
+): Promise<void> {
+  const repo = getGlobalModelRepository(registry);
+  for (const modelId of modelIds) {
+    if (await repo.findByName(modelId)) continue;
+    await repo.addModel(secModelRecord(modelId));
+  }
+}
+
+/**
+ * Registers the SEC AI models (cloud default + overrides + local HFT default) —
+ * see {@link secModelIds}. Idempotent.
  */
 export async function registerSecModels(
   registry: ServiceRegistry = globalServiceRegistry
 ): Promise<void> {
-  const repo = getGlobalModelRepository(registry);
-  for (const modelId of secModelIds()) {
-    if (await repo.findByName(modelId)) continue;
-    await repo.addModel(anthropicModelRecord(modelId));
-  }
+  await registerModelIds(secModelIds(), registry);
 }

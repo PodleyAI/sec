@@ -5,6 +5,7 @@
     "": {
       "name": "@workglow/sec",
       "dependencies": {
+        "@huggingface/transformers": "^4.2.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@sroussey/parse-address": "^2.4.2",
         "@sroussey/parse-full-name": "^2.0.0",
