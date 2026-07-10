@@ -285,15 +285,39 @@ function makeExecuteContext(): IExecuteContext {
  * casts adapt our concrete input/config to the task's generic `NoInfer<Partial<…>>`
  * config shape, which TypeScript cannot narrow from the structured literal here.
  */
+/**
+ * Grammar-constrained providers (node-llama-cpp `LOCAL_LLAMACPP`) build a GBNF
+ * grammar from the JSON schema and sample against it. When a top-level array is
+ * allowed to be empty, greedy grammar sampling takes the `[]` shortcut and the
+ * model returns nothing — even though the same model, unconstrained, extracts
+ * every row correctly. Requiring `minItems: 1` on the top-level array closes
+ * that shortcut. Scoped to the grammar provider only: the cloud (Anthropic) and
+ * ONNX paths are unaffected, so production extraction semantics don't change
+ * (a genuinely empty section there still yields `[]`).
+ */
+function requireNonEmptyTopLevelArrays(schema: object): object {
+  const cloned = JSON.parse(JSON.stringify(schema)) as {
+    properties?: Record<string, { type?: string; minItems?: number }>;
+  };
+  const props = cloned.properties;
+  if (props) {
+    for (const key of Object.keys(props)) {
+      if (props[key]?.type === "array") props[key].minItems = 1;
+    }
+  }
+  return cloned;
+}
+
 async function runStructured(
   model: ModelConfig,
   prompt: string,
   outputSchema: object
 ): Promise<Record<string, unknown>> {
+  const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,
     prompt,
-    outputSchema,
+    outputSchema: grammarConstrained ? requireNonEmptyTopLevelArrays(outputSchema) : outputSchema,
     maxTokens: MAX_TOKENS,
     maxRetries: 1,
   };

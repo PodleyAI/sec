@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import { SecHftModelDefault, SecModelDefault } from "./Constants";
@@ -18,10 +19,46 @@ import { SecHftModelDefault, SecModelDefault } from "./Constants";
  */
 const ANTHROPIC_PROVIDER = "ANTHROPIC";
 const HFT_PROVIDER = "HF_TRANSFORMERS_ONNX";
+const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
+
+/**
+ * Prefix that routes a model id to the node-llama-cpp (GGUF) provider. The rest
+ * of the id is a path to a local `.gguf` file — absolute (`gguf:/abs/x.gguf`) or
+ * relative to the GGUF models dir (`gguf:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`). We key
+ * on an explicit prefix rather than the id shape because a GGUF repo id
+ * (`org/name`) is indistinguishable from an ONNX one.
+ */
+const GGUF_ID_PREFIX = "gguf:";
 
 /** HuggingFace repo ids are `org/name`; Anthropic ids (`claude-*`) never contain `/`. */
 function isHftModelId(modelId: string): boolean {
   return modelId.includes("/");
+}
+
+function isLlamaCppModelId(modelId: string): boolean {
+  return modelId.startsWith(GGUF_ID_PREFIX);
+}
+
+/**
+ * Directory holding downloaded `.gguf` weights: `$SEC_GGUF_DIR`, else
+ * `$SEC_RAW_DATA_FOLDER/gguf`, else `./models`. A relative `gguf:` id resolves
+ * against this; an absolute one is used as-is.
+ */
+function ggufModelsDir(): string {
+  const explicit = process.env.SEC_GGUF_DIR?.trim();
+  if (explicit) return explicit;
+  const raw = process.env.SEC_RAW_DATA_FOLDER?.trim();
+  return raw ? `${raw}/gguf` : "./models";
+}
+
+/**
+ * Context window for the local GGUF extractors. S-1 sections reach ~57k chars
+ * (~19k tokens); 32k tokens leaves room for that plus the extractor's output.
+ * Override with `SEC_GGUF_CONTEXT` (VRAM permitting).
+ */
+function ggufContextSize(): number {
+  const n = Number(process.env.SEC_GGUF_CONTEXT?.trim());
+  return Number.isFinite(n) && n > 0 ? n : 32768;
 }
 
 /**
@@ -111,12 +148,64 @@ export function hftModelRecord(modelId: string): ModelRecord {
 }
 
 /**
+ * Full capability set for a local node-llama-cpp (GGUF) text-generation model.
+ * As for the other local provider we declare `json-mode` explicitly — but here
+ * it is served by a **grammar-constrained** run function, so structured output
+ * stays schema-valid even for thinking models (the grammar forbids a reasoning
+ * preamble). `StructuredGenerationTask`'s capability gate needs `json-mode` and
+ * `text.generation` present.
+ */
+const LLAMACPP_CAPABILITIES: readonly string[] = [
+  "text.generation",
+  "json-mode",
+  "tool-use",
+  "model.count-tokens",
+  "model.download",
+  "model.download-remove",
+  "model.info",
+  "model.search",
+];
+
+/**
+ * Builds a node-llama-cpp {@link ModelRecord} from a `gguf:`-prefixed id whose
+ * remainder is a path to a local `.gguf` file (absolute, or relative to
+ * {@link ggufModelsDir}). `gpu_layers` is set high (offload every layer to the
+ * GPU — Metal on Apple Silicon; node-llama-cpp clamps to the model's layer
+ * count). Do NOT use `-1`: that is llama.cpp's "all" sentinel but node-llama-cpp
+ * treats it as zero, silently running the whole model on CPU (~20x slower).
+ * `context_size` is sized for large S-1 sections. The file must already exist on
+ * disk — the provider loads `model_path` directly, no download at generation.
+ */
+const GGUF_GPU_LAYERS_ALL = 999;
+
+export function llamaCppModelRecord(modelId: string): ModelRecord {
+  const rawPath = modelId.slice(GGUF_ID_PREFIX.length);
+  const modelPath = isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath);
+  return {
+    model_id: modelId,
+    provider: LLAMACPP_PROVIDER,
+    title: modelId,
+    description: `node-llama-cpp GGUF ${rawPath}`,
+    capabilities: [...LLAMACPP_CAPABILITIES],
+    provider_config: {
+      model_path: modelPath,
+      gpu_layers: GGUF_GPU_LAYERS_ALL,
+      context_size: ggufContextSize(),
+      flash_attention: true,
+    },
+    metadata: {},
+  };
+}
+
+/**
  * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
- * on id shape: a HuggingFace `org/name` id → HFT (local), otherwise Anthropic
- * (cloud). Shared by {@link registerSecModels} and the `sec eval` harness so both
- * mint identical records for the same id.
+ * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
+ * `org/name` id → HFT ONNX (local), otherwise Anthropic (cloud). Shared by
+ * {@link registerSecModels} and the `sec eval` harness so both mint identical
+ * records for the same id.
  */
 export function secModelRecord(modelId: string): ModelRecord {
+  if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
   return isHftModelId(modelId) ? hftModelRecord(modelId) : anthropicModelRecord(modelId);
 }
 

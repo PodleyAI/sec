@@ -14,7 +14,7 @@
 import {
   registerHuggingFaceTransformersWorker,
   setHftCacheDir,
-} from "@workglow/huggingface-transformers/ai-runtime";
+} from "workglow/hf-transformers/runtime";
 import { patchHftChatTemplateGenerationTags } from "./patchHftChatTemplate";
 
 // Must run before any tokenizer renders a chat template (see the patch's docs:
