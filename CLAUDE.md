@@ -97,13 +97,25 @@ sec eval extract --extractor management --format json
 ```
 
 The registered local model (`SecHftModelDefault`) is LiquidAI **LFM2.5-350M** — an
-edge-optimized model that reaches ~100% entity recall with valid schema in seconds
-per call, far outrunning much larger models on CPU (it beats Qwen2.5-0.5B/1.5B on
-accuracy and is ~50x faster than Qwen3-4B, which only matches it at minutes per
+edge-optimized model that runs in seconds per call on CPU (it beats Qwen2.5-0.5B/1.5B
+on accuracy and is ~50x faster than Qwen3-4B, which only matches it at minutes per
 call). It is fast enough to sit in the default 3-way. For a stronger-but-slow
 local baseline set `SEC_HFT_MODEL=onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
 Only **non-thinking** instruct models work for `json-mode` — a thinking model
 wraps the JSON in reasoning.
+
+> **Verdict (do not overstate the local model).** A large-N oracle run (sonnet-5
+> as truth over 20 real S-1s / 42 sections; see below) shows LFM2.5-350M is *not*
+> a sonnet substitute for production extraction: management **~43%** field agreement
+> (it over-produces on 40k+ char SPAC sections and misreads bio-companies as people),
+> beneficial-ownership **~6%** with **9/14 hard schema failures** (it stuffs share
+> counts into the `confidence` field and invents `owner_kind` values outside
+> `person|company`), related-party **~33%** (name-only). It is fine as a *free,
+> fast, local first-pass* on simple person lists, but cloud sonnet stays required
+> for correctness — and sonnet over the whole 42-section set costs only ~$1.44, so
+> the local-model savings ceiling is low. The larger **LFM2.5-1.2B** is *worse*
+> (more schema failures, ~5x slower), so 350M remains the local default. Earlier
+> "~100% recall / good enough" numbers were a 4-section small-sample artifact.
 
 > HFT chat-template workaround: transformers.js 4.2.0 bundles jinja **0.5.6**,
 > which predates the `{% generation %}` template-tag strip, so newer templates
@@ -128,6 +140,38 @@ rather than aborting the sweep. Add an extractor by registering it in
 `EVAL_EXTRACTORS` and adding a matching fixture. The scorer and pricing are unit-
 tested; the live run makes real Anthropic calls (and downloads the ONNX model on
 first HFT use).
+
+`scoreExtraction` de-duplicates candidate (and reference) rows on the extractor's
+key field before scoring: a model that emits the same entity twice is over-producing
+*rows*, not inventing distinct hallucinations, so precision is computed over
+**distinct** rows (`candidateDistinct`). The oracle table shows `rows` (raw) and
+`dist` (post-dedupe) side by side — the gap is duplicate over-production.
+
+#### Oracle over real S-1s (`sec eval s1`)
+
+Golden fixtures are synthetic; `sec eval s1` instead runs a `--reference` model
+(e.g. `claude-sonnet-5`) as the "truth" over **real committed S-1 sections**, then
+scores each `--candidate` on agreement/recall/precision against it (this is how the
+local-vs-sonnet verdict above was reached). `realSections.ts` segments the HTML into
+management / beneficial-ownership / related-party prose. The reference retries a few
+times per section (strong models intermittently emit a nested array as a JSON
+*string* the strict schema rejects); a section the reference still fails is dropped
+from scoring.
+
+```bash
+sec eval s1 --reference claude-sonnet-5 --candidates "onnx-community/LFM2.5-350M-ONNX" \
+  --extractors "management,beneficial-ownership,related-party"
+
+# Run over a larger fetched sample (gitignored cache) instead of the committed set:
+sec fetch s1-fixtures -c 20
+sec eval s1 --candidates "onnx-community/LFM2.5-350M-ONNX" \
+  --dir src/sec/html/mock_data/s1/.cache
+```
+
+The oracle streams per-section progress to **stderr** (`[i/N] filing extractor
+(chars) ref/cand: ok/FAIL ms rows`) so a long local-model run isn't blind; `--format
+json` on stdout stays clean. Large sections (40–57k chars) dominate wall-clock —
+the 350M takes 40–90s each vs sonnet's ~20s.
 
 ### Company facts outcome tracking
 
