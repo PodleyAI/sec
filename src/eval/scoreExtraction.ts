@@ -21,11 +21,20 @@ export interface ExtractionScore {
   readonly score: number;
   /** Fraction of expected rows matched to a candidate row. */
   readonly entityRecall: number;
-  /** Matched rows / candidate rows — drops when the model invents extra rows. */
+  /** Matched rows / distinct candidate rows — drops when the model invents extra rows. */
   readonly precision: number;
   readonly matchedItems: number;
   readonly expectedItems: number;
+  /** Raw candidate row count, before de-duplication. */
   readonly candidateItems: number;
+  /**
+   * Distinct candidate rows after collapsing repeats on `keyField` (equals
+   * {@link candidateItems} when no `keyField` is given). This is the precision
+   * denominator: a model that emits the same entity twice is over-producing
+   * *rows*, not inventing distinct hallucinations, so duplicates should not be
+   * double-counted against it.
+   */
+  readonly candidateDistinct: number;
   readonly matchedFieldValues: number;
   readonly expectedFieldValues: number;
 }
@@ -56,12 +65,38 @@ function fieldsFor(expectedRow: Record<string, unknown>, opts: ScoreOptions): st
   return opts.fields ? [...opts.fields] : Object.keys(expectedRow);
 }
 
+/**
+ * Collapse rows that share a normalized `keyField` value, keeping the first
+ * occurrence. Real extractors (especially small local models on long sections)
+ * emit the same entity multiple times; those repeats should count once — both
+ * when they inflate the candidate set (precision denominator) and when the
+ * reference itself repeats an entity (recall denominator). With no `keyField`
+ * the list is returned unchanged (positional alignment can't dedupe safely).
+ */
+function dedupeByKey(
+  rows: readonly Record<string, unknown>[],
+  keyField: string | undefined
+): Record<string, unknown>[] {
+  if (!keyField) return [...rows];
+  const seen = new Set<string>();
+  const out: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    const key = normalize(row[keyField]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
 export function scoreExtraction(
   candidate: readonly unknown[],
   expected: readonly Record<string, unknown>[],
   opts: ScoreOptions = {}
 ): ExtractionScore {
-  const candidateRows = candidate.map(asRow);
+  const rawCandidateCount = candidate.length;
+  const candidateRows = dedupeByKey(candidate.map(asRow), opts.keyField);
+  const expectedRows = dedupeByKey(expected as readonly Record<string, unknown>[], opts.keyField);
   const used = new Array<boolean>(candidateRows.length).fill(false);
 
   const findMatch = (expectedRow: Record<string, unknown>, index: number): number => {
@@ -79,7 +114,7 @@ export function scoreExtraction(
   let matchedFieldValues = 0;
   let expectedFieldValues = 0;
 
-  expected.forEach((expectedRow, index) => {
+  expectedRows.forEach((expectedRow, index) => {
     const fields = fieldsFor(expectedRow, opts);
     expectedFieldValues += fields.length;
     const matchIdx = findMatch(expectedRow, index);
@@ -94,11 +129,17 @@ export function scoreExtraction(
 
   return {
     score: expectedFieldValues === 0 ? 1 : matchedFieldValues / expectedFieldValues,
-    entityRecall: expected.length === 0 ? 1 : matchedItems / expected.length,
-    precision: candidateRows.length === 0 ? (expected.length === 0 ? 1 : 0) : matchedItems / candidateRows.length,
+    entityRecall: expectedRows.length === 0 ? 1 : matchedItems / expectedRows.length,
+    precision:
+      candidateRows.length === 0
+        ? expectedRows.length === 0
+          ? 1
+          : 0
+        : matchedItems / candidateRows.length,
     matchedItems,
-    expectedItems: expected.length,
-    candidateItems: candidateRows.length,
+    expectedItems: expectedRows.length,
+    candidateItems: rawCandidateCount,
+    candidateDistinct: candidateRows.length,
     matchedFieldValues,
     expectedFieldValues,
   };

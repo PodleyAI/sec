@@ -5,7 +5,11 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { extractManagement } from "../sec/forms/registration-statements/s1/sectionExtractors";
+import {
+  extractBeneficialOwnership,
+  extractManagement,
+  extractRelatedParty,
+} from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 /**
  * A section extractor the harness can drive: it takes section prose + a model
@@ -16,6 +20,13 @@ import { extractManagement } from "../sec/forms/registration-statements/s1/secti
 export interface EvalExtractor {
   readonly run: (text: string, model: ModelConfig) => Promise<unknown[]>;
   readonly keyField?: string;
+  /**
+   * Fields that count toward the score when comparing against a reference (used
+   * by the oracle eval, where the reference model's rows carry every field —
+   * `confidence`, `source_span`, etc. — that we do NOT want to score on).
+   * Defaults (when unset) to comparing every field of the expected row.
+   */
+  readonly compareFields?: readonly string[];
   /**
    * Approximate non-text prompt overhead (instructions + untrusted-input
    * scaffolding) in characters, added to the section text for the input-cost
@@ -33,6 +44,21 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
     run: (text, model) => extractManagement(text, model),
     keyField: "full_name",
+    compareFields: ["full_name", "title"],
+    instructionOverheadChars: 900,
+  },
+  "beneficial-ownership": {
+    run: (text, model) => extractBeneficialOwnership(text, model),
+    keyField: "name",
+    // Percentages/share counts are formatted too variably to score cleanly;
+    // compare on who is listed (name) — the field the models should agree on.
+    compareFields: ["name"],
+    instructionOverheadChars: 1000,
+  },
+  "related-party": {
+    run: (text, model) => extractRelatedParty(text, model),
+    keyField: "name",
+    compareFields: ["name"],
     instructionOverheadChars: 900,
   },
 };
