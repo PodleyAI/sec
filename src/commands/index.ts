@@ -18,6 +18,7 @@ import { addVersionCommands } from "../cli/groups/version";
 import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
+import { addEvalCommands } from "../cli/groups/eval";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
@@ -77,4 +78,5 @@ export const AddCommands = (program: Command): void => {
   registerUnderwriterFamilyCommands(program);
   registerSpacCommands(program);
   addExtractorCommands(program);
+  addEvalCommands(program);
 };
