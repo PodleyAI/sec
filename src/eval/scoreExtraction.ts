@@ -16,6 +16,29 @@
  * comparison so trivial formatting differences are not penalized.
  */
 
+/** One field-level disagreement on a row that matched between candidate and expected. */
+export interface FieldMismatch {
+  /** Identifies the row: its `keyField` value, or `#<index>` under positional alignment. */
+  readonly key: string;
+  readonly field: string;
+  /** Raw (un-normalized) expected value, stringified. */
+  readonly expected: string;
+  /** Raw (un-normalized) candidate value, stringified. */
+  readonly got: string;
+}
+
+/**
+ * The concrete disagreements behind the aggregate score, for display after an
+ * eval: expected rows the candidate never produced, distinct candidate rows the
+ * expected set never had (hallucinations), and per-field value mismatches on the
+ * rows that did align. Keys are `keyField` values (or `#<index>` positionally).
+ */
+export interface ExtractionDiff {
+  readonly missing: readonly string[];
+  readonly extra: readonly string[];
+  readonly mismatches: readonly FieldMismatch[];
+}
+
 export interface ExtractionScore {
   /** Primary correctness signal in [0,1]: fraction of expected field-values reproduced. */
   readonly score: number;
@@ -37,6 +60,8 @@ export interface ExtractionScore {
   readonly candidateDistinct: number;
   readonly matchedFieldValues: number;
   readonly expectedFieldValues: number;
+  /** The concrete row/field disagreements behind the aggregates, for display. */
+  readonly diff: ExtractionDiff;
 }
 
 export interface ScoreOptions {
@@ -58,6 +83,23 @@ function normalize(value: unknown): string {
 
 function asRow(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+/** Raw (un-normalized) display string for a field value; "" for null/undefined. */
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+/** Label a row for diff output: its `keyField` value, else `#<index>` positionally. */
+function rowKey(
+  row: Record<string, unknown>,
+  index: number,
+  keyField: string | undefined
+): string {
+  if (!keyField) return `#${index}`;
+  const raw = displayValue(row[keyField]);
+  return raw === "" ? `#${index}` : raw;
 }
 
 /** Fields to compare for one expected row: explicit `fields`, else its own keys. */
@@ -113,19 +155,39 @@ export function scoreExtraction(
   let matchedItems = 0;
   let matchedFieldValues = 0;
   let expectedFieldValues = 0;
+  const missing: string[] = [];
+  const mismatches: FieldMismatch[] = [];
 
   expectedRows.forEach((expectedRow, index) => {
     const fields = fieldsFor(expectedRow, opts);
     expectedFieldValues += fields.length;
     const matchIdx = findMatch(expectedRow, index);
-    if (matchIdx < 0) return;
+    if (matchIdx < 0) {
+      missing.push(rowKey(expectedRow, index, opts.keyField));
+      return;
+    }
     used[matchIdx] = true;
     matchedItems += 1;
     const candidateRow = candidateRows[matchIdx];
+    const key = rowKey(expectedRow, index, opts.keyField);
     for (const field of fields) {
-      if (normalize(candidateRow[field]) === normalize(expectedRow[field])) matchedFieldValues += 1;
+      if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
+        matchedFieldValues += 1;
+      } else {
+        mismatches.push({
+          key,
+          field,
+          expected: displayValue(expectedRow[field]),
+          got: displayValue(candidateRow[field]),
+        });
+      }
     }
   });
+
+  // Distinct candidate rows never aligned to an expected row are over-production.
+  const extra = candidateRows
+    .map((row, i) => (used[i] ? null : rowKey(row, i, opts.keyField)))
+    .filter((k): k is string => k !== null);
 
   return {
     score: expectedFieldValues === 0 ? 1 : matchedFieldValues / expectedFieldValues,
@@ -142,5 +204,6 @@ export function scoreExtraction(
     candidateDistinct: candidateRows.length,
     matchedFieldValues,
     expectedFieldValues,
+    diff: { missing, extra, mismatches },
   };
 }

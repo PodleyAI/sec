@@ -45,6 +45,14 @@ export interface RunEvalOptions {
   readonly models: readonly string[];
   /** Restrict to one extractor (e.g. `management`); default runs every fixture. */
   readonly extractor?: string;
+  /**
+   * Optional progress sink, invoked once per (model, fixture) as the sweep runs
+   * (`done` of `total`). The CLI wires this to the task-graph progress UI so a
+   * multi-model cloud sweep isn't silent until the final table.
+   */
+  readonly onProgress?: (done: number, total: number, message: string) => void;
+  /** When aborted, the sweep stops after the current run and reports what ran. */
+  readonly signal?: AbortSignal;
 }
 
 function selectFixtures(extractor: string | undefined): EvalFixture[] {
@@ -141,12 +149,18 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
 
   const results: FixtureRunResult[] = [];
   const summaries: ModelSummary[] = [];
+  const progress = opts.onProgress ?? ((): void => {});
+  const total = opts.models.length * fixtures.length;
+  let done = 0;
 
   for (const modelId of opts.models) {
+    if (opts.signal?.aborted) break;
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
+      if (opts.signal?.aborted) break;
+      progress(done, total, `${modelId} — ${fixture.name}`);
       const result = model
         ? await runOne(modelId, model, fixture)
         : ({
@@ -164,6 +178,8 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
           } satisfies FixtureRunResult);
       results.push(result);
       modelRows.push(result);
+      done += 1;
+      progress(done, total, `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`);
     }
     summaries.push(summarize(modelId, provider, modelRows));
   }
