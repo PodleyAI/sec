@@ -66,15 +66,22 @@ env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
 model ids (the default plus any set overrides, plus the local HFT default
 `SecHftModelDefault`) into the global model repository via `registerSecModels`
 (`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape — a
-HuggingFace `org/name` id → an `HF_TRANSFORMERS_ONNX` record, otherwise an
-`ANTHROPIC` record — and both explicitly declare the `json-mode` capability
-`StructuredGenerationTask` gates on (the installed provider's capability
-inference doesn't recognize newer ids like `claude-sonnet-5`). So
+`gguf:` id → a `LOCAL_LLAMACPP` record, a HuggingFace `org/name` id → an
+`HF_TRANSFORMERS_ONNX` record, a `gpt-*`/`o*` id → an `OPENAI` record, a
+`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record,
+otherwise an `ANTHROPIC` record — and each explicitly declares the `json-mode`
+capability `StructuredGenerationTask` gates on (the installed provider's
+capability inference doesn't recognize newer ids like `claude-sonnet-5`,
+`gpt-5.5`, `gemini-3.1-pro-preview`, or `grok-4.5`). So
 `getGlobalModelRepository().findByName(id)` resolves any of them. Startup also
-registers the AI **providers** via
-`registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
-(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time), registered
-defensively (a load failure warns and is skipped). Absent a working provider /
+registers the AI **providers** via `registerSecProviders`
+(`src/config/registerProviders.ts`): four inline cloud providers — Anthropic
+(`ANTHROPIC`, `ANTHROPIC_API_KEY`), OpenAI (`OPENAI`, `OPENAI_API_KEY`), Google
+Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), and xAI Grok (`XAI`, `XAI_API_KEY`)
+— plus the worker-backed local providers HuggingFace Transformers ONNX
+(`HF_TRANSFORMERS_ONNX`, `hftWorker.ts`) and node-llama-cpp GGUF
+(`LOCAL_LLAMACPP`, `llamaCppWorker.ts`). Each provider registers defensively (a
+load failure or missing key warns and is skipped). Absent a working provider /
 key, each AI section dead-letters instead of aborting the filing.
 
 A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
@@ -94,6 +101,15 @@ hand-authored `expected` rows) through each candidate model and ranks them:
 sec eval extract                              # default 3-way: haiku, sonnet, local LFM2.5-350M
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
+
+# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI. Each id
+# routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini, grok-*→xAI);
+# needs the matching *_API_KEY per provider used. An id a provider doesn't serve
+# is recorded as a failed run, not a crash — verify ids against each provider's
+# models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
+# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com).
+sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
+gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5"
 ```
 
 The registered local model (`SecHftModelDefault`) is LiquidAI **LFM2.5-350M** — an

@@ -14,10 +14,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SecHftModelDefault } from "./Constants";
 import {
   anthropicModelRecord,
+  geminiModelRecord,
   hftModelRecord,
+  openAiModelRecord,
   registerModelIds,
   registerSecModels,
   secModelRecord,
+  xaiModelRecord,
 } from "./registerModels";
 
 describe("registerSecModels", () => {
@@ -62,11 +65,30 @@ describe("registerSecModels", () => {
     expect(record.capabilities).toContain("json-mode");
   });
 
-  it("dispatches secModelRecord by id shape (org/name → HFT, else Anthropic)", () => {
+  it("builds routable OpenAI / Gemini / xAI records", () => {
+    expect(openAiModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
+    expect(openAiModelRecord("gpt-5.4-mini").provider_config.model_name).toBe("gpt-5.4-mini");
+    expect(geminiModelRecord("gemini-3-flash-preview").provider).toBe("GOOGLE_GEMINI");
+    expect(xaiModelRecord("grok-4.5").provider).toBe("XAI");
+    for (const r of [
+      openAiModelRecord("gpt-5.4-mini"),
+      geminiModelRecord("gemini-3-flash-preview"),
+      xaiModelRecord("grok-4.5"),
+    ]) {
+      expect(r.capabilities).toContain("json-mode");
+    }
+  });
+
+  it("dispatches secModelRecord by id shape across all providers", () => {
     expect(secModelRecord("claude-opus-4-8").provider).toBe("ANTHROPIC");
+    expect(secModelRecord("gpt-5.5").provider).toBe("OPENAI");
+    expect(secModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
+    expect(secModelRecord("gemini-3.1-pro-preview").provider).toBe("GOOGLE_GEMINI");
+    expect(secModelRecord("grok-4.5").provider).toBe("XAI");
     expect(secModelRecord("onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(
       "HF_TRANSFORMERS_ONNX"
     );
+    expect(secModelRecord("gguf:model.gguf").provider).toBe("LOCAL_LLAMACPP");
   });
 
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {
@@ -84,9 +106,10 @@ describe("registerSecModels", () => {
   });
 
   it("registerModelIds registers an explicit list by provider-appropriate record", async () => {
-    await registerModelIds(["claude-haiku-4-5", "onnx-community/tiny"]);
+    await registerModelIds(["claude-haiku-4-5", "gpt-5.4-mini", "onnx-community/tiny"]);
     const repo = getGlobalModelRepository();
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
+    expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
     expect((await repo.findByName("onnx-community/tiny"))?.provider).toBe("HF_TRANSFORMERS_ONNX");
   });
 });

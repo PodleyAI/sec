@@ -11,6 +11,14 @@
  * - **Anthropic** (`provider: "ANTHROPIC"`) — inline; the cloud path used by the
  *   default `claude-sonnet-5` model. Cheap to register (the SDK loads lazily on
  *   first call) and needs `ANTHROPIC_API_KEY` at run time.
+ * - **OpenAI** (`provider: "OPENAI"`) — inline; the cloud path for the GPT family
+ *   (`gpt-5.5`, `gpt-5.4-mini`, …) in the `sec eval` model comparison. Needs
+ *   `OPENAI_API_KEY` at run time.
+ * - **Google Gemini** (`provider: "GOOGLE_GEMINI"`) — inline; the `gemini-*`
+ *   family (`gemini-3.1-pro-preview`, `gemini-3-flash-preview`, …). Needs
+ *   `GEMINI_API_KEY` at run time.
+ * - **xAI Grok** (`provider: "XAI"`) — inline; the `grok-*` family (`grok-4.5`,
+ *   …). Needs `XAI_API_KEY` at run time.
  * - **HuggingFace Transformers ONNX** (`provider: "HF_TRANSFORMERS_ONNX"`) —
  *   **worker-backed, not inline**: the heavy `@huggingface/transformers` graph
  *   runs in a spawned worker (`hftWorker.ts`), never on the main thread. Lets us
@@ -28,6 +36,9 @@
  */
 export async function registerSecProviders(): Promise<void> {
   await registerAnthropic();
+  await registerOpenAi();
+  await registerGemini();
+  await registerXai();
   await registerHft();
   await registerLlamaCpp();
 }
@@ -38,6 +49,33 @@ async function registerAnthropic(): Promise<void> {
     await registerAnthropicInline();
   } catch (err) {
     warn("Anthropic", err);
+  }
+}
+
+async function registerOpenAi(): Promise<void> {
+  try {
+    const { registerOpenAiInline } = await import("workglow/openai/runtime");
+    await registerOpenAiInline();
+  } catch (err) {
+    warn("OpenAI", err);
+  }
+}
+
+async function registerGemini(): Promise<void> {
+  try {
+    const { registerGeminiInline } = await import("workglow/gemini/runtime");
+    await registerGeminiInline();
+  } catch (err) {
+    warn("Google Gemini", err);
+  }
+}
+
+async function registerXai(): Promise<void> {
+  try {
+    const { registerXaiInline } = await import("workglow/xai/runtime");
+    await registerXaiInline();
+  } catch (err) {
+    warn("xAI", err);
   }
 }
 
