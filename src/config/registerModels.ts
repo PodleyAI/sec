@@ -18,6 +18,9 @@ import { SecHftModelDefault, SecModelDefault } from "./Constants";
  * `registerSecProviders`.
  */
 const ANTHROPIC_PROVIDER = "ANTHROPIC";
+const OPENAI_PROVIDER = "OPENAI";
+const GEMINI_PROVIDER = "GOOGLE_GEMINI";
+const XAI_PROVIDER = "XAI";
 const HFT_PROVIDER = "HF_TRANSFORMERS_ONNX";
 const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
 
@@ -37,6 +40,28 @@ function isHftModelId(modelId: string): boolean {
 
 function isLlamaCppModelId(modelId: string): boolean {
   return modelId.startsWith(GGUF_ID_PREFIX);
+}
+
+/**
+ * OpenAI cloud ids — the GPT chat family (`gpt-5.5`, `gpt-5.5-mini`, `gpt-4o`, …)
+ * and the `o`/`chatgpt` reasoning families. Matched before the Anthropic
+ * fall-through so a `gpt-*` id routes to the OpenAI provider rather than being
+ * sent to Anthropic. NOTE: only non-thinking instruct models produce clean
+ * `json-mode` output — the `o`-series reasoning models wrap the JSON in a
+ * reasoning preamble (same caveat as the local thinking models).
+ */
+function isOpenAiModelId(modelId: string): boolean {
+  return /^(gpt-|chatgpt-|o[134](-|$))/i.test(modelId);
+}
+
+/** Google Gemini cloud ids — `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, … */
+function isGeminiModelId(modelId: string): boolean {
+  return /^gemini-/i.test(modelId);
+}
+
+/** xAI Grok cloud ids — `grok-4.5`, `grok-4.3`, … */
+function isXaiModelId(modelId: string): boolean {
+  return /^grok-/i.test(modelId);
 }
 
 /**
@@ -102,6 +127,90 @@ export function anthropicModelRecord(modelId: string): ModelRecord {
     title: modelId,
     description: `Anthropic ${modelId}`,
     capabilities: [...ANTHROPIC_CAPABILITIES],
+    provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
+    metadata: {},
+  };
+}
+
+/**
+ * Full capability set for an OpenAI chat model. Mirrors the Anthropic set: the
+ * OpenAI provider serves `json-mode` via native `response_format` json-schema,
+ * but — as for Anthropic — we declare `json-mode` / `text.generation` explicitly
+ * rather than rely on the installed provider's id-based capability inference,
+ * which doesn't recognize newer ids like `gpt-5.5` and would trip
+ * `StructuredGenerationTask`'s capability gate.
+ */
+const OPENAI_CAPABILITIES: readonly string[] = [
+  "text.generation",
+  "text.rewriter",
+  "text.summary",
+  "tool-use",
+  "json-mode",
+  "vision-input",
+  "model.count-tokens",
+  "model.info",
+  "model.search",
+];
+
+/**
+ * Builds a fully-specified OpenAI {@link ModelRecord}. `provider_config.model_name`
+ * is the OpenAI model identifier passed straight to the API; the shape mirrors
+ * the Anthropic record so the two cloud providers are interchangeable in the
+ * `sec eval` harness.
+ */
+export function openAiModelRecord(modelId: string): ModelRecord {
+  return {
+    model_id: modelId,
+    provider: OPENAI_PROVIDER,
+    title: modelId,
+    description: `OpenAI ${modelId}`,
+    capabilities: [...OPENAI_CAPABILITIES],
+    provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
+    metadata: {},
+  };
+}
+
+/**
+ * Full capability set for a Google Gemini / xAI Grok chat model. Same rationale
+ * as the Anthropic/OpenAI sets — declare `json-mode` / `text.generation`
+ * explicitly rather than rely on the installed provider's id-based capability
+ * inference (which doesn't recognize newer ids like `gemini-3.1-pro-preview` or
+ * `grok-4.5`) so `StructuredGenerationTask`'s gate passes. Gemini serves
+ * `json-mode` via `responseSchema`; Grok via native json-schema output.
+ */
+const CLOUD_CHAT_CAPABILITIES: readonly string[] = [
+  "text.generation",
+  "text.rewriter",
+  "text.summary",
+  "tool-use",
+  "json-mode",
+  "vision-input",
+  "model.count-tokens",
+  "model.info",
+  "model.search",
+];
+
+/** Builds a fully-specified Google Gemini {@link ModelRecord} (`provider: "GOOGLE_GEMINI"`). */
+export function geminiModelRecord(modelId: string): ModelRecord {
+  return {
+    model_id: modelId,
+    provider: GEMINI_PROVIDER,
+    title: modelId,
+    description: `Google Gemini ${modelId}`,
+    capabilities: [...CLOUD_CHAT_CAPABILITIES],
+    provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
+    metadata: {},
+  };
+}
+
+/** Builds a fully-specified xAI Grok {@link ModelRecord} (`provider: "XAI"`). */
+export function xaiModelRecord(modelId: string): ModelRecord {
+  return {
+    model_id: modelId,
+    provider: XAI_PROVIDER,
+    title: modelId,
+    description: `xAI Grok ${modelId}`,
+    capabilities: [...CLOUD_CHAT_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
   };
@@ -200,13 +309,18 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
 /**
  * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
  * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
- * `org/name` id → HFT ONNX (local), otherwise Anthropic (cloud). Shared by
- * {@link registerSecModels} and the `sec eval` harness so both mint identical
+ * `org/name` id → HFT ONNX (local), a `gpt-*`/`o*` id → OpenAI, a `gemini-*` id
+ * → Google Gemini, a `grok-*` id → xAI, otherwise Anthropic (all cloud). Shared
+ * by {@link registerSecModels} and the `sec eval` harness so both mint identical
  * records for the same id.
  */
 export function secModelRecord(modelId: string): ModelRecord {
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
-  return isHftModelId(modelId) ? hftModelRecord(modelId) : anthropicModelRecord(modelId);
+  if (isHftModelId(modelId)) return hftModelRecord(modelId);
+  if (isOpenAiModelId(modelId)) return openAiModelRecord(modelId);
+  if (isGeminiModelId(modelId)) return geminiModelRecord(modelId);
+  if (isXaiModelId(modelId)) return xaiModelRecord(modelId);
+  return anthropicModelRecord(modelId);
 }
 
 /**
