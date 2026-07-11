@@ -107,4 +107,32 @@ describe("scoreExtraction", () => {
     expect(s.entityRecall).toBe(0);
     expect(s.precision).toBe(0);
   });
+
+  it("captures the concrete missing / extra / field-mismatch diff", () => {
+    const candidate = [
+      { full_name: "Jane Smith", title: "CEO" }, // title mismatch
+      { full_name: "Nobody Real", title: "Ghost" }, // extra / hallucinated
+      // John Doe absent → missing
+    ];
+    const s = scoreExtraction(candidate, expected, { keyField: "full_name" });
+    expect(s.diff.missing).toEqual(["John Doe"]);
+    expect(s.diff.extra).toEqual(["Nobody Real"]);
+    expect(s.diff.mismatches).toEqual([
+      {
+        key: "Jane Smith",
+        field: "title",
+        expected: "Chief Executive Officer",
+        got: "CEO",
+      },
+    ]);
+  });
+
+  it("reports raw (un-normalized) values and a clean diff on a perfect match", () => {
+    const candidate = [
+      { full_name: "JANE  SMITH", title: "Chief Executive Officer" },
+      { full_name: "John Doe", title: "chief financial officer" },
+    ];
+    const s = scoreExtraction(candidate, expected, { keyField: "full_name" });
+    expect(s.diff).toEqual({ missing: [], extra: [], mismatches: [] });
+  });
 });

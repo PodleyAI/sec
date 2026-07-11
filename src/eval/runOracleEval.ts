@@ -69,11 +69,13 @@ export interface RunOracleOptions {
   readonly dir?: string;
   /**
    * Optional progress sink, invoked once per section per model as the sweep
-   * runs. The oracle is otherwise silent until the final report, which makes a
-   * long local-model run (minutes per large section) look hung; the CLI wires
-   * this to stderr so `--format json` on stdout stays clean.
+   * runs (`done` of `total`). The oracle is otherwise silent until the final
+   * report, which makes a long local-model run (minutes per large section) look
+   * hung; the CLI wires this to the task-graph progress UI.
    */
-  readonly onProgress?: (message: string) => void;
+  readonly onProgress?: (done: number, total: number, message: string) => void;
+  /** When aborted, the sweep stops after the current section and reports what ran. */
+  readonly signal?: AbortSignal;
 }
 
 async function runSection(
@@ -171,11 +173,17 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
   };
   const progress = opts.onProgress ?? ((): void => {});
   const kchars = (n: number): string => `${(n / 1000).toFixed(0)}k`;
+  // One step per model run: the reference (when it resolved) plus every candidate.
+  const total = sections.length * ((refModel ? 1 : 0) + opts.candidates.length);
+  let done = 0;
 
   progress(
+    done,
+    total,
     `oracle: ${sections.length} section(s) × (1 reference + ${opts.candidates.length} candidate(s))`
   );
   for (let si = 0; si < sections.length; si++) {
+    if (opts.signal?.aborted) break;
     const section = sections[si];
     const tag = `[${si + 1}/${sections.length}] ${section.filing} ${section.extractor} (${kchars(section.text.length)})`;
     // Reference establishes truth for this section. Retry on failure: strong
@@ -192,7 +200,10 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
       refRows = outcome.rows;
       refOk = outcome.result.ok;
       push({ ...outcome.result, score: null });
+      done += 1;
       progress(
+        done,
+        total,
         `${tag} ref ${opts.reference}: ${refOk ? "ok" : "FAIL"} ${outcome.result.latencyMs.toFixed(0)}ms ${outcome.result.rows} rows`
       );
     }
@@ -212,6 +223,7 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
           cost: estimateCost(candidateId, 0, 0),
           score: null,
         });
+        done += 1;
         continue;
       }
       const { rows, result } = await runSection(candidateId, candModel, section);
@@ -223,8 +235,11 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
           })
         : null;
       push({ ...result, score });
+      done += 1;
       const agree = score ? ` agree ${(score.score * 100).toFixed(0)}%` : "";
       progress(
+        done,
+        total,
         `${tag} cand ${candidateId}: ${result.ok ? "ok" : "FAIL"} ${result.latencyMs.toFixed(0)}ms ${result.rows} rows${agree}`
       );
     }

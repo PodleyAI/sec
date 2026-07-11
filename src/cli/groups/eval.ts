@@ -5,15 +5,15 @@
  */
 
 import type { Command } from "commander";
+import { withCli } from "@workglow/cli";
 import { SecHftModelDefault } from "../../config/Constants";
 import { runCommand } from "../runCommand";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
-import {
-  runExtractionEval,
-  type EvalReport,
-  type ModelSummary,
-} from "../../eval/runExtractionEval";
-import { runOracleEval, type OracleReport } from "../../eval/runOracleEval";
+import { type EvalReport, type ModelSummary } from "../../eval/runExtractionEval";
+import { type OracleReport } from "../../eval/runOracleEval";
+import type { ExtractionDiff } from "../../eval/scoreExtraction";
+import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
+import { EvalS1Task } from "../../task/eval/EvalS1Task";
 
 /**
  * Default comparison set: a cheap cloud model, a mid cloud model, and the local
@@ -43,7 +43,69 @@ function pad(s: string, w: number): string {
   return s.length >= w ? s : s + " ".repeat(w - s.length);
 }
 
-function printTable(report: EvalReport): void {
+/** Collapse whitespace and cap length so long bios / source spans stay one-line. */
+function truncate(s: string, max = 60): string {
+  const flat = s.replace(/\s+/g, " ").trim();
+  return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
+}
+
+function hasDiff(d: ExtractionDiff): boolean {
+  return d.missing.length > 0 || d.extra.length > 0 || d.mismatches.length > 0;
+}
+
+/** Join a capped list of row keys, appending "(+N more)" when truncated. */
+function keyList(keys: readonly string[], cap = 8): string {
+  const shown = keys.slice(0, cap).map((k) => truncate(k, 40));
+  const extra = keys.length - shown.length;
+  return extra > 0 ? `${shown.join(", ")} (+${extra} more)` : shown.join(", ");
+}
+
+interface DiffEntry {
+  readonly model: string;
+  readonly section: string;
+  readonly extractor: string;
+  readonly diff: ExtractionDiff;
+}
+
+/**
+ * Print the concrete disagreements behind the aggregate scores, grouped by model:
+ * expected/reference rows the candidate missed, rows it invented, and per-field
+ * value mismatches on the rows that aligned. This is the "why is the score not
+ * 100%" view the table alone can't give.
+ */
+function printDiffs(entries: readonly DiffEntry[], truthLabel: string): void {
+  const withDiff = entries.filter((e) => hasDiff(e.diff));
+  if (!withDiff.length) {
+    console.log(`\nno row/field disagreements — every scored run matched the ${truthLabel}.`);
+    return;
+  }
+  console.log(`\ndisagreements (${truthLabel} vs got):`);
+  const byModel = new Map<string, DiffEntry[]>();
+  for (const e of withDiff) {
+    (byModel.get(e.model) ?? byModel.set(e.model, []).get(e.model)!).push(e);
+  }
+  for (const [model, es] of byModel) {
+    console.log(`\n  ${model}`);
+    for (const e of es) {
+      console.log(`    ${e.section} / ${e.extractor}`);
+      if (e.diff.missing.length) {
+        console.log(`      missing (${e.diff.missing.length}): ${keyList(e.diff.missing)}`);
+      }
+      if (e.diff.extra.length) {
+        console.log(`      extra   (${e.diff.extra.length}): ${keyList(e.diff.extra)}`);
+      }
+      const mm = e.diff.mismatches;
+      for (const m of mm.slice(0, 12)) {
+        console.log(
+          `      ${truncate(m.key, 30)} · ${m.field}: "${truncate(m.expected)}" → "${truncate(m.got)}"`
+        );
+      }
+      if (mm.length > 12) console.log(`      … +${mm.length - 12} more field mismatch(es)`);
+    }
+  }
+}
+
+function printTable(report: EvalReport, details: boolean): void {
   const cols: Array<[string, number, (m: ModelSummary) => string]> = [
     ["#", 2, () => ""],
     ["model", 34, (m) => m.model],
@@ -76,9 +138,23 @@ function printTable(report: EvalReport): void {
     console.log("\nfailures:");
     for (const r of failed) console.log(`  ${r.model} / ${r.fixture}: ${r.error}`);
   }
+
+  if (details) {
+    printDiffs(
+      report.results
+        .filter((r) => r.ok)
+        .map((r) => ({
+          model: r.model,
+          section: r.fixture,
+          extractor: r.extractor,
+          diff: r.score.diff,
+        })),
+      "expected"
+    );
+  }
 }
 
-function printOracleTable(report: OracleReport): void {
+function printOracleTable(report: OracleReport, details: boolean): void {
   console.log(
     `Reference (truth): ${report.reference} — over ${report.sections} real S-1 section(s)\n`
   );
@@ -115,6 +191,22 @@ function printOracleTable(report: OracleReport): void {
     console.log("\nskipped (no such section / unparseable):");
     for (const s of report.skipped) console.log(`  ${s}`);
   }
+
+  if (details) {
+    // Reference runs carry no score (they ARE the truth); only scored candidate
+    // runs have a diff to show against the reference.
+    printDiffs(
+      report.results
+        .filter((r) => r.score !== null)
+        .map((r) => ({
+          model: r.model,
+          section: r.filing,
+          extractor: r.extractor,
+          diff: r.score!.diff,
+        })),
+      "reference"
+    );
+  }
 }
 
 export function addEvalCommands(program: Command): void {
@@ -134,22 +226,33 @@ export function addEvalCommands(program: Command): void {
       `limit to one extractor (${Object.keys(EVAL_EXTRACTORS).join(", ")})`
     )
     .option("--format <fmt>", "table | json", "table")
-    .action(async (opts: { models?: string; extractor?: string; format: string }) => {
-      await runCommand(async () => {
-        const models = parseModels(opts.models);
-        if (opts.extractor && !EVAL_EXTRACTORS[opts.extractor]) {
-          throw new Error(
-            `unknown extractor "${opts.extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
-          );
-        }
-        const report = await runExtractionEval({ models, extractor: opts.extractor });
-        if (opts.format === "json") {
-          console.log(JSON.stringify(report, null, 2));
-          return;
-        }
-        printTable(report);
-      });
-    });
+    .option("--no-details", "hide per-row/field disagreements after the table")
+    .action(
+      async (opts: {
+        models?: string;
+        extractor?: string;
+        format: string;
+        details: boolean;
+      }) => {
+        await runCommand(async () => {
+          const models = parseModels(opts.models);
+          if (opts.extractor && !EVAL_EXTRACTORS[opts.extractor]) {
+            throw new Error(
+              `unknown extractor "${opts.extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+            );
+          }
+          const input = opts.extractor ? { models, extractor: opts.extractor } : { models };
+          // withCli renders the task-graph progress UI on a TTY (clearing it
+          // before we print), and runs plainly when piped.
+          const report = (await withCli(new EvalExtractTask()).run(input)) as EvalReport;
+          if (opts.format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printTable(report, opts.details);
+        });
+      }
+    );
 
   cmd
     .command("s1")
@@ -171,6 +274,7 @@ export function addEvalCommands(program: Command): void {
         "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
     )
     .option("--format <fmt>", "table | json", "table")
+    .option("--no-details", "hide per-row/field disagreements after the table")
     .action(
       async (opts: {
         reference: string;
@@ -178,6 +282,7 @@ export function addEvalCommands(program: Command): void {
         extractors?: string;
         dir?: string;
         format: string;
+        details: boolean;
       }) => {
         await runCommand(async () => {
           const candidates = opts.candidates
@@ -193,19 +298,20 @@ export function addEvalCommands(program: Command): void {
               );
             }
           }
-          const report = await runOracleEval({
+          const input = {
             reference: opts.reference,
             candidates,
             extractors,
-            dir: opts.dir,
-            // Progress to stderr so `--format json` on stdout stays parseable.
-            onProgress: (m) => console.error(m),
-          });
+            ...(opts.dir ? { dir: opts.dir } : {}),
+          };
+          // withCli renders the task-graph progress UI on a TTY (clearing it
+          // before we print), and runs plainly when piped.
+          const report = (await withCli(new EvalS1Task()).run(input)) as OracleReport;
           if (opts.format === "json") {
             console.log(JSON.stringify(report, null, 2));
             return;
           }
-          printOracleTable(report);
+          printOracleTable(report, opts.details);
         });
       }
     );
