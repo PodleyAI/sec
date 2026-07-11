@@ -1,0 +1,85 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Static, Type } from "typebox";
+import { IExecuteContext, Task } from "workglow";
+import { runExtractionEval } from "../../eval/runExtractionEval";
+
+const InputSchema = () =>
+  Type.Object({
+    models: Type.Array(Type.String(), {
+      title: "Model ids",
+      description: "Candidate model ids to compare",
+      minItems: 1,
+    }),
+    extractor: Type.Optional(
+      Type.String({ title: "Extractor", description: "Limit to one extractor (e.g. 'management')" })
+    ),
+  });
+export type EvalExtractTaskInput = Static<ReturnType<typeof InputSchema>>;
+
+/**
+ * Summary row per model — the ranking the CLI prints. `results` (the per-fixture
+ * runs with their full {@link ExtractionScore} incl. diffs) is opaque to the
+ * schema: the runner returns `execute`'s value verbatim, so the CLI still gets
+ * the complete report to render.
+ */
+const OutputSchema = () =>
+  Type.Object({
+    results: Type.Array(Type.Unknown()),
+    summaries: Type.Array(
+      Type.Object({
+        model: Type.String(),
+        provider: Type.String(),
+        runs: Type.Number(),
+        okRuns: Type.Number(),
+        avgScore: Type.Number(),
+        avgEntityRecall: Type.Number(),
+        avgPrecision: Type.Number(),
+        avgLatencyMs: Type.Number(),
+        totalUsd: Type.Union([Type.Number(), Type.Null()]),
+      })
+    ),
+  });
+export type EvalExtractTaskOutput = Static<ReturnType<typeof OutputSchema>>;
+
+/**
+ * Task wrapper around {@link runExtractionEval} so `sec eval extract` runs under
+ * the CLI's automatic task-graph progress UI (one step per model×fixture) and is
+ * abortable, instead of running silent until the final table.
+ */
+export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskOutput> {
+  static readonly type = "EvalExtractTask";
+  static readonly category = "SEC";
+  static readonly cacheable = false;
+
+  static inputSchema() {
+    return InputSchema();
+  }
+
+  static outputSchema() {
+    return OutputSchema();
+  }
+
+  async execute(
+    input: EvalExtractTaskInput,
+    context: IExecuteContext
+  ): Promise<EvalExtractTaskOutput> {
+    const report = await runExtractionEval({
+      models: input.models,
+      extractor: input.extractor,
+      signal: context.signal,
+      onProgress: (done, total, message) => {
+        const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
+        void context.updateProgress(pct, message);
+      },
+    });
+    // The runner returns this verbatim (no output-schema stripping), so the CLI
+    // casts back to the full `EvalReport`; the declared output only satisfies
+    // DataPorts.
+    return report as EvalExtractTaskOutput;
+  }
+}
