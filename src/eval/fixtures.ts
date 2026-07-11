@@ -103,7 +103,10 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     extractor: "management",
     text: OPERATING_COMPANY_MANAGEMENT,
     expected: [
-      { full_name: "Marcus T. Delgado", title: "Chief Executive Officer and Chairman of the Board" },
+      {
+        full_name: "Marcus T. Delgado",
+        title: "Chief Executive Officer and Chairman of the Board of Directors",
+      },
       { full_name: "Priya Ramaswamy", title: "Chief Financial Officer" },
       { full_name: "Devin O'Leary", title: "Chief Technology Officer" },
       { full_name: "Susan Whitfield-Chen", title: "Director" },
