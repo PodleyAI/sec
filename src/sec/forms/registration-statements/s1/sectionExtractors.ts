@@ -25,6 +25,7 @@ import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSc
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
+import { normalizeManagementTitle } from "./normalizeTitle";
 
 const MAX_TOKENS = 4096;
 
@@ -336,12 +337,25 @@ export async function extractManagement(
     "(or null), age (the person's stated age as an integer, or null if not stated), bio " +
     "(a short biography summarizing their background/experience as stated, or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew them from. " +
+    "Normalize each title to its canonical form (the source_span stays verbatim; the " +
+    "title field is normalized): use standard Title Case; refer to the board as 'the " +
+    "Board of Directors', never a possessive ('our', the company's name); render a plain " +
+    "board seat as exactly 'Director' (not 'Member of the Board of Directors', 'board " +
+    "member', etc.); drop articles before a role ('and a director' -> 'and Director'). " +
+    "For example 'member of our board of directors' -> 'Director', 'Chairman of our board " +
+    "of directors' -> 'Chairman of the Board of Directors', and 'Chief Executive Officer " +
+    "and a director' -> 'Chief Executive Officer and Director'. " +
     "Return JSON matching the schema.";
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const prompt = `${buildUntrustedPreamble(nonce)}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(model, prompt, ManagementOutputSchema);
   verifyNonce(obj, nonce);
-  return (obj.people as ManagementPersonRow[] | undefined) ?? [];
+  const people = (obj.people as ManagementPersonRow[] | undefined) ?? [];
+  // Post-model canonicalization: guarantee a consistent title regardless of
+  // which model produced the row (the prompt only nudges toward this form).
+  return people.map((person) =>
+    person.title == null ? person : { ...person, title: normalizeManagementTitle(person.title) }
+  );
 }
 
 export async function extractBeneficialOwnership(
