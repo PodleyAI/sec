@@ -10,6 +10,7 @@ import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
+import { unloadLocalModel } from "./unloadModel";
 
 export interface FixtureRunResult {
   readonly model: string;
@@ -182,6 +183,9 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
       progress(done, total, `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`);
     }
     summaries.push(summarize(modelId, provider, modelRows));
+    // Free a local model's memory before the next candidate loads, so a sweep
+    // doesn't accumulate VRAM/RAM across models (no-op for cloud providers).
+    if (model) await unloadLocalModel(model);
   }
 
   summaries.sort(
