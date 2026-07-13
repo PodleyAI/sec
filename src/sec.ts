@@ -7,6 +7,7 @@ import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
 import { closeDb } from "./util/db";
 import { closePgPool } from "./util/pg";
+import { terminateWorkers } from "./util/workers";
 
 program
   .version("2.0.0")
@@ -32,6 +33,9 @@ try {
     getTaskQueueRegistry().stopQueues(),
     Promise.resolve().then(() => closeDb()),
     closePgPool(),
+    // Terminate worker-backed AI providers (local models) so the process exits
+    // instead of hanging on live worker threads until their idle timeout.
+    terminateWorkers(),
   ]);
   for (const result of cleanups) {
     if (result.status === "rejected") {

@@ -77,13 +77,18 @@ function ggufModelsDir(): string {
 }
 
 /**
- * Context window for the local GGUF extractors. S-1 sections reach ~57k chars
- * (~19k tokens); 32k tokens leaves room for that plus the extractor's output.
- * Override with `SEC_GGUF_CONTEXT` (VRAM permitting).
+ * Context window for the local GGUF extractors. Defaults to 8192 tokens, which
+ * loads on memory-constrained hosts: a 32k KV cache for a dense 12–14B model
+ * exceeds the Metal working-set budget even on a 64 GB machine, so the context
+ * fails to allocate. 8k fits every tested local model and covers typical
+ * sections. Large real S-1 sections reach ~57k chars (~19k tokens) — raise
+ * `SEC_GGUF_CONTEXT` (e.g. 32768) when extracting those with a model whose
+ * weights leave room for the bigger KV cache (the provider now evicts other
+ * cached models on a VRAM error to help it fit).
  */
 function ggufContextSize(): number {
   const n = Number(process.env.SEC_GGUF_CONTEXT?.trim());
-  return Number.isFinite(n) && n > 0 ? n : 32768;
+  return Number.isFinite(n) && n > 0 ? n : 8192;
 }
 
 /**
