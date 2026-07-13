@@ -1,4 +1,4 @@
-import { type TSchema, Type } from "typebox";
+import { type TSchema, type TUnsafe, Type } from "typebox";
 
 /**
  * Creates a nullable type by wrapping the given type in a union with null.
@@ -32,34 +32,23 @@ export const TypeBlob = (annotations: Record<string, unknown> = {}) =>
     .Decode((value: unknown) => value as Uint8Array)
     .Encode((value: Uint8Array) => Buffer.from(value));
 
-export class TypeStringEnumType<T extends string[] | readonly string[]> extends Type.Base<
-  T[number]
-> {
-  public readonly type = "string";
-  public readonly enum: T;
-
-  constructor(values: T, annotations: Record<string, unknown> = {}) {
-    super();
-    this.enum = values;
-    Object.assign(this, annotations);
-    // create a non-enumerable property called annotations
-    Object.defineProperty(this, "annotations", {
-      value: annotations,
-      enumerable: false,
-    });
-  }
-
-  public Check(value: unknown): value is T[number] {
-    return typeof value === "string" && this.enum.includes(value);
-  }
-
-  public Clone(): TypeStringEnumType<T> {
-    // @ts-expect-error - annotations is not a property of TypeStringEnumType
-    return new TypeStringEnumType(this.enum, this.annotations);
-  }
-}
-
+/**
+ * Creates a `{ type: "string", enum: [...] }` schema whose values are validated
+ * against the provided list.
+ *
+ * Replaces the former `Type.Base` subclass (removed in TypeBox 1.3) with the
+ * migration path TypeBox recommends — {@link Type.Unsafe} to carry the JSON
+ * Schema shape plus {@link Type.Refine} to enforce enum membership at runtime.
+ *
+ * The result is typed as an intersection with `{ type: "string" }` because
+ * `TUnsafe` does not surface the literal `type` keyword in its static type,
+ * which the DataPortSchema discriminated union relies on to accept the schema.
+ */
 export const TypeStringEnum = <T extends string[] | readonly string[]>(
   values: T,
   annotations: Record<string, unknown> = {}
-) => new TypeStringEnumType(values as string[], annotations);
+): TUnsafe<string> & { readonly type: "string" } =>
+  Type.Refine(
+    Type.Unsafe<string>({ type: "string", enum: values, ...annotations }),
+    (value) => typeof value === "string" && (values as readonly string[]).includes(value)
+  ) as unknown as TUnsafe<string> & { readonly type: "string" };
