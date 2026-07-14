@@ -7,11 +7,11 @@
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { withCli } from "@workglow/cli";
+import { isDryRun } from "../cli/isDryRun";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
-import { BackfillRedemptionsTask } from "../task/spac/BackfillRedemptionsTask";
-import { BackfillMergerProxiesTask } from "../task/spac/BackfillMergerProxiesTask";
+import { BackfillExtractorTask } from "../task/forms/BackfillExtractorTask";
 
 export interface SpacReport {
   readonly cik: number;
@@ -117,35 +117,46 @@ export function registerSpacCommands(program: Command): void {
       }
     });
 
-  spacCmd
-    .command("backfill-redemptions")
-    .description("Re-process known-SPAC trigger-item 8-Ks to extract realized redemptions")
-    .option("--force", "Re-process filings even when a successful run already exists", false)
-    .option("--dry-run", "Report selected filing count without reprocessing", false)
-    .action(async (opts: { force?: boolean; dryRun?: boolean }) => {
-      const out = (await withCli(new BackfillRedemptionsTask()).run({
-        force: opts.force === true,
-        dryRun: opts.dryRun === true,
-      } as never)) as {
-        selected: number;
-        processed: number;
-        skipped: number;
-      };
-      console.log(
-        `selected ${out.selected} filing(s); processed ${out.processed}; skipped ${out.skipped}`
-      );
-    });
-
-  spacCmd
-    .command("backfill-merger-proxies")
-    .description(
-      "Re-process known-SPAC merger proxies that were ingested before their spac row existed"
-    )
-    .action(async () => {
-      const out = (await withCli(new BackfillMergerProxiesTask()).run({})) as {
-        selected: number;
-        processed: number;
-      };
-      console.log(`selected ${out.selected} filing(s); processed ${out.processed}`);
-    });
+  // Historical aliases for `sec extractor backfill <id>` — same generalized
+  // engine, extractor id fixed.
+  const backfillAliases: ReadonlyArray<{ name: string; extractorId: string; blurb: string }> = [
+    {
+      name: "backfill-redemptions",
+      extractorId: "redemption",
+      blurb: "Re-process known-SPAC trigger-item 8-Ks to extract realized redemptions",
+    },
+    {
+      name: "backfill-lois",
+      extractorId: "loi",
+      blurb: "Re-process known-SPAC trigger-item 8-Ks to detect letters of intent",
+    },
+    {
+      name: "backfill-merger-proxies",
+      extractorId: "merger-proxy",
+      blurb: "Re-process known-SPAC merger proxies that were ingested before their spac row existed",
+    },
+  ];
+  for (const alias of backfillAliases) {
+    spacCmd
+      .command(alias.name)
+      .description(`${alias.blurb} (alias for: sec extractor backfill ${alias.extractorId})`)
+      .option("--force", "Re-process filings even when a successful run already exists", false)
+      .option("--dry-run", "Report selected filing count without reprocessing", false)
+      .action(async (opts: { force?: boolean; dryRun?: boolean }) => {
+        const out = (await withCli(new BackfillExtractorTask()).run({
+          extractorId: alias.extractorId,
+          force: opts.force === true,
+          // Commander resolves `--dry-run` against the program-level global
+          // option, so merge both sources.
+          dryRun: opts.dryRun === true || isDryRun(),
+        } as never)) as {
+          selected: number;
+          processed: number;
+          skipped: number;
+        };
+        console.log(
+          `selected ${out.selected} filing(s); processed ${out.processed}; skipped ${out.skipped}`
+        );
+      });
+  }
 }
