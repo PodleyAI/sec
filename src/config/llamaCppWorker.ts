@@ -11,6 +11,6 @@
  * this file via `registerLlamaCpp({ worker })`.
  */
 
-import { registerLlamaCppWorker } from "@workglow/node-llama-cpp/ai-runtime";
+import { registerLlamaCppWorker } from "workglow/node-llama/runtime";
 
 await registerLlamaCppWorker();

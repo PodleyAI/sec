@@ -97,7 +97,7 @@ async function registerHft(): Promise<void> {
 
 async function registerLlamaCpp(): Promise<void> {
   try {
-    const { registerLlamaCpp: register } = await import("@workglow/node-llama-cpp/ai");
+    const { registerLlamaCpp: register } = await import("workglow/node-llama");
     await register({
       worker: () =>
         new Worker(new URL("./llamaCppWorker.ts", import.meta.url), { type: "module" }),
