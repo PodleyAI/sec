@@ -106,6 +106,25 @@ describe("scoreExtraction", () => {
     expect(s.score).toBe(1);
   });
 
+  it("aligns names differing only by a comma before the suffix", () => {
+    const ref = [{ full_name: "Frank Martire, III", titles: ["Director"] }];
+    const cand = [{ full_name: "Frank Martire III", titles: ["Director"] }];
+    const s = scoreExtraction(cand, ref, { keyField: "full_name", fields: ["full_name", "titles"] });
+    expect(s.diff.missing).toEqual([]);
+    expect(s.diff.extra).toEqual([]);
+    expect(s.score).toBe(1);
+  });
+
+  it("aligns names differing by initial/suffix periods, but keeps decimals distinct", () => {
+    const ref = [{ full_name: "Richard J. Boyle, Jr." }];
+    const cand = [{ full_name: "Richard J Boyle Jr" }];
+    const s = scoreExtraction(cand, ref, { keyField: "full_name" });
+    expect(s.entityRecall).toBe(1);
+    // A period between digits is a decimal, not punctuation — "10.00" ≠ "1000".
+    const prices = scoreExtraction([{ share_price: "1000" }], [{ share_price: "10.00" }]);
+    expect(prices.score).toBe(0);
+  });
+
   it("aligns single-object extractors by position", () => {
     const s = scoreExtraction(
       [{ ipo_amount: 250_000_000, share_price: "10.00" }],
