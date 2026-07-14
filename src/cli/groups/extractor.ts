@@ -8,11 +8,14 @@ import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { withCli } from "@workglow/cli";
 import { runCommand } from "../runCommand";
+import { isDryRun } from "../isDryRun";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { RetryDeadLettersTask } from "../../task/forms/RetryDeadLettersTask";
+import { BackfillExtractorTask } from "../../task/forms/BackfillExtractorTask";
+import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
 
 /** Number of pending dead-letter entries now eligible under the current version. */
 export async function countEligibleDeadLetters(extractorId: string): Promise<number> {
@@ -23,7 +26,9 @@ export async function countEligibleDeadLetters(extractorId: string): Promise<num
 }
 
 export function addExtractorCommands(program: Command): void {
-  const cmd = program.command("extractor").description("Inspect and drain extractor dead-letters");
+  const cmd = program
+    .command("extractor")
+    .description("Extractor dead-letters and generalized backfill");
 
   cmd
     .command("dead-letters <extractorId>")
@@ -45,6 +50,29 @@ export function addExtractorCommands(program: Command): void {
           );
         }
         console.log(`${pending.length} pending`);
+      });
+    });
+
+  cmd
+    .command("backfill <extractorId>")
+    .description(
+      "Re-process the extractor's candidate filings that lack a successful run at the " +
+        `active version (ids: ${listBackfillableExtractorIds().join(", ")})`
+    )
+    .option("--force", "Re-process candidates even when a successful run already exists", false)
+    .option("--dry-run", "Report selected/skipped counts without reprocessing", false)
+    .action(async (extractorId: string, opts: { force?: boolean; dryRun?: boolean }) => {
+      await runCommand(async () => {
+        const out = (await withCli(new BackfillExtractorTask()).run({
+          extractorId,
+          force: opts.force === true,
+          // Commander resolves `--dry-run` against the program-level global
+          // option, so merge both sources.
+          dryRun: opts.dryRun === true || isDryRun(),
+        } as never)) as { selected: number; processed: number; skipped: number };
+        console.log(
+          `selected ${out.selected} filing(s); processed ${out.processed}; skipped ${out.skipped}`
+        );
       });
     });
 

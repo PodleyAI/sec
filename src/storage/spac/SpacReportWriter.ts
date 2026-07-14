@@ -101,6 +101,20 @@ interface RecordMergerProxyArgs {
   readonly emitProxyEvent: boolean;
 }
 
+/**
+ * Editorial (hand-curated) scalar fields. These have no reliable SEC-filing
+ * source; they are set via `sec editorial` and must survive filing replays.
+ * Only fields present (non-undefined) are written; an omitted field is left
+ * untouched. Explicit null is not a clear — pass a new value to change one.
+ */
+export interface RecordEditorialArgs {
+  readonly cik: number;
+  readonly url_spac?: string;
+  readonly url_sponsor?: string;
+  /** JSON-encoded key/value map (embarc detail-page freeform details). */
+  readonly details?: string;
+}
+
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
 const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik",
@@ -132,6 +146,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "registration_date",
   "ipo_date",
   "unit_split_date",
+  "loi_date",
   "definitive_agreement_date",
   "proxy_date",
   "vote_date",
@@ -246,6 +261,34 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record a non-binding letter of intent extracted from a known-SPAC 8-K
+   * narrative: append an `loi` event (idempotent by PK), recompute deals (the
+   * event walk opens/dates the attempt), then rebuild the row. The extraction
+   * itself is persisted by the caller (`processLoi8K`) before this runs.
+   */
+  async recordLoi(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+    /** LOI date stated in the narrative, else the 8-K report/filing date. */
+    readonly event_date: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "loi",
+        event_date: args.event_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
    * Record a realized redemption: recompute deals from the event stream +
    * stored redemption extractions (correlation derives redemption_amount /
    * redemption_shares onto the matching deal), then rebuild the row. No event
@@ -265,6 +308,31 @@ export class SpacReportWriter {
     await withCikLock(args.cik, async () => {
       await this.recomputeAndSaveDeals(args.cik);
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
+   * Write editorial fields onto the spac row without disturbing the filing
+   * pipeline's temporal machinery. The rebuild is driven at the row's own
+   * `as_of` anchor (or "" when the row is new), so the patch applies with
+   * overwrite semantics — a re-import can correct an earlier editorial value —
+   * while the anchor itself never advances: subsequent filing-driven writes
+   * see the same staleness ordering they would have without the editorial
+   * write. Survival across replays is structural: no automated `record*`
+   * method carries `url_sponsor` / `details`, and the rollup merge never
+   * clobbers a non-null value with an absent/null patch field. Creates the
+   * row (status `registered`, everything else null) when none exists;
+   * callers that must not mint known-SPAC rows check existence first.
+   */
+  async recordEditorial(args: RecordEditorialArgs): Promise<void> {
+    const patch: { url_spac?: string; url_sponsor?: string; details?: string } = {};
+    if (args.url_spac !== undefined) patch.url_spac = args.url_spac;
+    if (args.url_sponsor !== undefined) patch.url_sponsor = args.url_sponsor;
+    if (args.details !== undefined) patch.details = args.details;
+    if (Object.keys(patch).length === 0) return;
+    await withCikLock(args.cik, async () => {
+      const existing = await this.repo.getSpac(args.cik);
+      await this.rebuild(args.cik, existing?.as_of ?? "", "editorial", patch);
     });
   }
 
@@ -431,6 +499,7 @@ export class SpacReportWriter {
       registration_date: row.registration_date,
       ipo_date: row.ipo_date,
       unit_split_date: row.unit_split_date,
+      loi_date: row.loi_date,
       definitive_agreement_date: row.definitive_agreement_date,
       proxy_date: row.proxy_date,
       vote_date: row.vote_date,

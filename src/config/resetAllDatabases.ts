@@ -94,6 +94,7 @@ import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
 import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
 import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
 import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
+import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
@@ -169,6 +170,7 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   // Section 16 (Forms 3/4/5) and Form 144 detail tables.
   await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();

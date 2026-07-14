@@ -116,7 +116,12 @@ async function runOne(
   }
 }
 
-function summarize(modelId: string, provider: string, rows: FixtureRunResult[]): ModelSummary {
+/** Aggregate one model's per-run results into the ranked summary row (shared with `sec eval unit-terms`). */
+export function summarizeModelRuns(
+  modelId: string,
+  provider: string,
+  rows: FixtureRunResult[]
+): ModelSummary {
   const okRows = rows.filter((r) => r.ok);
   const n = rows.length || 1;
   const avg = (pick: (r: FixtureRunResult) => number): number =>
@@ -182,7 +187,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
       done += 1;
       progress(done, total, `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`);
     }
-    summaries.push(summarize(modelId, provider, modelRows));
+    summaries.push(summarizeModelRuns(modelId, provider, modelRows));
     // Free a local model's memory before the next candidate loads, so a sweep
     // doesn't accumulate VRAM/RAM across models (no-op for cloud providers).
     if (model) await unloadLocalModel(model);

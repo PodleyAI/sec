@@ -29,6 +29,7 @@ describe("registerSecModels", () => {
     "SEC_S1_MODEL",
     "SEC_MERGER_PROXY_MODEL",
     "SEC_REDEMPTION_MODEL",
+    "SEC_LOI_MODEL",
   ] as const;
   const savedEnv = Object.fromEntries(envKeys.map((k) => [k, process.env[k]]));
 
@@ -111,5 +112,14 @@ describe("registerSecModels", () => {
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
     expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
     expect((await repo.findByName("onnx-community/tiny"))?.provider).toBe("HF_TRANSFORMERS_ONNX");
+  });
+
+  it("registers the SEC_LOI_MODEL override id", async () => {
+    process.env.SEC_LOI_MODEL = "claude-haiku-4-5";
+    await registerSecModels();
+    const repo = getGlobalModelRepository();
+    expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
+    // The two always-registered defaults (cloud + local HFT) plus the override.
+    expect(await repo.size()).toBe(3);
   });
 });

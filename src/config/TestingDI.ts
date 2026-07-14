@@ -271,6 +271,11 @@ import {
   SpacRedemptionExtractionSchema,
 } from "../storage/spac/SpacRedemptionExtractionSchema";
 import {
+  SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+  SpacLoiExtractionPrimaryKeyNames,
+  SpacLoiExtractionSchema,
+} from "../storage/spac/SpacLoiExtractionSchema";
+import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
   CanonicalCompanySchema,
@@ -515,6 +520,13 @@ export function resetDependencyInjectionsForTesting() {
       SpacRedemptionExtractionPrimaryKeyNames,
       [["cik"]]
     )
+  );
+
+  globalServiceRegistry.registerInstance(
+    SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
 
   // Initialize Crowdfunding repositories

@@ -22,6 +22,7 @@ const EXTRACTOR_TO_SECTION: Record<string, string> = {
   management: S1_SECTIONS.MANAGEMENT,
   "beneficial-ownership": S1_SECTIONS.BENEFICIAL_OWNERSHIP,
   "related-party": S1_SECTIONS.RELATED_PARTY,
+  "offering-terms": S1_SECTIONS.THE_OFFERING,
 };
 
 export interface RealSection {
