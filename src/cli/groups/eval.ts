@@ -262,8 +262,8 @@ export function addEvalCommands(program: Command): void {
     )
     .option("--reference <id>", "reference (oracle) model id", "claude-sonnet-5")
     .option(
-      "--candidates <csv>",
-      `candidate model ids (default: ${SecHftModelDefault})`
+      "--models <csv>",
+      `model ids to score against the reference (default: ${SecHftModelDefault})`
     )
     .option(
       "--extractors <csv>",
@@ -279,15 +279,15 @@ export function addEvalCommands(program: Command): void {
     .action(
       async (opts: {
         reference: string;
-        candidates?: string;
+        models?: string;
         extractors?: string;
         dir?: string;
         format: string;
         details: boolean;
       }) => {
         await runCommand(async () => {
-          const candidates = opts.candidates
-            ? opts.candidates.split(",").map((s) => s.trim()).filter(Boolean)
+          const candidates = opts.models
+            ? opts.models.split(",").map((s) => s.trim()).filter(Boolean)
             : [SecHftModelDefault];
           const extractors = opts.extractors
             ? opts.extractors.split(",").map((s) => s.trim()).filter(Boolean)
