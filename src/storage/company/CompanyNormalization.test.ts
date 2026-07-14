@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizeCompany, CompanyImport } from "./CompanyNormalization";
+import { normalizeCompany, normalizeCompanyName, CompanyImport } from "./CompanyNormalization";
 
 describe("CompanyNormalization", () => {
   describe("normalizeCompany", () => {
@@ -222,6 +222,22 @@ describe("CompanyNormalization", () => {
       const spaced = normalizeCompany("Acme L L C");
       const tight = normalizeCompany("Acme LLC");
       expect(spaced!.company_hash_id).toBe(tight!.company_hash_id);
+    });
+  });
+
+  describe("normalizeCompanyName typographic folding", () => {
+    it("folds a curly apostrophe to ASCII so glyph variants share a key", () => {
+      // U+2019 vs U+0027 — the resolver keys on this string, so they must match.
+      expect(normalizeCompanyName("Macy’s")).toBe(normalizeCompanyName("Macy's"));
+    });
+
+    it("folds en/em dashes to a hyphen", () => {
+      expect(normalizeCompanyName("Coca–Cola")).toBe(normalizeCompanyName("Coca-Cola"));
+      expect(normalizeCompanyName("Time—Warner")).toBe(normalizeCompanyName("Time-Warner"));
+    });
+
+    it("folds smart double quotes to ASCII", () => {
+      expect(normalizeCompanyName("The “Acme” Group")).toBe(normalizeCompanyName('The "Acme" Group'));
     });
   });
 });

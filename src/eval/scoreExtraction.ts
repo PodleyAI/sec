@@ -16,6 +16,8 @@
  * comparison so trivial formatting differences are not penalized.
  */
 
+import { foldTypographicPunctuation } from "../util/dataCleaningUtils";
+
 /** One field-level disagreement on a row that matched between candidate and expected. */
 export interface FieldMismatch {
   /** Identifies the row: its `keyField` value, or `#<index>` under positional alignment. */
@@ -89,34 +91,15 @@ export interface ScoreOptions {
   readonly fields?: readonly string[];
 }
 
-/**
- * Fold typographic punctuation to ASCII so two models that render the same name
- * with different quote/dash glyphs still align. Without this, sonnet's curly
- * `Frank D’Angelo` (U+2019) and haiku's straight `Frank D'Angelo` (U+0027)
- * key to different rows and the SAME person shows as one missing + one extra.
- * Covers the smart single/double quotes, primes, and en/em/minus dashes.
- */
-const TYPOGRAPHIC_FOLD: Readonly<Record<string, string>> = {
-  "‘": "'",
-  "’": "'",
-  "‚": "'",
-  "‛": "'",
-  "′": "'",
-  "“": '"',
-  "”": '"',
-  "„": '"',
-  "″": '"',
-  "–": "-",
-  "—": "-",
-  "−": "-",
-};
-
 function normalize(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return (
-    String(value)
-      .replace(/[‘’‚‛′“”„″–—−]/g, (c) => TYPOGRAPHIC_FOLD[c])
+    // Fold typographic punctuation to ASCII so two models that render the same
+    // name with different quote/dash glyphs still align (sonnet's curly
+    // `D’Angelo` vs haiku's straight `D'Angelo`) — shares the production
+    // name-normalization helper so eval and resolver agree.
+    foldTypographicPunctuation(String(value))
       .toLowerCase()
       // Drop punctuation that doesn't change identity but varies by model:
       // a comma (e.g. "Frank Martire, III" vs "Frank Martire III") and a period

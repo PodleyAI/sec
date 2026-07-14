@@ -5,6 +5,7 @@
  */
 
 import { parseFullName } from "@sroussey/parse-full-name";
+import { foldTypographicPunctuation } from "../../util/dataCleaningUtils";
 
 export type PersonImport = {
   name: string;
@@ -50,17 +51,6 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
 }
 
 /**
- * Fold typographic apostrophes to the ASCII `'` so a name emitted with a curly
- * apostrophe ("D’Angelo", U+2019) unifies with its straight-quote twin
- * ("D'Angelo"). Done BEFORE parsing so the parser's case-fixing keys off a
- * consistent character — otherwise "D’Angelo" case-folds to "D’angelo" and the
- * two glyphs produce different name parts (and thus different canonical people).
- */
-function foldNameApostrophes(name: string): string {
-  return name.replace(/[‘’ʼ′‵]/g, "'");
-}
-
-/**
  * Strip identity-neutral punctuation from a parsed name part so two spellings of
  * the same person collapse: initials ("J." vs "J") and suffixes ("Jr." vs "Jr",
  * "Martire, III" already comma-split by the parser). Apostrophes and hyphens are
@@ -86,7 +76,11 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
   const cik = importPerson.cik || null;
   const crd = importPerson.crd || null;
 
-  const cleanPerson = foldNameApostrophes(name.replace("/s/", "").trim());
+  // Fold typographic punctuation (curly apostrophes, en/em dashes) to ASCII
+  // BEFORE parsing so the parser's case-fixing keys off a consistent character
+  // — otherwise "D’Angelo" (U+2019) case-folds to "D’angelo" while "D'Angelo"
+  // gives "D'Angelo", splitting the same person into two canonical rows.
+  const cleanPerson = foldTypographicPunctuation(name.replace("/s/", "").trim());
 
   const results = parseFullName(cleanPerson, { normalize: true, fixCase: 1 });
 
