@@ -16,14 +16,18 @@ const JSON_MODE = ["text.generation", "json-mode"] as const satisfies Capability
 const FAKE_PROVIDER = "fake-structured";
 
 class FakeStructuredProvider extends AiProvider {
-  override readonly name = FAKE_PROVIDER;
+  override readonly name: string;
   override readonly displayName = "Fake Structured";
   override readonly isLocal = true;
   override readonly supportsBrowser = false;
   override readonly supportsServer = false;
 
-  constructor(runFns?: readonly AiProviderRunFnRegistration<any, any, ModelConfig>[]) {
+  constructor(
+    providerName: string,
+    runFns?: readonly AiProviderRunFnRegistration<any, any, ModelConfig>[]
+  ) {
     super(runFns);
+    this.name = providerName;
   }
 }
 
@@ -31,6 +35,22 @@ export function fakeS1Model(): ModelConfig {
   return {
     provider: FAKE_PROVIDER,
     model: "fake-s1-model",
+    capabilities: JSON_MODE,
+    provider_config: {},
+  } as ModelConfig;
+}
+
+/**
+ * A model on a *local* provider (node-llama-cpp GBNF). The section extractors
+ * omit the per-call nonce for local providers ({@link isLocalProvider}), so
+ * this is the config to drive the "no-nonce" path. Register the fake provider
+ * under the same name via {@link registerFakeStructuredProvider}'s `provider`
+ * option so the run routes here.
+ */
+export function fakeLocalS1Model(): ModelConfig {
+  return {
+    provider: "LOCAL_LLAMACPP",
+    model: "fake-local-s1-model",
     capabilities: JSON_MODE,
     provider_config: {},
   } as ModelConfig;
@@ -63,10 +83,14 @@ export function extractVerifyNonce(prompt: string): string | null {
  * `nonce_seen` on the canned payload themselves — that "already set" branch
  * is the escape hatch.
  */
-export function registerFakeStructuredProvider(attempts: ReadonlyArray<Record<string, unknown>>): {
+export function registerFakeStructuredProvider(
+  attempts: ReadonlyArray<Record<string, unknown>>,
+  options?: { readonly provider?: string }
+): {
   calls: ReadonlyArray<string>;
   unregister: () => void;
 } {
+  const providerName = options?.provider ?? FAKE_PROVIDER;
   const calls: string[] = [];
   let index = 0;
   const runFn: AiProviderRunFn<any, any, ModelConfig> = async (input, _model, _signal, emit) => {
@@ -82,7 +106,7 @@ export function registerFakeStructuredProvider(attempts: ReadonlyArray<Record<st
   };
 
   const registry = getAiProviderRegistry();
-  registry.registerProvider(new FakeStructuredProvider([{ serves: JSON_MODE, runFn }]));
-  registry.registerRunFn(FAKE_PROVIDER, { serves: JSON_MODE, runFn });
-  return { calls, unregister: () => registry.unregisterProvider(FAKE_PROVIDER) };
+  registry.registerProvider(new FakeStructuredProvider(providerName, [{ serves: JSON_MODE, runFn }]));
+  registry.registerRunFn(providerName, { serves: JSON_MODE, runFn });
+  return { calls, unregister: () => registry.unregisterProvider(providerName) };
 }
