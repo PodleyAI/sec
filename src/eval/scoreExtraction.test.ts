@@ -94,6 +94,18 @@ describe("scoreExtraction", () => {
     expect(s.precision).toBe(1);
   });
 
+  it("aligns names that differ only by a curly vs straight apostrophe", () => {
+    // Reference uses the typographic apostrophe (U+2019); candidate the ASCII
+    // one (U+0027). Same person — must align, not count as missing + extra.
+    const ref = [{ full_name: "Frank D’Angelo", titles: ["Director"] }];
+    const cand = [{ full_name: "Frank D'Angelo", titles: ["Director"] }];
+    const s = scoreExtraction(cand, ref, { keyField: "full_name", fields: ["full_name", "titles"] });
+    expect(s.diff.missing).toEqual([]);
+    expect(s.diff.extra).toEqual([]);
+    expect(s.entityRecall).toBe(1);
+    expect(s.score).toBe(1);
+  });
+
   it("aligns single-object extractors by position", () => {
     const s = scoreExtraction(
       [{ ipo_amount: 250_000_000, share_price: "10.00" }],

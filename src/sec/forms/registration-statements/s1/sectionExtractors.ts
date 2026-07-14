@@ -406,6 +406,14 @@ export async function extractManagement(
     "ONLY roles the person currently holds at THIS company as stated in the section; do " +
     "NOT include titles held at prior or other employers, and do not invent a role that " +
     "is not explicitly stated. Use [] if no title is stated. " +
+    "Include people the section presents as director NOMINEES or officer appointees " +
+    "(nominated or to be appointed on/after the offering but not yet seated), and capture " +
+    "the nominee status as a distinct role: a plain board nominee is exactly 'Director " +
+    "Nominee' (so 'Director nominee' -> ['Director Nominee']); a nominee to a specific " +
+    "board role is that role with a ' (Nominee)' suffix (so 'Chairman of the Board " +
+    "nominee' -> ['Chairman of the Board of Directors (Nominee)']). Do NOT include people " +
+    "the section lists only as advisors, consultants, or advisory-board members who are " +
+    "neither directors/nominees nor executive officers. " +
     "Normalize each role to its canonical form (the source_span stays verbatim; the " +
     "titles field is normalized): use standard Title Case; refer to the board as 'the " +
     "Board of Directors', never a possessive ('our', the company's name); render a plain " +

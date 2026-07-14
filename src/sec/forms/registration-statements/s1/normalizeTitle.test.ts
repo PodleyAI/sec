@@ -38,6 +38,12 @@ describe("normalizeManagementTitle", () => {
       "Chief Executive Officer and Chairman",
       "Chief Executive Officer and Chairman of the Board of Directors",
     ],
+    // director nominees: a plain board nominee stays "Director Nominee"; a
+    // nominee to a specific board role gets a parenthesized "(Nominee)" suffix
+    ["Director nominee", "Director Nominee"],
+    ["director nominee", "Director Nominee"],
+    ["Chairman of the Board nominee", "Chairman of the Board of Directors (Nominee)"],
+    ["Chairman of our board of directors nominee", "Chairman of the Board of Directors (Nominee)"],
     // a committee chair is NOT the board chair — left untouched
     ["Chairman of the Audit Committee", "Chairman of the Audit Committee"],
     // Title Case + acronym preservation
@@ -101,6 +107,18 @@ describe("normalizeManagementTitles", () => {
     // ...but a plain officer role does NOT imply board membership, so both are kept
     ["Chief Executive Officer and Director", ["Chief Executive Officer", "Director"]],
     ["Chief Financial Officer and Director", ["Chief Financial Officer", "Director"]],
+    // director nominees split and canonicalize per role
+    ["Director nominee", ["Director Nominee"]],
+    [
+      "Chairman of the Board nominee",
+      ["Chairman of the Board of Directors (Nominee)"],
+    ],
+    // a seated directorship plus a nominee chair keeps both (a nominee chair is
+    // not yet on the board, so the bare "Director" is NOT redundant)
+    [
+      "Director and Chairman of the Board nominee",
+      ["Director", "Chairman of the Board of Directors (Nominee)"],
+    ],
     // already-split list input is re-split/normalized defensively
     [["Chief Executive Officer and Director"], ["Chief Executive Officer", "Director"]],
     [["President", "Secretary"], ["President", "Secretary"]],
