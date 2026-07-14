@@ -166,8 +166,8 @@ describe("scoreExtraction", () => {
         {
           key: "Jane Smith",
           field: "titles",
-          expected: "Chief Executive Officer, Director",
-          got: "Chief Executive Officer",
+          expected: '["Chief Executive Officer", "Director"]',
+          got: '["Chief Executive Officer"]',
         },
       ]);
     });
@@ -183,7 +183,9 @@ describe("scoreExtraction", () => {
       // all expected roles found (score 1), but the extra role is surfaced in the diff
       expect(s.score).toBe(1);
       expect(s.diff.mismatches).toHaveLength(1);
-      expect(s.diff.mismatches[0]?.got).toBe("Chief Executive Officer, Director, Founder");
+      expect(s.diff.mismatches[0]?.got).toBe(
+        '["Chief Executive Officer", "Director", "Founder"]'
+      );
     });
   });
 });
