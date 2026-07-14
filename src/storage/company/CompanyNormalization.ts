@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+
 export type CompanyImport = {
   company_name: string;
   country_code?: string;
@@ -195,7 +197,7 @@ const companyRenamings = (name: string) => {
 export function normalizeCompanyName(name: string): string | null {
   if (name === null || name === undefined || name === "") return null;
 
-  let normalized = name
+  let normalized = foldTypographicPunctuation(name)
     .replace(/[\.,;:!\?]/g, "")
     .replace(/\s+/g, " ")
     .trim();
