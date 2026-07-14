@@ -185,5 +185,20 @@ export function normalizeManagementTitles(
       }
     }
   }
-  return roles;
+  return dropRedundantDirector(roles);
+}
+
+/** A board-seat role — "... of the Board of Directors" (Chairman, Vice Chairman, …). */
+const BOARD_SEAT_ROLE = /of the board of directors$/i;
+
+/**
+ * A board chair already sits on the board, so a bare "Director" listed alongside
+ * a "... of the Board of Directors" role is redundant and is dropped — e.g.
+ * ["Chairman of the Board of Directors", "Director"] -> ["Chairman of the Board
+ * of Directors"]. A plain officer role does NOT imply board membership, so
+ * ["Chief Executive Officer", "Director"] keeps both.
+ */
+function dropRedundantDirector(roles: readonly string[]): string[] {
+  if (!roles.some((r) => BOARD_SEAT_ROLE.test(r))) return [...roles];
+  return roles.filter((r) => r.toLowerCase() !== "director");
 }
