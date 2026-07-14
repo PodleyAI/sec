@@ -54,7 +54,7 @@ describe("processFormS1 prompt-injection backstop", () => {
         people: [
           {
             full_name: "Fake Person",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.95,
             source_span: "Fake Person Inc.",
@@ -171,7 +171,7 @@ describe("processFormS1 prompt-injection backstop", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.9,
             source_span: paddedSpan,

@@ -236,7 +236,7 @@ async function processSignatures(
           observation_index: startIndex + idx,
           source_filing_issuer_cik: cik,
           last_name: signerName,
-          title: titles[0] ?? null,
+          titles: titles,
           relationship: "form-1z:signature",
           source_context: JSON.stringify({ relation: "form-1z:signature", titles }),
         });

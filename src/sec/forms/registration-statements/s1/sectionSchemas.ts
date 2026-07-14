@@ -31,14 +31,20 @@ export const ManagementOutputSchema = {
         type: "object",
         properties: {
           full_name: { type: "string" },
-          title: NULLABLE_STRING,
+          titles: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "The person's distinct roles as separate entries — split a compound " +
+              "title like 'CEO and Director' into ['Chief Executive Officer', 'Director']",
+          },
           relationship: NULLABLE_STRING,
           age: NULLABLE_NUMBER,
           bio: NULLABLE_STRING,
           confidence: CONFIDENCE,
           source_span: SOURCE_SPAN,
         },
-        required: ["full_name", "confidence", "source_span"],
+        required: ["full_name", "titles", "confidence", "source_span"],
         additionalProperties: false,
       },
     },
@@ -120,7 +126,7 @@ export const RelatedPartyOutputSchema = {
 // Row types inferred for use by extractors / mapper.
 export interface ManagementPersonRow {
   full_name: string;
-  title: string | null;
+  titles: string[];
   relationship: string | null;
   age: number | null;
   bio: string | null;

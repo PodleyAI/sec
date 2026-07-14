@@ -31,7 +31,7 @@ export type PersonObservationDraft = Omit<
   | "normalized_middle"
   | "normalized_last"
   | "normalized_suffix"
-  | "title"
+  | "titles"
   | "relationship"
   | "birth_year"
   | "bio"
@@ -52,7 +52,7 @@ export type PersonObservationDraft = Omit<
       | "normalized_middle"
       | "normalized_last"
       | "normalized_suffix"
-      | "title"
+      | "titles"
       | "relationship"
       | "birth_year"
       | "bio"
@@ -194,7 +194,7 @@ export class PersonObservationRepo {
       normalized_middle: draft.normalized_middle ?? null,
       normalized_last: draft.normalized_last ?? null,
       normalized_suffix: draft.normalized_suffix ?? null,
-      title: draft.title ?? null,
+      titles: draft.titles ?? null,
       relationship: draft.relationship ?? null,
       birth_year: draft.birth_year ?? null,
       bio: draft.bio ?? null,

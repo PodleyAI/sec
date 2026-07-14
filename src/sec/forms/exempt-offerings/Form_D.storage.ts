@@ -199,7 +199,7 @@ async function processSalesCompensationRecipient(
       observation_index: index,
       source_filing_issuer_cik: cik,
       last_name: recipientName,
-      title: "Sales Compensation Recipient",
+      titles: ["Sales Compensation Recipient"],
       relationship: "form-d:sales-compensation",
       address_id: addr?.address_hash_id ?? null,
       source_context: JSON.stringify({ relation: "form-d:sales-compensation", crd_number: cleanCRD }),
@@ -398,7 +398,7 @@ async function processSignature(
       observation_index: index,
       source_filing_issuer_cik: cik,
       last_name: signerName,
-      title: cleanTitles[0] ?? null,
+      titles: cleanTitles,
       relationship: "form-d:signature",
       source_context: JSON.stringify({ relation: "form-d:signature", titles: cleanTitles }),
     });

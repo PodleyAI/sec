@@ -135,4 +135,55 @@ describe("scoreExtraction", () => {
     const s = scoreExtraction(candidate, expected, { keyField: "full_name" });
     expect(s.diff).toEqual({ missing: [], extra: [], mismatches: [] });
   });
+
+  describe("multi-valued (array) fields", () => {
+    // A person's `titles` is a role list scored per element: each expected role
+    // is a unit, and the candidate is credited the intersection.
+    const rolesExpected = [
+      { full_name: "Jane Smith", titles: ["Chief Executive Officer", "Director"] },
+    ];
+
+    it("gives full credit when every role matches (order/case-insensitive)", () => {
+      const candidate = [{ full_name: "Jane Smith", titles: ["director", "chief executive officer"] }];
+      const s = scoreExtraction(candidate, rolesExpected, {
+        keyField: "full_name",
+        fields: ["full_name", "titles"],
+      });
+      // full_name (1) + 2 roles = 3 of 3 field-values
+      expect(s.score).toBe(1);
+      expect(s.diff.mismatches).toEqual([]);
+    });
+
+    it("gives partial credit when the candidate finds only some roles", () => {
+      const candidate = [{ full_name: "Jane Smith", titles: ["Chief Executive Officer"] }];
+      const s = scoreExtraction(candidate, rolesExpected, {
+        keyField: "full_name",
+        fields: ["full_name", "titles"],
+      });
+      // full_name (1) + 1 of 2 roles = 2 of 3
+      expect(s.score).toBeCloseTo(2 / 3, 5);
+      expect(s.diff.mismatches).toEqual([
+        {
+          key: "Jane Smith",
+          field: "titles",
+          expected: "Chief Executive Officer, Director",
+          got: "Chief Executive Officer",
+        },
+      ]);
+    });
+
+    it("flags an extra role the candidate invented", () => {
+      const candidate = [
+        { full_name: "Jane Smith", titles: ["Chief Executive Officer", "Director", "Founder"] },
+      ];
+      const s = scoreExtraction(candidate, rolesExpected, {
+        keyField: "full_name",
+        fields: ["full_name", "titles"],
+      });
+      // all expected roles found (score 1), but the extra role is surfaced in the diff
+      expect(s.score).toBe(1);
+      expect(s.diff.mismatches).toHaveLength(1);
+      expect(s.diff.mismatches[0]?.got).toBe("Chief Executive Officer, Director, Founder");
+    });
+  });
 });

@@ -90,7 +90,7 @@ describe("section extractor prompt-injection hardening", () => {
         people: [
           {
             full_name: "Mallory Attacker",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 1.0,
             source_span: "Mallory Attacker",
@@ -144,7 +144,7 @@ describe("section extractor prompt-injection hardening", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.9,
             source_span: "Jane Roe — Director",

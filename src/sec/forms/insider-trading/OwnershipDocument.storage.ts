@@ -165,7 +165,7 @@ async function processReportingOwners(
         source_filing_issuer_cik: ctx.issuer_cik,
         cik,
         last_name: name,
-        title,
+        titles: title == null ? null : [title],
         relationship,
         address_id,
         source_context,

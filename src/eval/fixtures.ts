@@ -44,7 +44,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
     run: (text, model) => extractManagement(text, model),
     keyField: "full_name",
-    compareFields: ["full_name", "title"],
+    compareFields: ["full_name", "titles"],
     instructionOverheadChars: 900,
   },
   "beneficial-ownership": {
@@ -105,11 +105,11 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     expected: [
       {
         full_name: "Marcus T. Delgado",
-        title: "Chief Executive Officer and Chairman of the Board of Directors",
+        titles: ["Chief Executive Officer", "Chairman of the Board of Directors"],
       },
-      { full_name: "Priya Ramaswamy", title: "Chief Financial Officer" },
-      { full_name: "Devin O'Leary", title: "Chief Technology Officer" },
-      { full_name: "Susan Whitfield-Chen", title: "Director" },
+      { full_name: "Priya Ramaswamy", titles: ["Chief Financial Officer"] },
+      { full_name: "Devin O'Leary", titles: ["Chief Technology Officer"] },
+      { full_name: "Susan Whitfield-Chen", titles: ["Director"] },
     ],
   },
   {
@@ -117,9 +117,9 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     extractor: "management",
     text: SPAC_MANAGEMENT,
     expected: [
-      { full_name: "Jonathan P. Reyes", title: "Chief Executive Officer and Director" },
-      { full_name: "Aisha Nwosu", title: "Chief Financial Officer" },
-      { full_name: "Robert Kaminski", title: "Chairman of the Board of Directors" },
+      { full_name: "Jonathan P. Reyes", titles: ["Chief Executive Officer", "Director"] },
+      { full_name: "Aisha Nwosu", titles: ["Chief Financial Officer"] },
+      { full_name: "Robert Kaminski", titles: ["Chairman of the Board of Directors"] },
     ],
   },
 ];
