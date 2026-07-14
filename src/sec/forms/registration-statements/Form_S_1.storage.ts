@@ -342,7 +342,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           middle_name: name.middle,
           last_name: name.last,
           suffix: name.suffix,
-          title: r.title,
+          titles: r.titles,
           relationship: r.relationship ?? "s1:management",
           // Store birth_year (not age) so present age stays recomputable; a
           // stated age is relative to the filing date.

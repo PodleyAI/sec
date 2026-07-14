@@ -30,7 +30,7 @@ describe("section extractors", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.9,
             source_span: "Jane Roe, Director",

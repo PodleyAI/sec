@@ -86,7 +86,7 @@ function obs(overrides: Partial<PersonObservation>): PersonObservation {
     normalized_middle: null,
     normalized_last: null,
     normalized_suffix: null,
-    title: null,
+    titles: null,
     relationship: null,
     raw_address_id: null,
     raw_phone_id: null,

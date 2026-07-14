@@ -187,7 +187,7 @@ async function processConnection(cik: number, form1A: Form1A, ctx: Form1AStorage
       observation_index: 100,
       source_filing_issuer_cik: cik,
       last_name: connectionName,
-      title: "Connection",
+      titles: ["Connection"],
       relationship: "form-1-a:connection",
       address_id: addr?.address_hash_id ?? null,
       source_context: JSON.stringify({ relation: "form-1-a:connection" }),
