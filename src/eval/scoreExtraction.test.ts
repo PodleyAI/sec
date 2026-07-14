@@ -33,8 +33,9 @@ describe("scoreExtraction", () => {
   it("penalizes a missed row and a wrong field", () => {
     const candidate = [{ full_name: "Jane Smith", title: "CEO" }]; // title wrong, John missing
     const s = scoreExtraction(candidate, expected, { keyField: "full_name" });
-    // matched Jane (name ok, title wrong) → 1 of 4 expected field-values
-    expect(s.score).toBeCloseTo(0.25, 5);
+    // F1 over field-values: matched 1 (Jane's name), expected 4, candidate
+    // produced 2 (name + a wrong title) → 2·1/(4+2)
+    expect(s.score).toBeCloseTo(1 / 3, 5);
     expect(s.entityRecall).toBe(0.5);
     expect(s.precision).toBe(1);
   });
@@ -160,8 +161,8 @@ describe("scoreExtraction", () => {
         keyField: "full_name",
         fields: ["full_name", "titles"],
       });
-      // full_name (1) + 1 of 2 roles = 2 of 3
-      expect(s.score).toBeCloseTo(2 / 3, 5);
+      // F1: matched 2 (name + CEO), expected 3, candidate produced 2 → 2·2/(3+2)
+      expect(s.score).toBeCloseTo(0.8, 5);
       expect(s.diff.mismatches).toEqual([
         {
           key: "Jane Smith",
@@ -172,7 +173,7 @@ describe("scoreExtraction", () => {
       ]);
     });
 
-    it("flags an extra role the candidate invented", () => {
+    it("lowers the score for an invented (over-produced) role", () => {
       const candidate = [
         { full_name: "Jane Smith", titles: ["Chief Executive Officer", "Director", "Founder"] },
       ];
@@ -180,8 +181,9 @@ describe("scoreExtraction", () => {
         keyField: "full_name",
         fields: ["full_name", "titles"],
       });
-      // all expected roles found (score 1), but the extra role is surfaced in the diff
-      expect(s.score).toBe(1);
+      // every expected role is found, but the made-up "Founder" is over-production:
+      // matched 3, expected 3, candidate produced 4 → F1 2·3/(3+4) < 1
+      expect(s.score).toBeCloseTo(6 / 7, 5);
       expect(s.diff.mismatches).toHaveLength(1);
       expect(s.diff.mismatches[0]?.got).toBe(
         '["Chief Executive Officer", "Director", "Founder"]'

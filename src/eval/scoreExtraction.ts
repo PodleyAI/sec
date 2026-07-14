@@ -40,7 +40,13 @@ export interface ExtractionDiff {
 }
 
 export interface ExtractionScore {
-  /** Primary correctness signal in [0,1]: fraction of expected field-values reproduced. */
+  /**
+   * Primary correctness signal in [0,1]: the F1 of field-value precision and
+   * recall over matched rows, so it drops both when the model MISSES an expected
+   * value and when it INVENTS one (an extra `titles` role, a wrong scalar). A
+   * pure-recall score would let a model that over-produces still reach 1.0.
+   * (Whole invented *rows* are penalized separately by {@link precision}.)
+   */
   readonly score: number;
   /** Fraction of expected rows matched to a candidate row. */
   readonly entityRecall: number;
@@ -60,6 +66,14 @@ export interface ExtractionScore {
   readonly candidateDistinct: number;
   readonly matchedFieldValues: number;
   readonly expectedFieldValues: number;
+  /**
+   * Candidate field-values produced within matched rows (the F1 precision
+   * denominator): for an array field the count of distinct candidate elements,
+   * for a scalar 1 when non-empty. Exceeds {@link matchedFieldValues} when the
+   * model over-produces (invents roles), which is what pulls {@link score} below
+   * pure recall.
+   */
+  readonly candidateFieldValues: number;
   /** The concrete row/field disagreements behind the aggregates, for display. */
   readonly diff: ExtractionDiff;
 }
@@ -173,6 +187,7 @@ export function scoreExtraction(
   let matchedItems = 0;
   let matchedFieldValues = 0;
   let expectedFieldValues = 0;
+  let candidateFieldValues = 0;
   const missing: string[] = [];
   const mismatches: FieldMismatch[] = [];
 
@@ -195,13 +210,15 @@ export function scoreExtraction(
     const key = rowKey(expectedRow, index, opts.keyField);
     for (const field of fields) {
       if (Array.isArray(expectedRow[field])) {
-        // Multi-valued field: credit the intersection of role sets, and flag a
-        // mismatch when the candidate misses an expected role or adds an extra.
+        // Multi-valued field: credit the intersection of role sets, count the
+        // candidate's distinct roles for precision, and flag a mismatch when the
+        // candidate misses an expected role or invents an extra one.
         const expectedSet = toValueSet(expectedRow[field]);
         const candidateSet = toValueSet(candidateRow[field]);
         let hits = 0;
         for (const role of expectedSet) if (candidateSet.has(role)) hits += 1;
         matchedFieldValues += hits;
+        candidateFieldValues += candidateSet.size;
         if (hits < expectedSet.size || candidateSet.size > expectedSet.size) {
           mismatches.push({
             key,
@@ -210,15 +227,20 @@ export function scoreExtraction(
             got: displayValue(candidateRow[field]),
           });
         }
-      } else if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
-        matchedFieldValues += 1;
       } else {
-        mismatches.push({
-          key,
-          field,
-          expected: displayValue(expectedRow[field]),
-          got: displayValue(candidateRow[field]),
-        });
+        // Scalar: a non-empty candidate value is one produced field-value
+        // (counts toward precision even when it disagrees).
+        if (normalize(candidateRow[field]) !== "") candidateFieldValues += 1;
+        if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
+          matchedFieldValues += 1;
+        } else {
+          mismatches.push({
+            key,
+            field,
+            expected: displayValue(expectedRow[field]),
+            got: displayValue(candidateRow[field]),
+          });
+        }
       }
     }
   });
@@ -228,8 +250,11 @@ export function scoreExtraction(
     .map((row, i) => (used[i] ? null : rowKey(row, i, opts.keyField)))
     .filter((k): k is string => k !== null);
 
+  // F1 over field-values: harmonic balance of recall (matched / expected) and
+  // precision (matched / produced). Penalizes misses and invented values alike.
+  const fieldTotal = expectedFieldValues + candidateFieldValues;
   return {
-    score: expectedFieldValues === 0 ? 1 : matchedFieldValues / expectedFieldValues,
+    score: fieldTotal === 0 ? 1 : (2 * matchedFieldValues) / fieldTotal,
     entityRecall: expectedRows.length === 0 ? 1 : matchedItems / expectedRows.length,
     precision:
       candidateRows.length === 0
@@ -243,6 +268,7 @@ export function scoreExtraction(
     candidateDistinct: candidateRows.length,
     matchedFieldValues,
     expectedFieldValues,
+    candidateFieldValues,
     diff: { missing, extra, mismatches },
   };
 }

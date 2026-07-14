@@ -128,9 +128,10 @@ function printTable(report: EvalReport, details: boolean): void {
     console.log(`${rank} ${rest}`);
   });
   console.log(
-    "\nscore = field-level correctness (names + titles); found = expected people matched; " +
-      "prec = 1 − hallucinated rows.\nest.cost is an estimate (no usage from the task); " +
-      "local models are $0. Best-first: correctness, then cost, then latency."
+    "\nscore = field-level F1 (names + titles): rewards found values and penalizes missed " +
+      "AND invented ones; found = expected people matched; prec = 1 − hallucinated rows.\n" +
+      "est.cost is an estimate (no usage from the task); local models are $0. " +
+      "Best-first: correctness, then cost, then latency."
   );
 
   const failed = report.results.filter((r) => !r.ok);
@@ -176,11 +177,11 @@ function printOracleTable(report: OracleReport, details: boolean): void {
     console.log(cols.map(([, w, get]) => pad(get(m), w)).join(" "));
   }
   console.log(
-    "\nagree = field agreement with the reference (names + titles); recall = reference " +
-      "entities the model also found;\nprec = model entities the reference also had " +
-      "(1 − hallucination), over DISTINCT rows; rows = raw rows emitted, dist = distinct " +
-      "after de-duping on the key field (gap = duplicate over-production).\nReference rows " +
-      "are the truth, so it has no agreement score."
+    "\nagree = field-value F1 vs the reference (names + titles): penalizes both missed and " +
+      "invented values; recall = reference entities the model also found;\nprec = model " +
+      "entities the reference also had (1 − hallucination), over DISTINCT rows; rows = raw " +
+      "rows emitted, dist = distinct after de-duping on the key field (gap = duplicate " +
+      "over-production).\nReference rows are the truth, so it has no agreement score."
   );
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
