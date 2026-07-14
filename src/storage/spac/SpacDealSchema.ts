@@ -22,6 +22,7 @@ export const SpacDealSchema = Type.Object({
   target_description: TypeNullable(
     Type.String({ description: "Target company description (from the merger proxy)" })
   ),
+  loi_date: TypeNullable(Type.String({ format: "date" })),
   announced_date: TypeNullable(Type.String({ format: "date" })),
   definitive_agreement_date: TypeNullable(Type.String({ format: "date" })),
   proxy_date: TypeNullable(Type.String({ format: "date" })),

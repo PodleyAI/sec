@@ -132,6 +132,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "registration_date",
   "ipo_date",
   "unit_split_date",
+  "loi_date",
   "definitive_agreement_date",
   "proxy_date",
   "vote_date",
@@ -240,6 +241,34 @@ export class SpacReportWriter {
           primary_document: args.primary_document,
         });
       }
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
+   * Record a non-binding letter of intent extracted from a known-SPAC 8-K
+   * narrative: append an `loi` event (idempotent by PK), recompute deals (the
+   * event walk opens/dates the attempt), then rebuild the row. The extraction
+   * itself is persisted by the caller (`processLoi8K`) before this runs.
+   */
+  async recordLoi(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+    /** LOI date stated in the narrative, else the 8-K report/filing date. */
+    readonly event_date: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "loi",
+        event_date: args.event_date,
+        form: args.form,
+        primary_document: null,
+      });
       await this.recomputeAndSaveDeals(args.cik);
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
     });
@@ -431,6 +460,7 @@ export class SpacReportWriter {
       registration_date: row.registration_date,
       ipo_date: row.ipo_date,
       unit_split_date: row.unit_split_date,
+      loi_date: row.loi_date,
       definitive_agreement_date: row.definitive_agreement_date,
       proxy_date: row.proxy_date,
       vote_date: row.vote_date,
