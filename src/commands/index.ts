@@ -22,6 +22,7 @@ import { addEvalCommands } from "../cli/groups/eval";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
+import { registerEditorialCommands } from "./editorial";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
@@ -77,6 +78,7 @@ export const AddCommands = (program: Command): void => {
   registerSponsorFamilyCommands(program);
   registerUnderwriterFamilyCommands(program);
   registerSpacCommands(program);
+  registerEditorialCommands(program);
   addExtractorCommands(program);
   addEvalCommands(program);
 };
