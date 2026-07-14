@@ -114,11 +114,19 @@ const TYPOGRAPHIC_FOLD: Readonly<Record<string, string>> = {
 function normalize(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return String(value)
-    .replace(/[‘’‚‛′“”„″–—−]/g, (c) => TYPOGRAPHIC_FOLD[c])
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    String(value)
+      .replace(/[‘’‚‛′“”„″–—−]/g, (c) => TYPOGRAPHIC_FOLD[c])
+      .toLowerCase()
+      // Drop punctuation that doesn't change identity but varies by model:
+      // a comma (e.g. "Frank Martire, III" vs "Frank Martire III") and a period
+      // that isn't a decimal point (initials / suffix: "Richard J. Boyle, Jr."
+      // vs "Richard J Boyle Jr"). A period flanked by digits ("10.00") is kept.
+      .replace(/,/g, "")
+      .replace(/(?<!\d)\.|\.(?!\d)/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function asRow(value: unknown): Record<string, unknown> {
