@@ -141,12 +141,34 @@ export function normalizeManagementTitle(raw: string): string {
   let title = raw.replace(/\s+/g, " ").trim();
   if (title === "") return "";
   for (const fix of KNOWN_TITLE_FIXES) title = title.replace(fix.pattern, fix.replacement);
-  return title
+  const titleCased = title
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
     .map((word, i) => titleCaseWord(word, i === 0))
     .join(" ");
+  return canonicalizeNominee(titleCased);
+}
+
+/**
+ * Canonicalize director/officer nominee phrasing — a person named in the
+ * management section who is nominated or to be appointed but not yet seated.
+ * Applied AFTER Title Case, which would otherwise lowercase a parenthesized
+ * "(Nominee)" suffix (it title-cases on the leading "("). A plain board nominee
+ * stays "Director Nominee"; a nominee to a specific board role (Chairman, Vice
+ * Chairman, …) gets a parenthesized " (Nominee)" suffix — e.g. "Chairman of the
+ * Board of Directors (Nominee)". Idempotent: an already-parenthesized suffix
+ * (possibly re-lowercased by Title Case) is re-cased, not re-wrapped.
+ */
+function canonicalizeNominee(title: string): string {
+  // Already parenthesized (Title Case may have lowered it to "(nominee)"): re-case.
+  if (/\(nominee\)$/i.test(title)) return title.replace(/\(nominee\)$/i, "(Nominee)");
+  // "<… of the Board of Directors> Nominee" -> "… (Nominee)". A bare "Director
+  // Nominee" (no board phrase) is intentionally left unparenthesized.
+  if (/ of the board of directors nominee$/i.test(title)) {
+    return title.replace(/\s+Nominee$/i, " (Nominee)");
+  }
+  return title;
 }
 
 /**
