@@ -89,10 +89,36 @@ export interface ScoreOptions {
   readonly fields?: readonly string[];
 }
 
+/**
+ * Fold typographic punctuation to ASCII so two models that render the same name
+ * with different quote/dash glyphs still align. Without this, sonnet's curly
+ * `Frank D’Angelo` (U+2019) and haiku's straight `Frank D'Angelo` (U+0027)
+ * key to different rows and the SAME person shows as one missing + one extra.
+ * Covers the smart single/double quotes, primes, and en/em/minus dashes.
+ */
+const TYPOGRAPHIC_FOLD: Readonly<Record<string, string>> = {
+  "‘": "'",
+  "’": "'",
+  "‚": "'",
+  "‛": "'",
+  "′": "'",
+  "“": '"',
+  "”": '"',
+  "„": '"',
+  "″": '"',
+  "–": "-",
+  "—": "-",
+  "−": "-",
+};
+
 function normalize(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return String(value).toLowerCase().replace(/\s+/g, " ").trim();
+  return String(value)
+    .replace(/[‘’‚‛′“”„″–—−]/g, (c) => TYPOGRAPHIC_FOLD[c])
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function asRow(value: unknown): Record<string, unknown> {
