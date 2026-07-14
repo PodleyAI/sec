@@ -14,6 +14,8 @@ import { type OracleReport } from "../../eval/runOracleEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
 import { EvalS1Task } from "../../task/eval/EvalS1Task";
+import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
+import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
 /**
  * Default comparison set: a cheap cloud model, a mid cloud model, and the local
@@ -105,7 +107,17 @@ function printDiffs(entries: readonly DiffEntry[], truthLabel: string): void {
   }
 }
 
-function printTable(report: EvalReport, details: boolean): void {
+const DEFAULT_SCORE_LEGEND =
+  "score = field-level F1 (names + titles): rewards found values and penalizes missed " +
+  "AND invented ones; found = expected people matched; prec = 1 − hallucinated rows.\n" +
+  "est.cost is an estimate (no usage from the task); local models are $0. " +
+  "Best-first: correctness, then cost, then latency.";
+
+function printTable(
+  report: EvalReport,
+  details: boolean,
+  scoreLegend: string = DEFAULT_SCORE_LEGEND
+): void {
   const cols: Array<[string, number, (m: ModelSummary) => string]> = [
     ["#", 2, () => ""],
     ["model", 34, (m) => m.model],
@@ -127,12 +139,7 @@ function printTable(report: EvalReport, details: boolean): void {
       .join(" ");
     console.log(`${rank} ${rest}`);
   });
-  console.log(
-    "\nscore = field-level F1 (names + titles): rewards found values and penalizes missed " +
-      "AND invented ones; found = expected people matched; prec = 1 − hallucinated rows.\n" +
-      "est.cost is an estimate (no usage from the task); local models are $0. " +
-      "Best-first: correctness, then cost, then latency."
-  );
+  console.log(`\n${scoreLegend}`);
 
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
@@ -313,6 +320,55 @@ export function addEvalCommands(program: Command): void {
             return;
           }
           printOracleTable(report, opts.details);
+        });
+      }
+    );
+
+  cmd
+    .command("unit-terms")
+    .description(
+      "Score offering-terms extraction against embarc's hand-curated SPAC unit structure"
+    )
+    .option(
+      "--models <csv>",
+      `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`
+    )
+    .option(
+      "--dir <path>",
+      "directory of real S-1 HTML to segment (default: committed mock_data; " +
+        "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
+    )
+    .option("--format <fmt>", "table | json", "table")
+    .option("--no-details", "hide per-row/field disagreements after the table")
+    .action(
+      async (opts: { models?: string; dir?: string; format: string; details: boolean }) => {
+        await runCommand(async () => {
+          const models = parseModels(opts.models);
+          const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
+          const report = (await withCli(new EvalUnitTermsTask()).run(
+            input
+          )) as unknown as UnitTermsReport;
+          if (opts.format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          console.log(
+            `Truth: embarc curated unit terms — over ${report.sections} real S-1 offering ` +
+              `section(s)${report.skipped.length ? ` (${report.skipped.length} filing(s) skipped)` : ""}\n`
+          );
+          printTable(
+            report,
+            opts.details,
+            "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
+              "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
+              "row; prec = 1 − spurious rows.\n" +
+              "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
+              "then latency."
+          );
+          if (report.skipped.length) {
+            console.log("\nskipped:");
+            for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
+          }
         });
       }
     );

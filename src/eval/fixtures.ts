@@ -7,7 +7,9 @@
 import type { ModelConfig } from "workglow";
 import {
   extractBeneficialOwnership,
+  extractLoi,
   extractManagement,
+  extractOfferingTerms,
   extractRelatedParty,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
@@ -61,6 +63,34 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     compareFields: ["name"],
     instructionOverheadChars: 900,
   },
+  // Single-object extractor over an S-1/424 "The Offering" section; positional
+  // alignment (no keyField). Scored on the objective numeric unit terms.
+  "offering-terms": {
+    run: async (text, model) => {
+      const row = await extractOfferingTerms(text, model);
+      return row === null ? [] : [row];
+    },
+    compareFields: [
+      "price_per_unit",
+      "warrant_fraction_per_unit",
+      "right_fraction_per_unit",
+      "trust_per_unit",
+    ],
+    instructionOverheadChars: 1300,
+  },
+  // Detection-style single-object extractor over a known-SPAC 8-K narrative:
+  // a non-binding letter of intent yields one row; anything else (definitive
+  // agreements, vote results, LOI terminations) yields none, so a fixture with
+  // `expected: []` scores a false positive as lost precision.
+  loi: {
+    run: async (text, model) => {
+      const row = await extractLoi(text, model);
+      return row === null ? [] : [row];
+    },
+    keyField: "target_name",
+    compareFields: ["target_name", "loi_date"],
+    instructionOverheadChars: 1200,
+  },
 };
 
 export interface EvalFixture {
@@ -97,6 +127,46 @@ Aisha Nwosu, 44, has served as our Chief Financial Officer since inception. Ms. 
 
 Robert Kaminski, 67, serves as the Chairman of our board of directors. Mr. Kaminski has founded and led three prior blank check companies.`;
 
+
+/**
+ * Known-SPAC 8-K narratives for the `loi` extractor: three positives reporting
+ * a NON-BINDING letter of intent / agreement in principle / MOU for a business
+ * combination, and five confusable negatives it must not fire on (definitive
+ * agreements, vote/redemption results, LOI terminations, a non-business-
+ * combination LOI, routine trust mechanics).
+ */
+const LOI_CLEAR = `Item 8.01 Other Events.
+
+On February 1, 2026, Meridian Acquisition Corp. (the "Company") announced that it has entered into a non-binding letter of intent with Acme Robotics, Inc., a developer of industrial automation systems, for a proposed business combination. The proposed transaction implies a pro forma enterprise value of approximately $450 million. Completion of the transaction is subject to, among other things, the negotiation and execution of a definitive agreement, satisfactory completion of due diligence, and approval by the Company's shareholders. There can be no assurance that a definitive agreement will be entered into or that the proposed transaction will be consummated.`;
+
+const LOI_AGREEMENT_IN_PRINCIPLE = `Item 7.01 Regulation FD Disclosure.
+
+Attached as Exhibit 99.1 is a press release issued by Pathfinder Acquisition Corp. II announcing that the Company and Helios Energy Holdings, LLC have reached an agreement in principle regarding a potential business combination. The agreement in principle is non-binding, and the terms of any transaction remain subject to the completion of due diligence and the execution of definitive documentation. The Company can provide no assurance that the potential transaction will proceed.`;
+
+const LOI_MOU = `Item 1.01 Entry into a Material Definitive Agreement.
+
+On March 14, 2026, Summit Ridge Acquisition Corp. entered into a memorandum of understanding (the "MOU") with Blue Harbor Foods S.A. relating to a proposed business combination. The MOU is non-binding except for certain provisions relating to exclusivity, confidentiality and expenses, pursuant to which the parties agreed to negotiate exclusively with each other for a period of 90 days. The proposed business combination remains subject to the negotiation and execution of a definitive business combination agreement.`;
+
+const LOI_NEG_DEFINITIVE = `Item 1.01 Entry into a Material Definitive Agreement.
+
+On April 2, 2026, Meridian Acquisition Corp. entered into an Agreement and Plan of Merger (the "Merger Agreement") with Acme Robotics, Inc. and MAC Merger Sub, Inc., a wholly owned subsidiary of the Company. Pursuant to the Merger Agreement, Merger Sub will merge with and into Acme Robotics, with Acme Robotics surviving as a wholly owned subsidiary of the Company. The board of directors of the Company has unanimously approved the Merger Agreement.`;
+
+const LOI_NEG_VOTE = `Item 5.07 Submission of Matters to a Vote of Security Holders.
+
+On June 10, 2026, the Company held an extraordinary general meeting of shareholders. Holders of 4,812,336 Class A ordinary shares properly exercised their right to redeem their shares for cash at a redemption price of approximately $10.42 per share, for an aggregate redemption amount of approximately $50.1 million. The business combination proposal was approved.`;
+
+const LOI_NEG_TERMINATION = `Item 8.01 Other Events.
+
+On July 8, 2026, Pathfinder Acquisition Corp. II announced that it has terminated the previously announced non-binding letter of intent with Helios Energy Holdings, LLC. The parties were unable to reach agreement on definitive documentation. The Company intends to continue evaluating other potential business combination targets.`;
+
+const LOI_NEG_LEASE = `Item 8.01 Other Events.
+
+On May 5, 2026, the Company entered into a non-binding letter of intent with Riverside Property Management LLC with respect to the lease of new office premises for its corporate headquarters. The proposed lease has a term of five years. The Company expects to execute a definitive lease agreement during the second quarter.`;
+
+const LOI_NEG_TRUST = `Item 8.01 Other Events.
+
+On January 20, 2026, the Company announced that, in order to extend the period of time it has to consummate its initial business combination by three months, its sponsor deposited $1,725,000 into the Company's trust account. The Company has not yet selected a business combination target and has not, nor has anyone on its behalf, initiated any substantive discussions with any business combination target.`;
+
 export const EVAL_FIXTURES: readonly EvalFixture[] = [
   {
     name: "s1-management-operating-company",
@@ -121,5 +191,53 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
       { full_name: "Aisha Nwosu", titles: ["Chief Financial Officer"] },
       { full_name: "Robert Kaminski", titles: ["Chairman of the Board of Directors"] },
     ],
+  },
+  {
+    name: "loi-8k-clear-nonbinding-loi",
+    extractor: "loi",
+    text: LOI_CLEAR,
+    expected: [{ target_name: "Acme Robotics, Inc.", loi_date: "2026-02-01" }],
+  },
+  {
+    name: "loi-8k-agreement-in-principle",
+    extractor: "loi",
+    text: LOI_AGREEMENT_IN_PRINCIPLE,
+    expected: [{ target_name: "Helios Energy Holdings, LLC" }],
+  },
+  {
+    name: "loi-8k-nonbinding-mou-with-exclusivity",
+    extractor: "loi",
+    text: LOI_MOU,
+    expected: [{ target_name: "Blue Harbor Foods S.A.", loi_date: "2026-03-14" }],
+  },
+  {
+    name: "loi-8k-negative-definitive-merger-agreement",
+    extractor: "loi",
+    text: LOI_NEG_DEFINITIVE,
+    expected: [],
+  },
+  {
+    name: "loi-8k-negative-vote-and-redemptions",
+    extractor: "loi",
+    text: LOI_NEG_VOTE,
+    expected: [],
+  },
+  {
+    name: "loi-8k-negative-loi-termination",
+    extractor: "loi",
+    text: LOI_NEG_TERMINATION,
+    expected: [],
+  },
+  {
+    name: "loi-8k-negative-office-lease-loi",
+    extractor: "loi",
+    text: LOI_NEG_LEASE,
+    expected: [],
+  },
+  {
+    name: "loi-8k-negative-trust-extension",
+    extractor: "loi",
+    text: LOI_NEG_TRUST,
+    expected: [],
   },
 ];

@@ -390,10 +390,112 @@ sec extractor dead-letters redemption    # version-fixable extraction failures
 sec extractor retry-dead-letters redemption
 ```
 
+**Letters of intent** (extractor id `loi`) bring back the LOI lifecycle stage
+(between `searching` and `deal_announced`). No 8-K item code carries an LOI, so
+`processLoi8K` AI-detects "non-binding letter of intent / agreement in
+principle / MOU for a business combination" language in a known SPAC's 8-K
+narrative (items `1.01`, `7.01`, `8.01` escalate the fetch to the full
+submission `.txt`, sharing the redemption path's escalation). A verified
+positive records a per-accession `spac_loi_extraction` row (target name, stated
+LOI date) and emits an `loi` event (dated by the narrative's LOI date, else the
+report/filing date); `deriveDeals` opens/dates the attempt and the rollup lifts
+`loi_date` / `status = "loi"` onto the spac row — a later definitive agreement
+on the same deal supersedes the LOI stage. "No LOI reported" is the expected
+outcome for most trigger 8-Ks, so its `MODEL_EMPTY` dead-letter is auto-resolved
+(genuine problems — low confidence, unverified span, nonce mismatch — stay
+pending). Configure the model via `SEC_LOI_MODEL` (default `claude-sonnet-5`)
+and an optional floor via `SEC_LOI_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`).
+
+```bash
+sec spac backfill-lois            # sweep historical known-SPAC trigger 8-Ks
+sec extractor dead-letters loi    # version-fixable extraction failures
+sec extractor retry-dead-letters loi
+```
+
+The LOI prompt is evaluated through the model-comparison harness: the `loi`
+entry in `EVAL_EXTRACTORS` plus eight golden 8-K narratives (three LOI
+positives, five confusable negatives) in `src/eval/fixtures.ts`, so any model
+set can be ranked on it:
+
+```bash
+sec eval extract --extractor loi                        # default 3-way sweep
+sec eval extract --extractor loi --models "claude-sonnet-5,onnx-community/LFM2.5-350M-ONNX"
+```
+
 ```bash
 sec spac report <cik> [--format json]   # consolidated report
 sec spac history <cik> [--format json]  # state-change history
 ```
+
+### Generalized extractor backfill
+
+When a new extractor lands, its historical filings are recovered with the
+generalized sweep — no bespoke backfill task per extractor:
+
+```bash
+sec extractor backfill <extractorId> [--force] [--dry-run]
+```
+
+`BackfillExtractorTask` resolves a per-extractor **descriptor**
+(`src/task/forms/backfillDescriptors.ts`): every form-routed extractor id
+(`FORM_TO_EXTRACTOR_ID` values — `S-1`, `424`, `8-K`, `C`, …) is backfillable
+by default over all filings of its forms; extractors whose candidate set is
+narrower add a descriptor entry (the `redemption` / `loi` sub-extractors select
+known-SPAC trigger-item 8-Ks) and extractors whose recorded success can be a
+gated no-op override `filterTodo` (`merger-proxy` keeps candidates lacking a
+`spac_merger_extraction` row, since its known-SPAC gate records `success: true`).
+The default needing-work predicate is a bulk anti-join against `extractor_runs`
+at the active version. Each survivor re-runs `ProcessAccessionDocFormTask`, so
+the full form pipeline (and any sub-extractors it gates) runs. The
+`sec spac backfill-redemptions` / `backfill-lois` / `backfill-merger-proxies`
+commands remain as aliases with the extractor id fixed.
+
+### Editorial data (embarc parity)
+
+`spac.url_sponsor`, `spac.url_spac`, the freeform `spac.details` JSON map, and
+`family_description` blurbs have **no reliable SEC-filing source** — they are
+hand-curated via the `sec editorial` command group. Spac-row writes go through
+`SpacReportWriter.recordEditorial`, which rebuilds at the row's own `as_of`
+anchor: values overwrite on re-import but the anchor never advances, and no
+automated `record*` writer carries these fields, so filing replays can never
+null them. Family descriptions are keyed by `(family_kind, normalized_name)` —
+outside the canonical tier — so resolver re-mints / `dropPrevious` never wipe
+them.
+
+```bash
+sec editorial set <cik> --url-sponsor <url> [--url-spac <url>] [--details '<json>'] [--create-missing]
+sec editorial set-family-description "Chardan" --kind underwriter-family "<text>"
+sec editorial import data/editorial/spac-editorial.csv [--create-missing] [--dry-run]
+sec editorial import data/editorial/family-descriptions.csv
+```
+
+The committed CSVs under `data/editorial/` were extracted from the embarc
+repo's legacy JSON by a one-off script (not committed; sec.gov links are
+excluded as merge pollution — real sponsor sites come from the legacy
+`url_sponsors` array). Import skips CIKs with no spac row unless
+`--create-missing` (a spac row marks the CIK a known SPAC, gating 8-K/proxy
+processing). `family-descriptions.csv` is a header-only template — embarc has
+no family blurb data; hand-written blurbs get committed there.
+
+embarc's curated SPAC **unit structure** (`details`: unit price, warrant
+fraction, rights) is deliberately **not** imported — the S-1/424
+offering-terms extraction derives those figures from filings. Instead it is
+committed as an extraction **truth dataset** for the eval harness
+(`src/eval/mock_data/embarc-spac-unit-terms.csv`, 1,283 CIKs; loader in
+`src/eval/embarcUnitTermsReference.ts`). `sec eval unit-terms` segments each
+committed S-1's "The Offering" section, runs `extractOfferingTerms` per
+candidate model, and scores price / warrant-fraction / rights-fraction against
+embarc's values (rounded to 2 decimals on both sides — `scoreExtraction`
+compares numbers exactly and 1/3 repeats):
+
+```bash
+sec eval unit-terms --models "claude-sonnet-5,claude-haiku-4-5"
+sec eval unit-terms --dir src/sec/html/mock_data/s1/.cache   # larger fetched sample
+```
+
+The `offering-terms` entry in `EVAL_EXTRACTORS` also makes the section
+available to the model-oracle eval (`sec eval s1 --extractors offering-terms`).
 
 ### Reg A / Reg CF / funding portals
 
