@@ -91,6 +91,16 @@ describe("normalizeManagementTitles", () => {
     ["Chairman of the Board of Directors", ["Chairman of the Board of Directors"]],
     // de-duplication (case-insensitive)
     ["Director and director", ["Director"]],
+    // a board chair already sits on the board -> a redundant bare "Director" is dropped
+    [
+      "Chairman of the Board of Directors and Director",
+      ["Chairman of the Board of Directors"],
+    ],
+    [["Chairman of the Board of Directors", "Director"], ["Chairman of the Board of Directors"]],
+    ["Chairman and Director", ["Chairman of the Board of Directors"]],
+    // ...but a plain officer role does NOT imply board membership, so both are kept
+    ["Chief Executive Officer and Director", ["Chief Executive Officer", "Director"]],
+    ["Chief Financial Officer and Director", ["Chief Financial Officer", "Director"]],
     // already-split list input is re-split/normalized defensively
     [["Chief Executive Officer and Director"], ["Chief Executive Officer", "Director"]],
     [["President", "Secretary"], ["President", "Secretary"]],
