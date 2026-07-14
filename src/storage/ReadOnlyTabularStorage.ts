@@ -46,6 +46,14 @@ export class ReadOnlyTabularStorage<
     return values as unknown as Entity[];
   }
 
+  async updateWhere(
+    _match: SearchCriteria<Entity>,
+    _patch: Partial<Entity>
+  ): Promise<Entity | undefined> {
+    // Read-only: no row is updated.
+    return undefined;
+  }
+
   async delete(_key: PrimaryKey | Entity): Promise<void> {}
 
   async deleteAll(): Promise<void> {}
