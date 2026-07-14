@@ -88,7 +88,19 @@ function asRow(value: unknown): Record<string, unknown> {
 /** Raw (un-normalized) display string for a field value; "" for null/undefined. */
 function displayValue(value: unknown): string {
   if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map((v) => String(v)).join(", ");
   return String(value);
+}
+
+/**
+ * Normalized set of an array-valued field (e.g. a person's `titles` roles),
+ * coercing a scalar to a one-element set and dropping empties. Used to score a
+ * multi-valued field per element so a model that finds some of a person's roles
+ * gets partial credit.
+ */
+function toValueSet(value: unknown): Set<string> {
+  const items = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
+  return new Set(items.map(normalize).filter((s) => s !== ""));
 }
 
 /** Label a row for diff output: its `keyField` value, else `#<index>` positionally. */
@@ -158,9 +170,14 @@ export function scoreExtraction(
   const missing: string[] = [];
   const mismatches: FieldMismatch[] = [];
 
+  // An array-valued expected field (e.g. `titles`) is weighted by its element
+  // count so each role is a scored unit; a scalar field weighs 1.
+  const fieldWeight = (row: Record<string, unknown>, field: string): number =>
+    Array.isArray(row[field]) ? (row[field] as unknown[]).length : 1;
+
   expectedRows.forEach((expectedRow, index) => {
     const fields = fieldsFor(expectedRow, opts);
-    expectedFieldValues += fields.length;
+    expectedFieldValues += fields.reduce((sum, f) => sum + fieldWeight(expectedRow, f), 0);
     const matchIdx = findMatch(expectedRow, index);
     if (matchIdx < 0) {
       missing.push(rowKey(expectedRow, index, opts.keyField));
@@ -171,7 +188,23 @@ export function scoreExtraction(
     const candidateRow = candidateRows[matchIdx];
     const key = rowKey(expectedRow, index, opts.keyField);
     for (const field of fields) {
-      if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
+      if (Array.isArray(expectedRow[field])) {
+        // Multi-valued field: credit the intersection of role sets, and flag a
+        // mismatch when the candidate misses an expected role or adds an extra.
+        const expectedSet = toValueSet(expectedRow[field]);
+        const candidateSet = toValueSet(candidateRow[field]);
+        let hits = 0;
+        for (const role of expectedSet) if (candidateSet.has(role)) hits += 1;
+        matchedFieldValues += hits;
+        if (hits < expectedSet.size || candidateSet.size > expectedSet.size) {
+          mismatches.push({
+            key,
+            field,
+            expected: displayValue(expectedRow[field]),
+            got: displayValue(candidateRow[field]),
+          });
+        }
+      } else if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
         matchedFieldValues += 1;
       } else {
         mismatches.push({

@@ -28,7 +28,7 @@ export interface PersonClaim {
   readonly middle_name?: string | null;
   readonly last_name?: string | null;
   readonly suffix?: string | null;
-  readonly title?: string | null;
+  readonly titles?: readonly string[] | null;
   readonly relationship?: string | null;
   readonly birth_year?: number | null;
   readonly bio?: string | null;
@@ -109,7 +109,7 @@ export class EntityObserver {
       normalized_middle: normalized?.middle ?? null,
       normalized_last: normalized?.last ?? null,
       normalized_suffix: normalized?.suffix ?? null,
-      title: claim.title ?? null,
+      titles: claim.titles ? [...claim.titles] : null,
       relationship: claim.relationship ?? null,
       birth_year: claim.birth_year ?? null,
       bio: claim.bio ?? null,
