@@ -337,10 +337,14 @@ export async function extractManagement(
     "(or null), age (the person's stated age as an integer, or null if not stated), bio " +
     "(a short biography summarizing their background/experience as stated, or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew them from. " +
-    "titles is a LIST of the person's DISTINCT roles: split a compound title into " +
-    "separate entries, so 'Chief Executive Officer and a director' -> ['Chief Executive " +
-    "Officer', 'Director'] and 'President, CFO and Secretary' -> ['President', 'Chief " +
-    "Financial Officer', 'Secretary']; use [] if no title is stated. " +
+    "titles is a JSON array of the person's DISTINCT roles, each role a SEPARATE " +
+    "string element — never combine roles into one string. So 'Chief Executive Officer " +
+    "and a director' -> ['Chief Executive Officer', 'Director'] (NOT ['Chief Executive " +
+    "Officer and Director'] or ['Chief Executive Officer, Director']), and 'President, " +
+    "CFO and Secretary' -> ['President', 'Chief Financial Officer', 'Secretary']. Include " +
+    "ONLY roles the person currently holds at THIS company as stated in the section; do " +
+    "NOT include titles held at prior or other employers, and do not invent a role that " +
+    "is not explicitly stated. Use [] if no title is stated. " +
     "Normalize each role to its canonical form (the source_span stays verbatim; the " +
     "titles field is normalized): use standard Title Case; refer to the board as 'the " +
     "Board of Directors', never a possessive ('our', the company's name); render a plain " +
