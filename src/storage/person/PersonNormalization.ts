@@ -50,6 +50,32 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
 }
 
 /**
+ * Fold typographic apostrophes to the ASCII `'` so a name emitted with a curly
+ * apostrophe ("D’Angelo", U+2019) unifies with its straight-quote twin
+ * ("D'Angelo"). Done BEFORE parsing so the parser's case-fixing keys off a
+ * consistent character — otherwise "D’Angelo" case-folds to "D’angelo" and the
+ * two glyphs produce different name parts (and thus different canonical people).
+ */
+function foldNameApostrophes(name: string): string {
+  return name.replace(/[‘’ʼ′‵]/g, "'");
+}
+
+/**
+ * Strip identity-neutral punctuation from a parsed name part so two spellings of
+ * the same person collapse: initials ("J." vs "J") and suffixes ("Jr." vs "Jr",
+ * "Martire, III" already comma-split by the parser). Apostrophes and hyphens are
+ * meaningful in names and are preserved. Returns null for an emptied value.
+ */
+function stripNamePartPunctuation(part: string | null): string | null {
+  if (part === null || part === undefined) return part ?? null;
+  const cleaned = part
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned === "" ? null : cleaned;
+}
+
+/**
  * Cleans and normalizes a person import object
  */
 export function normalizePerson(importPerson: PersonImport | null): Person | undefined {
@@ -60,7 +86,7 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
   const cik = importPerson.cik || null;
   const crd = importPerson.crd || null;
 
-  const cleanPerson = name.replace("/s/", "").trim();
+  const cleanPerson = foldNameApostrophes(name.replace("/s/", "").trim());
 
   const results = parseFullName(cleanPerson, { normalize: true, fixCase: 1 });
 
@@ -72,11 +98,13 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
     return undefined;
   }
 
+  // Strip identity-neutral punctuation (initial/suffix periods) so the resolver
+  // key ("first|middle|last|suffix") is stable across spelling variants.
   const person: Omit<Person, "person_hash_id"> = {
-    first: results.first,
-    middle: results.middle,
-    last: results.last,
-    suffix: results.suffix,
+    first: stripNamePartPunctuation(results.first) ?? results.first,
+    middle: stripNamePartPunctuation(results.middle),
+    last: stripNamePartPunctuation(results.last) ?? results.last,
+    suffix: stripNamePartPunctuation(results.suffix),
     title: results.title,
     nick: results.nick,
     dob: null,
