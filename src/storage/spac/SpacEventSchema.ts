@@ -19,6 +19,10 @@ export const SPAC_EVENT_TYPES = [
   "registration",
   "ipo",
   "unit_split",
+  // Non-binding letter of intent (or agreement in principle) for a business
+  // combination. No 8-K item code carries it — it is AI-extracted from
+  // known-SPAC 8-K narratives (Item 1.01/7.01/8.01 press releases).
+  "loi",
   "definitive_agreement",
   "proxy",
   "vote",

@@ -25,6 +25,7 @@ import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSc
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
+import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
 
 const MAX_TOKENS = 4096;
@@ -606,4 +607,30 @@ export async function extractRedemption(
   // A "no realized redemption" response carries neither figure — not a redemption.
   if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
   return obj as unknown as RedemptionRow;
+}
+
+/**
+ * Detects a NON-BINDING letter of intent (or agreement in principle) for a
+ * business combination in an 8-K narrative. Returns null when the model is
+ * not confident, cites no source span, or the text does not report an LOI
+ * (e.g. it announces a definitive agreement instead). Mirrors
+ * {@link extractRedemption}.
+ */
+export async function extractLoi(sectionText: string, model: ModelConfig): Promise<LoiRow | null> {
+  const instructions =
+    "From the SEC 8-K text below, determine whether it reports that the company " +
+    "ENTERED INTO a NON-BINDING letter of intent (LOI), agreement in principle, or " +
+    "memorandum of understanding for a business combination with a target company. " +
+    "Set is_loi true ONLY for a non-binding LOI-stage announcement — NOT for a " +
+    "definitive/merger agreement (those are binding), NOT for a completed combination, " +
+    "NOT for redemptions or vote results, and NOT for the mere termination of a prior " +
+    "LOI. Give target_name (the proposed target, if named, else null), loi_date (the " +
+    "LOI signing/announcement date stated in the text as YYYY-MM-DD, else null), a " +
+    "confidence in [0,1], and the verbatim source_span you drew the determination " +
+    "from. If the text reports no LOI, return is_loi false with confidence for that " +
+    "determination and a null source_span.";
+  const obj = await runGuardedExtraction(model, instructions, sectionText, LoiOutputSchema);
+  if (obj.is_loi !== true) return null;
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return obj as unknown as LoiRow;
 }

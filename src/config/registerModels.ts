@@ -337,7 +337,12 @@ export function secModelRecord(modelId: string): ModelRecord {
  */
 function secModelIds(): string[] {
   const ids = new Set<string>([SecModelDefault, SecHftModelDefault]);
-  for (const key of ["SEC_S1_MODEL", "SEC_MERGER_PROXY_MODEL", "SEC_REDEMPTION_MODEL"]) {
+  for (const key of [
+    "SEC_S1_MODEL",
+    "SEC_MERGER_PROXY_MODEL",
+    "SEC_REDEMPTION_MODEL",
+    "SEC_LOI_MODEL",
+  ]) {
     const id = process.env[key]?.trim();
     if (id) ids.add(id);
   }

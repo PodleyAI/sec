@@ -113,6 +113,9 @@ function deriveStatus(
   if (active) {
     if (active.vote_date || active.proxy_date) return "proxy";
     if (active.definitive_agreement_date || active.announced_date) return "deal_announced";
+    // A non-binding LOI sits between searching and deal_announced; the checks
+    // above ensure any later definitive agreement / vote supersedes it.
+    if (active.loi_date) return "loi";
   }
   if (hasIpo) return events.some((e) => e.event_type === "unit_split") ? "searching" : "ipo";
   return "registered";
@@ -228,6 +231,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     registration_date: minEventDate(events, "registration"),
     ipo_date: minEventDate(events, "ipo"),
     unit_split_date: minEventDate(events, "unit_split"),
+    loi_date: active?.loi_date ?? null,
     definitive_agreement_date: active?.definitive_agreement_date ?? null,
     proxy_date: active?.proxy_date ?? null,
     vote_date: active?.vote_date ?? null,

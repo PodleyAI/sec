@@ -13,6 +13,7 @@ import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
 import { processRedemption8K } from "./redemption8k";
+import { processLoi8K } from "./loi8k";
 
 /**
  * Extracts item codes from the filing metadata `items` field.
@@ -129,6 +130,16 @@ export async function processForm8K({
       form,
       itemCodes,
       fullSubmissionText,
+      model,
+    });
+    await processLoi8K({
+      cik,
+      accession_number,
+      filing_date,
+      form,
+      itemCodes,
+      fullSubmissionText,
+      event_date: effectiveReportDate || filing_date,
       model,
     });
   }
