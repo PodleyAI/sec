@@ -34,11 +34,15 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // SPACs (SIC 6770) — standard, complete section structure (incl. offering sections).
   // Every real S-1 opens with a prospectus summary ("Our Company" / "Overview" /
   // "This summary…"), which the PROSPECTUS_SUMMARY section now captures.
+  // THE_OFFERING here is an ALIGN="center"-attribute bold box title at body
+  // size — pinned since the StyleResolver learned the legacy align attribute
+  // and heading levels rank by prominence tiers.
   "s1_1848507_000119312521066104.htm": [
     PROSPECTUS_SUMMARY,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
+    THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
   ],
