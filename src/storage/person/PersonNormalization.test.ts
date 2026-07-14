@@ -48,7 +48,8 @@ describe("PersonNormalization", () => {
 
       const result = normalizePerson(input);
       expect(result).toBeDefined();
-      expect(result!.suffix).toBe("Jr.");
+      // Suffix period is stripped so "Jr." and "Jr" resolve to the same person.
+      expect(result!.suffix).toBe("Jr");
     });
 
     it("should normalize Roman numeral suffixes", () => {
@@ -56,7 +57,7 @@ describe("PersonNormalization", () => {
 
       const result = normalizePerson(input);
       expect(result).toBeDefined();
-      expect(result!.suffix).toBe("Jr.");
+      expect(result!.suffix).toBe("Jr");
     });
 
     it("should handle professional titles", () => {
@@ -75,7 +76,7 @@ describe("PersonNormalization", () => {
       expect(result!.first).toBe("John");
       expect(result!.middle).toBe("William");
       expect(result!.last).toBe("Smith");
-      expect(result!.suffix).toBe("Jr.");
+      expect(result!.suffix).toBe("Jr");
     });
 
     it("should parse full name with multiple middle names", () => {
@@ -95,6 +96,24 @@ describe("PersonNormalization", () => {
       expect(result).toBeDefined();
       expect(result!.first).toBe("Mary-Jane");
       expect(result!.last).toBe("O'Connor");
+    });
+
+    // The resolver keys on first|middle|last|suffix, so these variants MUST
+    // produce identical parts or the same person splits into two canonical rows.
+    const key = (name: string): string => {
+      const r = normalizePerson({ name });
+      return r ? `${r.first}|${r.middle ?? ""}|${r.last}|${r.suffix ?? ""}` : "(undefined)";
+    };
+
+    it("collapses a curly vs straight apostrophe to one name", () => {
+      expect(key("Frank D’Angelo")).toBe(key("Frank D'Angelo"));
+      // and the letter after the apostrophe is cased consistently
+      expect(normalizePerson({ name: "Frank D’Angelo" })!.last).toBe("D'Angelo");
+    });
+
+    it("collapses initial and suffix period variants to one name", () => {
+      expect(key("Richard J. Boyle, Jr.")).toBe(key("Richard J Boyle Jr"));
+      expect(key("Frank Martire, III")).toBe(key("Frank Martire III"));
     });
 
     it("should handle del xxxx", () => {
