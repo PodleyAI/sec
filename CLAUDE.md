@@ -189,6 +189,33 @@ The oracle streams per-section progress to **stderr** (`[i/N] filing extractor
 json` on stdout stays clean. Large sections (40–57k chars) dominate wall-clock —
 the 350M takes 40–90s each vs sonnet's ~20s.
 
+#### Evaluating Bonsai 27B (local GGUF)
+
+PrismML **Bonsai 27B** (Qwen3.6-based, Apache-2.0) runs through the existing
+node-llama-cpp path — there is **no special model id or route**; it is just a
+`gguf:` model like any other local GGUF. Download a quant from HuggingFace
+(`prism-ml/Ternary-Bonsai-27B-gguf`, or the 1-bit `prism-ml/Bonsai-27B-gguf`)
+into the GGUF models dir (`$SEC_GGUF_DIR`, else `$SEC_RAW_DATA_FOLDER/gguf`, else
+`./models`) and pass it as a `gguf:` candidate:
+
+```bash
+# one-time: fetch a quant (e.g. the ternary Q2_0 ~ a few GB) into the models dir
+huggingface-cli download prism-ml/Ternary-Bonsai-27B-gguf \
+  Ternary-Bonsai-27B-Q2_0.gguf --local-dir "${SEC_GGUF_DIR:-./models}"
+
+# score Bonsai against the sonnet-5 oracle on the committed real S-1 sections
+sec eval s1 --reference claude-sonnet-5 \
+  --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
+  --extractors "management,beneficial-ownership,related-party"
+# (an absolute path also works: --models "gguf:/abs/path/Ternary-Bonsai-27B-Q2_0.gguf")
+```
+
+A 27B model wants a GPU/Metal box with enough VRAM (this is a run-on-your-Mac
+eval, not a CI one); raise `SEC_GGUF_CONTEXT` (e.g. `32768`) for the largest S-1
+sections. Bonsai is a **thinking** model, but the llama.cpp `json-mode` here is
+**grammar-constrained**, so structured extraction stays schema-valid without a
+reasoning preamble leaking in — unlike the HFT ONNX thinking-model caveat above.
+
 ### Company facts outcome tracking
 
 `processed_facts` rows carry `reason_code` / `detail` / `attempts`. A companyfacts
