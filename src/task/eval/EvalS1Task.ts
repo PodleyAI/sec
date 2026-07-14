@@ -74,6 +74,10 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
       onProgress: (done, total, message) => {
         const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
         void context.updateProgress(pct, message);
+        // On a TTY, withCli renders the task-graph UI; when piped (background /
+        // `--format json`), that UI is suppressed, so mirror progress to stderr
+        // so a long local-model run isn't blind. stdout stays clean for the report.
+        if (!process.stdout.isTTY) process.stderr.write(`${message}\n`);
       },
     });
     // The runner returns this verbatim (no output-schema stripping), so the CLI

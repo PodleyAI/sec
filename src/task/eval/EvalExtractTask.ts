@@ -75,6 +75,9 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
       onProgress: (done, total, message) => {
         const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
         void context.updateProgress(pct, message);
+        // Mirror to stderr when piped (no TTY task UI), so a long sweep isn't
+        // blind until the final table. stdout stays clean for table/JSON output.
+        if (!process.stdout.isTTY) process.stderr.write(`${message}\n`);
       },
     });
     // The runner returns this verbatim (no output-schema stripping), so the CLI
