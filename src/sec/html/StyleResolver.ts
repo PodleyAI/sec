@@ -81,11 +81,18 @@ export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
     const raw = parseInlineStyle(cur.attr("style") ?? "");
     // Legacy EDGAR uses the HTML attribute <font size="N"> rather than a CSS
     // font-size; fold it in when no inline size is present.
-    chain.push(
+    let merged =
       raw.fontSizePt === undefined && tag === "font"
         ? { ...raw, fontSizePt: fontSizeAttrToPt(cur.attr("size")) }
-        : raw
-    );
+        : raw;
+    // Likewise ALIGN="center" rather than a CSS text-align — pre-CSS EDGAR
+    // markup centers headings with the attribute (<P ALIGN="center"><B>The
+    // Offering</B></P>), which heading detection must count as a trait.
+    if (merged.centered === undefined) {
+      const alignAttr = (cur.attr("align") ?? "").trim().toLowerCase();
+      if (alignAttr !== "") merged = { ...merged, centered: alignAttr === "center" };
+    }
+    chain.push(merged);
     cur = cur.parent() as unknown as typeof cur;
     if (!cur || cur.length === 0) break;
   }
