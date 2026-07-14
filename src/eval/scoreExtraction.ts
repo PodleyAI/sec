@@ -85,10 +85,16 @@ function asRow(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
-/** Raw (un-normalized) display string for a field value; "" for null/undefined. */
+/**
+ * Raw (un-normalized) display string for a field value; "" for null/undefined.
+ * An array is rendered as a bracketed, quoted list (`["Chairman", "Director"]`)
+ * so a multi-element array is visually distinct from a single string that merely
+ * contains a comma — otherwise `["CFO", "VP Finance"]` and `["CFO, VP Finance"]`
+ * would look identical in a diff.
+ */
 function displayValue(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (Array.isArray(value)) return value.map((v) => String(v)).join(", ");
+  if (Array.isArray(value)) return `[${value.map((v) => JSON.stringify(String(v))).join(", ")}]`;
   return String(value);
 }
 
