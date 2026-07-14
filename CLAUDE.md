@@ -175,12 +175,12 @@ times per section (strong models intermittently emit a nested array as a JSON
 from scoring.
 
 ```bash
-sec eval s1 --reference claude-sonnet-5 --candidates "onnx-community/LFM2.5-350M-ONNX" \
+sec eval s1 --reference claude-sonnet-5 --models "onnx-community/LFM2.5-350M-ONNX" \
   --extractors "management,beneficial-ownership,related-party"
 
 # Run over a larger fetched sample (gitignored cache) instead of the committed set:
 sec fetch s1-fixtures -c 20
-sec eval s1 --candidates "onnx-community/LFM2.5-350M-ONNX" \
+sec eval s1 --models "onnx-community/LFM2.5-350M-ONNX" \
   --dir src/sec/html/mock_data/s1/.cache
 ```
 
