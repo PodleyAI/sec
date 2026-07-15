@@ -11,6 +11,8 @@ import {
   extractManagement,
   extractOfferingTerms,
   extractRelatedParty,
+  extractSpacClassification,
+  extractSponsorPromote,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 /**
@@ -76,6 +78,34 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "right_fraction_per_unit",
       "trust_per_unit",
     ],
+    instructionOverheadChars: 1300,
+  },
+  // Single-object extractor over a SPAC "The Offering" / "The Sponsor" section;
+  // positional alignment (no keyField). Scored on the objective promote figures.
+  "sponsor-promote": {
+    run: async (text, model) => {
+      const row = await extractSponsorPromote(text, model);
+      return row === null ? [] : [row];
+    },
+    compareFields: [
+      "founder_shares",
+      "founder_percent",
+      "private_placement_warrants",
+      "public_warrant_coverage",
+      "trust_per_public_share",
+    ],
+    instructionOverheadChars: 1400,
+  },
+  // Detection-style classifier over a registration filing's summary prose: a
+  // true SPAC yields one row; a shell or operating company yields none, so a
+  // fixture with `expected: []` scores a false positive as lost precision.
+  "spac-classification": {
+    run: async (text, model) => {
+      const row = await extractSpacClassification(text, model);
+      return row === null ? [] : [row];
+    },
+    keyField: "entity_kind",
+    compareFields: ["is_spac", "entity_kind"],
     instructionOverheadChars: 1300,
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
@@ -167,7 +197,71 @@ const LOI_NEG_TRUST = `Item 8.01 Other Events.
 
 On January 20, 2026, the Company announced that, in order to extend the period of time it has to consummate its initial business combination by three months, its sponsor deposited $1,725,000 into the Company's trust account. The Company has not yet selected a business combination target and has not, nor has anyone on its behalf, initiated any substantive discussions with any business combination target.`;
 
+/**
+ * SPAC prospectus "The Offering" / "The Sponsor" prose for the `sponsor-promote`
+ * extractor. A customary 20% founder promote, half-warrant public coverage, and
+ * a $10.00 trust deposit, with the sponsor's private-placement warrants at $1.00.
+ */
+const SPONSOR_PROMOTE_STANDARD = `The Offering
+
+We are offering 20,000,000 units at a price of $10.00 per unit. Each unit consists of one Class A ordinary share and one-half of one redeemable warrant. Each whole warrant entitles the holder to purchase one Class A ordinary share at a price of $11.50 per share.
+
+Founder Shares. Our sponsor currently holds 5,000,000 Class B ordinary shares (the "founder shares"). The founder shares will represent 20% of our issued and outstanding shares after this offering.
+
+Private Placement Warrants. Simultaneously with the closing of this offering, our sponsor has agreed to purchase an aggregate of 10,000,000 private placement warrants at a price of $1.00 per warrant, generating gross proceeds of $10,000,000.
+
+Trust Account. A total of $200,000,000 (or $10.00 per public share) will be deposited into a trust account established for the benefit of our public shareholders.`;
+
+/**
+ * A richer offering where the sponsor over-funds the trust to $10.20 per share
+ * and the private-placement warrants are priced at $1.50.
+ */
+const SPONSOR_PROMOTE_OVERFUNDED = `The Offering
+
+This is an offering of 25,000,000 units at $10.00 per unit. Each unit is comprised of one Class A ordinary share and one-third of one redeemable warrant.
+
+The Sponsor. Our sponsor owns 6,250,000 founder shares, representing approximately 20% of our outstanding ordinary shares following the completion of this offering. Our sponsor has committed to purchase 8,000,000 private placement warrants at $1.50 per warrant.
+
+Of the net proceeds of this offering and the private placement, $255,000,000, or $10.20 per public share, will be placed in the trust account.`;
+
+/**
+ * Registration-summary prose for the `spac-classification` extractor: a true
+ * blank-check SPAC (positive), a dormant reverse-merger shell (negative), and an
+ * ordinary operating company (negative). The classifier must fire ONLY on the
+ * true SPAC — the whole point is to catch a SIC-miscoded SPAC without
+ * mislabeling a shell or an operating business.
+ */
+const CLASSIFY_TRUE_SPAC = `Prospectus Summary
+
+We are a blank check company incorporated in the Cayman Islands as an exempted company and formed for the purpose of effecting a merger, share exchange, asset acquisition, share purchase, reorganization or similar business combination with one or more businesses. We have not selected any specific business combination target. A total of $200,000,000 will be deposited into a trust account for the benefit of our public shareholders. Our sponsor has purchased founder shares and private placement warrants.`;
+
+const CLASSIFY_SHELL = `Prospectus Summary
+
+We are a shell company with no current operations. We were previously engaged in mineral exploration, which we discontinued in 2021. We intend to identify and complete a reverse merger with an existing operating company that has already been identified by our management. We do not maintain a trust account and this is not a blank check offering.`;
+
+const CLASSIFY_OPERATING = `Prospectus Summary
+
+We are a leading designer and manufacturer of precision industrial pumps used in the oil and gas, chemical and water-treatment industries. Founded in 2004, we generated revenue of $312 million in the most recent fiscal year and operate four manufacturing facilities across North America. This prospectus relates to the initial public offering of our common stock.`;
+
 export const EVAL_FIXTURES: readonly EvalFixture[] = [
+  {
+    name: "spac-classification-true-spac",
+    extractor: "spac-classification",
+    text: CLASSIFY_TRUE_SPAC,
+    expected: [{ is_spac: true, entity_kind: "spac" }],
+  },
+  {
+    name: "spac-classification-negative-shell",
+    extractor: "spac-classification",
+    text: CLASSIFY_SHELL,
+    expected: [],
+  },
+  {
+    name: "spac-classification-negative-operating",
+    extractor: "spac-classification",
+    text: CLASSIFY_OPERATING,
+    expected: [],
+  },
   {
     name: "s1-management-operating-company",
     extractor: "management",
@@ -190,6 +284,34 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
       { full_name: "Jonathan P. Reyes", titles: ["Chief Executive Officer", "Director"] },
       { full_name: "Aisha Nwosu", titles: ["Chief Financial Officer"] },
       { full_name: "Robert Kaminski", titles: ["Chairman of the Board of Directors"] },
+    ],
+  },
+  {
+    name: "sponsor-promote-standard-20pct",
+    extractor: "sponsor-promote",
+    text: SPONSOR_PROMOTE_STANDARD,
+    expected: [
+      {
+        founder_shares: 5000000,
+        founder_percent: 0.2,
+        private_placement_warrants: 10000000,
+        public_warrant_coverage: 0.5,
+        trust_per_public_share: 10.0,
+      },
+    ],
+  },
+  {
+    name: "sponsor-promote-overfunded-trust",
+    extractor: "sponsor-promote",
+    text: SPONSOR_PROMOTE_OVERFUNDED,
+    expected: [
+      {
+        founder_shares: 6250000,
+        founder_percent: 0.2,
+        private_placement_warrants: 8000000,
+        public_warrant_coverage: 0.3333,
+        trust_per_public_share: 10.2,
+      },
     ],
   },
   {

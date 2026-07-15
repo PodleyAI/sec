@@ -211,6 +211,11 @@ import {
   SpacUnitTermsSchema,
 } from "../storage/offering/SpacUnitTermsSchema";
 import {
+  SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+  SpacPromoteTermsPrimaryKeyNames,
+  SpacPromoteTermsSchema,
+} from "../storage/offering/SpacPromoteTermsSchema";
+import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
@@ -932,6 +937,12 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
     createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+    createStorage("spac_promote_terms", SpacPromoteTermsSchema, SpacPromoteTermsPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,

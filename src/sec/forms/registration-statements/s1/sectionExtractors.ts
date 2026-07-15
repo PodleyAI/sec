@@ -21,6 +21,13 @@ import {
   type SpacProfileRow,
 } from "./spacProfileSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
+import { SponsorPromoteOutputSchema, type SponsorPromoteRow } from "./sponsorPromoteSchema";
+import {
+  SPAC_ENTITY_KINDS,
+  SpacClassificationOutputSchema,
+  type SpacClassificationRow,
+  type SpacEntityKind,
+} from "./spacClassifierSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
@@ -517,6 +524,53 @@ export async function extractOfferingTerms(
   return obj as unknown as OfferingTermsRow;
 }
 
+/**
+ * Extracts SPAC sponsor promote economics from a prospectus's "The Offering" /
+ * "The Sponsor" prose: founder (Class B) shares and their percentage, the
+ * private-placement warrant count / price / public warrant coverage, and the
+ * trust deposit per public share and in total. Returns null when the model is
+ * not confident or cites no source span (mirrors {@link extractOfferingTerms}).
+ */
+export async function extractSponsorPromote(
+  sectionText: string,
+  model: ModelConfig
+): Promise<SponsorPromoteRow | null> {
+  const instructions =
+    "The text between the tags below is from a SPAC (blank-check) prospectus. Extract the " +
+    "SPONSOR PROMOTE ECONOMICS. Give founder_shares (the number of founder / Class B / " +
+    "founders' shares held by the sponsor, or null), founder_percent (those founder shares " +
+    "as a FRACTION of the post-IPO shares outstanding — e.g. 0.20 for 20%, the customary " +
+    "promote — or null), private_placement_warrants (the number of private placement / " +
+    "sponsor warrants purchased, or null), private_placement_warrant_price (the purchase " +
+    "price per private placement warrant in dollars, e.g. 1.00 or 1.50, or null), " +
+    "public_warrant_coverage (the warrant fraction included with each PUBLIC unit — e.g. " +
+    "0.5 for one-half of a redeemable warrant per unit — or null), trust_per_public_share " +
+    "(the amount deposited into the trust account per public share in dollars, e.g. 10.00 " +
+    "or 10.20, or null), and trust_total (the total dollar amount held in trust, or null). " +
+    "Report only figures explicitly stated; do NOT compute a percentage or a total the " +
+    "text does not state. Give a confidence in [0,1] and the verbatim source_span you drew " +
+    "the figures from. Return JSON matching the schema.";
+  const obj = await runGuardedExtraction(
+    model,
+    instructions,
+    sectionText,
+    SponsorPromoteOutputSchema
+  );
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return {
+    founder_shares: (obj.founder_shares as number | null) ?? null,
+    founder_percent: (obj.founder_percent as number | null) ?? null,
+    private_placement_warrants: (obj.private_placement_warrants as number | null) ?? null,
+    private_placement_warrant_price:
+      (obj.private_placement_warrant_price as number | null) ?? null,
+    public_warrant_coverage: (obj.public_warrant_coverage as number | null) ?? null,
+    trust_per_public_share: (obj.trust_per_public_share as number | null) ?? null,
+    trust_total: (obj.trust_total as number | null) ?? null,
+    confidence: obj.confidence as number,
+    source_span: obj.source_span as string,
+  };
+}
+
 export async function extractUnderwriters(
   sectionText: string,
   model: ModelConfig
@@ -581,6 +635,51 @@ export async function extractSpacProfile(
     description: (obj.description as string | null) ?? null,
     team: (obj.team as string | null) ?? null,
     url_spac: (obj.url_spac as string | null) ?? null,
+    confidence: obj.confidence as number,
+    source_span: obj.source_span as string,
+  };
+}
+
+/**
+ * Content-classifies a registration filing whose SGML-header SIC was NOT the
+ * deterministic blank-check code, to catch SIC-miscoded SPACs and distinguish a
+ * true SPAC from an ordinary shell or operating company. Returns null when the
+ * model is not confident, cites no source span, or does not classify the filing
+ * as a SPAC (`is_spac === false`) — so a confident "not a SPAC" yields no row,
+ * mirroring the LOI detector. An `entity_kind` outside the allowed set is
+ * coerced to null → dropped, so a hallucinated kind never flips the flag.
+ */
+export async function extractSpacClassification(
+  sectionText: string,
+  model: ModelConfig
+): Promise<SpacClassificationRow | null> {
+  const instructions =
+    "The text between the tags below is prose from a company's SEC registration " +
+    "statement (an S-1 / F-1 / DRS). Classify what KIND of issuer it is. Set entity_kind " +
+    "to 'spac' ONLY for a true special-purpose acquisition company / blank-check company: " +
+    "a newly formed entity with no operations that raised (or is raising) an IPO to hold " +
+    "the proceeds in a trust account and later acquire an unidentified operating business " +
+    "(an 'initial business combination'). Set entity_kind to 'shell' for a non-operating " +
+    "shell that is NOT a blank-check IPO vehicle (e.g. a dormant company, or a shell used " +
+    "for a reverse merger with an already-identified business). Set entity_kind to " +
+    "'operating' for a company with a real, existing line of business. Set is_spac true " +
+    "if and only if entity_kind is 'spac'. Give a confidence in [0,1] and the verbatim " +
+    "source_span you drew the determination from (null only if is_spac is false). Return " +
+    "JSON matching the schema.";
+  const obj = await runGuardedExtraction(
+    model,
+    instructions,
+    sectionText,
+    SpacClassificationOutputSchema
+  );
+  if (obj.is_spac !== true) return null;
+  const kind = obj.entity_kind;
+  if (typeof kind !== "string" || !SPAC_ENTITY_KINDS.includes(kind as SpacEntityKind)) return null;
+  if (kind !== "spac") return null;
+  if (obj.confidence == null || obj.source_span == null) return null;
+  return {
+    is_spac: true,
+    entity_kind: "spac",
     confidence: obj.confidence as number,
     source_span: obj.source_span as string,
   };

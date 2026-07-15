@@ -67,6 +67,63 @@ describe("buildSpacRow", () => {
     expect(row.as_of).toBe("2021-01-15");
   });
 
+  it("derives surviving_name from a completed deal's target (de-SPAC linkage)", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [
+        deal({
+          deal_index: 0,
+          outcome: "completed",
+          target_name: "Lucid Motors, Inc.",
+          outcome_date: "2021-07-23",
+        }),
+      ],
+      events: [
+        ev({ event_type: "registration", event_date: "2020-04-30" }),
+        ev({ event_type: "completed", event_date: "2021-07-23" }),
+      ],
+      patch: { spac_name: "Churchill Capital Corp IV", spac_sic: 6770 },
+      filingDate: "2021-07-23",
+    });
+    expect(row.status).toBe("completed");
+    expect(row.completed_date).toBe("2021-07-23");
+    // The combined entity is named after the target; current_name mirrors it.
+    expect(row.surviving_name).toBe("Lucid Motors, Inc.");
+    expect(row.current_name).toBe("Lucid Motors, Inc.");
+    // The shell name is preserved on the SPAC-era column.
+    expect(row.spac_name).toBe("Churchill Capital Corp IV");
+  });
+
+  it("an explicit surviving_name patch (entity-sourced) overrides the deal target", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "completed", target_name: "Target Co", outcome_date: "2021-06-15" })],
+      events: [ev({ event_type: "completed", event_date: "2021-06-15" })],
+      patch: { spac_name: "Shell SPAC", surviving_name: "Renamed NewCo Inc", post_merger_sic: 3711 },
+      filingDate: "2021-06-15",
+    });
+    expect(row.surviving_name).toBe("Renamed NewCo Inc");
+    expect(row.current_name).toBe("Renamed NewCo Inc");
+    expect(row.post_merger_sic).toBe(3711);
+    expect(row.current_sic).toBe(3711);
+  });
+
+  it("leaves surviving_name null for a still-pending deal", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "pending", target_name: "Target Co", announced_date: "2021-05-01" })],
+      events: [ev({ event_type: "definitive_agreement", event_date: "2021-05-01" })],
+      patch: { spac_name: "Shell SPAC" },
+      filingDate: "2021-05-01",
+    });
+    expect(row.status).toBe("deal_announced");
+    expect(row.surviving_name).toBeNull();
+    expect(row.current_name).toBe("Shell SPAC");
+  });
+
   it("merges narrative enrichment scalars from the patch", () => {
     const row = buildSpacRow({
       existing: undefined,

@@ -175,20 +175,44 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   const spac_sic = pick("spac_sic");
   const spac_tickers = pick("spac_tickers");
 
-  // Pre-merger, current_* mirrors spac_* unless a later filing set them explicitly.
-  const surviving_name = pick("surviving_name");
-  const current_name =
-    applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
-  const current_sic =
-    applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
-  const current_tickers =
-    applied.current_tickers ??
-    existing?.current_tickers ??
-    pick("post_merger_tickers") ??
-    spac_tickers;
-
   // Event/deal-derived fields: always recomputed (order-independent, idempotent).
   const active = activeDeal(deals);
+  const completed = active?.outcome === "completed";
+
+  // De-SPAC linkage: a completed business combination links the shell to its
+  // surviving entity. Absent an explicit (entity-sourced) name from a
+  // `recordDeSpacLinkage` patch, the combined company is named after the deal's
+  // target, so derive `surviving_name` from the completed deal's target_name.
+  const survivingExplicit = pick("surviving_name");
+  const surviving_name = survivingExplicit ?? (completed ? (active?.target_name ?? null) : null);
+  const post_merger_sic = pick("post_merger_sic");
+  const post_merger_tickers = pick("post_merger_tickers");
+
+  // current_* is the latest-known identity. Pre-merger it mirrors spac_*; a
+  // completed de-SPAC promotes the surviving / post-merger identity over the
+  // stale mirrored value, so a row that stored current_name = spac_name at
+  // registration reflects the rename once the combination closes. When the
+  // post-merger value is not yet known (no target/entity data), it falls
+  // through to the previously mirrored value.
+  const current_name =
+    applied.current_name ??
+    (completed ? surviving_name : null) ??
+    existing?.current_name ??
+    surviving_name ??
+    spac_name;
+  const current_sic =
+    applied.current_sic ??
+    (completed ? post_merger_sic : null) ??
+    existing?.current_sic ??
+    post_merger_sic ??
+    spac_sic;
+  const current_tickers =
+    applied.current_tickers ??
+    (completed ? post_merger_tickers : null) ??
+    existing?.current_tickers ??
+    post_merger_tickers ??
+    spac_tickers;
+
   const investorPres = latestInvestorPres(events);
   const hasFailed =
     events.some((e) => e.event_type === "liquidation" || e.event_type === "deregistration") &&
@@ -210,10 +234,10 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     surviving_name,
     current_name,
     spac_sic,
-    post_merger_sic: pick("post_merger_sic"),
+    post_merger_sic,
     current_sic,
     spac_tickers,
-    post_merger_tickers: pick("post_merger_tickers"),
+    post_merger_tickers,
     current_tickers,
     ipo_proceeds: pick("ipo_proceeds"),
     trust_amount: pick("trust_amount"),
