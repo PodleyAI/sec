@@ -23,7 +23,7 @@ export async function registerSecProviders(): Promise<void> {
 
 async function registerAnthropic(): Promise<void> {
   try {
-    const { registerAnthropicInline } = await import("@workglow/anthropic/ai-runtime");
+    const { registerAnthropicInline } = await import("workglow/anthropic/runtime");
     await registerAnthropicInline();
   } catch (err) {
     warn("Anthropic", err);
