@@ -174,7 +174,21 @@ times per section (strong models intermittently emit a nested array as a JSON
 *string* the strict schema rejects); a section the reference still fails is dropped
 from scoring.
 
+**Golden truth (`--reference golden`).** A live reference model is not ground
+truth — even sonnet drops or invents the odd role, capping achievable agreement
+and penalizing a correct candidate. `--reference golden` scores candidates
+against **committed human-verified labels** (`src/eval/goldenS1Labels.ts`) instead
+of a model run — no reference API call, `$0`, deterministic. Only sections with a
+golden entry are scored (the rest are reported as skipped); currently the four
+committed `management` sections. Titles are stored in canonical
+(`normalizeManagementTitles`) form and unit-tested to stay canonical. Use golden
+truth to tell which model is actually *correct* (not just sonnet-like); use a
+model reference to sweep sections that aren't hand-labeled.
+
 ```bash
+# Score candidates against human-verified truth (deterministic, no ref call)
+sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
+
 sec eval s1 --reference claude-sonnet-5 --models "onnx-community/LFM2.5-350M-ONNX" \
   --extractors "management,beneficial-ownership,related-party"
 

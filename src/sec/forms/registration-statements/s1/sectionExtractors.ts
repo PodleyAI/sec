@@ -403,7 +403,13 @@ export async function extractManagement(
     "string element — never combine roles into one string. So 'Chief Executive Officer " +
     "and a director' -> ['Chief Executive Officer', 'Director'] (NOT ['Chief Executive " +
     "Officer and Director'] or ['Chief Executive Officer, Director']), and 'President, " +
-    "CFO and Secretary' -> ['President', 'Chief Financial Officer', 'Secretary']. Include " +
+    "CFO and Secretary' -> ['President', 'Chief Financial Officer', 'Secretary']. " +
+    "A person's roles are often split between the summary table (a 'Name / Age / " +
+    "Title' row) and the prose bio that follows (a 'has served as our X and Y since " +
+    "…' sentence). Take the UNION of every distinct role stated at THIS company in " +
+    "EITHER place — so if the table row says 'Chief Financial Officer' but the bio " +
+    "says 'has served as our Chief Financial Officer and Secretary', the titles are " +
+    "['Chief Financial Officer', 'Secretary']. Include " +
     "ONLY roles the person currently holds at THIS company as stated in the section; do " +
     "NOT include titles held at prior or other employers, and do not invent a role that " +
     "is not explicitly stated. Use [] if no title is stated. " +
