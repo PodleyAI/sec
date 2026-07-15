@@ -54,6 +54,7 @@ import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
 import { SPAC_DEAL_REPOSITORY_TOKEN } from "../storage/spac/SpacDealSchema";
 import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
 import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
+import { migrateSpacLoiColumns } from "../storage/spac/SpacLoiColumnsMigration";
 import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
 import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
 import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
@@ -147,6 +148,11 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_FINANCIAL_DATA_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_EQUITY_CLASS_REPOSITORY_TOKEN).setupDatabase();
+  // Add loi_date to the SPAC tables before setupDatabase() creates the current
+  // shape; CREATE TABLE IF NOT EXISTS is a no-op on an existing table, so an
+  // upgraded DB never gains loi_date on its own. The status enum's new "loi"
+  // value needs no DDL — TypeStringEnum emits plain TEXT with no CHECK.
+  await migrateSpacLoiColumns();
   await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).setupDatabase();
