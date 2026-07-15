@@ -204,5 +204,43 @@ describe("PersonNormalization", () => {
       expect(result!.cik).toBe(null);
       expect(result!.crd).toBe(null);
     });
+
+    // Golden pin: the normalizer's output tuple is the resolver's lookup key.
+    // Any change here silently splits existing canonical rows, so the person
+    // resolver must go through a major bump ceremony (2.0.0) whenever this
+    // table changes.
+    it.each([
+      {
+        input: "Richard J. Boyle, Jr.",
+        first: "Richard",
+        middle: "J",
+        last: "Boyle",
+        suffix: "Jr",
+      },
+      {
+        input: "Frank D’Angelo",
+        first: "Frank",
+        middle: null as string | null,
+        last: "D'Angelo",
+        suffix: null as string | null,
+      },
+      {
+        input: "Michel del Buono",
+        first: "Michel",
+        middle: null as string | null,
+        last: "del Buono",
+        suffix: null as string | null,
+      },
+    ])(
+      "pins the 2.0.0 normalized key tuple for %o",
+      ({ input, first, middle, last, suffix }) => {
+        const result = normalizePerson({ name: input });
+        expect(result).toBeDefined();
+        expect(result!.first).toBe(first);
+        expect(result!.middle).toBe(middle);
+        expect(result!.last).toBe(last);
+        expect(result!.suffix).toBe(suffix);
+      }
+    );
   });
 });

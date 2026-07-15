@@ -283,6 +283,34 @@ describe("sec version CLI", () => {
     }
   });
 
+  it("start-dev resolver person 2.0.0 --bump major snapshots observation count", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["version", "start-dev", "resolver", "person", "2.0.0", "--bump", "major"],
+        dir
+      );
+      expect(result.exitCode).toBe(0);
+      // Must NOT be refused as "not yet supported".
+      expect(result.stderr + result.stdout).not.toMatch(/not yet supported/);
+
+      // No observations were seeded, so target_count === PersonObservationRepo.count() === 0.
+      const coverage = await runCli(
+        ["version", "coverage", "resolver", "person", "--format", "json"],
+        dir
+      );
+      expect(coverage.exitCode).toBe(0);
+      const parsed = JSON.parse(coverage.stdout);
+      // computeResolverCoverage returns denominator (observation count).
+      expect(parsed.denominator).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("rejects start-dev for an unknown extractor id", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {

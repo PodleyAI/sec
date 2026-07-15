@@ -19,6 +19,7 @@ import { CanonicalPersonPhoneRepo } from "../canonical/CanonicalPersonPhoneRepo"
 import { CanonicalCompanyAddressRepo } from "../canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../canonical/CanonicalCompanyPhoneRepo";
 import type { ResolverId } from "../../resolver/resolverIds";
+import { computeResolverCoverage } from "../../cli/queries/ResolverCoverage";
 
 interface BaseArgs {
   readonly reg: VersionRegistry;
@@ -37,6 +38,7 @@ export interface StartDevArgs extends BaseArgs {
 }
 
 export interface PromoteArgs extends BaseArgs {
+  /** Required when `kind === "extractor"`. Unused for resolvers. */
   readonly runs: ExtractorRunRepo;
   readonly force: boolean;
   readonly notes: string | null;
@@ -171,19 +173,31 @@ export async function promote(args: PromoteArgs): Promise<void> {
   const current = await reg.getCurrent(kind, id);
   if (!current) throw new Error(`No current slot for ${kind} '${id}'.`);
 
-  // Major coverage gate.
+  // Major coverage gate. Dispatch by kind: extractors use extractor_runs
+  // count; resolvers use identity-link-over-observation coverage.
   if (next.bump_type === "major" && !force) {
     if (next.target_count === null) {
       throw new Error(
         `${kind} '${id}' next slot has bump_type='major' but target_count is null — invalid state. Drop-next and re-run start-dev.`
       );
     }
-    const target = next.target_count;
-    const successful = await runs.countSuccessfulAtVersion(id, next.semver);
-    if (successful < target) {
-      throw new Error(
-        `coverage ${successful}/${target} below 100% — use --force to promote anyway`
-      );
+    if (kind === "extractor") {
+      const target = next.target_count;
+      const successful = await runs.countSuccessfulAtVersion(id, next.semver);
+      if (successful < target) {
+        throw new Error(
+          `coverage ${successful}/${target} below 100% — use --force to promote anyway`
+        );
+      }
+    } else {
+      // resolver — computeResolverCoverage throws for family-tier resolvers,
+      // so promote is refused for them until family coverage lands.
+      const coverage = await computeResolverCoverage(id as ResolverId, next.semver);
+      if (coverage.fraction < 1.0) {
+        throw new Error(
+          `coverage ${coverage.numerator}/${coverage.denominator} below 100% — use --force to promote anyway`
+        );
+      }
     }
   }
 

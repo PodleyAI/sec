@@ -6,8 +6,10 @@
 
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
-import type { ResolverId } from "../../resolver/resolverIds";
+import { isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 import {
   dropNext as dropNextCeremony,
   dropPrevious as dropPreviousCeremony,
@@ -61,20 +63,31 @@ function assertFormat(s: string): asserts s is "table" | "json" {
 }
 
 /**
- * For a major-bump extractor start-dev, snapshot the count of filings
- * handled by this extractor. Stored on the next-slot row; used as the
- * promote-gate denominator.
+ * For a major-bump start-dev, snapshot the count of items the ceremony's
+ * coverage gate will be denominated over. Stored on the next-slot row.
  *
- * This is extractor-specific today. When resolvers gain a major
- * dev-cycle, they will need their own kind-aware snapshot strategy
- * (count of observations? count of canonical identities? TBD). Add a
- * dispatch table keyed on ComponentKind when resolver support lands.
+ * Extractor snapshots count the filings the extractor handles (via
+ * `FORM_TO_EXTRACTOR_ID` → filing forms). Resolver snapshots count the
+ * observations the resolver ranges over (person / company). Family-tier
+ * resolvers have no observation model and are refused, matching the
+ * behavior of `computeResolverCoverage`.
  */
 async function snapshotTargetCount(kind: ComponentKind, id: string): Promise<number> {
-  if (kind !== "extractor") {
-    throw new Error(
-      `snapshotTargetCount: kind '${kind}' is not yet supported; only 'extractor' has a snapshot strategy. Add resolver support when implemented.`
-    );
+  if (kind === "resolver") {
+    if (isFamilyResolverId(id)) {
+      throw new Error(
+        `Coverage snapshots not supported for family-tier resolvers (got '${id}'). ` +
+          `Family resolvers track membership, not observation identity-links.`
+      );
+    }
+    const resolverId = id as ResolverId;
+    if (resolverId === "person") {
+      return await new PersonObservationRepo().count();
+    }
+    if (resolverId === "company") {
+      return await new CompanyObservationRepo().count();
+    }
+    throw new Error(`snapshotTargetCount: unknown resolver id '${id}'`);
   }
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const forms = Object.entries(FORM_TO_EXTRACTOR_ID)

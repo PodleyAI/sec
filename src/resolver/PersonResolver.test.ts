@@ -161,6 +161,74 @@ describe("PersonResolver.resolve", () => {
     expect(result).toBe("alias-target");
   });
 
+  it("cross-version isolation: 1.0.0 canonical is not returned under 2.0.0 lookup", async () => {
+    // Seed a canonical person from the pre-fold tuple (a "1.0.0" resolver
+    // would have written this). Now resolve an observation whose normalized
+    // tuple is the post-fold shape under a fresh 2.0.0 resolver — the
+    // resolver_version scope keeps the 1.0.0 row out of scope and mints a
+    // new canonical id.
+    const preFoldRow: CanonicalPerson = {
+      canonical_person_id: "canon-1.0.0",
+      resolver_version: "1.0.0",
+      display_first: "Richard",
+      display_middle: "J.",
+      display_last: "Boyle",
+      display_suffix: "Jr.",
+      cik: null,
+      normalized_first: "richard",
+      normalized_middle: "j.",
+      normalized_last: "boyle",
+      normalized_suffix: "jr.",
+      source_filing_issuer_cik: 100,
+      created_at: "2026-05-22T00:00:00.000Z",
+    };
+    await setup.canonRepo.create(preFoldRow);
+
+    const v2Resolver = new PersonResolver({
+      canonicalPersonRepo: setup.canonRepo,
+      canonicalPersonAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "2.0.0",
+    });
+    const v2Id = await v2Resolver.resolve(
+      obs({
+        normalized_first: "richard",
+        normalized_middle: "j",
+        normalized_last: "boyle",
+        normalized_suffix: "jr",
+        source_filing_issuer_cik: 100,
+      })
+    );
+    expect(v2Id).not.toBe("canon-1.0.0");
+  });
+
+  it("2.0.0 idempotency: two equal post-fold keys return the same UUID", async () => {
+    const v2Resolver = new PersonResolver({
+      canonicalPersonRepo: setup.canonRepo,
+      canonicalPersonAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "2.0.0",
+    });
+    const a = await v2Resolver.resolve(
+      obs({
+        normalized_first: "richard",
+        normalized_middle: "j",
+        normalized_last: "boyle",
+        normalized_suffix: "jr",
+        source_filing_issuer_cik: 100,
+      })
+    );
+    const b = await v2Resolver.resolve(
+      obs({
+        normalized_first: "richard",
+        normalized_middle: "j",
+        normalized_last: "boyle",
+        normalized_suffix: "jr",
+        source_filing_issuer_cik: 100,
+        observation_id: 2,
+      })
+    );
+    expect(a).toBe(b);
+  });
+
   it("serialises alias lookup inside the per-key mutex (no overlapping alias.resolve calls)", async () => {
     // The previous regression test stubbed `aliasRepo.resolve` to always
     // return a constant id regardless of input, so both pre-fix (lookup

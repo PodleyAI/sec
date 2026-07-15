@@ -17,6 +17,7 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "./VersionEventSchema";
 import { VersionRegistry } from "./VersionRegistry";
 import { PersonIdentityLinkRepo } from "../canonical/PersonIdentityLinkRepo";
 import { CanonicalPersonRepo } from "../canonical/CanonicalPersonRepo";
+import { PersonObservationRepo } from "../observation/PersonObservationRepo";
 
 function buildDeps() {
   const reg = new VersionRegistry(
@@ -728,6 +729,136 @@ describe("ceremonies.dropPrevious", () => {
     expect(dropEvt).toBeDefined();
     expect(dropEvt?.from_semver).toBe("1.0.0");
     expect(dropEvt?.notes).toBe("cleaning up 1.0.0");
+  });
+
+  it("resolver major promote fails when coverage is below 100% without --force", async () => {
+    const { reg, events, runs } = buildDeps();
+    // Seed an observation so the denominator is > 0 and no identity-link at
+    // 2.0.0 has been written yet — coverage = 0/1.
+    const obsRepo = new PersonObservationRepo();
+    await obsRepo.upsertByNaturalKey({
+      accession_number: "0001-25-000001",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      last_name: "Smith",
+      normalized_last: "smith",
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+
+    await startDev({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 1,
+      notes: null,
+    });
+    await expect(
+      promote({
+        reg,
+        events,
+        runs,
+        kind: "resolver",
+        id: "person",
+        force: false,
+        notes: null,
+      })
+    ).rejects.toThrow(/coverage.*0\/1/i);
+  });
+
+  it("resolver major promote succeeds at 100% coverage", async () => {
+    const { reg, events, runs } = buildDeps();
+    const obsRepo = new PersonObservationRepo();
+    const linkRepo = new PersonIdentityLinkRepo();
+    const canonRepo = new CanonicalPersonRepo();
+
+    const obs = await obsRepo.upsertByNaturalKey({
+      accession_number: "0001-25-000001",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      last_name: "Smith",
+      normalized_last: "smith",
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+    // Seed a canonical + identity link at 2.0.0 so coverage = 1/1.
+    const canonId = "00000000-0000-0000-0000-00000000cafe";
+    await canonRepo.create({
+      canonical_person_id: canonId,
+      resolver_version: "2.0.0",
+      display_first: null,
+      display_middle: null,
+      display_last: "Smith",
+      display_suffix: null,
+      cik: null,
+      normalized_first: null,
+      normalized_middle: null,
+      normalized_last: "smith",
+      normalized_suffix: null,
+      source_filing_issuer_cik: null,
+      created_at: new Date().toISOString(),
+    });
+    await linkRepo.upsert(obs.observation_id, "2.0.0", canonId);
+
+    await startDev({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 1,
+      notes: null,
+    });
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "resolver",
+      id: "person",
+      force: false,
+      notes: null,
+    });
+    expect((await reg.getCurrent("resolver", "person"))?.semver).toBe("2.0.0");
+    expect((await reg.getPrevious("resolver", "person"))?.semver).toBe("1.0.0");
+  });
+
+  it("resolver major promote --force bypasses the coverage gate", async () => {
+    const { reg, events, runs } = buildDeps();
+    const obsRepo = new PersonObservationRepo();
+    await obsRepo.upsertByNaturalKey({
+      accession_number: "0001-25-000001",
+      extractor_id: "D",
+      extractor_version: "1.0.0",
+      observation_index: 0,
+      last_name: "Smith",
+      normalized_last: "smith",
+      created_at: "2026-05-22T00:00:00.000Z",
+    });
+
+    await startDev({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 1,
+      notes: null,
+    });
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "resolver",
+      id: "person",
+      force: true,
+      notes: "force-promoting without coverage",
+    });
+    expect((await reg.getCurrent("resolver", "person"))?.semver).toBe("2.0.0");
   });
 
   it("dropPrevious(extractor) deletes run rows at previous semver", async () => {

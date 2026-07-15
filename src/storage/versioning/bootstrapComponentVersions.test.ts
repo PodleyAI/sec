@@ -9,9 +9,14 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { bootstrapComponentVersions } from "./bootstrapComponentVersions";
+import { promote, startDev } from "./ceremonies";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
+import { ExtractorRunRepo } from "./ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "./ExtractorRunSchema";
 import { RESOLVER_IDS } from "../../resolver/resolverIds";
+import { VersionEventRepo } from "./VersionEventRepo";
+import { VERSION_EVENT_REPOSITORY_TOKEN } from "./VersionEventSchema";
 import { VersionRegistry } from "./VersionRegistry";
 
 describe("bootstrapComponentVersions", () => {
@@ -105,5 +110,49 @@ describe("bootstrapComponentVersions", () => {
     );
     expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
     expect(await reg.getNext("extractor", "D")).toBeUndefined();
+  });
+
+  it("startDev+promote for resolver:person rotates 1.0.0 → previous, 2.0.0 → current", async () => {
+    const reg = new VersionRegistry(
+      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+    );
+    const events = new VersionEventRepo(
+      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
+    );
+    const runs = new ExtractorRunRepo(
+      globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+    );
+
+    // bootstrapComponentVersions seeded resolver:person@1.0.0 already.
+    expect((await reg.getCurrent("resolver", "person"))?.semver).toBe("1.0.0");
+
+    await startDev({
+      reg,
+      events,
+      kind: "resolver",
+      id: "person",
+      semver: "2.0.0",
+      bump: "major",
+      targetCount: 0, // no observations seeded → coverage is 0/0 → fraction 0 (not 1)
+      notes: "PersonNormalization fold changes key tuple",
+    });
+    // Both slots exist.
+    expect((await reg.getCurrent("resolver", "person"))?.semver).toBe("1.0.0");
+    expect((await reg.getNext("resolver", "person"))?.semver).toBe("2.0.0");
+
+    // 0/0 coverage → --force required to promote.
+    await promote({
+      reg,
+      events,
+      runs,
+      kind: "resolver",
+      id: "person",
+      force: true,
+      notes: null,
+    });
+
+    expect((await reg.getCurrent("resolver", "person"))?.semver).toBe("2.0.0");
+    expect((await reg.getPrevious("resolver", "person"))?.semver).toBe("1.0.0");
+    expect(await reg.getNext("resolver", "person")).toBeUndefined();
   });
 });
