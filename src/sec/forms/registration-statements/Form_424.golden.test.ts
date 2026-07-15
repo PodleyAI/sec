@@ -11,7 +11,7 @@ import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
 
-const FIXTURES = join(import.meta.dir, "../../html/mock_data/s1");
+const FIXTURES = join(import.meta.dir, "../../html/mock_data/424");
 
 /**
  * Real priced-IPO prospectus: Churchill Capital Corp XII 424B4 (the priced
