@@ -156,6 +156,18 @@ describe("parseInlineXbrl", () => {
     expect(result.facts[0].value).toBe("true");
     expect(result.facts[1].value).toBe("false");
   });
+
+  it("normalizes a dei date fact to ISO-8601", () => {
+    const result = parseInlineXbrl(
+      doc(
+        `<ix:nonNumeric contextRef="c1" name="dei:DocumentPeriodEndDate" format="ixt:date-monthname-day-year-en">March 31, 2026</ix:nonNumeric>`
+      )
+    );
+    expect(result.facts[0].value).toBe("2026-03-31");
+    expect(result.facts[0].isNumeric).toBe(false);
+    // Date facts are non-numeric — the ISO string is the value, numericValue stays null.
+    expect(result.facts[0].numericValue).toBeNull();
+  });
 });
 
 describe("applyIxtTransform", () => {
@@ -167,5 +179,37 @@ describe("applyIxtTransform", () => {
   });
   it("passes text through when no format is given", () => {
     expect(applyIxtTransform(null, "  plain  ")).toBe("plain");
+  });
+
+  describe("date transforms -> ISO-8601", () => {
+    it("monthname-day-year (TR3/TR4 hyphenated + TR1 concatenated)", () => {
+      expect(applyIxtTransform("ixt:date-monthname-day-year-en", "September 3, 2024")).toBe(
+        "2024-09-03"
+      );
+      expect(applyIxtTransform("ixt:datemonthdayyearen", "Sept. 3 2024")).toBe("2024-09-03");
+      expect(applyIxtTransform("ixt:date-monthname-day-year-en", "December 31, 2023")).toBe(
+        "2023-12-31"
+      );
+    });
+    it("day-monthname-year", () => {
+      expect(applyIxtTransform("ixt:date-day-monthname-year-en", "3 September 2024")).toBe(
+        "2024-09-03"
+      );
+      expect(applyIxtTransform("ixt:datedaymonthyearen", "31 December 2023")).toBe("2023-12-31");
+    });
+    it("numeric slash forms (US month/day/year vs EU day/month/year)", () => {
+      expect(applyIxtTransform("ixt:date-month-day-year", "9/3/2024")).toBe("2024-09-03");
+      expect(applyIxtTransform("ixt:dateslashus", "12-31-2023")).toBe("2023-12-31");
+      expect(applyIxtTransform("ixt:date-day-month-year", "3/9/2024")).toBe("2024-09-03");
+      expect(applyIxtTransform("ixt:dateslasheu", "31.12.2023")).toBe("2023-12-31");
+      expect(applyIxtTransform("ixt:date-year-month-day", "2024-09-03")).toBe("2024-09-03");
+    });
+    it("falls back to trimmed raw text when a date is unparseable (never blanks it)", () => {
+      expect(applyIxtTransform("ixt:date-monthname-day-year-en", "  Marchtember 3, 2024 ")).toBe(
+        "Marchtember 3, 2024"
+      );
+      // Out-of-range month/day is rejected and the raw text is kept.
+      expect(applyIxtTransform("ixt:date-month-day-year", "13/45/2024")).toBe("13/45/2024");
+    });
   });
 });

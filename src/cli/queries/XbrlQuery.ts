@@ -35,11 +35,16 @@ export async function queryXbrlFacts(params: XbrlQueryParams): Promise<QueryResu
     params.accession !== undefined ? { accession_number: params.accession } : { cik: params.cik }
   ) as Partial<XbrlFactRow>;
 
+  // Order by (accession, fact_index): extraction order within a filing, and a
+  // stable per-filing grouping for the across-issuer (CIK) case.
+  const byFilingOrder = (a: XbrlFactRow, b: XbrlFactRow): number =>
+    a.accession_number.localeCompare(b.accession_number) || a.fact_index - b.fact_index;
+
   const hasConcept = params.concept !== undefined && params.concept !== "";
   if (!hasConcept && params.numericOnly !== true) {
     const total = await repo.count(criteria);
     const rows = (await repo.query(criteria, { limit, offset })) ?? [];
-    return { rows: rows.sort((a, b) => a.fact_index - b.fact_index), total };
+    return { rows: rows.sort(byFilingOrder), total };
   }
 
   const conceptLower = hasConcept ? params.concept!.toLowerCase() : null;
@@ -55,7 +60,7 @@ export async function queryXbrlFacts(params: XbrlQueryParams): Promise<QueryResu
     limit
   );
   // Within-page extraction order, matching the unfiltered path above.
-  rows.sort((a, b) => a.fact_index - b.fact_index);
+  rows.sort(byFilingOrder);
   return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
 }
 
@@ -66,4 +71,31 @@ export function formatXbrlPeriod(row: XbrlFactRow): string {
     return `${row.period_start ?? "?"}..${row.period_end ?? "?"}`;
   }
   return "";
+}
+
+interface StoredDimension {
+  readonly dimension: string;
+  readonly member: string;
+}
+
+/** Local part of a QName, dropping the prefix and the noise Axis/Member/Domain suffix. */
+function dimensionLabel(qname: string): string {
+  const local = qname.includes(":") ? qname.slice(qname.indexOf(":") + 1) : qname;
+  return local.replace(/(Axis|Member|Domain)$/, "");
+}
+
+/**
+ * Compact dimensional-qualifier display for a fact row: `Axis=Member` pairs
+ * joined with "; " (e.g. `StatementClassOfStock=CommonClassA`), or "" when the
+ * fact is on the default (undimensioned) context. Malformed JSON degrades to "".
+ */
+export function formatXbrlDimensions(row: XbrlFactRow): string {
+  if (row.dimensions_json === null || row.dimensions_json === "") return "";
+  try {
+    const dims = JSON.parse(row.dimensions_json) as readonly StoredDimension[];
+    if (!Array.isArray(dims)) return "";
+    return dims.map((d) => `${dimensionLabel(d.dimension)}=${dimensionLabel(d.member)}`).join("; ");
+  } catch {
+    return "";
+  }
 }
