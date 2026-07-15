@@ -414,9 +414,13 @@ export function addQueryCommands(program: Command): void {
         const cikRaw = options.cik as string | undefined;
         let cik: number | undefined;
         if (cikRaw !== undefined) {
-          cik = parseInt(cikRaw, 10);
-          if (!Number.isFinite(cik))
-            throw new Error(`Invalid --cik "${cikRaw}". Must be a number.`);
+          // Require an all-digit string; parseInt would silently accept
+          // "123abc" as 123 and produce a plausible-but-wrong CIK.
+          const trimmed = cikRaw.trim();
+          if (!/^\d+$/.test(trimmed)) {
+            throw new Error(`Invalid --cik "${cikRaw}". Must be a positive integer.`);
+          }
+          cik = Number(trimmed);
         }
         if (accession !== undefined && cik !== undefined) {
           throw new Error("Provide either an accession or --cik, not both.");

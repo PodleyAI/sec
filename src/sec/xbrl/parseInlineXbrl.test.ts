@@ -211,5 +211,16 @@ describe("applyIxtTransform", () => {
       // Out-of-range month/day is rejected and the raw text is kept.
       expect(applyIxtTransform("ixt:date-month-day-year", "13/45/2024")).toBe("13/45/2024");
     });
+
+    it("rejects impossible calendar dates rather than emitting an invalid ISO string", () => {
+      // Feb 30 and Apr 31 don't exist — keep the raw text instead of "2024-02-30".
+      expect(applyIxtTransform("ixt:date-month-day-year", "2/30/2024")).toBe("2/30/2024");
+      expect(applyIxtTransform("ixt:date-monthname-day-year-en", "April 31, 2024")).toBe(
+        "April 31, 2024"
+      );
+      // Feb 29 is valid on a leap year, invalid otherwise.
+      expect(applyIxtTransform("ixt:date-month-day-year", "2/29/2024")).toBe("2024-02-29");
+      expect(applyIxtTransform("ixt:date-month-day-year", "2/29/2023")).toBe("2/29/2023");
+    });
   });
 });

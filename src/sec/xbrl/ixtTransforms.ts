@@ -57,11 +57,19 @@ function monthNumber(name: string): number | null {
   return MONTHS[name.toLowerCase().replace(/\.$/, "")] ?? null;
 }
 
-/** Formats numeric y/m/d parts as ISO-8601, or null when out of range. */
+/** Formats real y/m/d parts as ISO-8601, or null for out-of-range/impossible dates. */
 function toIsoDate(year: number, month: number, day: number): string | null {
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
   if (!Number.isInteger(year) || year < 1) return null;
+  // Reject impossible calendar dates (e.g. Feb 30, Apr 31): a UTC round-trip
+  // rolls an overflowing day into the next month, so the components no longer
+  // match what was requested. Without this, "2/30/2024" would emit the invalid
+  // ISO string "2024-02-30" instead of falling back to the raw text.
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== month - 1 || dt.getUTCDate() !== day) {
+    return null;
+  }
   const pad = (n: number, width: number): string => String(n).padStart(width, "0");
   return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
 }

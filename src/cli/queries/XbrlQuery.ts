@@ -43,8 +43,20 @@ export async function queryXbrlFacts(params: XbrlQueryParams): Promise<QueryResu
   const hasConcept = params.concept !== undefined && params.concept !== "";
   if (!hasConcept && params.numericOnly !== true) {
     const total = await repo.count(criteria);
-    const rows = (await repo.query(criteria, { limit, offset })) ?? [];
-    return { rows: rows.sort(byFilingOrder), total };
+    // Push ORDER BY (accession, fact_index) down to storage so pagination is
+    // consistent across pages. Sorting only the returned page would leave the
+    // overall order at the backend's default, letting offset/limit skip or
+    // duplicate rows across pages.
+    const rows =
+      (await repo.query(criteria, {
+        orderBy: [
+          { column: "accession_number", direction: "ASC" },
+          { column: "fact_index", direction: "ASC" },
+        ],
+        limit,
+        offset,
+      })) ?? [];
+    return { rows, total };
   }
 
   const conceptLower = hasConcept ? params.concept!.toLowerCase() : null;
