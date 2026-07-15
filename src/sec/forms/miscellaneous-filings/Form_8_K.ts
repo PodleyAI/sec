@@ -20,6 +20,14 @@ export class Form_8_K extends Form {
       throw new Error(`Invalid form: ${form}`);
     }
 
+    // Real EDGAR 8-K primary documents are narrative HTML/XHTML (modern filings
+    // open with `<?xml …?><html …>`) or legacy SGML `<DOCUMENT>` text — they are
+    // never structured `edgarSubmission` XML the way Form D / Form C / ownership
+    // forms are. A sweep of real 8-Ks (large-cap filers plus SIC 6770 blank-check
+    // SPACs, including their redemption-relevant vote/closing 8-Ks) found zero
+    // with an `edgarSubmission` body. This branch is therefore defensive: for
+    // every real 8-K it falls through to `{}`, so the submissions-API `items` and
+    // `report_date` metadata — not a parsed `formData` — are authoritative.
     const hasEdgarSubmission = /\bedgarSubmission\b/i.test(xml.slice(0, 500));
     if (hasEdgarSubmission) {
       const parser = Form_8_K.getParser(Form8KSubmissionSchema);

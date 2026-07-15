@@ -205,6 +205,12 @@ export class ProcessAccessionDocFormTask extends Task<
     // the full submission .txt so the narrative passes can read the EX-99
     // exhibits (vote results, LOI press releases), not just the primary
     // document. Other 8-Ks keep their primary-doc fetch.
+    //
+    // The trigger check runs on the submissions-API `items` metadata alone. That
+    // is complete for 8-Ks: real 8-K bodies are HTML/text, never `edgarSubmission`
+    // XML (see Form_8_K.parse), so an item code can never appear only in a parsed
+    // `formData.items` and be missing from `items` here. The metadata item list
+    // is authoritative.
     let spacNarrativeFullSubmission = false;
     if (
       (form === "8-K" || form === "8-K/A") &&

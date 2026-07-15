@@ -19,6 +19,11 @@ import { processLoi8K } from "./loi8k";
  * Extracts item codes from the filing metadata `items` field.
  * The items field is a comma-separated string of item codes (e.g., "2.02,9.01").
  * Also merges any items found in the parsed XML form data.
+ *
+ * In practice `form8K.formData` is always empty for real 8-Ks: EDGAR 8-K bodies
+ * are HTML/text, never `edgarSubmission` XML (see {@link Form_8_K.parse}), so the
+ * metadata `items` field is the authoritative item list. The XML merge is kept as
+ * a harmless belt-and-suspenders for the theoretical structured filing.
  */
 function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K): string[] {
   const itemSet = new Set<string>();
@@ -74,6 +79,10 @@ export async function processForm8K({
   const eventRepo = new Form8KEventRepo();
   const isAmendment = form === "8-K/A";
 
+  // `form8K.formData?.periodOfReport` is only ever populated for structured
+  // `edgarSubmission` 8-Ks, which do not occur in real EDGAR data — so in
+  // practice the metadata `report_date` is authoritative here. The XML fallback
+  // stays first for the theoretical structured filing.
   const effectiveReportDate = form8K.formData?.periodOfReport || report_date || null;
 
   const itemCodes = extractItemCodes(items, form8K);
