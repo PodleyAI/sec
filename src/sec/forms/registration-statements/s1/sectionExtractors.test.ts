@@ -14,8 +14,65 @@ import {
   extractUnderwriters,
   extractUseOfProceeds,
   extractMergerDeal,
+  requireNonEmptyGrammarArrays,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
+
+describe("requireNonEmptyGrammarArrays (GBNF [] shortcut guard)", () => {
+  // Mirrors ManagementOutputSchema (top-level people[]; nested titles[] of strings)
+  // and RelatedPartyOutputSchema (nested transactions[] of objects).
+  const managementLike = {
+    type: "object",
+    properties: {
+      people: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            full_name: { type: "string" },
+            titles: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      nonce_seen: { type: "string" },
+    },
+  };
+  const relatedPartyLike = {
+    type: "object",
+    properties: {
+      parties: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            transactions: { type: "array", items: { type: "object", properties: {} } },
+          },
+        },
+      },
+    },
+  };
+
+  it("forces minItems:1 on top-level arrays and nested string-lists (titles)", () => {
+    const out = requireNonEmptyGrammarArrays(managementLike) as any;
+    expect(out.properties.people.minItems).toBe(1);
+    expect(out.properties.people.items.properties.titles.minItems).toBe(1);
+    // scalars untouched
+    expect(out.properties.nonce_seen.minItems).toBeUndefined();
+  });
+
+  it("does NOT force nested object-lists (transactions may legitimately be empty)", () => {
+    const out = requireNonEmptyGrammarArrays(relatedPartyLike) as any;
+    expect(out.properties.parties.minItems).toBe(1);
+    expect(out.properties.parties.items.properties.transactions.minItems).toBeUndefined();
+  });
+
+  it("does not mutate the input schema", () => {
+    const input = JSON.parse(JSON.stringify(managementLike));
+    requireNonEmptyGrammarArrays(input);
+    expect(input).toEqual(managementLike);
+  });
+});
 
 let cleanup: (() => void) | undefined;
 afterEach(() => {

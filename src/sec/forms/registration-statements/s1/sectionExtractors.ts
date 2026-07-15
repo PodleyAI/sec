@@ -298,22 +298,46 @@ function makeExecuteContext(): IExecuteContext {
  */
 /**
  * Grammar-constrained providers (node-llama-cpp `LOCAL_LLAMACPP`) build a GBNF
- * grammar from the JSON schema and sample against it. When a top-level array is
- * allowed to be empty, greedy grammar sampling takes the `[]` shortcut and the
- * model returns nothing — even though the same model, unconstrained, extracts
- * every row correctly. Requiring `minItems: 1` on the top-level array closes
- * that shortcut. Scoped to the grammar provider only: the cloud (Anthropic) and
- * ONNX paths are unaffected, so production extraction semantics don't change
- * (a genuinely empty section there still yields `[]`).
+ * grammar from the JSON schema and sample against it. When an array is allowed
+ * to be empty, greedy grammar sampling takes the `[]` shortcut and the model
+ * returns nothing — even though the same model, unconstrained, fills it in.
+ *
+ * This closes the shortcut in two places:
+ *  - every **top-level** array (e.g. `people`, `owners`) — an empty one means
+ *    the section extracted nothing; and
+ *  - a nested **array-of-strings** inside a top-level array's row objects (e.g.
+ *    `people[].titles`) — where the model was seen to emit every person with a
+ *    full bio but `titles: []`. The only such nested field across the extractor
+ *    schemas is `titles`; nested arrays-of-objects (e.g. related-party
+ *    `parties[].transactions`) are left alone because a row legitimately has
+ *    none, so forcing one would induce a hallucinated entry.
+ *
+ * Scoped to the grammar provider only: the cloud (Anthropic) and ONNX paths are
+ * unaffected, so production extraction semantics don't change (a genuinely empty
+ * section/field there still yields `[]`).
  */
-function requireNonEmptyTopLevelArrays(schema: object): object {
-  const cloned = JSON.parse(JSON.stringify(schema)) as {
-    properties?: Record<string, { type?: string; minItems?: number }>;
-  };
+interface JsonSchemaNode {
+  type?: string;
+  minItems?: number;
+  items?: JsonSchemaNode;
+  properties?: Record<string, JsonSchemaNode>;
+}
+
+export function requireNonEmptyGrammarArrays(schema: object): object {
+  const cloned = JSON.parse(JSON.stringify(schema)) as JsonSchemaNode;
   const props = cloned.properties;
   if (props) {
-    for (const key of Object.keys(props)) {
-      if (props[key]?.type === "array") props[key].minItems = 1;
+    for (const prop of Object.values(props)) {
+      if (prop?.type !== "array") continue;
+      prop.minItems = 1;
+      // Recurse one level into the row object: close the shortcut on nested
+      // string-list fields (titles), but not nested object-lists (transactions).
+      const rowProps = prop.items?.properties;
+      if (rowProps) {
+        for (const nested of Object.values(rowProps)) {
+          if (nested?.type === "array" && nested.items?.type === "string") nested.minItems = 1;
+        }
+      }
     }
   }
   return cloned;
@@ -328,7 +352,7 @@ async function runStructured(
   const input = {
     model,
     prompt,
-    outputSchema: grammarConstrained ? requireNonEmptyTopLevelArrays(outputSchema) : outputSchema,
+    outputSchema: grammarConstrained ? requireNonEmptyGrammarArrays(outputSchema) : outputSchema,
     maxTokens: MAX_TOKENS,
     maxRetries: 1,
   };
