@@ -1,3 +1,5 @@
+import { isJsonOutput } from "../isJsonOutput";
+
 export interface ProgressOptions {
   readonly total: number;
   readonly label: string;
@@ -28,7 +30,15 @@ const STATUS_PREFIXES: Record<StatusType, string> = {
 
 const BAR_WIDTH = 20;
 
+/**
+ * Formats a status line for the CLI. Under the global `--json` flag it returns a
+ * single machine-parseable object (`{"status","message"}`) so integrations can
+ * parse success/error output instead of scraping pretty prefixes.
+ */
 export function statusMessage(type: StatusType, msg: string): string {
+  if (isJsonOutput()) {
+    return JSON.stringify({ status: type, message: msg });
+  }
   return `${STATUS_PREFIXES[type]} ${msg}`;
 }
 

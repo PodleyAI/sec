@@ -51,6 +51,25 @@ describe("runCommand", () => {
     }
   });
 
+  it("writes a JSON error object to stderr when --json is set", async () => {
+    const { globalServiceRegistry } = await import("workglow");
+    const { SEC_JSON_OUTPUT } = await import("../config/tokens");
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
+    const action = mock(() => Promise.reject(new Error("kaboom")));
+    const stderrWrite = mock(() => true);
+    const origWrite = process.stderr.write;
+    process.stderr.write = stderrWrite as typeof process.stderr.write;
+    try {
+      const code = await runCommand(action);
+      expect(code).toBe(1);
+      const output = (stderrWrite.mock.calls[0][0] as string).trim();
+      expect(JSON.parse(output)).toEqual({ status: "error", message: "kaboom" });
+    } finally {
+      process.stderr.write = origWrite;
+      globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
+    }
+  });
+
   it("prints dry-run banner when SEC_DRY_RUN is set", async () => {
     const { globalServiceRegistry } = await import("workglow");
     const { SEC_DRY_RUN } = await import("../config/tokens");

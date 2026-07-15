@@ -7,7 +7,7 @@ import { globalServiceRegistry, Sqlite } from "workglow";
 import { DefaultDI } from "../../config/DefaultDI";
 import { EnvToDI } from "../../config/EnvToDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { SEC_DRY_RUN } from "../../config/tokens";
+import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../../config/tokens";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 
@@ -64,8 +64,10 @@ export function addInitCommand(parent: Command): void {
     .command("init")
     .description("Interactive first-run setup wizard")
     .action(async () => {
-      const dryRun = parseGlobalOptions(parent).dryRun;
+      const globalOpts = parseGlobalOptions(parent);
+      const dryRun = globalOpts.dryRun;
       globalServiceRegistry.registerInstance(SEC_DRY_RUN, dryRun);
+      globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
       await runCommand(async () => {
         const envPath = resolve(process.cwd(), ".env.local");

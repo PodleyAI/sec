@@ -27,7 +27,7 @@ import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
 import { registerSecProviders } from "../config/registerProviders";
-import { SEC_DRY_RUN } from "../config/tokens";
+import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 
 export const AddCommands = (program: Command): void => {
@@ -48,6 +48,7 @@ export const AddCommands = (program: Command): void => {
 
     const globalOpts = parseGlobalOptions(program);
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
     EnvToDI();
     DefaultDI();
