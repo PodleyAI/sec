@@ -3,49 +3,55 @@
 import * as common from './common';
 
 // SUBMISSION_TYPE is Enumerated values and descriptions: 1-A: Offering Statement, 1-A/A: Pre-qualification amendment for offering statement, DOS: Confidential draft offering statement, DOS/A: Confidential draft pre-qualification amendment for offering statement, 1-A POS: Post-qualification amendment to offering statement
-export enum SUBMISSION_TYPE {
-  '1-A' = '1-A',
-  '1-A/A' = '1-A/A',
-  DOS = 'DOS',
-  'DOS/A' = 'DOS/A',
-  '1-A POS' = '1-A POS',
-}
+export const SUBMISSION_TYPE = {
+  '1-A': '1-A',
+  '1-A/A': '1-A/A',
+  DOS: 'DOS',
+  'DOS/A': 'DOS/A',
+  '1-A POS': '1-A POS',
+} as const;
+export type SUBMISSION_TYPE = (typeof SUBMISSION_TYPE)[keyof typeof SUBMISSION_TYPE];
 
 // DISCLOSE_TYPE ...
-export enum DISCLOSE_TYPE {
-  'Pro-rate basis' = 'Pro-rate basis',
-  'First-come, first served basis' = 'First-come, first served basis',
-  'Other' = 'Other',
-}
+export const DISCLOSE_TYPE = {
+  'Pro-rate basis': 'Pro-rate basis',
+  'First-come, first served basis': 'First-come, first served basis',
+  'Other': 'Other',
+} as const;
+export type DISCLOSE_TYPE = (typeof DISCLOSE_TYPE)[keyof typeof DISCLOSE_TYPE];
 
 // TIER_TYPE ...
-export enum TIER_TYPE {
-  'Tier1' = 'Tier1',
-  'Tier2' = 'Tier2',
-}
+export const TIER_TYPE = {
+  'Tier1': 'Tier1',
+  'Tier2': 'Tier2',
+} as const;
+export type TIER_TYPE = (typeof TIER_TYPE)[keyof typeof TIER_TYPE];
 
 // SECURITIES_OFFERED_TYPE ...
-export enum SECURITIES_OFFERED_TYPE {
-  'Equity (common or preferred stock)' = 'Equity (common or preferred stock)',
-  'Debt' = 'Debt',
-  'Option, warrant or other right to acquire another security' = 'Option, warrant or other right to acquire another security',
-  'Security to be acquired upon exercise of option, warrant or other right to acquire security' = 'Security to be acquired upon exercise of option, warrant or other right to acquire security',
-  'Tenant-in-common securities' = 'Tenant-in-common securities',
-  'Other(describe)' = 'Other(describe)',
-}
+export const SECURITIES_OFFERED_TYPE = {
+  'Equity (common or preferred stock)': 'Equity (common or preferred stock)',
+  'Debt': 'Debt',
+  'Option, warrant or other right to acquire another security': 'Option, warrant or other right to acquire another security',
+  'Security to be acquired upon exercise of option, warrant or other right to acquire security': 'Security to be acquired upon exercise of option, warrant or other right to acquire security',
+  'Tenant-in-common securities': 'Tenant-in-common securities',
+  'Other(describe)': 'Other(describe)',
+} as const;
+export type SECURITIES_OFFERED_TYPE = (typeof SECURITIES_OFFERED_TYPE)[keyof typeof SECURITIES_OFFERED_TYPE];
 
 // INDUSTRY_GROUP_TYPE ...
-export enum INDUSTRY_GROUP_TYPE {
-  Banking = 'Banking',
-  Insurance = 'Insurance',
-  Other = 'Other',
-}
+export const INDUSTRY_GROUP_TYPE = {
+  Banking: 'Banking',
+  Insurance: 'Insurance',
+  Other: 'Other',
+} as const;
+export type INDUSTRY_GROUP_TYPE = (typeof INDUSTRY_GROUP_TYPE)[keyof typeof INDUSTRY_GROUP_TYPE];
 
 // STATEMENT_AUDIT_STATUS_TYPE ...
-export enum STATEMENT_AUDIT_STATUS_TYPE {
-  Unaudited = 'Unaudited',
-  Audited = 'Audited',
-}
+export const STATEMENT_AUDIT_STATUS_TYPE = {
+  Unaudited: 'Unaudited',
+  Audited: 'Audited',
+} as const;
+export type STATEMENT_AUDIT_STATUS_TYPE = (typeof STATEMENT_AUDIT_STATUS_TYPE)[keyof typeof STATEMENT_AUDIT_STATUS_TYPE];
 
 // TypeScriptComplexType (TypeScript) ISSUER_CREDENTIALS_TYPE is These elements are part of the ISSUER_CREDENTIALS_TYPE group
 export interface ISSUER_CREDENTIALS_TYPE {

@@ -84,10 +84,11 @@ export interface CA_PRINCIPAL_INFO {
 }
 
 // FIRM_INDIVIDUAL_TYPE ...
-export enum FIRM_INDIVIDUAL_TYPE {
-  firm = 'Firm',
-  individual = 'Individual',
-}
+export const FIRM_INDIVIDUAL_TYPE = {
+  firm: 'Firm',
+  individual: 'Individual',
+} as const;
+export type FIRM_INDIVIDUAL_TYPE = (typeof FIRM_INDIVIDUAL_TYPE)[keyof typeof FIRM_INDIVIDUAL_TYPE];
 
 // NAME_OPTION_TYPE ...
 export interface NAME_OPTION_TYPE {
@@ -96,11 +97,12 @@ export interface NAME_OPTION_TYPE {
 }
 
 // PERSON_ENTITY_OPTION_TYPE ...
-export enum PERSON_ENTITY_OPTION_TYPE {
-  applicant = 'The Applicant',
-  applicantAndCa = 'Applicant and one or more affiliate(s)',
-  controlAffiliate = 'One or more control affiliate(s)',
-}
+export const PERSON_ENTITY_OPTION_TYPE = {
+  applicant: 'The Applicant',
+  applicantAndCa: 'Applicant and one or more affiliate(s)',
+  controlAffiliate: 'One or more control affiliate(s)',
+} as const;
+export type PERSON_ENTITY_OPTION_TYPE = (typeof PERSON_ENTITY_OPTION_TYPE)[keyof typeof PERSON_ENTITY_OPTION_TYPE];
 
 // DRP_PART1_TYPE ...
 export interface DRP_PART1_TYPE {
@@ -134,11 +136,12 @@ export interface CHARGES_WHERE_BROUGHT_IN {
 }
 
 // EVENT_STATUS_TYPE ...
-export enum EVENT_STATUS_TYPE {
-  pending = 'Pending',
-  onAppeal = 'OnAppeal',
-  final = 'Final',
-}
+export const EVENT_STATUS_TYPE = {
+  pending: 'Pending',
+  onAppeal: 'OnAppeal',
+  final: 'Final',
+} as const;
+export type EVENT_STATUS_TYPE = (typeof EVENT_STATUS_TYPE)[keyof typeof EVENT_STATUS_TYPE];
 
 // EXPLANATION_INFO ...
 export interface EXPLANATION_INFO {
@@ -186,10 +189,11 @@ export interface SANCTIONS_ORDERED_TYPE_2 {
 }
 
 // FELONY_MISDEMEANOR_TYPE ...
-export enum FELONY_MISDEMEANOR_TYPE {
-  felony = 'Felony',
-  misdemeanor = 'Misdemeanor',
-}
+export const FELONY_MISDEMEANOR_TYPE = {
+  felony: 'Felony',
+  misdemeanor: 'Misdemeanor',
+} as const;
+export type FELONY_MISDEMEANOR_TYPE = (typeof FELONY_MISDEMEANOR_TYPE)[keyof typeof FELONY_MISDEMEANOR_TYPE];
 
 // EVENT_DISC_DETAIL_TYPE ...
 export interface EVENT_DISC_DETAIL_TYPE {
@@ -543,11 +547,12 @@ export interface EVENT_PROCEED_NUMBERS {
 }
 
 // LIEN_TYPE ...
-export enum LIEN_TYPE {
-  civil = 'Civil',
-  default = 'Default',
-  tax = 'Tax',
-}
+export const LIEN_TYPE = {
+  civil: 'Civil',
+  default: 'Default',
+  tax: 'Tax',
+} as const;
+export type LIEN_TYPE = (typeof LIEN_TYPE)[keyof typeof LIEN_TYPE];
 
 // JUDGEMENT_DRP_TYPE ...
 export interface JUDGEMENT_DRP_TYPE {
