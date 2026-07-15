@@ -32,8 +32,8 @@ const BAR_WIDTH = 20;
 
 /**
  * Formats a status line for the CLI. Under the global `--json` flag it returns a
- * single machine-parseable object (`{"status","message"}`) so integrations can
- * parse success/error output instead of scraping pretty prefixes.
+ * single machine-parseable object (`{"status":"error","message":"..."}`) so
+ * integrations can parse success/error output instead of scraping pretty prefixes.
  */
 export function statusMessage(type: StatusType, msg: string): string {
   if (isJsonOutput()) {
