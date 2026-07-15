@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { XbrlFactRepo } from "../../storage/xbrl/XbrlFactRepo";
 import type { XbrlFactRow } from "../../storage/xbrl/XbrlFactSchema";
-import { formatXbrlPeriod, queryXbrlFacts } from "./XbrlQuery";
+import { formatXbrlDimensions, formatXbrlPeriod, queryXbrlFacts } from "./XbrlQuery";
 
 const ACCESSION = "0001213900-26-039320";
 
@@ -74,14 +74,52 @@ describe("queryXbrlFacts", () => {
     expect(numeric.rows[0].value_numeric).toBe(250000000);
   });
 
-  it("queries by CIK across filings", async () => {
+  it("queries by CIK across filings, ordered by (accession, fact_index)", async () => {
     const repo = new XbrlFactRepo();
-    await repo.replaceForAccession(ACCESSION, [makeFact()]);
-    await repo.replaceForAccession("0001213900-26-047229", [
-      makeFact({ accession_number: "0001213900-26-047229" }),
+    const later = "0001213900-26-047229";
+    await repo.replaceForAccession(later, [
+      makeFact({ accession_number: later, fact_index: 1 }),
+      makeFact({ accession_number: later, fact_index: 0 }),
     ]);
-    const result = await queryXbrlFacts({ cik: 2114227 });
-    expect(result.total).toBe(2);
+    await repo.replaceForAccession(ACCESSION, [makeFact({ fact_index: 0 })]);
+    const result = await queryXbrlFacts({ cik: 2114227, limit: 100 });
+    expect(result.total).toBe(3);
+    expect(result.rows.map((r) => [r.accession_number, r.fact_index])).toEqual([
+      [ACCESSION, 0],
+      [later, 0],
+      [later, 1],
+    ]);
+  });
+
+  it("orders the concept-filtered CIK path by (accession, fact_index) too", async () => {
+    const repo = new XbrlFactRepo();
+    const later = "0001213900-26-047229";
+    await repo.replaceForAccession(later, [
+      makeFact({ accession_number: later, fact_index: 0, concept: "spac:AssetsHeldInTrust" }),
+    ]);
+    await repo.replaceForAccession(ACCESSION, [
+      makeFact({ fact_index: 0, concept: "spac:AssetsHeldInTrust" }),
+    ]);
+    const result = await queryXbrlFacts({ cik: 2114227, concept: "heldintrust", limit: 100 });
+    expect(result.rows.map((r) => r.accession_number)).toEqual([ACCESSION, later]);
+  });
+});
+
+describe("formatXbrlDimensions", () => {
+  it("renders Axis=Member pairs, stripping prefixes and Axis/Member/Domain suffixes", () => {
+    const row = makeFact({
+      dimensions_json: JSON.stringify([
+        { dimension: "us-gaap:StatementClassOfStockAxis", member: "spac:CommonClassAMember" },
+        { dimension: "srt:RangeAxis", member: "srt:MaximumMember" },
+      ]),
+    });
+    expect(formatXbrlDimensions(row)).toBe("StatementClassOfStock=CommonClassA; Range=Maximum");
+  });
+
+  it("returns '' for an undimensioned fact and for malformed JSON", () => {
+    expect(formatXbrlDimensions(makeFact({ dimensions_json: null }))).toBe("");
+    expect(formatXbrlDimensions(makeFact({ dimensions_json: "not json" }))).toBe("");
+    expect(formatXbrlDimensions(makeFact({ dimensions_json: "{}" }))).toBe("");
   });
 });
 

@@ -274,6 +274,14 @@ runs this deterministic pass before AI extraction:
 `parseToBlocks` skips `display:none` subtrees so the hidden `ix:header` metadata
 block does not leak into the prose handed to the AI section extractors.
 
+Non-numeric date facts are normalized to ISO-8601 via the ixt date transforms in
+`ixtTransforms.ts` (e.g. `dei:DocumentPeriodEndDate` tagged
+`ixt:date-monthname-day-year-en` → `2026-03-31`). Both the TR1 concatenated
+(`datemonthdayyearen`, `dateslashus`/`dateslasheu`) and TR3/TR4 hyphenated
+(`date-monthname-day-year-en`, `date-month-day-year`, …) spellings are handled;
+a registered date transform that cannot parse its text keeps the trimmed raw
+text rather than blanking the fact.
+
 **424 prospectuses** (`424A`, `424B1`–`424B5`, `424B7`; extractor id `424`) run
 `processForm424`: every variant gets the deterministic XBRL pass (pay-as-you-go
 424B2s carry `ffd:NrrtvMaxAggtOfferingPric` and `ffd:RegnFileNb`, which ties the
@@ -294,8 +302,12 @@ sec fetch form <cik> 424B4        # fetch + process a priced prospectus
 ```
 
 ```bash
-# Stored XBRL facts for a filing
+# Stored XBRL facts for a filing (dimensional facts show their Axis=Member qualifiers)
 sec query xbrl <accession> [--concept TrustAccount] [--numeric-only] [--format json]
+
+# A concept's series across ALL of an issuer's filings (e.g. trust balance over time);
+# the result carries an Accession column and is ordered by (accession, fact_index)
+sec query xbrl --cik <cik> --concept AssetsHeldInTrust
 ```
 
 The committed Churchill Capital Corp XII fixture (`s1_2114227_...htm`, a 2026 SPAC
