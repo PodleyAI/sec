@@ -21,8 +21,11 @@ import { isDryRun } from "./isDryRun";
  * reads can be simplified.
  */
 describe("--dry-run option routing", () => {
-  function build(): { program: Command; seen: { sub?: boolean; global?: boolean } } {
-    const seen: { sub?: boolean; global?: boolean } = {};
+  function build(): {
+    program: Command;
+    seen: { sub?: boolean; global?: boolean; jsonGlobal?: boolean };
+  } {
+    const seen: { sub?: boolean; global?: boolean; jsonGlobal?: boolean } = {};
     const program = new Command("sec").exitOverride();
     applyGlobalOptions(program);
     const group = program.command("group");
@@ -32,6 +35,7 @@ describe("--dry-run option routing", () => {
       .action((_arg: string, opts: { dryRun?: boolean }) => {
         seen.sub = opts.dryRun === true;
         seen.global = parseGlobalOptions(program).dryRun;
+        seen.jsonGlobal = parseGlobalOptions(program).json;
       });
     return { program, seen };
   }
@@ -43,11 +47,18 @@ describe("--dry-run option routing", () => {
     expect(seen.sub).toBe(false);
   });
 
+  it("routes a post-subcommand --json to the program-level option", async () => {
+    const { program, seen } = build();
+    await program.parseAsync(["node", "sec", "group", "do", "x", "--json"]);
+    expect(seen.jsonGlobal).toBe(true);
+  });
+
   it("neither option is set without the flag", async () => {
     const { program, seen } = build();
     await program.parseAsync(["node", "sec", "group", "do", "x"]);
     expect(seen.global).toBe(false);
     expect(seen.sub).toBe(false);
+    expect(seen.jsonGlobal).toBe(false);
   });
 
   it("isDryRun reflects the registered SEC_DRY_RUN token", () => {
