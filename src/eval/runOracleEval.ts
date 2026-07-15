@@ -9,8 +9,12 @@ import { getGlobalModelRepository } from "workglow";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
+import { getGoldenLabels } from "./goldenS1Labels";
 import { loadRealS1Sections, type RealSection } from "./realSections";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
+
+/** Sentinel `reference` value selecting committed human-verified golden labels. */
+export const GOLDEN_REFERENCE = "golden";
 
 export interface OracleRunResult {
   readonly filing: string;
@@ -160,11 +164,26 @@ function summarize(
  */
 export async function runOracleEval(opts: RunOracleOptions): Promise<OracleReport> {
   const extractorNames = opts.extractors?.length ? opts.extractors : ["management"];
-  await registerModelIds([opts.reference, ...opts.candidates]);
+  const useGolden = opts.reference === GOLDEN_REFERENCE;
+  // Golden mode runs no reference model — the truth is committed.
+  await registerModelIds(useGolden ? [...opts.candidates] : [opts.reference, ...opts.candidates]);
   const repo = getGlobalModelRepository();
-  const { sections, skipped } = loadRealS1Sections(extractorNames, opts.dir);
+  const loaded = loadRealS1Sections(extractorNames, opts.dir);
+  const skipped = [...loaded.skipped];
+  // Under golden truth, score only sections we have hand-verified labels for.
+  let sections = loaded.sections;
+  if (useGolden) {
+    const labeled: RealSection[] = [];
+    for (const s of sections) {
+      if (getGoldenLabels(s.filing, s.extractor)) labeled.push(s);
+      else skipped.push(`${s.filing} / ${s.extractor}: no golden label`);
+    }
+    sections = labeled;
+  }
 
-  const refModel = (await repo.findByName(opts.reference)) as ModelConfig | undefined;
+  const refModel = useGolden
+    ? undefined
+    : ((await repo.findByName(opts.reference)) as ModelConfig | undefined);
   const results: OracleRunResult[] = [];
   const perModel = new Map<string, OracleRunResult[]>();
   const push = (r: OracleRunResult): void => {
@@ -173,14 +192,17 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
   };
   const progress = opts.onProgress ?? ((): void => {});
   const kchars = (n: number): string => `${(n / 1000).toFixed(0)}k`;
-  // One step per model run: the reference (when it resolved) plus every candidate.
-  const total = sections.length * ((refModel ? 1 : 0) + opts.candidates.length);
+  // One step per model run: the reference (a model run, or the golden lookup)
+  // plus every candidate.
+  const hasReference = refModel !== undefined || useGolden;
+  const total = sections.length * ((hasReference ? 1 : 0) + opts.candidates.length);
   let done = 0;
 
+  const refLabel = useGolden ? "golden truth" : "1 reference";
   progress(
     done,
     total,
-    `oracle: ${sections.length} section(s) × (1 reference + ${opts.candidates.length} candidate(s))`
+    `oracle: ${sections.length} section(s) × (${refLabel} + ${opts.candidates.length} candidate(s))`
   );
   for (let si = 0; si < sections.length; si++) {
     if (opts.signal?.aborted) break;
@@ -192,7 +214,25 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
     // rather than dropping them from the comparison.
     let refRows: unknown[] = [];
     let refOk = false;
-    if (refModel) {
+    if (useGolden) {
+      // Committed human-verified truth — no model call, no cost.
+      const golden = getGoldenLabels(section.filing, section.extractor) ?? [];
+      refRows = golden as unknown[];
+      refOk = true;
+      push({
+        filing: section.filing,
+        extractor: section.extractor,
+        model: GOLDEN_REFERENCE,
+        ok: true,
+        error: undefined,
+        latencyMs: 0,
+        rows: golden.length,
+        cost: { inputTokens: 0, outputTokens: 0, usd: 0 },
+        score: null,
+      });
+      done += 1;
+      progress(done, total, `${tag} golden: ${golden.length} rows`);
+    } else if (refModel) {
       let outcome = await runSection(opts.reference, refModel, section);
       for (let attempt = 1; !outcome.result.ok && attempt < REFERENCE_MAX_ATTEMPTS; attempt++) {
         outcome = await runSection(opts.reference, refModel, section);
@@ -247,9 +287,13 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
 
   const summaries: OracleModelSummary[] = [];
   for (const [modelId, rows] of perModel) {
-    const model = (await repo.findByName(modelId)) as { provider?: string } | undefined;
     const role = modelId === opts.reference ? "reference" : "candidate";
-    summaries.push(summarize(modelId, model?.provider ?? "unknown", role, rows));
+    const provider =
+      modelId === GOLDEN_REFERENCE
+        ? "golden"
+        : ((await repo.findByName(modelId)) as { provider?: string } | undefined)?.provider ??
+          "unknown";
+    summaries.push(summarize(modelId, provider, role, rows));
   }
   // Reference first, then candidates ranked by agreement desc.
   summaries.sort((a, b) => {

@@ -267,7 +267,11 @@ export function addEvalCommands(program: Command): void {
     .description(
       "Compare candidate models against a reference on REAL committed S-1 sections"
     )
-    .option("--reference <id>", "reference (oracle) model id", "claude-sonnet-5")
+    .option(
+      "--reference <id>",
+      "reference (oracle) model id, or 'golden' for committed human-verified labels",
+      "claude-sonnet-5"
+    )
     .option(
       "--models <csv>",
       `model ids to score against the reference (default: ${SecHftModelDefault})`
