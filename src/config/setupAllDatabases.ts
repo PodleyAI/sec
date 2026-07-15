@@ -90,6 +90,7 @@ import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Pers
 import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { migratePersonObservationTitles } from "../storage/observation/PersonObservationTitlesMigration";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
@@ -160,6 +161,10 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
+  // Migrate legacy `title TEXT` → `titles TEXT` before setupDatabase() creates
+  // the current shape; CREATE TABLE IF NOT EXISTS is a no-op on an existing
+  // table, so an upgraded DB never gains the renamed column on its own.
+  await migratePersonObservationTitles();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
