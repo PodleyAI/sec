@@ -128,6 +128,17 @@ export async function processForm8K({
         primary_document: null,
         events: spacEvents,
       });
+      // De-SPAC linkage: item 2.01 completes the combination — link the shell to
+      // its post-merger identity from the CIK's own post-close entity metadata.
+      // Runs after the milestone write so the row's status is already `completed`.
+      if (spacEvents.some((e) => e.event_type === "completed")) {
+        await new SpacReportWriter().recordDeSpacLinkage({
+          cik,
+          accession_number,
+          filing_date,
+          form,
+        });
+      }
     }
   }
 

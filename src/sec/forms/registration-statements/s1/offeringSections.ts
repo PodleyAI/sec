@@ -13,6 +13,7 @@ import { UnderwriterFamilyMembershipRepo } from "../../../../storage/canonical/U
 import { UnderwriterLinkRepo } from "../../../../storage/canonical/UnderwriterLinkRepo";
 import { OfferingTermsRepo } from "../../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../../storage/offering/SpacUnitTermsRepo";
+import { SpacPromoteTermsRepo } from "../../../../storage/offering/SpacPromoteTermsRepo";
 import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo";
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
@@ -20,9 +21,11 @@ import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import {
   extractOfferingTerms,
+  extractSponsorPromote,
   extractUnderwriters,
   extractUseOfProceeds,
 } from "./sectionExtractors";
+import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
@@ -31,6 +34,7 @@ import { boundSourceSpan, verifyRowSpan } from "./verifySourceSpan";
 /** Section names used by the offering-related dead letters. */
 export const OFFERING_SECTION_NAMES = [
   "offering-terms",
+  "sponsor-promote",
   "underwriters",
   "use-of-proceeds",
 ] as const;
@@ -93,6 +97,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
 
   const offeringTermsRepo = new OfferingTermsRepo();
   const spacUnitTermsRepo = new SpacUnitTermsRepo();
+  const spacPromoteTermsRepo = new SpacPromoteTermsRepo();
   const issuerTickerRepo = new IssuerTickerRepo();
   const useOfProceedsRepo = new UseOfProceedsRepo();
   const underwriterFamilyResolver = new UnderwriterFamilyResolver({
@@ -191,6 +196,55 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           created_at: now,
         });
       }
+      return 1;
+    },
+  });
+
+  // --- Sponsor promote economics (SPAC only) ---
+  // Founder-share promote, private-placement warrant coverage, and trust sizing.
+  // These live in "The Offering" and "The Sponsor" prose; read both (falling back
+  // to the concatenated offering/underwriting text when a dedicated sponsor
+  // heading is absent). Skipped for non-SPAC filings.
+  const promoteText = [
+    byName.get(S1_SECTIONS.THE_OFFERING),
+    byName.get(S1_SECTIONS.THE_SPONSOR),
+    byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
+  ]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+  await runSection<SponsorPromoteRow>({
+    sectionName: "sponsor-promote",
+    skip: !isSpac,
+    text: promoteText,
+    notFoundDetail: "no The Offering / The Sponsor / Prospectus Summary section text",
+    emptyDetail: "no sponsor promote terms returned",
+    lowConfidenceDetail: "below confidence floor",
+    // Prompt-injection backstop: refuse to persist a promote row whose
+    // source_span is not a verbatim substring of the section text.
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident sponsor-promote rows had source_span not present in section text",
+    extract: async (text) => {
+      const promote = await extractSponsorPromote(text, model);
+      return promote === null ? [] : [promote];
+    },
+    persist: async (rows) => {
+      const promote = rows[0];
+      await spacPromoteTermsRepo.save({
+        extractor_id,
+        accession_number,
+        cik,
+        founder_shares: toIntCount(promote.founder_shares),
+        founder_percent: promote.founder_percent,
+        private_placement_warrants: toIntCount(promote.private_placement_warrants),
+        private_placement_warrant_price: promote.private_placement_warrant_price,
+        public_warrant_coverage: promote.public_warrant_coverage,
+        trust_per_public_share: promote.trust_per_public_share,
+        trust_total: promote.trust_total,
+        confidence: promote.confidence,
+        source_span: boundSourceSpan(promote.source_span),
+        created_at: new Date().toISOString(),
+      });
       return 1;
     },
   });

@@ -339,6 +339,7 @@ function secModelIds(): string[] {
   const ids = new Set<string>([SecModelDefault, SecHftModelDefault]);
   for (const key of [
     "SEC_S1_MODEL",
+    "SEC_S1_CLASSIFIER_MODEL",
     "SEC_MERGER_PROXY_MODEL",
     "SEC_REDEMPTION_MODEL",
     "SEC_LOI_MODEL",

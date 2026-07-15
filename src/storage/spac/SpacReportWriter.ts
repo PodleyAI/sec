@@ -15,6 +15,7 @@ import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
+import { EntityRepo } from "../entity/EntityRepo";
 import { AsyncMutex } from "../../util/AsyncMutex";
 
 /**
@@ -163,9 +164,11 @@ export class SpacReportWriter {
   private readonly repo: SpacRepo;
   private readonly mergerExtractions = new SpacMergerExtractionRepo();
   private readonly redemptionExtractions = new SpacRedemptionExtractionRepo();
+  private readonly entityRepo: EntityRepo;
 
-  constructor(repo: SpacRepo = new SpacRepo()) {
+  constructor(repo: SpacRepo = new SpacRepo(), entityRepo: EntityRepo = new EntityRepo()) {
     this.repo = repo;
+    this.entityRepo = entityRepo;
   }
 
   async recordRegistration(args: RecordRegistrationArgs): Promise<void> {
@@ -308,6 +311,60 @@ export class SpacReportWriter {
     await withCikLock(args.cik, async () => {
       await this.recomputeAndSaveDeals(args.cik);
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
+   * De-SPAC linkage: once a SPAC has completed a business combination, link the
+   * (now operating) shell to its post-merger identity from the CIK's own
+   * post-close entity metadata. In the common case the shell survives legally
+   * and keeps its CIK, renaming to the combined company — so `current_cik` stays
+   * null (it differs only for the deferred newco/S-4 structures) and the
+   * surviving name / SIC / tickers come from the entity + entity_tickers rows.
+   *
+   * Idempotent and order-safe: only enriches a row whose derived status is
+   * already `completed` (the 2.01 milestone landed first), and only sets a field
+   * that diverges from its SPAC-era value, so a replay with stale entity data
+   * cannot regress a populated linkage. No-ops when the entity metadata has not
+   * yet caught up to the rename (post_merger_* stay null until it does).
+   */
+  async recordDeSpacLinkage(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      const existing = await this.repo.getSpac(args.cik);
+      if (!existing || existing.status !== "completed") return;
+      const [entity, tickers] = await Promise.all([
+        this.entityRepo.getEntity(args.cik),
+        this.entityRepo.getEntityTickers(args.cik),
+      ]);
+      const patch: {
+        surviving_name?: string | null;
+        post_merger_sic?: number | null;
+        post_merger_tickers?: string | null;
+      } = {};
+      // Renamed surviving entity: the current entity name once it diverges from
+      // the blank-check shell name. Overrides the deal-target-derived fallback.
+      if (entity?.name != null && entity.name !== existing.spac_name) {
+        patch.surviving_name = entity.name;
+      }
+      // Operating-company SIC once it diverges from the SPAC-era ~6770.
+      if (entity?.sic != null && entity.sic !== existing.spac_sic) {
+        patch.post_merger_sic = entity.sic;
+      }
+      // New listing symbol(s) — JSON string[] mirroring the spac_tickers shape.
+      const symbols = tickers.map((t) => t.ticker).filter((s): s is string => !!s);
+      if (symbols.length > 0) patch.post_merger_tickers = JSON.stringify(symbols);
+      if (Object.keys(patch).length === 0) return;
+      await this.rebuild(
+        args.cik,
+        args.filing_date,
+        `${args.form}:${args.accession_number}`,
+        patch
+      );
     });
   }
 

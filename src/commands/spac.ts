@@ -9,6 +9,7 @@ import { globalServiceRegistry } from "workglow";
 import { withCli } from "@workglow/cli";
 import { isDryRun } from "../cli/isDryRun";
 import { SpacRepo } from "../storage/spac/SpacRepo";
+import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import { BackfillExtractorTask } from "../task/forms/BackfillExtractorTask";
@@ -115,6 +116,46 @@ export function registerSpacCommands(program: Command): void {
           `${h.valid_from} [${h.status ?? "-"}] via ${h.change_source}${h.valid_to ? "" : " (current)"}`
         );
       }
+    });
+
+  // De-SPAC linkage refresh: the item-2.01 8-K that closes a combination is
+  // usually processed BEFORE the surviving entity's renamed submissions land, so
+  // post_merger_* start null. This re-runs the linkage over every completed SPAC
+  // from now-current entity metadata (idempotent; fills the still-null slots).
+  spacCmd
+    .command("backfill-despac")
+    .description(
+      "Refresh post-merger identity (surviving name / SIC / tickers) for completed SPACs " +
+        "from current entity metadata"
+    )
+    .option("--dry-run", "Report the completed-SPAC count without writing", false)
+    .action(async (opts: { dryRun?: boolean }) => {
+      const repo = new SpacRepo();
+      const completed = (await repo.getAllSpacs()).filter((s) => s.status === "completed");
+      const dry = opts.dryRun === true || isDryRun();
+      let updated = 0;
+      if (!dry) {
+        const writer = new SpacReportWriter();
+        for (const s of completed) {
+          const before = JSON.stringify([s.surviving_name, s.post_merger_sic, s.post_merger_tickers]);
+          await writer.recordDeSpacLinkage({
+            cik: s.cik,
+            accession_number: "despac-refresh",
+            // Anchor at the row's own as_of so the refresh is not treated as a
+            // stale write and can apply the entity-sourced values.
+            filing_date: s.as_of ?? s.completed_date ?? "",
+            form: "8-K",
+          });
+          const after = await repo.getSpac(s.cik);
+          const now = after
+            ? JSON.stringify([after.surviving_name, after.post_merger_sic, after.post_merger_tickers])
+            : before;
+          if (now !== before) updated++;
+        }
+      }
+      console.log(
+        `selected ${completed.length} completed SPAC(s); ${dry ? "dry-run" : `updated ${updated}`}`
+      );
     });
 
   // Historical aliases for `sec extractor backfill <id>` — same generalized

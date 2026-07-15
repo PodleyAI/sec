@@ -30,9 +30,16 @@ import {
   extractBeneficialOwnership,
   extractManagement,
   extractRelatedParty,
+  extractSpacClassification,
   extractSpacProfile,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
+import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
+import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
+import {
+  getSpacClassifierConfidenceFloor,
+  getSpacClassifierModel,
+} from "./s1/spacClassifierModel";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
@@ -163,7 +170,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
 
   // --- Deterministic SPAC classification from the SGML-header SIC ---
   const headerSic = formS1.header?.sic ?? null;
-  const isSpac = headerSic === 6770;
+  // Mutable: the AI content classifier below can upgrade a SIC-miscoded SPAC
+  // from false → true after segmentation, before the registration/profile/
+  // offering blocks read it.
+  let isSpac = headerSic === 6770;
   await new S1ClassificationRepo().save({
     extractor_id: EXTRACTOR_ID,
     accession_number,
@@ -216,6 +226,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.RELATED_PARTY,
       ...OFFERING_SECTION_NAMES,
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
+      // A SIC-miscoded, blank-check-looking non-SPAC filing gets a
+      // spac-classification dead-letter so a retry runs the AI classifier once a
+      // model is available. Gated on the cheap heuristic over the raw HTML so an
+      // ordinary S-1 does not flood the worklist.
+      ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
     ];
     for (const section of sectionNames) {
       await recordFail(section, "MODEL_RESOLUTION_ERROR", modelError);
@@ -248,6 +263,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.RELATED_PARTY,
       ...OFFERING_SECTION_NAMES,
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
+      ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
     ];
     for (const section of sectionNames) {
       await recordFail(section, "PARSE_ERROR", detail);
@@ -269,6 +285,85 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // but the original entity blocks only checked `=== undefined`. Section text
   // sourced directly from `byName` is never the empty string (the segmenter
   // emits non-empty section bodies), so the two checks coincide in practice.
+
+  // --- AI SPAC content classification (SIC-miscoded upgrade path) ---
+  // The deterministic classifier above only flags SIC == 6770. A SPAC filed
+  // under a miscoded/absent SIC would be missed, so — when the filing was NOT
+  // already classified as a SPAC and its summary prose is blank-check-like (the
+  // cheap heuristic keeps the AI call rare, reserved for plausibly miscoded
+  // filings) — run an AI content classifier behind the `classifier_source =
+  // "ai"` seam. A confident SPAC verdict upgrades the local flag AND overwrites
+  // the classification row, so the registration / profile / offering blocks
+  // below treat it as a known SPAC and its de-SPAC 8-K milestones can attach.
+  if (!isSpac) {
+    const classifyText = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
+    if (looksLikeBlankCheck(classifyText)) {
+      let classifierModel: ModelConfig | null = null;
+      let classifierError: string | null = null;
+      try {
+        classifierModel = args.model ?? (await getSpacClassifierModel());
+      } catch (err) {
+        classifierError = err instanceof Error ? err.message : String(err);
+      }
+      if (classifierModel === null) {
+        await recordFail("spac-classification", "MODEL_RESOLUTION_ERROR", classifierError);
+      } else {
+        const classifierModelResolved = classifierModel;
+        const classifierHolder = { upgraded: false };
+        const classifierRunSection = makeRunSection({
+          deadLetters,
+          extractor_id: EXTRACTOR_ID,
+          extractor_version,
+          accession_number,
+          confidenceFloor: getSpacClassifierConfidenceFloor(),
+        });
+        await classifierRunSection<SpacClassificationRow>({
+          sectionName: "spac-classification",
+          text: classifyText,
+          emptyDetail: "not classified as a SPAC",
+          lowConfidenceDetail: "SPAC classification below confidence floor",
+          verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+          unverifiedAllDetail:
+            "the confident SPAC classification had source_span not present in section text",
+          extract: async (text) => {
+            const c = await extractSpacClassification(text, classifierModelResolved);
+            return c === null ? [] : [c];
+          },
+          persist: async () => {
+            classifierHolder.upgraded = true;
+            return 1;
+          },
+        });
+        if (classifierHolder.upgraded) {
+          isSpac = true;
+          await new S1ClassificationRepo().save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            cik,
+            sic: headerSic,
+            sic_description: formS1.header?.sicDescription ?? null,
+            is_spac: true,
+            classifier_source: "ai",
+            created_at: new Date().toISOString(),
+          });
+        } else {
+          // "Not a miscoded SPAC" is the expected outcome — auto-resolve the
+          // MODEL_EMPTY entry so a confident negative doesn't linger on the
+          // version-gated retry worklist (mirrors the LOI detector). A genuine
+          // problem (LOW_CONFIDENCE_ALL / UNVERIFIED_SOURCE_SPAN / NONCE_MISMATCH)
+          // stays pending.
+          const entry = await deadLetters.get(
+            EXTRACTOR_ID,
+            accession_number,
+            "spac-classification"
+          );
+          if (entry?.reason_code === "MODEL_EMPTY") {
+            await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
+          }
+        }
+      }
+    }
+  }
 
   // --- SPAC profile (gated) → registration event + row ---
   // Runs before the base registration write so the AI-extracted focus /

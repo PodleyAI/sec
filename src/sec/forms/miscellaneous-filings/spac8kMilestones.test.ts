@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { EntityRepo } from "../../../storage/entity/EntityRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { Form_8_K } from "./Form_8_K";
@@ -93,6 +94,36 @@ describe("processForm8K SPAC milestone wiring", () => {
     const deals = await repo.getDeals(100);
     expect(deals.length).toBe(1);
     expect(deals[0].outcome).toBe("completed");
+  });
+
+  it("links post-merger identity from entity metadata on the item 2.01 close", async () => {
+    await seedSpac(150);
+    // Post-close submissions have renamed the surviving operating company.
+    await new EntityRepo().saveEntity({
+      cik: 150,
+      name: "Combined Operating Co, Inc.",
+      type: null,
+      sic: 3711,
+      ein: null,
+      description: null,
+      website: null,
+      investor_website: null,
+      category: null,
+      fiscal_year: null,
+      state_incorporation: null,
+      state_incorporation_desc: null,
+    });
+    await new EntityRepo().saveEntityTicker({ cik: 150, ticker: "COCO", exchange: "NASDAQ" });
+
+    await run8K(150, "150-close", "2.01", "2021-06-15");
+
+    const row = await repo.getSpac(150);
+    expect(row?.status).toBe("completed");
+    expect(row?.surviving_name).toBe("Combined Operating Co, Inc.");
+    expect(row?.current_name).toBe("Combined Operating Co, Inc.");
+    expect(row?.post_merger_sic).toBe(3711);
+    expect(JSON.parse(row!.post_merger_tickers!)).toEqual(["COCO"]);
+    expect(row?.spac_name).toBe("Test SPAC"); // shell name preserved
   });
 
   it("writes no SPAC events for a CIK with no spac row", async () => {

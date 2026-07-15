@@ -82,6 +82,7 @@ import {
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
+import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
@@ -161,6 +162,7 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
   // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.

@@ -90,6 +90,28 @@ once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
 
+### AI SPAC content classifier (SIC-miscoded SPACs)
+
+Deterministic SPAC classification keys off the SGML-header SIC (`6770` →
+`is_spac`, `classifier_source = "sgml-header"`). A SPAC filed under a miscoded or
+absent SIC would be missed, so `processFormS1` runs an **AI content classifier**
+behind the `S1Classification.classifier_source = "ai"` seam. It is gated twice to
+stay cheap: it only runs when the deterministic path did **not** already flag the
+filing, and only when a cheap keyword heuristic (`looksLikeBlankCheck`,
+`s1/spacContentHeuristic.ts` — ≥2 distinct blank-check signals) trips on the
+prospectus-summary prose. A confident `spac` verdict (`extractSpacClassification`
+distinguishes a true SPAC from a `shell` or `operating` company) flips the local
+`is_spac`, overwrites the classification row with `classifier_source = "ai"`, and
+mints the known-SPAC `spac` row so de-SPAC lifecycle extractors can attach. A
+confident "not a SPAC" is the expected outcome and auto-resolves its
+`MODEL_EMPTY` dead-letter (mirroring the LOI detector); when the model is
+unavailable, a blank-check-looking filing dead-letters `spac-classification`
+(`MODEL_RESOLUTION_ERROR`) so a retry runs it once a model exists. Configure via
+`SEC_S1_CLASSIFIER_MODEL` (default `SecModelDefault`) and
+`SEC_S1_CLASSIFIER_CONFIDENCE_FLOOR` (falls back to `SEC_S1_CONFIDENCE_FLOOR`).
+The `spac-classification` entry in `EVAL_EXTRACTORS` (a true-SPAC positive plus
+shell / operating-company negatives) ranks it through `sec eval extract`.
+
 ### Model comparison harness
 
 `sec eval extract` compares extraction models on **correctness, speed, and cost**
@@ -340,6 +362,19 @@ sec issuer tickers <cik>
 sec issuer deal <cik> [--format json]
 ```
 
+#### Sponsor promote economics
+
+Alongside the unit terms, the SPAC prospectus's "The Offering" / "The Sponsor"
+prose yields the **sponsor promote**: founder (Class B) shares and their
+percentage, private-placement (sponsor) warrant count / price / public warrant
+coverage, and the trust deposit per public share and in total. These land in a
+dedicated `spac_promote_terms` table keyed `(extractor_id, accession_number)` —
+same shape as `spac_unit_terms`, so the S-1's registered promote and a
+424B1/424B4's final promote compare across extractor ids. Extraction rides the
+shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
+S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
+`EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
+
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
 > command are **not** supported for the family-tier resolver kinds
 > (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
@@ -364,8 +399,21 @@ item codes (known SPACs only — a `spac` row must already exist): item `1.01` �
 (recomputed from the event stream on every write, so `deal_index` is stable
 across replays) and roll up automatically. `target_name`, `pipe_amount`, and
 redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
-425) land — 8-K item codes carry no names or amounts. Still deferred: name/SIC/
-ticker transitions and Form 25/15 de-registration.
+425) land — 8-K item codes carry no names or amounts. Still deferred: Form 25/15
+de-registration.
+
+**De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
+post-merger surviving entity. The rollup (`buildSpacRow`) derives `surviving_name`
+from the completed deal's `target_name` (the combined company is named after the
+target) and promotes it onto `current_name`. On the item-2.01 8-K,
+`SpacReportWriter.recordDeSpacLinkage` additionally reads the SPAC CIK's own
+post-close `entity` / `entity_tickers` metadata — the shell keeps its CIK and
+renames, so `current_cik` stays null (it differs only for the deferred newco/S-4
+case) while `surviving_name` / `post_merger_sic` / `post_merger_tickers` come from
+the renamed entity (each set only when it diverges from the SPAC-era value, so
+replays are order-safe). Entity metadata usually refreshes *after* the 2.01 8-K,
+so `sec spac backfill-despac` re-runs the linkage over every completed SPAC to
+fill the still-null slots from now-current entity data.
 
 **Merger proxies** (`DEFM14A`/`PREM14A`, the `DEFM14C`/`PREM14C` consent statements,
 and the `DEFR14A`/`PRER14A` revised proxies; extractor id `merger-proxy`) run
@@ -452,6 +500,7 @@ sec eval extract --extractor loi --models "claude-sonnet-5,onnx-community/LFM2.5
 ```bash
 sec spac report <cik> [--format json]   # consolidated report
 sec spac history <cik> [--format json]  # state-change history
+sec spac backfill-despac [--dry-run]    # refresh post-merger identity for completed SPACs
 ```
 
 ### Generalized extractor backfill
