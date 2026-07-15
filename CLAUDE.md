@@ -41,6 +41,28 @@ sec version drop-previous resolver company
 sec version drop-previous extractor <extractor-id>
 ```
 
+#### Resolver version bumps
+
+When the resolver's normalized key tuple changes (e.g. `PersonNormalization`
+now strips periods/commas and folds typographic apostrophes → the
+`normalized_first/middle/last/suffix` tuple `PersonResolver.personKey` looks up
+by), bump the resolver's semver so post-change lookups do not silently miss
+pre-change canonicals and mint duplicates under the same `resolver_version`.
+Worked example for the person resolver 1.0.0 → 2.0.0:
+
+```bash
+sec version start-dev resolver person 2.0.0 --bump major \
+  --notes "PersonNormalization punctuation/typographic fold changes key tuple"
+sec resolve --kind person --resolver-version 2.0.0 --all
+sec version coverage resolver person
+sec version promote resolver person
+sec version drop-previous resolver person
+```
+
+Aliases must be re-applied manually against the fresh 2.0.0 canonical UUIDs
+(`sec canonical person alias-list` before the ceremony; re-issue
+`sec canonical person alias` after).
+
 ### S-1 extraction
 
 S-1 prospectuses are narrative HTML (not structured XML), so the `S-1` extractor

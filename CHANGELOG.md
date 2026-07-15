@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- add `titles` column migration for `person_observations` — existing
+  databases predate the `title` → `titles` rename and CREATE TABLE IF NOT
+  EXISTS is a no-op on already-created tables; the first write hits `table
+  has no column named titles`. Wired before `PersonObservationRepo.setupDatabase()`.
+- add `loi_date` column migration for `spac`, `spac_deal`, `spac_history` —
+  same CREATE TABLE IF NOT EXISTS problem after the LOI lifecycle stage
+  landed. `spac.status = "loi"` needs no DDL (`TypeStringEnum` emits plain
+  TEXT with no CHECK constraint).
+- bump the person resolver to `2.0.0` — `PersonNormalization` now strips
+  periods/commas and folds typographic apostrophes, which changes the
+  `(normalized_first, normalized_middle, normalized_last, normalized_suffix)`
+  tuple `PersonResolver.personKey` looks up by. Post-fold observations under
+  the same `resolver_version` silently miss pre-fold canonicals and mint
+  duplicates.
+
+### Operator Ceremony (person resolver 2.0.0)
+
+Existing DBs must run through the version-bump ceremony to migrate
+identities across the fold. Aliases must be re-applied manually against the
+fresh 2.0.0 canonical UUIDs (`sec canonical person alias-list` before the
+ceremony; re-issue `sec canonical person alias` after).
+
+```sh
+sec version start-dev resolver person 2.0.0 --bump major \
+  --notes "PersonNormalization punctuation/typographic fold changes key tuple"
+sec resolve --kind person --resolver-version 2.0.0 --all
+sec version coverage resolver person
+sec version promote resolver person
+sec version drop-previous resolver person
+```
+
 ## 0.0.9
 
 ### Chores
