@@ -322,11 +322,15 @@ export class SpacReportWriter {
    * null (it differs only for the deferred newco/S-4 structures) and the
    * surviving name / SIC / tickers come from the entity + entity_tickers rows.
    *
-   * Idempotent and order-safe: only enriches a row whose derived status is
-   * already `completed` (the 2.01 milestone landed first), and only sets a field
-   * that diverges from its SPAC-era value, so a replay with stale entity data
-   * cannot regress a populated linkage. No-ops when the entity metadata has not
-   * yet caught up to the rename (post_merger_* stay null until it does).
+   * These are **close-time snapshots**, written once: each field is set only
+   * when its slot is still empty (or, for `surviving_name`, still holds the
+   * deal-target fallback the rollup derives) AND the entity value diverges from
+   * the SPAC-era value. So a later replay, `backfill-despac` refresh, or a
+   * post-close issuer rebrand cannot mutate an already-populated snapshot, and a
+   * ticker set is never populated with SPAC-era symbols. No-ops when the entity
+   * metadata has not yet caught up to the rename (post_merger_* stay null until
+   * it does). Only enriches a row whose derived status is already `completed`
+   * (the 2.01 milestone landed first).
    */
   async recordDeSpacLinkage(args: {
     readonly cik: number;
@@ -337,27 +341,50 @@ export class SpacReportWriter {
     await withCikLock(args.cik, async () => {
       const existing = await this.repo.getSpac(args.cik);
       if (!existing || existing.status !== "completed") return;
-      const [entity, tickers] = await Promise.all([
+      const [entity, tickers, deals] = await Promise.all([
         this.entityRepo.getEntity(args.cik),
         this.entityRepo.getEntityTickers(args.cik),
+        this.repo.getDeals(args.cik),
       ]);
       const patch: {
         surviving_name?: string | null;
         post_merger_sic?: number | null;
         post_merger_tickers?: string | null;
       } = {};
-      // Renamed surviving entity: the current entity name once it diverges from
-      // the blank-check shell name. Overrides the deal-target-derived fallback.
-      if (entity?.name != null && entity.name !== existing.spac_name) {
+      // Renamed surviving entity: fill from the current entity name once it
+      // diverges from the blank-check shell name. Write-once — upgrade the
+      // deal-target fallback the rollup derived (or fill an empty slot) exactly
+      // once, but never overwrite an already entity-sourced snapshot on a later
+      // replay/rebrand.
+      const dealTargetFallback = deals.find((d) => d.outcome === "completed")?.target_name ?? null;
+      const survivingUpgradeable =
+        existing.surviving_name == null || existing.surviving_name === dealTargetFallback;
+      if (entity?.name != null && entity.name !== existing.spac_name && survivingUpgradeable) {
         patch.surviving_name = entity.name;
       }
-      // Operating-company SIC once it diverges from the SPAC-era ~6770.
-      if (entity?.sic != null && entity.sic !== existing.spac_sic) {
+      // Operating-company SIC once it diverges from the SPAC-era ~6770. Write-once.
+      if (
+        existing.post_merger_sic == null &&
+        entity?.sic != null &&
+        entity.sic !== existing.spac_sic
+      ) {
         patch.post_merger_sic = entity.sic;
       }
       // New listing symbol(s) — JSON string[] mirroring the spac_tickers shape.
-      const symbols = tickers.map((t) => t.ticker).filter((s): s is string => !!s);
-      if (symbols.length > 0) patch.post_merger_tickers = JSON.stringify(symbols);
+      // Write-once, deduped + sorted for determinism, and only when the symbol
+      // set diverges from the SPAC-era tickers (never mirror them here).
+      if (existing.post_merger_tickers == null) {
+        const symbols = [
+          ...new Set(tickers.map((t) => t.ticker).filter((s): s is string => !!s)),
+        ].sort();
+        const spacSymbols = parseTickerArray(existing.spac_tickers);
+        if (
+          symbols.length > 0 &&
+          JSON.stringify(symbols) !== JSON.stringify([...spacSymbols].sort())
+        ) {
+          patch.post_merger_tickers = JSON.stringify(symbols);
+        }
+      }
       if (Object.keys(patch).length === 0) return;
       await this.rebuild(
         args.cik,
@@ -571,4 +598,15 @@ export class SpacReportWriter {
 function serialize(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** Parse a JSON-encoded string[] ticker column, tolerating null/garbage as []. */
+function parseTickerArray(raw: string | null): string[] {
+  if (raw == null || raw === "") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
 }
