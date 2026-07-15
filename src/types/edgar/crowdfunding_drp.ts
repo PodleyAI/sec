@@ -435,11 +435,12 @@ export type RELIEF_SOUGHT_TYPE =
   | "Other";
 
 // CIVIL_ACTION_COURT_TYPE ...
-export enum CIVIL_ACTION_COURT_TYPE {
-  "Federal Court" = "Federal Court",
-  "State Court" = "State Court",
-  "Foreign Court" = "Foreign Court",
-}
+export const CIVIL_ACTION_COURT_TYPE = {
+  "Federal Court": "Federal Court",
+  "State Court": "State Court",
+  "Foreign Court": "Foreign Court",
+} as const;
+export type CIVIL_ACTION_COURT_TYPE = (typeof CIVIL_ACTION_COURT_TYPE)[keyof typeof CIVIL_ACTION_COURT_TYPE];
 
 // MATTER_RESOLVE_TYPE ...
 export type MATTER_RESOLVE_TYPE =
@@ -555,9 +556,10 @@ export interface BANKRUPTCY_SIPC_DRP_AFFILIATE_TYPE {
 }
 
 // BOND_RESPONDING_TO_TYPE ...
-export enum BOND_RESPONDING_TO_TYPE {
-  "5-K" = "5-K",
-}
+export const BOND_RESPONDING_TO_TYPE = {
+  "5-K": "5-K",
+} as const;
+export type BOND_RESPONDING_TO_TYPE = (typeof BOND_RESPONDING_TO_TYPE)[keyof typeof BOND_RESPONDING_TO_TYPE];
 
 // BOND_DISCLOSURE_CONTAINER ...
 export interface BOND_DISCLOSURE_CONTAINER {
@@ -577,16 +579,18 @@ export interface BOND_DRP_TYPE {
 }
 
 // JUDGEMENT_RESPONDING_TO_TYPE ...
-export enum JUDGEMENT_RESPONDING_TO_TYPE {
-  "5-L" = "5-L",
-}
+export const JUDGEMENT_RESPONDING_TO_TYPE = {
+  "5-L": "5-L",
+} as const;
+export type JUDGEMENT_RESPONDING_TO_TYPE = (typeof JUDGEMENT_RESPONDING_TO_TYPE)[keyof typeof JUDGEMENT_RESPONDING_TO_TYPE];
 
 // LIEN_JUDGEMENT_TYPE ...
-export enum LIEN_JUDGEMENT_TYPE {
-  Civil = "Civil",
-  Default = "Default",
-  Tax = "Tax",
-}
+export const LIEN_JUDGEMENT_TYPE = {
+  Civil: "Civil",
+  Default: "Default",
+  Tax: "Tax",
+} as const;
+export type LIEN_JUDGEMENT_TYPE = (typeof LIEN_JUDGEMENT_TYPE)[keyof typeof LIEN_JUDGEMENT_TYPE];
 
 // LIEN_JUDGEMENT_OUTSTANDING_TYPE ...
 export interface LIEN_JUDGEMENT_OUTSTANDING_TYPE {

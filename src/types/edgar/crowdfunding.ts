@@ -5,31 +5,35 @@ import * as common from './common';
 import * as crowdfunding_drp from './crowdfunding_drp';
 
 // CFPORTAL: Initial application of funding portal, CFPORTAL/A: Amendment to  registration,  including a successor registration, CFPORTAL-W: Withdrawal of the funding portals registration
-export enum SUBMISSION_TYPE {
-  CFPORTAL = 'CFPORTAL',
-  'CFPORTAL/A' = 'CFPORTAL/A',
-  'CFPORTAL-W' = 'CFPORTAL-W',
-}
+export const SUBMISSION_TYPE = {
+  CFPORTAL: 'CFPORTAL',
+  'CFPORTAL/A': 'CFPORTAL/A',
+  'CFPORTAL-W': 'CFPORTAL-W',
+} as const;
+export type SUBMISSION_TYPE = (typeof SUBMISSION_TYPE)[keyof typeof SUBMISSION_TYPE];
 
 // LEGAL_NAME_CHANGE_TYPE ...
-export enum LEGAL_NAME_CHANGE_TYPE {
-  'Funding portal name(1A)' = 'Funding portal name(1A)',
-  'Business name (1B)' = 'Business name (1B)',
-}
+export const LEGAL_NAME_CHANGE_TYPE = {
+  'Funding portal name(1A)': 'Funding portal name(1A)',
+  'Business name (1B)': 'Business name (1B)',
+} as const;
+export type LEGAL_NAME_CHANGE_TYPE = (typeof LEGAL_NAME_CHANGE_TYPE)[keyof typeof LEGAL_NAME_CHANGE_TYPE];
 
 // LEGAL_STATUS_FORM_TYPE ...
-export enum LEGAL_STATUS_FORM_TYPE {
-  Corporation = 'Corporation',
-  'Sole Proprietorship' = 'Sole Proprietorship',
-  Partnership = 'Partnership',
-  'Limited Liability Company' = 'Limited Liability Company',
-  'Other (Please Specify)' = 'Other (Please Specify)',
-}
+export const LEGAL_STATUS_FORM_TYPE = {
+  Corporation: 'Corporation',
+  'Sole Proprietorship': 'Sole Proprietorship',
+  Partnership: 'Partnership',
+  'Limited Liability Company': 'Limited Liability Company',
+  'Other (Please Specify)': 'Other (Please Specify)',
+} as const;
+export type LEGAL_STATUS_FORM_TYPE = (typeof LEGAL_STATUS_FORM_TYPE)[keyof typeof LEGAL_STATUS_FORM_TYPE];
 
 // PR_TYPE ...
-export enum PR_TYPE {
-  PR = 'PR',
-}
+export const PR_TYPE = {
+  PR: 'PR',
+} as const;
+export type PR_TYPE = (typeof PR_TYPE)[keyof typeof PR_TYPE];
 
 //
 //                 NA-less than 5%,
@@ -39,39 +43,43 @@ export enum PR_TYPE {
 //                 D-50% but less than 75%,
 //                 E-75% or more,
 //                 G - Other (general partner, trustee, or elected member)
-export enum OWNERSHIP_CODE_TYPE {
-  NA = 'NA',
-  A = 'A',
-  B = 'B',
-  C = 'C',
-  D = 'D',
-  E = 'E',
-  G = 'G',
-}
+export const OWNERSHIP_CODE_TYPE = {
+  NA: 'NA',
+  A: 'A',
+  B: 'B',
+  C: 'C',
+  D: 'D',
+  E: 'E',
+  G: 'G',
+} as const;
+export type OWNERSHIP_CODE_TYPE = (typeof OWNERSHIP_CODE_TYPE)[keyof typeof OWNERSHIP_CODE_TYPE];
 
 // DE: Domestic Entity, FE: Foreign Entity,  NP: Natural Person
-export enum ENTITY_TYPE {
-  DE = 'DE',
-  FE = 'FE',
-  NP = 'NP',
-}
+export const ENTITY_TYPE = {
+  DE: 'DE',
+  FE: 'FE',
+  NP: 'NP',
+} as const;
+export type ENTITY_TYPE = (typeof ENTITY_TYPE)[keyof typeof ENTITY_TYPE];
 
 // A: addition, D: deletion,  C: change in information about the same person
-export enum AMENDMENT_TYPE {
-  A = 'A',
-  D = 'D',
-  C = 'C',
-}
+export const AMENDMENT_TYPE = {
+  A: 'A',
+  D: 'D',
+  C: 'C',
+} as const;
+export type AMENDMENT_TYPE = (typeof AMENDMENT_TYPE)[keyof typeof AMENDMENT_TYPE];
 
 //
 // BO: one of applicant's branch offices or affiliates,
 // TP: a third party unaffiliated recordkeeper,
 // O: other
-export enum BOOK_KEEPING_ENTITY_TYPE {
-  BO = 'BO',
-  TP = 'TP',
-  O = 'O',
-}
+export const BOOK_KEEPING_ENTITY_TYPE = {
+  BO: 'BO',
+  TP: 'TP',
+  O: 'O',
+} as const;
+export type BOOK_KEEPING_ENTITY_TYPE = (typeof BOOK_KEEPING_ENTITY_TYPE)[keyof typeof BOOK_KEEPING_ENTITY_TYPE];
 
 // These elements are part of the FILER_CREDENTIALS_TYPE group
 export interface FILER_CREDENTIALS_TYPE {

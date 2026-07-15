@@ -3,10 +3,11 @@
 import * as common from './common';
 
 // SUBMISSION_TYPE is Enumerated values and descriptions: 1-Z: Exit report under Regulation A , 1-Z/A: Amendment to exit report under Regulation A
-export enum SUBMISSION_TYPE {
-  '1-Z' = '1-Z',
-  '1-Z/A' = '1-Z/A',
-}
+export const SUBMISSION_TYPE = {
+  '1-Z': '1-Z',
+  '1-Z/A': '1-Z/A',
+} as const;
+export type SUBMISSION_TYPE = (typeof SUBMISSION_TYPE)[keyof typeof SUBMISSION_TYPE];
 
 // TypeScriptComplexType (TypeScript) ISSUER_CREDENTIALS_TYPE is These elements are part of the ISSUER_CREDENTIALS_TYPE group
 export interface ISSUER_CREDENTIALS_TYPE {
