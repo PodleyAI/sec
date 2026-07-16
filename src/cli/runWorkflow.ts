@@ -6,6 +6,7 @@
 
 import { withCli } from "@workglow/cli";
 import { OutputTask, Workflow, type DataPorts, type ITask } from "workglow";
+import { isJsonOutput } from "./isJsonOutput";
 
 /**
  * Runs one or more tasks as a single task graph through the CLI workflow
@@ -25,6 +26,10 @@ export async function runWorkflowCli<T>(
   for (const task of [...tasks, sink]) {
     wf.pipe(task as ITask<DataPorts, DataPorts>);
   }
-  await withCli(wf).run(input);
+  if (isJsonOutput()) {
+    await wf.run(input);
+  } else {
+    await withCli(wf).run(input);
+  }
   return sink.runOutputData as T;
 }
