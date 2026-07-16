@@ -21,7 +21,7 @@ export type EditorialImportTaskInput = {
 
 export type EditorialImportFileResult = {
   readonly file: string;
-  readonly kind: "spac" | "family" | "unreadable";
+  readonly kind: "spac" | "family" | "unreadable" | "failed";
   readonly written: number;
   readonly created: number;
   readonly skippedMissing: number;
@@ -29,6 +29,8 @@ export type EditorialImportFileResult = {
   readonly errors: string[];
   /** Set when the file could not be read; no import was attempted. */
   readonly readError: string | null;
+  /** Set when parsing or importing failed; earlier files remain reportable. */
+  readonly importError: string | null;
 };
 
 export type EditorialImportTaskOutput = {
@@ -75,36 +77,54 @@ export class EditorialImportTask extends Task<EditorialImportTaskInput, Editoria
           skippedMissing: 0,
           errors: [],
           readError: `cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`,
+          importError: null,
         });
         continue;
       }
-      const parsed = parseEditorialCsv(content);
-      if (parsed.kind === "family") {
-        const res = await importFamilyDescriptions(parsed.familyRows, { dryRun: input.dryRun });
+      try {
+        const parsed = parseEditorialCsv(content);
+        if (parsed.kind === "family") {
+          const res = await importFamilyDescriptions(parsed.familyRows, { dryRun: input.dryRun });
+          results.push({
+            file,
+            kind: "family",
+            written: res.written,
+            created: 0,
+            skippedMissing: 0,
+            errors: [...parsed.errors],
+            readError: null,
+            importError: null,
+          });
+          continue;
+        }
+        const res = await importSpacEditorial(parsed.spacRows, {
+          createMissing: input.createMissing,
+          dryRun: input.dryRun,
+        });
         results.push({
           file,
-          kind: "family",
+          kind: "spac",
           written: res.written,
-          created: 0,
-          skippedMissing: 0,
+          created: res.created,
+          skippedMissing: res.skippedMissing.length,
           errors: [...parsed.errors],
           readError: null,
+          importError: null,
         });
-        continue;
+      } catch (err) {
+        results.push({
+          file,
+          kind: "failed",
+          written: 0,
+          created: 0,
+          skippedMissing: 0,
+          errors: [],
+          readError: null,
+          importError:
+            `failed importing ${file}; partial writes may have occurred: ` +
+            (err instanceof Error ? err.message : String(err)),
+        });
       }
-      const res = await importSpacEditorial(parsed.spacRows, {
-        createMissing: input.createMissing,
-        dryRun: input.dryRun,
-      });
-      results.push({
-        file,
-        kind: "spac",
-        written: res.written,
-        created: res.created,
-        skippedMissing: res.skippedMissing.length,
-        errors: [...parsed.errors],
-        readError: null,
-      });
     }
     return { results };
   }

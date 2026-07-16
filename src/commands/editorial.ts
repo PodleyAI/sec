@@ -140,6 +140,10 @@ export function registerEditorialCommands(program: Command): void {
           fail(res.readError);
           continue;
         }
+        if (res.importError !== null) {
+          fail(res.importError);
+          continue;
+        }
         for (const e of res.errors) console.error(`${res.file}: ${e}`);
         if (res.errors.length > 0) process.exitCode = 1;
 
