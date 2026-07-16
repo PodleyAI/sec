@@ -16,6 +16,7 @@ import {
   anthropicModelRecord,
   geminiModelRecord,
   hftModelRecord,
+  llamaCppModelRecord,
   openAiModelRecord,
   registerModelIds,
   registerSecModels,
@@ -112,6 +113,54 @@ describe("registerSecModels", () => {
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
     expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
     expect((await repo.findByName("onnx-community/tiny"))?.provider).toBe("HF_TRANSFORMERS_ONNX");
+  });
+
+  describe("llamaCppModelRecord GGUF id parsing", () => {
+    const savedGgufEnv = {
+      SEC_GGUF_DIR: process.env.SEC_GGUF_DIR,
+      SEC_RAW_DATA_FOLDER: process.env.SEC_RAW_DATA_FOLDER,
+    };
+    beforeEach(() => {
+      process.env.SEC_GGUF_DIR = "/models/gguf";
+      delete process.env.SEC_RAW_DATA_FOLDER;
+    });
+    afterEach(() => {
+      for (const [key, value] of Object.entries(savedGgufEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it("keeps a relative local path under the models dir, no download url", () => {
+      const config = llamaCppModelRecord("gguf:Bonsai-27B-Q2_0.gguf").provider_config;
+      expect(config.model_path).toBe("/models/gguf/Bonsai-27B-Q2_0.gguf");
+      expect(config.model_url).toBeUndefined();
+      expect(config.models_dir).toBeUndefined();
+    });
+
+    it("keeps an absolute local path as-is", () => {
+      const config = llamaCppModelRecord("gguf:/abs/model.gguf").provider_config;
+      expect(config.model_path).toBe("/abs/model.gguf");
+      expect(config.model_url).toBeUndefined();
+    });
+
+    it("turns an hf: URI into a download source + cache target", () => {
+      const config = llamaCppModelRecord(
+        "gguf:hf:bartowski/SmolLM2-135M-Instruct-GGUF:Q4_K_M"
+      ).provider_config;
+      expect(config.model_url).toBe("hf:bartowski/SmolLM2-135M-Instruct-GGUF:Q4_K_M");
+      expect(config.models_dir).toBe("/models/gguf");
+      expect(config.model_path).toBe("/models/gguf/SmolLM2-135M-Instruct-GGUF-Q4_K_M.gguf");
+    });
+
+    it("turns an https URL into a download source + cache target", () => {
+      const config = llamaCppModelRecord(
+        "gguf:https://host.example/a/b/model.gguf"
+      ).provider_config;
+      expect(config.model_url).toBe("https://host.example/a/b/model.gguf");
+      expect(config.models_dir).toBe("/models/gguf");
+      expect(config.model_path).toBe("/models/gguf/model.gguf");
+    });
   });
 
   it("registers the SEC_LOI_MODEL override id", async () => {

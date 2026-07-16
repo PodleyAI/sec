@@ -6,6 +6,7 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
+import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
@@ -182,6 +183,16 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     if (opts.signal?.aborted) break;
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
+    // Fetch a local model's weights before the timed loop so download time is not
+    // charged to the first fixture's latency. Best-effort: a failed download is
+    // surfaced per-fixture as a failed run rather than aborting the whole sweep.
+    if (model) {
+      try {
+        await ensureModelDownloaded(model);
+      } catch {
+        // The per-fixture extraction call will re-attempt and record the failure.
+      }
+    }
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;

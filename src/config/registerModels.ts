@@ -26,10 +26,12 @@ const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
 
 /**
  * Prefix that routes a model id to the node-llama-cpp (GGUF) provider. The rest
- * of the id is a path to a local `.gguf` file — absolute (`gguf:/abs/x.gguf`) or
- * relative to the GGUF models dir (`gguf:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`). We key
- * on an explicit prefix rather than the id shape because a GGUF repo id
- * (`org/name`) is indistinguishable from an ONNX one.
+ * of the id is either a **local path** to a `.gguf` file — absolute
+ * (`gguf:/abs/x.gguf`) or relative to the GGUF models dir
+ * (`gguf:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`) — or a **remote URI** the download
+ * harness fetches: a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`)
+ * or an `https://` URL. We key on an explicit prefix rather than the id shape
+ * because a GGUF repo id (`org/name`) is indistinguishable from an ONNX one.
  */
 const GGUF_ID_PREFIX = "gguf:";
 
@@ -281,20 +283,71 @@ const LLAMACPP_CAPABILITIES: readonly string[] = [
 ];
 
 /**
- * Builds a node-llama-cpp {@link ModelRecord} from a `gguf:`-prefixed id whose
- * remainder is a path to a local `.gguf` file (absolute, or relative to
- * {@link ggufModelsDir}). `gpu_layers` is set high (offload every layer to the
+ * Builds a node-llama-cpp {@link ModelRecord} from a `gguf:`-prefixed id. The
+ * remainder is either a **local path** to a `.gguf` file (absolute, or relative
+ * to {@link ggufModelsDir}) or a **remote URI** (`hf:org/repo:quant` or an
+ * `https://` URL) that carries a `model_url` for the download harness to fetch —
+ * see {@link ggufPathConfig}. `gpu_layers` is set high (offload every layer to the
  * GPU — Metal on Apple Silicon; node-llama-cpp clamps to the model's layer
  * count). Do NOT use `-1`: that is llama.cpp's "all" sentinel but node-llama-cpp
  * treats it as zero, silently running the whole model on CPU (~20x slower).
- * `context_size` is sized for large S-1 sections. The file must already exist on
- * disk — the provider loads `model_path` directly, no download at generation.
+ * `context_size` is sized for large S-1 sections. A bare local path must already
+ * exist on disk — the provider loads `model_path` directly and does not fetch at
+ * generation; the download harness (`ensureModelDownloaded`) fetches a `model_url`
+ * ahead of use.
  */
 const GGUF_GPU_LAYERS_ALL = 999;
 
+/** A `gguf:` remainder that names a remote source the download harness can fetch. */
+function isRemoteGgufUri(rawPath: string): boolean {
+  return rawPath.startsWith("hf:") || /^https?:\/\//i.test(rawPath);
+}
+
+/**
+ * Local `.gguf` filename to cache a remote GGUF under, derived from its URI. This
+ * is only a fallback for the required `model_path` field: once the download runs,
+ * the provider keys on `model_url` and resolves the real on-disk path itself, so
+ * the exact name here does not affect which file generation loads — it just gives
+ * the cache target a stable, human-legible name.
+ *
+ * `hf:org/repo:Q4_K_M` → `repo-Q4_K_M.gguf`; `hf:org/repo/file.gguf` → `file.gguf`;
+ * `https://host/a/b/model.gguf` → `model.gguf`.
+ */
+function ggufCacheFileName(uri: string): string {
+  let rest = uri.replace(/^https?:\/\//i, "").replace(/^hf:/i, "");
+  // A trailing `:quant` (HF quant selector) is a filename hint, not a path segment.
+  let quant: string | undefined;
+  const quantMatch = rest.match(/:([^/:]+)$/);
+  if (quantMatch) {
+    quant = quantMatch[1];
+    rest = rest.slice(0, rest.length - quant.length - 1);
+  }
+  const last = rest.split(/[/?#]/).filter(Boolean).pop() ?? "model";
+  const base = last.toLowerCase().endsWith(".gguf") ? last.slice(0, -".gguf".length) : last;
+  const name = [base, quant].filter(Boolean).join("-") || "model";
+  return `${name}.gguf`;
+}
+
+/**
+ * Resolves a `gguf:` id remainder into node-llama-cpp path config. A remote URI
+ * ({@link isRemoteGgufUri}) becomes `model_url` (the download source) plus a local
+ * `model_path` / `models_dir` under {@link ggufModelsDir} so the harness fetches
+ * it there; a plain path stays `model_path`-only (assumed already on disk).
+ */
+function ggufPathConfig(rawPath: string): Record<string, unknown> {
+  if (!isRemoteGgufUri(rawPath)) {
+    return { model_path: isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath) };
+  }
+  const dir = ggufModelsDir();
+  return {
+    model_path: join(dir, ggufCacheFileName(rawPath)),
+    model_url: rawPath,
+    models_dir: dir,
+  };
+}
+
 export function llamaCppModelRecord(modelId: string): ModelRecord {
   const rawPath = modelId.slice(GGUF_ID_PREFIX.length);
-  const modelPath = isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath);
   return {
     model_id: modelId,
     provider: LLAMACPP_PROVIDER,
@@ -302,7 +355,7 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
     description: `node-llama-cpp GGUF ${rawPath}`,
     capabilities: [...LLAMACPP_CAPABILITIES],
     provider_config: {
-      model_path: modelPath,
+      ...ggufPathConfig(rawPath),
       gpu_layers: GGUF_GPU_LAYERS_ALL,
       context_size: ggufContextSize(),
       flash_attention: true,

@@ -6,6 +6,7 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
+import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
@@ -184,6 +185,19 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
   const refModel = useGolden
     ? undefined
     : ((await repo.findByName(opts.reference)) as ModelConfig | undefined);
+  // Prefetch every participating local model's weights before the timed section
+  // loop so download time is not charged to a section's latency. Best-effort and
+  // memoized; cloud models no-op. Candidates are resolved per-section below, so
+  // fetch them here once up front. A failed download surfaces per-section.
+  for (const id of [...(refModel ? [opts.reference] : []), ...opts.candidates]) {
+    const m = (await repo.findByName(id)) as ModelConfig | undefined;
+    if (!m) continue;
+    try {
+      await ensureModelDownloaded(m);
+    } catch {
+      // The per-section extraction call will re-attempt and record the failure.
+    }
+  }
   const results: OracleRunResult[] = [];
   const perModel = new Map<string, OracleRunResult[]>();
   const push = (r: OracleRunResult): void => {

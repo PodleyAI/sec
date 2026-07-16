@@ -6,6 +6,7 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
+import { ensureModelDownloaded } from "../../../../config/ensureModelDownloaded";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -357,6 +358,10 @@ async function runStructured(
   prompt: string,
   outputSchema: object
 ): Promise<Record<string, unknown>> {
+  // Local providers (GGUF especially) must have their weights on disk before
+  // generation — cloud models no-op here. Memoized, so the per-section sweep pays
+  // the download once.
+  await ensureModelDownloaded(model);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,

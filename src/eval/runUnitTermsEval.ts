@@ -6,6 +6,7 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
+import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import {
   cikFromFilingName,
@@ -124,6 +125,14 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
     if (opts.signal?.aborted) break;
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
+    // Prefetch a local model's weights before timing (see runExtractionEval).
+    if (model) {
+      try {
+        await ensureModelDownloaded(model);
+      } catch {
+        // The per-section extraction call will re-attempt and record the failure.
+      }
+    }
     const modelRows: FixtureRunResult[] = [];
     for (const { section, expected } of covered) {
       if (opts.signal?.aborted) break;
