@@ -647,6 +647,56 @@ CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
 `isFormParsingSupported` and `FORM_TO_EXTRACTOR_ID` are kept consistent by
 `src/sec/forms/form-wiring.test.ts`.
 
+### Accredited investor portals + Form D attribution
+
+Accredited-investor portals (AngelList, Forge, EquityZen, ...) never register
+with the SEC, so the `accredited_portal` table is **curated**: bootstrapped from
+an embedded copy of the embarc repo's data/portals-accredited.json
+(`src/data/accreditedPortalsSeed.ts`, keyed by a name-derived `portal_id` slug —
+`sec accredited-portal import [file]` also accepts an external JSON in the same
+shape) and maintained via the CLI. Their
+deals surface as Form D filings by SPVs/funds that reuse a known portal
+**address**, **phone**, or entity **name** — curated as fingerprints in
+`accredited_portal_signal` (PK `(signal_type, signal_value)`, values stored in
+the same normalized form the ingest path produces: lower-cased
+`normalizeCompanyName`, phone `international_number`, `address_hash_id`).
+`processFormD` harvests candidates from issuers / related persons /
+sales-compensation recipients (never signatures) and `PortalAttributor` writes
+`form_d_portal_attribution` rows (one per accession+portal, strongest signal
+wins: address > phone > name; `matches` keeps every corroborating role).
+Attributions are derived data — unscoped attribution clears the filing's own
+rows first (so re-ingest replays self-heal after signal changes), and the
+backfill recomputes from stored observations (no re-fetch) with
+clear-then-recompute semantics:
+
+```bash
+sec accredited-portal import                 # bootstrap/refresh from the embedded seed (idempotent)
+sec accredited-portal list [--live] (--json for JSON output)
+sec accredited-portal signal add angellist --type address \
+    --street1 "90 Gold St" --city "San Francisco" --state CA --zip 94102
+sec accredited-portal signal add angellist --type name --value "AngelList Advisors, LLC"
+sec accredited-portal signal list [portal-id]
+sec accredited-portal signal remove --type name --value "..."
+sec accredited-portal attribute --all | --portal <id>   # backfill sweep over stored observations
+sec accredited-portal suggest [--min-filings 3] [--limit 25]  # candidate fingerprints from SPV clusters
+sec accredited-portal set <portal-id> --cik <cik> --notes "..."  # curated fields, survive re-import
+sec accredited-portal filings <portal-id> (--json for JSON output)
+```
+
+Phone signals require an explicit `--country` (parsing is region-sensitive and
+must match the filings' issuer country). The attributor is versioned through
+the standard resolver ceremonies (`sec version ... resolver portal-attributor`):
+rows are stamped with the active slot's semver, `coverage` reports the share of
+attribution rows at a version, and `drop-previous` purges rows at the retired
+version. `suggest` surfaces address/phone values recurring across many distinct
+Form D filings that are not yet curated signals — the "many funds, one back
+office" pattern; curation stays manual.
+
+Seed re-import preserves curation: portal `cik`/`notes` survive, and `manual`
+signals are never overwritten by `seed` ones. The attributor is exact-match
+only (no fuzzy matching); the signal table is the tuning knob, and generic seed
+name signals (e.g. "Republic") can be removed if they false-positive.
+
 ## Architecture
 
 ### Temporal design: history + current state

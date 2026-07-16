@@ -105,6 +105,21 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+  AccreditedPortalPrimaryKeyNames,
+  AccreditedPortalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSchema";
+import {
+  ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+  AccreditedPortalSignalPrimaryKeyNames,
+  AccreditedPortalSignalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import {
+  FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+  FormDPortalAttributionPrimaryKeyNames,
+  FormDPortalAttributionSchema,
+} from "../storage/accredited-portal/FormDPortalAttributionSchema";
+import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
@@ -576,6 +591,33 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     PORTAL_REPOSITORY_TOKEN,
     createStorage("portals", PortalSchema, PortalPrimaryKeyNames, [["name"], ["brand"], ["live"]])
+  );
+
+  // ------------------------------ Accredited Investor Portals --------------------------------
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+    createStorage("accredited_portal", AccreditedPortalSchema, AccreditedPortalPrimaryKeyNames, [
+      ["name"],
+      ["live"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+    createStorage(
+      "accredited_portal_signal",
+      AccreditedPortalSignalSchema,
+      AccreditedPortalSignalPrimaryKeyNames,
+      [["portal_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+    createStorage(
+      "form_d_portal_attribution",
+      FormDPortalAttributionSchema,
+      FormDPortalAttributionPrimaryKeyNames,
+      [["portal_id"], ["cik"]]
+    )
   );
 
   // ------------------------------ Processing Tracking --------------------------------

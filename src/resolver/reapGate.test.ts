@@ -55,9 +55,7 @@ describe("hasBlockingSectionFailure", () => {
   it("ignores stale dead-letters from a prior run", () => {
     // A persistently-absent section must not pin the reaper forever once the
     // failure is no longer being re-recorded this run.
-    expect(
-      hasBlockingSectionFailure([dl({ last_attempt_at: STALE })], ACC, RUN_START)
-    ).toBe(false);
+    expect(hasBlockingSectionFailure([dl({ last_attempt_at: STALE })], ACC, RUN_START)).toBe(false);
   });
 
   it("ignores dead-letters for a different accession", () => {

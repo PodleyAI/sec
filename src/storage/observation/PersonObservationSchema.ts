@@ -69,8 +69,8 @@ export const PersonObservationSchema = Type.Object({
     })
   ),
   bio: TypeNullable(Type.String({ description: "Biography prose from the management section" })),
-  raw_address_id: TypeNullable(Type.String({ maxLength: 64 })),
-  raw_phone_id: TypeNullable(Type.String({ maxLength: 20 })),
+  raw_address_id: TypeNullable(Type.String({ maxLength: 512 })),
+  raw_phone_id: TypeNullable(Type.String({ maxLength: 32 })),
   source_context: TypeNullable(
     Type.String({
       description: "JSON-encoded parser-specific fields that don't earn a first-class column",
