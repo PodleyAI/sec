@@ -56,9 +56,27 @@ export interface RunEvalOptions {
   readonly signal?: AbortSignal;
 }
 
+/** Extractor ids that actually have at least one committed fixture. */
+export function extractorsWithFixtures(): string[] {
+  return [...new Set(EVAL_FIXTURES.map((f) => f.extractor))];
+}
+
 function selectFixtures(extractor: string | undefined): EvalFixture[] {
   const all = [...EVAL_FIXTURES];
-  return extractor ? all.filter((f) => f.extractor === extractor) : all;
+  if (extractor === undefined) return all;
+  const selected = all.filter((f) => f.extractor === extractor);
+  // Registration in EVAL_EXTRACTORS does not imply a committed fixture — the CLI
+  // validates the name against that map, so an unfixtured extractor would sweep
+  // zero runs and print an empty table with exit 0, indistinguishable from a
+  // passing evaluation. Fail loudly; the fix is to commit a fixture.
+  if (selected.length === 0) {
+    throw new Error(
+      `extractor "${extractor}" has no fixtures in EVAL_FIXTURES — nothing to score. ` +
+        `Add one to src/eval/fixtures.ts. Extractors with fixtures: ` +
+        `${extractorsWithFixtures().join(", ")}`
+    );
+  }
+  return selected;
 }
 
 function makeCtx(): any {
@@ -149,9 +167,10 @@ export function summarizeModelRuns(
  * correctness (score) desc, then cheaper, then faster.
  */
 export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalReport> {
+  // Select first: an unscorable extractor should fail before we register models.
+  const fixtures = selectFixtures(opts.extractor);
   await registerModelIds(opts.models);
   const repo = getGlobalModelRepository();
-  const fixtures = selectFixtures(opts.extractor);
 
   const results: FixtureRunResult[] = [];
   const summaries: ModelSummary[] = [];

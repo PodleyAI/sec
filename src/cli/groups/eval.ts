@@ -9,7 +9,11 @@ import { withCli } from "@workglow/cli";
 import { SecHftModelDefault } from "../../config/Constants";
 import { runCommand } from "../runCommand";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
-import { type EvalReport, type ModelSummary } from "../../eval/runExtractionEval";
+import {
+  extractorsWithFixtures,
+  type EvalReport,
+  type ModelSummary,
+} from "../../eval/runExtractionEval";
 import { type OracleReport } from "../../eval/runOracleEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
@@ -231,7 +235,9 @@ export function addEvalCommands(program: Command): void {
     )
     .option(
       "--extractor <name>",
-      `limit to one extractor (${Object.keys(EVAL_EXTRACTORS).join(", ")})`
+      // Only offer what is actually scorable: an extractor registered in
+      // EVAL_EXTRACTORS with no committed fixture has nothing to run.
+      `limit to one extractor (${extractorsWithFixtures().join(", ")})`
     )
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
