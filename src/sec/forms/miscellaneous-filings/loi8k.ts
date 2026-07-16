@@ -215,7 +215,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
       verifyRow: (t, r) => verifyRowSpan(t, r.source_span),
       unverifiedAllDetail: "LOI source_span not present in narrative text",
       extract: async (t) => {
-        const row = await extractLoi(t, model);
+        const row = await extractLoi(t, model, args.context);
         return row === null ? [] : [row];
       },
       persist: async (rows) => {

@@ -229,7 +229,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       verifyRow: (t, r) => verifyRowSpan(t, r.source_span),
       unverifiedAllDetail: "redemption source_span not present in narrative text",
       extract: async (t) => {
-        const row = await extractRedemption(t, model);
+        const row = await extractRedemption(t, model, args.context);
         return row === null ? [] : [row];
       },
       persist: async (rows) => {

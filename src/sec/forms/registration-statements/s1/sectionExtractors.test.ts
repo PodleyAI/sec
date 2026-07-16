@@ -296,3 +296,48 @@ it("extractUseOfProceeds returns parsed line items", async () => {
     unregister();
   }
 });
+
+it("forwards generation phase progress to a threaded execute context", async () => {
+  // Regression guard: StructuredGenerationTask.execute() keeps only the finish
+  // event and drops the phase events, so runStructured drives executeStream and
+  // forwards phases itself. Without that, a threaded context sees no progress and
+  // the CLI task row stays silent through every section.
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      people: [
+        {
+          full_name: "Jane Doe",
+          titles: ["Chief Executive Officer"],
+          relationship: null,
+          age: null,
+          bio: null,
+          confidence: 0.9,
+          source_span: "Jane Doe",
+        },
+      ],
+    },
+  ]);
+  const messages: Array<string | undefined> = [];
+  const context = {
+    signal: new AbortController().signal,
+    updateProgress: async (_p: number | undefined, m?: string) => {
+      messages.push(m);
+    },
+    own: <T>(v: T): T => v,
+    registry: { has: () => false, get: () => { throw new Error("x"); } },
+    resourceScope: { register: () => {}, dispose: async () => {} },
+  } as any;
+  try {
+    const rows = await extractManagement(
+      "MANAGEMENT\n\nJane Doe has served as our Chief Executive Officer.",
+      fakeS1Model(),
+      context
+    );
+    expect(rows).toHaveLength(1);
+    // The generation task's phase labels reached the threaded context's row.
+    expect(messages).toContain("Preparing");
+    expect(messages).toContain("Generating");
+  } finally {
+    unregister();
+  }
+});

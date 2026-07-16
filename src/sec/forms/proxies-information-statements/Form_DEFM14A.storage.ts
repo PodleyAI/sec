@@ -186,7 +186,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
         verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
         unverifiedAllDetail: "merger deal source_span not present in section text",
         extract: async (text) => {
-          const deal = await extractMergerDeal(text, model);
+          const deal = await extractMergerDeal(text, model, args.context);
           return deal === null ? [] : [deal];
         },
         persist: async (rows) => {

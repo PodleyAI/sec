@@ -336,7 +336,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           unverifiedAllDetail:
             "the confident SPAC classification had source_span not present in section text",
           extract: async (text) => {
-            const c = await extractSpacClassification(text, classifierModelResolved);
+            const c = await extractSpacClassification(text, classifierModelResolved, args.context);
             return c === null ? [] : [c];
           },
           persist: async () => {
@@ -395,7 +395,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
       extract: async (text) => {
-        const p = await extractSpacProfile(text, model);
+        const p = await extractSpacProfile(text, model, args.context);
         return p === null ? [] : [p];
       },
       persist: async (rows) => {
@@ -435,7 +435,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    extract: (text) => extractManagement(text, model),
+    extract: (text) => extractManagement(text, model, args.context),
     persist: async (rows) => {
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
@@ -481,7 +481,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
-    extract: (text) => extractBeneficialOwnership(text, model),
+    extract: (text) => extractBeneficialOwnership(text, model, args.context),
     persist: async (rows) => {
       for (const r of rows) {
         const observation_index = idx++;
@@ -548,7 +548,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
-    extract: (text) => extractRelatedParty(text, model),
+    extract: (text) => extractRelatedParty(text, model, args.context),
     persist: async (rows) => {
       let txIndex = 0;
       for (const r of rows) {
@@ -619,6 +619,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context: args.context,
   });
 
   // --- SPAC sponsors (gated on deterministic classification) ---
@@ -649,7 +650,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident sponsor rows had source_span not present in section text",
-    extract: (text) => extractSpacSponsors(text, model),
+    extract: (text) => extractSpacSponsors(text, model, args.context),
     persist: async (rows) => {
       let wrote = 0;
       for (const r of rows) {

@@ -207,6 +207,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context: args.context,
   });
 
   await recordSpacIpoEventIfEligible();
