@@ -388,8 +388,10 @@ async function processRelatedPerson(
 
   // A related person's address is a portal fingerprint even when the person is
   // a genuine individual (fund managers list the portal's back office). Their
-  // human name can't collide with normalized portal name signals, so it is
-  // safe to offer as a candidate too.
+  // name is offered as a candidate too: portal entity names are routinely
+  // misfiled in the person fields, and the exact-match lookup makes a genuine
+  // human name matching a curated portal signal unlikely (though not
+  // impossible — curation of the signal table is the guard).
   const relatedPersonName = [
     person.relatedPersonName.firstName,
     person.relatedPersonName.middleName,

@@ -23,10 +23,10 @@ export const FormDPortalAttributionSchema = Type.Object({
   filing_date: TypeNullable(
     Type.String({ format: "date", description: "Filing date when known at attribution time" })
   ),
-  matched_signal_type: Type.String({
-    maxLength: 16,
-    description: "Strongest matching signal kind (address > phone > name)",
-  }),
+  matched_signal_type: Type.Union(
+    [Type.Literal("name"), Type.Literal("phone"), Type.Literal("address")],
+    { description: "Strongest matching signal kind (address > phone > name)" }
+  ),
   matched_signal_value: Type.String({ maxLength: 512 }),
   matches: Type.String({
     description: "JSON array of every {signal_type, signal_value, via} that matched this portal",

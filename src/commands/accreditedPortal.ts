@@ -81,16 +81,17 @@ function normalizeSignalInput(
     }
     case "address": {
       // Accept an already-normalized address_hash_id via --value, or address parts.
-      if (opts.value) {
+      const pastedHash = opts.value?.trim();
+      if (pastedHash) {
         // A normalized hash is the pipe-joined field list; free-form address
         // text stored verbatim would be an inert signal that never matches.
-        if (!opts.value.includes("|")) {
+        if (!pastedHash.includes("|")) {
           fail(
             "--value for --type address must be a normalized address_hash_id (pipe-joined, as shown by 'signal list'); pass address parts (--street1 --city --state ...) to normalize free-form input"
           );
           return null;
         }
-        return { signal_type: "address", signal_value: opts.value.toLowerCase() };
+        return { signal_type: "address", signal_value: pastedHash.toLowerCase() };
       }
       // No countryCode: the Form D ingest path never has one (issuer addresses
       // carry only stateOrCountry), and normalizeAddress would fall back to it
@@ -179,7 +180,7 @@ export function registerAccreditedPortalCommands(program: Command): void {
       }
       for (const p of portals) {
         console.log(
-          `${p.portal_id}\t${p.name}\t${p.live ? "live" : "closed"}\t${p.url ?? ""}\t${p.brand ?? ""}`
+          `${p.portal_id}\t${p.name}\t${p.live === true ? "live" : p.live === false ? "closed" : "unknown"}\t${p.url ?? ""}\t${p.brand ?? ""}`
         );
       }
     });
@@ -250,8 +251,8 @@ export function registerAccreditedPortalCommands(program: Command): void {
     .option("--all", "recompute for all portals (clears the attribution table first)", false)
     .option("--portal <portal>", "recompute only this portal's attributions")
     .action(async (opts: { all: boolean; portal?: string }) => {
-      if (!opts.all && !opts.portal) {
-        fail("pass --all to recompute everything, or --portal <id> for one portal");
+      if (opts.all === Boolean(opts.portal)) {
+        fail("pass exactly one of --all (recompute everything) or --portal <id> (one portal)");
         return;
       }
       let portalId: string | undefined;
