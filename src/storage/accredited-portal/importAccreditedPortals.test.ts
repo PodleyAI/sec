@@ -26,7 +26,6 @@ describe("importAccreditedPortals", () => {
     const angellist = portals.find((p) => p.portal_id === "angellist");
     expect(angellist?.name).toBe("AngelList");
     expect(angellist?.live).toBe(true);
-    expect(angellist?.featured).toBe(true);
 
     const seedinvest = portals.find((p) => p.portal_id === "seedinvest");
     expect(seedinvest?.live).toBe(false);

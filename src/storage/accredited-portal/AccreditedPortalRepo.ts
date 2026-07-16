@@ -42,12 +42,12 @@ export class AccreditedPortalRepo implements AccreditedPortalRepoOptions {
   }
 
   /**
-   * Upsert used by the seed import: seed fields (name/brand/url/live/featured)
+   * Upsert used by the seed import: seed fields (name/brand/url/live)
    * take the incoming values, while curated fields (cik/notes) survive from the
    * existing row — a re-import must never erase curation.
    */
   async upsertFromSeed(
-    seed: Pick<AccreditedPortal, "portal_id" | "name" | "brand" | "url" | "live" | "featured">
+    seed: Pick<AccreditedPortal, "portal_id" | "name" | "brand" | "url" | "live">
   ): Promise<AccreditedPortal> {
     const existing = await this.getPortal(seed.portal_id);
     return this.savePortal({

@@ -77,7 +77,6 @@ export async function importAccreditedPortals(
       brand: entry.brand ?? null,
       url: entry.url ?? null,
       live: entry.live === null || entry.live === undefined ? null : Boolean(entry.live),
-      featured: entry.featured ?? null,
     });
 
     const nameSignal = normalizeNameSignal(name);

@@ -26,7 +26,6 @@ export const AccreditedPortalSchema = Type.Object({
   brand: TypeNullable(Type.String({ maxLength: 256, description: "Parent/successor brand" })),
   url: TypeNullable(Type.String({ maxLength: 512, description: "Portal website URL" })),
   live: TypeNullable(Type.Boolean({ description: "Whether the portal is currently operating" })),
-  featured: TypeNullable(Type.Boolean({ description: "Featured flag from the curated source" })),
   cik: TypeNullable(
     TypeSecCik({ description: "EDGAR CIK of the portal operator itself, when known" })
   ),

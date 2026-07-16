@@ -32,7 +32,6 @@ describe("AccreditedPortalRepo", () => {
       brand: null,
       url: "https://www.angellist.com/",
       live: true,
-      featured: true,
       cik: null,
       notes: null,
     });
@@ -48,7 +47,6 @@ describe("AccreditedPortalRepo", () => {
       brand: null,
       url: "https://forgeglobal.com/",
       live: true,
-      featured: true,
     });
     await repo.savePortal({
       ...(await repo.getPortal("forge-global"))!,
@@ -62,7 +60,6 @@ describe("AccreditedPortalRepo", () => {
       brand: null,
       url: "https://forgeglobal.com/new",
       live: false,
-      featured: null,
     });
 
     const portal = await repo.getPortal("forge-global");
@@ -79,7 +76,6 @@ describe("AccreditedPortalRepo", () => {
       brand: null,
       url: null,
       live: true,
-      featured: null,
       cik: null,
       notes: null,
     });
@@ -89,7 +85,6 @@ describe("AccreditedPortalRepo", () => {
       brand: null,
       url: null,
       live: false,
-      featured: null,
       cik: null,
       notes: null,
     });
