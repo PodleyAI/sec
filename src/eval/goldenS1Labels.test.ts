@@ -77,6 +77,20 @@ describe("goldenS1Labels", () => {
     }
   });
 
+  it("never labels two owners as one name", () => {
+    // `name` holds exactly one entity. "V-Cube, Inc. and Naoaki Mashita" is a
+    // company and a person — two rows. A combined name would also reach the
+    // canonical company tier as a single bogus company via the S-1 persist path.
+    // A tripwire over hand-authored labels, not a universal rule: a real owner
+    // named "Johnson and Johnson" would trip it. If that happens, confirm the
+    // cell names ONE entity and relax this — don't just delete the assertion.
+    for (const [key, rows] of entriesFor("beneficial-ownership")) {
+      for (const row of rows) {
+        expect(rowName(row), key).not.toMatch(/\band\b/i);
+      }
+    }
+  });
+
   it("carries no footnote markers or parenthetical annotations in owner names", () => {
     // The prompt asks for the bare name; a golden label carrying "(3)" or
     // "(our sponsor)" would only align with a model that ignored that.

@@ -505,7 +505,10 @@ export async function extractBeneficialOwnership(
     "[0,1], and the verbatim source_span. Use null for figures shown as '*', '—', or " +
     "blank. Give the name as printed but WITHOUT footnote markers or parenthetical " +
     "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
-    "XII LLC'. Do NOT emit the aggregate subtotal row that totals the officers and " +
+    "XII LLC'. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
+    "'V-Cube, Inc. and Naoaki Mashita'), emit one row per owner and attribute each " +
+    "one's shares from the footnote where it states them — never a combined 'X and Y' " +
+    "name. Do NOT emit the aggregate subtotal row that totals the officers and " +
     "directors (e.g. 'All officers and directors as a group (9 individuals)'): it is a " +
     "total of the rows above, not a stockholder. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(

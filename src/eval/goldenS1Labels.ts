@@ -123,13 +123,13 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // ---------------------------------------------------------------------------
   // beneficial-ownership — the stockholder rows of each table, in table order.
   //
-  // Convention (mirrors the extraction prompt, enforced by
+  // Convention (mirrors the extraction prompt, enforced for the subtotal case by
   // `isOwnershipGroupSubtotal`): the trailing "All officers and directors as a
   // group (N)" subtotal is NOT an owner and is excluded; names carry no footnote
-  // markers or parenthetical annotations; a single row naming two owners
-  // ("V-Cube, Inc. and Naoaki Mashita") stays one row, as the table prints it.
-  // Rows showing "—"/"--"/"-" (no shares) are still owners and ARE listed — the
-  // table lists them, and only `name` is scored.
+  // markers or parenthetical annotations; a cell naming two owners is TWO rows —
+  // `name` holds exactly one entity, never "X and Y". Rows showing "—"/"--"/"-"
+  // (no shares) are still owners and ARE listed — the table lists them, and only
+  // `name` is scored.
   // ---------------------------------------------------------------------------
 
   // 26 Capital Acquisition Corp. — sponsor + Ader hold all founder shares.
@@ -166,15 +166,20 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Richard J Boyle, Jr."),
   ],
   // Operating company (not a SPAC): a 5% holder block plus zero-share officers.
-  // The 5% row names both the entity and its CEO in one cell with one combined
-  // figure (footnote 5 splits 1,520,000 / 45,942), so it stays a single row.
+  // The 5% cell reads "V-Cube, Inc. and Naoaki Mashita" — a company AND a person,
+  // which is two owners, not one name. Footnote 5 attributes the shares
+  // separately (1,520,000 to V-Cube, 45,942 to Mr. Mashita), so the split is
+  // stated by the filing rather than synthesized. Keeping it as one row would put
+  // a name that is plainly two names into `name` — and the S-1 persist path would
+  // resolve it into the canonical company tier as a single bogus company.
   [goldenLabelKey("s1_2030954_000149315226027129", "beneficial-ownership")]: [
     O("Randolph Wilson Jones III"),
     O("Christina Maldonado"),
     O("Virgilio D. Torres"),
     O("Yuji Ishida"),
     O("Gan Yong Sheng"),
-    O("V-Cube, Inc. and Naoaki Mashita"),
+    O("V-Cube, Inc."),
+    O("Naoaki Mashita"),
   ],
   // Churchill Capital Corp XII. The sponsor cell prints as
   // "Churchill Sponsor XII LLC(our sponsor)(3)" — annotation and marker dropped.

@@ -73,12 +73,23 @@ function hasDiff(d: ExtractionDiff): boolean {
   return d.missing.length > 0 || d.extra.length > 0 || d.mismatches.length > 0;
 }
 
-/** Join a capped list of row keys, appending "(+N more)" when truncated. */
+/**
+ * Join a capped list of row keys, appending "(+N more)" when truncated. Each key
+ * is quoted: entity names routinely contain commas ("V-Cube, Inc."), so a bare
+ * ", " join renders two rows as `V-Cube, Inc., Naoaki Mashita` — unreadable, and
+ * indistinguishable from ONE name that merely contains a comma. That ambiguity
+ * matters here: whether a model emitted one combined name or two separate owners
+ * is exactly what these diffs exist to show. Same reasoning as `displayValue` in
+ * scoreExtraction.ts, which bracket-quotes arrays for this reason.
+ */
 function keyList(keys: readonly string[], cap = 8): string {
-  const shown = keys.slice(0, cap).map((k) => truncate(k, 40));
+  const shown = keys.slice(0, cap).map((k) => `"${truncate(k, 40)}"`);
   const extra = keys.length - shown.length;
   return extra > 0 ? `${shown.join(", ")} (+${extra} more)` : shown.join(", ");
 }
+
+/** @internal test seam for {@link keyList}. */
+export const keyListForTesting = keyList;
 
 interface DiffEntry {
   readonly model: string;
