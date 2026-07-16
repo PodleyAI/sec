@@ -6,11 +6,7 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import type { CanonicalEntityKind } from "./CanonicalAliasAddTask";
+import { canonicalTierDeps, type CanonicalEntityKind } from "./canonicalTier";
 
 export type CanonicalAliasListTaskInput = {
   readonly kind: CanonicalEntityKind;
@@ -60,26 +56,10 @@ export class CanonicalAliasListTask extends Task<
   }
 
   async execute(input: CanonicalAliasListTaskInput): Promise<CanonicalAliasListTaskOutput> {
-    if (input.kind === "person") {
-      const aliasRepo = new CanonicalPersonAliasRepo();
-      const list = input.orphans
-        ? await aliasRepo.listOrphans(
-            new Set((await new CanonicalPersonRepo().listAll()).map((r) => r.canonical_person_id))
-          )
-        : await aliasRepo.list();
-      return {
-        aliases: list.map((a) => ({
-          alias_canonical_id: a.alias_canonical_id,
-          target_canonical_id: a.target_canonical_id,
-          reason: a.reason,
-        })),
-      };
-    }
-    const aliasRepo = new CanonicalCompanyAliasRepo();
+    const deps = canonicalTierDeps(input.kind);
+    const aliasRepo = deps.aliases();
     const list = input.orphans
-      ? await aliasRepo.listOrphans(
-          new Set((await new CanonicalCompanyRepo().listAll()).map((r) => r.canonical_company_id))
-        )
+      ? await aliasRepo.listOrphans(await deps.listAllIds())
       : await aliasRepo.list();
     return {
       aliases: list.map((a) => ({

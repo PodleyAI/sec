@@ -6,12 +6,7 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { resolveCanonicalCompanyRef, resolveCanonicalPersonRef } from "../../cli/groups/canonical";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import type { CanonicalEntityKind } from "./CanonicalAliasAddTask";
+import { canonicalTierDeps, type CanonicalEntityKind } from "./canonicalTier";
 
 export type CanonicalAliasRemoveTaskInput = {
   readonly kind: CanonicalEntityKind;
@@ -19,7 +14,9 @@ export type CanonicalAliasRemoveTaskInput = {
 };
 
 export type CanonicalAliasRemoveTaskOutput = {
-  readonly removedId: string;
+  readonly removedId: string | null;
+  /** Expected reference-resolution failure as data; see CanonicalAliasAddTask. */
+  readonly error: string | null;
 };
 
 /**
@@ -44,18 +41,20 @@ export class CanonicalAliasRemoveTask extends Task<
 
   public static outputSchema() {
     return Type.Object({
-      removedId: Type.String(),
+      removedId: Type.Union([Type.String(), Type.Null()]),
+      error: Type.Union([Type.String(), Type.Null()]),
     });
   }
 
   async execute(input: CanonicalAliasRemoveTaskInput): Promise<CanonicalAliasRemoveTaskOutput> {
-    if (input.kind === "person") {
-      const fromId = await resolveCanonicalPersonRef(input.from, new CanonicalPersonRepo());
-      await new CanonicalPersonAliasRepo().remove(fromId);
-      return { removedId: fromId };
+    const deps = canonicalTierDeps(input.kind);
+    let fromId: string;
+    try {
+      fromId = await deps.resolveRef(input.from);
+    } catch (e) {
+      return { removedId: null, error: (e as Error).message };
     }
-    const fromId = await resolveCanonicalCompanyRef(input.from, new CanonicalCompanyRepo());
-    await new CanonicalCompanyAliasRepo().remove(fromId);
-    return { removedId: fromId };
+    await deps.aliases().remove(fromId);
+    return { removedId: fromId, error: null };
   }
 }

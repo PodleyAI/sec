@@ -7,10 +7,11 @@
 import { Command } from "commander";
 import { runWorkflowCli } from "../cli/runWorkflow";
 import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
-import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
-import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
-import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
-import { FamilyAliasAddTask } from "../task/canonical/FamilyAliasAddTask";
+import {
+  FamilyAliasAddTask,
+  type FamilyAliasAddTaskOutput,
+} from "../task/canonical/FamilyAliasAddTask";
+import { issuerCiksByFamilyName } from "../task/canonical/familyTier";
 import {
   FamilyAliasListTask,
   type FamilyAliasListTaskOutput,
@@ -32,30 +33,13 @@ import { registerIssuerDealCommand } from "./issuerDeal";
 
 /**
  * Returns the issuer CIKs of every IPO underwritten by the named family.
- * Alias-aware: unions the resolved target family with every variant family id
- * aliased into it, since link rows keep the family id assigned at extraction time.
+ * Alias-aware — see {@link issuerCiksByFamilyName}.
  */
 export async function ipoIssuersByUnderwriterFamilyName(
   name: string,
   resolverVersion: string
 ): Promise<number[]> {
-  const normalized = normalizeUnderwriterFamilyName(name);
-  if (!normalized) return [];
-  const families = new CanonicalUnderwriterFamilyRepo();
-  const family = await families.findByResolverAndName(resolverVersion, normalized);
-  if (!family) return [];
-
-  const aliases = new CanonicalUnderwriterFamilyAliasRepo();
-  const target = await aliases.resolve(family.canonical_underwriter_family_id);
-  const variantIds = (await aliases.listByTarget(target)).map((a) => a.alias_canonical_id);
-  const familyIds = [target, ...variantIds];
-
-  const links = new UnderwriterLinkRepo();
-  const ciks = new Set<number>();
-  for (const id of familyIds) {
-    for (const cik of await links.listIssuerCiksForFamily(id)) ciks.add(cik);
-  }
-  return [...ciks];
+  return issuerCiksByFamilyName("underwriter", name, resolverVersion);
 }
 
 /**
@@ -81,24 +65,26 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         intoName: string,
         opts: { reason?: string; resolverVersion: string }
       ) => {
-        try {
-          await runWorkflowCli([
-            new FamilyAliasAddTask({
-              defaults: {
-                family: "underwriter",
-                fromName,
-                intoName,
-                reason: opts.reason,
-                resolverVersion: opts.resolverVersion,
-              },
-            }),
-          ]);
-          console.log(`aliased '${fromName}' -> '${intoName}'`);
-        } catch (e) {
-          console.error(`error: ${(e as Error).message}`);
+        // Expected failures (unknown names, alias chain violations) come back
+        // as the task's `error` output port rather than a throw, so this
+        // renders identically on a TTY and when piped.
+        const out = await runWorkflowCli<FamilyAliasAddTaskOutput>([
+          new FamilyAliasAddTask({
+            defaults: {
+              family: "underwriter",
+              fromName,
+              intoName,
+              reason: opts.reason,
+              resolverVersion: opts.resolverVersion,
+            },
+          }),
+        ]);
+        if (out.error !== null) {
+          console.error(`error: ${out.error}`);
           process.exitCode = 1;
           return;
         }
+        console.log(`aliased '${fromName}' -> '${intoName}'`);
       }
     );
 
@@ -107,18 +93,17 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
     .description("Remove an alias for an underwriter-family name")
     .option("--resolver-version <v>", "resolver version", "1.0.0")
     .action(async (name: string, opts: { resolverVersion: string }) => {
-      try {
-        const { removedId } = await runWorkflowCli<FamilyAliasRemoveTaskOutput>([
-          new FamilyAliasRemoveTask({
-            defaults: { family: "underwriter", name, resolverVersion: opts.resolverVersion },
-          }),
-        ]);
-        console.log(`removed alias for ${removedId}`);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
+      const out = await runWorkflowCli<FamilyAliasRemoveTaskOutput>([
+        new FamilyAliasRemoveTask({
+          defaults: { family: "underwriter", name, resolverVersion: opts.resolverVersion },
+        }),
+      ]);
+      if (out.error !== null) {
+        console.error(`error: ${out.error}`);
         process.exitCode = 1;
         return;
       }
+      console.log(`removed alias for ${out.removedId}`);
     });
 
   fam

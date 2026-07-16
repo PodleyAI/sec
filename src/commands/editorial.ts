@@ -15,11 +15,8 @@ import {
   EditorialImportTask,
   type EditorialImportTaskOutput,
 } from "../task/editorial/EditorialImportTask";
+import { FamilyDescriptionSetTask } from "../task/canonical/FamilyDescriptionSetTask";
 import { EditorialSetTask, type EditorialSetTaskOutput } from "../task/editorial/EditorialSetTask";
-import {
-  SetFamilyDescriptionTask,
-  type SetFamilyDescriptionTaskOutput,
-} from "../task/editorial/SetFamilyDescriptionTask";
 import { normalizeFamilyNameForKind } from "./editorialImport";
 
 function fail(message: string): void {
@@ -75,24 +72,23 @@ export function registerEditorialCommands(program: Command): void {
             return fail("--details must be valid JSON");
           }
         }
-        let result: EditorialSetTaskOutput;
-        try {
-          result = await runWorkflowCli<EditorialSetTaskOutput>([
-            new EditorialSetTask({
-              defaults: {
-                cik,
-                urlSponsor: opts.urlSponsor,
-                urlSpac: opts.urlSpac,
-                details: opts.details,
-                createMissing: opts.createMissing === true,
-              },
-            }),
-          ]);
-        } catch (err) {
-          if (err instanceof Error && err.message.startsWith("no spac row for CIK")) {
-            return fail(err.message);
-          }
-          throw err;
+        const result = await runWorkflowCli<EditorialSetTaskOutput>([
+          new EditorialSetTask({
+            defaults: {
+              cik,
+              urlSponsor: opts.urlSponsor,
+              urlSpac: opts.urlSpac,
+              details: opts.details,
+              createMissing: opts.createMissing === true,
+            },
+          }),
+        ]);
+        // The task reports this expected refusal as data (not a throw) so the
+        // hint renders the same on a TTY and when piped.
+        if (result.missingSpacRow) {
+          return fail(
+            `no spac row for CIK ${cik}; pass --create-missing to create one (marks the CIK a known SPAC)`
+          );
         }
         console.log(`updated spac ${cik}${result.created ? " (created)" : ""}`);
       }
@@ -111,8 +107,8 @@ export function registerEditorialCommands(program: Command): void {
       }
       const normalized = normalizeFamilyNameForKind(kind, name);
       if (!normalized) return fail("name normalizes to empty");
-      await runWorkflowCli<SetFamilyDescriptionTaskOutput>([
-        new SetFamilyDescriptionTask({
+      await runWorkflowCli([
+        new FamilyDescriptionSetTask({
           defaults: { kind, normalizedName: normalized, text },
         }),
       ]);

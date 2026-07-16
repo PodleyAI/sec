@@ -6,13 +6,9 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { resolveCanonicalCompanyRef, resolveCanonicalPersonRef } from "../../cli/groups/canonical";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
+import { canonicalTierDeps, type CanonicalEntityKind } from "./canonicalTier";
 
-export type CanonicalEntityKind = "person" | "company";
+export type { CanonicalEntityKind } from "./canonicalTier";
 
 export type CanonicalAliasAddTaskInput = {
   readonly kind: CanonicalEntityKind;
@@ -22,8 +18,15 @@ export type CanonicalAliasAddTaskInput = {
 };
 
 export type CanonicalAliasAddTaskOutput = {
-  readonly aliasId: string;
-  readonly targetId: string;
+  readonly aliasId: string | null;
+  readonly targetId: string | null;
+  /**
+   * Expected user-error (unresolvable/ambiguous reference, self-alias, alias
+   * chain violation) as data rather than a throw, so the CLI renders it the
+   * same on a TTY (where the workflow renderer hard-exits on thrown errors)
+   * and when piped.
+   */
+  readonly error: string | null;
 };
 
 /**
@@ -51,39 +54,26 @@ export class CanonicalAliasAddTask extends Task<
 
   public static outputSchema() {
     return Type.Object({
-      aliasId: Type.String(),
-      targetId: Type.String(),
+      aliasId: Type.Union([Type.String(), Type.Null()]),
+      targetId: Type.Union([Type.String(), Type.Null()]),
+      error: Type.Union([Type.String(), Type.Null()]),
     });
   }
 
   async execute(input: CanonicalAliasAddTaskInput): Promise<CanonicalAliasAddTaskOutput> {
-    if (input.kind === "person") {
-      const canonRepo = new CanonicalPersonRepo();
-      const fromId = await resolveCanonicalPersonRef(input.from, canonRepo);
-      const intoId = await resolveCanonicalPersonRef(input.into, canonRepo);
+    const deps = canonicalTierDeps(input.kind);
+    try {
+      const fromId = await deps.resolveRef(input.from);
+      const intoId = await deps.resolveRef(input.into);
       if (fromId === intoId) {
-        throw new Error("cannot alias an id to itself");
+        return { aliasId: null, targetId: null, error: "cannot alias an id to itself" };
       }
-      const row = await new CanonicalPersonAliasRepo().add(
-        fromId,
-        intoId,
-        input.reason ?? null,
-        process.env.USER ?? null
-      );
-      return { aliasId: row.alias_canonical_id, targetId: row.target_canonical_id };
+      const row = await deps
+        .aliases()
+        .add(fromId, intoId, input.reason ?? null, process.env.USER ?? null);
+      return { aliasId: row.alias_canonical_id, targetId: row.target_canonical_id, error: null };
+    } catch (e) {
+      return { aliasId: null, targetId: null, error: (e as Error).message };
     }
-    const canonRepo = new CanonicalCompanyRepo();
-    const fromId = await resolveCanonicalCompanyRef(input.from, canonRepo);
-    const intoId = await resolveCanonicalCompanyRef(input.into, canonRepo);
-    if (fromId === intoId) {
-      throw new Error("cannot alias an id to itself");
-    }
-    const row = await new CanonicalCompanyAliasRepo().add(
-      fromId,
-      intoId,
-      input.reason ?? null,
-      process.env.USER ?? null
-    );
-    return { aliasId: row.alias_canonical_id, targetId: row.target_canonical_id };
   }
 }

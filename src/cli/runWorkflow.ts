@@ -16,6 +16,16 @@ import { isJsonOutput } from "./isJsonOutput";
  * plainly with identical results. The sink's collected output — the final
  * task's output ports — is returned so commands can render tables/JSON from
  * structured results without reaching into the graph.
+ *
+ * Piping connects ALL output ports of each task to the next task by name, and
+ * a matching name overrides the downstream task's `defaults`. Multi-task
+ * pipelines must therefore keep upstream output port names disjoint from
+ * downstream input ports unless the hand-off is intended.
+ *
+ * Tasks should report EXPECTED user-errors as output ports (e.g. an `error`
+ * string) rather than throwing: on a TTY the workflow renderer intercepts a
+ * thrown error with `process.exit(1)`, bypassing the calling command's error
+ * handling and the CLI's teardown; only unexpected failures should throw.
  */
 export async function runWorkflowCli<T>(
   tasks: readonly ITask[],

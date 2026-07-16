@@ -17,8 +17,14 @@ export type FamilyAliasAddTaskInput = {
 };
 
 export type FamilyAliasAddTaskOutput = {
-  readonly fromId: string;
-  readonly intoId: string;
+  readonly fromId: string | null;
+  readonly intoId: string | null;
+  /**
+   * Expected user-error (unknown family name, alias chain violation) as data
+   * rather than a throw, so the CLI renders it the same on a TTY (where the
+   * workflow renderer hard-exits on thrown errors) and when piped.
+   */
+  readonly error: string | null;
 };
 
 /**
@@ -44,8 +50,9 @@ export class FamilyAliasAddTask extends Task<FamilyAliasAddTaskInput, FamilyAlia
 
   public static outputSchema() {
     return Type.Object({
-      fromId: Type.String(),
-      intoId: Type.String(),
+      fromId: Type.Union([Type.String(), Type.Null()]),
+      intoId: Type.Union([Type.String(), Type.Null()]),
+      error: Type.Union([Type.String(), Type.Null()]),
     });
   }
 
@@ -54,9 +61,13 @@ export class FamilyAliasAddTask extends Task<FamilyAliasAddTaskInput, FamilyAlia
     const fromId = await deps.findIdByName(input.resolverVersion, input.fromName);
     const intoId = await deps.findIdByName(input.resolverVersion, input.intoName);
     if (!fromId || !intoId) {
-      throw new Error("both family names must already exist");
+      return { fromId: null, intoId: null, error: "both family names must already exist" };
     }
-    await deps.aliases().add(fromId, intoId, input.reason ?? null, "cli");
-    return { fromId, intoId };
+    try {
+      await deps.aliases().add(fromId, intoId, input.reason ?? null, "cli");
+    } catch (e) {
+      return { fromId: null, intoId: null, error: (e as Error).message };
+    }
+    return { fromId, intoId, error: null };
   }
 }

@@ -5,15 +5,10 @@
  */
 
 import { Type } from "typebox";
-import { globalServiceRegistry, Task } from "workglow";
+import { Task } from "workglow";
 import { dropPrevious } from "../../storage/versioning/ceremonies";
 import type { ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { ceremonyExtractorRuns, ceremonyRepos } from "./ceremonyRepos";
 
 export type VersionDropPreviousTaskInput = {
   readonly kind: ComponentKind;
@@ -56,12 +51,8 @@ export class VersionDropPreviousTask extends Task<
   }
 
   async execute(input: VersionDropPreviousTaskInput): Promise<VersionDropPreviousTaskOutput> {
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const events = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
-    const runs =
-      input.kind === "extractor"
-        ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
-        : undefined;
+    const { reg, events } = ceremonyRepos();
+    const runs = input.kind === "extractor" ? ceremonyExtractorRuns() : undefined;
     await dropPrevious({
       reg,
       events,

@@ -11,7 +11,8 @@ import { familyTierDeps, type FamilyKind } from "./familyTier";
 export type FamilyAliasListTaskInput = {
   readonly family: FamilyKind;
   readonly orphans?: boolean;
-  readonly resolverVersion: string;
+  /** Scopes orphan detection; the plain listing is not version-scoped. */
+  readonly resolverVersion?: string;
 };
 
 export type FamilyAliasRow = {
@@ -39,7 +40,7 @@ export class FamilyAliasListTask extends Task<FamilyAliasListTaskInput, FamilyAl
     return Type.Object({
       family: Type.Union([Type.Literal("sponsor"), Type.Literal("underwriter")]),
       orphans: Type.Optional(Type.Boolean()),
-      resolverVersion: Type.String(),
+      resolverVersion: Type.Optional(Type.String()),
     });
   }
 
@@ -58,11 +59,17 @@ export class FamilyAliasListTask extends Task<FamilyAliasListTaskInput, FamilyAl
   async execute(input: FamilyAliasListTaskInput): Promise<FamilyAliasListTaskOutput> {
     const deps = familyTierDeps(input.family);
     const aliasRepo = deps.aliases();
-    const list = input.orphans
-      ? await aliasRepo.listOrphans(
-          new Set(await deps.listIdsForResolverVersion(input.resolverVersion))
-        )
-      : await aliasRepo.list();
+    let list: Awaited<ReturnType<typeof aliasRepo.list>>;
+    if (input.orphans) {
+      if (input.resolverVersion === undefined) {
+        throw new Error("orphan listing requires a resolverVersion");
+      }
+      list = await aliasRepo.listOrphans(
+        new Set(await deps.listIdsForResolverVersion(input.resolverVersion))
+      );
+    } else {
+      list = await aliasRepo.list();
+    }
     return {
       aliases: list.map((a) => ({
         alias_canonical_id: a.alias_canonical_id,

@@ -5,13 +5,10 @@
  */
 
 import { Type } from "typebox";
-import { globalServiceRegistry, Task } from "workglow";
+import { Task } from "workglow";
 import { rollback } from "../../storage/versioning/ceremonies";
 import type { ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { ceremonyRepos } from "./ceremonyRepos";
 
 export type VersionRollbackTaskInput = {
   readonly kind: ComponentKind;
@@ -47,8 +44,7 @@ export class VersionRollbackTask extends Task<VersionRollbackTaskInput, VersionR
   }
 
   async execute(input: VersionRollbackTaskInput): Promise<VersionRollbackTaskOutput> {
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const events = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
+    const { reg, events } = ceremonyRepos();
     await rollback({
       reg,
       events,

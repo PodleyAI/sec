@@ -5,14 +5,9 @@
  */
 
 import type { Command } from "commander";
-import { globalServiceRegistry } from "workglow";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 import { isDryRun } from "../isDryRun";
-import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { RetryDeadLettersTask } from "../../task/forms/RetryDeadLettersTask";
 import { BackfillExtractorTask } from "../../task/forms/BackfillExtractorTask";
 import {
@@ -21,13 +16,9 @@ import {
 } from "../../task/forms/ListDeadLettersTask";
 import { listBackfillableExtractorIds } from "../../task/forms/backfillDescriptors";
 
-/** Number of pending dead-letter entries now eligible under the current version. */
-export async function countEligibleDeadLetters(extractorId: string): Promise<number> {
-  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-  const slot = await getActiveSlot(reg, "extractor", extractorId);
-  if (!slot) return 0;
-  return new ExtractionDeadLetterRepo().countEligible(extractorId, slot.semver);
-}
+// The count lives with ListDeadLettersTask (single source for the eligibility
+// wiring); re-exported here for the version group and its tests.
+export { countEligibleDeadLetters } from "../../task/forms/ListDeadLettersTask";
 
 export function addExtractorCommands(program: Command): void {
   const cmd = program

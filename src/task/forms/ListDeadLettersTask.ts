@@ -15,6 +15,14 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/Com
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 
+/** Number of pending dead-letter entries now eligible under the current version. */
+export async function countEligibleDeadLetters(extractorId: string): Promise<number> {
+  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+  const slot = await getActiveSlot(reg, "extractor", extractorId);
+  if (!slot) return 0;
+  return new ExtractionDeadLetterRepo().countEligible(extractorId, slot.semver);
+}
+
 export type ListDeadLettersTaskInput = {
   readonly extractorId: string;
   readonly eligible?: boolean;
@@ -52,15 +60,12 @@ export class ListDeadLettersTask extends Task<ListDeadLettersTaskInput, ListDead
   }
 
   async execute(input: ListDeadLettersTaskInput): Promise<ListDeadLettersTaskOutput> {
-    const repo = new ExtractionDeadLetterRepo();
     if (input.eligible) {
-      const reg = new VersionRegistry(
-        globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-      );
-      const slot = await getActiveSlot(reg, "extractor", input.extractorId);
-      const eligibleCount = slot ? await repo.countEligible(input.extractorId, slot.semver) : 0;
-      return { pending: [], eligibleCount };
+      return { pending: [], eligibleCount: await countEligibleDeadLetters(input.extractorId) };
     }
-    return { pending: await repo.listPending(input.extractorId), eligibleCount: null };
+    return {
+      pending: await new ExtractionDeadLetterRepo().listPending(input.extractorId),
+      eligibleCount: null,
+    };
   }
 }

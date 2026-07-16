@@ -20,6 +20,12 @@ export type EditorialSetTaskInput = {
 export type EditorialSetTaskOutput = {
   readonly updated: boolean;
   readonly created: boolean;
+  /**
+   * True when the CIK has no spac row and `createMissing` was not set — an
+   * expected refusal reported as data (not a throw) so the CLI renders its
+   * hint identically on a TTY and when piped.
+   */
+  readonly missingSpacRow: boolean;
 };
 
 /**
@@ -48,15 +54,14 @@ export class EditorialSetTask extends Task<EditorialSetTaskInput, EditorialSetTa
     return Type.Object({
       updated: Type.Boolean(),
       created: Type.Boolean(),
+      missingSpacRow: Type.Boolean(),
     });
   }
 
   async execute(input: EditorialSetTaskInput): Promise<EditorialSetTaskOutput> {
     const exists = (await new SpacRepo().getSpac(input.cik)) !== undefined;
     if (!exists && input.createMissing !== true) {
-      throw new Error(
-        `no spac row for CIK ${input.cik}; pass --create-missing to create one (marks the CIK a known SPAC)`
-      );
+      return { updated: false, created: false, missingSpacRow: true };
     }
     await new SpacReportWriter().recordEditorial({
       cik: input.cik,
@@ -64,6 +69,6 @@ export class EditorialSetTask extends Task<EditorialSetTaskInput, EditorialSetTa
       url_spac: input.urlSpac,
       details: input.details,
     });
-    return { updated: true, created: !exists };
+    return { updated: true, created: !exists, missingSpacRow: false };
   }
 }

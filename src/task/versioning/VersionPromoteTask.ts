@@ -5,16 +5,11 @@
  */
 
 import { Type } from "typebox";
-import { globalServiceRegistry, Task } from "workglow";
-import { countEligibleDeadLetters } from "../../cli/groups/extractor";
+import { Task } from "workglow";
+import { countEligibleDeadLetters } from "../forms/ListDeadLettersTask";
 import { promote } from "../../storage/versioning/ceremonies";
 import type { ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { ceremonyExtractorRuns, ceremonyRepos } from "./ceremonyRepos";
 
 export type VersionPromoteTaskInput = {
   readonly kind: ComponentKind;
@@ -56,9 +51,8 @@ export class VersionPromoteTask extends Task<VersionPromoteTaskInput, VersionPro
   }
 
   async execute(input: VersionPromoteTaskInput): Promise<VersionPromoteTaskOutput> {
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const events = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
-    const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const { reg, events } = ceremonyRepos();
+    const runs = ceremonyExtractorRuns();
     await promote({
       reg,
       events,

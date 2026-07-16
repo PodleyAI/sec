@@ -22,8 +22,35 @@ export type ResolveObservationsTaskInput = {
   readonly resolverVersion: string;
 };
 
+/**
+ * Shared per-kind loop: resolve each observation and write its identity link,
+ * isolating per-row failures (logged to stderr) so one bad row can't abort the
+ * whole batch.
+ */
+async function resolveAll<Obs extends { readonly observation_id: number }>(
+  observations: readonly Obs[],
+  resolveOne: (obs: Obs) => Promise<string>,
+  writeLink: (observationId: number, canonicalId: string) => Promise<unknown>
+): Promise<ResolveObservationsTaskOutput> {
+  let count = 0;
+  let skipped = 0;
+  for (const obs of observations) {
+    try {
+      const id = await resolveOne(obs);
+      await writeLink(obs.observation_id, id);
+      count++;
+    } catch (e) {
+      skipped++;
+      console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
+    }
+  }
+  return { count, skipped };
+}
+
 export type ResolveObservationsTaskOutput = {
   readonly count: number;
+  /** Observations skipped by the per-row failure isolation (also logged to stderr). */
+  readonly skipped: number;
 };
 
 /**
@@ -50,55 +77,34 @@ export class ResolveObservationsTask extends Task<
   public static outputSchema() {
     return Type.Object({
       count: Type.Number(),
+      skipped: Type.Number(),
     });
   }
 
   async execute(input: ResolveObservationsTaskInput): Promise<ResolveObservationsTaskOutput> {
     if (input.kind === "person") {
-      const obsRepo = new PersonObservationRepo();
-      const canonRepo = new CanonicalPersonRepo();
-      const aliasRepo = new CanonicalPersonAliasRepo();
-      const linkRepo = new PersonIdentityLinkRepo();
       const resolver = new PersonResolver({
-        canonicalPersonRepo: canonRepo,
-        canonicalPersonAliasRepo: aliasRepo,
+        canonicalPersonRepo: new CanonicalPersonRepo(),
+        canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
         activeResolverVersion: input.resolverVersion,
       });
-      const all = await obsRepo.listAll();
-      let count = 0;
-      for (const obs of all) {
-        // Isolate per-observation failures so one bad row can't abort the
-        // whole batch (mirrors the company branch below).
-        try {
-          const id = await resolver.resolve(obs);
-          await linkRepo.upsert(obs.observation_id, input.resolverVersion, id);
-          count++;
-        } catch (e) {
-          console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
-        }
-      }
-      return { count };
+      const linkRepo = new PersonIdentityLinkRepo();
+      return resolveAll(
+        await new PersonObservationRepo().listAll(),
+        (obs) => resolver.resolve(obs),
+        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+      );
     }
-    const obsRepo = new CompanyObservationRepo();
-    const canonRepo = new CanonicalCompanyRepo();
-    const aliasRepo = new CanonicalCompanyAliasRepo();
-    const linkRepo = new CompanyIdentityLinkRepo();
     const resolver = new CompanyResolver({
-      canonicalCompanyRepo: canonRepo,
-      canonicalCompanyAliasRepo: aliasRepo,
+      canonicalCompanyRepo: new CanonicalCompanyRepo(),
+      canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
       activeResolverVersion: input.resolverVersion,
     });
-    const all = await obsRepo.listAll();
-    let count = 0;
-    for (const obs of all) {
-      try {
-        const id = await resolver.resolve(obs);
-        await linkRepo.upsert(obs.observation_id, input.resolverVersion, id);
-        count++;
-      } catch (e) {
-        console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
-      }
-    }
-    return { count };
+    const linkRepo = new CompanyIdentityLinkRepo();
+    return resolveAll(
+      await new CompanyObservationRepo().listAll(),
+      (obs) => resolver.resolve(obs),
+      (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+    );
   }
 }

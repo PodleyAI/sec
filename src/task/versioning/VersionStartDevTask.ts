@@ -9,11 +9,8 @@ import { globalServiceRegistry, Task } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { startDev } from "../../storage/versioning/ceremonies";
 import type { BumpType, ComponentKind } from "../../storage/versioning/ComponentVersionSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { ceremonyRepos } from "./ceremonyRepos";
 
 /**
  * For a major-bump extractor start-dev, snapshot the count of filings
@@ -87,8 +84,7 @@ export class VersionStartDevTask extends Task<VersionStartDevTaskInput, VersionS
   }
 
   async execute(input: VersionStartDevTaskInput): Promise<VersionStartDevTaskOutput> {
-    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
-    const events = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
+    const { reg, events } = ceremonyRepos();
     const targetCount =
       input.bump === "major" ? await snapshotTargetCount(input.kind, input.id) : null;
     await startDev({

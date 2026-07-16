@@ -6,9 +6,7 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
-import { spacIssuersByFamilyName } from "../../commands/sponsorFamily";
-import { ipoIssuersByUnderwriterFamilyName } from "../../commands/underwriterFamily";
-import type { FamilyKind } from "./familyTier";
+import { issuerCiksByFamilyName, type FamilyKind } from "./familyTier";
 
 export type IssuersByFamilyTaskInput = {
   readonly family: FamilyKind;
@@ -45,10 +43,6 @@ export class IssuersByFamilyTask extends Task<IssuersByFamilyTaskInput, IssuersB
   }
 
   async execute(input: IssuersByFamilyTaskInput): Promise<IssuersByFamilyTaskOutput> {
-    const ciks =
-      input.family === "sponsor"
-        ? await spacIssuersByFamilyName(input.name, input.resolverVersion)
-        : await ipoIssuersByUnderwriterFamilyName(input.name, input.resolverVersion);
-    return { ciks };
+    return { ciks: await issuerCiksByFamilyName(input.family, input.name, input.resolverVersion) };
   }
 }

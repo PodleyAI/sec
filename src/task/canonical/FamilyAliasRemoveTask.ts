@@ -15,7 +15,9 @@ export type FamilyAliasRemoveTaskInput = {
 };
 
 export type FamilyAliasRemoveTaskOutput = {
-  readonly removedId: string;
+  readonly removedId: string | null;
+  /** Expected unknown-family failure as data; see FamilyAliasAddTask. */
+  readonly error: string | null;
 };
 
 /** Removes the alias for a named sponsor / underwriter family. */
@@ -38,7 +40,8 @@ export class FamilyAliasRemoveTask extends Task<
 
   public static outputSchema() {
     return Type.Object({
-      removedId: Type.String(),
+      removedId: Type.Union([Type.String(), Type.Null()]),
+      error: Type.Union([Type.String(), Type.Null()]),
     });
   }
 
@@ -46,9 +49,9 @@ export class FamilyAliasRemoveTask extends Task<
     const deps = familyTierDeps(input.family);
     const familyId = await deps.findIdByName(input.resolverVersion, input.name);
     if (!familyId) {
-      throw new Error(`no ${deps.kindLabel} found for '${input.name}'`);
+      return { removedId: null, error: `no ${deps.kindLabel} found for '${input.name}'` };
     }
     await deps.aliases().remove(familyId);
-    return { removedId: familyId };
+    return { removedId: familyId, error: null };
   }
 }

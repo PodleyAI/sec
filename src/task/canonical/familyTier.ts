@@ -11,6 +11,8 @@ import { CanonicalSponsorFamilyAliasRepo } from "../../storage/canonical/Canonic
 import { CanonicalSponsorFamilyRepo } from "../../storage/canonical/CanonicalSponsorFamilyRepo";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { CanonicalUnderwriterFamilyRepo } from "../../storage/canonical/CanonicalUnderwriterFamilyRepo";
+import { SpacSponsorLinkRepo } from "../../storage/canonical/SpacSponsorLinkRepo";
+import { UnderwriterLinkRepo } from "../../storage/canonical/UnderwriterLinkRepo";
 
 /** The two family canonical tiers the parameterized family tasks operate on. */
 export type FamilyKind = "sponsor" | "underwriter";
@@ -27,6 +29,8 @@ export interface FamilyTierDeps {
   /** Resolves a display name (normalized internally) to its canonical family id. */
   readonly findIdByName: (resolverVersion: string, name: string) => Promise<string | undefined>;
   readonly listIdsForResolverVersion: (resolverVersion: string) => Promise<string[]>;
+  /** Issuer CIKs linked to one family id (link rows keep extraction-time ids). */
+  readonly listIssuerCiksForFamily: (familyId: string) => Promise<number[]>;
 }
 
 export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
@@ -45,6 +49,8 @@ export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
         (await new CanonicalSponsorFamilyRepo().listForResolverVersion(resolverVersion)).map(
           (r) => r.canonical_sponsor_family_id
         ),
+      listIssuerCiksForFamily: (familyId) =>
+        new SpacSponsorLinkRepo().listIssuerCiksForFamily(familyId),
     };
   }
   return {
@@ -61,5 +67,33 @@ export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
       (await new CanonicalUnderwriterFamilyRepo().listForResolverVersion(resolverVersion)).map(
         (r) => r.canonical_underwriter_family_id
       ),
+    listIssuerCiksForFamily: (familyId) =>
+      new UnderwriterLinkRepo().listIssuerCiksForFamily(familyId),
   };
+}
+
+/**
+ * Alias-aware issuer lookup for a family tier: the issuer CIKs of every SPAC
+ * backed by (sponsor) or IPO underwritten by (underwriter) the named family.
+ * Unions the resolved target family with every variant family id aliased into
+ * it, since link rows keep the family id assigned at extraction time.
+ */
+export async function issuerCiksByFamilyName(
+  family: FamilyKind,
+  name: string,
+  resolverVersion: string
+): Promise<number[]> {
+  const deps = familyTierDeps(family);
+  const familyId = await deps.findIdByName(resolverVersion, name);
+  if (!familyId) return [];
+
+  const aliasRepo = deps.aliases();
+  const target = await aliasRepo.resolve(familyId);
+  const variantIds = (await aliasRepo.listByTarget(target)).map((a) => a.alias_canonical_id);
+
+  const ciks = new Set<number>();
+  for (const id of [target, ...variantIds]) {
+    for (const cik of await deps.listIssuerCiksForFamily(id)) ciks.add(cik);
+  }
+  return [...ciks];
 }
