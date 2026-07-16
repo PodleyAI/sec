@@ -45,6 +45,20 @@ function parseSeedFile(path: string): AccreditedPortalSeedInput[] {
     if (typeof entry?.name !== "string" || !entry.name.trim()) {
       throw new Error(`Seed file ${path} has an entry without a name: ${JSON.stringify(entry)}`);
     }
+    // Reject string live values ("0"/"false" would coerce truthy) rather
+    // than silently importing every closed portal as live.
+    const live = entry.live;
+    if (
+      live !== undefined &&
+      live !== null &&
+      live !== 0 &&
+      live !== 1 &&
+      typeof live !== "boolean"
+    ) {
+      throw new Error(
+        `Seed file ${path} entry '${entry.name}' has invalid live value ${JSON.stringify(live)} (expected boolean, 0, 1, or null)`
+      );
+    }
   }
   return parsed as AccreditedPortalSeedInput[];
 }
@@ -67,10 +81,14 @@ export async function importAccreditedPortals(
 
   let signalsSeeded = 0;
   let signalsSkippedManual = 0;
+  // Distinct ids, not entries.length: two seed names can slugify to the same
+  // portal_id, in which case the later entry overwrites rather than adds.
+  const portalIds = new Set<string>();
 
   for (const entry of entries) {
     const name = entry.name.trim();
     const portal_id = slugifyPortalId(name);
+    portalIds.add(portal_id);
     await portalRepo.upsertFromSeed({
       portal_id,
       name,
@@ -95,5 +113,5 @@ export async function importAccreditedPortals(
     }
   }
 
-  return { portals: entries.length, signalsSeeded, signalsSkippedManual };
+  return { portals: portalIds.size, signalsSeeded, signalsSkippedManual };
 }

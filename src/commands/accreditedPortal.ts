@@ -81,19 +81,30 @@ function normalizeSignalInput(
     case "address": {
       // Accept an already-normalized address_hash_id via --value, or address parts.
       if (opts.value) {
+        // A normalized hash is the pipe-joined field list; free-form address
+        // text stored verbatim would be an inert signal that never matches.
+        if (!opts.value.includes("|")) {
+          fail(
+            "--value for --type address must be a normalized address_hash_id (pipe-joined, as shown by 'signal list'); pass address parts (--street1 --city --state ...) to normalize free-form input"
+          );
+          return null;
+        }
         return { signal_type: "address", signal_value: opts.value.toLowerCase() };
       }
+      // No countryCode: the Form D ingest path never has one (issuer addresses
+      // carry only stateOrCountry), and normalizeAddress would fall back to it
+      // when the state code is unmappable — producing a hash ingest can never
+      // produce. Failing loudly instead tells the curator to fix --state.
       const value = normalizeAddressSignal({
         street1: opts.street1 ?? null,
         street2: opts.street2 ?? null,
         city: opts.city ?? null,
         stateOrCountry: opts.state ?? null,
         zipCode: opts.zip ?? null,
-        countryCode: opts.country ?? null,
       });
       if (!value) {
         fail(
-          "could not normalize address — provide at least --street1, --city, and --state (or --value with an address_hash_id)"
+          "could not normalize address — provide at least --street1, --city, and --state with a valid SEC state/country code (or --value with an address_hash_id)"
         );
         return null;
       }
@@ -120,7 +131,7 @@ function addSignalValueOptions(cmd: Command): Command {
     .option("--zip <zip>", "address postal code")
     .option(
       "--country <country>",
-      "ISO country code; for phones this must match the filings' issuer country or the parsed international number will differ",
+      "ISO country code for phone parsing; must match the filings' issuer country or the parsed international number will differ (addresses use --state)",
       "US"
     );
 }

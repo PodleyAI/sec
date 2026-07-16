@@ -8,6 +8,7 @@ import type { AddressImport } from "../address/AddressNormalization";
 import { normalizeAddress } from "../address/AddressNormalization";
 import { normalizeCompanyName } from "../company/CompanyNormalization";
 import { normalizePhone } from "../phone/PhoneNormalization";
+import { isBadPersonField } from "../../types/edgar/bad-data";
 
 /**
  * Signal values must equal what the Form D ingest path produces, so each
@@ -21,11 +22,16 @@ import { normalizePhone } from "../phone/PhoneNormalization";
 const MIN_NAME_SIGNAL_LENGTH = 3;
 
 export function normalizeNameSignal(name: string | null | undefined): string | null {
-  if (!name) return null;
+  // Placeholder tokens ("None", "N/A", "same", ...) are never real entity
+  // names. Rejecting them here keeps every producer — issuer/related-person/
+  // sales-compensation ingest, CLI curation, and the observation backfill —
+  // consistent by construction instead of each filtering separately.
+  if (!name || isBadPersonField(name)) return null;
   const normalized = normalizeCompanyName(name);
   if (!normalized) return null;
   const lowered = normalized.toLowerCase().trim();
-  return lowered.length >= MIN_NAME_SIGNAL_LENGTH ? lowered : null;
+  if (lowered.length < MIN_NAME_SIGNAL_LENGTH || isBadPersonField(lowered)) return null;
+  return lowered;
 }
 
 export function normalizePhoneSignal(

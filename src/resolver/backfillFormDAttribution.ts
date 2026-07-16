@@ -5,23 +5,22 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import type { ITabularStorage } from "workglow";
+import { streamMatchingRows } from "../cli/queries/_streamMatches";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { AccreditedPortalSignalRepo } from "../storage/accredited-portal/AccreditedPortalSignalRepo";
+import type { AccreditedPortalSignal } from "../storage/accredited-portal/AccreditedPortalSignalSchema";
 import { FormDPortalAttributionRepo } from "../storage/accredited-portal/FormDPortalAttributionRepo";
 import { isBadPersonField } from "../types/edgar/bad-data";
 import type { AttributionCandidate } from "./PortalAttributor";
-import { PortalAttributor, pushAttributionCandidates } from "./PortalAttributor";
+import { PortalAttributor, pushAttributionCandidates, signalKeyOf } from "./PortalAttributor";
 
 export interface BackfillFormDAttributionResult {
   readonly filings: number;
   readonly attributions: number;
   readonly cleared: number;
 }
-
-/** Rows fetched per page while sweeping the observation tables. */
-const OBSERVATION_PAGE_SIZE = 5000;
 
 function relationOf(source_context: string | null | undefined): string {
   if (!source_context) return "form-d:unknown";
@@ -34,48 +33,23 @@ function relationOf(source_context: string | null | undefined): string {
 }
 
 /**
- * Streams every extractor-"D" row of an observation table in observation_id
- * order via keyset pagination, so a full-EDGAR sweep never materializes the
- * whole table in memory.
- */
-async function forEachObservationPage<T extends { readonly observation_id: number }>(
-  storage: ITabularStorage<any, any, T>,
-  handle: (rows: T[]) => void
-): Promise<void> {
-  let lastId = -1;
-  for (;;) {
-    const rows =
-      (await storage.query(
-        { extractor_id: "D", observation_id: { value: lastId, operator: ">" } } as any,
-        {
-          orderBy: [{ column: "observation_id", direction: "ASC" }],
-          limit: OBSERVATION_PAGE_SIZE,
-        }
-      )) ?? [];
-    if (rows.length === 0) return;
-    handle(rows);
-    lastId = rows[rows.length - 1].observation_id;
-    if (rows.length < OBSERVATION_PAGE_SIZE) return;
-  }
-}
-
-/**
  * Recomputes Form D → accredited-portal attributions from the stored
  * observation tier (extractor_id "D"), so re-attribution after signal changes
  * never needs the raw filings. Clear-then-recompute: the affected scope (one
  * portal, or the whole table) is cleared first so removed signals also drop
- * their stale attributions. Signature observations are skipped and person
- * name parts drop bad-data placeholders, mirroring the ingest path exactly.
+ * their stale attributions.
+ *
+ * The signal table is loaded once (it is small, curated, and invariant for
+ * the sweep) and harvested candidates are kept only when they match a loaded
+ * signal — non-matching candidates can never attribute, so resident memory is
+ * bounded by the match count rather than the observation corpus, and only
+ * accessions with at least one match pay a filing lookup and write.
  */
 export async function backfillFormDAttribution(options: {
   portalId?: string;
 }): Promise<BackfillFormDAttributionResult> {
   const attributionRepo = new FormDPortalAttributionRepo();
-  const attributor = new PortalAttributor({
-    attributionRepo,
-    scopePortalId: options.portalId,
-    scopeAlreadyCleared: true,
-  });
+  const signalRepo = new AccreditedPortalSignalRepo();
 
   let cleared = 0;
   if (options.portalId !== undefined) {
@@ -84,51 +58,64 @@ export async function backfillFormDAttribution(options: {
     await attributionRepo.clearAll();
   }
 
+  const signals =
+    options.portalId !== undefined
+      ? await signalRepo.listByPortal(options.portalId)
+      : await signalRepo.getAllSignals();
+  const signalLookup = new Map<string, AccreditedPortalSignal>(
+    signals.map((s) => [signalKeyOf(s.signal_type, s.signal_value), s])
+  );
+  if (signalLookup.size === 0) {
+    return { filings: 0, attributions: 0, cleared };
+  }
+
+  const attributor = new PortalAttributor({
+    attributionRepo,
+    scopePortalId: options.portalId,
+    scopeAlreadyCleared: true,
+    signalLookup,
+  });
+
   const candidatesByAccession = new Map<string, AttributionCandidate[]>();
-  const candidatesFor = (accession_number: string): AttributionCandidate[] => {
-    let candidates = candidatesByAccession.get(accession_number);
-    if (!candidates) {
-      candidates = [];
-      candidatesByAccession.set(accession_number, candidates);
+  const keepMatching = (accession_number: string, harvested: AttributionCandidate[]): void => {
+    for (const candidate of harvested) {
+      if (!signalLookup.has(signalKeyOf(candidate.signal_type, candidate.signal_value))) continue;
+      let kept = candidatesByAccession.get(accession_number);
+      if (!kept) {
+        kept = [];
+        candidatesByAccession.set(accession_number, kept);
+      }
+      kept.push(candidate);
     }
-    return candidates;
   };
 
-  await forEachObservationPage(
-    globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN),
-    (rows) => {
-      for (const obs of rows) {
-        const via = relationOf(obs.source_context);
-        if (via === "form-d:signature") continue;
-        pushAttributionCandidates(candidatesFor(obs.accession_number), via, {
-          name: obs.normalized_name || obs.name || null,
-          address_hash_id: obs.raw_address_id,
-          international_number: obs.raw_phone_id,
-        });
-      }
-    }
-  );
+  const companyRepo = globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN);
+  for await (const obs of streamMatchingRows(companyRepo, { extractor_id: "D" }, () => true)) {
+    const harvested: AttributionCandidate[] = [];
+    pushAttributionCandidates(harvested, relationOf(obs.source_context), {
+      name: obs.normalized_name || obs.name || null,
+      address_hash_id: obs.raw_address_id,
+      international_number: obs.raw_phone_id,
+    });
+    keepMatching(obs.accession_number, harvested);
+  }
 
-  await forEachObservationPage(
-    globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN),
-    (rows) => {
-      for (const obs of rows) {
-        const via = relationOf(obs.source_context);
-        if (via === "form-d:signature") continue;
-        // Same part filter as the ingest path (processRelatedPerson): stored
-        // person rows keep raw placeholder tokens ("None", "N/A"), which must
-        // not leak into the reconstructed name signal.
-        const fullName = [obs.first_name, obs.middle_name, obs.last_name]
-          .filter((name): name is string => Boolean(name) && !isBadPersonField(name!))
-          .join(" ");
-        pushAttributionCandidates(candidatesFor(obs.accession_number), via, {
-          name: fullName || null,
-          address_hash_id: obs.raw_address_id,
-          international_number: obs.raw_phone_id,
-        });
-      }
-    }
-  );
+  const personRepo = globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN);
+  for await (const obs of streamMatchingRows(personRepo, { extractor_id: "D" }, () => true)) {
+    // Same part filter as the ingest path (processRelatedPerson): stored
+    // person rows keep raw placeholder tokens ("None", "N/A"), which must
+    // not leak into the reconstructed name signal.
+    const fullName = [obs.first_name, obs.middle_name, obs.last_name]
+      .filter((name): name is string => Boolean(name) && !isBadPersonField(name!))
+      .join(" ");
+    const harvested: AttributionCandidate[] = [];
+    pushAttributionCandidates(harvested, relationOf(obs.source_context), {
+      name: fullName || null,
+      address_hash_id: obs.raw_address_id,
+      international_number: obs.raw_phone_id,
+    });
+    keepMatching(obs.accession_number, harvested);
+  }
 
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   let attributions = 0;

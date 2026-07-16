@@ -50,28 +50,14 @@ interface FormDStorageContext {
   readonly extractor_id: "D";
   readonly extractor_version: string;
   readonly observer: EntityObserver;
-  /** Portal-attribution candidates harvested while the filing is processed. */
+  /**
+   * Portal-attribution candidates harvested while the filing is processed,
+   * via the shared {@link pushAttributionCandidates} builder so ingest and
+   * the observation backfill harvest identically. Signatures are deliberately
+   * not collected — signers are individuals and would only add noise (the
+   * shared builder also rejects the "form-d:signature" relation).
+   */
   readonly signals: AttributionCandidate[];
-}
-
-/**
- * Collects the name/phone/address fingerprints a filing role exposes so the
- * accredited-portal attributor can match them after processing. Delegates to
- * the shared builder so ingest and the observation backfill harvest
- * identically. Signatures are deliberately not collected — signers are
- * individuals and would only add noise (the backfill skips the
- * "form-d:signature" relation for the same reason).
- */
-function collectAttributionSignals(
-  ctx: FormDStorageContext,
-  via: string,
-  parts: {
-    name?: string | null;
-    address_hash_id?: string | null;
-    international_number?: string | null;
-  }
-): void {
-  pushAttributionCandidates(ctx.signals, via, parts);
 }
 
 /**
@@ -203,7 +189,7 @@ async function processSalesCompensationRecipient(
       )
     : null;
 
-  collectAttributionSignals(ctx, "form-d:sales-compensation", {
+  pushAttributionCandidates(ctx.signals, "form-d:sales-compensation", {
     name: recipientName,
     address_hash_id: addr?.address_hash_id ?? null,
   });
@@ -301,7 +287,7 @@ async function processIssuer(
     source_context: JSON.stringify({ relation }),
   });
 
-  collectAttributionSignals(ctx, relation, {
+  pushAttributionCandidates(ctx.signals, relation, {
     name: companyName,
     address_hash_id: addr?.address_hash_id ?? null,
     international_number: phone?.international_number ?? null,
@@ -361,7 +347,7 @@ async function processRelatedPerson(
         }),
       });
 
-      collectAttributionSignals(ctx, relation_type, {
+      pushAttributionCandidates(ctx.signals, relation_type, {
         name: companyName,
         address_hash_id: addr?.address_hash_id ?? null,
       });
@@ -411,7 +397,7 @@ async function processRelatedPerson(
   ]
     .filter((name) => name && !isBadPersonField(name))
     .join(" ");
-  collectAttributionSignals(ctx, relation_type, {
+  pushAttributionCandidates(ctx.signals, relation_type, {
     name: relatedPersonName || null,
     address_hash_id: addr?.address_hash_id ?? null,
   });

@@ -13,6 +13,7 @@ import {
   normalizePhoneSignal,
 } from "./SignalNormalization";
 import { normalizeAddress } from "../address/AddressNormalization";
+import { normalizeCompanyName } from "../company/CompanyNormalization";
 import { normalizePhone } from "../phone/PhoneNormalization";
 
 describe("SignalNormalization", () => {
@@ -22,6 +23,32 @@ describe("SignalNormalization", () => {
     expect(normalizeNameSignal("  Forge Global ")).toBe("forge global");
     expect(normalizeNameSignal("")).toBeNull();
     expect(normalizeNameSignal("ab")).toBeNull();
+  });
+
+  it("rejects placeholder tokens so no producer path emits them as name signals", () => {
+    expect(normalizeNameSignal("None")).toBeNull();
+    expect(normalizeNameSignal("N/A")).toBeNull();
+    expect(normalizeNameSignal("same")).toBeNull();
+    expect(normalizeNameSignal("[related person is an entity]")).toBeNull();
+  });
+
+  it("is stable when re-applied to an already-normalized name (ingest vs backfill parity)", () => {
+    // The backfill feeds stored normalized_name (= normalizeCompanyName(raw))
+    // back through normalizeNameSignal, while ingest normalizes the raw name
+    // once. Exact-string matching requires f(normalize(raw)) === f(raw).
+    const names = [
+      "AngelList Advisors, LLC",
+      "Forge Global, Inc.",
+      "International Business Machines Corp",
+      "apple",
+      "Nasdaq Private Market LLC",
+      "X Y Z Inc Ltd Co",
+    ];
+    for (const raw of names) {
+      const once = normalizeNameSignal(raw);
+      const stored = normalizeCompanyName(raw);
+      expect(normalizeNameSignal(stored)).toBe(once);
+    }
   });
 
   it("produces the same phone key as the ingest path", () => {

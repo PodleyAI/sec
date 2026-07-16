@@ -64,8 +64,4 @@ export class AccreditedPortalRepo implements AccreditedPortalRepoOptions {
   async getLivePortals(): Promise<AccreditedPortal[]> {
     return (await this.accreditedPortalRepository.query({ live: true })) || [];
   }
-
-  async deletePortal(portal_id: string): Promise<void> {
-    await this.accreditedPortalRepository.delete({ portal_id });
-  }
 }
