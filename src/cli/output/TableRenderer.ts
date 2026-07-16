@@ -113,9 +113,7 @@ function escapeCsvValue(value: string): string {
   // Capturing-group split preserves the separators at odd indices so we can
   // round-trip the exact line endings (LF, CRLF, or bare CR) the caller used.
   const parts = value.split(/(\r\n|\r|\n)/);
-  const defused = parts
-    .map((part, i) => (i % 2 === 0 ? defuseLine(part) : part))
-    .join("");
+  const defused = parts.map((part, i) => (i % 2 === 0 ? defuseLine(part) : part)).join("");
   if (
     defused.includes(",") ||
     defused.includes('"') ||
@@ -131,6 +129,11 @@ function cellValue(row: Record<string, unknown>, key: string): string {
   const v = row[key];
   if (v === null || v === undefined) {
     return "";
+  }
+  // A list-valued column (e.g. a person's `titles`) reads as "A, B" rather than
+  // the comma-jammed default String(Array) form; CSV escaping runs afterwards.
+  if (Array.isArray(v)) {
+    return v.join(", ");
   }
   return String(v);
 }
@@ -175,9 +178,7 @@ function renderTextTable(
     const totalLabel = isApprox ? `≥ ${options.total}` : `${options.total}`;
     lines.push(`Showing ${start}-${end} of ${totalLabel} results`);
     if (isApprox) {
-      lines.push(
-        `(streamed; narrow the filter for an exact count and full pagination)`
-      );
+      lines.push(`(streamed; narrow the filter for an exact count and full pagination)`);
     }
 
     if (count > 0 && end < options.total) {

@@ -110,8 +110,12 @@ export function parseEditorialCsv(content: string): ParsedEditorialCsv {
     const spacRows: SpacEditorialRow[] = [];
     records.forEach((r, i) => {
       const line = i + 2;
-      const cik = Number(r.cik);
-      if (!Number.isInteger(cik) || cik < 0) {
+      // Digits-only: `Number("")` is 0 and `Number.isInteger(0)` is true, so a
+      // numeric guard alone would import a blank cell under CIK 0 — and with
+      // --create-missing that mints a spac row marking CIK 0 a known SPAC.
+      const cikText = (r.cik ?? "").trim();
+      const cik = Number(cikText);
+      if (!/^\d+$/.test(cikText) || !Number.isSafeInteger(cik)) {
         errors.push(`line ${line}: invalid cik '${r.cik}'`);
         return;
       }

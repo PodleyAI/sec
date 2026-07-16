@@ -141,11 +141,7 @@ function toValueSet(value: unknown): Set<string> {
 }
 
 /** Label a row for diff output: its `keyField` value, else `#<index>` positionally. */
-function rowKey(
-  row: Record<string, unknown>,
-  index: number,
-  keyField: string | undefined
-): string {
+function rowKey(row: Record<string, unknown>, index: number, keyField: string | undefined): string {
   if (!keyField) return `#${index}`;
   const raw = displayValue(row[keyField]);
   return raw === "" ? `#${index}` : raw;
@@ -209,9 +205,16 @@ export function scoreExtraction(
   const mismatches: FieldMismatch[] = [];
 
   // An array-valued expected field (e.g. `titles`) is weighted by its element
-  // count so each role is a scored unit; a scalar field weighs 1.
+  // count so each role is a scored unit; a scalar field weighs 1. An empty
+  // scalar weighs 0: the reference states nothing to find, so the field is not
+  // a unit of recall (see the scalar branch below, which likewise credits no
+  // match for it — together they keep `score` a true F1 in [0,1]).
   const fieldWeight = (row: Record<string, unknown>, field: string): number =>
-    Array.isArray(row[field]) ? (row[field] as unknown[]).length : 1;
+    Array.isArray(row[field])
+      ? (row[field] as unknown[]).length
+      : normalize(row[field]) === ""
+        ? 0
+        : 1;
 
   expectedRows.forEach((expectedRow, index) => {
     const fields = fieldsFor(expectedRow, opts);
@@ -247,8 +250,16 @@ export function scoreExtraction(
       } else {
         // Scalar: a non-empty candidate value is one produced field-value
         // (counts toward precision even when it disagrees).
-        if (normalize(candidateRow[field]) !== "") candidateFieldValues += 1;
-        if (normalize(candidateRow[field]) === normalize(expectedRow[field])) {
+        const candidateValue = normalize(candidateRow[field]);
+        const expectedValue = normalize(expectedRow[field]);
+        if (candidateValue !== "") candidateFieldValues += 1;
+        // A field BOTH sides leave empty is not scored at all. Crediting a match
+        // here while the candidate produced no value added to the F1 numerator
+        // and to `expectedFieldValues` but not to `candidateFieldValues`, so the
+        // score exceeded 1 and ranked a model that emits nothing above one that
+        // fills the field in.
+        if (expectedValue === "" && candidateValue === "") continue;
+        if (candidateValue === expectedValue) {
           matchedFieldValues += 1;
         } else {
           mismatches.push({

@@ -80,10 +80,7 @@ describe("normalizeManagementTitles", () => {
   // each canonicalized.
   const cases: ReadonlyArray<readonly [string | string[] | null, string[]]> = [
     ["Chief Executive Officer and Director", ["Chief Executive Officer", "Director"]],
-    [
-      "Chief Executive Officer and a director",
-      ["Chief Executive Officer", "Director"],
-    ],
+    ["Chief Executive Officer and a director", ["Chief Executive Officer", "Director"]],
     [
       "President, Chief Financial Officer and Secretary",
       ["President", "Chief Financial Officer", "Secretary"],
@@ -95,13 +92,21 @@ describe("normalizeManagementTitles", () => {
     ["Director", ["Director"]],
     // a role containing no separator is not split
     ["Chairman of the Board of Directors", ["Chairman of the Board of Directors"]],
+    // a conjunction INSIDE a single role is not a separator: splitting it would
+    // fabricate roles ("Chief Legal") the person does not hold
+    ["Chief Legal & Administrative Officer", ["Chief Legal & Administrative Officer"]],
+    ["Head of Mergers & Acquisitions", ["Head of Mergers & Acquisitions"]],
+    [
+      "Executive Vice President, Research & Development",
+      ["Executive Vice President", "Research & Development"],
+    ],
+    // ...but a conjunction joining two standalone roles still splits
+    ["President and Chief Executive Officer", ["President", "Chief Executive Officer"]],
+    ["Chief Financial Officer & Treasurer", ["Chief Financial Officer", "Treasurer"]],
     // de-duplication (case-insensitive)
     ["Director and director", ["Director"]],
     // a board chair already sits on the board -> a redundant bare "Director" is dropped
-    [
-      "Chairman of the Board of Directors and Director",
-      ["Chairman of the Board of Directors"],
-    ],
+    ["Chairman of the Board of Directors and Director", ["Chairman of the Board of Directors"]],
     [["Chairman of the Board of Directors", "Director"], ["Chairman of the Board of Directors"]],
     ["Chairman and Director", ["Chairman of the Board of Directors"]],
     // ...but a plain officer role does NOT imply board membership, so both are kept
@@ -109,10 +114,7 @@ describe("normalizeManagementTitles", () => {
     ["Chief Financial Officer and Director", ["Chief Financial Officer", "Director"]],
     // director nominees split and canonicalize per role
     ["Director nominee", ["Director Nominee"]],
-    [
-      "Chairman of the Board nominee",
-      ["Chairman of the Board of Directors (Nominee)"],
-    ],
+    ["Chairman of the Board nominee", ["Chairman of the Board of Directors (Nominee)"]],
     // a seated directorship plus a nominee chair keeps both (a nominee chair is
     // not yet on the board, so the bare "Director" is NOT redundant)
     [
@@ -121,7 +123,10 @@ describe("normalizeManagementTitles", () => {
     ],
     // already-split list input is re-split/normalized defensively
     [["Chief Executive Officer and Director"], ["Chief Executive Officer", "Director"]],
-    [["President", "Secretary"], ["President", "Secretary"]],
+    [
+      ["President", "Secretary"],
+      ["President", "Secretary"],
+    ],
     // empty / null -> []
     ["", []],
     [null, []],

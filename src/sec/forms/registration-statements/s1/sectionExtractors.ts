@@ -50,9 +50,7 @@ export class NonceMismatchError extends Error {
     readonly expected: string,
     readonly received: unknown
   ) {
-    super(
-      `Nonce mismatch: expected ${JSON.stringify(expected)}, got ${JSON.stringify(received)}`
-    );
+    super(`Nonce mismatch: expected ${JSON.stringify(expected)}, got ${JSON.stringify(received)}`);
     this.name = "NonceMismatchError";
   }
 }
@@ -181,7 +179,11 @@ function decodeHtmlEntities(s: string): string {
         return isCodePoint(code) ? String.fromCodePoint(code) : "";
       })
       .replace(/&([a-zA-Z]+);/g, (match, name) => {
-        const v = NAMED_ENTITY_TABLE[name.toLowerCase()];
+        // `Object.hasOwn` guard: a bare index would resolve an inherited
+        // Object.prototype key, so a filer-planted `&constructor;` would
+        // stringify a function into the prose handed to the model.
+        const key = name.toLowerCase();
+        const v = Object.hasOwn(NAMED_ENTITY_TABLE, key) ? NAMED_ENTITY_TABLE[key] : undefined;
         return v ?? match;
       });
     if (next === prev) return next;
@@ -415,7 +417,11 @@ async function runGuardedExtraction(
   const { wrapped, nonce } = wrapUntrusted(sectionText);
   const preamble = local ? buildUntrustedPreamble() : buildUntrustedPreamble(nonce);
   const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
-  const obj = await runStructured(model, prompt, local ? stripNonceSeen(outputSchema) : outputSchema);
+  const obj = await runStructured(
+    model,
+    prompt,
+    local ? stripNonceSeen(outputSchema) : outputSchema
+  );
   if (!local) verifyNonce(obj, nonce);
   return obj;
 }
@@ -501,7 +507,12 @@ export async function extractRelatedParty(
     "party_kind ('person' or 'company'), a confidence in [0,1], the verbatim source_span, " +
     "and a transactions array (counterparty, nature, amount, period, footnote — any may " +
     "be null). Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, RelatedPartyOutputSchema);
+  const obj = await runGuardedExtraction(
+    model,
+    instructions,
+    sectionText,
+    RelatedPartyOutputSchema
+  );
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
 }
 
@@ -519,7 +530,12 @@ export async function extractOfferingTerms(
     "(exact symbol, is_primary true for the common-equity/units symbol, false for " +
     "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
     "and a verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, OfferingTermsOutputSchema);
+  const obj = await runGuardedExtraction(
+    model,
+    instructions,
+    sectionText,
+    OfferingTermsOutputSchema
+  );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as OfferingTermsRow;
 }
@@ -561,8 +577,7 @@ export async function extractSponsorPromote(
     founder_shares: (obj.founder_shares as number | null) ?? null,
     founder_percent: (obj.founder_percent as number | null) ?? null,
     private_placement_warrants: (obj.private_placement_warrants as number | null) ?? null,
-    private_placement_warrant_price:
-      (obj.private_placement_warrant_price as number | null) ?? null,
+    private_placement_warrant_price: (obj.private_placement_warrant_price as number | null) ?? null,
     public_warrant_coverage: (obj.public_warrant_coverage as number | null) ?? null,
     trust_per_public_share: (obj.trust_per_public_share as number | null) ?? null,
     trust_total: (obj.trust_total as number | null) ?? null,
@@ -676,7 +691,13 @@ export async function extractSpacClassification(
   const kind = obj.entity_kind;
   if (typeof kind !== "string" || !SPAC_ENTITY_KINDS.includes(kind as SpacEntityKind)) return null;
   if (kind !== "spac") return null;
-  if (obj.confidence == null || obj.source_span == null) return null;
+  // A positive verdict missing its confidence/span cannot be verified, but it is
+  // NOT the "not a SPAC" negative the caller auto-resolves — returning null would
+  // silently discard a correctly-identified SPAC (the schema leaves source_span
+  // nullable). Throw so the section dead-letters MODEL_INVALID_OUTPUT for triage.
+  if (obj.confidence == null || obj.source_span == null) {
+    throw new Error("spac classification returned is_spac=true with no confidence/source_span");
+  }
   return {
     is_spac: true,
     entity_kind: "spac",
@@ -712,7 +733,12 @@ export async function extractUseOfProceeds(
     "between the tags below. For each stated purpose give purpose, amount (dollars, or " +
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
     "and the verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, UseOfProceedsOutputSchema);
+  const obj = await runGuardedExtraction(
+    model,
+    instructions,
+    sectionText,
+    UseOfProceedsOutputSchema
+  );
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }
 
@@ -760,6 +786,10 @@ export async function extractLoi(sectionText: string, model: ModelConfig): Promi
     "determination and a null source_span.";
   const obj = await runGuardedExtraction(model, instructions, sectionText, LoiOutputSchema);
   if (obj.is_loi !== true) return null;
-  if (obj.confidence == null || obj.source_span == null) return null;
+  // As in extractSpacClassification: a positive with no confidence/span is not the
+  // auto-resolved "no LOI" negative, so surface it rather than dropping it.
+  if (obj.confidence == null || obj.source_span == null) {
+    throw new Error("LOI detection returned is_loi=true with no confidence/source_span");
+  }
   return obj as unknown as LoiRow;
 }

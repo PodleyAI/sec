@@ -99,7 +99,10 @@ describe("scoreExtraction", () => {
     // one (U+0027). Same person — must align, not count as missing + extra.
     const ref = [{ full_name: "Frank D’Angelo", titles: ["Director"] }];
     const cand = [{ full_name: "Frank D'Angelo", titles: ["Director"] }];
-    const s = scoreExtraction(cand, ref, { keyField: "full_name", fields: ["full_name", "titles"] });
+    const s = scoreExtraction(cand, ref, {
+      keyField: "full_name",
+      fields: ["full_name", "titles"],
+    });
     expect(s.diff.missing).toEqual([]);
     expect(s.diff.extra).toEqual([]);
     expect(s.entityRecall).toBe(1);
@@ -109,7 +112,10 @@ describe("scoreExtraction", () => {
   it("aligns names differing only by a comma before the suffix", () => {
     const ref = [{ full_name: "Frank Martire, III", titles: ["Director"] }];
     const cand = [{ full_name: "Frank Martire III", titles: ["Director"] }];
-    const s = scoreExtraction(cand, ref, { keyField: "full_name", fields: ["full_name", "titles"] });
+    const s = scoreExtraction(cand, ref, {
+      keyField: "full_name",
+      fields: ["full_name", "titles"],
+    });
     expect(s.diff.missing).toEqual([]);
     expect(s.diff.extra).toEqual([]);
     expect(s.score).toBe(1);
@@ -176,7 +182,9 @@ describe("scoreExtraction", () => {
     ];
 
     it("gives full credit when every role matches (order/case-insensitive)", () => {
-      const candidate = [{ full_name: "Jane Smith", titles: ["director", "chief executive officer"] }];
+      const candidate = [
+        { full_name: "Jane Smith", titles: ["director", "chief executive officer"] },
+      ];
       const s = scoreExtraction(candidate, rolesExpected, {
         keyField: "full_name",
         fields: ["full_name", "titles"],
@@ -216,9 +224,52 @@ describe("scoreExtraction", () => {
       // matched 3, expected 3, candidate produced 4 → F1 2·3/(3+4) < 1
       expect(s.score).toBeCloseTo(6 / 7, 5);
       expect(s.diff.mismatches).toHaveLength(1);
-      expect(s.diff.mismatches[0]?.got).toBe(
-        '["Chief Executive Officer", "Director", "Founder"]'
+      expect(s.diff.mismatches[0]?.got).toBe('["Chief Executive Officer", "Director", "Founder"]');
+    });
+  });
+
+  describe("fields the reference leaves empty", () => {
+    // `compareFields` is a fixed list, so on any given section some fields are
+    // null in the reference (e.g. the SPAC-only unit terms on an ordinary equity
+    // offering). Such a field states nothing to find: it must neither earn credit
+    // nor push `score` — an F1 — above 1.
+    const fields = ["price", "warrant_fraction", "trust_per_unit"];
+    const expected = [{ price: 10, warrant_fraction: null, trust_per_unit: null }];
+
+    it("scores an exactly-agreeing candidate at 1, not above it", () => {
+      const s = scoreExtraction(
+        [{ price: 10, warrant_fraction: null, trust_per_unit: null }],
+        expected,
+        {
+          keyField: "price",
+          fields,
+        }
       );
+      expect(s.score).toBeCloseTo(1, 5);
+    });
+
+    it("penalizes a candidate that invents a value the reference does not state", () => {
+      const s = scoreExtraction(
+        [{ price: 10, warrant_fraction: 0.5, trust_per_unit: null }],
+        expected,
+        {
+          keyField: "price",
+          fields,
+        }
+      );
+      // matched 1 (price), expected 1, candidate produced 2 → 2·1/(1+2)
+      expect(s.score).toBeCloseTo(2 / 3, 5);
+    });
+
+    it("does not reward a candidate for leaving every field empty", () => {
+      const s = scoreExtraction(
+        [{ price: null, warrant_fraction: null, trust_per_unit: null }],
+        expected,
+        {
+          fields,
+        }
+      );
+      expect(s.score).toBeCloseTo(0, 5);
     });
   });
 });

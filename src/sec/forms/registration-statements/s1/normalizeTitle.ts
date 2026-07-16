@@ -171,23 +171,60 @@ function canonicalizeNominee(title: string): string {
   return title;
 }
 
+/** Punctuation that always separates two roles. */
+const ROLE_PUNCTUATION = /\s*[,;/]\s*/g;
+
 /**
- * Role separators for splitting a compound title into distinct roles. Matches a
- * comma, semicolon, ampersand, slash, or the word "and" (with surrounding
- * whitespace). A global split drops the empty piece left by an Oxford ", and",
- * so "President, CEO, and Director" yields three roles.
- *
- * Known limitation: a role that legitimately contains "and" ("Research and
- * Development") would be over-split — acceptable for management titles, which
- * are role labels, not descriptive phrases.
+ * A conjunction that MAY join two roles ("Chief Executive Officer and Director")
+ * or may sit inside a single one ("Chief Legal & Administrative Officer"). Split
+ * with a capture group so a non-splitting conjunction can be re-joined with its
+ * original spelling.
  */
-const ROLE_SEPARATOR = /\s*(?:,|;|&|\/|\band\b)\s*/gi;
+const ROLE_CONJUNCTION = /(\s*(?:&|\band\b)\s*)/gi;
+
+/**
+ * The head noun a standalone role ends with. A conjunction is only a role
+ * separator when BOTH sides end in one: "President and Chief Executive Officer"
+ * splits, while "Chief Legal & Administrative Officer" (whose left side ends in
+ * "Legal") stays whole — splitting it would fabricate two roles the person does
+ * not hold.
+ */
+const ROLE_HEAD_NOUN =
+  /(?:officers?|presidents?|directors?|chair(?:man|woman|person)?|secretary|treasurer|controller|managers?|partners?|principals?|founders?|trustees?|nominee|counsel|ceo|cfo|coo|cto|cio|cmo|cro|evp|svp|vp)\s*$/i;
+
+/**
+ * Split a raw title into candidate roles: unconditionally on punctuation, then
+ * on a conjunction only where it joins two standalone roles. An empty left side
+ * (the piece left by an Oxford ", and") is dropped rather than re-joined, so
+ * "President, CEO, and Director" yields three roles.
+ */
+function splitRoles(part: string): string[] {
+  const out: string[] = [];
+  for (const chunk of part.split(ROLE_PUNCTUATION)) {
+    const tokens = chunk.split(ROLE_CONJUNCTION);
+    let buffer = tokens[0] ?? "";
+    for (let i = 1; i < tokens.length; i += 2) {
+      const separator = tokens[i] ?? "";
+      const next = tokens[i + 1] ?? "";
+      if (buffer.trim() === "") {
+        buffer = next;
+      } else if (ROLE_HEAD_NOUN.test(buffer) && ROLE_HEAD_NOUN.test(next)) {
+        out.push(buffer);
+        buffer = next;
+      } else {
+        buffer = buffer + separator + next;
+      }
+    }
+    out.push(buffer);
+  }
+  return out;
+}
 
 /**
  * Canonicalize a person's title(s) into a de-duplicated list of distinct roles.
  * A person who is "Chief Executive Officer and Director" holds two roles —
- * `["Chief Executive Officer", "Director"]` — so we split compound titles on
- * {@link ROLE_SEPARATOR} and run each piece through {@link normalizeManagementTitle}.
+ * `["Chief Executive Officer", "Director"]` — so we split compound titles with
+ * {@link splitRoles} and run each piece through {@link normalizeManagementTitle}.
  * Accepts a raw string, an already-split list (each entry is re-split defensively),
  * or null/undefined. De-duplicates case-insensitively, preserving first-seen order.
  */
@@ -198,7 +235,7 @@ export function normalizeManagementTitles(
   const roles: string[] = [];
   const seen = new Set<string>();
   for (const part of parts) {
-    for (const piece of part.split(ROLE_SEPARATOR)) {
+    for (const piece of splitRoles(part)) {
       const role = normalizeManagementTitle(piece);
       const key = role.toLowerCase();
       if (role !== "" && !seen.has(key)) {

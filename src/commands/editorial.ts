@@ -50,9 +50,18 @@ export function registerEditorialCommands(program: Command): void {
         cikArg: string,
         opts: { urlSponsor?: string; urlSpac?: string; details?: string; createMissing?: boolean }
       ) => {
-        const cik = Number(cikArg);
-        if (!Number.isInteger(cik) || cik < 0) return fail(`invalid CIK: ${cikArg}`);
-        if (opts.urlSponsor === undefined && opts.urlSpac === undefined && opts.details === undefined) {
+        // Digits-only: `Number("")`/`Number(" ")` are 0, which a numeric-only
+        // guard would accept as a valid CIK. Mirrors the editorial CSV import.
+        const cikText = cikArg.trim();
+        const cik = Number(cikText);
+        if (!/^\d+$/.test(cikText) || !Number.isSafeInteger(cik)) {
+          return fail(`invalid CIK: ${cikArg}`);
+        }
+        if (
+          opts.urlSponsor === undefined &&
+          opts.urlSpac === undefined &&
+          opts.details === undefined
+        ) {
           return fail("nothing to set: pass --url-sponsor, --url-spac, and/or --details");
         }
         if (opts.details !== undefined) {
@@ -88,7 +97,9 @@ export function registerEditorialCommands(program: Command): void {
     .action(async (name: string, text: string, opts: { kind: string }) => {
       const kind = opts.kind as FamilyDescriptionKind;
       if (!FAMILY_DESCRIPTION_KINDS.includes(kind)) {
-        return fail(`unknown --kind '${opts.kind}'; expected ${FAMILY_DESCRIPTION_KINDS.join(" | ")}`);
+        return fail(
+          `unknown --kind '${opts.kind}'; expected ${FAMILY_DESCRIPTION_KINDS.join(" | ")}`
+        );
       }
       const normalized = normalizeFamilyNameForKind(kind, name);
       if (!normalized) return fail("name normalizes to empty");

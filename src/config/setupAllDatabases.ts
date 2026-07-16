@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry, Sqlite } from "workglow";
+import { isDryRun } from "../cli/isDryRun";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -206,7 +207,9 @@ export async function setupAllDatabases(): Promise<void> {
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : "sqlite";
-  if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER)) {
+  // Skipped under --dry-run: this block issues DDL through raw SQL, which the
+  // repositories' ReadOnlyTabularStorage wrapper cannot intercept.
+  if (dbType === "sqlite" && globalServiceRegistry.has(SEC_DB_FOLDER) && !isDryRun()) {
     const db = getDb();
     for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
       db.exec(ddl);

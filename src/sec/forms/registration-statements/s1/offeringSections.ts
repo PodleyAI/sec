@@ -31,13 +31,21 @@ import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { boundSourceSpan, verifyRowSpan } from "./verifySourceSpan";
 
-/** Section names used by the offering-related dead letters. */
-export const OFFERING_SECTION_NAMES = [
-  "offering-terms",
-  "sponsor-promote",
-  "underwriters",
-  "use-of-proceeds",
-] as const;
+/**
+ * Section names used by the offering-related dead letters. `sponsor-promote` is
+ * SPAC-only — {@link runOfferingSections} skips it for a non-SPAC filing, and a
+ * skipped section never markResolves — so a non-SPAC dead letter recorded under
+ * that name could never drain off the retry worklist. Callers must pass the same
+ * `isSpac` they pass to runOfferingSections.
+ */
+export function offeringSectionNames(isSpac: boolean): readonly string[] {
+  return [
+    "offering-terms",
+    ...(isSpac ? ["sponsor-promote"] : []),
+    "underwriters",
+    "use-of-proceeds",
+  ];
+}
 
 /**
  * Share/unit counts are emitted by the model as plain numbers but stored in

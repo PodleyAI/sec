@@ -497,7 +497,7 @@ export function addQueryCommands(program: Command): void {
         const columns = [
           { key: "first_name", header: "First", width: 15 },
           { key: "last_name", header: "Last", width: 20 },
-          { key: "title", header: "Title", width: 20 },
+          { key: "titles", header: "Title", width: 20 },
           { key: "source_filing_issuer_cik", header: "CIK", width: 10 },
         ];
 

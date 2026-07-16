@@ -24,6 +24,14 @@ export const SPAC_STATUSES = [
 export type SpacStatus = (typeof SPAC_STATUSES)[number];
 
 /**
+ * Provenance of `surviving_name`: the rollup's own fallback derived from the
+ * completed deal's target, or a close-time snapshot read from the surviving
+ * entity's own metadata.
+ */
+export const SURVIVING_NAME_SOURCES = ["deal-target", "entity"] as const;
+export type SurvivingNameSource = (typeof SURVIVING_NAME_SOURCES)[number];
+
+/**
  * Mutable consolidated SPAC report row (one per SPAC, keyed by origin CIK).
  * Event/deal-derived fields are recomputed by {@link buildSpacRow}; filing-sourced
  * scalar fields are merged under the `as_of` out-of-order guard.
@@ -48,6 +56,14 @@ export const SpacSchema = Type.Object({
       description: "Combined entity name as of de-SPAC close (snapshot)",
     })
   ),
+  /**
+   * Where {@link surviving_name} came from. Without this the rollup cannot tell
+   * its own derived deal-target fallback from an entity-sourced snapshot once
+   * both are persisted, so a superseding proxy's corrected target could never
+   * refresh it. "deal-target" is re-derived on every rebuild; "entity" is a
+   * write-once close-time snapshot the rollup preserves.
+   */
+  surviving_name_source: TypeNullable(TypeStringEnum(SURVIVING_NAME_SOURCES)),
   current_name: TypeNullable(Type.String({ maxLength: 200, description: "Latest known name" })),
 
   // SIC (three eras)

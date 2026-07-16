@@ -17,7 +17,7 @@ import { processFormS1 } from "./Form_S_1.storage";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
-import { OFFERING_SECTION_NAMES } from "./s1/offeringSections";
+import { offeringSectionNames } from "./s1/offeringSections";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const CIK = 2114227;
@@ -280,7 +280,8 @@ describe("processForm424", () => {
       const dl = await new ExtractionDeadLetterRepo().listPending("424");
       // Every AI offering section dead-lettered under MODEL_RESOLUTION_ERROR.
       const sectionReasons = new Map(dl.map((d) => [d.section_name, d.reason_code]));
-      for (const s of OFFERING_SECTION_NAMES) {
+      // This fixture is a SPAC (SIC 6770), so sponsor-promote is in scope.
+      for (const s of offeringSectionNames(true)) {
         expect(sectionReasons.get(s)).toBe("MODEL_RESOLUTION_ERROR");
       }
     });
@@ -321,7 +322,7 @@ describe("processForm424", () => {
 
         const dl = await new ExtractionDeadLetterRepo().listPending("424");
         const sectionReasons = new Map(dl.map((d) => [d.section_name, d.reason_code]));
-        for (const s of OFFERING_SECTION_NAMES) {
+        for (const s of offeringSectionNames(true)) {
           expect(sectionReasons.get(s)).toBe("PARSE_ERROR");
         }
       } finally {

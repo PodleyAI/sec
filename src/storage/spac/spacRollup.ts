@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Spac, SpacStatus } from "./SpacSchema";
+import type { Spac, SpacStatus, SurvivingNameSource } from "./SpacSchema";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent } from "./SpacEventSchema";
 
@@ -183,8 +183,18 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   // surviving entity. Absent an explicit (entity-sourced) name from a
   // `recordDeSpacLinkage` patch, the combined company is named after the deal's
   // target, so derive `surviving_name` from the completed deal's target_name.
-  const survivingExplicit = pick("surviving_name");
-  const surviving_name = survivingExplicit ?? (completed ? (active?.target_name ?? null) : null);
+  //
+  // The derived value IS persisted, so it must be re-derived on every rebuild
+  // rather than read back as if it were explicit — otherwise a later proxy that
+  // supersedes `target_name` (definitive over preliminary, revised over
+  // definitive) could never correct it. Only an entity-sourced snapshot is
+  // preserved, which `surviving_name_source` is what distinguishes.
+  const survivingFromEntity =
+    applied.surviving_name ??
+    (existing?.surviving_name_source === "entity" ? (existing.surviving_name ?? null) : null);
+  const surviving_name = survivingFromEntity ?? (completed ? (active?.target_name ?? null) : null);
+  const surviving_name_source: SurvivingNameSource | null =
+    survivingFromEntity != null ? "entity" : surviving_name != null ? "deal-target" : null;
   const post_merger_sic = pick("post_merger_sic");
   const post_merger_tickers = pick("post_merger_tickers");
 
@@ -232,6 +242,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     target_name: active?.target_name ?? null,
     target_description: active?.target_description ?? null,
     surviving_name,
+    surviving_name_source,
     current_name,
     spac_sic,
     post_merger_sic,

@@ -49,6 +49,18 @@ export function loadRealS1Sections(
   const sections: RealSection[] = [];
   const skipped: string[] = [];
 
+  // The CLI's --extractors validator accepts every EVAL_EXTRACTORS key, but only
+  // some are backed by an S-1 section (`loi`, for one, reads 8-K narratives).
+  // Report the unmappable ones as skipped — yielding nothing silently would make
+  // "scored 0 sections" indistinguishable from a successful run.
+  const mapped = extractorNames.filter((extractor) => {
+    if (!Object.hasOwn(EXTRACTOR_TO_SECTION, extractor)) {
+      skipped.push(`${extractor}: no S-1 section mapping — not scorable by the S-1 oracle`);
+      return false;
+    }
+    return true;
+  });
+
   for (const file of files.sort()) {
     let byName: Map<string, string>;
     try {
@@ -60,7 +72,7 @@ export function loadRealS1Sections(
       skipped.push(`${file}: parse failed (${err instanceof Error ? err.message : String(err)})`);
       continue;
     }
-    for (const extractor of extractorNames) {
+    for (const extractor of mapped) {
       const sectionName = EXTRACTOR_TO_SECTION[extractor];
       const text = sectionName ? byName.get(sectionName) : undefined;
       if (text && text.trim().length > 0) {

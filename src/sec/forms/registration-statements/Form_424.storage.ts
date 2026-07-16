@@ -17,7 +17,7 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
-import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
+import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { makeRunSection } from "./s1/sectionRunner";
@@ -160,7 +160,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     model = args.model ?? (await getS1Model());
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    for (const section of OFFERING_SECTION_NAMES) {
+    for (const section of offeringSectionNames(isSpac)) {
       await recordFail(section, "MODEL_RESOLUTION_ERROR", detail);
     }
     await recordSpacIpoEventIfEligible();
@@ -177,7 +177,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    for (const section of OFFERING_SECTION_NAMES) {
+    for (const section of offeringSectionNames(isSpac)) {
       await recordFail(section, "PARSE_ERROR", detail);
     }
     await recordSpacIpoEventIfEligible();

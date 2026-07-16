@@ -356,9 +356,13 @@ export class SpacReportWriter {
       // deal-target fallback the rollup derived (or fill an empty slot) exactly
       // once, but never overwrite an already entity-sourced snapshot on a later
       // replay/rebrand.
-      const dealTargetFallback = deals.find((d) => d.outcome === "completed")?.target_name ?? null;
+      // Upgradeable while the slot is empty or still holds the rollup's derived
+      // deal-target fallback. Keyed off the recorded source rather than comparing
+      // against the CURRENT fallback: a superseding proxy moves `target_name`, and
+      // a value-equality check would then mistake the derived name for an
+      // entity-sourced snapshot and refuse the upgrade forever.
       const survivingUpgradeable =
-        existing.surviving_name == null || existing.surviving_name === dealTargetFallback;
+        existing.surviving_name == null || existing.surviving_name_source !== "entity";
       if (entity?.name != null && entity.name !== existing.spac_name && survivingUpgradeable) {
         patch.surviving_name = entity.name;
       }

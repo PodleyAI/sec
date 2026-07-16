@@ -36,14 +36,11 @@ import {
 } from "./s1/sectionExtractors";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
 import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
-import {
-  getSpacClassifierConfidenceFloor,
-  getSpacClassifierModel,
-} from "./s1/spacClassifierModel";
+import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
-import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
+import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
@@ -224,7 +221,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
-      ...OFFERING_SECTION_NAMES,
+      ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       // A SIC-miscoded, blank-check-looking non-SPAC filing gets a
       // spac-classification dead-letter so a retry runs the AI classifier once a
@@ -261,7 +258,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
-      ...OFFERING_SECTION_NAMES,
+      ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
     ];
@@ -297,7 +294,15 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // below treat it as a known SPAC and its de-SPAC 8-K milestones can attach.
   if (!isSpac) {
     const classifyText = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
-    if (looksLikeBlankCheck(classifyText)) {
+    if (!looksLikeBlankCheck(classifyText)) {
+      // The error paths above dead-letter spac-classification on the looser
+      // raw-HTML heuristic, so a filing can be dead-lettered for a classification
+      // this narrower summary-prose gate then declines to run. Resolve the entry
+      // instead of leaving it pending forever on the version-gated retry
+      // worklist, where every sweep would re-bill the filing's full extraction.
+      // (markResolved no-ops when no entry exists.)
+      await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
+    } else {
       let classifierModel: ModelConfig | null = null;
       let classifierError: string | null = null;
       try {

@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { isDryRun } from "../../cli/isDryRun";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
@@ -28,6 +29,13 @@ import { getPgPool } from "../../util/pg";
  * migrated DB has the new column → no-op).
  */
 export async function migrateLegacyForm8KEventsTable(): Promise<void> {
+  // This drops a table through raw SQL, reaching around the repository layer —
+  // so the dry-run ReadOnlyTabularStorage wrapper cannot intercept it. Bail
+  // explicitly: destroying every stored 8-K event is the exact opposite of what
+  // --dry-run promises, and the setupDatabase() that recreates the table right
+  // afterwards IS wrapper-no-op'd, so the rows would not even come back.
+  if (isDryRun()) return;
+
   const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
@@ -53,9 +61,7 @@ function migrateSqlite(): void {
     )
     .get();
   if (!tableExistsRow) return;
-  const columns = db
-    .prepare<[], { name: string }>(`PRAGMA table_info(form_8k_events)`)
-    .all();
+  const columns = db.prepare<[], { name: string }>(`PRAGMA table_info(form_8k_events)`).all();
   const hasEventId = columns.some((c) => c.name === "event_id");
   if (hasEventId) return;
   db.exec("DROP TABLE form_8k_events");
