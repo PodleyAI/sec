@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
+import { prefetchModel } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import {
   cikFromFilingName,
@@ -39,6 +39,12 @@ export interface RunUnitTermsOptions {
   readonly dir?: string;
   readonly onProgress?: (done: number, total: number, message: string) => void;
   readonly signal?: AbortSignal;
+  /**
+   * The running task's execute context. When present, a local model's weights are
+   * prefetched through it so download progress renders in the CLI task UI. Omitted
+   * by direct callers (tests); `runStructured`'s safety-net then downloads.
+   */
+  readonly context?: IExecuteContext;
 }
 
 export interface UnitTermsReport extends EvalReport {
@@ -126,13 +132,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
     // Prefetch a local model's weights before timing (see runExtractionEval).
-    if (model) {
-      try {
-        await ensureModelDownloaded(model);
-      } catch {
-        // The per-section extraction call will re-attempt and record the failure.
-      }
-    }
+    await prefetchModel(model, opts.context);
     const modelRows: FixtureRunResult[] = [];
     for (const { section, expected } of covered) {
       if (opts.signal?.aborted) break;

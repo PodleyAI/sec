@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
+import { prefetchModel } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
@@ -81,6 +81,12 @@ export interface RunOracleOptions {
   readonly onProgress?: (done: number, total: number, message: string) => void;
   /** When aborted, the sweep stops after the current section and reports what ran. */
   readonly signal?: AbortSignal;
+  /**
+   * The running task's execute context. When present, participating local models
+   * are prefetched through it so download progress renders in the CLI task UI.
+   * Omitted by direct callers (tests); `runStructured`'s safety-net then downloads.
+   */
+  readonly context?: IExecuteContext;
 }
 
 async function runSection(
@@ -189,13 +195,10 @@ export async function runOracleEval(opts: RunOracleOptions): Promise<OracleRepor
   // loop so download time is not charged to a section's latency. Best-effort and
   // memoized; cloud models no-op. Candidates are resolved per-section below, so
   // fetch them here once up front. A failed download surfaces per-section.
-  for (const id of [...(refModel ? [opts.reference] : []), ...opts.candidates]) {
-    const m = (await repo.findByName(id)) as ModelConfig | undefined;
-    if (!m) continue;
-    try {
-      await ensureModelDownloaded(m);
-    } catch {
-      // The per-section extraction call will re-attempt and record the failure.
+  if (opts.context) {
+    for (const id of [...(refModel ? [opts.reference] : []), ...opts.candidates]) {
+      const m = (await repo.findByName(id)) as ModelConfig | undefined;
+      await prefetchModel(m, opts.context);
     }
   }
   const results: OracleRunResult[] = [];

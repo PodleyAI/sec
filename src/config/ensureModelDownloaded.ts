@@ -31,27 +31,6 @@ export function resetEnsuredModelsForTesting(): void {
 }
 
 /**
- * Minimal execution context for driving {@link ModelDownloadTask.execute} outside
- * a full task-graph run. Mirrors the stub used elsewhere for one-shot CLI task
- * execution — download only needs `signal` / `updateProgress` / `own`, with
- * defensive `registry` / `resourceScope` shims.
- */
-function makeStubContext(): IExecuteContext {
-  return {
-    signal: new AbortController().signal,
-    updateProgress: async () => {},
-    own: <T>(value: T): T => value,
-    registry: {
-      has: () => false,
-      get: () => {
-        throw new Error("not registered");
-      },
-    } as any,
-    resourceScope: { register: () => {}, dispose: async () => {} } as any,
-  } as IExecuteContext;
-}
-
-/**
  * Ensure a model's weights are present locally before it is used for generation.
  *
  * Providers differ in when weights arrive: cloud models have nothing to download
@@ -67,10 +46,17 @@ function makeStubContext(): IExecuteContext {
  * URI to fetch — so download is skipped; a missing file surfaces at load time with
  * the provider's own error.
  *
- * Uses {@link ModelDownloadTask} (not the provider run-fn directly) so provider
- * resolution and progress handling stay in the task layer. Memoized per model id.
+ * `context` is the running task's {@link IExecuteContext}. Passing the real one
+ * (rather than a throwaway stub) is what surfaces download progress: the download
+ * run-fn's `phase` events are forwarded to `context.updateProgress`, which the
+ * CLI progress UI (`withCli`) renders — so a multi-GB GGUF/ONNX fetch shows a live
+ * percentage instead of a silent hang. `context.signal` also aborts a long
+ * download on Ctrl-C. Memoized per model id, so a per-section sweep pays it once.
  */
-export async function ensureModelDownloaded(model: ModelConfig): Promise<void> {
+export async function ensureModelDownloaded(
+  model: ModelConfig,
+  context: IExecuteContext
+): Promise<void> {
   const provider = (model as { provider?: string }).provider;
   if (!provider || !DOWNLOADABLE_PROVIDERS.has(provider)) return;
 
@@ -88,6 +74,27 @@ export async function ensureModelDownloaded(model: ModelConfig): Promise<void> {
 
   const input = { model };
   const task = new ModelDownloadTask({ defaults: input } as any);
-  await task.execute(input as any, makeStubContext());
+  await task.execute(input as any, context);
   if (modelId) ensured.add(modelId);
+}
+
+/**
+ * Best-effort prefetch used at the CLI-task boundary (form processors, eval
+ * sweeps) to surface download progress before the work begins. No-ops when there
+ * is no model or no context (a direct/test caller), and swallows failures — the
+ * downstream generation path re-attempts via {@link ensureModelDownloaded} and
+ * records the failure in its own way (dead-letter or failed eval run), so a
+ * prefetch problem must never abort the run. Whether it downloads with a visible
+ * progress bar is decided entirely by whether a real `context` is threaded in.
+ */
+export async function prefetchModel(
+  model: ModelConfig | null | undefined,
+  context: IExecuteContext | undefined
+): Promise<void> {
+  if (!model || !context) return;
+  try {
+    await ensureModelDownloaded(model, context);
+  } catch {
+    // Downstream generation re-attempts the download and records any failure.
+  }
 }

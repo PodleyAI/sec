@@ -358,10 +358,14 @@ async function runStructured(
   prompt: string,
   outputSchema: object
 ): Promise<Record<string, unknown>> {
-  // Local providers (GGUF especially) must have their weights on disk before
-  // generation — cloud models no-op here. Memoized, so the per-section sweep pays
-  // the download once.
-  await ensureModelDownloaded(model);
+  const context = makeExecuteContext();
+  // Correctness safety-net: local providers (GGUF especially) must have their
+  // weights on disk before generation — cloud models no-op here. Memoized, so the
+  // per-section sweep pays the download once; a form/eval run that prefetched with
+  // a real context (for visible progress) already satisfied this. This call uses
+  // the bare structured-generation context, so it downloads silently if it ever
+  // has to — the progress-bearing prefetch lives at the CLI-task boundary.
+  await ensureModelDownloaded(model, context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,
@@ -371,7 +375,7 @@ async function runStructured(
     maxRetries: 1,
   };
   const task = new StructuredGenerationTask({ defaults: input } as any);
-  const result = await task.execute(input as any, makeExecuteContext());
+  const result = await task.execute(input as any, context);
   return (result?.object as Record<string, unknown> | undefined) ?? {};
 }
 

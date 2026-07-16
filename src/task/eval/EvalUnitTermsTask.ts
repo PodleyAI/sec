@@ -56,6 +56,7 @@ export class EvalUnitTermsTask extends Task<EvalUnitTermsTaskInput, EvalUnitTerm
       models: input.models,
       dir: input.dir,
       signal: context.signal,
+      context,
       onProgress: (done, total, message) => {
         const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
         void context.updateProgress(pct, message);

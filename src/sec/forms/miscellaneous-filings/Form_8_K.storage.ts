@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
 import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
 import type { Form8K } from "./Form_8_K.schema";
@@ -63,6 +63,7 @@ export async function processForm8K({
   extractor_version,
   fullSubmissionText,
   model,
+  context,
 }: {
   readonly cik: number;
   readonly accession_number: string;
@@ -75,6 +76,7 @@ export async function processForm8K({
   readonly extractor_version: string;
   readonly fullSubmissionText?: string;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }): Promise<void> {
   const eventRepo = new Form8KEventRepo();
   const isAmendment = form === "8-K/A";
@@ -151,6 +153,7 @@ export async function processForm8K({
       itemCodes,
       fullSubmissionText,
       model,
+      context,
     });
     await processLoi8K({
       cik,
@@ -161,6 +164,7 @@ export async function processForm8K({
       fullSubmissionText,
       event_date: effectiveReportDate || filing_date,
       model,
+      context,
     });
   }
 }

@@ -327,6 +327,10 @@ export class ProcessAccessionDocFormTask extends Task<
         accession_number: accessionNumber,
         filing_date: filing_date ?? "",
         primary_doc: fileName,
+        // Threaded to the AI form processors so a local model's download renders
+        // its progress in this task's CLI UI (via `prefetchModel`). Non-AI
+        // processors ignore it (spread bypasses excess-property checks).
+        context,
       };
 
       switch (form) {

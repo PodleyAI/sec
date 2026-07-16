@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { ensureModelDownloaded } from "../config/ensureModelDownloaded";
+import { prefetchModel } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
@@ -55,6 +55,13 @@ export interface RunEvalOptions {
   readonly onProgress?: (done: number, total: number, message: string) => void;
   /** When aborted, the sweep stops after the current run and reports what ran. */
   readonly signal?: AbortSignal;
+  /**
+   * The running task's execute context. When present, a local model's weights are
+   * prefetched through it so the download's progress renders in the CLI task UI
+   * (and Ctrl-C aborts the fetch). Omitted by direct callers (tests); the download
+   * then falls back to the per-section safety-net in `runStructured`.
+   */
+  readonly context?: IExecuteContext;
 }
 
 /** Extractor ids that actually have at least one committed fixture. */
@@ -184,15 +191,10 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
     // Fetch a local model's weights before the timed loop so download time is not
-    // charged to the first fixture's latency. Best-effort: a failed download is
-    // surfaced per-fixture as a failed run rather than aborting the whole sweep.
-    if (model) {
-      try {
-        await ensureModelDownloaded(model);
-      } catch {
-        // The per-fixture extraction call will re-attempt and record the failure.
-      }
-    }
+    // charged to the first fixture's latency, and its progress renders in the CLI
+    // task UI. Best-effort: a failed download is surfaced per-fixture as a failed
+    // run rather than aborting the whole sweep.
+    await prefetchModel(model, opts.context);
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;

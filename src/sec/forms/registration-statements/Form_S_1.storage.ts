@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type ModelConfig } from "workglow";
+import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
@@ -79,6 +80,7 @@ export interface ProcessFormS1Args {
   readonly form: string;
   readonly formS1: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
@@ -96,6 +98,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     modelError = err instanceof Error ? err.message : String(err);
   }
   const model_id = model ? resolveModelId(model) : null;
+  // Fetch a local model's weights up front so the download's progress renders in
+  // the CLI task UI before the (silent) per-section extraction begins.
+  await prefetchModel(model, args.context);
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)

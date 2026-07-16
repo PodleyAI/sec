@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type ModelConfig } from "workglow";
+import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
@@ -48,6 +49,7 @@ export interface ProcessMergerProxyArgs {
   readonly form: string;
   readonly formMergerProxy: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 /**
@@ -99,6 +101,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     modelError = err instanceof Error ? err.message : String(err);
   }
   const model_id = model ? resolveModelId(model) : null;
+  await prefetchModel(model, args.context);
 
   const recordMergerProxyRun = async (success: boolean, error: string | null): Promise<void> => {
     try {

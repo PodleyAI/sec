@@ -96,13 +96,25 @@ Local model weights must be on disk before generation, and providers differ on
 when that happens: cloud models have nothing to download; HuggingFace ONNX
 auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
 `model_path` directly and never fetches at generation. `ensureModelDownloaded`
-(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this —
-every extraction (through `runStructured`) and every eval sweep calls it before
-using a model. It runs `ModelDownloadTask` for the local providers (no-op for
-cloud, memoized per model id so a per-section sweep pays the download once) and
-skips a bare-path GGUF (no `model_url` — the file is assumed on disk). The eval
-loops prefetch before their timed sections so download time isn't charged to a
-model's measured latency.
+(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this.
+It runs `ModelDownloadTask` for the local providers (no-op for cloud, memoized
+per model id so a per-section sweep pays the download once) and skips a bare-path
+GGUF (no `model_url` — the file is assumed on disk).
+
+It takes the running task's `IExecuteContext`: passing the **real** one (not a
+throwaway stub) is what surfaces download progress — the download run-fn's `phase`
+events are forwarded to `context.updateProgress`, which the `@workglow/cli`
+progress UI (`withCli`) renders, so a multi-GB GGUF/ONNX fetch shows a live
+percentage instead of a silent hang (and `context.signal` aborts it on Ctrl-C).
+`prefetchModel(model, context)` is the best-effort wrapper the CLI-task boundaries
+call: the AI form processors (`processFormS1` / `processForm424` /
+`processMergerProxy` / `processRedemption8K` / `processLoi8K`, via a `context`
+threaded through `storageArgs`) prefetch once after resolving their model, and the
+eval loops prefetch before their timed sections (so download time isn't charged to
+a model's measured latency). `runStructured` keeps a context-less
+`ensureModelDownloaded` call as a per-section correctness safety-net — it downloads
+silently if a model was never prefetched (e.g. a sub-extractor's distinct model),
+but the progress-bearing fetch lives at the task boundary.
 
 To make GGUF weights fetchable rather than pre-staged, a `gguf:` id may be a
 **remote URI** — a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`) or

@@ -3,8 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { globalServiceRegistry, renderMarkdown } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
@@ -53,6 +54,7 @@ export interface ProcessRedemption8KArgs {
   readonly itemCodes: readonly string[];
   readonly fullSubmissionText: string;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 /** Renders an EDGAR HTML body to plain markdown text (source-span verifiable). */
@@ -137,6 +139,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     await recordRedemptionRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
+  await prefetchModel(model, args.context);
 
   // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
   // events and milestone deals already wrote); a malformed body dead-letters the

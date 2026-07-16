@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type ModelConfig } from "workglow";
+import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
@@ -49,6 +50,7 @@ export interface ProcessForm424Args {
   readonly form: string;
   readonly form424: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 /**
@@ -167,6 +169,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     return;
   }
   const model_id = resolveModelId(model);
+  await prefetchModel(model, args.context);
 
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.

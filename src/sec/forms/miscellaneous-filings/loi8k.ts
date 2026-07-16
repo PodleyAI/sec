@@ -3,8 +3,9 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { globalServiceRegistry, renderMarkdown } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
@@ -45,6 +46,7 @@ export interface ProcessLoi8KArgs {
   /** Event-date fallback when the narrative states no LOI date (report_date ?? filing_date). */
   readonly event_date?: string;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 /** Renders an EDGAR HTML body to plain markdown text (source-span verifiable). */
@@ -131,6 +133,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
     await recordLoiRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
+  await prefetchModel(model, args.context);
 
   let text: string;
   let dropped = 0;
