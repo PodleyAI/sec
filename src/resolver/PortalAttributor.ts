@@ -14,7 +14,12 @@ import type { FormDPortalAttribution } from "../storage/accredited-portal/FormDP
 import { normalizeNameSignal } from "../storage/accredited-portal/SignalNormalization";
 import { KeyedMutex } from "../util/KeyedMutex";
 
-export const PORTAL_ATTRIBUTOR_VERSION = "1.0.0";
+/**
+ * Fallback attributor version when no VersionRegistry slot exists (fresh DB
+ * before bootstrap). Producers read the active "resolver"/"portal-attributor"
+ * slot and pass it via {@link PortalAttributorOptions.attributorVersion}.
+ */
+export const DEFAULT_PORTAL_ATTRIBUTOR_VERSION = "1.0.0";
 
 /**
  * A normalized value harvested from a Form D filing, ready for exact-equality
@@ -117,6 +122,8 @@ interface PortalAttributorOptions {
    * would be dead work repeated once per filing.
    */
   scopeAlreadyCleared?: boolean;
+  /** Active attributor version stamped onto written rows. */
+  attributorVersion?: string;
   /**
    * Preloaded signal table keyed by {@link signalKeyOf}. The backfill loads
    * the (small, sweep-invariant) signal table once and passes it here so a
@@ -144,6 +151,7 @@ export class PortalAttributor {
   private readonly attributionRepo: FormDPortalAttributionRepo;
   private readonly scopePortalId: string | undefined;
   private readonly scopeAlreadyCleared: boolean;
+  private readonly attributorVersion: string;
   private readonly signalLookup: ReadonlyMap<string, AccreditedPortalSignal> | undefined;
 
   constructor(options: PortalAttributorOptions = {}) {
@@ -151,6 +159,7 @@ export class PortalAttributor {
     this.attributionRepo = options.attributionRepo ?? new FormDPortalAttributionRepo();
     this.scopePortalId = options.scopePortalId;
     this.scopeAlreadyCleared = options.scopeAlreadyCleared ?? false;
+    this.attributorVersion = options.attributorVersion ?? DEFAULT_PORTAL_ATTRIBUTOR_VERSION;
     this.signalLookup = options.signalLookup;
   }
 
@@ -219,7 +228,7 @@ export class PortalAttributor {
           matched_signal_type: strongest.signal_type,
           matched_signal_value: strongest.signal_value,
           matches: JSON.stringify(matches),
-          attributor_version: PORTAL_ATTRIBUTOR_VERSION,
+          attributor_version: this.attributorVersion,
           created_at: new Date().toISOString(),
         };
         await this.attributionRepo.saveAttribution(attribution);

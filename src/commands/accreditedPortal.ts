@@ -6,7 +6,9 @@
 
 import { Command } from "commander";
 import { isJsonOutput } from "../cli/isJsonOutput";
+import { parseIntOption } from "../cli/GlobalOptions";
 import { backfillFormDAttribution } from "../resolver/backfillFormDAttribution";
+import { suggestPortalSignals } from "../resolver/suggestPortalSignals";
 import { AccreditedPortalRepo } from "../storage/accredited-portal/AccreditedPortalRepo";
 import { AccreditedPortalSignalRepo } from "../storage/accredited-portal/AccreditedPortalSignalRepo";
 import type { AccreditedPortal } from "../storage/accredited-portal/AccreditedPortalSchema";
@@ -52,7 +54,8 @@ interface SignalValueOptions {
  * Returns null (after reporting) when the value cannot be normalized.
  */
 function normalizeSignalInput(
-  opts: SignalValueOptions
+  opts: SignalValueOptions,
+  cmd: Command
 ): { signal_type: AccreditedPortalSignalType; signal_value: string } | null {
   switch (opts.type.toLowerCase()) {
     case "name": {
@@ -70,6 +73,17 @@ function normalizeSignalInput(
     case "phone": {
       if (!opts.value) {
         fail("--value is required for --type phone");
+        return null;
+      }
+      // Phone parsing is region-sensitive: the same national-format digits
+      // yield a different international number per region, and ingest parses
+      // under the filing issuer's country. A silently-defaulted US region
+      // would store a value that never matches foreign filings, so the
+      // curator must state the region explicitly.
+      if (cmd.getOptionValueSource("country") !== "cli") {
+        fail(
+          "--country is required for --type phone (parsing is region-sensitive; use the country of the filings' issuer address, e.g. --country US)"
+        );
         return null;
       }
       const value = normalizePhoneSignal(opts.value, opts.country);
@@ -133,8 +147,7 @@ function addSignalValueOptions(cmd: Command): Command {
     .option("--zip <zip>", "address postal code")
     .option(
       "--country <country>",
-      "ISO country code for phone parsing; must match the filings' issuer country or the parsed international number will differ (addresses use --state)",
-      "US"
+      "ISO country code for phone parsing (required for --type phone); must match the filings' issuer country or the parsed international number will differ (addresses use --state)"
     );
 }
 
@@ -185,6 +198,32 @@ export function registerAccreditedPortalCommands(program: Command): void {
       }
     });
 
+  group
+    .command("set <portal>")
+    .description("Set curated portal fields that survive seed re-imports (CIK, notes)")
+    .option("--cik <cik>", "EDGAR CIK of the portal operator itself")
+    .option("--notes <notes>", "curation notes ('' to clear)")
+    .action(async (portalRef: string, opts: { cik?: string; notes?: string }) => {
+      if (opts.cik === undefined && opts.notes === undefined) {
+        fail("pass --cik and/or --notes");
+        return;
+      }
+      const portal = await resolvePortalOrFail(portalRef);
+      if (!portal) return;
+      let cik = portal.cik;
+      if (opts.cik !== undefined) {
+        const parsed = Number(opts.cik.trim());
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          fail(`invalid CIK '${opts.cik}'`);
+          return;
+        }
+        cik = parsed;
+      }
+      const notes = opts.notes === undefined ? portal.notes : opts.notes || null;
+      await new AccreditedPortalRepo().savePortal({ ...portal, cik, notes });
+      console.log(`updated ${portal.portal_id}: cik=${cik ?? ""} notes=${notes ?? ""}`);
+    });
+
   const signal = new Command("signal").description(
     "Manage portal fingerprints (names, phones, addresses) used for Form D attribution"
   );
@@ -192,22 +231,24 @@ export function registerAccreditedPortalCommands(program: Command): void {
   addSignalValueOptions(signal.command("add <portal>"))
     .description("Add a fingerprint for a portal (normalized before storing)")
     .option("--note <note>", "curation note")
-    .action(async (portalRef: string, opts: SignalValueOptions & { note?: string }) => {
-      const portal = await resolvePortalOrFail(portalRef);
-      if (!portal) return;
-      const normalized = normalizeSignalInput(opts);
-      if (!normalized) return;
-      await new AccreditedPortalSignalRepo().saveSignal({
-        ...normalized,
-        portal_id: portal.portal_id,
-        source: "manual",
-        note: opts.note ?? null,
-        created_at: new Date().toISOString(),
-      });
-      console.log(
-        `added ${normalized.signal_type} signal '${normalized.signal_value}' -> ${portal.portal_id}`
-      );
-    });
+    .action(
+      async (portalRef: string, opts: SignalValueOptions & { note?: string }, cmd: Command) => {
+        const portal = await resolvePortalOrFail(portalRef);
+        if (!portal) return;
+        const normalized = normalizeSignalInput(opts, cmd);
+        if (!normalized) return;
+        await new AccreditedPortalSignalRepo().saveSignal({
+          ...normalized,
+          portal_id: portal.portal_id,
+          source: "manual",
+          note: opts.note ?? null,
+          created_at: new Date().toISOString(),
+        });
+        console.log(
+          `added ${normalized.signal_type} signal '${normalized.signal_value}' -> ${portal.portal_id}`
+        );
+      }
+    );
 
   signal
     .command("list [portal]")
@@ -227,8 +268,8 @@ export function registerAccreditedPortalCommands(program: Command): void {
 
   addSignalValueOptions(signal.command("remove"))
     .description("Remove a fingerprint (input is normalized before lookup)")
-    .action(async (opts: SignalValueOptions) => {
-      const normalized = normalizeSignalInput(opts);
+    .action(async (opts: SignalValueOptions, cmd: Command) => {
+      const normalized = normalizeSignalInput(opts, cmd);
       if (!normalized) return;
       const repo = new AccreditedPortalSignalRepo();
       const existing = await repo.getSignal(normalized.signal_type, normalized.signal_value);
@@ -266,6 +307,38 @@ export function registerAccreditedPortalCommands(program: Command): void {
         `attributed ${result.attributions} filings across ${result.filings} Form D accessions` +
           (portalId ? ` (portal ${portalId}, cleared ${result.cleared} prior rows)` : "")
       );
+    });
+
+  group
+    .command("suggest")
+    .description(
+      "Suggest new portal fingerprints: addresses/phones recurring across many Form D filings that are not yet curated signals (global --json for JSON output)"
+    )
+    .option(
+      "--min-filings <n>",
+      "minimum distinct filings a value must appear in",
+      parseIntOption,
+      3
+    )
+    .option("--limit <n>", "maximum suggestions to report", parseIntOption, 25)
+    .action(async (opts: { minFilings: number; limit: number }) => {
+      const suggestions = await suggestPortalSignals({
+        minFilings: opts.minFilings,
+        limit: opts.limit,
+      });
+      if (isJsonOutput()) {
+        console.log(JSON.stringify(suggestions, null, 2));
+        return;
+      }
+      if (suggestions.length === 0) {
+        console.log("no candidate fingerprints found (try lowering --min-filings)");
+        return;
+      }
+      for (const s of suggestions) {
+        console.log(
+          `${s.filings}\t${s.signal_type}\t${s.signal_value}\t${s.sample_names.join("; ")}`
+        );
+      }
     });
 
   group

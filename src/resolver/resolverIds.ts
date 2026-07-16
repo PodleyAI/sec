@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const RESOLVER_IDS = ["person", "company", "sponsor-family", "underwriter-family"] as const;
+export const RESOLVER_IDS = [
+  "person",
+  "company",
+  "sponsor-family",
+  "underwriter-family",
+  "portal-attributor",
+] as const;
 export type ResolverId = (typeof RESOLVER_IDS)[number];
 
 /**
@@ -21,4 +27,3 @@ export const FAMILY_RESOLVER_IDS = ["sponsor-family", "underwriter-family"] as c
 export function isFamilyResolverId(id: string): boolean {
   return (FAMILY_RESOLVER_IDS as readonly string[]).includes(id);
 }
-

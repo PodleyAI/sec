@@ -640,9 +640,20 @@ sec accredited-portal signal add angellist --type address \
 sec accredited-portal signal add angellist --type name --value "AngelList Advisors, LLC"
 sec accredited-portal signal list [portal-id]
 sec accredited-portal signal remove --type name --value "..."
-sec accredited-portal attribute --all [--portal <id>]   # backfill sweep over stored observations
+sec accredited-portal attribute --all | --portal <id>   # backfill sweep over stored observations
+sec accredited-portal suggest [--min-filings 3] [--limit 25]  # candidate fingerprints from SPV clusters
+sec accredited-portal set <portal-id> --cik <cik> --notes "..."  # curated fields, survive re-import
 sec accredited-portal filings <portal-id> (--json for JSON output)
 ```
+
+Phone signals require an explicit `--country` (parsing is region-sensitive and
+must match the filings' issuer country). The attributor is versioned through
+the standard resolver ceremonies (`sec version ... resolver portal-attributor`):
+rows are stamped with the active slot's semver, `coverage` reports the share of
+attribution rows at a version, and `drop-previous` purges rows at the retired
+version. `suggest` surfaces address/phone values recurring across many distinct
+Form D filings that are not yet curated signals — the "many funds, one back
+office" pattern; curation stays manual.
 
 Seed re-import preserves curation: portal `cik`/`notes` survive, and `manual`
 signals are never overwritten by `seed` ones. The attributor is exact-match

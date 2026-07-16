@@ -43,7 +43,11 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import type { AttributionCandidate } from "../../../resolver/PortalAttributor";
-import { PortalAttributor, pushAttributionCandidates } from "../../../resolver/PortalAttributor";
+import {
+  DEFAULT_PORTAL_ATTRIBUTOR_VERSION,
+  PortalAttributor,
+  pushAttributionCandidates,
+} from "../../../resolver/PortalAttributor";
 
 interface FormDStorageContext {
   readonly accession_number: string;
@@ -497,13 +501,15 @@ export async function processFormD({
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
 
-  const [personSlot, companySlot] = await Promise.all([
+  const [personSlot, companySlot, attributorSlot] = await Promise.all([
     getActiveSlot(versionRegistry, "resolver", "person"),
     getActiveSlot(versionRegistry, "resolver", "company"),
+    getActiveSlot(versionRegistry, "resolver", "portal-attributor"),
   ]);
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+  const activeAttributorVersion = attributorSlot?.semver ?? DEFAULT_PORTAL_ATTRIBUTOR_VERSION;
 
   const extractor_version = "1.0.0";
 
@@ -581,7 +587,7 @@ export async function processFormD({
   // abort the filing.
   await safeCall(
     () =>
-      new PortalAttributor().attribute({
+      new PortalAttributor({ attributorVersion: activeAttributorVersion }).attribute({
         accession_number,
         cik,
         filing_date: filing_date || null,

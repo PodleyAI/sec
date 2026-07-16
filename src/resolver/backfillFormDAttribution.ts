@@ -7,6 +7,9 @@
 import { globalServiceRegistry } from "workglow";
 import { streamMatchingRows } from "../cli/queries/_streamMatches";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
+import { VersionRegistry } from "../storage/versioning/VersionRegistry";
+import { getActiveSlot } from "../storage/versioning/getActiveSlot";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { AccreditedPortalSignalRepo } from "../storage/accredited-portal/AccreditedPortalSignalRepo";
@@ -14,7 +17,12 @@ import type { AccreditedPortalSignal } from "../storage/accredited-portal/Accred
 import { FormDPortalAttributionRepo } from "../storage/accredited-portal/FormDPortalAttributionRepo";
 import { isBadPersonField } from "../types/edgar/bad-data";
 import type { AttributionCandidate } from "./PortalAttributor";
-import { PortalAttributor, pushAttributionCandidates, signalKeyOf } from "./PortalAttributor";
+import {
+  DEFAULT_PORTAL_ATTRIBUTOR_VERSION,
+  PortalAttributor,
+  pushAttributionCandidates,
+  signalKeyOf,
+} from "./PortalAttributor";
 
 export interface BackfillFormDAttributionResult {
   readonly filings: number;
@@ -69,10 +77,16 @@ export async function backfillFormDAttribution(options: {
     return { filings: 0, attributions: 0, cleared };
   }
 
+  const attributorSlot = await getActiveSlot(
+    new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)),
+    "resolver",
+    "portal-attributor"
+  );
   const attributor = new PortalAttributor({
     attributionRepo,
     scopePortalId: options.portalId,
     scopeAlreadyCleared: true,
+    attributorVersion: attributorSlot?.semver ?? DEFAULT_PORTAL_ATTRIBUTOR_VERSION,
     signalLookup,
   });
 

@@ -8,6 +8,7 @@ import { PersonObservationRepo } from "../../storage/observation/PersonObservati
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../../storage/canonical/CompanyIdentityLinkRepo";
+import { FormDPortalAttributionRepo } from "../../storage/accredited-portal/FormDPortalAttributionRepo";
 import { isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 
 export interface ResolverCoverageResult {
@@ -30,6 +31,22 @@ export async function computeResolverCoverage(
       `coverage is not defined for family resolver kind '${kind}' ` +
         `(family resolvers track membership, not observation identity-links)`
     );
+  }
+  // Portal attribution is derived, recomputable data: coverage is the share
+  // of attribution rows written at the queried attributor version. A stale
+  // fraction means `sec accredited-portal attribute --all` hasn't re-run
+  // since the version changed.
+  if (kind === "portal-attributor") {
+    const attributionRepo = new FormDPortalAttributionRepo();
+    const denom = await attributionRepo.countAll();
+    const num = await attributionRepo.countAtVersion(resolver_version);
+    return {
+      kind,
+      resolver_version,
+      numerator: num,
+      denominator: denom,
+      fraction: denom === 0 ? 0 : num / denom,
+    };
   }
   // Use the storage layer's COUNT path instead of materializing every row.
   // At Form D + Section 16 scale `listAll()` OOMs.

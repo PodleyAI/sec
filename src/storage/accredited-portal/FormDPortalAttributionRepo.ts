@@ -44,6 +44,23 @@ export class FormDPortalAttributionRepo implements FormDPortalAttributionRepoOpt
     return (await this.attributionRepository.query({ portal_id })) || [];
   }
 
+  async countAll(): Promise<number> {
+    return this.attributionRepository.count();
+  }
+
+  async countAtVersion(attributor_version: string): Promise<number> {
+    return this.attributionRepository.count({ attributor_version });
+  }
+
+  /** Purges rows written at a retired attributor version (drop-previous ceremony). */
+  async deleteForAttributorVersion(attributor_version: string): Promise<number> {
+    const count = await this.countAtVersion(attributor_version);
+    if (count > 0) {
+      await this.attributionRepository.deleteSearch({ attributor_version });
+    }
+    return count;
+  }
+
   /** Clears one filing's attributions ahead of an unscoped recompute. */
   async clearAccession(accession_number: string): Promise<void> {
     await this.attributionRepository.deleteSearch({ accession_number });

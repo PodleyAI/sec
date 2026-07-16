@@ -66,10 +66,7 @@ function personKey(obs: PersonObservation, resolverVersion: string): string {
  * covers all observations sharing a scope.
  */
 export class PersonResolver {
-  private readonly _keyMutexes = new Map<
-    string,
-    { mutex: AsyncMutex; refs: number }
-  >();
+  private readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
 
   constructor(private opts: PersonResolverOptions) {}
 
@@ -121,8 +118,7 @@ export class PersonResolver {
             normalized_middle: obs.normalized_middle,
             normalized_last: obs.normalized_last,
             normalized_suffix: obs.normalized_suffix,
-            source_filing_issuer_cik:
-              obs.cik === null ? obs.source_filing_issuer_cik : null,
+            source_filing_issuer_cik: obs.cik === null ? obs.source_filing_issuer_cik : null,
             created_at: new Date().toISOString(),
           };
           try {

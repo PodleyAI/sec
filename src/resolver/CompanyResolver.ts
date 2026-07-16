@@ -53,10 +53,7 @@ function companyKey(
  * (resolver_version, crd_number).
  */
 export class CompanyResolver {
-  private readonly _keyMutexes = new Map<
-    string,
-    { mutex: AsyncMutex; refs: number }
-  >();
+  private readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
 
   constructor(private opts: CompanyResolverOptions) {}
 

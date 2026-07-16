@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 import { RESOLVER_IDS } from "./resolverIds";
 
 describe("resolverIds", () => {
-  it("contains person, company, sponsor-family, and underwriter-family", () => {
-    expect(RESOLVER_IDS).toEqual(["person", "company", "sponsor-family", "underwriter-family"]);
+  it("contains the registered resolver ids", () => {
+    expect(RESOLVER_IDS).toEqual([
+      "person",
+      "company",
+      "sponsor-family",
+      "underwriter-family",
+      "portal-attributor",
+    ]);
   });
 });

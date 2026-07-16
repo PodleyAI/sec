@@ -18,6 +18,7 @@ import { CanonicalPersonAddressRepo } from "../canonical/CanonicalPersonAddressR
 import { CanonicalPersonPhoneRepo } from "../canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../canonical/CanonicalCompanyPhoneRepo";
+import { FormDPortalAttributionRepo } from "../accredited-portal/FormDPortalAttributionRepo";
 import type { ResolverId } from "../../resolver/resolverIds";
 
 interface BaseArgs {
@@ -80,9 +81,7 @@ export async function startDev(args: StartDevArgs): Promise<void> {
 
   const current = await reg.getCurrent(kind, id);
   if (!current) {
-    throw new Error(
-      `No current slot for ${kind} '${id}'. Run 'sec db setup' to bootstrap.`
-    );
+    throw new Error(`No current slot for ${kind} '${id}'. Run 'sec db setup' to bootstrap.`);
   }
 
   // Reject any new dev cycle (including patches) while one is in flight.
@@ -124,9 +123,7 @@ export async function startDev(args: StartDevArgs): Promise<void> {
 
   // Major-only: validate target_count.
   if (bump === "major" && (targetCount === null || targetCount < 0)) {
-    throw new Error(
-      `major bump requires non-negative targetCount (got ${targetCount})`
-    );
+    throw new Error(`major bump requires non-negative targetCount (got ${targetCount})`);
   }
 
   if (args.dryRun) return;
@@ -234,9 +231,7 @@ export async function rollback(args: RollbackArgs): Promise<void> {
 
   const previous = await reg.getPrevious(kind, id);
   if (!previous) {
-    throw new Error(
-      `No previous slot for ${kind} '${id}'. Nothing to roll back to.`
-    );
+    throw new Error(`No previous slot for ${kind} '${id}'. Nothing to roll back to.`);
   }
   const current = await reg.getCurrent(kind, id);
   if (!current) throw new Error(`No current slot for ${kind} '${id}'.`);
@@ -354,6 +349,10 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
       await junctionAddr.deleteForResolverVersion(previous.semver);
       await junctionPhone.deleteForResolverVersion(previous.semver);
       await canonRepo.deleteForResolverVersion(previous.semver);
+    } else if (resolverId === "portal-attributor") {
+      // Attribution rows are the only version-scoped data this component owns;
+      // portals and signals are curated and version-free.
+      await new FormDPortalAttributionRepo().deleteForAttributorVersion(previous.semver);
     } else {
       // Family-tier resolvers (sponsor-family / underwriter-family) store
       // canonical + membership + link rows, not identity-links/junctions. Their
