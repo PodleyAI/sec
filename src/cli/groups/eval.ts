@@ -6,7 +6,6 @@
 
 import type { Command } from "commander";
 import { withCli } from "@workglow/cli";
-import { SecHftModelDefault } from "../../config/Constants";
 import { runCommand } from "../runCommand";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import {
@@ -22,12 +21,19 @@ import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
 /**
- * Default comparison set: a cheap cloud model, a mid cloud model, and the local
- * HFT default ({@link SecHftModelDefault}, LFM2.5-350M) — a genuine 3-way. The
- * local model runs in seconds per call (after a one-time ~300 MB download), so
- * it is fast enough to include by default.
+ * Default comparison set: a cheap cloud model vs a strong one — the comparison
+ * that decides production extraction. A local HFT model is deliberately NOT in
+ * the default sweep: it costs minutes per section and is not a production
+ * candidate. Pass one explicitly (`--models "$SEC_HFT_MODEL"`) to rank it.
  */
-const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", SecHftModelDefault];
+const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5"];
+
+/**
+ * Default candidate for `sec eval s1`, whose reference defaults to sonnet: score
+ * the cheap cloud model against it, the comparison that decides production
+ * extraction. Same reasoning as {@link DEFAULT_MODELS} — a local model is opt-in.
+ */
+const ORACLE_DEFAULT_CANDIDATE = "claude-haiku-4-5";
 
 function parseModels(csv: string | undefined): string[] {
   const ids = (csv ?? DEFAULT_MODELS.join(","))
@@ -280,7 +286,7 @@ export function addEvalCommands(program: Command): void {
     )
     .option(
       "--models <csv>",
-      `model ids to score against the reference (default: ${SecHftModelDefault})`
+      `model ids to score against the reference (default: ${ORACLE_DEFAULT_CANDIDATE})`
     )
     .option(
       "--extractors <csv>",
@@ -305,7 +311,7 @@ export function addEvalCommands(program: Command): void {
         await runCommand(async () => {
           const candidates = opts.models
             ? opts.models.split(",").map((s) => s.trim()).filter(Boolean)
-            : [SecHftModelDefault];
+            : [ORACLE_DEFAULT_CANDIDATE];
           const extractors = opts.extractors
             ? opts.extractors.split(",").map((s) => s.trim()).filter(Boolean)
             : ["management"];

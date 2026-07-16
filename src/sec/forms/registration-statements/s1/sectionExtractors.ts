@@ -82,7 +82,7 @@ export class NonceMismatchError extends Error {
  * genuinely drawn from the document.
  *
  * The nonce is optional: local grammar/ONNX providers cannot reliably echo a
- * 16-hex token (a 350M model tends to emit the schema's *pattern* rather than
+ * 16-hex token (a small local model tends to emit the schema's *pattern* rather than
  * the value), so {@link runGuardedExtraction} omits the nonce for local
  * providers and strips `nonce_seen` from their schema. The source-span gate —
  * the load-bearing integrity check — still applies to every provider.
@@ -373,7 +373,7 @@ async function runStructured(
 /**
  * Local (on-device) providers: node-llama-cpp GBNF grammar and HuggingFace
  * Transformers ONNX. Their small instruct models cannot reliably echo the
- * per-call nonce — a grammar-constrained 350M model tends to emit the schema's
+ * per-call nonce — a grammar-constrained small model tends to emit the schema's
  * `^[0-9a-f]{16}$` *pattern* as the value rather than the actual token — so the
  * nonce round-trip is skipped for them ({@link runGuardedExtraction}).
  */

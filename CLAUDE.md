@@ -125,7 +125,7 @@ reporting a vacuous pass), and its help lists only the scorable ones.
 covered instead by `sec eval unit-terms` against the embarc truth set.
 
 ```bash
-sec eval extract                              # default 3-way: haiku, sonnet, local LFM2.5-350M
+sec eval extract                              # default: haiku vs sonnet
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 
@@ -139,46 +139,25 @@ sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
 gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5"
 ```
 
-The registered local model (`SecHftModelDefault`) is LiquidAI **LFM2.5-350M** — an
-edge-optimized model that runs in seconds per call on CPU (it beats Qwen2.5-0.5B/1.5B
-on accuracy and is ~50x faster than Qwen3-4B, which only matches it at minutes per
-call). It is fast enough to sit in the default 3-way. For a stronger-but-slow
-local baseline set `SEC_HFT_MODEL=onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
-Only **non-thinking** instruct models work for `json-mode` — a thinking model
-wraps the JSON in reasoning.
+A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
+`onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
+models work for `json-mode` — a thinking model wraps the JSON in reasoning.
 
-> **Verdict (do not overstate the local model).** A large-N oracle run (sonnet-5
-> as truth over 20 real S-1s / 42 sections; see below) shows LFM2.5-350M is *not*
-> a sonnet substitute for production extraction: management **~43%** field agreement
-> (it over-produces on 40k+ char SPAC sections and misreads bio-companies as people),
-> beneficial-ownership **~6%** with **9/14 hard schema failures** (it stuffs share
-> counts into the `confidence` field and invents `owner_kind` values outside
-> `person|company`), related-party **~33%** (name-only). It is fine as a *free,
-> fast, local first-pass* on simple person lists, but cloud sonnet stays required
-> for correctness — and sonnet over the whole 42-section set costs only ~$1.44, so
-> the local-model savings ceiling is low. The larger **LFM2.5-1.2B** is *worse*
-> (more schema failures, ~5x slower), so 350M remains the local default. Earlier
-> "~100% recall / good enough" numbers were a 4-section small-sample artifact.
->
-> **Caveat — the management / related-party figures above are oracle-relative.**
-> They are agreement with a *sonnet oracle*, so they inherit the reference's own
-> mistakes. Re-measure against `--reference golden` before quoting them.
->
-> **Beneficial-ownership, re-measured against golden truth** (5 committed
-> sections, 33 owners, after the subtotal-convention fix): the ~6% verdict
-> **holds and is if anything generous**. LFM2.5-350M hard schema-failed 3 of the
-> 5 sections (`owners` property missing entirely; `owner_kind: "group"`;
-> `confidence: 6` against a `maximum: 1`) and missed 28 of 33 owners — only the
-> smallest (4k char) section mostly parsed. On the 26 Capital table it returned
-> none of the 6 real owners and invented *"Churchill Sponsor XII LLC"*, a sponsor
-> from an unrelated filing it had not been shown — a pretraining-memorized
-> hallucination, the failure mode that matters most for a filings dataset. By
-> contrast **haiku matches sonnet at 100% on all five sections for ~2.8x less**,
-> so the cheap-cloud tier — not the local model — is where the savings are.
+> **Verdict: use the cheap cloud tier, not a local model.** Measured against
+> golden truth on the committed `beneficial-ownership` sections, **haiku-4-5
+> matches sonnet-5 at 100% agreement / recall / precision for ~2.8x less** — so
+> that is where the savings are. Small local models are not a substitute for
+> production extraction: they hard schema-fail on real sections (emitting
+> `owner_kind` values outside `person|company`, share counts in the `confidence`
+> field), and they hallucinate entities memorized from pretraining — one returned
+> a well-known SPAC sponsor for an unrelated issuer's ownership table, which is
+> the failure mode that matters most for a filings dataset. Rank any candidate
+> yourself with `sec eval extract` / `sec eval s1 --reference golden` rather than
+> trusting a headline number.
 
 > HFT chat-template workaround: transformers.js 4.2.0 bundles jinja **0.5.6**,
-> which predates the `{% generation %}` template-tag strip, so newer templates
-> (e.g. the LFM2.5 family's `{%- generation -%}` markers) otherwise throw
+> which predates the `{% generation %}` template-tag strip, so a newer template
+> carrying `{%- generation -%}` markers otherwise throws
 > `Unknown statement type: generation`. `hftWorker.ts` calls
 > `patchHftChatTemplateGenerationTags` (`src/config/patchHftChatTemplate.ts`)
 > to strip those inert training-only markers before the tokenizer compiles the
@@ -246,19 +225,18 @@ hand-labeled.
 # Score candidates against human-verified truth (deterministic, no ref call)
 sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
 
-sec eval s1 --reference claude-sonnet-5 --models "onnx-community/LFM2.5-350M-ONNX" \
+sec eval s1 --reference claude-sonnet-5 --models "claude-haiku-4-5" \
   --extractors "management,beneficial-ownership,related-party"
 
 # Run over a larger fetched sample (gitignored cache) instead of the committed set:
 sec fetch s1-fixtures -c 20
-sec eval s1 --models "onnx-community/LFM2.5-350M-ONNX" \
-  --dir src/sec/html/mock_data/s1/.cache
+sec eval s1 --models "claude-haiku-4-5" --dir src/sec/html/mock_data/s1/.cache
 ```
 
 The oracle streams per-section progress to **stderr** (`[i/N] filing extractor
 (chars) ref/cand: ok/FAIL ms rows`) so a long local-model run isn't blind; `--format
 json` on stdout stays clean. Large sections (40–57k chars) dominate wall-clock —
-the 350M takes 40–90s each vs sonnet's ~20s.
+sonnet takes ~20s each, and a local HFT model minutes.
 
 #### Evaluating Bonsai 27B (local GGUF)
 
@@ -528,8 +506,8 @@ positives, five confusable negatives) in `src/eval/fixtures.ts`, so any model
 set can be ranked on it:
 
 ```bash
-sec eval extract --extractor loi                        # default 3-way sweep
-sec eval extract --extractor loi --models "claude-sonnet-5,onnx-community/LFM2.5-350M-ONNX"
+sec eval extract --extractor loi                        # default sweep
+sec eval extract --extractor loi --models "claude-sonnet-5,claude-haiku-4-5"
 ```
 
 ```bash
