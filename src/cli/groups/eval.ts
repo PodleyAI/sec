@@ -29,11 +29,19 @@ import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5"];
 
 /**
- * Default candidate for `sec eval s1`, whose reference defaults to sonnet: score
- * the cheap cloud model against it, the comparison that decides production
- * extraction. Same reasoning as {@link DEFAULT_MODELS} — a local model is opt-in.
+ * Default candidate for `sec eval s1`: score the cheap cloud model against the
+ * reference, the comparison that decides production extraction. Same reasoning
+ * as {@link DEFAULT_MODELS} — a local model is opt-in.
  */
 const ORACLE_DEFAULT_CANDIDATE = "claude-haiku-4-5";
+
+/**
+ * Default oracle for `sec eval s1` — the strongest available model, since a
+ * model reference is only as good as its own reads and every candidate's score
+ * is capped by the reference's mistakes. Still not ground truth: prefer
+ * `--reference golden` where committed labels exist.
+ */
+const ORACLE_DEFAULT_REFERENCE = "claude-opus-4-8";
 
 function parseModels(csv: string | undefined): string[] {
   const ids = (csv ?? DEFAULT_MODELS.join(","))
@@ -282,7 +290,7 @@ export function addEvalCommands(program: Command): void {
     .option(
       "--reference <id>",
       "reference (oracle) model id, or 'golden' for committed human-verified labels",
-      "claude-sonnet-5"
+      ORACLE_DEFAULT_REFERENCE
     )
     .option(
       "--models <csv>",

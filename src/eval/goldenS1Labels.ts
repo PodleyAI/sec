@@ -6,8 +6,8 @@
 
 /**
  * Human-verified "truth" for the committed real S-1 sections, used by
- * `sec eval s1 --reference golden`. A live reference model (even sonnet) is not
- * ground truth — it drops or invents the odd role — which caps achievable
+ * `sec eval s1 --reference golden`. A live reference model (even the strongest
+ * one) is not ground truth — it drops or invents the odd role — which caps achievable
  * agreement and can penalize a correct candidate. For the small committed set we
  * hand-label the roster so the oracle measures **correctness**, not agreement
  * with a wandering model.

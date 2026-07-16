@@ -188,31 +188,33 @@ key field before scoring: a model that emits the same entity twice is over-produ
 #### Oracle over real S-1s (`sec eval s1`)
 
 Golden fixtures are synthetic; `sec eval s1` instead runs a `--reference` model
-(e.g. `claude-sonnet-5`) as the "truth" over **real committed S-1 sections**, then
-scores each `--candidate` on agreement/recall/precision against it (this is how the
-local-vs-sonnet verdict above was reached). `realSections.ts` segments the HTML into
-management / beneficial-ownership / related-party prose. The reference retries a few
-times per section (strong models intermittently emit a nested array as a JSON
-*string* the strict schema rejects); a section the reference still fails is dropped
-from scoring.
+as the "truth" over **real committed S-1 sections**, then scores each
+`--candidate` on agreement/recall/precision against it. The reference defaults to
+**`claude-opus-4-8`** — a model oracle caps every candidate at its own accuracy,
+so it should be the strongest model available, not the one you are evaluating.
+`realSections.ts` segments the HTML into management / beneficial-ownership /
+related-party prose. The reference retries a few times per section (strong models
+intermittently emit a nested array as a JSON *string* the strict schema rejects);
+a section the reference still fails is dropped from scoring.
 
 **Golden truth (`--reference golden`).** A live reference model is not ground
-truth — even sonnet drops or invents the odd role, capping achievable agreement
-and penalizing a correct candidate. `--reference golden` scores candidates
-against **committed human-verified labels** (`src/eval/goldenS1Labels.ts`) instead
-of a model run — no reference API call, `$0`, deterministic. Only sections with a
-golden entry are scored (the rest are reported as skipped); currently the four
-committed `management` sections and all five `beneficial-ownership` sections.
+truth — even the strongest model drops or invents the odd role, capping
+achievable agreement and penalizing a correct candidate. `--reference golden`
+scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
+instead of a model run — no reference API call, `$0`, deterministic. Only sections
+with a golden entry are scored (the rest are reported as skipped); currently the
+four committed `management` sections and all five `beneficial-ownership` sections.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually *correct*
-(not just sonnet-like); use a model reference to sweep sections that aren't
+(not merely reference-like); use a model reference to sweep sections that aren't
 hand-labeled.
 
 > **Why golden truth matters — a worked example.** The `beneficial-ownership`
 > oracle numbers were long depressed by an *unstated convention*, not by model
 > capability. Ownership tables end in an `All officers and directors as a group
-> (N)` subtotal; the prompt never said whether to emit it, so sonnet emitted it
-> for most tables and omitted it for others — and, typed `owner_kind: "company"`,
+> (N)` subtotal; the prompt never said whether to emit it, so the reference model
+> emitted it for most tables and omitted it for others — and, typed
+> `owner_kind: "company"`,
 > the S-1 persist path resolved those subtotal labels into the **canonical
 > company tier** while their aggregate share counts double-counted the members
 > above them. With the convention pinned (prompt + `isOwnershipGroupSubtotal`
@@ -225,7 +227,8 @@ hand-labeled.
 # Score candidates against human-verified truth (deterministic, no ref call)
 sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
 
-sec eval s1 --reference claude-sonnet-5 --models "claude-haiku-4-5" \
+# Model oracle (defaults to --reference claude-opus-4-8) over unlabeled sections
+sec eval s1 --models "claude-haiku-4-5" \
   --extractors "management,beneficial-ownership,related-party"
 
 # Run over a larger fetched sample (gitignored cache) instead of the committed set:
@@ -252,9 +255,8 @@ into the GGUF models dir (`$SEC_GGUF_DIR`, else `$SEC_RAW_DATA_FOLDER/gguf`, els
 huggingface-cli download prism-ml/Ternary-Bonsai-27B-gguf \
   Ternary-Bonsai-27B-Q2_0.gguf --local-dir "${SEC_GGUF_DIR:-./models}"
 
-# score Bonsai against the sonnet-5 oracle on the committed real S-1 sections
-sec eval s1 --reference claude-sonnet-5 \
-  --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
+# score Bonsai against the opus oracle on the committed real S-1 sections
+sec eval s1 --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
   --extractors "management,beneficial-ownership,related-party"
 # (an absolute path also works: --models "gguf:/abs/path/Ternary-Bonsai-27B-Q2_0.gguf")
 ```
