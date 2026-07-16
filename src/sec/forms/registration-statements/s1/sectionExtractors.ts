@@ -477,6 +477,22 @@ export async function extractManagement(
   }));
 }
 
+/**
+ * An ownership table's trailing subtotal row — "All officers, directors and
+ * director nominees as a group (9 individuals)". It is an aggregate of rows
+ * already extracted, not a stockholder: it has no `owner_kind` the schema can
+ * express, its share count double-counts the members above it, and persisting it
+ * mints a canonical company named after the subtotal label. Models do not agree
+ * on whether to emit it (sonnet emits it for most tables and omits it for
+ * others), so the prompt forbids it and this pattern enforces it.
+ */
+const OWNERSHIP_GROUP_SUBTOTAL = /^all\b[\s\S]*\bas a group\b/i;
+
+/** True for an aggregate subtotal row rather than an individual stockholder. */
+export function isOwnershipGroupSubtotal(name: string | null | undefined): boolean {
+  return typeof name === "string" && OWNERSHIP_GROUP_SUBTOTAL.test(name.trim());
+}
+
 export async function extractBeneficialOwnership(
   sectionText: string,
   model: ModelConfig
@@ -487,14 +503,21 @@ export async function extractBeneficialOwnership(
     "'company'), security_class, shares_owned, percent_owned, shares_offered, " +
     "shares_after, percent_after, is_selling_stockholder, footnote, a confidence in " +
     "[0,1], and the verbatim source_span. Use null for figures shown as '*', '—', or " +
-    "blank. Return JSON matching the schema.";
+    "blank. Give the name as printed but WITHOUT footnote markers or parenthetical " +
+    "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
+    "XII LLC'. Do NOT emit the aggregate subtotal row that totals the officers and " +
+    "directors (e.g. 'All officers and directors as a group (9 individuals)'): it is a " +
+    "total of the rows above, not a stockholder. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     model,
     instructions,
     sectionText,
     BeneficialOwnershipOutputSchema
   );
-  return (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
+  const owners = (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
+  // Enforce the subtotal exclusion rather than trusting the prompt: a leaked row
+  // would be resolved into the canonical company tier by the S-1 persist path.
+  return owners.filter((o) => !isOwnershipGroupSubtotal(o?.name));
 }
 
 export async function extractRelatedParty(

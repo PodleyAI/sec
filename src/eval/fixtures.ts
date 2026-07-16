@@ -243,7 +243,79 @@ const CLASSIFY_OPERATING = `Prospectus Summary
 
 We are a leading designer and manufacturer of precision industrial pumps used in the oil and gas, chemical and water-treatment industries. Founded in 2004, we generated revenue of $312 million in the most recent fiscal year and operate four manufacturing facilities across North America. This prospectus relates to the initial public offering of our common stock.`;
 
+/**
+ * A SPAC ownership table exercising the conventions the prompt pins down: a
+ * sponsor cell carrying a parenthetical annotation and footnote markers, holders
+ * shown with "—" (still owners), and the trailing "as a group" subtotal — which
+ * is an aggregate of the rows above it, not a stockholder, and must NOT be
+ * emitted (it would otherwise be resolved into the canonical company tier and
+ * double-count its members' shares).
+ */
+const SPAC_BENEFICIAL_OWNERSHIP = `PRINCIPAL STOCKHOLDERS
+
+The following table sets forth information regarding the beneficial ownership of our common stock as of the date of this prospectus by each person known by us to be the beneficial owner of more than 5% of our outstanding shares, each of our officers and directors, and all our officers and directors as a group.
+
+Name and Address of Beneficial Owner(1) | Number of Shares Beneficially Owned(2) | Approximate Percentage
+Halyard Sponsor III LLC(our sponsor)(3) | 4,312,500 | 100.0%
+Eleanor Vasquez(3)(4) | 4,312,500 | 100.0%
+Desmond Achebe | — | —
+Marta Lindqvist(4) | — | —
+Peter Sandoval-Reyes(4) | 43,125 | *
+All officers and directors as a group (five individuals) | 4,355,625 | 100.0%
+
+____________
+* Less than 1%.
+(1) Unless otherwise noted, the business address of each is c/o Halyard Acquisition Corp., 88 Harbor Drive, Suite 400, Boston, MA 02110.
+(2) Interests shown consist solely of founder shares.
+(3) Our sponsor is the record holder of such shares. Eleanor Vasquez is the managing member of our sponsor and may be deemed to have sole beneficial ownership of the shares held by our sponsor.
+(4) Each of these individuals holds a direct or indirect interest in our sponsor and disclaims beneficial ownership except to the extent of their pecuniary interest.`;
+
+/**
+ * An operating-company table with a selling stockholder and a 5% holder, to
+ * balance the SPAC founder-share shape above.
+ */
+const OPERATING_BENEFICIAL_OWNERSHIP = `PRINCIPAL AND SELLING STOCKHOLDERS
+
+The following table sets forth information regarding the beneficial ownership of our common stock as of the date of this prospectus.
+
+Name of Beneficial Owner | Shares Owned Before Offering | Percent | Shares Offered | Shares After
+Calder Ventures Fund II, L.P.(1) | 3,100,000 | 28.4% | 500,000 | 2,600,000
+Marcus T. Delgado(2) | 1,250,000 | 11.5% | — | 1,250,000
+Priya Ramaswamy | 310,000 | 2.8% | — | 310,000
+Devin O'Leary | 148,500 | 1.4% | — | 148,500
+Susan Whitfield-Chen | — | — | — | —
+All directors and executive officers as a group (4 persons) | 1,708,500 | 15.7% | — | 1,708,500
+
+(1) Calder Ventures Fund II, L.P. is managed by Calder Ventures GP, LLC.
+(2) Includes 200,000 shares held by the Delgado Family Trust.`;
+
 export const EVAL_FIXTURES: readonly EvalFixture[] = [
+  {
+    name: "beneficial-ownership-spac-founder-table",
+    extractor: "beneficial-ownership",
+    text: SPAC_BENEFICIAL_OWNERSHIP,
+    // Only `name` is scored. The "as a group" subtotal is deliberately absent:
+    // emitting it costs precision, which is the behavior we want to measure.
+    expected: [
+      { name: "Halyard Sponsor III LLC" },
+      { name: "Eleanor Vasquez" },
+      { name: "Desmond Achebe" },
+      { name: "Marta Lindqvist" },
+      { name: "Peter Sandoval-Reyes" },
+    ],
+  },
+  {
+    name: "beneficial-ownership-operating-company-table",
+    extractor: "beneficial-ownership",
+    text: OPERATING_BENEFICIAL_OWNERSHIP,
+    expected: [
+      { name: "Calder Ventures Fund II, L.P." },
+      { name: "Marcus T. Delgado" },
+      { name: "Priya Ramaswamy" },
+      { name: "Devin O'Leary" },
+      { name: "Susan Whitfield-Chen" },
+    ],
+  },
   {
     name: "spac-classification-true-spac",
     extractor: "spac-classification",

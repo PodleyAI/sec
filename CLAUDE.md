@@ -117,7 +117,12 @@ shell / operating-company negatives) ranks it through `sec eval extract`.
 `sec eval extract` compares extraction models on **correctness, speed, and cost**
 so you can find the cheapest/fastest model that still extracts correctly. It runs
 committed golden fixtures (`src/eval/fixtures.ts` — realistic section prose with
-hand-authored `expected` rows) through each candidate model and ranks them:
+hand-authored `expected` rows) through each candidate model and ranks them.
+Registration in `EVAL_EXTRACTORS` does **not** imply a fixture: `--extractor`
+errors out for an extractor with none (rather than sweeping zero runs and
+reporting a vacuous pass), and its help lists only the scorable ones.
+`related-party` and `offering-terms` still have no fixture — `offering-terms` is
+covered instead by `sec eval unit-terms` against the embarc truth set.
 
 ```bash
 sec eval extract                              # default 3-way: haiku, sonnet, local LFM2.5-350M
@@ -154,6 +159,22 @@ wraps the JSON in reasoning.
 > the local-model savings ceiling is low. The larger **LFM2.5-1.2B** is *worse*
 > (more schema failures, ~5x slower), so 350M remains the local default. Earlier
 > "~100% recall / good enough" numbers were a 4-section small-sample artifact.
+>
+> **Caveat — the management / related-party figures above are oracle-relative.**
+> They are agreement with a *sonnet oracle*, so they inherit the reference's own
+> mistakes. Re-measure against `--reference golden` before quoting them.
+>
+> **Beneficial-ownership, re-measured against golden truth** (5 committed
+> sections, 33 owners, after the subtotal-convention fix): the ~6% verdict
+> **holds and is if anything generous**. LFM2.5-350M hard schema-failed 3 of the
+> 5 sections (`owners` property missing entirely; `owner_kind: "group"`;
+> `confidence: 6` against a `maximum: 1`) and missed 28 of 33 owners — only the
+> smallest (4k char) section mostly parsed. On the 26 Capital table it returned
+> none of the 6 real owners and invented *"Churchill Sponsor XII LLC"*, a sponsor
+> from an unrelated filing it had not been shown — a pretraining-memorized
+> hallucination, the failure mode that matters most for a filings dataset. By
+> contrast **haiku matches sonnet at 100% on all five sections for ~2.8x less**,
+> so the cheap-cloud tier — not the local model — is where the savings are.
 
 > HFT chat-template workaround: transformers.js 4.2.0 bundles jinja **0.5.6**,
 > which predates the `{% generation %}` template-tag strip, so newer templates
@@ -202,10 +223,24 @@ and penalizing a correct candidate. `--reference golden` scores candidates
 against **committed human-verified labels** (`src/eval/goldenS1Labels.ts`) instead
 of a model run — no reference API call, `$0`, deterministic. Only sections with a
 golden entry are scored (the rest are reported as skipped); currently the four
-committed `management` sections. Titles are stored in canonical
-(`normalizeManagementTitles`) form and unit-tested to stay canonical. Use golden
-truth to tell which model is actually *correct* (not just sonnet-like); use a
-model reference to sweep sections that aren't hand-labeled.
+committed `management` sections and all five `beneficial-ownership` sections.
+Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
+to stay canonical. Use golden truth to tell which model is actually *correct*
+(not just sonnet-like); use a model reference to sweep sections that aren't
+hand-labeled.
+
+> **Why golden truth matters — a worked example.** The `beneficial-ownership`
+> oracle numbers were long depressed by an *unstated convention*, not by model
+> capability. Ownership tables end in an `All officers and directors as a group
+> (N)` subtotal; the prompt never said whether to emit it, so sonnet emitted it
+> for most tables and omitted it for others — and, typed `owner_kind: "company"`,
+> the S-1 persist path resolved those subtotal labels into the **canonical
+> company tier** while their aggregate share counts double-counted the members
+> above them. With the convention pinned (prompt + `isOwnershipGroupSubtotal`
+> guard) and golden labels committed, sonnet **and** haiku both score 100%
+> agreement / recall / precision across all five sections — with haiku at ~2.8x
+> lower cost. A model-reference oracle could never have surfaced this: the
+> reference *was* the model making the mistake.
 
 ```bash
 # Score candidates against human-verified truth (deterministic, no ref call)

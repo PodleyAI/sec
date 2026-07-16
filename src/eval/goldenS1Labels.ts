@@ -23,10 +23,34 @@
  * Rosters were read from BOTH the summary table and the bio's "has served as
  * our …" sentence (roles at THIS company), taking the union — e.g. John Lewis'
  * table cell is "Chief Financial Officer" but his bio adds "and Secretary".
+ *
+ * Labels are transcribed from the committed filing text and cross-checked
+ * against independent model reads; where the two disagreed the filing wins, and
+ * the reasoning is recorded inline (see Haldeman below). They are committed so a
+ * reviewer can check them against the source — that review, not their authorship,
+ * is what makes them truth.
  */
-export interface GoldenRow {
+/** A `management` roster entry, keyed by `full_name` and scored on name + titles. */
+export interface GoldenManagementRow {
   readonly full_name: string;
   readonly titles: readonly string[];
+}
+
+/**
+ * A `beneficial-ownership` table entry. Only `name` is scored — share counts and
+ * percentages are formatted too variably to compare cleanly (see the
+ * `beneficial-ownership` entry in EVAL_EXTRACTORS), so the measured question is
+ * "does the model list the right owners".
+ */
+export interface GoldenOwnerRow {
+  readonly name: string;
+}
+
+export type GoldenRow = GoldenManagementRow | GoldenOwnerRow;
+
+/** Narrow a golden row to the management shape (the only one carrying titles). */
+export function isGoldenManagementRow(row: GoldenRow): row is GoldenManagementRow {
+  return "full_name" in row;
 }
 
 /** Key a golden entry by `${filing}::${extractor}` (filing = accession-derived basename). */
@@ -34,7 +58,13 @@ export function goldenLabelKey(filing: string, extractor: string): string {
   return `${filing}::${extractor}`;
 }
 
-const G = (full_name: string, titles: readonly string[]): GoldenRow => ({ full_name, titles });
+const G = (full_name: string, titles: readonly string[]): GoldenManagementRow => ({
+  full_name,
+  titles,
+});
+
+/** A beneficial-ownership row: the owner's name as the table prints it. */
+const O = (name: string): GoldenOwnerRow => ({ name });
 
 /**
  * Committed golden labels, keyed by {@link goldenLabelKey}. Only sections that
@@ -88,6 +118,71 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     ]),
     G("Jay Taragin", ["Chief Financial Officer"]),
     G("William Sherman", ["Director Nominee"]),
+  ],
+
+  // ---------------------------------------------------------------------------
+  // beneficial-ownership — the stockholder rows of each table, in table order.
+  //
+  // Convention (mirrors the extraction prompt, enforced by
+  // `isOwnershipGroupSubtotal`): the trailing "All officers and directors as a
+  // group (N)" subtotal is NOT an owner and is excluded; names carry no footnote
+  // markers or parenthetical annotations; a single row naming two owners
+  // ("V-Cube, Inc. and Naoaki Mashita") stays one row, as the table prints it.
+  // Rows showing "—"/"--"/"-" (no shares) are still owners and ARE listed — the
+  // table lists them, and only `name` is scored.
+  // ---------------------------------------------------------------------------
+
+  // 26 Capital Acquisition Corp. — sponsor + Ader hold all founder shares.
+  [goldenLabelKey("s1_1822912_000121390021001475", "beneficial-ownership")]: [
+    O("26 Capital Holdings LLC"),
+    O("Jason Ader"),
+    O("John Lewis"),
+    O("Rafi Ashkenazi"),
+    O("Joseph Kaminkow"),
+    O("Gregory S. Lyss"),
+  ],
+  // BGPT / Martire founder vehicle. "Don Layden." carries a stray trailing period
+  // in the filing; the scorer strips non-decimal periods, so either form aligns.
+  [goldenLabelKey("s1_1848507_000119312521066104", "beneficial-ownership")]: [
+    O("BGPT 1.12 LP"),
+    O("Frank R. Martire, Jr."),
+    O("Frank Martire, III"),
+    O("Tanmay Kumar"),
+    O("Howard Chatzinoff"),
+    O("Frank D’Angelo"),
+    O("Rachel Landrum"),
+    O("Don Layden"),
+    O("Patricia A. Oelrich"),
+    O("Tom Shen"),
+  ],
+  // 1Sharpe real-estate SPAC.
+  [goldenLabelKey("s1_1849470_000110465921035696", "beneficial-ownership")]: [
+    O("1Sharpe SPAC Sponsor LLC"),
+    O("Gregor Watson"),
+    O("Rob Bloemker"),
+    O("Charles E. Haldeman, Jr."),
+    O("Jacob Seid"),
+    O("Suzanne Klahr"),
+    O("Richard J Boyle, Jr."),
+  ],
+  // Operating company (not a SPAC): a 5% holder block plus zero-share officers.
+  // The 5% row names both the entity and its CEO in one cell with one combined
+  // figure (footnote 5 splits 1,520,000 / 45,942), so it stays a single row.
+  [goldenLabelKey("s1_2030954_000149315226027129", "beneficial-ownership")]: [
+    O("Randolph Wilson Jones III"),
+    O("Christina Maldonado"),
+    O("Virgilio D. Torres"),
+    O("Yuji Ishida"),
+    O("Gan Yong Sheng"),
+    O("V-Cube, Inc. and Naoaki Mashita"),
+  ],
+  // Churchill Capital Corp XII. The sponsor cell prints as
+  // "Churchill Sponsor XII LLC(our sponsor)(3)" — annotation and marker dropped.
+  [goldenLabelKey("s1_2114227_000121390026039320", "beneficial-ownership")]: [
+    O("Churchill Sponsor XII LLC"),
+    O("Michael Klein"),
+    O("Jay Taragin"),
+    O("William Sherman"),
   ],
 };
 
