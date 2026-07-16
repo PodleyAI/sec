@@ -6,13 +6,16 @@
 
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
-import { withCli } from "@workglow/cli";
 import { isDryRun } from "../cli/isDryRun";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import { SpacRepo } from "../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
+import type { ExtractorBackfillResult } from "../task/forms/BackfillExtractorTask";
 import { BackfillExtractorTask } from "../task/forms/BackfillExtractorTask";
+import { BackfillDespacTask, type BackfillDespacTaskOutput } from "../task/spac/BackfillDespacTask";
+import { SpacHistoryTask, type SpacHistoryTaskOutput } from "../task/spac/SpacHistoryTask";
+import { SpacReportTask } from "../task/spac/SpacReportTask";
 
 export interface SpacReport {
   readonly cik: number;
@@ -82,7 +85,7 @@ export function registerSpacCommands(program: Command): void {
     .action(async (cikArg: string, opts: { format: string }) => {
       const cik = parseCikArg(cikArg);
       if (cik === null) return;
-      const report = await assembleSpacReport(cik);
+      const report = await runWorkflowCli<SpacReport>([new SpacReportTask({ defaults: { cik } })]);
       if (opts.format === "json") {
         console.log(JSON.stringify(report, null, 2));
         return;
@@ -106,7 +109,9 @@ export function registerSpacCommands(program: Command): void {
     .action(async (cikArg: string, opts: { format: string }) => {
       const cik = parseCikArg(cikArg);
       if (cik === null) return;
-      const history = await new SpacRepo().getHistory(cik);
+      const { history } = await runWorkflowCli<SpacHistoryTaskOutput>([
+        new SpacHistoryTask({ defaults: { cik } }),
+      ]);
       if (opts.format === "json") {
         console.log(JSON.stringify(history, null, 2));
         return;
@@ -130,31 +135,12 @@ export function registerSpacCommands(program: Command): void {
     )
     .option("--dry-run", "Report the completed-SPAC count without writing", false)
     .action(async (opts: { dryRun?: boolean }) => {
-      const repo = new SpacRepo();
-      const completed = (await repo.getAllSpacs()).filter((s) => s.status === "completed");
       const dry = opts.dryRun === true || isDryRun();
-      let updated = 0;
-      if (!dry) {
-        const writer = new SpacReportWriter();
-        for (const s of completed) {
-          const before = JSON.stringify([s.surviving_name, s.post_merger_sic, s.post_merger_tickers]);
-          await writer.recordDeSpacLinkage({
-            cik: s.cik,
-            accession_number: "despac-refresh",
-            // Anchor at the row's own as_of so the refresh is not treated as a
-            // stale write and can apply the entity-sourced values.
-            filing_date: s.as_of ?? s.completed_date ?? "",
-            form: "8-K",
-          });
-          const after = await repo.getSpac(s.cik);
-          const now = after
-            ? JSON.stringify([after.surviving_name, after.post_merger_sic, after.post_merger_tickers])
-            : before;
-          if (now !== before) updated++;
-        }
-      }
+      const out = await runWorkflowCli<BackfillDespacTaskOutput>([
+        new BackfillDespacTask({ defaults: { dryRun: dry } }),
+      ]);
       console.log(
-        `selected ${completed.length} completed SPAC(s); ${dry ? "dry-run" : `updated ${updated}`}`
+        `selected ${out.selected} completed SPAC(s); ${dry ? "dry-run" : `updated ${out.updated}`}`
       );
     });
 
@@ -174,7 +160,8 @@ export function registerSpacCommands(program: Command): void {
     {
       name: "backfill-merger-proxies",
       extractorId: "merger-proxy",
-      blurb: "Re-process known-SPAC merger proxies that were ingested before their spac row existed",
+      blurb:
+        "Re-process known-SPAC merger proxies that were ingested before their spac row existed",
     },
   ];
   for (const alias of backfillAliases) {
@@ -184,17 +171,17 @@ export function registerSpacCommands(program: Command): void {
       .option("--force", "Re-process filings even when a successful run already exists", false)
       .option("--dry-run", "Report selected filing count without reprocessing", false)
       .action(async (opts: { force?: boolean; dryRun?: boolean }) => {
-        const out = (await withCli(new BackfillExtractorTask()).run({
-          extractorId: alias.extractorId,
-          force: opts.force === true,
-          // Commander resolves `--dry-run` against the program-level global
-          // option, so merge both sources.
-          dryRun: opts.dryRun === true || isDryRun(),
-        } as never)) as {
-          selected: number;
-          processed: number;
-          skipped: number;
-        };
+        const out = await runWorkflowCli<ExtractorBackfillResult>([
+          new BackfillExtractorTask({
+            defaults: {
+              extractorId: alias.extractorId,
+              force: opts.force === true,
+              // Commander resolves `--dry-run` against the program-level global
+              // option, so merge both sources.
+              dryRun: opts.dryRun === true || isDryRun(),
+            },
+          }),
+        ]);
         console.log(
           `selected ${out.selected} filing(s); processed ${out.processed}; skipped ${out.skipped}`
         );

@@ -5,12 +5,29 @@
  */
 
 import { Command } from "commander";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
 import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
+import { FamilyAliasAddTask } from "../task/canonical/FamilyAliasAddTask";
+import {
+  FamilyAliasListTask,
+  type FamilyAliasListTaskOutput,
+} from "../task/canonical/FamilyAliasListTask";
+import {
+  FamilyAliasRemoveTask,
+  type FamilyAliasRemoveTaskOutput,
+} from "../task/canonical/FamilyAliasRemoveTask";
+import {
+  IssuersByFamilyTask,
+  type IssuersByFamilyTaskOutput,
+} from "../task/canonical/IssuersByFamilyTask";
+import {
+  IssuerTickersTask,
+  type IssuerTickersTaskOutput,
+} from "../task/offering/IssuerTickersTask";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
-import { IssuerTickerRepo } from "../storage/offering/IssuerTickerRepo";
 import { registerIssuerDealCommand } from "./issuerDeal";
 
 /**
@@ -64,27 +81,18 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         intoName: string,
         opts: { reason?: string; resolverVersion: string }
       ) => {
-        const families = new CanonicalUnderwriterFamilyRepo();
-        const from = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeUnderwriterFamilyName(fromName)
-        );
-        const into = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeUnderwriterFamilyName(intoName)
-        );
-        if (!from || !into) {
-          console.error("error: both family names must already exist");
-          process.exitCode = 1;
-          return;
-        }
         try {
-          await new CanonicalUnderwriterFamilyAliasRepo().add(
-            from.canonical_underwriter_family_id,
-            into.canonical_underwriter_family_id,
-            opts.reason ?? null,
-            "cli"
-          );
+          await runWorkflowCli([
+            new FamilyAliasAddTask({
+              defaults: {
+                family: "underwriter",
+                fromName,
+                intoName,
+                reason: opts.reason,
+                resolverVersion: opts.resolverVersion,
+              },
+            }),
+          ]);
           console.log(`aliased '${fromName}' -> '${intoName}'`);
         } catch (e) {
           console.error(`error: ${(e as Error).message}`);
@@ -99,20 +107,18 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
     .description("Remove an alias for an underwriter-family name")
     .option("--resolver-version <v>", "resolver version", "1.0.0")
     .action(async (name: string, opts: { resolverVersion: string }) => {
-      const families = new CanonicalUnderwriterFamilyRepo();
-      const family = await families.findByResolverAndName(
-        opts.resolverVersion,
-        normalizeUnderwriterFamilyName(name)
-      );
-      if (!family) {
-        console.error(`error: no underwriter-family found for '${name}'`);
+      try {
+        const { removedId } = await runWorkflowCli<FamilyAliasRemoveTaskOutput>([
+          new FamilyAliasRemoveTask({
+            defaults: { family: "underwriter", name, resolverVersion: opts.resolverVersion },
+          }),
+        ]);
+        console.log(`removed alias for ${removedId}`);
+      } catch (e) {
+        console.error(`error: ${(e as Error).message}`);
         process.exitCode = 1;
         return;
       }
-      await new CanonicalUnderwriterFamilyAliasRepo().remove(
-        family.canonical_underwriter_family_id
-      );
-      console.log(`removed alias for ${family.canonical_underwriter_family_id}`);
     });
 
   fam
@@ -121,23 +127,23 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
     .option("--orphans", "show only aliases referencing missing canonicals", false)
     .option("--resolver-version <v>", "resolver version", "1.0.0")
     .action(async (opts: { orphans: boolean; resolverVersion: string }) => {
-      const aliasRepo = new CanonicalUnderwriterFamilyAliasRepo();
-      if (opts.orphans) {
-        const familyRepo = new CanonicalUnderwriterFamilyRepo();
-        const allIds = new Set(
-          (await familyRepo.listForResolverVersion(opts.resolverVersion)).map(
-            (r) => r.canonical_underwriter_family_id
-          )
-        );
-        const list = await aliasRepo.listOrphans(allIds);
-        for (const r of list) {
+      try {
+        const { aliases } = await runWorkflowCli<FamilyAliasListTaskOutput>([
+          new FamilyAliasListTask({
+            defaults: {
+              family: "underwriter",
+              orphans: opts.orphans,
+              resolverVersion: opts.resolverVersion,
+            },
+          }),
+        ]);
+        for (const r of aliases) {
           console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
         }
-      } else {
-        const rows = await aliasRepo.list();
-        for (const r of rows) {
-          console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
-        }
+      } catch (e) {
+        console.error(`error: ${(e as Error).message}`);
+        process.exitCode = 1;
+        return;
       }
     });
 
@@ -154,8 +160,18 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         .argument("<name>", "underwriter family display name")
         .option("--resolver-version <v>", "resolver version", "1.0.0")
         .action(async (name: string, opts: { resolverVersion: string }) => {
-          const ciks = await ipoIssuersByUnderwriterFamilyName(name, opts.resolverVersion);
-          console.log(JSON.stringify(ciks));
+          try {
+            const { ciks } = await runWorkflowCli<IssuersByFamilyTaskOutput>([
+              new IssuersByFamilyTask({
+                defaults: { family: "underwriter", name, resolverVersion: opts.resolverVersion },
+              }),
+            ]);
+            console.log(JSON.stringify(ciks));
+          } catch (e) {
+            console.error(`error: ${(e as Error).message}`);
+            process.exitCode = 1;
+            return;
+          }
         })
     );
 
@@ -167,11 +183,19 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
         .description("List the point-in-time ticker series for an issuer CIK")
         .argument("<cik>", "issuer CIK")
         .action(async (cik: string) => {
-          const rows = await new IssuerTickerRepo().history(Number(cik));
-          for (const r of rows) {
-            console.log(
-              `${r.filing_date ?? ""}\t${r.exchange}\t${r.ticker}\t${r.is_primary ? "primary" : ""}`
-            );
+          try {
+            const { rows } = await runWorkflowCli<IssuerTickersTaskOutput>([
+              new IssuerTickersTask({ defaults: { cik: Number(cik) } }),
+            ]);
+            for (const r of rows) {
+              console.log(
+                `${r.filing_date ?? ""}\t${r.exchange}\t${r.ticker}\t${r.is_primary ? "primary" : ""}`
+              );
+            }
+          } catch (e) {
+            console.error(`error: ${(e as Error).message}`);
+            process.exitCode = 1;
+            return;
           }
         })
     );

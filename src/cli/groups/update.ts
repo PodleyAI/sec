@@ -1,9 +1,9 @@
-import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 export function addUpdateCommands(program: Command): void {
   const update = program.command("update").description("Update all data for a given domain");
@@ -15,7 +15,9 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await withCli(new UpdateAllSubmissionsTask()).run({ force: options.force });
+          await runWorkflowCli([
+            new UpdateAllSubmissionsTask({ defaults: { force: options.force } }),
+          ]);
         },
         { force: options.force }
       );
@@ -29,10 +31,11 @@ export function addUpdateCommands(program: Command): void {
     .action(async (options) => {
       await runCommand(
         async () => {
-          await withCli(new UpdateAllCompanyFactsTask()).run({
-            force: options.force,
-            retryFailed: options.retryFailed,
-          });
+          await runWorkflowCli([
+            new UpdateAllCompanyFactsTask({
+              defaults: { force: options.force, retryFailed: options.retryFailed },
+            }),
+          ]);
         },
         { force: options.force }
       );
@@ -44,7 +47,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (types: string) => {
       await runCommand(async () => {
         const formTypes = types.split(",");
-        await withCli(new UpdateAllFormsTask()).run({ form: formTypes });
+        await runWorkflowCli([new UpdateAllFormsTask({ defaults: { form: formTypes } })]);
       });
     });
 }

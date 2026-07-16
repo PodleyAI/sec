@@ -4,22 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readFileSync } from "fs";
 import type { Command } from "commander";
 import { isDryRun } from "../cli/isDryRun";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import {
   FAMILY_DESCRIPTION_KINDS,
   type FamilyDescriptionKind,
 } from "../storage/canonical/FamilyDescriptionSchema";
-import { SpacRepo } from "../storage/spac/SpacRepo";
-import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
 import {
-  importFamilyDescriptions,
-  importSpacEditorial,
-  normalizeFamilyNameForKind,
-  parseEditorialCsv,
-} from "./editorialImport";
+  EditorialImportTask,
+  type EditorialImportTaskOutput,
+} from "../task/editorial/EditorialImportTask";
+import { EditorialSetTask, type EditorialSetTaskOutput } from "../task/editorial/EditorialSetTask";
+import {
+  SetFamilyDescriptionTask,
+  type SetFamilyDescriptionTaskOutput,
+} from "../task/editorial/SetFamilyDescriptionTask";
+import { normalizeFamilyNameForKind } from "./editorialImport";
 
 function fail(message: string): void {
   console.error(`error: ${message}`);
@@ -74,19 +75,26 @@ export function registerEditorialCommands(program: Command): void {
             return fail("--details must be valid JSON");
           }
         }
-        const exists = (await new SpacRepo().getSpac(cik)) !== undefined;
-        if (!exists && opts.createMissing !== true) {
-          return fail(
-            `no spac row for CIK ${cik}; pass --create-missing to create one (marks the CIK a known SPAC)`
-          );
+        let result: EditorialSetTaskOutput;
+        try {
+          result = await runWorkflowCli<EditorialSetTaskOutput>([
+            new EditorialSetTask({
+              defaults: {
+                cik,
+                urlSponsor: opts.urlSponsor,
+                urlSpac: opts.urlSpac,
+                details: opts.details,
+                createMissing: opts.createMissing === true,
+              },
+            }),
+          ]);
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith("no spac row for CIK")) {
+            return fail(err.message);
+          }
+          throw err;
         }
-        await new SpacReportWriter().recordEditorial({
-          cik,
-          url_sponsor: opts.urlSponsor,
-          url_spac: opts.urlSpac,
-          details: opts.details,
-        });
-        console.log(`updated spac ${cik}${exists ? "" : " (created)"}`);
+        console.log(`updated spac ${cik}${result.created ? " (created)" : ""}`);
       }
     );
 
@@ -103,7 +111,11 @@ export function registerEditorialCommands(program: Command): void {
       }
       const normalized = normalizeFamilyNameForKind(kind, name);
       if (!normalized) return fail("name normalizes to empty");
-      await new FamilyDescriptionRepo().setDescription(kind, normalized, text);
+      await runWorkflowCli<SetFamilyDescriptionTaskOutput>([
+        new SetFamilyDescriptionTask({
+          defaults: { kind, normalizedName: normalized, text },
+        }),
+      ]);
       console.log(`described ${kind} '${name}'`);
     });
 
@@ -118,39 +130,35 @@ export function registerEditorialCommands(program: Command): void {
       // Commander resolves `--dry-run` against the program-level global option
       // (which gates writes via SEC_DRY_RUN), so merge both sources.
       const dryRun = opts.dryRun === true || isDryRun();
-      for (const file of files) {
-        let content: string;
-        try {
-          content = readFileSync(file, "utf8");
-        } catch (err) {
-          fail(`cannot read ${file}: ${err instanceof Error ? err.message : String(err)}`);
+      const { results } = await runWorkflowCli<EditorialImportTaskOutput>([
+        new EditorialImportTask({
+          defaults: { files, createMissing: opts.createMissing === true, dryRun },
+        }),
+      ]);
+      for (const res of results) {
+        if (res.readError !== null) {
+          fail(res.readError);
           continue;
         }
-        const parsed = parseEditorialCsv(content);
-        for (const e of parsed.errors) console.error(`${file}: ${e}`);
-        if (parsed.errors.length > 0) process.exitCode = 1;
+        for (const e of res.errors) console.error(`${res.file}: ${e}`);
+        if (res.errors.length > 0) process.exitCode = 1;
 
-        if (parsed.kind === "family") {
-          const res = await importFamilyDescriptions(parsed.familyRows, { dryRun });
+        if (res.kind === "family") {
           console.log(
-            `${file}: ${dryRun ? "would write" : "wrote"} ${res.written} family description(s)` +
-              (parsed.errors.length > 0 ? `, ${parsed.errors.length} invalid` : "")
+            `${res.file}: ${dryRun ? "would write" : "wrote"} ${res.written} family description(s)` +
+              (res.errors.length > 0 ? `, ${res.errors.length} invalid` : "")
           );
           continue;
         }
-        const res = await importSpacEditorial(parsed.spacRows, {
-          createMissing: opts.createMissing === true,
-          dryRun,
-        });
         const skipped =
-          res.skippedMissing.length > 0
-            ? `, skipped ${res.skippedMissing.length} CIK(s) with no spac row (use --create-missing)`
+          res.skippedMissing > 0
+            ? `, skipped ${res.skippedMissing} CIK(s) with no spac row (use --create-missing)`
             : "";
         console.log(
-          `${file}: ${dryRun ? "would write" : "wrote"} ${res.written} spac row(s)` +
+          `${res.file}: ${dryRun ? "would write" : "wrote"} ${res.written} spac row(s)` +
             (res.created > 0 ? ` (${res.created} created)` : "") +
             skipped +
-            (parsed.errors.length > 0 ? `, ${parsed.errors.length} invalid` : "")
+            (res.errors.length > 0 ? `, ${res.errors.length} invalid` : "")
         );
       }
     });

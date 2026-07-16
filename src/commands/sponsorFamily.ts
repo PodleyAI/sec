@@ -5,10 +5,20 @@
  */
 
 import { Command } from "commander";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
 import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../storage/canonical/CanonicalSponsorFamilyAliasRepo";
 import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
+import { FamilyAliasAddTask } from "../task/canonical/FamilyAliasAddTask";
+import {
+  FamilyAliasListTask,
+  type FamilyAliasListTaskOutput,
+} from "../task/canonical/FamilyAliasListTask";
+import {
+  IssuersByFamilyTask,
+  type IssuersByFamilyTaskOutput,
+} from "../task/canonical/IssuersByFamilyTask";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
 
 /**
@@ -61,27 +71,18 @@ export function registerSponsorFamilyCommands(program: Command): void {
         intoName: string,
         opts: { reason?: string; resolverVersion: string }
       ) => {
-        const families = new CanonicalSponsorFamilyRepo();
-        const from = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeSponsorFamilyName(fromName)
-        );
-        const into = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeSponsorFamilyName(intoName)
-        );
-        if (!from || !into) {
-          console.error("error: both family names must already exist");
-          process.exitCode = 1;
-          return;
-        }
         try {
-          await new CanonicalSponsorFamilyAliasRepo().add(
-            from.canonical_sponsor_family_id,
-            into.canonical_sponsor_family_id,
-            opts.reason ?? null,
-            "cli"
-          );
+          await runWorkflowCli([
+            new FamilyAliasAddTask({
+              defaults: {
+                family: "sponsor",
+                fromName,
+                intoName,
+                reason: opts.reason,
+                resolverVersion: opts.resolverVersion,
+              },
+            }),
+          ]);
           console.log(`aliased '${fromName}' -> '${intoName}'`);
         } catch (e) {
           console.error(`error: ${(e as Error).message}`);
@@ -95,9 +96,19 @@ export function registerSponsorFamilyCommands(program: Command): void {
     .command("alias-list")
     .description("List all sponsor-family aliases")
     .action(async () => {
-      const rows = await new CanonicalSponsorFamilyAliasRepo().list();
-      for (const r of rows) {
-        console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
+      try {
+        const { aliases } = await runWorkflowCli<FamilyAliasListTaskOutput>([
+          new FamilyAliasListTask({
+            defaults: { family: "sponsor", resolverVersion: "1.0.0" },
+          }),
+        ]);
+        for (const r of aliases) {
+          console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
+        }
+      } catch (e) {
+        console.error(`error: ${(e as Error).message}`);
+        process.exitCode = 1;
+        return;
       }
     });
 
@@ -114,8 +125,18 @@ export function registerSponsorFamilyCommands(program: Command): void {
         .argument("<name>", "sponsor family display name")
         .option("--resolver-version <v>", "resolver version", "1.0.0")
         .action(async (name: string, opts: { resolverVersion: string }) => {
-          const ciks = await spacIssuersByFamilyName(name, opts.resolverVersion);
-          console.log(JSON.stringify(ciks));
+          try {
+            const { ciks } = await runWorkflowCli<IssuersByFamilyTaskOutput>([
+              new IssuersByFamilyTask({
+                defaults: { family: "sponsor", name, resolverVersion: opts.resolverVersion },
+              }),
+            ]);
+            console.log(JSON.stringify(ciks));
+          } catch (e) {
+            console.error(`error: ${(e as Error).message}`);
+            process.exitCode = 1;
+            return;
+          }
         })
     );
 }

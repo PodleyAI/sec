@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
-import { pipe, type ITask, type IWorkflow } from "workglow";
+import type { ITask } from "workglow";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
 import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 const BULK_DOWNLOADS = {
   submissions: {
@@ -70,8 +70,7 @@ export function addBootstrapCommands(program: Command): void {
           }
 
           if (tasks.length > 0) {
-            const wf = (pipe as (tasks: ITask[]) => IWorkflow)(tasks);
-            await withCli(wf).run();
+            await runWorkflowCli(tasks);
           }
         },
         { force: options.force }
@@ -84,7 +83,7 @@ export function addBootstrapCommands(program: Command): void {
     .action(async (type: string) => {
       await runCommand(async () => {
         if (type === "ciks") {
-          await withCli(new FetchAllCikNamesTask()).run();
+          await runWorkflowCli([new FetchAllCikNamesTask()]);
           return;
         }
 
@@ -95,13 +94,14 @@ export function addBootstrapCommands(program: Command): void {
         const types: (keyof typeof BULK_DOWNLOADS)[] =
           type === "all" ? ["submissions", "facts"] : [type];
 
-        for (const t of types) {
-          const config = BULK_DOWNLOADS[t];
-          const task = new BootstrapDownloadTask({
-            defaults: { url: config.url, targetFolder: config.targetFolder },
-          });
-          await withCli(task).run();
-        }
+        await runWorkflowCli(
+          types.map((t) => {
+            const config = BULK_DOWNLOADS[t];
+            return new BootstrapDownloadTask({
+              defaults: { url: config.url, targetFolder: config.targetFolder },
+            });
+          })
+        );
       });
     });
 
@@ -114,22 +114,6 @@ export function addBootstrapCommands(program: Command): void {
         async () => {
           const target = domain ?? "all";
 
-          if (target === "cik-names" || target === "all") {
-            await withCli(new FetchAllCikNamesTask()).run();
-          }
-
-          if (target === "submissions" || target === "all") {
-            await withCli(
-              new BootstrapSubmissionsTask({ defaults: { force: options.force } })
-            ).run();
-          }
-
-          if (target === "facts" || target === "all") {
-            await withCli(
-              new BootstrapCompanyFactsTask({ defaults: { force: options.force } })
-            ).run();
-          }
-
           if (
             target !== "all" &&
             target !== "submissions" &&
@@ -140,6 +124,22 @@ export function addBootstrapCommands(program: Command): void {
               `Invalid domain "${target}". Must be submissions, facts, cik-names, or all.`
             );
           }
+
+          const tasks: ITask[] = [];
+
+          if (target === "cik-names" || target === "all") {
+            tasks.push(new FetchAllCikNamesTask());
+          }
+
+          if (target === "submissions" || target === "all") {
+            tasks.push(new BootstrapSubmissionsTask({ defaults: { force: options.force } }));
+          }
+
+          if (target === "facts" || target === "all") {
+            tasks.push(new BootstrapCompanyFactsTask({ defaults: { force: options.force } }));
+          }
+
+          await runWorkflowCli(tasks);
         },
         { force: options.force }
       );

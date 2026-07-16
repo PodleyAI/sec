@@ -6,6 +6,8 @@
 
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
+import { runWorkflowCli } from "../cli/runWorkflow";
+import { IssuerDealTask, type IssuerDealTaskOutput } from "../task/offering/IssuerDealTask";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import type { OfferingTerms } from "../storage/offering/OfferingTermsSchema";
 import { OfferingTermsRepo } from "../storage/offering/OfferingTermsRepo";
@@ -165,7 +167,9 @@ export function registerIssuerDealCommand(issuer: Command): void {
       .argument("<cik>", "issuer CIK")
       .option("--format <format>", "Output format (table, json)", "table")
       .action(async (cik: string, opts: { format: string }) => {
-        const comparison = await compareIssuerDeal(Number(cik));
+        const { comparison } = await runWorkflowCli<IssuerDealTaskOutput>([
+          new IssuerDealTask({ defaults: { cik: Number(cik) } }),
+        ]);
         if (comparison === null) {
           console.error(`No extracted offering terms for CIK ${cik}.`);
           process.exitCode = 1;

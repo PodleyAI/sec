@@ -5,8 +5,13 @@
  */
 
 import type { Command } from "commander";
-import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import type { FamilyDescriptionKind } from "../storage/canonical/FamilyDescriptionSchema";
+import {
+  FamilyDescriptionGetTask,
+  type FamilyDescriptionGetTaskOutput,
+} from "../task/canonical/FamilyDescriptionGetTask";
+import { FamilyDescriptionSetTask } from "../task/canonical/FamilyDescriptionSetTask";
 
 /**
  * Registers the `describe <name> <text>` / `description <name>` editorial
@@ -31,7 +36,11 @@ export function registerFamilyDescribeCommands(
         process.exitCode = 1;
         return;
       }
-      await new FamilyDescriptionRepo().setDescription(kind, normalized, text);
+      await runWorkflowCli([
+        new FamilyDescriptionSetTask({
+          defaults: { kind, normalizedName: normalized, text },
+        }),
+      ]);
       console.log(`described '${name}'`);
     });
 
@@ -39,7 +48,11 @@ export function registerFamilyDescribeCommands(
     .command("description <name>")
     .description(`Show the editorial description for a ${label} family`)
     .action(async (name: string) => {
-      const desc = await new FamilyDescriptionRepo().getDescription(kind, normalize(name));
-      console.log(desc ?? "");
+      const { description } = await runWorkflowCli<FamilyDescriptionGetTaskOutput>([
+        new FamilyDescriptionGetTask({
+          defaults: { kind, normalizedName: normalize(name) },
+        }),
+      ]);
+      console.log(description ?? "");
     });
 }
