@@ -33,6 +33,9 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
+import { ACCREDITED_PORTAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSchema";
+import { ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import { FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN } from "../storage/accredited-portal/FormDPortalAttributionSchema";
 import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
@@ -143,6 +146,9 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();

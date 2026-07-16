@@ -42,12 +42,44 @@ import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalC
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import type { AttributionCandidate } from "../../../resolver/PortalAttributor";
+import { PortalAttributor } from "../../../resolver/PortalAttributor";
+import { normalizeNameSignal } from "../../../storage/accredited-portal/SignalNormalization";
 
 interface FormDStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "D";
   readonly extractor_version: string;
   readonly observer: EntityObserver;
+  /** Portal-attribution candidates harvested while the filing is processed. */
+  readonly signals: AttributionCandidate[];
+}
+
+/**
+ * Collects the name/phone/address fingerprints a filing role exposes so the
+ * accredited-portal attributor can match them after processing. Values reuse
+ * the ids the ingest path already normalized (address_hash_id,
+ * international_number); names go through the same normalizer the signal
+ * table stores. Signatures are deliberately not collected — signers are
+ * individuals and would only add noise.
+ */
+function collectAttributionSignals(
+  ctx: FormDStorageContext,
+  via: string,
+  parts: {
+    name?: string | null;
+    address_hash_id?: string | null;
+    international_number?: string | null;
+  }
+): void {
+  const name = normalizeNameSignal(parts.name);
+  if (name) ctx.signals.push({ signal_type: "name", signal_value: name, via });
+  if (parts.address_hash_id) {
+    ctx.signals.push({ signal_type: "address", signal_value: parts.address_hash_id, via });
+  }
+  if (parts.international_number) {
+    ctx.signals.push({ signal_type: "phone", signal_value: parts.international_number, via });
+  }
 }
 
 /**
@@ -179,6 +211,11 @@ async function processSalesCompensationRecipient(
       )
     : null;
 
+  collectAttributionSignals(ctx, "form-d:sales-compensation", {
+    name: recipientName,
+    address_hash_id: addr?.address_hash_id ?? null,
+  });
+
   if (hasCompanyEnding(recipientName)) {
     await ctx.observer.observeCompany({
       accession_number: ctx.accession_number,
@@ -202,7 +239,10 @@ async function processSalesCompensationRecipient(
       titles: ["Sales Compensation Recipient"],
       relationship: "form-d:sales-compensation",
       address_id: addr?.address_hash_id ?? null,
-      source_context: JSON.stringify({ relation: "form-d:sales-compensation", crd_number: cleanCRD }),
+      source_context: JSON.stringify({
+        relation: "form-d:sales-compensation",
+        crd_number: cleanCRD,
+      }),
     });
   }
 }
@@ -255,6 +295,8 @@ async function processIssuer(
     );
   }
 
+  const relation = isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer";
+
   await ctx.observer.observeCompany({
     accession_number: ctx.accession_number,
     extractor_id: ctx.extractor_id,
@@ -264,11 +306,14 @@ async function processIssuer(
     name: companyName,
     address_id: addr?.address_hash_id ?? null,
     international_number: phone?.international_number ?? null,
-    source_context: JSON.stringify({
-      relation: isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer",
-    }),
+    source_context: JSON.stringify({ relation }),
   });
 
+  collectAttributionSignals(ctx, relation, {
+    name: companyName,
+    address_hash_id: addr?.address_hash_id ?? null,
+    international_number: phone?.international_number ?? null,
+  });
 }
 
 function isCompanyInPersonField(person: RelatedPerson): boolean {
@@ -323,6 +368,11 @@ async function processRelatedPerson(
           titles: person.relatedPersonRelationshipList.relationship,
         }),
       });
+
+      collectAttributionSignals(ctx, relation_type, {
+        name: companyName,
+        address_hash_id: addr?.address_hash_id ?? null,
+      });
     }
     return;
   }
@@ -356,6 +406,22 @@ async function processRelatedPerson(
       relation: relation_type,
       titles: person.relatedPersonRelationshipList.relationship,
     }),
+  });
+
+  // A related person's address is a portal fingerprint even when the person is
+  // a genuine individual (fund managers list the portal's back office). Their
+  // human name can't collide with normalized portal name signals, so it is
+  // safe to offer as a candidate too.
+  const relatedPersonName = [
+    person.relatedPersonName.firstName,
+    person.relatedPersonName.middleName,
+    person.relatedPersonName.lastName,
+  ]
+    .filter((name) => name && !isBadPersonField(name))
+    .join(" ");
+  collectAttributionSignals(ctx, relation_type, {
+    name: relatedPersonName || null,
+    address_hash_id: addr?.address_hash_id ?? null,
   });
 }
 
@@ -506,6 +572,7 @@ export async function processFormD({
     extractor_id: "D",
     extractor_version,
     observer,
+    signals: [],
   };
 
   // Issuers: indices 0–99
@@ -528,4 +595,18 @@ export async function processFormD({
   if (formD.offeringData?.signatureBlock) {
     await processSignatureBlock(cik, formD.offeringData.signatureBlock, ctx, 300);
   }
+
+  // Attribute the filing to known accredited-investor portals from the
+  // fingerprints harvested above. Attribution is derived data and must never
+  // abort the filing.
+  await safeCall(
+    () =>
+      new PortalAttributor().attribute({
+        accession_number,
+        cik,
+        filing_date: filing_date || null,
+        candidates: ctx.signals,
+      }),
+    `Failed to attribute Form D ${accession_number} to accredited portals:`
+  );
 }

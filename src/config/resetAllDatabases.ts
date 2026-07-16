@@ -32,6 +32,9 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
+import { ACCREDITED_PORTAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSchema";
+import { ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import { FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN } from "../storage/accredited-portal/FormDPortalAttributionSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
@@ -128,6 +131,9 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).deleteAll();
