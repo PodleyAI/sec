@@ -77,7 +77,7 @@ describe("PortalAttributor", () => {
     expect(written.map((w) => w.portal_id).sort()).toEqual(["angellist", "forge-global"]);
   });
 
-  it("deduplicates repeated candidates and skips empty values", async () => {
+  it("dedups lookups but keeps every corroborating role, skipping empty values", async () => {
     await seedSignal("name", "percent", "percent");
     const written = await new PortalAttributor().attribute({
       accession_number: "0000000001-26-000003",
@@ -86,11 +86,65 @@ describe("PortalAttributor", () => {
       candidates: [
         { signal_type: "name", signal_value: "percent", via: "form-d:primary-issuer" },
         { signal_type: "name", signal_value: "percent", via: "form-d:related-person" },
+        { signal_type: "name", signal_value: "percent", via: "form-d:related-person" },
         { signal_type: "name", signal_value: "", via: "form-d:related-person" },
       ],
     });
     expect(written.length).toBe(1);
-    expect(JSON.parse(written[0].matches).length).toBe(1);
+    const matches = JSON.parse(written[0].matches) as Array<{ via: string }>;
+    expect(matches.map((m) => m.via).sort()).toEqual([
+      "form-d:primary-issuer",
+      "form-d:related-person",
+    ]);
+  });
+
+  it("unscoped re-attribution clears stale rows when signals no longer match", async () => {
+    const signalRepo = new AccreditedPortalSignalRepo();
+    await seedSignal("name", "percent", "percent");
+    const input = {
+      accession_number: "0000000001-26-000007",
+      cik: null,
+      filing_date: null,
+      candidates: [
+        { signal_type: "name" as const, signal_value: "percent", via: "form-d:primary-issuer" },
+      ],
+    };
+    await new PortalAttributor().attribute(input);
+    expect(await attributionRepo.getAttribution(input.accession_number, "percent")).toBeDefined();
+
+    // Curator removes the signal; a replay of the same filing must drop the row.
+    await signalRepo.removeSignal("name", "percent");
+    await new PortalAttributor().attribute(input);
+    expect(await attributionRepo.getAttribution(input.accession_number, "percent")).toBeUndefined();
+  });
+
+  it("scoped attribution does not clear other portals' rows for the accession", async () => {
+    await seedSignal("name", "angellist advisors", "angellist");
+    await seedSignal("phone", "+1 415-555-0100", "forge-global");
+    const candidates = [
+      {
+        signal_type: "name" as const,
+        signal_value: "angellist advisors",
+        via: "form-d:related-person",
+      },
+      { signal_type: "phone" as const, signal_value: "+1 415-555-0100", via: "form-d:issuer" },
+    ];
+    await new PortalAttributor().attribute({
+      accession_number: "0000000001-26-000008",
+      cik: null,
+      filing_date: null,
+      candidates,
+    });
+    await new PortalAttributor({ scopePortalId: "forge-global" }).attribute({
+      accession_number: "0000000001-26-000008",
+      cik: null,
+      filing_date: null,
+      candidates,
+    });
+    expect(await attributionRepo.getAttribution("0000000001-26-000008", "angellist")).toBeDefined();
+    expect(
+      await attributionRepo.getAttribution("0000000001-26-000008", "forge-global")
+    ).toBeDefined();
   });
 
   it("writes nothing when no candidate matches", async () => {

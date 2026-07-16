@@ -9,20 +9,7 @@ import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
-export const ACCREDITED_PORTAL_SIGNAL_TYPES = {
-  name: "name",
-  phone: "phone",
-  address: "address",
-} as const;
-
-export type AccreditedPortalSignalType = keyof typeof ACCREDITED_PORTAL_SIGNAL_TYPES;
-
-export const ACCREDITED_PORTAL_SIGNAL_SOURCES = {
-  seed: "seed",
-  manual: "manual",
-} as const;
-
-export type AccreditedPortalSignalSource = keyof typeof ACCREDITED_PORTAL_SIGNAL_SOURCES;
+export type AccreditedPortalSignalType = "name" | "phone" | "address";
 
 /**
  * A known fingerprint of an accredited-investor portal: an entity name, a phone

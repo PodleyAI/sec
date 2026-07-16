@@ -5,6 +5,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import type { AccreditedPortalSeedEntry } from "../../data/accreditedPortalsSeed";
 import { ACCREDITED_PORTALS_SEED } from "../../data/accreditedPortalsSeed";
 import { AccreditedPortalRepo } from "./AccreditedPortalRepo";
 import { AccreditedPortalSignalRepo } from "./AccreditedPortalSignalRepo";
@@ -13,15 +14,14 @@ import { normalizeNameSignal } from "./SignalNormalization";
 
 /**
  * Shape accepted from an external seed file (the embarc repo's
- * data/portals-accredited.json). `live` may be 0/1 in that source; the
- * embedded default seed is already boolean.
+ * data/portals-accredited.json): the embedded seed-entry shape with every
+ * field but `name` optional and `live` widened, since that source stores 0/1.
  */
-interface AccreditedPortalSeedInput {
+interface AccreditedPortalSeedInput extends Partial<
+  Omit<AccreditedPortalSeedEntry, "name" | "live">
+> {
   readonly name: string;
-  readonly brand?: string | null;
-  readonly url?: string | null;
   readonly live?: number | boolean | null;
-  readonly featured?: boolean | null;
 }
 
 export interface ImportAccreditedPortalsResult {
@@ -32,7 +32,12 @@ export interface ImportAccreditedPortalsResult {
 
 function parseSeedFile(path: string): AccreditedPortalSeedInput[] {
   const raw = readFileSync(path, "utf8");
-  const parsed = JSON.parse(raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Seed file ${path} is not valid JSON: ${(e as Error).message}`);
+  }
   if (!Array.isArray(parsed)) {
     throw new Error(`Seed file ${path} must contain a JSON array of portals`);
   }

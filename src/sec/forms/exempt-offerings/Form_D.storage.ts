@@ -43,8 +43,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import type { AttributionCandidate } from "../../../resolver/PortalAttributor";
-import { PortalAttributor } from "../../../resolver/PortalAttributor";
-import { normalizeNameSignal } from "../../../storage/accredited-portal/SignalNormalization";
+import { PortalAttributor, pushAttributionCandidates } from "../../../resolver/PortalAttributor";
 
 interface FormDStorageContext {
   readonly accession_number: string;
@@ -57,11 +56,11 @@ interface FormDStorageContext {
 
 /**
  * Collects the name/phone/address fingerprints a filing role exposes so the
- * accredited-portal attributor can match them after processing. Values reuse
- * the ids the ingest path already normalized (address_hash_id,
- * international_number); names go through the same normalizer the signal
- * table stores. Signatures are deliberately not collected — signers are
- * individuals and would only add noise.
+ * accredited-portal attributor can match them after processing. Delegates to
+ * the shared builder so ingest and the observation backfill harvest
+ * identically. Signatures are deliberately not collected — signers are
+ * individuals and would only add noise (the backfill skips the
+ * "form-d:signature" relation for the same reason).
  */
 function collectAttributionSignals(
   ctx: FormDStorageContext,
@@ -72,14 +71,7 @@ function collectAttributionSignals(
     international_number?: string | null;
   }
 ): void {
-  const name = normalizeNameSignal(parts.name);
-  if (name) ctx.signals.push({ signal_type: "name", signal_value: name, via });
-  if (parts.address_hash_id) {
-    ctx.signals.push({ signal_type: "address", signal_value: parts.address_hash_id, via });
-  }
-  if (parts.international_number) {
-    ctx.signals.push({ signal_type: "phone", signal_value: parts.international_number, via });
-  }
+  pushAttributionCandidates(ctx.signals, via, parts);
 }
 
 /**

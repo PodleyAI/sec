@@ -37,11 +37,14 @@ describe("backfillFormDAttribution", () => {
       source_context: JSON.stringify({ relation: "form-d:primary-issuer" }),
       created_at: new Date().toISOString(),
     });
+    // middle_name is a bad-data placeholder; the backfill must drop it the
+    // same way the ingest path does or the reconstructed name signal differs.
     await new PersonObservationRepo().upsertByNaturalKey({
       accession_number: ACCESSION,
       extractor_id: "D",
       extractor_version: "1.0.0",
       observation_index: 200,
+      middle_name: "None",
       last_name: "AngelList Advisors",
       source_context: JSON.stringify({ relation: "form-d:related-person" }),
       created_at: new Date().toISOString(),

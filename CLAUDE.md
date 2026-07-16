@@ -626,8 +626,11 @@ the same normalized form the ingest path produces: lower-cased
 `processFormD` harvests candidates from issuers / related persons /
 sales-compensation recipients (never signatures) and `PortalAttributor` writes
 `form_d_portal_attribution` rows (one per accession+portal, strongest signal
-wins: address > phone > name). Attributions are derived data — recompute from
-stored observations (no re-fetch) with clear-then-recompute semantics:
+wins: address > phone > name; `matches` keeps every corroborating role).
+Attributions are derived data — unscoped attribution clears the filing's own
+rows first (so re-ingest replays self-heal after signal changes), and the
+backfill recomputes from stored observations (no re-fetch) with
+clear-then-recompute semantics:
 
 ```bash
 sec accredited-portal import                 # bootstrap/refresh from the embedded seed (idempotent)

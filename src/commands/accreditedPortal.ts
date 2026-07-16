@@ -53,7 +53,7 @@ interface SignalValueOptions {
 function normalizeSignalInput(
   opts: SignalValueOptions
 ): { signal_type: AccreditedPortalSignalType; signal_value: string } | null {
-  switch (opts.type) {
+  switch (opts.type.toLowerCase()) {
     case "name": {
       if (!opts.value) {
         fail("--value is required for --type name");
@@ -103,6 +103,26 @@ function normalizeSignalInput(
       fail(`unknown signal type '${opts.type}' (expected name, phone, or address)`);
       return null;
   }
+}
+
+/**
+ * The add/remove signal subcommands take the same value inputs; keeping the
+ * option set in one place stops the two from drifting apart.
+ */
+function addSignalValueOptions(cmd: Command): Command {
+  return cmd
+    .requiredOption("--type <type>", "signal type: name, phone, or address")
+    .option("--value <value>", "name/phone text, or a pre-normalized address_hash_id")
+    .option("--street1 <street1>", "address street line 1")
+    .option("--street2 <street2>", "address street line 2")
+    .option("--city <city>", "address city")
+    .option("--state <state>", "address state or country code (SEC code)")
+    .option("--zip <zip>", "address postal code")
+    .option(
+      "--country <country>",
+      "ISO country code; for phones this must match the filings' issuer country or the parsed international number will differ",
+      "US"
+    );
 }
 
 function printSignal(signal: AccreditedPortalSignal): void {
@@ -157,17 +177,8 @@ export function registerAccreditedPortalCommands(program: Command): void {
     "Manage portal fingerprints (names, phones, addresses) used for Form D attribution"
   );
 
-  signal
-    .command("add <portal>")
+  addSignalValueOptions(signal.command("add <portal>"))
     .description("Add a fingerprint for a portal (normalized before storing)")
-    .requiredOption("--type <type>", "signal type: name, phone, or address")
-    .option("--value <value>", "name/phone text, or a pre-normalized address_hash_id")
-    .option("--street1 <street1>", "address street line 1")
-    .option("--street2 <street2>", "address street line 2")
-    .option("--city <city>", "address city")
-    .option("--state <state>", "address state or country code (SEC code)")
-    .option("--zip <zip>", "address postal code")
-    .option("--country <country>", "ISO country code (also used for phone parsing)", "US")
     .option("--note <note>", "curation note")
     .action(async (portalRef: string, opts: SignalValueOptions & { note?: string }) => {
       const portal = await resolvePortalOrFail(portalRef);
@@ -202,17 +213,8 @@ export function registerAccreditedPortalCommands(program: Command): void {
       for (const s of all) printSignal(s);
     });
 
-  signal
-    .command("remove")
+  addSignalValueOptions(signal.command("remove"))
     .description("Remove a fingerprint (input is normalized before lookup)")
-    .requiredOption("--type <type>", "signal type: name, phone, or address")
-    .option("--value <value>", "name/phone text, or a pre-normalized address_hash_id")
-    .option("--street1 <street1>", "address street line 1")
-    .option("--street2 <street2>", "address street line 2")
-    .option("--city <city>", "address city")
-    .option("--state <state>", "address state or country code (SEC code)")
-    .option("--zip <zip>", "address postal code")
-    .option("--country <country>", "ISO country code (also used for phone parsing)", "US")
     .action(async (opts: SignalValueOptions) => {
       const normalized = normalizeSignalInput(opts);
       if (!normalized) return;

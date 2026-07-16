@@ -44,16 +44,18 @@ export class FormDPortalAttributionRepo implements FormDPortalAttributionRepoOpt
     return (await this.attributionRepository.query({ portal_id })) || [];
   }
 
+  /** Clears one filing's attributions ahead of an unscoped recompute. */
+  async clearAccession(accession_number: string): Promise<void> {
+    await this.attributionRepository.deleteSearch({ accession_number });
+  }
+
   /** Clears one portal's attributions ahead of a scoped recompute. */
   async clearPortal(portal_id: string): Promise<number> {
-    const rows = await this.listByPortal(portal_id);
-    for (const row of rows) {
-      await this.attributionRepository.delete({
-        accession_number: row.accession_number,
-        portal_id: row.portal_id,
-      });
+    const count = await this.attributionRepository.count({ portal_id });
+    if (count > 0) {
+      await this.attributionRepository.deleteSearch({ portal_id });
     }
-    return rows.length;
+    return count;
   }
 
   /** Clears the whole table ahead of an unscoped recompute. */
