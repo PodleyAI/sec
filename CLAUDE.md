@@ -634,14 +634,14 @@ clear-then-recompute semantics:
 
 ```bash
 sec accredited-portal import                 # bootstrap/refresh from the embedded seed (idempotent)
-sec accredited-portal list [--live] [--format json]
+sec accredited-portal list [--live] (--json for JSON output)
 sec accredited-portal signal add angellist --type address \
     --street1 "90 Gold St" --city "San Francisco" --state CA --zip 94102
 sec accredited-portal signal add angellist --type name --value "AngelList Advisors, LLC"
 sec accredited-portal signal list [portal-id]
 sec accredited-portal signal remove --type name --value "..."
 sec accredited-portal attribute --all [--portal <id>]   # backfill sweep over stored observations
-sec accredited-portal filings <portal-id> [--format json]
+sec accredited-portal filings <portal-id> (--json for JSON output)
 ```
 
 Seed re-import preserves curation: portal `cik`/`notes` survive, and `manual`

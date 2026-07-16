@@ -5,6 +5,7 @@
  */
 
 import { Command } from "commander";
+import { isJsonOutput } from "../cli/isJsonOutput";
 import { backfillFormDAttribution } from "../resolver/backfillFormDAttribution";
 import { AccreditedPortalRepo } from "../storage/accredited-portal/AccreditedPortalRepo";
 import { AccreditedPortalSignalRepo } from "../storage/accredited-portal/AccreditedPortalSignalRepo";
@@ -166,14 +167,13 @@ export function registerAccreditedPortalCommands(program: Command): void {
 
   group
     .command("list")
-    .description("List accredited portals")
+    .description("List accredited portals (global --json for JSON output)")
     .option("--live", "only portals currently operating", false)
-    .option("--format <format>", "output format: text or json", "text")
-    .action(async (opts: { live: boolean; format: string }) => {
+    .action(async (opts: { live: boolean }) => {
       const repo = new AccreditedPortalRepo();
       const portals = opts.live ? await repo.getLivePortals() : await repo.getAllPortals();
       portals.sort((a, b) => a.portal_id.localeCompare(b.portal_id));
-      if (opts.format === "json") {
+      if (isJsonOutput()) {
         console.log(JSON.stringify(portals, null, 2));
         return;
       }
@@ -269,14 +269,13 @@ export function registerAccreditedPortalCommands(program: Command): void {
 
   group
     .command("filings <portal>")
-    .description("List Form D filings attributed to a portal")
-    .option("--format <format>", "output format: text or json", "text")
-    .action(async (portalRef: string, opts: { format: string }) => {
+    .description("List Form D filings attributed to a portal (global --json for JSON output)")
+    .action(async (portalRef: string) => {
       const portal = await resolvePortalOrFail(portalRef);
       if (!portal) return;
       const rows = await new FormDPortalAttributionRepo().listByPortal(portal.portal_id);
       rows.sort((a, b) => (a.filing_date ?? "").localeCompare(b.filing_date ?? ""));
-      if (opts.format === "json") {
+      if (isJsonOutput()) {
         console.log(JSON.stringify(rows, null, 2));
         return;
       }
