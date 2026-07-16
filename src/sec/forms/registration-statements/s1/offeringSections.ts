@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import type { EntityObserver } from "../../../../resolver/EntityObserver";
 import { UnderwriterFamilyResolver } from "../../../../resolver/UnderwriterFamilyResolver";
 import { CanonicalUnderwriterFamilyRepo } from "../../../../storage/canonical/CanonicalUnderwriterFamilyRepo";
@@ -73,6 +73,8 @@ export interface OfferingSectionsArgs {
   readonly model_id: string | null;
   readonly activeUnderwriterFamilyVersion: string;
   readonly byName: ReadonlyMap<S1SectionName, string>;
+  /** Running task context, threaded to the generation calls for CLI progress. */
+  readonly context?: IExecuteContext;
 }
 
 /**
@@ -98,6 +100,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context,
   } = args;
   const base = { accession_number, extractor_id, extractor_version };
   // Relation labels follow the issuer convention: "s1:issuer" / "424:issuer".
@@ -140,7 +143,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
     extract: async (text) => {
-      const terms = await extractOfferingTerms(text, model);
+      const terms = await extractOfferingTerms(text, model, context);
       return terms === null ? [] : [terms];
     },
     persist: async (rows) => {
@@ -233,7 +236,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
     extract: async (text) => {
-      const promote = await extractSponsorPromote(text, model);
+      const promote = await extractSponsorPromote(text, model, context);
       return promote === null ? [] : [promote];
     },
     persist: async (rows) => {
@@ -271,7 +274,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident underwriter rows had source_span not present in section text",
-    extract: (text) => extractUnderwriters(text, model),
+    extract: (text) => extractUnderwriters(text, model, context),
     persist: async (rows) => {
       let wrote = 0;
       for (const r of rows) {
@@ -333,7 +336,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-    extract: (text) => extractUseOfProceeds(text, model),
+    extract: (text) => extractUseOfProceeds(text, model, context),
     persist: async (rows) => {
       const now = new Date().toISOString();
       let lineIndex = 0;

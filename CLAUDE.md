@@ -90,6 +90,39 @@ once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
 
+### Download-before-use harness
+
+Local model weights must be on disk before generation, and providers differ on
+when that happens: cloud models have nothing to download; HuggingFace ONNX
+auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
+`model_path` directly and never fetches at generation. `ensureModelDownloaded`
+(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this.
+It runs `ModelDownloadTask` for the local providers (no-op for cloud, memoized
+per model id so a per-section sweep pays the download once) and skips a bare-path
+GGUF (no `model_url` — the file is assumed on disk).
+
+It takes the running task's `IExecuteContext`: passing the **real** one (not a
+throwaway stub) is what surfaces download progress — the download run-fn's `phase`
+events are forwarded to `context.updateProgress`, which the `@workglow/cli`
+progress UI (`withCli`) renders, so a multi-GB GGUF/ONNX fetch shows a live
+percentage instead of a silent hang (and `context.signal` aborts it on Ctrl-C).
+`prefetchModel(model, context)` is the best-effort wrapper the CLI-task boundaries
+call: the AI form processors (`processFormS1` / `processForm424` /
+`processMergerProxy` / `processRedemption8K` / `processLoi8K`, via a `context`
+threaded through `storageArgs`) prefetch once after resolving their model, and the
+eval loops prefetch before their timed sections (so download time isn't charged to
+a model's measured latency). `runStructured` keeps a context-less
+`ensureModelDownloaded` call as a per-section correctness safety-net — it downloads
+silently if a model was never prefetched (e.g. a sub-extractor's distinct model),
+but the progress-bearing fetch lives at the task boundary.
+
+To make GGUF weights fetchable rather than pre-staged, a `gguf:` id may be a
+**remote URI** — a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`) or
+an `https://` URL — which `secModelRecord` turns into a `model_url` (download
+source) plus a local `model_path` / `models_dir` under the GGUF models dir. A
+plain `gguf:` path (`gguf:Model-Q4.gguf`, `gguf:/abs/Model.gguf`) stays a
+load-directly local file, unchanged.
+
 ### AI SPAC content classifier (SIC-miscoded SPACs)
 
 Deterministic SPAC classification keys off the SGML-header SIC (`6770` →
@@ -245,18 +278,22 @@ sonnet takes ~20s each, and a local HFT model minutes.
 
 PrismML **Bonsai 27B** (Qwen3.6-based, Apache-2.0) runs through the existing
 node-llama-cpp path — there is **no special model id or route**; it is just a
-`gguf:` model like any other local GGUF. Download a quant from HuggingFace
-(`prism-ml/Ternary-Bonsai-27B-gguf`, or the 1-bit `prism-ml/Bonsai-27B-gguf`)
-into the GGUF models dir (`$SEC_GGUF_DIR`, else `$SEC_RAW_DATA_FOLDER/gguf`, else
-`./models`) and pass it as a `gguf:` candidate:
+`gguf:` model like any other local GGUF. Point a `gguf:` candidate at a HuggingFace
+quant URI and the download-before-use harness fetches it into the GGUF models dir
+(`$SEC_GGUF_DIR`, else `$SEC_RAW_DATA_FOLDER/gguf`, else `./models`) on first use;
+or pre-stage the file yourself and pass its local path:
 
 ```bash
-# one-time: fetch a quant (e.g. the ternary Q2_0 ~ a few GB) into the models dir
+# Remote URI — the harness downloads it before the run (into the GGUF models dir)
+sec eval s1 --reference claude-sonnet-5 \
+  --models "gguf:hf:prism-ml/Ternary-Bonsai-27B-gguf:Q2_0" \
+  --extractors "management,beneficial-ownership,related-party"
+
+# Or pre-stage the quant and pass its local filename / absolute path instead
 huggingface-cli download prism-ml/Ternary-Bonsai-27B-gguf \
   Ternary-Bonsai-27B-Q2_0.gguf --local-dir "${SEC_GGUF_DIR:-./models}"
-
-# score Bonsai against the opus oracle on the committed real S-1 sections
-sec eval s1 --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
+sec eval s1 --reference claude-sonnet-5 \
+  --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
   --extractors "management,beneficial-ownership,related-party"
 # (an absolute path also works: --models "gguf:/abs/path/Ternary-Bonsai-27B-Q2_0.gguf")
 ```

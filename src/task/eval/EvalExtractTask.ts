@@ -72,6 +72,7 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
       models: input.models,
       extractor: input.extractor,
       signal: context.signal,
+      context,
       onProgress: (done, total, message) => {
         const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
         void context.updateProgress(pct, message);

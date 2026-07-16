@@ -6,6 +6,7 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
+import { ensureModelDownloaded } from "../../../../config/ensureModelDownloaded";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -355,8 +356,19 @@ export function requireNonEmptyGrammarArrays(schema: object): object {
 async function runStructured(
   model: ModelConfig,
   prompt: string,
-  outputSchema: object
+  outputSchema: object,
+  callerContext?: IExecuteContext
 ): Promise<Record<string, unknown>> {
+  // The running task's context, when the form pipeline threads one down, so the
+  // generation task's `Preparing`/`Generating` phase events (and any download)
+  // render on that task's row in the CLI UI. Absent (eval sweeps, unit tests), a
+  // throwaway stub keeps the one-shot call self-contained.
+  const context = callerContext ?? makeExecuteContext();
+  // Correctness safety-net: local providers (GGUF especially) must have their
+  // weights on disk before generation — cloud models no-op here. Memoized, so the
+  // per-section sweep pays the download once; a form/eval run that prefetched with
+  // a real context (for visible progress) already satisfied this.
+  await ensureModelDownloaded(model, context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,
@@ -366,7 +378,18 @@ async function runStructured(
     maxRetries: 1,
   };
   const task = new StructuredGenerationTask({ defaults: input } as any);
-  const result = await task.execute(input as any, makeExecuteContext());
+  // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
+  // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
+  // events to `config.updateProgress`, which we forward to the caller's
+  // `context.updateProgress` so the active section shows on that task's CLI row
+  // (a no-op against the stub context). `signal` propagates Ctrl-C. Caching is
+  // off — a fresh per-call nonce already makes cloud prompts unique, and matching
+  // `execute()`'s never-cache semantics keeps replays side-effect-identical.
+  const result = (await task.run(input as any, {
+    updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
+    signal: context.signal,
+    cacheable: false,
+  })) as { object?: unknown } | undefined;
   return (result?.object as Record<string, unknown> | undefined) ?? {};
 }
 
@@ -411,7 +434,8 @@ async function runGuardedExtraction(
   model: ModelConfig,
   instructions: string,
   sectionText: string,
-  outputSchema: object
+  outputSchema: object,
+  context?: IExecuteContext
 ): Promise<Record<string, unknown>> {
   const local = isLocalProvider(model);
   const { wrapped, nonce } = wrapUntrusted(sectionText);
@@ -420,7 +444,8 @@ async function runGuardedExtraction(
   const obj = await runStructured(
     model,
     prompt,
-    local ? stripNonceSeen(outputSchema) : outputSchema
+    local ? stripNonceSeen(outputSchema) : outputSchema,
+    context
   );
   if (!local) verifyNonce(obj, nonce);
   return obj;
@@ -428,7 +453,8 @@ async function runGuardedExtraction(
 
 export async function extractManagement(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<ManagementPersonRow[]> {
   const instructions =
     "Extract every director and executive officer named in the S-1 MANAGEMENT section " +
@@ -466,7 +492,7 @@ export async function extractManagement(
     "For example 'member of our board of directors' -> ['Director'] and 'Chairman of our " +
     "board of directors' -> ['Chairman of the Board of Directors']. " +
     "Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, ManagementOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, ManagementOutputSchema, context);
   const people = (obj.people as ManagementPersonRow[] | undefined) ?? [];
   // Post-model canonicalization: split compound titles and canonicalize each
   // role, so the stored roles are consistent regardless of which model produced
@@ -495,7 +521,8 @@ export function isOwnershipGroupSubtotal(name: string | null | undefined): boole
 
 export async function extractBeneficialOwnership(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<BeneficialOwnerRow[]> {
   const instructions =
     "Extract every beneficial owner from the S-1 Principal and Selling Stockholders " +
@@ -515,7 +542,8 @@ export async function extractBeneficialOwnership(
     model,
     instructions,
     sectionText,
-    BeneficialOwnershipOutputSchema
+    BeneficialOwnershipOutputSchema,
+    context
   );
   const owners = (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
   // Enforce the subtotal exclusion rather than trusting the prompt: a leaked row
@@ -525,7 +553,8 @@ export async function extractBeneficialOwnership(
 
 export async function extractRelatedParty(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<RelatedPartyRow[]> {
   const instructions =
     "Extract related parties and their transactions from the S-1 Certain Relationships " +
@@ -537,14 +566,16 @@ export async function extractRelatedParty(
     model,
     instructions,
     sectionText,
-    RelatedPartyOutputSchema
+    RelatedPartyOutputSchema,
+    context
   );
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
 }
 
 export async function extractOfferingTerms(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<OfferingTermsRow | null> {
   const instructions =
     "Extract the offering terms from the S-1/F-1 'The Offering' and 'Underwriting' text " +
@@ -560,7 +591,8 @@ export async function extractOfferingTerms(
     model,
     instructions,
     sectionText,
-    OfferingTermsOutputSchema
+    OfferingTermsOutputSchema,
+    context
   );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as OfferingTermsRow;
@@ -575,7 +607,8 @@ export async function extractOfferingTerms(
  */
 export async function extractSponsorPromote(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<SponsorPromoteRow | null> {
   const instructions =
     "The text between the tags below is from a SPAC (blank-check) prospectus. Extract the " +
@@ -596,7 +629,8 @@ export async function extractSponsorPromote(
     model,
     instructions,
     sectionText,
-    SponsorPromoteOutputSchema
+    SponsorPromoteOutputSchema,
+    context
   );
   if (obj.confidence == null || obj.source_span == null) return null;
   return {
@@ -614,7 +648,8 @@ export async function extractSponsorPromote(
 
 export async function extractUnderwriters(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<UnderwriterRowOut[]> {
   const instructions =
     "Extract every underwriter named in the S-1/F-1 Underwriting (or Plan of " +
@@ -625,13 +660,14 @@ export async function extractUnderwriters(
     "'underwriter'; null if unclear), shares_allocated (the number of shares " +
     "underwritten, or null), over_allotment_shares (or null), a confidence in [0,1], " +
     "and the verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, UnderwriterOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, UnderwriterOutputSchema, context);
   return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
 }
 
 export async function extractSpacSponsors(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<SpacSponsorRow[]> {
   const instructions =
     "The text between the tags below is from a SPAC (blank-check) registration " +
@@ -639,7 +675,7 @@ export async function extractSpacSponsors(
     "legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name (the sponsor brand/family " +
     "without the legal suffix or series number, e.g. 'Acme Sponsor'), a confidence in " +
     "[0,1], and the verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacSponsorOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacSponsorOutputSchema, context);
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }
 
@@ -652,7 +688,8 @@ export async function extractSpacSponsors(
  */
 export async function extractSpacProfile(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<SpacProfileRow | null> {
   const instructions =
     "The text between the tags below is from a SPAC (blank-check) registration " +
@@ -668,7 +705,7 @@ export async function extractSpacProfile(
     "management/sponsor team's background and experience (or null). Give url_spac: the " +
     "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
     "source_span you drew the focus/description from. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacProfileOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacProfileOutputSchema, context);
   if (obj.confidence == null || obj.source_span == null) return null;
   return {
     focus: Array.isArray(obj.focus) ? (obj.focus as string[]) : [],
@@ -692,7 +729,8 @@ export async function extractSpacProfile(
  */
 export async function extractSpacClassification(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<SpacClassificationRow | null> {
   const instructions =
     "The text between the tags below is prose from a company's SEC registration " +
@@ -711,7 +749,8 @@ export async function extractSpacClassification(
     model,
     instructions,
     sectionText,
-    SpacClassificationOutputSchema
+    SpacClassificationOutputSchema,
+    context
   );
   if (obj.is_spac !== true) return null;
   const kind = obj.entity_kind;
@@ -734,7 +773,8 @@ export async function extractSpacClassification(
 
 export async function extractMergerDeal(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<MergerDealRow | null> {
   const instructions =
     "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
@@ -745,14 +785,15 @@ export async function extractMergerDeal(
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
     "Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, MergerDealOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, MergerDealOutputSchema, context);
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
 }
 
 export async function extractUseOfProceeds(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<UseOfProceedsLineRow[]> {
   const instructions =
     "Extract the use-of-proceeds line items from the S-1/F-1 Use of Proceeds section " +
@@ -763,7 +804,8 @@ export async function extractUseOfProceeds(
     model,
     instructions,
     sectionText,
-    UseOfProceedsOutputSchema
+    UseOfProceedsOutputSchema,
+    context
   );
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }
@@ -775,7 +817,8 @@ export async function extractUseOfProceeds(
  */
 export async function extractRedemption(
   sectionText: string,
-  model: ModelConfig
+  model: ModelConfig,
+  context?: IExecuteContext
 ): Promise<RedemptionRow | null> {
   const instructions =
     "From the SEC 8-K text below, extract the REALIZED redemption of public " +
@@ -783,7 +826,7 @@ export async function extractRedemption(
     "only figures explicitly stated — do NOT multiply shares by price to " +
     "synthesize an amount. If the text does not report realized redemptions, " +
     "return confidence 0 and null fields.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, RedemptionOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, RedemptionOutputSchema, context);
   if (obj.confidence == null || obj.source_span == null) return null;
   // A "no realized redemption" response carries neither figure — not a redemption.
   if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
@@ -797,7 +840,11 @@ export async function extractRedemption(
  * (e.g. it announces a definitive agreement instead). Mirrors
  * {@link extractRedemption}.
  */
-export async function extractLoi(sectionText: string, model: ModelConfig): Promise<LoiRow | null> {
+export async function extractLoi(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<LoiRow | null> {
   const instructions =
     "From the SEC 8-K text below, determine whether it reports that the company " +
     "ENTERED INTO a NON-BINDING letter of intent (LOI), agreement in principle, or " +
@@ -810,7 +857,7 @@ export async function extractLoi(sectionText: string, model: ModelConfig): Promi
     "confidence in [0,1], and the verbatim source_span you drew the determination " +
     "from. If the text reports no LOI, return is_loi false with confidence for that " +
     "determination and a null source_span.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, LoiOutputSchema);
+  const obj = await runGuardedExtraction(model, instructions, sectionText, LoiOutputSchema, context);
   if (obj.is_loi !== true) return null;
   // As in extractSpacClassification: a positive with no confidence/span is not the
   // auto-resolved "no LOI" negative, so surface it rather than dropping it.
