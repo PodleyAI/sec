@@ -32,7 +32,7 @@ export class AccreditedPortalSignalRepo implements AccreditedPortalSignalRepoOpt
     return this.signalRepository.get({ signal_type, signal_value });
   }
 
-  /** Single-round-trip lookup of many (type, value) keys; returns only found rows. */
+  /** Batched lookup of many (type, value) keys; returns only found rows. */
   async getSignalsBulk(
     keys: readonly { signal_type: AccreditedPortalSignalType; signal_value: string }[]
   ): Promise<AccreditedPortalSignal[]> {

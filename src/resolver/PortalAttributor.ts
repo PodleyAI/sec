@@ -80,6 +80,12 @@ interface PortalAttributorOptions {
   signalRepo?: AccreditedPortalSignalRepo;
   attributionRepo?: FormDPortalAttributionRepo;
   scopePortalId?: string;
+  /**
+   * Set when the caller has already cleared the recompute scope (the backfill
+   * clears the whole table / portal up front), so the per-accession clear
+   * would be dead work repeated once per filing.
+   */
+  scopeAlreadyCleared?: boolean;
 }
 
 /**
@@ -97,15 +103,17 @@ export class PortalAttributor {
   private readonly signalRepo: AccreditedPortalSignalRepo;
   private readonly attributionRepo: FormDPortalAttributionRepo;
   private readonly scopePortalId: string | undefined;
+  private readonly scopeAlreadyCleared: boolean;
 
   constructor(options: PortalAttributorOptions = {}) {
     this.signalRepo = options.signalRepo ?? new AccreditedPortalSignalRepo();
     this.attributionRepo = options.attributionRepo ?? new FormDPortalAttributionRepo();
     this.scopePortalId = options.scopePortalId;
+    this.scopeAlreadyCleared = options.scopeAlreadyCleared ?? false;
   }
 
   async attribute(input: AttributionInput): Promise<FormDPortalAttribution[]> {
-    if (this.scopePortalId === undefined) {
+    if (this.scopePortalId === undefined && !this.scopeAlreadyCleared) {
       await this.attributionRepo.clearAccession(input.accession_number);
     }
 

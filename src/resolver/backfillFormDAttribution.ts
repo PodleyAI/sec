@@ -74,6 +74,7 @@ export async function backfillFormDAttribution(options: {
   const attributor = new PortalAttributor({
     attributionRepo,
     scopePortalId: options.portalId,
+    scopeAlreadyCleared: true,
   });
 
   let cleared = 0;
