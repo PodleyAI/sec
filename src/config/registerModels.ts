@@ -300,7 +300,7 @@ const GGUF_GPU_LAYERS_ALL = 999;
 
 /** A `gguf:` remainder that names a remote source the download harness can fetch. */
 function isRemoteGgufUri(rawPath: string): boolean {
-  return rawPath.startsWith("hf:") || /^https?:\/\//i.test(rawPath);
+  return /^hf:/i.test(rawPath) || /^https?:\/\//i.test(rawPath);
 }
 
 /**
@@ -308,10 +308,13 @@ function isRemoteGgufUri(rawPath: string): boolean {
  * is only a fallback for the required `model_path` field: once the download runs,
  * the provider keys on `model_url` and resolves the real on-disk path itself, so
  * the exact name here does not affect which file generation loads — it just gives
- * the cache target a stable, human-legible name.
+ * the cache target a stable, human-legible name. The whole path (not just the last
+ * segment) is folded into the name so distinct sources don't collide on disk
+ * (`hf:org1/repo:Q4` vs `hf:org2/repo:Q4`; two repos each holding `model.gguf`).
  *
- * `hf:org/repo:Q4_K_M` → `repo-Q4_K_M.gguf`; `hf:org/repo/file.gguf` → `file.gguf`;
- * `https://host/a/b/model.gguf` → `model.gguf`.
+ * `hf:org/repo:Q4_K_M` → `org-repo-Q4_K_M.gguf`;
+ * `hf:org/repo/file.gguf` → `org-repo-file.gguf`;
+ * `https://host/a/b/model.gguf` → `host-a-b-model.gguf`.
  */
 function ggufCacheFileName(uri: string): string {
   let rest = uri.replace(/^https?:\/\//i, "").replace(/^hf:/i, "");
@@ -322,9 +325,11 @@ function ggufCacheFileName(uri: string): string {
     quant = quantMatch[1];
     rest = rest.slice(0, rest.length - quant.length - 1);
   }
-  const last = rest.split(/[/?#]/).filter(Boolean).pop() ?? "model";
-  const base = last.toLowerCase().endsWith(".gguf") ? last.slice(0, -".gguf".length) : last;
-  const name = [base, quant].filter(Boolean).join("-") || "model";
+  const stripped = rest.replace(/\.gguf$/i, "");
+  // Fold every path/query separator (and any other unsafe char) into `-` so the
+  // full source path is preserved as one filesystem-safe slug.
+  const slug = stripped.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const name = [slug || "model", quant].filter(Boolean).join("-");
   return `${name}.gguf`;
 }
 

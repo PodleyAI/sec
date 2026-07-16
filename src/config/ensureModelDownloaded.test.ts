@@ -152,5 +152,32 @@ describe("ensureModelDownloaded", () => {
       await ensureModelDownloaded(model, context);
       expect(runFnCalls).toBe(1);
     });
+
+    it("memoizes a model identified by `model` (no model_id)", async () => {
+      let runFnCalls = 0;
+      getAiProviderRegistry().registerRunFn("HF_TRANSFORMERS_ONNX", {
+        serves: ["model.download"],
+        runFn: async (input: any, _m: any, _s: any, emit: any) => {
+          runFnCalls += 1;
+          emit({ type: "finish", data: { model: input.model } });
+        },
+      } as any);
+      const context = {
+        signal: new AbortController().signal,
+        updateProgress: async () => {},
+        own: <T>(v: T): T => v,
+        registry: { has: () => false, get: () => { throw new Error("x"); } },
+        resourceScope: { register: () => {}, dispose: async () => {} },
+      } as unknown as IExecuteContext;
+      // No model_id — identity comes from `model` (mirrors resolveModelId's fallback).
+      const model = {
+        model: "onnx-community/no-id",
+        provider: "HF_TRANSFORMERS_ONNX",
+        provider_config: { model_path: "onnx-community/no-id" },
+      } as unknown as ModelConfig;
+      await ensureModelDownloaded(model, context);
+      await ensureModelDownloaded(model, context);
+      expect(runFnCalls).toBe(1);
+    });
   });
 });

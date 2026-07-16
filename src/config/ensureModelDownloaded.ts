@@ -31,6 +31,30 @@ export function resetEnsuredModelsForTesting(): void {
 }
 
 /**
+ * Stable per-model memo key. Mirrors `resolveModelId` (`model_id ?? model`) — not
+ * every ModelConfig carries `model_id` (some identify via `model`) — and falls
+ * back to the provider_config download/load target so a record with neither still
+ * memoizes on something unique (`model_url` for a remote GGUF, `model_path` for a
+ * local one / HFT repo id). Empty only for a truly anonymous record, which then
+ * downloads every call rather than being wrongly deduped against another.
+ */
+function modelKey(model: ModelConfig): string {
+  const ref = model as {
+    model_id?: unknown;
+    model?: unknown;
+    provider_config?: { model_url?: unknown; model_path?: unknown };
+  };
+  const candidates = [
+    ref.model_id,
+    ref.model,
+    ref.provider_config?.model_url,
+    ref.provider_config?.model_path,
+  ];
+  const found = candidates.find((c): c is string => typeof c === "string" && c.length > 0);
+  return found ?? "";
+}
+
+/**
  * Ensure a model's weights are present locally before it is used for generation.
  *
  * Providers differ in when weights arrive: cloud models have nothing to download
@@ -60,7 +84,7 @@ export async function ensureModelDownloaded(
   const provider = (model as { provider?: string }).provider;
   if (!provider || !DOWNLOADABLE_PROVIDERS.has(provider)) return;
 
-  const modelId = (model as { model_id?: string }).model_id ?? "";
+  const modelId = modelKey(model);
   if (modelId && ensured.has(modelId)) return;
 
   if (provider === LLAMACPP_PROVIDER) {
@@ -74,7 +98,14 @@ export async function ensureModelDownloaded(
 
   const input = { model };
   const task = new ModelDownloadTask({ defaults: input } as any);
-  await task.execute(input as any, context);
+  // Drive the download through its `run()` lifecycle. `run` routes the download
+  // run-fn's `phase` events to `config.updateProgress`, which we forward to the
+  // caller's `context.updateProgress` so a multi-GB fetch renders a live
+  // percentage in the CLI task UI; `signal` aborts it on Ctrl-C.
+  await task.run(input as any, {
+    updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
+    signal: context.signal,
+  });
   if (modelId) ensured.add(modelId);
 }
 

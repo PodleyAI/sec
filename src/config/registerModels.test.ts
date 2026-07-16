@@ -144,22 +144,39 @@ describe("registerSecModels", () => {
       expect(config.model_url).toBeUndefined();
     });
 
-    it("turns an hf: URI into a download source + cache target", () => {
+    it("turns an hf: URI into a download source + cache target (full path, collision-safe)", () => {
       const config = llamaCppModelRecord(
         "gguf:hf:bartowski/SmolLM2-135M-Instruct-GGUF:Q4_K_M"
       ).provider_config;
       expect(config.model_url).toBe("hf:bartowski/SmolLM2-135M-Instruct-GGUF:Q4_K_M");
       expect(config.models_dir).toBe("/models/gguf");
-      expect(config.model_path).toBe("/models/gguf/SmolLM2-135M-Instruct-GGUF-Q4_K_M.gguf");
+      expect(config.model_path).toBe(
+        "/models/gguf/bartowski-SmolLM2-135M-Instruct-GGUF-Q4_K_M.gguf"
+      );
     });
 
-    it("turns an https URL into a download source + cache target", () => {
+    it("classifies an uppercase HF: URI as remote (case-insensitive)", () => {
+      const config = llamaCppModelRecord("gguf:HF:org/repo:Q4").provider_config;
+      expect(config.model_url).toBe("HF:org/repo:Q4");
+      expect(config.models_dir).toBe("/models/gguf");
+      expect(config.model_path).toBe("/models/gguf/org-repo-Q4.gguf");
+    });
+
+    it("derives distinct cache targets for same-repo-name different-org URIs", () => {
+      const a = llamaCppModelRecord("gguf:hf:org1/repo:Q4").provider_config.model_path;
+      const b = llamaCppModelRecord("gguf:hf:org2/repo:Q4").provider_config.model_path;
+      expect(a).not.toBe(b);
+      expect(a).toBe("/models/gguf/org1-repo-Q4.gguf");
+      expect(b).toBe("/models/gguf/org2-repo-Q4.gguf");
+    });
+
+    it("turns an https URL into a download source + cache target (full path, collision-safe)", () => {
       const config = llamaCppModelRecord(
         "gguf:https://host.example/a/b/model.gguf"
       ).provider_config;
       expect(config.model_url).toBe("https://host.example/a/b/model.gguf");
       expect(config.models_dir).toBe("/models/gguf");
-      expect(config.model_path).toBe("/models/gguf/model.gguf");
+      expect(config.model_path).toBe("/models/gguf/host.example-a-b-model.gguf");
     });
   });
 

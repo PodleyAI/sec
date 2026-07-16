@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IExecuteContext, ModelConfig } from "workglow";
+import type { ModelConfig } from "workglow";
 import { ModelDownloadRemoveTask } from "workglow";
 
 /**
@@ -16,22 +16,6 @@ import { ModelDownloadRemoveTask } from "workglow";
  * footprint is small enough not to matter for VRAM.
  */
 const UNLOADABLE_PROVIDERS = new Set<string>(["LOCAL_LLAMACPP"]);
-
-/** Minimal execution context for driving a task's `execute` outside a task-graph run. */
-function makeStubContext(): IExecuteContext {
-  return {
-    signal: new AbortController().signal,
-    updateProgress: async () => {},
-    own: <T>(value: T): T => value,
-    registry: {
-      has: () => false,
-      get: () => {
-        throw new Error("not registered");
-      },
-    } as any,
-    resourceScope: { register: () => {}, dispose: async () => {} } as any,
-  } as IExecuteContext;
-}
 
 /**
  * Release a worker-backed local model's in-memory weights and context so a
@@ -48,7 +32,7 @@ export async function unloadLocalModel(model: ModelConfig): Promise<void> {
   try {
     const input = { model };
     const task = new ModelDownloadRemoveTask({ defaults: input } as any);
-    await task.execute(input as any, makeStubContext());
+    await task.run(input as any);
   } catch {
     // Leave it resident if unload isn't supported / fails; auto-evict covers correctness.
   }

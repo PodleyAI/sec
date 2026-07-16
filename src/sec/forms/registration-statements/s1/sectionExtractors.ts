@@ -378,20 +378,18 @@ async function runStructured(
     maxRetries: 1,
   };
   const task = new StructuredGenerationTask({ defaults: input } as any);
-  // Drive the task's own stream rather than `execute()`: `execute()` keeps only
-  // the `finish` event and drops the `phase` events, so its per-section
-  // `Preparing`/`Generating` progress never reaches the caller's row. Consuming
-  // `executeStream` (identical result — the same retry/validation loop, ending in
-  // the same finish) and forwarding phases to `context.updateProgress` makes the
-  // active section visible in the CLI task UI (a no-op against the stub context).
-  let result: { object?: unknown } | undefined;
-  for await (const event of task.executeStream(input as any, context)) {
-    if (event.type === "phase") {
-      void context.updateProgress(event.progress, event.message);
-    } else if (event.type === "finish") {
-      result = (event as { data?: { object?: unknown } }).data;
-    }
-  }
+  // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
+  // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
+  // events to `config.updateProgress`, which we forward to the caller's
+  // `context.updateProgress` so the active section shows on that task's CLI row
+  // (a no-op against the stub context). `signal` propagates Ctrl-C. Caching is
+  // off — a fresh per-call nonce already makes cloud prompts unique, and matching
+  // `execute()`'s never-cache semantics keeps replays side-effect-identical.
+  const result = (await task.run(input as any, {
+    updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
+    signal: context.signal,
+    cacheable: false,
+  })) as { object?: unknown } | undefined;
   return (result?.object as Record<string, unknown> | undefined) ?? {};
 }
 
