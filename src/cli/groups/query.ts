@@ -101,7 +101,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("entities [search]")
     .description("Search entities in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--sic <sic>", "Filter by SIC code")
     .option("--state <state>", "Filter by state")
     .option("--limit <n>", "Limit results", parseIntOption, 25)
@@ -117,7 +117,7 @@ export function addQueryCommands(program: Command): void {
           new QueryEntitiesTask({
             defaults: {
               search,
-              cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+              cik: options.cik as number | undefined,
               sic: options.sic ? parseInt(options.sic as string, 10) : undefined,
               state: options.state as string | undefined,
               limit,
@@ -140,7 +140,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("filings [search]")
     .description("Search filings in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--form <form>", "Filter by form type")
     .option("--after <date>", "Filter filings after date")
     .option("--before <date>", "Filter filings before date")
@@ -156,7 +156,7 @@ export function addQueryCommands(program: Command): void {
           new QueryFilingsTask({
             defaults: {
               search,
-              cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+              cik: options.cik as number | undefined,
               form: options.form as string | undefined,
               after: options.after as string | undefined,
               before: options.before as string | undefined,
@@ -180,7 +180,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("offerings [search]")
     .description("Search investment offerings")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--industry <industry>", "Filter by industry")
     .option("--exemption <exemption>", "Filter by exemption type")
     .option("--after <date>", "Filter after date")
@@ -197,7 +197,7 @@ export function addQueryCommands(program: Command): void {
           new QueryOfferingsTask({
             defaults: {
               search,
-              cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+              cik: options.cik as number | undefined,
               industry: options.industry as string | undefined,
               exemption: options.exemption as string | undefined,
               after: options.after as string | undefined,
@@ -221,7 +221,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("crowdfunding [search]")
     .description("Search crowdfunding offerings")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--portal <portal>", "Filter by portal")
     .option("--after <date>", "Filter after date")
     .option("--before <date>", "Filter before date")
@@ -237,7 +237,7 @@ export function addQueryCommands(program: Command): void {
           new QueryCrowdfundingTask({
             defaults: {
               search,
-              cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+              cik: options.cik as number | undefined,
               portal: options.portal ? parseInt(options.portal as string, 10) : undefined,
               after: options.after as string | undefined,
               before: options.before as string | undefined,
@@ -472,7 +472,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("persons [search]")
     .description("Search persons in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--relationship <relationship>", "Filter by relationship")
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
@@ -486,7 +486,7 @@ export function addQueryCommands(program: Command): void {
           new QueryPersonsTask({
             defaults: {
               search,
-              cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
+              cik: options.cik as number | undefined,
               relationship: options.relationship as string | undefined,
               limit,
               offset,
