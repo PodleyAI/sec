@@ -6,7 +6,7 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject } from "workglow";
-import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import {
   FullCompanySubmissionSchema,
   TypeSecCik,

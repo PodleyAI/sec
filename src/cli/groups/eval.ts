@@ -13,10 +13,9 @@ import {
   type EvalReport,
   type ModelSummary,
 } from "../../eval/runExtractionEval";
-import { type OracleReport } from "../../eval/runOracleEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
-import { EvalS1Task } from "../../task/eval/EvalS1Task";
+import { EvalS1Task, type OracleReport } from "../../task/eval/EvalS1Task";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 

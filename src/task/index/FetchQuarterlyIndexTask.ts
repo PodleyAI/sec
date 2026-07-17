@@ -7,7 +7,7 @@
 import { parse } from "csv-parse";
 import { Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { response_type, SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
+import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import {
   parseDate,

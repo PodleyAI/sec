@@ -6,7 +6,7 @@
 
 import { Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { response_type, SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
+import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { parseDate, secDate, TypeOptionalSecDate, YYYYdMMdDD } from "../../util/parseDate";
 
 /**

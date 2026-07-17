@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
-import { prefetchModel } from "../../../config/ensureModelDownloaded";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
@@ -169,7 +169,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     return;
   }
   const model_id = resolveModelId(model);
-  await prefetchModel(model, args.context);
+  await prefetchModel(model_id, args.context);
 
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.

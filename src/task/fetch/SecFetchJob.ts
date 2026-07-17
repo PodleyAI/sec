@@ -11,7 +11,7 @@ import {
   IJobExecuteContext,
   JobConstructorParam,
 } from "workglow";
-import { SecUserAgent } from "../config/Constants";
+import { SecUserAgent } from "../../config/Constants";
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];

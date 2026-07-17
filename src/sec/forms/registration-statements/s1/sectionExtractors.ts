@@ -6,7 +6,8 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
-import { ensureModelDownloaded } from "../../../../config/ensureModelDownloaded";
+import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
+import { resolveModelId } from "./s1Model";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -368,7 +369,7 @@ async function runStructured(
   // weights on disk before generation — cloud models no-op here. Memoized, so the
   // per-section sweep pays the download once; a form/eval run that prefetched with
   // a real context (for visible progress) already satisfied this.
-  await ensureModelDownloaded(model, context);
+  await ensureModelDownloaded(resolveModelId(model), context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,
@@ -377,7 +378,12 @@ async function runStructured(
     maxTokens: MAX_TOKENS,
     maxRetries: 1,
   };
-  const task = new StructuredGenerationTask({ defaults: input } as any);
+  // Own the generation task on the caller's execute context: when the form
+  // pipeline threads its real context down, this subtask is registered in that
+  // task's graph and inherits its registry + abort signal, so the graph knows a
+  // subtask is involved. Against the eval / unit-test stub context, `own` is an
+  // identity no-op.
+  const task = context.own(new StructuredGenerationTask({ defaults: input } as any));
   // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
   // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
   // events to `config.updateProgress`, which we forward to the caller's

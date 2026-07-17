@@ -29,7 +29,7 @@ import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
 import { registerSecProviders } from "../config/registerProviders";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
-import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
+import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../task/fetch/SecJobQueue";
 
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;

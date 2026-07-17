@@ -22,7 +22,7 @@ import {
 } from "workglow";
 import { SecJobQueueName } from "../../config/Constants";
 import { EnvToDI } from "../../config/EnvToDI";
-import { SecFetchJob } from "../../fetch/SecFetchJob";
+import { SecFetchJob } from "../fetch/SecFetchJob";
 import { FetchQuarterlyIndexTask } from "./FetchQuarterlyIndexTask";
 
 // Get all daily index files using glob pattern

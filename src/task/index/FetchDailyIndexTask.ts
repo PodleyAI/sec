@@ -7,7 +7,7 @@
 import { parse } from "csv-parse/sync";
 import { Type } from "typebox";
 import { IExecuteContext, Task } from "workglow";
-import { response_type, SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
+import { response_type, SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import {
   parseDate,

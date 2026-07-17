@@ -6,8 +6,8 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { prefetchModel } from "../config/ensureModelDownloaded";
 import { registerModelIds } from "../config/registerModels";
+import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
@@ -85,21 +85,6 @@ function selectFixtures(extractor: string | undefined): EvalFixture[] {
     );
   }
   return selected;
-}
-
-function makeCtx(): any {
-  return {
-    signal: new AbortController().signal,
-    updateProgress: async () => {},
-    own: <T>(v: T): T => v,
-    registry: {
-      has: () => false,
-      get: () => {
-        throw new Error("not registered");
-      },
-    },
-    resourceScope: { register: () => {}, dispose: async () => {} },
-  };
 }
 
 async function runOne(
@@ -194,7 +179,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     // charged to the first fixture's latency, and its progress renders in the CLI
     // task UI. Best-effort: a failed download is surfaced per-fixture as a failed
     // run rather than aborting the whole sweep.
-    await prefetchModel(model, opts.context);
+    await prefetchModel(modelId, opts.context);
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;
@@ -217,7 +202,11 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
       results.push(result);
       modelRows.push(result);
       done += 1;
-      progress(done, total, `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`);
+      progress(
+        done,
+        total,
+        `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`
+      );
     }
     summaries.push(summarizeModelRuns(modelId, provider, modelRows));
     // Free a local model's memory before the next candidate loads, so a sweep

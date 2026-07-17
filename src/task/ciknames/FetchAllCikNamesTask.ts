@@ -6,8 +6,8 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
-import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
-import { SecFetchTask } from "../../fetch/SecFetchTask";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
+import { SecFetchTask } from "../fetch/SecFetchTask";
 import { createCikNameBulkWriter } from "../../storage/entity/cikNameBulkWriter";
 import { TypeSecDate } from "../../util/parseDate";
 

@@ -95,26 +95,30 @@ code stays version-gated (fix the extractor, bump the version, then retry).
 Local model weights must be on disk before generation, and providers differ on
 when that happens: cloud models have nothing to download; HuggingFace ONNX
 auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
-`model_path` directly and never fetches at generation. `ensureModelDownloaded`
-(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this.
-It runs `ModelDownloadTask` for the local providers (no-op for cloud, memoized
-per model id so a per-section sweep pays the download once) and skips a bare-path
-GGUF (no `model_url` — the file is assumed on disk).
+`model_path` directly and never fetches at generation. `EnsureModelDownloadedTask`
+(`src/task/model/EnsureModelDownloadedTask.ts`) is the single seam that normalizes this.
+It takes a **model id** and figures out the provider from the id shape via
+`secModelRecord` (no resolved `ModelConfig` handed in), then owns and runs
+`ModelDownloadTask` for the local providers (no-op for cloud, memoized per model
+id so a per-section sweep pays the download once) and skips a bare-path GGUF (no
+`model_url` — the file is assumed on disk).
 
-It takes the running task's `IExecuteContext`: passing the **real** one (not a
-throwaway stub) is what surfaces download progress — the download run-fn's `phase`
-events are forwarded to `context.updateProgress`, which the `@workglow/cli`
-progress UI (`withCli`) renders, so a multi-GB GGUF/ONNX fetch shows a live
-percentage instead of a silent hang (and `context.signal` aborts it on Ctrl-C).
-`prefetchModel(model, context)` is the best-effort wrapper the CLI-task boundaries
-call: the AI form processors (`processFormS1` / `processForm424` /
+The download runs as an **owned** subtask (`context.own`), so it is registered in
+the running task's graph and inherits its registry + abort signal. Passing the
+**real** `IExecuteContext` (not a throwaway stub) is what surfaces download
+progress — the download run-fn's `phase` events are forwarded to
+`context.updateProgress`, which the `@workglow/cli` progress UI (`withCli`)
+renders, so a multi-GB GGUF/ONNX fetch shows a live percentage instead of a silent
+hang (and `context.signal` aborts it on Ctrl-C). `prefetchModel(modelId, context)`
+is the best-effort wrapper the CLI-task boundaries call (own + run the task,
+swallowing failures): the AI form processors (`processFormS1` / `processForm424` /
 `processMergerProxy` / `processRedemption8K` / `processLoi8K`, via a `context`
 threaded through `storageArgs`) prefetch once after resolving their model, and the
 eval loops prefetch before their timed sections (so download time isn't charged to
-a model's measured latency). `runStructured` keeps a context-less
-`ensureModelDownloaded` call as a per-section correctness safety-net — it downloads
-silently if a model was never prefetched (e.g. a sub-extractor's distinct model),
-but the progress-bearing fetch lives at the task boundary.
+a model's measured latency). `runStructured` keeps an `ensureModelDownloaded` call
+as a per-section correctness safety-net — it downloads silently if a model was
+never prefetched (e.g. a sub-extractor's distinct model), but the progress-bearing
+fetch lives at the task boundary.
 
 To make GGUF weights fetchable rather than pre-staged, a `gguf:` id may be a
 **remote URI** — a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`) or
@@ -735,7 +739,7 @@ time** and a queryable **current state**:
 - **`src/task/`** — Workglow task graph tasks (fetch, store, process, query, ceremonies).
   Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`,
   `query/`, `db/`, `versioning/`, `resolve/`, `canonical/`, `spac/`, `editorial/`,
-  `offering/`, `fixtures/`, `init/`, `eval/`. `taskPorts.ts` exports `TaskPorts<T>`, a
+  `offering/`, `fixtures/`, `init/`, `eval/`, `model/`. `taskPorts.ts` exports `TaskPorts<T>`, a
   type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
   constraint on `Task<Input, Output>`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
@@ -744,7 +748,7 @@ time** and a queryable **current state**:
   - **`observation/`** — one row per entity mention extracted from a filing, keyed by `(extractor_id, accession_number, observation_index)`. `PersonObservationRepo` and `CompanyObservationRepo` live here. Legacy `person/`, `company/`, and `phone/` tables were replaced by this tier.
   - **`canonical/`** — deduplicated canonical entities (`CanonicalPersonRepo`, `CanonicalCompanyRepo`) with UUID IDs, plus alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) and identity-link tables (`PersonIdentityLinkRepo`, `CompanyIdentityLinkRepo`) that join observation rows to canonical rows at a specific `resolver_version`. Junction tables for address/phone co-occurrence also live here.
   - **`versioning/`** — `VersionRegistry`, slot ceremonies (`startDev`, `promote`, `rollback`, `dropNext`, `dropPrevious`), extractor run tracking, and semver helpers.
-- **`src/fetch/`** — SEC-specific fetch tasks with caching and job queue integration.
+- **`src/task/fetch/`** — SEC-specific fetch tasks with caching and job queue integration.
 - **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, `DefaultDI.ts` registers SQLite-backed repos, `TestingDI.ts` registers in-memory repos.
 - **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
 - **`src/util/`** — Database helpers (`db.ts` manages SQLite connection and prepared statement caching).

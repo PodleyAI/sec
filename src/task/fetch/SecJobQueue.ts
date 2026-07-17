@@ -17,7 +17,7 @@ import {
   wrapQueueStorage,
 } from "workglow";
 
-import { SecJobQueueName } from "../config/Constants";
+import { SecJobQueueName } from "../../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 
 // Create storage for the rate limiter

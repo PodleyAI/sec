@@ -5,7 +5,7 @@
  */
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { globalServiceRegistry, renderMarkdown } from "workglow";
-import { prefetchModel } from "../../../config/ensureModelDownloaded";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
@@ -139,7 +139,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     await recordRedemptionRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
-  await prefetchModel(model, args.context);
+  await prefetchModel(model_id, args.context);
 
   // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
   // events and milestone deals already wrote); a malformed body dead-letters the
