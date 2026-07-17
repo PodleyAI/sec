@@ -651,55 +651,34 @@ CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
 `isFormParsingSupported` and `FORM_TO_EXTRACTOR_ID` are kept consistent by
 `src/sec/forms/form-wiring.test.ts`.
 
-### Accredited investor portals + Form D attribution
+### Accredited investor portals + Form D attribution (moved to embarc-data)
 
-Accredited-investor portals (AngelList, Forge, EquityZen, ...) never register
-with the SEC, so the `accredited_portal` table is **curated**: bootstrapped from
-an embedded copy of the embarc repo's data/portals-accredited.json
-(`src/data/accreditedPortalsSeed.ts`, keyed by a name-derived `portal_id` slug —
-`sec accredited-portal import [file]` also accepts an external JSON in the same
-shape) and maintained via the CLI. Their
-deals surface as Form D filings by SPVs/funds that reuse a known portal
-**address**, **phone**, or entity **name** — curated as fingerprints in
-`accredited_portal_signal` (PK `(signal_type, signal_value)`, values stored in
-the same normalized form the ingest path produces: lower-cased
-`normalizeCompanyName`, phone `international_number`, `address_hash_id`).
-`processFormD` harvests candidates from issuers / related persons /
-sales-compensation recipients (never signatures) and `PortalAttributor` writes
-`form_d_portal_attribution` rows (one per accession+portal, strongest signal
-wins: address > phone > name; `matches` keeps every corroborating role).
-Attributions are derived data — unscoped attribution clears the filing's own
-rows first (so re-ingest replays self-heal after signal changes), and the
-backfill recomputes from stored observations (no re-fetch) with
-clear-then-recompute semantics:
+Accredited-investor portal curation (`accredited_portal` / `accredited_portal_signal`)
+and Form D → portal attribution (`form_d_portal_attribution`) are curated/derived
+values computed **on top of** SEC data, so they were extracted to the private
+**embarc-data** superset. `processFormD` no longer attributes (ingestion only
+produces observations), and standalone `sec db setup` no longer creates those
+three tables. See embarc-data's docs for the `accredited-portal` commands.
 
-```bash
-sec accredited-portal import                 # bootstrap/refresh from the embedded seed (idempotent)
-sec accredited-portal list [--live] (--json for JSON output)
-sec accredited-portal signal add angellist --type address \
-    --street1 "90 Gold St" --city "San Francisco" --state CA --zip 94102
-sec accredited-portal signal add angellist --type name --value "AngelList Advisors, LLC"
-sec accredited-portal signal list [portal-id]
-sec accredited-portal signal remove --type name --value "..."
-sec accredited-portal attribute --all | --portal <id>   # backfill sweep over stored observations
-sec accredited-portal suggest [--min-filings 3] [--limit 25]  # candidate fingerprints from SPV clusters
-sec accredited-portal set <portal-id> --cik <cik> --notes "..."  # curated fields, survive re-import
-sec accredited-portal filings <portal-id> (--json for JSON output)
-```
+sec exposes the general downstream seams embarc-data (and future features) build on:
 
-Phone signals require an explicit `--country` (parsing is region-sensitive and
-must match the filings' issuer country). The attributor is versioned through
-the standard resolver ceremonies (`sec version ... resolver portal-attributor`):
-rows are stamped with the active slot's semver, `coverage` reports the share of
-attribution rows at a version, and `drop-previous` purges rows at the retired
-version. `suggest` surfaces address/phone values recurring across many distinct
-Form D filings that are not yet curated signals — the "many funds, one back
-office" pattern; curation stays manual.
+- **`registerResolverExtension`** (`src/resolver/resolverExtensions.ts`) — the
+  registry every resolver kind registers through: sec's own person / company /
+  sponsor-family / underwriter-family resolvers via `registerSecResolvers`
+  (`src/config/registerResolvers.ts`), plus downstream kinds like embarc-data's
+  `portal-attributor`. It backs the unified `version resolver <kind>` ceremonies
+  (`coverage` and `drop-previous` dispatch to the registered kind's closures),
+  `componentRegistry`, and `resolverIds`. `ResolverId` is a runtime-validated
+  string, not a compile-time union.
+- **`registerDatabaseExtension`** (`src/config/databaseExtensions.ts`) — repo
+  tokens registered here are created/dropped by `setupAllDatabases` /
+  `resetAllDatabases` (i.e. `db setup` / `db reset`) after the built-in SEC
+  tables, so a superset's tables are managed by the same commands. `db setup`
+  also calls `registerSecResolvers()` so resolver component-version rows seed even
+  on the `init` path that skips the CLI preAction hook.
 
-Seed re-import preserves curation: portal `cik`/`notes` survive, and `manual`
-signals are never overwritten by `seed` ones. The attributor is exact-match
-only (no fuzzy matching); the signal table is the tuning knob, and generic seed
-name signals (e.g. "Republic") can be removed if they false-positive.
+Both seams, plus the observation/versioning/normalization internals a feature
+needs, are re-exported from the package barrel (`src/index.ts`).
 
 ## Architecture
 
