@@ -8,6 +8,8 @@ import { createServiceToken, type ITabularStorage } from "workglow";
 import {
   registerDatabaseExtension,
   listDatabaseExtensionTokens,
+  registerDatabaseSetupHook,
+  runDatabaseSetupHooks,
   clearDatabaseExtensionsForTesting,
 } from "./databaseExtensions";
 
@@ -23,4 +25,15 @@ test("registered tokens are listed once, in order (deduped)", () => {
 
 test("empty by default", () => {
   expect(listDatabaseExtensionTokens()).toEqual([]);
+});
+
+test("setup hooks run once each, deduped, in registration order", () => {
+  const calls: string[] = [];
+  const a = (): void => void calls.push("a");
+  const b = (): void => void calls.push("b");
+  registerDatabaseSetupHook(a);
+  registerDatabaseSetupHook(b);
+  registerDatabaseSetupHook(a); // dedupe
+  runDatabaseSetupHooks();
+  expect(calls).toEqual(["a", "b"]);
 });

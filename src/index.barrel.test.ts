@@ -11,7 +11,7 @@ test("barrel exposes the sec dependencies a downstream feature package builds on
     "createStorage",
     "registerResolverExtension", "getResolverExtension", "listResolverIds", "isFamilyResolverId",
     "registerDatabaseExtension", "listDatabaseExtensionTokens",
-    "VersionRegistry", "getActiveSlot", "COMPONENT_VERSION_REPOSITORY_TOKEN",
+    "VersionRegistry", "computeResolverCoverage", "computeResolverCoverage", "getActiveSlot", "COMPONENT_VERSION_REPOSITORY_TOKEN",
     "PersonObservationRepo", "CompanyObservationRepo",
     "PERSON_OBSERVATION_REPOSITORY_TOKEN", "COMPANY_OBSERVATION_REPOSITORY_TOKEN",
     "FILING_REPOSITORY_TOKEN",
@@ -20,8 +20,9 @@ test("barrel exposes the sec dependencies a downstream feature package builds on
     "isBadPersonField", "TypeSecCik", "TypeNullable",
     "streamMatchingRows", "KeyedMutex", "parseCik",
     "createServiceToken", "InMemoryTabularStorage",
+    "setupAllDatabases", "registerDatabaseSetupHook",
     "resetDependencyInjectionsForTesting",
-    "globalServiceRegistry", "Type",
+    "globalServiceRegistry", "Type", "Sqlite",
   ]) {
     expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
   }

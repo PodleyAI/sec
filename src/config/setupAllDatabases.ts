@@ -100,7 +100,7 @@ import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
-import { listDatabaseExtensionTokens } from "./databaseExtensions";
+import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -119,6 +119,12 @@ export async function setupAllDatabases(): Promise<void> {
   if (typeof Sqlite.init === "function") {
     await Sqlite.init();
   }
+  // Let downstream packages register their DI repos + db-extension tokens +
+  // resolver kinds before we create tables and seed component versions. This is
+  // what makes a superset's tables/resolvers materialize on the `init` path,
+  // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
+  // without ever running the CLI preAction hook that otherwise registers them.
+  runDatabaseSetupHooks();
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();

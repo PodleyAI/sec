@@ -37,6 +37,7 @@ export { AddCommands } from "./commands";
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
+export { setupAllDatabases } from "./config/setupAllDatabases";
 export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
 export { registerSecModels } from "./config/registerModels";
 export { registerSecProviders } from "./config/registerProviders";
@@ -65,7 +66,7 @@ export { terminateWorkers } from "./util/workers";
 // `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
 // different TypeBox instance, so its DI registrations and schemas would not be
 // visible to sec. Import these from `@workglow/sec` to share sec's instances.
-export { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
+export { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
 export type { ServiceToken } from "workglow";
 export { Type, type Static } from "typebox";
 
@@ -83,9 +84,11 @@ export {
 export {
   listDatabaseExtensionTokens,
   registerDatabaseExtension,
+  registerDatabaseSetupHook,
 } from "./config/databaseExtensions";
 
 // ── Versioning internals ────────────────────────────────────────────────────
+export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
 export { getActiveSlot } from "./storage/versioning/getActiveSlot";
 export { VersionRegistry } from "./storage/versioning/VersionRegistry";
 export { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./storage/versioning/ComponentVersionSchema";

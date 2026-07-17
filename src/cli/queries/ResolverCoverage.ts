@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getResolverExtension, isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
+import {
+  getResolverExtension,
+  isFamilyResolverId,
+  type ResolverId,
+} from "../../resolver/resolverIds";
 
 export interface ResolverCoverageResult {
   readonly kind: ResolverId;
@@ -23,10 +27,18 @@ export async function computeResolverCoverage(
   // Family-tier resolvers (sponsor-family / underwriter-family) have no
   // observation → identity-link coverage model; refuse rather than silently
   // reporting the company tier's coverage under a family-kind label.
-  if (isFamilyResolverId(kind) || !ext.coverage) {
+  if (isFamilyResolverId(kind)) {
     throw new Error(
       `coverage is not defined for family resolver kind '${kind}' ` +
-        `(no observation identity-link coverage model registered)`
+        `(family resolvers track membership, not observation identity-links)`
+    );
+  }
+  // A registered kind may simply not provide a coverage closure (coverage is
+  // optional on ResolverExtension). Report that plainly — do not mislabel it as
+  // family-tier.
+  if (!ext.coverage) {
+    throw new Error(
+      `coverage is not defined for resolver kind '${kind}' (no coverage model registered)`
     );
   }
   const { numerator, denominator } = await ext.coverage(resolver_version);

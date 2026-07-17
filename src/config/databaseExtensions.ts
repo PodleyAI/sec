@@ -20,6 +20,26 @@ export function listDatabaseExtensionTokens(): readonly ServiceToken<AnyTabularS
   return TOKENS;
 }
 
+type SetupHook = () => void;
+const SETUP_HOOKS: SetupHook[] = [];
+
+/**
+ * Register a hook `setupAllDatabases()` runs (after `EnvToDI`, before it creates
+ * tables and seeds component versions) so a downstream package can register its
+ * DI repos + `registerDatabaseExtension` tokens + `registerResolverExtension`
+ * kinds in time. This is what makes downstream tables/resolvers materialize on
+ * the `init` path too, which bypasses the CLI preAction hook. Idempotent.
+ */
+export function registerDatabaseSetupHook(hook: SetupHook): void {
+  if (!SETUP_HOOKS.includes(hook)) SETUP_HOOKS.push(hook);
+}
+
+/** Run every registered setup hook. Called by `setupAllDatabases()`. */
+export function runDatabaseSetupHooks(): void {
+  for (const hook of SETUP_HOOKS) hook();
+}
+
 export function clearDatabaseExtensionsForTesting(): void {
   TOKENS.length = 0;
+  SETUP_HOOKS.length = 0;
 }
