@@ -1,14 +1,16 @@
 #!/usr/bin/env bun
 
 import { program } from "commander";
-import { getTaskQueueRegistry } from "workglow";
-import { applyGlobalOptions } from "./cli/GlobalOptions";
-import { statusMessage } from "./cli/output/Progress";
-import { AddCommands } from "./commands";
-import { SecCliConfigurationError } from "./config/EnvToDI";
-import { closeDb } from "./util/db";
-import { closePgPool } from "./util/pg";
-import { terminateWorkers } from "./util/workers";
+import {
+  AddCommands,
+  applyGlobalOptions,
+  closeDb,
+  closePgPool,
+  getTaskQueueRegistry,
+  SecCliConfigurationError,
+  statusMessage,
+  terminateWorkers,
+} from "./index";
 
 program
   .version("2.0.0")
