@@ -70,9 +70,9 @@ export type { ServiceToken } from "workglow";
 export { Type, type Static } from "typebox";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
-// A downstream feature (e.g. `embarc-data`'s accredited-portal hosting) registers
-// its own resolver ids and DB-extension repo tokens through these seams, then
-// reuses the versioning / observation / normalization internals below.
+// A downstream feature package (e.g. `embarc-data`) registers its own resolver
+// ids and DB-extension repo tokens through these seams, then reuses the
+// versioning / observation / normalization internals below.
 export {
   getResolverExtension,
   isFamilyResolverId,

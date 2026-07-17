@@ -6,7 +6,7 @@
 import { expect, test } from "bun:test";
 import * as sec from "./index";
 
-test("barrel exposes the accredited-portal feature's sec dependencies", () => {
+test("barrel exposes the sec dependencies a downstream feature package builds on", () => {
   for (const name of [
     "createStorage",
     "registerResolverExtension", "getResolverExtension", "listResolverIds", "isFamilyResolverId",

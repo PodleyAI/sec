@@ -7,7 +7,7 @@
 /**
  * Registry of resolver kinds for the unified `version resolver <kind>` command.
  * sec's own resolvers (person/company/families) register through this, as does
- * every downstream extension (e.g. embarc-data's portal-attributor). The
+ * every downstream extension (e.g. one registered by embarc-data). The
  * operations that vary by kind — coverage and version-scoped drop-previous —
  * are supplied per registration.
  */

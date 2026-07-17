@@ -23,7 +23,6 @@ import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
-import { registerAccreditedPortalCommands } from "./accreditedPortal";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
@@ -83,7 +82,6 @@ export const AddCommands = (program: Command): void => {
   registerUnderwriterFamilyCommands(program);
   registerSpacCommands(program);
   registerEditorialCommands(program);
-  registerAccreditedPortalCommands(program);
   addExtractorCommands(program);
   addEvalCommands(program);
 };

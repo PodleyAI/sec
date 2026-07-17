@@ -14,7 +14,6 @@ import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompa
 import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
-import { FormDPortalAttributionRepo } from "../storage/accredited-portal/FormDPortalAttributionRepo";
 
 /**
  * Register sec's built-in resolver kinds into the ResolverExtensionRegistry.
@@ -23,10 +22,6 @@ import { FormDPortalAttributionRepo } from "../storage/accredited-portal/FormDPo
  * The per-kind coverage + drop-previous logic moves here from the previously
  * hardcoded branches in `cli/queries/ResolverCoverage.ts` and
  * `storage/versioning/ceremonies.ts`.
- *
- * NOTE: `portal-attributor` is registered here only until the accredited-portal
- * feature is extracted to embarc-data, which then registers it from its own
- * bootstrap.
  */
 export function registerSecResolvers(): void {
   registerResolverExtension({
@@ -59,15 +54,4 @@ export function registerSecResolvers(): void {
   });
   registerResolverExtension({ id: "sponsor-family", isFamily: true });
   registerResolverExtension({ id: "underwriter-family", isFamily: true });
-  // TEMPORARY (removed when the portal feature moves to embarc-data):
-  registerResolverExtension({
-    id: "portal-attributor",
-    coverage: async (version) => {
-      const repo = new FormDPortalAttributionRepo();
-      return { numerator: await repo.countAtVersion(version), denominator: await repo.countAll() };
-    },
-    dropPrevious: async (version) => {
-      await new FormDPortalAttributionRepo().deleteForAttributorVersion(version);
-    },
-  });
 }
