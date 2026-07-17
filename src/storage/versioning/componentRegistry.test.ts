@@ -4,10 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 
 describe("componentRegistry", () => {
+  beforeEach(() => {
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
+  });
+  afterEach(() => {
+    clearResolverExtensionsForTesting();
+  });
+
   it("registers all extractors", () => {
     for (const id of [
       "D",

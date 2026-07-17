@@ -4,17 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
-import { RESOLVER_IDS } from "./resolverIds";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolverIds, isFamilyResolverId } from "./resolverIds";
+import { clearResolverExtensionsForTesting } from "./resolverExtensions";
+import { registerSecResolvers } from "../config/registerResolvers";
 
 describe("resolverIds", () => {
+  beforeEach(() => {
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
+  });
+  afterEach(() => {
+    clearResolverExtensionsForTesting();
+  });
+
   it("contains the registered resolver ids", () => {
-    expect(RESOLVER_IDS).toEqual([
-      "person",
-      "company",
-      "sponsor-family",
-      "underwriter-family",
-      "portal-attributor",
-    ]);
+    const ids = resolverIds();
+    for (const id of ["person", "company", "sponsor-family", "underwriter-family"]) {
+      expect(ids).toContain(id);
+    }
+  });
+
+  it("classifies family-tier resolver kinds", () => {
+    expect(isFamilyResolverId("sponsor-family")).toBe(true);
+    expect(isFamilyResolverId("underwriter-family")).toBe(true);
+    expect(isFamilyResolverId("person")).toBe(false);
+    expect(isFamilyResolverId("company")).toBe(false);
+    expect(isFamilyResolverId("nope")).toBe(false);
   });
 });

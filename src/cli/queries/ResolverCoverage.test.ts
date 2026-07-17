@@ -13,14 +13,19 @@ import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLi
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
 import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/PersonIdentityLinkSchema";
 import { computeResolverCoverage } from "./ResolverCoverage";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 
 describe("computeResolverCoverage", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
   });
   afterEach(() => {
     resetDependencyInjectionsForTesting();
+    clearResolverExtensionsForTesting();
   });
 
   it("returns correct coverage fractions for person resolver", async () => {

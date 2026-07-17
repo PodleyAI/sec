@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 import { computeResolverCoverage } from "../../cli/queries/ResolverCoverage";
 import { PortalAttributor } from "../../resolver/PortalAttributor";
 import { dropPrevious } from "../versioning/ceremonies";
@@ -34,6 +36,8 @@ describe("portal-attributor version ceremonies", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
     attributionRepo = new FormDPortalAttributionRepo();
     reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await new AccreditedPortalSignalRepo().saveSignal({
@@ -44,6 +48,10 @@ describe("portal-attributor version ceremonies", () => {
       note: null,
       created_at: new Date().toISOString(),
     });
+  });
+
+  afterEach(() => {
+    clearResolverExtensionsForTesting();
   });
 
   it("stamps rows with the provided attributor version", async () => {

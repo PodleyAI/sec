@@ -11,17 +11,22 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { bootstrapComponentVersions } from "./bootstrapComponentVersions";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
-import { RESOLVER_IDS } from "../../resolver/resolverIds";
+import { resolverIds } from "../../resolver/resolverIds";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 import { VersionRegistry } from "./VersionRegistry";
 
 describe("bootstrapComponentVersions", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
   });
 
   afterEach(() => {
     resetDependencyInjectionsForTesting();
+    clearResolverExtensionsForTesting();
   });
 
   it("seeds every known extractor at 1.0.0 in the current slot", async () => {
@@ -42,7 +47,7 @@ describe("bootstrapComponentVersions", () => {
     const reg = new VersionRegistry(
       globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
     );
-    for (const id of RESOLVER_IDS) {
+    for (const id of resolverIds()) {
       const cur = await reg.getCurrent("resolver", id);
       expect(cur?.semver).toBe("1.0.0");
       expect(cur?.coverage_complete).toBe(true);

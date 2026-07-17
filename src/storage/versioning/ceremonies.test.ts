@@ -17,6 +17,8 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "./VersionEventSchema";
 import { VersionRegistry } from "./VersionRegistry";
 import { PersonIdentityLinkRepo } from "../canonical/PersonIdentityLinkRepo";
 import { CanonicalPersonRepo } from "../canonical/CanonicalPersonRepo";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 
 function buildDeps() {
   const reg = new VersionRegistry(
@@ -630,10 +632,15 @@ describe("ceremonies.dropNext", () => {
 describe("ceremonies.dropPrevious", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
+    // Register resolver kinds before setupAllDatabases so its
+    // bootstrapComponentVersions() seeds the resolver current slots too.
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
     await setupAllDatabases();
   });
   afterEach(() => {
     resetDependencyInjectionsForTesting();
+    clearResolverExtensionsForTesting();
   });
 
   it("throws when no previous slot exists", async () => {
