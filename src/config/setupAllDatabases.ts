@@ -102,6 +102,7 @@ import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
+import { registerSecResolvers } from "./registerResolvers";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -222,6 +223,12 @@ export async function setupAllDatabases(): Promise<void> {
     }
     backfillExtractorRunsOutcome(db);
   }
+  // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
+  // seed component-version rows: bootstrapComponentVersions() enumerates the
+  // registry, and this path also runs from `init` (which skips the preAction
+  // hook that otherwise calls registerSecResolvers). Idempotent — safe to call
+  // again when the hook already registered them.
+  registerSecResolvers();
   await bootstrapComponentVersions();
 }
 
