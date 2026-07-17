@@ -204,7 +204,7 @@ async function processSignatures(
         observation_index: startIndex,
         source_filing_issuer_cik: cik,
         last_name: sigName,
-        title: titles[0] ?? null,
+        titles: titles,
         relationship: "form-c:signature",
         source_context: JSON.stringify({ relation: "form-c:signature", titles }),
       });
@@ -238,7 +238,7 @@ async function processSignatures(
           observation_index: idx,
           source_filing_issuer_cik: cik,
           last_name: sigName,
-          title: titles[0] ?? null,
+          titles: titles,
           relationship: "form-c:signature",
           source_context: JSON.stringify({ relation: "form-c:signature", titles }),
         });

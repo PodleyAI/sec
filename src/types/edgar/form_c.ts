@@ -7,50 +7,55 @@ import * as common from './common';
 //                 Statement, C/A-W: Amendment to Offering Statement Withdrawal, C-AR: Annual Report, C-AR-W: Annual Report
 //                 Withdrawal, C-AR/A: Amendment to Annual Report, C-AR/A-W: Amendment to Annual Report Withdrawal, C-TR:
 //                 Termination of Reporting, C-TR-W: Termination of Reporting Withdrawal
-export enum SUBMISSION_TYPE {
-  C = 'C',
-  'C-W' = 'C-W',
-  'C-U' = 'C-U',
-  'C-U-W' = 'C-U-W',
-  'C/A' = 'C/A',
-  'C/A-W' = 'C/A-W',
-  'C-AR' = 'C-AR',
-  'C-AR-W' = 'C-AR-W',
-  'C-AR/A' = 'C-AR/A',
-  'C-AR/A-W' = 'C-AR/A-W',
-  'C-TR' = 'C-TR',
-  'C-TR-W' = 'C-TR-W',
-}
+export const SUBMISSION_TYPE = {
+  C: 'C',
+  'C-W': 'C-W',
+  'C-U': 'C-U',
+  'C-U-W': 'C-U-W',
+  'C/A': 'C/A',
+  'C/A-W': 'C/A-W',
+  'C-AR': 'C-AR',
+  'C-AR-W': 'C-AR-W',
+  'C-AR/A': 'C-AR/A',
+  'C-AR/A-W': 'C-AR/A-W',
+  'C-TR': 'C-TR',
+  'C-TR-W': 'C-TR-W',
+} as const;
+export type SUBMISSION_TYPE = (typeof SUBMISSION_TYPE)[keyof typeof SUBMISSION_TYPE];
 
 // LEGAL_STATUS_FORM_TYPE ...
-export enum LEGAL_STATUS_FORM_TYPE {
-  Corporation = 'Corporation',
-  'Limited Partnership' = 'Limited Partnership',
-  'Limited Liability Company' = 'Limited Liability Company',
-  'General Partnership' = 'General Partnership',
-  'Business Trust' = 'Business Trust',
-  Other = 'Other',
-}
+export const LEGAL_STATUS_FORM_TYPE = {
+  Corporation: 'Corporation',
+  'Limited Partnership': 'Limited Partnership',
+  'Limited Liability Company': 'Limited Liability Company',
+  'General Partnership': 'General Partnership',
+  'Business Trust': 'Business Trust',
+  Other: 'Other',
+} as const;
+export type LEGAL_STATUS_FORM_TYPE = (typeof LEGAL_STATUS_FORM_TYPE)[keyof typeof LEGAL_STATUS_FORM_TYPE];
 
 // SECURITY_OFFERED_TYPE ...
-export enum SECURITY_OFFERED_TYPE {
-  'Common Stock' = 'Common Stock',
-  'Preferred Stock' = 'Preferred Stock',
-  Debt = 'Debt',
-  Other = 'Other',
-}
+export const SECURITY_OFFERED_TYPE = {
+  'Common Stock': 'Common Stock',
+  'Preferred Stock': 'Preferred Stock',
+  Debt: 'Debt',
+  Other: 'Other',
+} as const;
+export type SECURITY_OFFERED_TYPE = (typeof SECURITY_OFFERED_TYPE)[keyof typeof SECURITY_OFFERED_TYPE];
 
 // OVER_SUBSCRIPTION_ALLOCATION_TYPE ...
-export enum OVER_SUBSCRIPTION_ALLOCATION_TYPE {
-  'Pro-rata basis' = 'Pro-rata basis',
-  'First-come, first-served basis' = 'First-come, first-served basis',
-  Other = 'Other',
-}
+export const OVER_SUBSCRIPTION_ALLOCATION_TYPE = {
+  'Pro-rata basis': 'Pro-rata basis',
+  'First-come, first-served basis': 'First-come, first-served basis',
+  Other: 'Other',
+} as const;
+export type OVER_SUBSCRIPTION_ALLOCATION_TYPE = (typeof OVER_SUBSCRIPTION_ALLOCATION_TYPE)[keyof typeof OVER_SUBSCRIPTION_ALLOCATION_TYPE];
 
 // COISSUER_FILER_TYPE ...
-export enum COISSUER_FILER_TYPE {
-  EdgarFiler = 'EdgarFiler',
-}
+export const COISSUER_FILER_TYPE = {
+  EdgarFiler: 'EdgarFiler',
+} as const;
+export type COISSUER_FILER_TYPE = (typeof COISSUER_FILER_TYPE)[keyof typeof COISSUER_FILER_TYPE];
 
 // TypeScriptComplexType (TypeScript) FILER_CREDENTIALS_TYPE is These elements are part of the FILER_CREDENTIALS_TYPE group
 export interface FILER_CREDENTIALS_TYPE {

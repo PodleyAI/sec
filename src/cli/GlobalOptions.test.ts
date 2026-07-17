@@ -17,9 +17,13 @@ describe("GlobalOptions", () => {
       expect(help).toContain("--dry-run");
     });
 
+    it("advertises --json now that it is consumed", () => {
+      const help = createProgram().helpInformation();
+      expect(help).toContain("--json");
+    });
+
     it("does not advertise the removed (never-consumed) flags", () => {
       const help = createProgram().helpInformation();
-      expect(help).not.toContain("--json");
       expect(help).not.toContain("--verbose");
       expect(help).not.toContain("--no-color");
     });
@@ -42,6 +46,18 @@ describe("GlobalOptions", () => {
       const program = createProgram();
       program.parse(["--dry-run"], { from: "user" });
       expect(parseGlobalOptions(program).dryRun).toBe(true);
+    });
+
+    it("defaults json to false", () => {
+      const program = createProgram();
+      program.parse([], { from: "user" });
+      expect(parseGlobalOptions(program).json).toBe(false);
+    });
+
+    it("parses --json", () => {
+      const program = createProgram();
+      program.parse(["--json"], { from: "user" });
+      expect(parseGlobalOptions(program).json).toBe(true);
     });
   });
 });

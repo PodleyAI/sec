@@ -172,7 +172,7 @@ export async function processFormCFPORTAL({
       middle_name: contact.middleName ?? null,
       last_name: contact.lastName,
       suffix: contact.suffix ?? null,
-      title: identifying?.contactEmployeeTitle ?? null,
+      titles: identifying?.contactEmployeeTitle ? [identifying.contactEmployeeTitle] : null,
       relationship: "cfportal:contact",
       source_context: JSON.stringify({ relation: "cfportal:contact" }),
     });
@@ -216,7 +216,7 @@ export async function processFormCFPORTAL({
         first_name: name.first_name,
         middle_name: name.middle_name,
         last_name: name.last_name,
-        title: owner.titleStatus ?? null,
+        titles: owner.titleStatus ? [owner.titleStatus] : null,
         relationship: "cfportal:owner",
         source_context,
       });

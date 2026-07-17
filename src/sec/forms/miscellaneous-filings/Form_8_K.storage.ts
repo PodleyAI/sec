@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
 import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
 import type { Form8K } from "./Form_8_K.schema";
@@ -13,11 +13,17 @@ import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
 import { processRedemption8K } from "./redemption8k";
+import { processLoi8K } from "./loi8k";
 
 /**
  * Extracts item codes from the filing metadata `items` field.
  * The items field is a comma-separated string of item codes (e.g., "2.02,9.01").
  * Also merges any items found in the parsed XML form data.
+ *
+ * In practice `form8K.formData` is always empty for real 8-Ks: EDGAR 8-K bodies
+ * are HTML/text, never `edgarSubmission` XML (see {@link Form_8_K.parse}), so the
+ * metadata `items` field is the authoritative item list. The XML merge is kept as
+ * a harmless belt-and-suspenders for the theoretical structured filing.
  */
 function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K): string[] {
   const itemSet = new Set<string>();
@@ -57,6 +63,7 @@ export async function processForm8K({
   extractor_version,
   fullSubmissionText,
   model,
+  context,
 }: {
   readonly cik: number;
   readonly accession_number: string;
@@ -69,10 +76,15 @@ export async function processForm8K({
   readonly extractor_version: string;
   readonly fullSubmissionText?: string;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }): Promise<void> {
   const eventRepo = new Form8KEventRepo();
   const isAmendment = form === "8-K/A";
 
+  // `form8K.formData?.periodOfReport` is only ever populated for structured
+  // `edgarSubmission` 8-Ks, which do not occur in real EDGAR data — so in
+  // practice the metadata `report_date` is authoritative here. The XML fallback
+  // stays first for the theoretical structured filing.
   const effectiveReportDate = form8K.formData?.periodOfReport || report_date || null;
 
   const itemCodes = extractItemCodes(items, form8K);
@@ -118,6 +130,17 @@ export async function processForm8K({
         primary_document: null,
         events: spacEvents,
       });
+      // De-SPAC linkage: item 2.01 completes the combination — link the shell to
+      // its post-merger identity from the CIK's own post-close entity metadata.
+      // Runs after the milestone write so the row's status is already `completed`.
+      if (spacEvents.some((e) => e.event_type === "completed")) {
+        await new SpacReportWriter().recordDeSpacLinkage({
+          cik,
+          accession_number,
+          filing_date,
+          form,
+        });
+      }
     }
   }
 
@@ -130,6 +153,18 @@ export async function processForm8K({
       itemCodes,
       fullSubmissionText,
       model,
+      context,
+    });
+    await processLoi8K({
+      cik,
+      accession_number,
+      filing_date,
+      form,
+      itemCodes,
+      fullSubmissionText,
+      event_date: effectiveReportDate || filing_date,
+      model,
+      context,
     });
   }
 }

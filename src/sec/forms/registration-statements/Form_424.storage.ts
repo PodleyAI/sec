@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type ModelConfig } from "workglow";
+import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
@@ -17,7 +18,7 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
-import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
+import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { makeRunSection } from "./s1/sectionRunner";
@@ -49,6 +50,7 @@ export interface ProcessForm424Args {
   readonly form: string;
   readonly form424: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 /**
@@ -160,13 +162,14 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     model = args.model ?? (await getS1Model());
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    for (const section of OFFERING_SECTION_NAMES) {
+    for (const section of offeringSectionNames(isSpac)) {
       await recordFail(section, "MODEL_RESOLUTION_ERROR", detail);
     }
     await recordSpacIpoEventIfEligible();
     return;
   }
   const model_id = resolveModelId(model);
+  await prefetchModel(model, args.context);
 
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.
@@ -177,7 +180,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    for (const section of OFFERING_SECTION_NAMES) {
+    for (const section of offeringSectionNames(isSpac)) {
       await recordFail(section, "PARSE_ERROR", detail);
     }
     await recordSpacIpoEventIfEligible();
@@ -204,6 +207,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context: args.context,
   });
 
   await recordSpacIpoEventIfEligible();

@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
+import { SEC_JSON_OUTPUT } from "../../config/tokens";
 import { createProgress, createSpinner, statusMessage } from "./Progress";
 
 describe("statusMessage", () => {
@@ -16,6 +18,36 @@ describe("statusMessage", () => {
 
   it("formats warn with exclamation prefix", () => {
     expect(statusMessage("warn", "Careful")).toBe("! Careful");
+  });
+});
+
+describe("statusMessage under --json", () => {
+  afterEach(() => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
+  });
+
+  it("emits a parseable JSON object for errors", () => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
+    const out = statusMessage("error", "boom");
+    expect(JSON.parse(out)).toEqual({ status: "error", message: "boom" });
+  });
+
+  it("emits JSON for non-error statuses too", () => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
+    expect(JSON.parse(statusMessage("success", "Done"))).toEqual({
+      status: "success",
+      message: "Done",
+    });
+  });
+
+  it("does not prefix the message with a glyph in JSON mode", () => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
+    expect(statusMessage("error", "Failed")).not.toContain("x ");
+  });
+
+  it("returns to pretty text once the flag is cleared", () => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
+    expect(statusMessage("error", "Failed")).toBe("x Failed");
   });
 });
 

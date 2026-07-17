@@ -23,6 +23,15 @@ describe("resolveStyle", () => {
     expect(s.fontSizePt).toBeCloseTo(14, 1);
     expect(s.upperRatio).toBeCloseTo(1, 2);
   });
+  it("reads centering from the legacy ALIGN attribute (pre-CSS EDGAR markup)", () => {
+    const s = styleOf(`<p data-t align="center"><b>The Offering</b></p>`);
+    expect(s.centered).toBe(true);
+    expect(s.bold).toBe(true);
+  });
+  it("CSS text-align wins over the ALIGN attribute; ALIGN=left is not centered", () => {
+    expect(styleOf(`<p data-t align="center" style="text-align:left">x</p>`).centered).toBe(false);
+    expect(styleOf(`<h5 data-t align="left">Table of Contents</h5>`).centered).toBe(false);
+  });
   it("inherits parent style, child wins", () => {
     const s = styleOf(
       `<div style="font-weight:700"><span data-t style="font-weight:400">x</span></div>`

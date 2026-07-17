@@ -23,7 +23,7 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
     normalized_middle: null,
     normalized_last: null,
     normalized_suffix: null,
-    title: "CEO",
+    titles: ["CEO"],
     relationship: null,
     raw_address_id: null,
     raw_phone_id: null,

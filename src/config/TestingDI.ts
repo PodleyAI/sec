@@ -103,6 +103,21 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+  AccreditedPortalPrimaryKeyNames,
+  AccreditedPortalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSchema";
+import {
+  ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+  AccreditedPortalSignalPrimaryKeyNames,
+  AccreditedPortalSignalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import {
+  FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+  FormDPortalAttributionPrimaryKeyNames,
+  FormDPortalAttributionSchema,
+} from "../storage/accredited-portal/FormDPortalAttributionSchema";
+import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
@@ -209,6 +224,11 @@ import {
   SpacUnitTermsSchema,
 } from "../storage/offering/SpacUnitTermsSchema";
 import {
+  SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+  SpacPromoteTermsPrimaryKeyNames,
+  SpacPromoteTermsSchema,
+} from "../storage/offering/SpacPromoteTermsSchema";
+import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
@@ -270,6 +290,11 @@ import {
   SpacRedemptionExtractionPrimaryKeyNames,
   SpacRedemptionExtractionSchema,
 } from "../storage/spac/SpacRedemptionExtractionSchema";
+import {
+  SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+  SpacLoiExtractionPrimaryKeyNames,
+  SpacLoiExtractionSchema,
+} from "../storage/spac/SpacLoiExtractionSchema";
 import {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
   CanonicalCompanyPrimaryKeyNames,
@@ -452,6 +477,31 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(PortalSchema, PortalPrimaryKeyNames, [["name"], ["brand"], ["live"]])
   );
 
+  // Initialize Accredited Investor Portal repositories
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(AccreditedPortalSchema, AccreditedPortalPrimaryKeyNames, [
+      ["name"],
+      ["live"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      AccreditedPortalSignalSchema,
+      AccreditedPortalSignalPrimaryKeyNames,
+      [["portal_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      FormDPortalAttributionSchema,
+      FormDPortalAttributionPrimaryKeyNames,
+      [["portal_id"], ["cik"]]
+    )
+  );
+
   // Initialize Reg-A repositories
   globalServiceRegistry.registerInstance(
     REGA_OFFERING_REPOSITORY_TOKEN,
@@ -515,6 +565,13 @@ export function resetDependencyInjectionsForTesting() {
       SpacRedemptionExtractionPrimaryKeyNames,
       [["cik"]]
     )
+  );
+
+  globalServiceRegistry.registerInstance(
+    SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
 
   // Initialize Crowdfunding repositories
@@ -826,6 +883,10 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacPromoteTermsSchema, SpacPromoteTermsPrimaryKeyNames, [["cik"]])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,

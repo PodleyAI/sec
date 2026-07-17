@@ -32,8 +32,8 @@ export const CompanyObservationSchema = Type.Object({
   normalized_name: TypeNullable(Type.String({ maxLength: 512 })),
   jurisdiction: TypeNullable(Type.String({ maxLength: 64 })),
   entity_type: TypeNullable(Type.String({ maxLength: 64 })),
-  raw_address_id: TypeNullable(Type.String({ maxLength: 64 })),
-  raw_phone_id: TypeNullable(Type.String({ maxLength: 20 })),
+  raw_address_id: TypeNullable(Type.String({ maxLength: 512 })),
+  raw_phone_id: TypeNullable(Type.String({ maxLength: 32 })),
   source_context: TypeNullable(Type.String()),
   created_at: Type.String(),
 });

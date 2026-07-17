@@ -19,7 +19,7 @@ import { createServiceToken } from "workglow";
  */
 export const CanonicalPersonAddressSchema = Type.Object({
   canonical_person_id: Type.String({ maxLength: 36 }),
-  address_hash_id: Type.String({ maxLength: 64 }),
+  address_hash_id: Type.String({ maxLength: 512 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({
     minimum: 1,
@@ -76,7 +76,7 @@ export const CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN =
 /** Canonical-company ↔ address junction. */
 export const CanonicalCompanyAddressSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
-  address_hash_id: Type.String({ maxLength: 64 }),
+  address_hash_id: Type.String({ maxLength: 512 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),

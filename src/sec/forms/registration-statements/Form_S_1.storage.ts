@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type ModelConfig } from "workglow";
+import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import { prefetchModel } from "../../../config/ensureModelDownloaded";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
@@ -30,13 +31,17 @@ import {
   extractBeneficialOwnership,
   extractManagement,
   extractRelatedParty,
+  extractSpacClassification,
   extractSpacProfile,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
+import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
+import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
+import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
-import { OFFERING_SECTION_NAMES, runOfferingSections } from "./s1/offeringSections";
+import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import { getS1Model, resolveModelId } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
@@ -75,6 +80,7 @@ export interface ProcessFormS1Args {
   readonly form: string;
   readonly formS1: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly context?: IExecuteContext;
 }
 
 export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
@@ -92,6 +98,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     modelError = err instanceof Error ? err.message : String(err);
   }
   const model_id = model ? resolveModelId(model) : null;
+  // Fetch a local model's weights up front so the download's progress renders in
+  // the CLI task UI before the (silent) per-section extraction begins.
+  await prefetchModel(model, args.context);
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
@@ -163,7 +172,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
 
   // --- Deterministic SPAC classification from the SGML-header SIC ---
   const headerSic = formS1.header?.sic ?? null;
-  const isSpac = headerSic === 6770;
+  // Mutable: the AI content classifier below can upgrade a SIC-miscoded SPAC
+  // from false → true after segmentation, before the registration/profile/
+  // offering blocks read it.
+  let isSpac = headerSic === 6770;
   await new S1ClassificationRepo().save({
     extractor_id: EXTRACTOR_ID,
     accession_number,
@@ -214,8 +226,13 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
-      ...OFFERING_SECTION_NAMES,
+      ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
+      // A SIC-miscoded, blank-check-looking non-SPAC filing gets a
+      // spac-classification dead-letter so a retry runs the AI classifier once a
+      // model is available. Gated on the cheap heuristic over the raw HTML so an
+      // ordinary S-1 does not flood the worklist.
+      ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
     ];
     for (const section of sectionNames) {
       await recordFail(section, "MODEL_RESOLUTION_ERROR", modelError);
@@ -246,8 +263,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
-      ...OFFERING_SECTION_NAMES,
+      ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
+      ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
     ];
     for (const section of sectionNames) {
       await recordFail(section, "PARSE_ERROR", detail);
@@ -270,6 +288,93 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // sourced directly from `byName` is never the empty string (the segmenter
   // emits non-empty section bodies), so the two checks coincide in practice.
 
+  // --- AI SPAC content classification (SIC-miscoded upgrade path) ---
+  // The deterministic classifier above only flags SIC == 6770. A SPAC filed
+  // under a miscoded/absent SIC would be missed, so — when the filing was NOT
+  // already classified as a SPAC and its summary prose is blank-check-like (the
+  // cheap heuristic keeps the AI call rare, reserved for plausibly miscoded
+  // filings) — run an AI content classifier behind the `classifier_source =
+  // "ai"` seam. A confident SPAC verdict upgrades the local flag AND overwrites
+  // the classification row, so the registration / profile / offering blocks
+  // below treat it as a known SPAC and its de-SPAC 8-K milestones can attach.
+  if (!isSpac) {
+    const classifyText = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
+    if (!looksLikeBlankCheck(classifyText)) {
+      // The error paths above dead-letter spac-classification on the looser
+      // raw-HTML heuristic, so a filing can be dead-lettered for a classification
+      // this narrower summary-prose gate then declines to run. Resolve the entry
+      // instead of leaving it pending forever on the version-gated retry
+      // worklist, where every sweep would re-bill the filing's full extraction.
+      // (markResolved no-ops when no entry exists.)
+      await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
+    } else {
+      let classifierModel: ModelConfig | null = null;
+      let classifierError: string | null = null;
+      try {
+        classifierModel = args.model ?? (await getSpacClassifierModel());
+      } catch (err) {
+        classifierError = err instanceof Error ? err.message : String(err);
+      }
+      if (classifierModel === null) {
+        await recordFail("spac-classification", "MODEL_RESOLUTION_ERROR", classifierError);
+      } else {
+        const classifierModelResolved = classifierModel;
+        const classifierHolder = { upgraded: false };
+        const classifierRunSection = makeRunSection({
+          deadLetters,
+          extractor_id: EXTRACTOR_ID,
+          extractor_version,
+          accession_number,
+          confidenceFloor: getSpacClassifierConfidenceFloor(),
+        });
+        await classifierRunSection<SpacClassificationRow>({
+          sectionName: "spac-classification",
+          text: classifyText,
+          emptyDetail: "not classified as a SPAC",
+          lowConfidenceDetail: "SPAC classification below confidence floor",
+          verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+          unverifiedAllDetail:
+            "the confident SPAC classification had source_span not present in section text",
+          extract: async (text) => {
+            const c = await extractSpacClassification(text, classifierModelResolved, args.context);
+            return c === null ? [] : [c];
+          },
+          persist: async () => {
+            classifierHolder.upgraded = true;
+            return 1;
+          },
+        });
+        if (classifierHolder.upgraded) {
+          isSpac = true;
+          await new S1ClassificationRepo().save({
+            extractor_id: EXTRACTOR_ID,
+            accession_number,
+            cik,
+            sic: headerSic,
+            sic_description: formS1.header?.sicDescription ?? null,
+            is_spac: true,
+            classifier_source: "ai",
+            created_at: new Date().toISOString(),
+          });
+        } else {
+          // "Not a miscoded SPAC" is the expected outcome — auto-resolve the
+          // MODEL_EMPTY entry so a confident negative doesn't linger on the
+          // version-gated retry worklist (mirrors the LOI detector). A genuine
+          // problem (LOW_CONFIDENCE_ALL / UNVERIFIED_SOURCE_SPAN / NONCE_MISMATCH)
+          // stays pending.
+          const entry = await deadLetters.get(
+            EXTRACTOR_ID,
+            accession_number,
+            "spac-classification"
+          );
+          if (entry?.reason_code === "MODEL_EMPTY") {
+            await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
+          }
+        }
+      }
+    }
+  }
+
   // --- SPAC profile (gated) → registration event + row ---
   // Runs before the base registration write so the AI-extracted focus /
   // description / team / website ride onto the same `recordRegistration` patch.
@@ -290,7 +395,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
       extract: async (text) => {
-        const p = await extractSpacProfile(text, model);
+        const p = await extractSpacProfile(text, model, args.context);
         return p === null ? [] : [p];
       },
       persist: async (rows) => {
@@ -330,7 +435,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    extract: (text) => extractManagement(text, model),
+    extract: (text) => extractManagement(text, model, args.context),
     persist: async (rows) => {
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
@@ -342,7 +447,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           middle_name: name.middle,
           last_name: name.last,
           suffix: name.suffix,
-          title: r.title,
+          titles: r.titles,
           relationship: r.relationship ?? "s1:management",
           // Store birth_year (not age) so present age stays recomputable; a
           // stated age is relative to the filing date.
@@ -376,7 +481,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
-    extract: (text) => extractBeneficialOwnership(text, model),
+    extract: (text) => extractBeneficialOwnership(text, model, args.context),
     persist: async (rows) => {
       for (const r of rows) {
         const observation_index = idx++;
@@ -443,7 +548,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
-    extract: (text) => extractRelatedParty(text, model),
+    extract: (text) => extractRelatedParty(text, model, args.context),
     persist: async (rows) => {
       let txIndex = 0;
       for (const r of rows) {
@@ -514,6 +619,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context: args.context,
   });
 
   // --- SPAC sponsors (gated on deterministic classification) ---
@@ -544,7 +650,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident sponsor rows had source_span not present in section text",
-    extract: (text) => extractSpacSponsors(text, model),
+    extract: (text) => extractSpacSponsors(text, model, args.context),
     persist: async (rows) => {
       let wrote = 0;
       for (const r of rows) {

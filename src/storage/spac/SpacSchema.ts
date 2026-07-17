@@ -14,6 +14,7 @@ export const SPAC_STATUSES = [
   "registered",
   "ipo",
   "searching",
+  "loi",
   "deal_announced",
   "proxy",
   "completed",
@@ -21,6 +22,14 @@ export const SPAC_STATUSES = [
   "withdrawn",
 ] as const;
 export type SpacStatus = (typeof SPAC_STATUSES)[number];
+
+/**
+ * Provenance of `surviving_name`: the rollup's own fallback derived from the
+ * completed deal's target, or a close-time snapshot read from the surviving
+ * entity's own metadata.
+ */
+export const SURVIVING_NAME_SOURCES = ["deal-target", "entity"] as const;
+export type SurvivingNameSource = (typeof SURVIVING_NAME_SOURCES)[number];
 
 /**
  * Mutable consolidated SPAC report row (one per SPAC, keyed by origin CIK).
@@ -47,6 +56,14 @@ export const SpacSchema = Type.Object({
       description: "Combined entity name as of de-SPAC close (snapshot)",
     })
   ),
+  /**
+   * Where {@link surviving_name} came from. Without this the rollup cannot tell
+   * its own derived deal-target fallback from an entity-sourced snapshot once
+   * both are persisted, so a superseding proxy's corrected target could never
+   * refresh it. "deal-target" is re-derived on every rebuild; "entity" is a
+   * write-once close-time snapshot the rollup preserves.
+   */
+  surviving_name_source: TypeNullable(TypeStringEnum(SURVIVING_NAME_SOURCES)),
   current_name: TypeNullable(Type.String({ maxLength: 200, description: "Latest known name" })),
 
   // SIC (three eras)
@@ -114,6 +131,7 @@ export const SpacSchema = Type.Object({
   registration_date: TypeNullable(Type.String({ format: "date" })),
   ipo_date: TypeNullable(Type.String({ format: "date" })),
   unit_split_date: TypeNullable(Type.String({ format: "date" })),
+  loi_date: TypeNullable(Type.String({ format: "date" })),
   definitive_agreement_date: TypeNullable(Type.String({ format: "date" })),
   proxy_date: TypeNullable(Type.String({ format: "date" })),
   vote_date: TypeNullable(Type.String({ format: "date" })),

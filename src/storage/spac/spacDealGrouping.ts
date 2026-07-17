@@ -28,6 +28,7 @@ function mergerFormRank(form: string): number {
 
 /** Event types that shape a business-combination attempt. */
 const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
+  "loi",
   "definitive_agreement",
   "terminated",
   "completed",
@@ -37,6 +38,7 @@ const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
 
 interface DealSkeleton {
   deal_index: number;
+  loi_date: string | null;
   announced_date: string | null;
   definitive_agreement_date: string | null;
   proxy_date: string | null;
@@ -105,6 +107,7 @@ export function deriveDeals(
   const openNew = (e: SpacEvent): DealSkeleton => {
     const d: DealSkeleton = {
       deal_index: nextIndex++,
+      loi_date: null,
       announced_date: null,
       definitive_agreement_date: null,
       proxy_date: null,
@@ -125,6 +128,17 @@ export function deriveDeals(
 
   for (const e of relevant) {
     switch (e.event_type) {
+      case "loi": {
+        // A non-binding LOI opens a business-combination attempt (the stage
+        // before the definitive agreement). The earliest LOI date wins; a
+        // later DA on the same open deal advances it past the LOI stage.
+        if (!open) open = openNew(e);
+        if (open.loi_date == null || e.event_date < open.loi_date) {
+          open.loi_date = e.event_date;
+        }
+        open.source_accession = e.accession_number;
+        break;
+      }
       case "definitive_agreement": {
         if (!open) open = openNew(e);
         if (open.announced_date == null) open.announced_date = e.event_date;
@@ -184,8 +198,15 @@ export function deriveDeals(
   // outcome_date else the next deal's announced date else open-ended.
   for (let i = 0; i < skeletons.length; i++) {
     const d = skeletons[i];
-    const lower = d.announced_date ?? d.definitive_agreement_date ?? null;
-    const upper = d.outcome_date ?? skeletons[i + 1]?.announced_date ?? null;
+    const lower = d.announced_date ?? d.definitive_agreement_date ?? d.loi_date ?? null;
+    const upper =
+      d.outcome_date ??
+      (skeletons[i + 1]
+        ? (skeletons[i + 1].announced_date ??
+          skeletons[i + 1].definitive_agreement_date ??
+          skeletons[i + 1].loi_date ??
+          null)
+        : null);
     const matched = mergerExtractions
       .filter(
         (m) => (lower == null || m.filing_date >= lower) && (upper == null || m.filing_date < upper)
@@ -219,7 +240,7 @@ export function deriveDeals(
   // Unlike the merger window this ignores outcome_date for the upper bound, so a
   // redemption reported at/after closing still attaches to the deal being closed.
   const dealLower = (d: DealSkeleton): string | null =>
-    d.announced_date ?? d.definitive_agreement_date ?? d.outcome_date ?? null;
+    d.loi_date ?? d.announced_date ?? d.definitive_agreement_date ?? d.outcome_date ?? null;
   for (let i = 0; i < skeletons.length; i++) {
     const d = skeletons[i];
     const lower = i === 0 ? null : dealLower(d);
@@ -255,6 +276,8 @@ export function deriveDeals(
     // Columns derived from correlated redemption extractions.
     redemption_amount: s.redemption_amount,
     redemption_shares: s.redemption_shares,
+    // Derived from the `loi` event in the walk (AI-extracted, no item code).
+    loi_date: s.loi_date,
     // 8-K-owned columns:
     announced_date: s.announced_date,
     definitive_agreement_date: s.definitive_agreement_date,

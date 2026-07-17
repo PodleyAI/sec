@@ -2,20 +2,24 @@ import type { Command } from "commander";
 
 export interface GlobalOptions {
   readonly dryRun: boolean;
+  readonly json: boolean;
 }
 
-// Only `--dry-run` is wired (it gates writes via SEC_DRY_RUN). Previous
-// `--json` / `--verbose` / `--no-color` flags were parsed but never consumed —
-// read commands carry their own `--format`, and output is plain text — so they
-// were removed rather than advertised in --help while doing nothing.
+// `--dry-run` gates writes via SEC_DRY_RUN; `--json` routes status/error output
+// through SEC_JSON_OUTPUT so `statusMessage` / `runCommand` emit machine-parseable
+// JSON instead of pretty text. (The `--verbose` / `--no-color` flags were parsed
+// but never consumed, so they stay unadvertised.)
 export function applyGlobalOptions(program: Command): Command {
-  return program.option("--dry-run", "Show what would happen without changes", false);
+  return program
+    .option("--dry-run", "Show what would happen without changes", false)
+    .option("--json", "Emit status and error output as machine-parseable JSON", false);
 }
 
 export function parseGlobalOptions(cmd: Command): GlobalOptions {
   const opts = cmd.opts();
   return {
     dryRun: opts.dryRun ?? false,
+    json: opts.json ?? false,
   };
 }
 

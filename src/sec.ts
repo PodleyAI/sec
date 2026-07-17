@@ -3,10 +3,12 @@
 import { program } from "commander";
 import { getTaskQueueRegistry } from "workglow";
 import { applyGlobalOptions } from "./cli/GlobalOptions";
+import { statusMessage } from "./cli/output/Progress";
 import { AddCommands } from "./commands";
 import { SecCliConfigurationError } from "./config/EnvToDI";
 import { closeDb } from "./util/db";
 import { closePgPool } from "./util/pg";
+import { terminateWorkers } from "./util/workers";
 
 program
   .version("2.0.0")
@@ -21,7 +23,7 @@ try {
 } catch (e) {
   primaryError = e;
   if (e instanceof SecCliConfigurationError) {
-    console.error(e.message);
+    console.error(statusMessage("error", e.message));
     process.exitCode = 1;
   }
 } finally {
@@ -32,6 +34,9 @@ try {
     getTaskQueueRegistry().stopQueues(),
     Promise.resolve().then(() => closeDb()),
     closePgPool(),
+    // Terminate worker-backed AI providers (local models) so the process exits
+    // instead of hanging on live worker threads until their idle timeout.
+    terminateWorkers(),
   ]);
   for (const result of cleanups) {
     if (result.status === "rejected") {

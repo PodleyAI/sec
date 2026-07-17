@@ -63,13 +63,25 @@ and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`. All extractors
 share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
 set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
 env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
-model ids (the default plus any set overrides) into the global model repository
-via `registerSecModels` (`src/config/registerModels.ts`) as Anthropic
-(`provider: "ANTHROPIC"`) records, so `getGlobalModelRepository().findByName(id)`
-resolves them. Startup also registers the AI **provider** via
-`registerSecProviders` (`src/config/registerProviders.ts`): Anthropic inline
-(`provider: "ANTHROPIC"`; needs `ANTHROPIC_API_KEY` at run time), registered
-defensively (a load failure warns and is skipped). Absent a working provider /
+model ids (the default plus any set overrides, plus the local HFT default
+`SecHftModelDefault`) into the global model repository via `registerSecModels`
+(`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape — a
+`gguf:` id → a `LOCAL_LLAMACPP` record, a HuggingFace `org/name` id → an
+`HF_TRANSFORMERS_ONNX` record, a `gpt-*`/`o*` id → an `OPENAI` record, a
+`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record,
+otherwise an `ANTHROPIC` record — and each explicitly declares the `json-mode`
+capability `StructuredGenerationTask` gates on (the installed provider's
+capability inference doesn't recognize newer ids like `claude-sonnet-5`,
+`gpt-5.5`, `gemini-3.1-pro-preview`, or `grok-4.5`). So
+`getGlobalModelRepository().findByName(id)` resolves any of them. Startup also
+registers the AI **providers** via `registerSecProviders`
+(`src/config/registerProviders.ts`): four inline cloud providers — Anthropic
+(`ANTHROPIC`, `ANTHROPIC_API_KEY`), OpenAI (`OPENAI`, `OPENAI_API_KEY`), Google
+Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), and xAI Grok (`XAI`, `XAI_API_KEY`)
+— plus the worker-backed local providers HuggingFace Transformers ONNX
+(`HF_TRANSFORMERS_ONNX`, `hftWorker.ts`) and node-llama-cpp GGUF
+(`LOCAL_LLAMACPP`, `llamaCppWorker.ts`). Each provider registers defensively (a
+load failure or missing key warns and is skipped). Absent a working provider /
 key, each AI section dead-letters instead of aborting the filing.
 
 A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
@@ -77,6 +89,220 @@ retryable under the **same** extractor version — `retry-dead-letters` recovers
 once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
+
+### Download-before-use harness
+
+Local model weights must be on disk before generation, and providers differ on
+when that happens: cloud models have nothing to download; HuggingFace ONNX
+auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
+`model_path` directly and never fetches at generation. `ensureModelDownloaded`
+(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this.
+It runs `ModelDownloadTask` for the local providers (no-op for cloud, memoized
+per model id so a per-section sweep pays the download once) and skips a bare-path
+GGUF (no `model_url` — the file is assumed on disk).
+
+It takes the running task's `IExecuteContext`: passing the **real** one (not a
+throwaway stub) is what surfaces download progress — the download run-fn's `phase`
+events are forwarded to `context.updateProgress`, which the `@workglow/cli`
+progress UI (`withCli`) renders, so a multi-GB GGUF/ONNX fetch shows a live
+percentage instead of a silent hang (and `context.signal` aborts it on Ctrl-C).
+`prefetchModel(model, context)` is the best-effort wrapper the CLI-task boundaries
+call: the AI form processors (`processFormS1` / `processForm424` /
+`processMergerProxy` / `processRedemption8K` / `processLoi8K`, via a `context`
+threaded through `storageArgs`) prefetch once after resolving their model, and the
+eval loops prefetch before their timed sections (so download time isn't charged to
+a model's measured latency). `runStructured` keeps a context-less
+`ensureModelDownloaded` call as a per-section correctness safety-net — it downloads
+silently if a model was never prefetched (e.g. a sub-extractor's distinct model),
+but the progress-bearing fetch lives at the task boundary.
+
+To make GGUF weights fetchable rather than pre-staged, a `gguf:` id may be a
+**remote URI** — a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`) or
+an `https://` URL — which `secModelRecord` turns into a `model_url` (download
+source) plus a local `model_path` / `models_dir` under the GGUF models dir. A
+plain `gguf:` path (`gguf:Model-Q4.gguf`, `gguf:/abs/Model.gguf`) stays a
+load-directly local file, unchanged.
+
+### AI SPAC content classifier (SIC-miscoded SPACs)
+
+Deterministic SPAC classification keys off the SGML-header SIC (`6770` →
+`is_spac`, `classifier_source = "sgml-header"`). A SPAC filed under a miscoded or
+absent SIC would be missed, so `processFormS1` runs an **AI content classifier**
+behind the `S1Classification.classifier_source = "ai"` seam. It is gated twice to
+stay cheap: it only runs when the deterministic path did **not** already flag the
+filing, and only when a cheap keyword heuristic (`looksLikeBlankCheck`,
+`s1/spacContentHeuristic.ts` — ≥2 distinct blank-check signals) trips on the
+prospectus-summary prose. A confident `spac` verdict (`extractSpacClassification`
+distinguishes a true SPAC from a `shell` or `operating` company) flips the local
+`is_spac`, overwrites the classification row with `classifier_source = "ai"`, and
+mints the known-SPAC `spac` row so de-SPAC lifecycle extractors can attach. A
+confident "not a SPAC" is the expected outcome and auto-resolves its
+`MODEL_EMPTY` dead-letter (mirroring the LOI detector); when the model is
+unavailable, a blank-check-looking filing dead-letters `spac-classification`
+(`MODEL_RESOLUTION_ERROR`) so a retry runs it once a model exists. Configure via
+`SEC_S1_CLASSIFIER_MODEL` (default `SecModelDefault`) and
+`SEC_S1_CLASSIFIER_CONFIDENCE_FLOOR` (falls back to `SEC_S1_CONFIDENCE_FLOOR`).
+The `spac-classification` entry in `EVAL_EXTRACTORS` (a true-SPAC positive plus
+shell / operating-company negatives) ranks it through `sec eval extract`.
+
+### Model comparison harness
+
+`sec eval extract` compares extraction models on **correctness, speed, and cost**
+so you can find the cheapest/fastest model that still extracts correctly. It runs
+committed golden fixtures (`src/eval/fixtures.ts` — realistic section prose with
+hand-authored `expected` rows) through each candidate model and ranks them.
+Registration in `EVAL_EXTRACTORS` does **not** imply a fixture: `--extractor`
+errors out for an extractor with none (rather than sweeping zero runs and
+reporting a vacuous pass), and its help lists only the scorable ones.
+`related-party` and `offering-terms` still have no fixture — `offering-terms` is
+covered instead by `sec eval unit-terms` against the embarc truth set.
+
+```bash
+sec eval extract                              # default: haiku vs sonnet
+sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
+sec eval extract --extractor management --format json
+
+# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI. Each id
+# routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini, grok-*→xAI);
+# needs the matching *_API_KEY per provider used. An id a provider doesn't serve
+# is recorded as a failed run, not a crash — verify ids against each provider's
+# models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
+# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com).
+sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
+gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5"
+```
+
+A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
+`onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
+models work for `json-mode` — a thinking model wraps the JSON in reasoning.
+
+> **Verdict: use the cheap cloud tier, not a local model.** Measured against
+> golden truth on the committed `beneficial-ownership` sections, **haiku-4-5
+> matches sonnet-5 at 100% agreement / recall / precision for ~2.8x less** — so
+> that is where the savings are. Small local models are not a substitute for
+> production extraction: they hard schema-fail on real sections (emitting
+> `owner_kind` values outside `person|company`, share counts in the `confidence`
+> field), and they hallucinate entities memorized from pretraining — one returned
+> a well-known SPAC sponsor for an unrelated issuer's ownership table, which is
+> the failure mode that matters most for a filings dataset. Rank any candidate
+> yourself with `sec eval extract` / `sec eval s1 --reference golden` rather than
+> trusting a headline number.
+
+> HFT chat-template workaround: transformers.js 4.2.0 bundles jinja **0.5.6**,
+> which predates the `{% generation %}` template-tag strip, so a newer template
+> carrying `{%- generation -%}` markers otherwise throws
+> `Unknown statement type: generation`. `hftWorker.ts` calls
+> `patchHftChatTemplateGenerationTags` (`src/config/patchHftChatTemplate.ts`)
+> to strip those inert training-only markers before the tokenizer compiles the
+> template. Remove once the provider's transformers.js bundles a newer jinja.
+
+- **Correctness** — `scoreExtraction` (`src/eval/scoreExtraction.ts`) aligns candidate
+  rows to `expected` by a key field (e.g. `full_name`) and scores field-level agreement,
+  normalized (case/whitespace) and forgiving of provenance fields. Reports `score`
+  (names + titles), `found` (entity recall), and `prec` (1 − hallucinated rows).
+- **Cost** — the generation task exposes no token usage, so cost is **estimated**
+  (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
+  Absolute dollars are approximate; the ranking is what matters.
+- **Speed** — measured wall-clock latency per extraction.
+
+Models are registered on demand via `registerModelIds`, so any candidate id works;
+a model that fails to resolve or errors on a fixture is recorded as a failed run
+rather than aborting the sweep. Add an extractor by registering it in
+`EVAL_EXTRACTORS` and adding a matching fixture. The scorer and pricing are unit-
+tested; the live run makes real Anthropic calls (and downloads the ONNX model on
+first HFT use).
+
+`scoreExtraction` de-duplicates candidate (and reference) rows on the extractor's
+key field before scoring: a model that emits the same entity twice is over-producing
+*rows*, not inventing distinct hallucinations, so precision is computed over
+**distinct** rows (`candidateDistinct`). The oracle table shows `rows` (raw) and
+`dist` (post-dedupe) side by side — the gap is duplicate over-production.
+
+#### Oracle over real S-1s (`sec eval s1`)
+
+Golden fixtures are synthetic; `sec eval s1` instead runs a `--reference` model
+as the "truth" over **real committed S-1 sections**, then scores each
+`--candidate` on agreement/recall/precision against it. The reference defaults to
+**`claude-opus-4-8`** — a model oracle caps every candidate at its own accuracy,
+so it should be the strongest model available, not the one you are evaluating.
+`realSections.ts` segments the HTML into management / beneficial-ownership /
+related-party prose. The reference retries a few times per section (strong models
+intermittently emit a nested array as a JSON *string* the strict schema rejects);
+a section the reference still fails is dropped from scoring.
+
+**Golden truth (`--reference golden`).** A live reference model is not ground
+truth — even the strongest model drops or invents the odd role, capping
+achievable agreement and penalizing a correct candidate. `--reference golden`
+scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
+instead of a model run — no reference API call, `$0`, deterministic. Only sections
+with a golden entry are scored (the rest are reported as skipped); currently the
+four committed `management` sections and all five `beneficial-ownership` sections.
+Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
+to stay canonical. Use golden truth to tell which model is actually *correct*
+(not merely reference-like); use a model reference to sweep sections that aren't
+hand-labeled.
+
+> **Why golden truth matters — a worked example.** The `beneficial-ownership`
+> oracle numbers were long depressed by an *unstated convention*, not by model
+> capability. Ownership tables end in an `All officers and directors as a group
+> (N)` subtotal; the prompt never said whether to emit it, so the reference model
+> emitted it for most tables and omitted it for others — and, typed
+> `owner_kind: "company"`,
+> the S-1 persist path resolved those subtotal labels into the **canonical
+> company tier** while their aggregate share counts double-counted the members
+> above them. With the convention pinned (prompt + `isOwnershipGroupSubtotal`
+> guard) and golden labels committed, sonnet **and** haiku both score 100%
+> agreement / recall / precision across all five sections — with haiku at ~2.8x
+> lower cost. A model-reference oracle could never have surfaced this: the
+> reference *was* the model making the mistake.
+
+```bash
+# Score candidates against human-verified truth (deterministic, no ref call)
+sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
+
+# Model oracle (defaults to --reference claude-opus-4-8) over unlabeled sections
+sec eval s1 --models "claude-haiku-4-5" \
+  --extractors "management,beneficial-ownership,related-party"
+
+# Run over a larger fetched sample (gitignored cache) instead of the committed set:
+sec fetch s1-fixtures -c 20
+sec eval s1 --models "claude-haiku-4-5" --dir src/sec/html/mock_data/s1/.cache
+```
+
+The oracle streams per-section progress to **stderr** (`[i/N] filing extractor
+(chars) ref/cand: ok/FAIL ms rows`) so a long local-model run isn't blind; `--format
+json` on stdout stays clean. Large sections (40–57k chars) dominate wall-clock —
+sonnet takes ~20s each, and a local HFT model minutes.
+
+#### Evaluating Bonsai 27B (local GGUF)
+
+PrismML **Bonsai 27B** (Qwen3.6-based, Apache-2.0) runs through the existing
+node-llama-cpp path — there is **no special model id or route**; it is just a
+`gguf:` model like any other local GGUF. Point a `gguf:` candidate at a HuggingFace
+quant URI and the download-before-use harness fetches it into the GGUF models dir
+(`$SEC_GGUF_DIR`, else `$SEC_RAW_DATA_FOLDER/gguf`, else `./models`) on first use;
+or pre-stage the file yourself and pass its local path:
+
+```bash
+# Remote URI — the harness downloads it before the run (into the GGUF models dir)
+sec eval s1 --reference claude-sonnet-5 \
+  --models "gguf:hf:prism-ml/Ternary-Bonsai-27B-gguf:Q2_0" \
+  --extractors "management,beneficial-ownership,related-party"
+
+# Or pre-stage the quant and pass its local filename / absolute path instead
+huggingface-cli download prism-ml/Ternary-Bonsai-27B-gguf \
+  Ternary-Bonsai-27B-Q2_0.gguf --local-dir "${SEC_GGUF_DIR:-./models}"
+sec eval s1 --reference claude-sonnet-5 \
+  --models "gguf:Ternary-Bonsai-27B-Q2_0.gguf" \
+  --extractors "management,beneficial-ownership,related-party"
+# (an absolute path also works: --models "gguf:/abs/path/Ternary-Bonsai-27B-Q2_0.gguf")
+```
+
+A 27B model wants a GPU/Metal box with enough VRAM (this is a run-on-your-Mac
+eval, not a CI one); raise `SEC_GGUF_CONTEXT` (e.g. `32768`) for the largest S-1
+sections. Bonsai is a **thinking** model, but the llama.cpp `json-mode` here is
+**grammar-constrained**, so structured extraction stays schema-valid without a
+reasoning preamble leaking in — unlike the HFT ONNX thinking-model caveat above.
 
 ### Company facts outcome tracking
 
@@ -122,6 +348,14 @@ runs this deterministic pass before AI extraction:
 `parseToBlocks` skips `display:none` subtrees so the hidden `ix:header` metadata
 block does not leak into the prose handed to the AI section extractors.
 
+Non-numeric date facts are normalized to ISO-8601 via the ixt date transforms in
+`ixtTransforms.ts` (e.g. `dei:DocumentPeriodEndDate` tagged
+`ixt:date-monthname-day-year-en` → `2026-03-31`). Both the TR1 concatenated
+(`datemonthdayyearen`, `dateslashus`/`dateslasheu`) and TR3/TR4 hyphenated
+(`date-monthname-day-year-en`, `date-month-day-year`, …) spellings are handled;
+a registered date transform that cannot parse its text keeps the trimmed raw
+text rather than blanking the fact.
+
 **424 prospectuses** (`424A`, `424B1`–`424B5`, `424B7`; extractor id `424`) run
 `processForm424`: every variant gets the deterministic XBRL pass (pay-as-you-go
 424B2s carry `ffd:NrrtvMaxAggtOfferingPric` and `ffd:RegnFileNb`, which ties the
@@ -142,8 +376,12 @@ sec fetch form <cik> 424B4        # fetch + process a priced prospectus
 ```
 
 ```bash
-# Stored XBRL facts for a filing
+# Stored XBRL facts for a filing (dimensional facts show their Axis=Member qualifiers)
 sec query xbrl <accession> [--concept TrustAccount] [--numeric-only] [--format json]
+
+# A concept's series across ALL of an issuer's filings (e.g. trust balance over time);
+# the result carries an Accession column and is ordered by (accession, fact_index)
+sec query xbrl --cik <cik> --concept AssetsHeldInTrust
 ```
 
 The committed Churchill Capital Corp XII fixture (`s1_2114227_...htm`, a 2026 SPAC
@@ -176,6 +414,19 @@ sec issuer tickers <cik>
 sec issuer deal <cik> [--format json]
 ```
 
+#### Sponsor promote economics
+
+Alongside the unit terms, the SPAC prospectus's "The Offering" / "The Sponsor"
+prose yields the **sponsor promote**: founder (Class B) shares and their
+percentage, private-placement (sponsor) warrant count / price / public warrant
+coverage, and the trust deposit per public share and in total. These land in a
+dedicated `spac_promote_terms` table keyed `(extractor_id, accession_number)` —
+same shape as `spac_unit_terms`, so the S-1's registered promote and a
+424B1/424B4's final promote compare across extractor ids. Extraction rides the
+shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
+S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
+`EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
+
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
 > command are **not** supported for the family-tier resolver kinds
 > (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
@@ -200,8 +451,21 @@ item codes (known SPACs only — a `spac` row must already exist): item `1.01` �
 (recomputed from the event stream on every write, so `deal_index` is stable
 across replays) and roll up automatically. `target_name`, `pipe_amount`, and
 redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
-425) land — 8-K item codes carry no names or amounts. Still deferred: name/SIC/
-ticker transitions and Form 25/15 de-registration.
+425) land — 8-K item codes carry no names or amounts. Still deferred: Form 25/15
+de-registration.
+
+**De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
+post-merger surviving entity. The rollup (`buildSpacRow`) derives `surviving_name`
+from the completed deal's `target_name` (the combined company is named after the
+target) and promotes it onto `current_name`. On the item-2.01 8-K,
+`SpacReportWriter.recordDeSpacLinkage` additionally reads the SPAC CIK's own
+post-close `entity` / `entity_tickers` metadata — the shell keeps its CIK and
+renames, so `current_cik` stays null (it differs only for the deferred newco/S-4
+case) while `surviving_name` / `post_merger_sic` / `post_merger_tickers` come from
+the renamed entity (each set only when it diverges from the SPAC-era value, so
+replays are order-safe). Entity metadata usually refreshes *after* the 2.01 8-K,
+so `sec spac backfill-despac` re-runs the linkage over every completed SPAC to
+fill the still-null slots from now-current entity data.
 
 **Merger proxies** (`DEFM14A`/`PREM14A`, the `DEFM14C`/`PREM14C` consent statements,
 and the `DEFR14A`/`PRER14A` revised proxies; extractor id `merger-proxy`) run
@@ -252,10 +516,113 @@ sec extractor dead-letters redemption    # version-fixable extraction failures
 sec extractor retry-dead-letters redemption
 ```
 
+**Letters of intent** (extractor id `loi`) bring back the LOI lifecycle stage
+(between `searching` and `deal_announced`). No 8-K item code carries an LOI, so
+`processLoi8K` AI-detects "non-binding letter of intent / agreement in
+principle / MOU for a business combination" language in a known SPAC's 8-K
+narrative (items `1.01`, `7.01`, `8.01` escalate the fetch to the full
+submission `.txt`, sharing the redemption path's escalation). A verified
+positive records a per-accession `spac_loi_extraction` row (target name, stated
+LOI date) and emits an `loi` event (dated by the narrative's LOI date, else the
+report/filing date); `deriveDeals` opens/dates the attempt and the rollup lifts
+`loi_date` / `status = "loi"` onto the spac row — a later definitive agreement
+on the same deal supersedes the LOI stage. "No LOI reported" is the expected
+outcome for most trigger 8-Ks, so its `MODEL_EMPTY` dead-letter is auto-resolved
+(genuine problems — low confidence, unverified span, nonce mismatch — stay
+pending). Configure the model via `SEC_LOI_MODEL` (default `claude-sonnet-5`)
+and an optional floor via `SEC_LOI_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`).
+
+```bash
+sec spac backfill-lois            # sweep historical known-SPAC trigger 8-Ks
+sec extractor dead-letters loi    # version-fixable extraction failures
+sec extractor retry-dead-letters loi
+```
+
+The LOI prompt is evaluated through the model-comparison harness: the `loi`
+entry in `EVAL_EXTRACTORS` plus eight golden 8-K narratives (three LOI
+positives, five confusable negatives) in `src/eval/fixtures.ts`, so any model
+set can be ranked on it:
+
+```bash
+sec eval extract --extractor loi                        # default sweep
+sec eval extract --extractor loi --models "claude-sonnet-5,claude-haiku-4-5"
+```
+
 ```bash
 sec spac report <cik> [--format json]   # consolidated report
 sec spac history <cik> [--format json]  # state-change history
+sec spac backfill-despac [--dry-run]    # refresh post-merger identity for completed SPACs
 ```
+
+### Generalized extractor backfill
+
+When a new extractor lands, its historical filings are recovered with the
+generalized sweep — no bespoke backfill task per extractor:
+
+```bash
+sec extractor backfill <extractorId> [--force] [--dry-run]
+```
+
+`BackfillExtractorTask` resolves a per-extractor **descriptor**
+(`src/task/forms/backfillDescriptors.ts`): every form-routed extractor id
+(`FORM_TO_EXTRACTOR_ID` values — `S-1`, `424`, `8-K`, `C`, …) is backfillable
+by default over all filings of its forms; extractors whose candidate set is
+narrower add a descriptor entry (the `redemption` / `loi` sub-extractors select
+known-SPAC trigger-item 8-Ks) and extractors whose recorded success can be a
+gated no-op override `filterTodo` (`merger-proxy` keeps candidates lacking a
+`spac_merger_extraction` row, since its known-SPAC gate records `success: true`).
+The default needing-work predicate is a bulk anti-join against `extractor_runs`
+at the active version. Each survivor re-runs `ProcessAccessionDocFormTask`, so
+the full form pipeline (and any sub-extractors it gates) runs. The
+`sec spac backfill-redemptions` / `backfill-lois` / `backfill-merger-proxies`
+commands remain as aliases with the extractor id fixed.
+
+### Editorial data (embarc parity)
+
+`spac.url_sponsor`, `spac.url_spac`, the freeform `spac.details` JSON map, and
+`family_description` blurbs have **no reliable SEC-filing source** — they are
+hand-curated via the `sec editorial` command group. Spac-row writes go through
+`SpacReportWriter.recordEditorial`, which rebuilds at the row's own `as_of`
+anchor: values overwrite on re-import but the anchor never advances, and no
+automated `record*` writer carries these fields, so filing replays can never
+null them. Family descriptions are keyed by `(family_kind, normalized_name)` —
+outside the canonical tier — so resolver re-mints / `dropPrevious` never wipe
+them.
+
+```bash
+sec editorial set <cik> --url-sponsor <url> [--url-spac <url>] [--details '<json>'] [--create-missing]
+sec editorial set-family-description "Chardan" --kind underwriter-family "<text>"
+sec editorial import data/editorial/spac-editorial.csv [--create-missing] [--dry-run]
+sec editorial import data/editorial/family-descriptions.csv
+```
+
+The committed CSVs under `data/editorial/` were extracted from the embarc
+repo's legacy JSON by a one-off script (not committed; sec.gov links are
+excluded as merge pollution — real sponsor sites come from the legacy
+`url_sponsors` array). Import skips CIKs with no spac row unless
+`--create-missing` (a spac row marks the CIK a known SPAC, gating 8-K/proxy
+processing). `family-descriptions.csv` is a header-only template — embarc has
+no family blurb data; hand-written blurbs get committed there.
+
+embarc's curated SPAC **unit structure** (`details`: unit price, warrant
+fraction, rights) is deliberately **not** imported — the S-1/424
+offering-terms extraction derives those figures from filings. Instead it is
+committed as an extraction **truth dataset** for the eval harness
+(`src/eval/mock_data/embarc-spac-unit-terms.csv`, 1,283 CIKs; loader in
+`src/eval/embarcUnitTermsReference.ts`). `sec eval unit-terms` segments each
+committed S-1's "The Offering" section, runs `extractOfferingTerms` per
+candidate model, and scores price / warrant-fraction / rights-fraction against
+embarc's values (rounded to 2 decimals on both sides — `scoreExtraction`
+compares numbers exactly and 1/3 repeats):
+
+```bash
+sec eval unit-terms --models "claude-sonnet-5,claude-haiku-4-5"
+sec eval unit-terms --dir src/sec/html/mock_data/s1/.cache   # larger fetched sample
+```
+
+The `offering-terms` entry in `EVAL_EXTRACTORS` also makes the section
+available to the model-oracle eval (`sec eval s1 --extractors offering-terms`).
 
 ### Reg A / Reg CF / funding portals
 
@@ -279,6 +646,56 @@ containers; the committed fixtures were sourced from EDGAR daily indexes).
 CFPORTAL fixtures live under `src/sec/forms/portal/mock_data/cfportal/`.
 `isFormParsingSupported` and `FORM_TO_EXTRACTOR_ID` are kept consistent by
 `src/sec/forms/form-wiring.test.ts`.
+
+### Accredited investor portals + Form D attribution
+
+Accredited-investor portals (AngelList, Forge, EquityZen, ...) never register
+with the SEC, so the `accredited_portal` table is **curated**: bootstrapped from
+an embedded copy of the embarc repo's data/portals-accredited.json
+(`src/data/accreditedPortalsSeed.ts`, keyed by a name-derived `portal_id` slug —
+`sec accredited-portal import [file]` also accepts an external JSON in the same
+shape) and maintained via the CLI. Their
+deals surface as Form D filings by SPVs/funds that reuse a known portal
+**address**, **phone**, or entity **name** — curated as fingerprints in
+`accredited_portal_signal` (PK `(signal_type, signal_value)`, values stored in
+the same normalized form the ingest path produces: lower-cased
+`normalizeCompanyName`, phone `international_number`, `address_hash_id`).
+`processFormD` harvests candidates from issuers / related persons /
+sales-compensation recipients (never signatures) and `PortalAttributor` writes
+`form_d_portal_attribution` rows (one per accession+portal, strongest signal
+wins: address > phone > name; `matches` keeps every corroborating role).
+Attributions are derived data — unscoped attribution clears the filing's own
+rows first (so re-ingest replays self-heal after signal changes), and the
+backfill recomputes from stored observations (no re-fetch) with
+clear-then-recompute semantics:
+
+```bash
+sec accredited-portal import                 # bootstrap/refresh from the embedded seed (idempotent)
+sec accredited-portal list [--live] (--json for JSON output)
+sec accredited-portal signal add angellist --type address \
+    --street1 "90 Gold St" --city "San Francisco" --state CA --zip 94102
+sec accredited-portal signal add angellist --type name --value "AngelList Advisors, LLC"
+sec accredited-portal signal list [portal-id]
+sec accredited-portal signal remove --type name --value "..."
+sec accredited-portal attribute --all | --portal <id>   # backfill sweep over stored observations
+sec accredited-portal suggest [--min-filings 3] [--limit 25]  # candidate fingerprints from SPV clusters
+sec accredited-portal set <portal-id> --cik <cik> --notes "..."  # curated fields, survive re-import
+sec accredited-portal filings <portal-id> (--json for JSON output)
+```
+
+Phone signals require an explicit `--country` (parsing is region-sensitive and
+must match the filings' issuer country). The attributor is versioned through
+the standard resolver ceremonies (`sec version ... resolver portal-attributor`):
+rows are stamped with the active slot's semver, `coverage` reports the share of
+attribution rows at a version, and `drop-previous` purges rows at the retired
+version. `suggest` surfaces address/phone values recurring across many distinct
+Form D filings that are not yet curated signals — the "many funds, one back
+office" pattern; curation stays manual.
+
+Seed re-import preserves curation: portal `cik`/`notes` survive, and `manual`
+signals are never overwritten by `seed` ones. The attributor is exact-match
+only (no fuzzy matching); the signal table is the tuning knob, and generic seed
+name signals (e.g. "Republic") can be removed if they false-positive.
 
 ## Architecture
 
@@ -305,8 +722,22 @@ time** and a queryable **current state**:
 
 ### Layered Structure
 
-- **`src/commands/`** — Commander CLI command definitions. Each command wires up tasks and invokes them.
-- **`src/task/`** — Workglow task graph tasks (fetch, store, process). Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`.
+- **`src/commands/` and `src/cli/groups/`** — Commander CLI command definitions. Every
+  subcommand follows the same shape: parse/validate CLI arguments, construct one or more
+  task instances (inputs passed via the constructor's `defaults` config), run them as a
+  task graph through `runWorkflowCli` (`src/cli/runWorkflow.ts`), then render the returned
+  structured output (tables/JSON/text). `runWorkflowCli` pipes the tasks plus an
+  `OutputTask` sink into a `Workflow` and executes it via `@workglow/cli`'s `withCli` —
+  on a TTY that renders the live `renderWorkflowRun` progress UI, when piped it runs
+  plainly — and returns the sink's collected output. Commands hold no business logic:
+  work lives in tasks, presentation in the command. Pass task inputs via `defaults`, not
+  the graph run-input (arrays in run-inputs can trigger fan-out semantics).
+- **`src/task/`** — Workglow task graph tasks (fetch, store, process, query, ceremonies).
+  Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`,
+  `query/`, `db/`, `versioning/`, `resolve/`, `canonical/`, `spac/`, `editorial/`,
+  `offering/`, `fixtures/`, `init/`, `eval/`. `taskPorts.ts` exports `TaskPorts<T>`, a
+  type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
+  constraint on `Task<Input, Output>`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
 - **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
   - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.

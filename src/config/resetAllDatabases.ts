@@ -32,6 +32,9 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
+import { ACCREDITED_PORTAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSchema";
+import { ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import { FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN } from "../storage/accredited-portal/FormDPortalAttributionSchema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
@@ -82,6 +85,7 @@ import {
 import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTickerSchema";
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
+import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
@@ -94,6 +98,7 @@ import { SPAC_EVENT_REPOSITORY_TOKEN } from "../storage/spac/SpacEventSchema";
 import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema";
 import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
 import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
+import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
@@ -126,6 +131,9 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CROWDFUNDING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).deleteAll();
@@ -160,6 +168,7 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(ISSUER_TICKER_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
   // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.
@@ -169,6 +178,7 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).deleteAll();
   // Section 16 (Forms 3/4/5) and Form 144 detail tables.
   await globalServiceRegistry.get(SECTION16_FILING_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SECTION16_TRANSACTION_REPOSITORY_TOKEN).deleteAll();

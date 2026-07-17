@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Spac, SpacStatus } from "./SpacSchema";
+import type { Spac, SpacStatus, SurvivingNameSource } from "./SpacSchema";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent } from "./SpacEventSchema";
 
@@ -113,6 +113,9 @@ function deriveStatus(
   if (active) {
     if (active.vote_date || active.proxy_date) return "proxy";
     if (active.definitive_agreement_date || active.announced_date) return "deal_announced";
+    // A non-binding LOI sits between searching and deal_announced; the checks
+    // above ensure any later definitive agreement / vote supersedes it.
+    if (active.loi_date) return "loi";
   }
   if (hasIpo) return events.some((e) => e.event_type === "unit_split") ? "searching" : "ipo";
   return "registered";
@@ -172,20 +175,54 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   const spac_sic = pick("spac_sic");
   const spac_tickers = pick("spac_tickers");
 
-  // Pre-merger, current_* mirrors spac_* unless a later filing set them explicitly.
-  const surviving_name = pick("surviving_name");
-  const current_name =
-    applied.current_name ?? existing?.current_name ?? surviving_name ?? spac_name;
-  const current_sic =
-    applied.current_sic ?? existing?.current_sic ?? pick("post_merger_sic") ?? spac_sic;
-  const current_tickers =
-    applied.current_tickers ??
-    existing?.current_tickers ??
-    pick("post_merger_tickers") ??
-    spac_tickers;
-
   // Event/deal-derived fields: always recomputed (order-independent, idempotent).
   const active = activeDeal(deals);
+  const completed = active?.outcome === "completed";
+
+  // De-SPAC linkage: a completed business combination links the shell to its
+  // surviving entity. Absent an explicit (entity-sourced) name from a
+  // `recordDeSpacLinkage` patch, the combined company is named after the deal's
+  // target, so derive `surviving_name` from the completed deal's target_name.
+  //
+  // The derived value IS persisted, so it must be re-derived on every rebuild
+  // rather than read back as if it were explicit — otherwise a later proxy that
+  // supersedes `target_name` (definitive over preliminary, revised over
+  // definitive) could never correct it. Only an entity-sourced snapshot is
+  // preserved, which `surviving_name_source` is what distinguishes.
+  const survivingFromEntity =
+    applied.surviving_name ??
+    (existing?.surviving_name_source === "entity" ? (existing.surviving_name ?? null) : null);
+  const surviving_name = survivingFromEntity ?? (completed ? (active?.target_name ?? null) : null);
+  const surviving_name_source: SurvivingNameSource | null =
+    survivingFromEntity != null ? "entity" : surviving_name != null ? "deal-target" : null;
+  const post_merger_sic = pick("post_merger_sic");
+  const post_merger_tickers = pick("post_merger_tickers");
+
+  // current_* is the latest-known identity. Pre-merger it mirrors spac_*; a
+  // completed de-SPAC promotes the surviving / post-merger identity over the
+  // stale mirrored value, so a row that stored current_name = spac_name at
+  // registration reflects the rename once the combination closes. When the
+  // post-merger value is not yet known (no target/entity data), it falls
+  // through to the previously mirrored value.
+  const current_name =
+    applied.current_name ??
+    (completed ? surviving_name : null) ??
+    existing?.current_name ??
+    surviving_name ??
+    spac_name;
+  const current_sic =
+    applied.current_sic ??
+    (completed ? post_merger_sic : null) ??
+    existing?.current_sic ??
+    post_merger_sic ??
+    spac_sic;
+  const current_tickers =
+    applied.current_tickers ??
+    (completed ? post_merger_tickers : null) ??
+    existing?.current_tickers ??
+    post_merger_tickers ??
+    spac_tickers;
+
   const investorPres = latestInvestorPres(events);
   const hasFailed =
     events.some((e) => e.event_type === "liquidation" || e.event_type === "deregistration") &&
@@ -205,12 +242,13 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     target_name: active?.target_name ?? null,
     target_description: active?.target_description ?? null,
     surviving_name,
+    surviving_name_source,
     current_name,
     spac_sic,
-    post_merger_sic: pick("post_merger_sic"),
+    post_merger_sic,
     current_sic,
     spac_tickers,
-    post_merger_tickers: pick("post_merger_tickers"),
+    post_merger_tickers,
     current_tickers,
     ipo_proceeds: pick("ipo_proceeds"),
     trust_amount: pick("trust_amount"),
@@ -228,6 +266,7 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
     registration_date: minEventDate(events, "registration"),
     ipo_date: minEventDate(events, "ipo"),
     unit_split_date: minEventDate(events, "unit_split"),
+    loi_date: active?.loi_date ?? null,
     definitive_agreement_date: active?.definitive_agreement_date ?? null,
     proxy_date: active?.proxy_date ?? null,
     vote_date: active?.vote_date ?? null,

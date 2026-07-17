@@ -10,6 +10,7 @@ import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
+import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
@@ -156,5 +157,84 @@ describe("processFormS1 offering terms", () => {
     expect(await new OfferingTermsRepo().get("S-1", "0000000000-26-000002")).toBeUndefined();
     const history = await new IssuerTickerRepo().history(1848507);
     expect(history.map((t) => t.ticker).sort()).toEqual(["ACQ", "ACQU", "ACQW"]);
+  });
+
+  it("writes sponsor promote terms for a SPAC filing", async () => {
+    // Call order inside a SPAC S-1 with only The Offering + Underwriting present:
+    // offering-terms (1), sponsor-promote (2), underwriters (3). Use-of-proceeds
+    // and the profile/sponsor sections are absent (SECTION_NOT_FOUND, no call).
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Units",
+        units_offered: 20000000,
+        price_per_unit: 10,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+      },
+      {
+        founder_shares: 5000000,
+        founder_percent: 0.2,
+        private_placement_warrants: 10000000,
+        private_placement_warrant_price: 1.0,
+        public_warrant_coverage: 0.5,
+        trust_per_public_share: 10.0,
+        trust_total: 200000000,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-3",
+      accession_number: "0000000000-26-000003",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const promote = await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000003");
+    expect(promote?.founder_shares).toBe(5000000);
+    expect(promote?.founder_percent).toBe(0.2);
+    expect(promote?.private_placement_warrants).toBe(10000000);
+    expect(promote?.public_warrant_coverage).toBe(0.5);
+    expect(promote?.trust_per_public_share).toBe(10.0);
+    expect(promote?.trust_total).toBe(200000000);
+  });
+
+  it("skips promote for a non-SPAC filing", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      { security_type: "Common Stock", confidence: 0.9, source_span: "5,000,000 shares", tickers: [] },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-4",
+      accession_number: "0000000000-26-000004",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000004")).toBeUndefined();
   });
 });

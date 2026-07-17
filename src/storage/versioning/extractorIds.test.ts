@@ -25,6 +25,7 @@ describe("extractorIds", () => {
       "CFPORTAL",
       "D",
       "S-1",
+      "loi",
       "merger-proxy",
       "redemption",
     ]);

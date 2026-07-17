@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import type { EntityObserver } from "../../../../resolver/EntityObserver";
 import { UnderwriterFamilyResolver } from "../../../../resolver/UnderwriterFamilyResolver";
 import { CanonicalUnderwriterFamilyRepo } from "../../../../storage/canonical/CanonicalUnderwriterFamilyRepo";
@@ -13,6 +13,7 @@ import { UnderwriterFamilyMembershipRepo } from "../../../../storage/canonical/U
 import { UnderwriterLinkRepo } from "../../../../storage/canonical/UnderwriterLinkRepo";
 import { OfferingTermsRepo } from "../../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../../storage/offering/SpacUnitTermsRepo";
+import { SpacPromoteTermsRepo } from "../../../../storage/offering/SpacPromoteTermsRepo";
 import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo";
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
@@ -20,20 +21,31 @@ import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import {
   extractOfferingTerms,
+  extractSponsorPromote,
   extractUnderwriters,
   extractUseOfProceeds,
 } from "./sectionExtractors";
+import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { boundSourceSpan, verifyRowSpan } from "./verifySourceSpan";
 
-/** Section names used by the offering-related dead letters. */
-export const OFFERING_SECTION_NAMES = [
-  "offering-terms",
-  "underwriters",
-  "use-of-proceeds",
-] as const;
+/**
+ * Section names used by the offering-related dead letters. `sponsor-promote` is
+ * SPAC-only — {@link runOfferingSections} skips it for a non-SPAC filing, and a
+ * skipped section never markResolves — so a non-SPAC dead letter recorded under
+ * that name could never drain off the retry worklist. Callers must pass the same
+ * `isSpac` they pass to runOfferingSections.
+ */
+export function offeringSectionNames(isSpac: boolean): readonly string[] {
+  return [
+    "offering-terms",
+    ...(isSpac ? ["sponsor-promote"] : []),
+    "underwriters",
+    "use-of-proceeds",
+  ];
+}
 
 /**
  * Share/unit counts are emitted by the model as plain numbers but stored in
@@ -61,6 +73,8 @@ export interface OfferingSectionsArgs {
   readonly model_id: string | null;
   readonly activeUnderwriterFamilyVersion: string;
   readonly byName: ReadonlyMap<S1SectionName, string>;
+  /** Running task context, threaded to the generation calls for CLI progress. */
+  readonly context?: IExecuteContext;
 }
 
 /**
@@ -86,6 +100,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
+    context,
   } = args;
   const base = { accession_number, extractor_id, extractor_version };
   // Relation labels follow the issuer convention: "s1:issuer" / "424:issuer".
@@ -93,6 +108,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
 
   const offeringTermsRepo = new OfferingTermsRepo();
   const spacUnitTermsRepo = new SpacUnitTermsRepo();
+  const spacPromoteTermsRepo = new SpacPromoteTermsRepo();
   const issuerTickerRepo = new IssuerTickerRepo();
   const useOfProceedsRepo = new UseOfProceedsRepo();
   const underwriterFamilyResolver = new UnderwriterFamilyResolver({
@@ -127,7 +143,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
     extract: async (text) => {
-      const terms = await extractOfferingTerms(text, model);
+      const terms = await extractOfferingTerms(text, model, context);
       return terms === null ? [] : [terms];
     },
     persist: async (rows) => {
@@ -195,6 +211,55 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     },
   });
 
+  // --- Sponsor promote economics (SPAC only) ---
+  // Founder-share promote, private-placement warrant coverage, and trust sizing.
+  // These live in "The Offering" and "The Sponsor" prose; read both (falling back
+  // to the concatenated offering/underwriting text when a dedicated sponsor
+  // heading is absent). Skipped for non-SPAC filings.
+  const promoteText = [
+    byName.get(S1_SECTIONS.THE_OFFERING),
+    byName.get(S1_SECTIONS.THE_SPONSOR),
+    byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
+  ]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+  await runSection<SponsorPromoteRow>({
+    sectionName: "sponsor-promote",
+    skip: !isSpac,
+    text: promoteText,
+    notFoundDetail: "no The Offering / The Sponsor / Prospectus Summary section text",
+    emptyDetail: "no sponsor promote terms returned",
+    lowConfidenceDetail: "below confidence floor",
+    // Prompt-injection backstop: refuse to persist a promote row whose
+    // source_span is not a verbatim substring of the section text.
+    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident sponsor-promote rows had source_span not present in section text",
+    extract: async (text) => {
+      const promote = await extractSponsorPromote(text, model, context);
+      return promote === null ? [] : [promote];
+    },
+    persist: async (rows) => {
+      const promote = rows[0];
+      await spacPromoteTermsRepo.save({
+        extractor_id,
+        accession_number,
+        cik,
+        founder_shares: toIntCount(promote.founder_shares),
+        founder_percent: promote.founder_percent,
+        private_placement_warrants: toIntCount(promote.private_placement_warrants),
+        private_placement_warrant_price: promote.private_placement_warrant_price,
+        public_warrant_coverage: promote.public_warrant_coverage,
+        trust_per_public_share: promote.trust_per_public_share,
+        trust_total: promote.trust_total,
+        confidence: promote.confidence,
+        source_span: boundSourceSpan(promote.source_span),
+        created_at: new Date().toISOString(),
+      });
+      return 1;
+    },
+  });
+
   // --- Underwriters (Underwriting section; all filings) ---
   await runSection<UnderwriterRowOut>({
     sectionName: "underwriters",
@@ -209,7 +274,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident underwriter rows had source_span not present in section text",
-    extract: (text) => extractUnderwriters(text, model),
+    extract: (text) => extractUnderwriters(text, model, context),
     persist: async (rows) => {
       let wrote = 0;
       for (const r of rows) {
@@ -271,7 +336,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-    extract: (text) => extractUseOfProceeds(text, model),
+    extract: (text) => extractUseOfProceeds(text, model, context),
     persist: async (rows) => {
       const now = new Date().toISOString();
       let lineIndex = 0;

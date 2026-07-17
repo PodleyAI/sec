@@ -52,7 +52,11 @@ export const PersonObservationSchema = Type.Object({
   normalized_middle: TypeNullable(Type.String({ maxLength: 128 })),
   normalized_last: TypeNullable(Type.String({ maxLength: 128 })),
   normalized_suffix: TypeNullable(Type.String({ maxLength: 32 })),
-  title: TypeNullable(Type.String({ maxLength: 256 })),
+  titles: TypeNullable(
+    Type.Array(Type.String({ maxLength: 256 }), {
+      description: "The person's distinct roles (e.g. ['Chief Executive Officer', 'Director'])",
+    })
+  ),
   relationship: TypeNullable(Type.String({ maxLength: 64 })),
   // Leadership enrichment (embarc-facing). `birth_year` is derived from a stated
   // age in the filing (filing_year − age) so present age stays recomputable;
@@ -65,8 +69,8 @@ export const PersonObservationSchema = Type.Object({
     })
   ),
   bio: TypeNullable(Type.String({ description: "Biography prose from the management section" })),
-  raw_address_id: TypeNullable(Type.String({ maxLength: 64 })),
-  raw_phone_id: TypeNullable(Type.String({ maxLength: 20 })),
+  raw_address_id: TypeNullable(Type.String({ maxLength: 512 })),
+  raw_phone_id: TypeNullable(Type.String({ maxLength: 32 })),
   source_context: TypeNullable(
     Type.String({
       description: "JSON-encoded parser-specific fields that don't earn a first-class column",

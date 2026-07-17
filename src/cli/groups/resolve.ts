@@ -5,19 +5,14 @@
  */
 
 import type { Command } from "commander";
-import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
-import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
-import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../../storage/canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { PersonResolver } from "../../resolver/PersonResolver";
-import { CompanyResolver } from "../../resolver/CompanyResolver";
 import { RESOLVER_IDS, isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
 import { isValidSemver } from "../../storage/versioning/VersionRegistry";
+import {
+  ResolveObservationsTask,
+  type ResolveObservationsTaskOutput,
+} from "../../task/resolve/ResolveObservationsTask";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 export function addResolveCommands(program: Command): void {
   const cmd = program.command("resolve");
@@ -52,53 +47,13 @@ export function addResolveCommands(program: Command): void {
           );
         }
 
-        if (opts.kind === "person") {
-          const obsRepo = new PersonObservationRepo();
-          const canonRepo = new CanonicalPersonRepo();
-          const aliasRepo = new CanonicalPersonAliasRepo();
-          const linkRepo = new PersonIdentityLinkRepo();
-          const resolver = new PersonResolver({
-            canonicalPersonRepo: canonRepo,
-            canonicalPersonAliasRepo: aliasRepo,
-            activeResolverVersion: opts.resolverVersion,
-          });
-          const all = await obsRepo.listAll();
-          let count = 0;
-          for (const obs of all) {
-            // Isolate per-observation failures so one bad row can't abort the
-            // whole batch (mirrors the company branch below).
-            try {
-              const id = await resolver.resolve(obs);
-              await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
-              count++;
-            } catch (e) {
-              console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
-            }
-          }
-          console.log(`resolved ${count} person observation(s) at v${opts.resolverVersion}`);
-        } else {
-          const obsRepo = new CompanyObservationRepo();
-          const canonRepo = new CanonicalCompanyRepo();
-          const aliasRepo = new CanonicalCompanyAliasRepo();
-          const linkRepo = new CompanyIdentityLinkRepo();
-          const resolver = new CompanyResolver({
-            canonicalCompanyRepo: canonRepo,
-            canonicalCompanyAliasRepo: aliasRepo,
-            activeResolverVersion: opts.resolverVersion,
-          });
-          const all = await obsRepo.listAll();
-          let count = 0;
-          for (const obs of all) {
-            try {
-              const id = await resolver.resolve(obs);
-              await linkRepo.upsert(obs.observation_id, opts.resolverVersion, id);
-              count++;
-            } catch (e) {
-              console.error(`skipping observation ${obs.observation_id}: ${(e as Error).message}`);
-            }
-          }
-          console.log(`resolved ${count} company observation(s) at v${opts.resolverVersion}`);
-        }
+        const kind = opts.kind as "person" | "company";
+        const { count } = await runWorkflowCli<ResolveObservationsTaskOutput>([
+          new ResolveObservationsTask({
+            defaults: { kind, resolverVersion: opts.resolverVersion },
+          }),
+        ]);
+        console.log(`resolved ${count} ${kind} observation(s) at v${opts.resolverVersion}`);
       });
     });
 }

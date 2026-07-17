@@ -1,55 +1,17 @@
 import type { Command } from "commander";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
 import { createInterface } from "readline";
-import { globalServiceRegistry, Sqlite } from "workglow";
-import { DefaultDI } from "../../config/DefaultDI";
-import { EnvToDI } from "../../config/EnvToDI";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { SEC_DRY_RUN } from "../../config/tokens";
+import { globalServiceRegistry } from "workglow";
+import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../../config/tokens";
+import { InitApplyTask, buildEnvConfig, type InitConfig } from "../../task/init/InitApplyTask";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
-export interface InitConfig {
-  readonly dbType: "sqlite" | "postgres";
-  readonly dbFolder: string;
-  readonly dbName: string;
-  readonly rawDataFolder: string;
-  readonly pgUrl?: string;
-  readonly pgHost?: string;
-  readonly pgPort?: string;
-  readonly pgUser?: string;
-  readonly pgPassword?: string;
-  readonly pgDatabase?: string;
-}
-
-function escapeEnvValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
-}
-
-export function buildEnvConfig(config: InitConfig): string {
-  const lines: string[] = [
-    `SEC_DB_TYPE="${escapeEnvValue(config.dbType)}"`,
-    `SEC_DB_FOLDER="${escapeEnvValue(config.dbFolder)}"`,
-    `SEC_DB_NAME="${escapeEnvValue(config.dbName)}"`,
-    `SEC_RAW_DATA_FOLDER="${escapeEnvValue(config.rawDataFolder)}"`,
-  ];
-
-  if (config.dbType === "postgres") {
-    if (config.pgUrl) {
-      lines.push(`SEC_PG_URL="${escapeEnvValue(config.pgUrl)}"`);
-    } else {
-      if (config.pgHost) lines.push(`SEC_PG_HOST="${escapeEnvValue(config.pgHost)}"`);
-      if (config.pgPort) lines.push(`SEC_PG_PORT="${escapeEnvValue(config.pgPort)}"`);
-      if (config.pgUser) lines.push(`SEC_PG_USER="${escapeEnvValue(config.pgUser)}"`);
-      if (config.pgPassword) lines.push(`SEC_PG_PASSWORD="${escapeEnvValue(config.pgPassword)}"`);
-      if (config.pgDatabase) lines.push(`SEC_PG_DATABASE="${escapeEnvValue(config.pgDatabase)}"`);
-    }
-  }
-
-  return lines.join("\n") + "\n";
-}
+export { buildEnvConfig };
+export type { InitConfig };
 
 function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -64,8 +26,10 @@ export function addInitCommand(parent: Command): void {
     .command("init")
     .description("Interactive first-run setup wizard")
     .action(async () => {
-      const dryRun = parseGlobalOptions(parent).dryRun;
+      const globalOpts = parseGlobalOptions(parent);
+      const dryRun = globalOpts.dryRun;
       globalServiceRegistry.registerInstance(SEC_DRY_RUN, dryRun);
+      globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
       await runCommand(async () => {
         const envPath = resolve(process.cwd(), ".env.local");
@@ -118,50 +82,16 @@ export function addInitCommand(parent: Command): void {
             ...pgFields,
           };
 
-          const envContent = buildEnvConfig(config);
-
           if (dryRun) {
             console.log(`Would write ${envPath}:`);
-            console.log(envContent);
+            console.log(buildEnvConfig(config));
             console.log(`Would create directory: ${dbFolder}`);
             console.log(`Would create directory: ${rawDataFolder}`);
             console.log("Would create database tables.");
             return;
           }
 
-          writeFileSync(envPath, envContent, "utf-8");
-          console.log(`Wrote ${envPath}`);
-
-          mkdirSync(dbFolder, { recursive: true });
-          console.log(`Created directory: ${dbFolder}`);
-
-          mkdirSync(rawDataFolder, { recursive: true });
-          console.log(`Created directory: ${rawDataFolder}`);
-
-          // Re-read env so DI picks up new values. Push every var the
-          // wizard collected, including the Postgres set — assertSecCliEnvConfigured
-          // now fails fast for a Postgres dbType with missing PG env, so
-          // the wizard would crash immediately after writing .env.local
-          // if we left these blank.
-          process.env.SEC_DB_TYPE = config.dbType;
-          process.env.SEC_DB_FOLDER = config.dbFolder;
-          process.env.SEC_DB_NAME = config.dbName;
-          process.env.SEC_RAW_DATA_FOLDER = config.rawDataFolder;
-          if (config.pgUrl !== undefined) process.env.SEC_PG_URL = config.pgUrl;
-          if (config.pgHost !== undefined) process.env.SEC_PG_HOST = config.pgHost;
-          if (config.pgPort !== undefined) process.env.SEC_PG_PORT = config.pgPort;
-          if (config.pgUser !== undefined) process.env.SEC_PG_USER = config.pgUser;
-          if (config.pgPassword !== undefined) process.env.SEC_PG_PASSWORD = config.pgPassword;
-          if (config.pgDatabase !== undefined) process.env.SEC_PG_DATABASE = config.pgDatabase;
-
-          EnvToDI();
-          if (config.dbType === "sqlite" && typeof Sqlite.init === "function") {
-            await Sqlite.init();
-          }
-          DefaultDI();
-
-          await setupAllDatabases();
-          console.log("Database tables created.");
+          await runWorkflowCli([new InitApplyTask({ defaults: { ...config, envPath } })]);
 
           console.log("\nSetup complete! Next steps:");
           console.log("  sec db status                    — verify database connection");

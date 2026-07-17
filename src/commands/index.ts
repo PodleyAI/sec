@@ -18,14 +18,17 @@ import { addVersionCommands } from "../cli/groups/version";
 import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
 import { addExtractorCommands } from "../cli/groups/extractor";
+import { addEvalCommands } from "../cli/groups/eval";
 import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
+import { registerEditorialCommands } from "./editorial";
+import { registerAccreditedPortalCommands } from "./accreditedPortal";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { registerSecModels } from "../config/registerModels";
 import { registerSecProviders } from "../config/registerProviders";
-import { SEC_DRY_RUN } from "../config/tokens";
+import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../fetch/SecJobQueue";
 
 export const AddCommands = (program: Command): void => {
@@ -46,6 +49,7 @@ export const AddCommands = (program: Command): void => {
 
     const globalOpts = parseGlobalOptions(program);
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
     EnvToDI();
     DefaultDI();
@@ -76,5 +80,8 @@ export const AddCommands = (program: Command): void => {
   registerSponsorFamilyCommands(program);
   registerUnderwriterFamilyCommands(program);
   registerSpacCommands(program);
+  registerEditorialCommands(program);
+  registerAccreditedPortalCommands(program);
   addExtractorCommands(program);
+  addEvalCommands(program);
 };

@@ -36,6 +36,13 @@ export class UpdateAllCompanyFactsTask extends Task<
   static readonly category = "SEC";
   static readonly cacheable = false;
 
+  public static inputSchema() {
+    return Type.Object({
+      force: Type.Optional(Type.Boolean()),
+      retryFailed: Type.Optional(Type.Boolean()),
+    });
+  }
+
   public static outputSchema() {
     return Type.Object({
       success: Type.Boolean(),

@@ -5,230 +5,83 @@
  */
 
 import type { Command } from "commander";
-import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
-import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
-import { CanonicalPersonRepo } from "../../storage/canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../../storage/canonical/CanonicalCompanyRepo";
+import {
+  CanonicalAliasAddTask,
+  type CanonicalAliasAddTaskOutput,
+  type CanonicalEntityKind,
+} from "../../task/canonical/CanonicalAliasAddTask";
+import {
+  CanonicalAliasListTask,
+  type CanonicalAliasListTaskOutput,
+} from "../../task/canonical/CanonicalAliasListTask";
+import {
+  CanonicalAliasRemoveTask,
+  type CanonicalAliasRemoveTaskOutput,
+} from "../../task/canonical/CanonicalAliasRemoveTask";
+import { runWorkflowCli } from "../runWorkflow";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Resolution lives with the canonical tier tasks; re-exported here for the
+// unit tests that exercise the resolvers directly.
+export {
+  resolveCanonicalCompanyRef,
+  resolveCanonicalPersonRef,
+} from "../../task/canonical/canonicalTier";
 
-/**
- * Resolve a CLI-supplied canonical reference (UUID or display name) to a
- * canonical UUID. Bare strings are matched case-insensitively against the
- * canonical's display name (`display_first display_last` composite or
- * `display_last` alone for persons; `display_name` for companies). The CLI
- * docs invite operators to pass names, so we must not let raw strings flow
- * straight into UUID-typed columns.
- *
- * Throws when the input does not look like a UUID and no canonical row
- * matches (or more than one does).
- */
-/** @internal exported for unit tests */
-export async function resolveCanonicalPersonRef(
-  input: string,
-  repo: CanonicalPersonRepo
-): Promise<string> {
-  const trimmed = input.trim();
-  if (UUID_RE.test(trimmed)) return trimmed;
-  const all = await repo.listAll();
-  const lower = trimmed.toLowerCase();
-  const matches = all.filter((r) => {
-    const composite = [r.display_first, r.display_last]
-      .filter((s): s is string => Boolean(s))
-      .join(" ")
-      .toLowerCase();
-    const lastOnly = (r.display_last ?? "").toLowerCase();
-    return composite === lower || lastOnly === lower;
-  });
-  if (matches.length === 0) {
-    throw new Error(`no canonical person matches '${trimmed}'`);
-  }
-  if (matches.length > 1) {
-    throw new Error(
-      `multiple canonical persons match '${trimmed}': ${matches
-        .map((m) => m.canonical_person_id)
-        .join(", ")}`
-    );
-  }
-  return matches[0].canonical_person_id;
+/** Print an expected user-error the way this command group always has. */
+function printError(message: string): void {
+  console.error(`error: ${message}`);
+  process.exitCode = 1;
 }
 
-/** @internal exported for unit tests */
-export async function resolveCanonicalCompanyRef(
-  input: string,
-  repo: CanonicalCompanyRepo
-): Promise<string> {
-  const trimmed = input.trim();
-  if (UUID_RE.test(trimmed)) return trimmed;
-  const all = await repo.listAll();
-  const lower = trimmed.toLowerCase();
-  const matches = all.filter((r) => (r.display_name ?? "").toLowerCase() === lower);
-  if (matches.length === 0) {
-    throw new Error(`no canonical company matches '${trimmed}'`);
-  }
-  if (matches.length > 1) {
-    throw new Error(
-      `multiple canonical companies match '${trimmed}': ${matches
-        .map((m) => m.canonical_company_id)
-        .join(", ")}`
-    );
-  }
-  return matches[0].canonical_company_id;
+/** Registers `alias`, `alias-remove`, and `alias-list` on a person/company subgroup. */
+function addAliasCommands(group: Command, kind: CanonicalEntityKind): void {
+  group
+    .command("alias <from> <into>")
+    .option("--reason <text>", "free-text annotation")
+    .action(async (from: string, into: string, opts: { reason?: string }) => {
+      // Expected failures (unresolvable name, self-alias) come back as the
+      // task's `error` output port rather than a throw, so this renders
+      // identically on a TTY and when piped.
+      const out = await runWorkflowCli<CanonicalAliasAddTaskOutput>([
+        new CanonicalAliasAddTask({
+          defaults: { kind, from, into, reason: opts.reason },
+        }),
+      ]);
+      if (out.error !== null) {
+        printError(out.error);
+        return;
+      }
+      console.log(`aliased ${out.aliasId} → ${out.targetId}`);
+    });
+
+  group.command("alias-remove <from>").action(async (from: string) => {
+    const out = await runWorkflowCli<CanonicalAliasRemoveTaskOutput>([
+      new CanonicalAliasRemoveTask({ defaults: { kind, from } }),
+    ]);
+    if (out.error !== null) {
+      printError(out.error);
+      return;
+    }
+    console.log(`removed alias for ${out.removedId}`);
+  });
+
+  group
+    .command("alias-list")
+    .option("--orphans", "show only aliases referencing missing canonicals", false)
+    .action(async (opts: { orphans: boolean }) => {
+      const { aliases } = await runWorkflowCli<CanonicalAliasListTaskOutput>([
+        new CanonicalAliasListTask({ defaults: { kind, orphans: opts.orphans } }),
+      ]);
+      for (const a of aliases) {
+        console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
+      }
+    });
 }
 
 export function addCanonicalCommands(program: Command): void {
   const cmd = program.command("canonical");
   cmd.description("Manage canonical-identity aliases.");
 
-  // --- person subgroup ---
-  const person = cmd.command("person");
-
-  person
-    .command("alias <from> <into>")
-    .option("--reason <text>", "free-text annotation")
-    .action(async (from: string, into: string, opts: { reason?: string }) => {
-      const canonRepo = new CanonicalPersonRepo();
-      let fromId: string;
-      let intoId: string;
-      try {
-        fromId = await resolveCanonicalPersonRef(from, canonRepo);
-        intoId = await resolveCanonicalPersonRef(into, canonRepo);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-      if (fromId === intoId) {
-        console.error("error: cannot alias an id to itself");
-        process.exitCode = 1;
-        return;
-      }
-      const aliasRepo = new CanonicalPersonAliasRepo();
-      try {
-        const row = await aliasRepo.add(
-          fromId,
-          intoId,
-          opts.reason ?? null,
-          process.env.USER ?? null
-        );
-        console.log(`aliased ${row.alias_canonical_id} → ${row.target_canonical_id}`);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-    });
-
-  person
-    .command("alias-remove <from>")
-    .action(async (from: string) => {
-      const canonRepo = new CanonicalPersonRepo();
-      let fromId: string;
-      try {
-        fromId = await resolveCanonicalPersonRef(from, canonRepo);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-      const aliasRepo = new CanonicalPersonAliasRepo();
-      await aliasRepo.remove(fromId);
-      console.log(`removed alias for ${fromId}`);
-    });
-
-  person
-    .command("alias-list")
-    .option("--orphans", "show only aliases referencing missing canonicals", false)
-    .action(async (opts: { orphans: boolean }) => {
-      const aliasRepo = new CanonicalPersonAliasRepo();
-      if (opts.orphans) {
-        const canonRepo = new CanonicalPersonRepo();
-        const allIds = new Set((await canonRepo.listAll()).map((r) => r.canonical_person_id));
-        const list = await aliasRepo.listOrphans(allIds);
-        for (const a of list) {
-          console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
-        }
-      } else {
-        const list = await aliasRepo.list();
-        for (const a of list) {
-          console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
-        }
-      }
-    });
-
-  // --- company subgroup (mirror of person) ---
-  const company = cmd.command("company");
-
-  company
-    .command("alias <from> <into>")
-    .option("--reason <text>", "free-text annotation")
-    .action(async (from: string, into: string, opts: { reason?: string }) => {
-      const canonRepo = new CanonicalCompanyRepo();
-      let fromId: string;
-      let intoId: string;
-      try {
-        fromId = await resolveCanonicalCompanyRef(from, canonRepo);
-        intoId = await resolveCanonicalCompanyRef(into, canonRepo);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-      if (fromId === intoId) {
-        console.error("error: cannot alias an id to itself");
-        process.exitCode = 1;
-        return;
-      }
-      const aliasRepo = new CanonicalCompanyAliasRepo();
-      try {
-        const row = await aliasRepo.add(
-          fromId,
-          intoId,
-          opts.reason ?? null,
-          process.env.USER ?? null
-        );
-        console.log(`aliased ${row.alias_canonical_id} → ${row.target_canonical_id}`);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-    });
-
-  company
-    .command("alias-remove <from>")
-    .action(async (from: string) => {
-      const canonRepo = new CanonicalCompanyRepo();
-      let fromId: string;
-      try {
-        fromId = await resolveCanonicalCompanyRef(from, canonRepo);
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-      const aliasRepo = new CanonicalCompanyAliasRepo();
-      await aliasRepo.remove(fromId);
-      console.log(`removed alias for ${fromId}`);
-    });
-
-  company
-    .command("alias-list")
-    .option("--orphans", "show only aliases referencing missing canonicals", false)
-    .action(async (opts: { orphans: boolean }) => {
-      const aliasRepo = new CanonicalCompanyAliasRepo();
-      if (opts.orphans) {
-        const canonRepo = new CanonicalCompanyRepo();
-        const allIds = new Set((await canonRepo.listAll()).map((r) => r.canonical_company_id));
-        const list = await aliasRepo.listOrphans(allIds);
-        for (const a of list) {
-          console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
-        }
-      } else {
-        const list = await aliasRepo.list();
-        for (const a of list) {
-          console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
-        }
-      }
-    });
+  addAliasCommands(cmd.command("person"), "person");
+  addAliasCommands(cmd.command("company"), "company");
 }

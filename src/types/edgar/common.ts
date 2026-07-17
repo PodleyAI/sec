@@ -10,12 +10,13 @@ export type NEW_FILE_NUM_TYPE = "NEW";
 export type TRUE_FALSE_TYPE = boolean;
 
 // RELATED_FORM_TYPE ...
-export enum RELATED_FORM_TYPE {
-  "10-D" = "10-D",
-  "10-D/A" = "10-D/A",
-  "ABS-EE" = "ABS-EE",
-  "ABS-EE/A" = "ABS-EE/A",
-}
+export const RELATED_FORM_TYPE = {
+  "10-D": "10-D",
+  "10-D/A": "10-D/A",
+  "ABS-EE": "ABS-EE",
+  "ABS-EE/A": "ABS-EE/A",
+} as const;
+export type RELATED_FORM_TYPE = (typeof RELATED_FORM_TYPE)[keyof typeof RELATED_FORM_TYPE];
 
 // ACCELERATED_STATUS_TYPE ...
 export type ACCELERATED_STATUS_TYPE =
@@ -1502,10 +1503,11 @@ export type DECIMAL_TYPE7_5_FIXED = number;
 export type DECIMAL_TYPE7_2_FIXED = number;
 
 // YES_NO_TYPE ...
-export enum YES_NO_TYPE {
-  Y = "Y",
-  N = "N",
-}
+export const YES_NO_TYPE = {
+  Y: "Y",
+  N: "N",
+} as const;
+export type YES_NO_TYPE = (typeof YES_NO_TYPE)[keyof typeof YES_NO_TYPE];
 
 // YEAR_TYPE ...
 export type YEAR_TYPE = string;

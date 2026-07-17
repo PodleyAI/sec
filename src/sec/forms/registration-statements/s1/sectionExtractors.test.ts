@@ -14,8 +14,65 @@ import {
   extractUnderwriters,
   extractUseOfProceeds,
   extractMergerDeal,
+  requireNonEmptyGrammarArrays,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
+
+describe("requireNonEmptyGrammarArrays (GBNF [] shortcut guard)", () => {
+  // Mirrors ManagementOutputSchema (top-level people[]; nested titles[] of strings)
+  // and RelatedPartyOutputSchema (nested transactions[] of objects).
+  const managementLike = {
+    type: "object",
+    properties: {
+      people: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            full_name: { type: "string" },
+            titles: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      nonce_seen: { type: "string" },
+    },
+  };
+  const relatedPartyLike = {
+    type: "object",
+    properties: {
+      parties: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            transactions: { type: "array", items: { type: "object", properties: {} } },
+          },
+        },
+      },
+    },
+  };
+
+  it("forces minItems:1 on top-level arrays and nested string-lists (titles)", () => {
+    const out = requireNonEmptyGrammarArrays(managementLike) as any;
+    expect(out.properties.people.minItems).toBe(1);
+    expect(out.properties.people.items.properties.titles.minItems).toBe(1);
+    // scalars untouched
+    expect(out.properties.nonce_seen.minItems).toBeUndefined();
+  });
+
+  it("does NOT force nested object-lists (transactions may legitimately be empty)", () => {
+    const out = requireNonEmptyGrammarArrays(relatedPartyLike) as any;
+    expect(out.properties.parties.minItems).toBe(1);
+    expect(out.properties.parties.items.properties.transactions.minItems).toBeUndefined();
+  });
+
+  it("does not mutate the input schema", () => {
+    const input = JSON.parse(JSON.stringify(managementLike));
+    requireNonEmptyGrammarArrays(input);
+    expect(input).toEqual(managementLike);
+  });
+});
 
 let cleanup: (() => void) | undefined;
 afterEach(() => {
@@ -30,7 +87,7 @@ describe("section extractors", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.9,
             source_span: "Jane Roe, Director",
@@ -235,6 +292,51 @@ it("extractUseOfProceeds returns parsed line items", async () => {
     const rows = await extractUseOfProceeds("USE OF PROCEEDS ...", fakeS1Model());
     expect(rows).toHaveLength(2);
     expect(rows[0].amount).toBe(20000000);
+  } finally {
+    unregister();
+  }
+});
+
+it("forwards generation phase progress to a threaded execute context", async () => {
+  // Regression guard: StructuredGenerationTask.execute() keeps only the finish
+  // event and drops the phase events, so runStructured drives executeStream and
+  // forwards phases itself. Without that, a threaded context sees no progress and
+  // the CLI task row stays silent through every section.
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      people: [
+        {
+          full_name: "Jane Doe",
+          titles: ["Chief Executive Officer"],
+          relationship: null,
+          age: null,
+          bio: null,
+          confidence: 0.9,
+          source_span: "Jane Doe",
+        },
+      ],
+    },
+  ]);
+  const messages: Array<string | undefined> = [];
+  const context = {
+    signal: new AbortController().signal,
+    updateProgress: async (_p: number | undefined, m?: string) => {
+      messages.push(m);
+    },
+    own: <T>(v: T): T => v,
+    registry: { has: () => false, get: () => { throw new Error("x"); } },
+    resourceScope: { register: () => {}, dispose: async () => {} },
+  } as any;
+  try {
+    const rows = await extractManagement(
+      "MANAGEMENT\n\nJane Doe has served as our Chief Executive Officer.",
+      fakeS1Model(),
+      context
+    );
+    expect(rows).toHaveLength(1);
+    // The generation task's phase labels reached the threaded context's row.
+    expect(messages).toContain("Preparing");
+    expect(messages).toContain("Generating");
   } finally {
     unregister();
   }

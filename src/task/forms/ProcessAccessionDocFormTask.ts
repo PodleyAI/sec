@@ -28,6 +28,7 @@ import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.st
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
+import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
@@ -200,19 +201,25 @@ export class ProcessAccessionDocFormTask extends Task<
       fileName = fullSubmissionFileName(accessionNumber);
     }
 
-    // Known-SPAC 8-Ks carrying a redemption-trigger item are fetched as the full
-    // submission .txt so the redemption pass can read the EX-99 vote-results
-    // exhibit, not just the primary document. Other 8-Ks keep their primary-doc
-    // fetch.
-    let redemptionFullSubmission = false;
+    // Known-SPAC 8-Ks carrying a redemption- or LOI-trigger item are fetched as
+    // the full submission .txt so the narrative passes can read the EX-99
+    // exhibits (vote results, LOI press releases), not just the primary
+    // document. Other 8-Ks keep their primary-doc fetch.
+    //
+    // The trigger check runs on the submissions-API `items` metadata alone. That
+    // is complete for 8-Ks: real 8-K bodies are HTML/text, never `edgarSubmission`
+    // XML (see Form_8_K.parse), so an item code can never appear only in a parsed
+    // `formData.items` and be missing from `items` here. The metadata item list
+    // is authoritative.
+    let spacNarrativeFullSubmission = false;
     if (
       (form === "8-K" || form === "8-K/A") &&
-      hasRedemptionTriggerItem(items) &&
+      (hasRedemptionTriggerItem(items) || hasLoiTriggerItem(items)) &&
       cik !== undefined &&
       (await new SpacRepo().getSpac(cik)) !== undefined
     ) {
       fileName = fullSubmissionFileName(accessionNumber);
-      redemptionFullSubmission = true;
+      spacNarrativeFullSubmission = true;
     }
 
     const extractorId = formToExtractorId(form);
@@ -320,6 +327,10 @@ export class ProcessAccessionDocFormTask extends Task<
         accession_number: accessionNumber,
         filing_date: filing_date ?? "",
         primary_doc: fileName,
+        // Threaded to the AI form processors so a local model's download renders
+        // its progress in this task's CLI UI (via `prefetchModel`). Non-AI
+        // processors ignore it (spread bypasses excess-property checks).
+        context,
       };
 
       switch (form) {
@@ -400,7 +411,7 @@ export class ProcessAccessionDocFormTask extends Task<
             form8K: parsed,
             extractor_id: extractorId,
             extractor_version: extractorVersion,
-            fullSubmissionText: redemptionFullSubmission ? text : undefined,
+            fullSubmissionText: spacNarrativeFullSubmission ? text : undefined,
           });
           break;
         case "DEFM14A":

@@ -15,6 +15,7 @@ import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
+import { EntityRepo } from "../entity/EntityRepo";
 import { AsyncMutex } from "../../util/AsyncMutex";
 
 /**
@@ -101,6 +102,20 @@ interface RecordMergerProxyArgs {
   readonly emitProxyEvent: boolean;
 }
 
+/**
+ * Editorial (hand-curated) scalar fields. These have no reliable SEC-filing
+ * source; they are set via `sec editorial` and must survive filing replays.
+ * Only fields present (non-undefined) are written; an omitted field is left
+ * untouched. Explicit null is not a clear — pass a new value to change one.
+ */
+export interface RecordEditorialArgs {
+  readonly cik: number;
+  readonly url_spac?: string;
+  readonly url_sponsor?: string;
+  /** JSON-encoded key/value map (embarc detail-page freeform details). */
+  readonly details?: string;
+}
+
 /** Fields compared for ChangeLog/history; everything except the volatile timestamp. */
 const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_cik",
@@ -132,6 +147,7 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "registration_date",
   "ipo_date",
   "unit_split_date",
+  "loi_date",
   "definitive_agreement_date",
   "proxy_date",
   "vote_date",
@@ -148,9 +164,11 @@ export class SpacReportWriter {
   private readonly repo: SpacRepo;
   private readonly mergerExtractions = new SpacMergerExtractionRepo();
   private readonly redemptionExtractions = new SpacRedemptionExtractionRepo();
+  private readonly entityRepo: EntityRepo;
 
-  constructor(repo: SpacRepo = new SpacRepo()) {
+  constructor(repo: SpacRepo = new SpacRepo(), entityRepo: EntityRepo = new EntityRepo()) {
     this.repo = repo;
+    this.entityRepo = entityRepo;
   }
 
   async recordRegistration(args: RecordRegistrationArgs): Promise<void> {
@@ -246,6 +264,34 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record a non-binding letter of intent extracted from a known-SPAC 8-K
+   * narrative: append an `loi` event (idempotent by PK), recompute deals (the
+   * event walk opens/dates the attempt), then rebuild the row. The extraction
+   * itself is persisted by the caller (`processLoi8K`) before this runs.
+   */
+  async recordLoi(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+    /** LOI date stated in the narrative, else the 8-K report/filing date. */
+    readonly event_date: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "loi",
+        event_date: args.event_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
    * Record a realized redemption: recompute deals from the event stream +
    * stored redemption extractions (correlation derives redemption_amount /
    * redemption_shares onto the matching deal), then rebuild the row. No event
@@ -265,6 +311,116 @@ export class SpacReportWriter {
     await withCikLock(args.cik, async () => {
       await this.recomputeAndSaveDeals(args.cik);
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
+   * De-SPAC linkage: once a SPAC has completed a business combination, link the
+   * (now operating) shell to its post-merger identity from the CIK's own
+   * post-close entity metadata. In the common case the shell survives legally
+   * and keeps its CIK, renaming to the combined company — so `current_cik` stays
+   * null (it differs only for the deferred newco/S-4 structures) and the
+   * surviving name / SIC / tickers come from the entity + entity_tickers rows.
+   *
+   * These are **close-time snapshots**, written once: each field is set only
+   * when its slot is still empty (or, for `surviving_name`, still holds the
+   * deal-target fallback the rollup derives) AND the entity value diverges from
+   * the SPAC-era value. So a later replay, `backfill-despac` refresh, or a
+   * post-close issuer rebrand cannot mutate an already-populated snapshot, and a
+   * ticker set is never populated with SPAC-era symbols. No-ops when the entity
+   * metadata has not yet caught up to the rename (post_merger_* stay null until
+   * it does). Only enriches a row whose derived status is already `completed`
+   * (the 2.01 milestone landed first).
+   */
+  async recordDeSpacLinkage(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      const existing = await this.repo.getSpac(args.cik);
+      if (!existing || existing.status !== "completed") return;
+      const [entity, tickers, deals] = await Promise.all([
+        this.entityRepo.getEntity(args.cik),
+        this.entityRepo.getEntityTickers(args.cik),
+        this.repo.getDeals(args.cik),
+      ]);
+      const patch: {
+        surviving_name?: string | null;
+        post_merger_sic?: number | null;
+        post_merger_tickers?: string | null;
+      } = {};
+      // Renamed surviving entity: fill from the current entity name once it
+      // diverges from the blank-check shell name. Write-once — upgrade the
+      // deal-target fallback the rollup derived (or fill an empty slot) exactly
+      // once, but never overwrite an already entity-sourced snapshot on a later
+      // replay/rebrand.
+      // Upgradeable while the slot is empty or still holds the rollup's derived
+      // deal-target fallback. Keyed off the recorded source rather than comparing
+      // against the CURRENT fallback: a superseding proxy moves `target_name`, and
+      // a value-equality check would then mistake the derived name for an
+      // entity-sourced snapshot and refuse the upgrade forever.
+      const survivingUpgradeable =
+        existing.surviving_name == null || existing.surviving_name_source !== "entity";
+      if (entity?.name != null && entity.name !== existing.spac_name && survivingUpgradeable) {
+        patch.surviving_name = entity.name;
+      }
+      // Operating-company SIC once it diverges from the SPAC-era ~6770. Write-once.
+      if (
+        existing.post_merger_sic == null &&
+        entity?.sic != null &&
+        entity.sic !== existing.spac_sic
+      ) {
+        patch.post_merger_sic = entity.sic;
+      }
+      // New listing symbol(s) — JSON string[] mirroring the spac_tickers shape.
+      // Write-once, deduped + sorted for determinism, and only when the symbol
+      // set diverges from the SPAC-era tickers (never mirror them here).
+      if (existing.post_merger_tickers == null) {
+        const symbols = [
+          ...new Set(tickers.map((t) => t.ticker).filter((s): s is string => !!s)),
+        ].sort();
+        const spacSymbols = parseTickerArray(existing.spac_tickers);
+        if (
+          symbols.length > 0 &&
+          JSON.stringify(symbols) !== JSON.stringify([...spacSymbols].sort())
+        ) {
+          patch.post_merger_tickers = JSON.stringify(symbols);
+        }
+      }
+      if (Object.keys(patch).length === 0) return;
+      await this.rebuild(
+        args.cik,
+        args.filing_date,
+        `${args.form}:${args.accession_number}`,
+        patch
+      );
+    });
+  }
+
+  /**
+   * Write editorial fields onto the spac row without disturbing the filing
+   * pipeline's temporal machinery. The rebuild is driven at the row's own
+   * `as_of` anchor (or "" when the row is new), so the patch applies with
+   * overwrite semantics — a re-import can correct an earlier editorial value —
+   * while the anchor itself never advances: subsequent filing-driven writes
+   * see the same staleness ordering they would have without the editorial
+   * write. Survival across replays is structural: no automated `record*`
+   * method carries `url_sponsor` / `details`, and the rollup merge never
+   * clobbers a non-null value with an absent/null patch field. Creates the
+   * row (status `registered`, everything else null) when none exists;
+   * callers that must not mint known-SPAC rows check existence first.
+   */
+  async recordEditorial(args: RecordEditorialArgs): Promise<void> {
+    const patch: { url_spac?: string; url_sponsor?: string; details?: string } = {};
+    if (args.url_spac !== undefined) patch.url_spac = args.url_spac;
+    if (args.url_sponsor !== undefined) patch.url_sponsor = args.url_sponsor;
+    if (args.details !== undefined) patch.details = args.details;
+    if (Object.keys(patch).length === 0) return;
+    await withCikLock(args.cik, async () => {
+      const existing = await this.repo.getSpac(args.cik);
+      await this.rebuild(args.cik, existing?.as_of ?? "", "editorial", patch);
     });
   }
 
@@ -431,6 +587,7 @@ export class SpacReportWriter {
       registration_date: row.registration_date,
       ipo_date: row.ipo_date,
       unit_split_date: row.unit_split_date,
+      loi_date: row.loi_date,
       definitive_agreement_date: row.definitive_agreement_date,
       proxy_date: row.proxy_date,
       vote_date: row.vote_date,
@@ -445,4 +602,15 @@ export class SpacReportWriter {
 function serialize(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** Parse a JSON-encoded string[] ticker column, tolerating null/garbage as []. */
+function parseTickerArray(raw: string | null): string[] {
+  if (raw == null || raw === "") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
 }

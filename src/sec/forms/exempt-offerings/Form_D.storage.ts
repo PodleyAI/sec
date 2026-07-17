@@ -42,12 +42,26 @@ import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalC
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import type { AttributionCandidate } from "../../../resolver/PortalAttributor";
+import {
+  DEFAULT_PORTAL_ATTRIBUTOR_VERSION,
+  PortalAttributor,
+  pushAttributionCandidates,
+} from "../../../resolver/PortalAttributor";
 
 interface FormDStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "D";
   readonly extractor_version: string;
   readonly observer: EntityObserver;
+  /**
+   * Portal-attribution candidates harvested while the filing is processed,
+   * via the shared {@link pushAttributionCandidates} builder so ingest and
+   * the observation backfill harvest identically. Signatures are deliberately
+   * not collected — signers are individuals and would only add noise (the
+   * shared builder also rejects the "form-d:signature" relation).
+   */
+  readonly signals: AttributionCandidate[];
 }
 
 /**
@@ -179,6 +193,11 @@ async function processSalesCompensationRecipient(
       )
     : null;
 
+  pushAttributionCandidates(ctx.signals, "form-d:sales-compensation", {
+    name: recipientName,
+    address_hash_id: addr?.address_hash_id ?? null,
+  });
+
   if (hasCompanyEnding(recipientName)) {
     await ctx.observer.observeCompany({
       accession_number: ctx.accession_number,
@@ -199,10 +218,13 @@ async function processSalesCompensationRecipient(
       observation_index: index,
       source_filing_issuer_cik: cik,
       last_name: recipientName,
-      title: "Sales Compensation Recipient",
+      titles: ["Sales Compensation Recipient"],
       relationship: "form-d:sales-compensation",
       address_id: addr?.address_hash_id ?? null,
-      source_context: JSON.stringify({ relation: "form-d:sales-compensation", crd_number: cleanCRD }),
+      source_context: JSON.stringify({
+        relation: "form-d:sales-compensation",
+        crd_number: cleanCRD,
+      }),
     });
   }
 }
@@ -255,6 +277,8 @@ async function processIssuer(
     );
   }
 
+  const relation = isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer";
+
   await ctx.observer.observeCompany({
     accession_number: ctx.accession_number,
     extractor_id: ctx.extractor_id,
@@ -264,11 +288,14 @@ async function processIssuer(
     name: companyName,
     address_id: addr?.address_hash_id ?? null,
     international_number: phone?.international_number ?? null,
-    source_context: JSON.stringify({
-      relation: isPrimaryIssuer ? "form-d:primary-issuer" : "form-d:additional-issuer",
-    }),
+    source_context: JSON.stringify({ relation }),
   });
 
+  pushAttributionCandidates(ctx.signals, relation, {
+    name: companyName,
+    address_hash_id: addr?.address_hash_id ?? null,
+    international_number: phone?.international_number ?? null,
+  });
 }
 
 function isCompanyInPersonField(person: RelatedPerson): boolean {
@@ -323,6 +350,11 @@ async function processRelatedPerson(
           titles: person.relatedPersonRelationshipList.relationship,
         }),
       });
+
+      pushAttributionCandidates(ctx.signals, relation_type, {
+        name: companyName,
+        address_hash_id: addr?.address_hash_id ?? null,
+      });
     }
     return;
   }
@@ -356,6 +388,24 @@ async function processRelatedPerson(
       relation: relation_type,
       titles: person.relatedPersonRelationshipList.relationship,
     }),
+  });
+
+  // A related person's address is a portal fingerprint even when the person is
+  // a genuine individual (fund managers list the portal's back office). Their
+  // name is offered as a candidate too: portal entity names are routinely
+  // misfiled in the person fields, and the exact-match lookup makes a genuine
+  // human name matching a curated portal signal unlikely (though not
+  // impossible — curation of the signal table is the guard).
+  const relatedPersonName = [
+    person.relatedPersonName.firstName,
+    person.relatedPersonName.middleName,
+    person.relatedPersonName.lastName,
+  ]
+    .filter((name) => name && !isBadPersonField(name))
+    .join(" ");
+  pushAttributionCandidates(ctx.signals, relation_type, {
+    name: relatedPersonName || null,
+    address_hash_id: addr?.address_hash_id ?? null,
   });
 }
 
@@ -398,7 +448,7 @@ async function processSignature(
       observation_index: index,
       source_filing_issuer_cik: cik,
       last_name: signerName,
-      title: cleanTitles[0] ?? null,
+      titles: cleanTitles,
       relationship: "form-d:signature",
       source_context: JSON.stringify({ relation: "form-d:signature", titles: cleanTitles }),
     });
@@ -451,13 +501,15 @@ export async function processFormD({
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
 
-  const [personSlot, companySlot] = await Promise.all([
+  const [personSlot, companySlot, attributorSlot] = await Promise.all([
     getActiveSlot(versionRegistry, "resolver", "person"),
     getActiveSlot(versionRegistry, "resolver", "company"),
+    getActiveSlot(versionRegistry, "resolver", "portal-attributor"),
   ]);
 
   const activeResolverPersonVersion = personSlot?.semver ?? "1.0.0";
   const activeResolverCompanyVersion = companySlot?.semver ?? "1.0.0";
+  const activeAttributorVersion = attributorSlot?.semver ?? DEFAULT_PORTAL_ATTRIBUTOR_VERSION;
 
   const extractor_version = "1.0.0";
 
@@ -506,6 +558,7 @@ export async function processFormD({
     extractor_id: "D",
     extractor_version,
     observer,
+    signals: [],
   };
 
   // Issuers: indices 0–99
@@ -528,4 +581,18 @@ export async function processFormD({
   if (formD.offeringData?.signatureBlock) {
     await processSignatureBlock(cik, formD.offeringData.signatureBlock, ctx, 300);
   }
+
+  // Attribute the filing to known accredited-investor portals from the
+  // fingerprints harvested above. Attribution is derived data and must never
+  // abort the filing.
+  await safeCall(
+    () =>
+      new PortalAttributor({ attributorVersion: activeAttributorVersion }).attribute({
+        accession_number,
+        cik,
+        filing_date: filing_date || null,
+        candidates: ctx.signals,
+      }),
+    `Failed to attribute Form D ${accession_number} to accredited portals:`
+  );
 }

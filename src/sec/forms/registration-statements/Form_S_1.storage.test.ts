@@ -53,7 +53,7 @@ describe("processFormS1", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: "Director",
+            titles: ["Director"],
             relationship: null,
             confidence: 0.9,
             source_span: "Jane Roe — Director",
@@ -204,7 +204,7 @@ describe("processFormS1", () => {
         people: [
           {
             full_name: "Jane Roe",
-            title: null,
+            titles: [],
             relationship: null,
             confidence: 0.9,
             source_span: "Jane Roe",

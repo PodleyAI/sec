@@ -20,6 +20,7 @@ export const EXTRACTOR_IDS = [
   "8-K",
   "merger-proxy",
   "redemption",
+  "loi",
 ] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 

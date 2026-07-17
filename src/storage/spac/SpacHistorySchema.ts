@@ -44,6 +44,7 @@ export const SpacHistorySchema = Type.Object({
   registration_date: TypeNullable(Type.String({ format: "date" })),
   ipo_date: TypeNullable(Type.String({ format: "date" })),
   unit_split_date: TypeNullable(Type.String({ format: "date" })),
+  loi_date: TypeNullable(Type.String({ format: "date" })),
   definitive_agreement_date: TypeNullable(Type.String({ format: "date" })),
   proxy_date: TypeNullable(Type.String({ format: "date" })),
   vote_date: TypeNullable(Type.String({ format: "date" })),

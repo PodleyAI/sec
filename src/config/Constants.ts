@@ -22,3 +22,21 @@ export const SecJobQueueName = "sec_job_queue";
  */
 const DEFAULT_SEC_MODEL = "claude-sonnet-5";
 export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;
+
+/**
+ * A local HuggingFace Transformers (ONNX) model, registered alongside the cloud
+ * default so it is available for the extraction comparison harness (`sec eval`)
+ * without a cloud API key. Override the repo id via `SEC_HFT_MODEL`. Its `/`
+ * (HuggingFace `org/name` form) is what routes it to the HFT provider rather
+ * than Anthropic — see `secModelRecord`.
+ *
+ * This is only the fallback repo id for the HFT provider when `SEC_HFT_MODEL` is
+ * unset — it is NOT part of the default `sec eval` sweep (haiku vs sonnet) and is
+ * not a production-extraction candidate: small local models hard schema-fail on
+ * real S-1 sections and hallucinate entities memorized from pretraining. Rank any
+ * local candidate yourself against `sec eval s1 --reference golden` before relying
+ * on it. For a stronger but far slower local baseline set
+ * `SEC_HFT_MODEL=onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
+ */
+const DEFAULT_SEC_HFT_MODEL = "onnx-community/LFM2.5-350M-ONNX";
+export const SecHftModelDefault = process.env.SEC_HFT_MODEL?.trim() || DEFAULT_SEC_HFT_MODEL;

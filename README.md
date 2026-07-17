@@ -149,6 +149,10 @@ The SEC API provides **Company Facts**, delivering structured and normalized fin
 
 **Reg-A and Reg-CF Portals** facilitate investment in private companies by public investors through SEC-regulated platforms.
 
+### Accredited Investor Portals
+
+**Accredited-investor portals** (AngelList, Forge Global, EquityZen, ...) offer private-market deals to accredited investors only. They do not register with the SEC as portals, so the table is curated: bootstrap it with `sec accredited-portal import` (seeded from `src/data/accreditedPortalsSeed.ts`), then curate known portal fingerprints — entity names, phone numbers, and addresses — with `sec accredited-portal signal add`. Form D filings from the SPVs/funds these portals administer are matched against those fingerprints, at ingest time and via `sec accredited-portal attribute --all`; see `sec accredited-portal filings <portal-id>`.
+
 ## Reg-A and Reg-A+
 
 **Regulation A (Reg-A) and Regulation A+ (Reg-A+)** filings enable private companies to raise funds from public investors via SEC-registered portals.

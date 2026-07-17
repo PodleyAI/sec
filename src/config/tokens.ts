@@ -17,3 +17,4 @@ export const SEC_PG_USER = createServiceToken<string>("sec.pg.user");
 export const SEC_PG_PASSWORD = createServiceToken<string>("sec.pg.password");
 export const SEC_PG_DATABASE = createServiceToken<string>("sec.pg.database");
 export const SEC_DRY_RUN = createServiceToken<boolean>("sec.dry.run");
+export const SEC_JSON_OUTPUT = createServiceToken<boolean>("sec.json.output");

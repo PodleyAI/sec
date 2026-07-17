@@ -3,16 +3,18 @@
 import * as common from './common';
 
 // SUBMISSION_TYPE is Enumerated values and descriptions: 1-K: Annual Report Pursuant to Regulation A , 1-K/A: Amendment to Annual Report Pursuant to Regulation A
-export enum SUBMISSION_TYPE {
-  '1-K' = '1-K',
-  '1-K/A' = '1-K/A',
-}
+export const SUBMISSION_TYPE = {
+  '1-K': '1-K',
+  '1-K/A': '1-K/A',
+} as const;
+export type SUBMISSION_TYPE = (typeof SUBMISSION_TYPE)[keyof typeof SUBMISSION_TYPE];
 
 // FORM_INDICATION_TYPE ...
-export enum FORM_INDICATION_TYPE {
-  'Annual Report' = 'Annual Report',
-  'Special Financial Report for the fiscal year' = 'Special Financial Report for the fiscal year',
-}
+export const FORM_INDICATION_TYPE = {
+  'Annual Report': 'Annual Report',
+  'Special Financial Report for the fiscal year': 'Special Financial Report for the fiscal year',
+} as const;
+export type FORM_INDICATION_TYPE = (typeof FORM_INDICATION_TYPE)[keyof typeof FORM_INDICATION_TYPE];
 
 // TypeScriptComplexType (TypeScript) ISSUER_CREDENTIALS_TYPE is These elements are part of the ISSUER_CREDENTIALS_TYPE group
 export interface ISSUER_CREDENTIALS_TYPE {

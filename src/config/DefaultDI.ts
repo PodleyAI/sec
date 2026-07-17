@@ -105,6 +105,21 @@ import {
   PortalSchema,
 } from "../storage/portal/PortalSchema";
 import {
+  ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+  AccreditedPortalPrimaryKeyNames,
+  AccreditedPortalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSchema";
+import {
+  ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+  AccreditedPortalSignalPrimaryKeyNames,
+  AccreditedPortalSignalSchema,
+} from "../storage/accredited-portal/AccreditedPortalSignalSchema";
+import {
+  FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+  FormDPortalAttributionPrimaryKeyNames,
+  FormDPortalAttributionSchema,
+} from "../storage/accredited-portal/FormDPortalAttributionSchema";
+import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
   SECTION16_TRANSACTION_REPOSITORY_TOKEN,
@@ -210,6 +225,11 @@ import {
   SpacUnitTermsPrimaryKeyNames,
   SpacUnitTermsSchema,
 } from "../storage/offering/SpacUnitTermsSchema";
+import {
+  SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+  SpacPromoteTermsPrimaryKeyNames,
+  SpacPromoteTermsSchema,
+} from "../storage/offering/SpacPromoteTermsSchema";
 import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
@@ -356,6 +376,11 @@ import {
   SpacRedemptionExtractionPrimaryKeyNames,
   SpacRedemptionExtractionSchema,
 } from "../storage/spac/SpacRedemptionExtractionSchema";
+import {
+  SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+  SpacLoiExtractionPrimaryKeyNames,
+  SpacLoiExtractionSchema,
+} from "../storage/spac/SpacLoiExtractionSchema";
 import { createStorage } from "./createStorage";
 
 export const DefaultDI = () => {
@@ -568,6 +593,33 @@ export const DefaultDI = () => {
     createStorage("portals", PortalSchema, PortalPrimaryKeyNames, [["name"], ["brand"], ["live"]])
   );
 
+  // ------------------------------ Accredited Investor Portals --------------------------------
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_REPOSITORY_TOKEN,
+    createStorage("accredited_portal", AccreditedPortalSchema, AccreditedPortalPrimaryKeyNames, [
+      ["name"],
+      ["live"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN,
+    createStorage(
+      "accredited_portal_signal",
+      AccreditedPortalSignalSchema,
+      AccreditedPortalSignalPrimaryKeyNames,
+      [["portal_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN,
+    createStorage(
+      "form_d_portal_attribution",
+      FormDPortalAttributionSchema,
+      FormDPortalAttributionPrimaryKeyNames,
+      [["portal_id"], ["cik"]]
+    )
+  );
+
   // ------------------------------ Processing Tracking --------------------------------
   globalServiceRegistry.registerInstance(
     CIK_LAST_UPDATE_REPOSITORY_TOKEN,
@@ -692,6 +744,16 @@ export const DefaultDI = () => {
       "spac_redemption_extraction",
       SpacRedemptionExtractionSchema,
       SpacRedemptionExtractionPrimaryKeyNames,
+      [["cik"]]
+    )
+  );
+
+  globalServiceRegistry.registerInstance(
+    SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
+    createStorage(
+      "spac_loi_extraction",
+      SpacLoiExtractionSchema,
+      SpacLoiExtractionPrimaryKeyNames,
       [["cik"]]
     )
   );
@@ -917,6 +979,12 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
     createStorage("spac_unit_terms", SpacUnitTermsSchema, SpacUnitTermsPrimaryKeyNames, [["cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
+    createStorage("spac_promote_terms", SpacPromoteTermsSchema, SpacPromoteTermsPrimaryKeyNames, [
+      ["cik"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     ISSUER_TICKER_REPOSITORY_TOKEN,

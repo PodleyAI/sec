@@ -31,7 +31,13 @@ function parseInlineStyle(style: string): RawStyle {
   for (const part of style.split(";")) {
     const idx = part.indexOf(":");
     if (idx === -1) continue;
-    decls.set(part.slice(0, idx).trim().toLowerCase(), part.slice(idx + 1).trim().toLowerCase());
+    decls.set(
+      part.slice(0, idx).trim().toLowerCase(),
+      part
+        .slice(idx + 1)
+        .trim()
+        .toLowerCase()
+    );
   }
   const weightRaw = decls.get("font-weight");
   let fontWeight: number | undefined;
@@ -46,10 +52,31 @@ function parseInlineStyle(style: string): RawStyle {
   let fontSizePt: number | undefined;
   const size = decls.get("font-size");
   if (size) {
-    const m = size.match(/([\d.]+)(pt|px)?/);
-    if (m) {
-      const n = Number(m[1]);
-      fontSizePt = m[2] === "px" ? n * PX_TO_PT : n;
+    // Every unit must be converted to points. Heading ranking compares these
+    // magnitudes directly, so reading "120%" as 120pt would rank a slightly-
+    // enlarged heading above every genuinely larger one. Relative units resolve
+    // against BASE_PT rather than the true parent size — `pick` gives the
+    // nearest styled ancestor, not a computed cascade — which is approximate but
+    // keeps sizes on one scale and in the right order.
+    const m = size.match(/^([\d.]+)\s*(pt|px|em|rem|%)?/);
+    const n = m ? Number(m[1]) : NaN;
+    if (Number.isFinite(n)) {
+      switch (m?.[2]) {
+        case "px":
+          fontSizePt = n * PX_TO_PT;
+          break;
+        case "%":
+          fontSizePt = (n / 100) * BASE_PT;
+          break;
+        case "em":
+        case "rem":
+          fontSizePt = n * BASE_PT;
+          break;
+        // "pt" and the unit-less legacy form (invalid CSS, but present in real
+        // EDGAR markup) are already points.
+        default:
+          fontSizePt = n;
+      }
     }
   }
   return {
@@ -81,11 +108,18 @@ export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
     const raw = parseInlineStyle(cur.attr("style") ?? "");
     // Legacy EDGAR uses the HTML attribute <font size="N"> rather than a CSS
     // font-size; fold it in when no inline size is present.
-    chain.push(
+    let merged =
       raw.fontSizePt === undefined && tag === "font"
         ? { ...raw, fontSizePt: fontSizeAttrToPt(cur.attr("size")) }
-        : raw
-    );
+        : raw;
+    // Likewise ALIGN="center" rather than a CSS text-align — pre-CSS EDGAR
+    // markup centers headings with the attribute (<P ALIGN="center"><B>The
+    // Offering</B></P>), which heading detection must count as a trait.
+    if (merged.centered === undefined) {
+      const alignAttr = (cur.attr("align") ?? "").trim().toLowerCase();
+      if (alignAttr !== "") merged = { ...merged, centered: alignAttr === "center" };
+    }
+    chain.push(merged);
     cur = cur.parent() as unknown as typeof cur;
     if (!cur || cur.length === 0) break;
   }

@@ -5,39 +5,32 @@
  */
 
 import { Command } from "commander";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
-import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
-import { CanonicalSponsorFamilyAliasRepo } from "../storage/canonical/CanonicalSponsorFamilyAliasRepo";
-import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
+import {
+  FamilyAliasAddTask,
+  type FamilyAliasAddTaskOutput,
+} from "../task/canonical/FamilyAliasAddTask";
+import {
+  FamilyAliasListTask,
+  type FamilyAliasListTaskOutput,
+} from "../task/canonical/FamilyAliasListTask";
+import { issuerCiksByFamilyName } from "../task/canonical/familyTier";
+import {
+  IssuersByFamilyTask,
+  type IssuersByFamilyTaskOutput,
+} from "../task/canonical/IssuersByFamilyTask";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
 
 /**
  * Returns the issuer CIKs of every SPAC backed by the named sponsor family.
- * Alias-aware: unions the resolved target family with every variant family id
- * that has been aliased into it, since link rows keep the family id assigned at
- * extraction time.
+ * Alias-aware — see {@link issuerCiksByFamilyName}.
  */
 export async function spacIssuersByFamilyName(
   name: string,
   resolverVersion: string
 ): Promise<number[]> {
-  const normalized = normalizeSponsorFamilyName(name);
-  if (!normalized) return [];
-  const families = new CanonicalSponsorFamilyRepo();
-  const family = await families.findByResolverAndName(resolverVersion, normalized);
-  if (!family) return [];
-
-  const aliases = new CanonicalSponsorFamilyAliasRepo();
-  const target = await aliases.resolve(family.canonical_sponsor_family_id);
-  const variantIds = (await aliases.listByTarget(target)).map((a) => a.alias_canonical_id);
-  const familyIds = [target, ...variantIds];
-
-  const links = new SpacSponsorLinkRepo();
-  const ciks = new Set<number>();
-  for (const id of familyIds) {
-    for (const cik of await links.listIssuerCiksForFamily(id)) ciks.add(cik);
-  }
-  return [...ciks];
+  return issuerCiksByFamilyName("sponsor", name, resolverVersion);
 }
 
 /**
@@ -61,33 +54,26 @@ export function registerSponsorFamilyCommands(program: Command): void {
         intoName: string,
         opts: { reason?: string; resolverVersion: string }
       ) => {
-        const families = new CanonicalSponsorFamilyRepo();
-        const from = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeSponsorFamilyName(fromName)
-        );
-        const into = await families.findByResolverAndName(
-          opts.resolverVersion,
-          normalizeSponsorFamilyName(intoName)
-        );
-        if (!from || !into) {
-          console.error("error: both family names must already exist");
+        // Expected failures (unknown names, alias chain violations) come back
+        // as the task's `error` output port rather than a throw, so this
+        // renders identically on a TTY and when piped.
+        const out = await runWorkflowCli<FamilyAliasAddTaskOutput>([
+          new FamilyAliasAddTask({
+            defaults: {
+              family: "sponsor",
+              fromName,
+              intoName,
+              reason: opts.reason,
+              resolverVersion: opts.resolverVersion,
+            },
+          }),
+        ]);
+        if (out.error !== null) {
+          console.error(`error: ${out.error}`);
           process.exitCode = 1;
           return;
         }
-        try {
-          await new CanonicalSponsorFamilyAliasRepo().add(
-            from.canonical_sponsor_family_id,
-            into.canonical_sponsor_family_id,
-            opts.reason ?? null,
-            "cli"
-          );
-          console.log(`aliased '${fromName}' -> '${intoName}'`);
-        } catch (e) {
-          console.error(`error: ${(e as Error).message}`);
-          process.exitCode = 1;
-          return;
-        }
+        console.log(`aliased '${fromName}' -> '${intoName}'`);
       }
     );
 
@@ -95,8 +81,10 @@ export function registerSponsorFamilyCommands(program: Command): void {
     .command("alias-list")
     .description("List all sponsor-family aliases")
     .action(async () => {
-      const rows = await new CanonicalSponsorFamilyAliasRepo().list();
-      for (const r of rows) {
+      const { aliases } = await runWorkflowCli<FamilyAliasListTaskOutput>([
+        new FamilyAliasListTask({ defaults: { family: "sponsor" } }),
+      ]);
+      for (const r of aliases) {
         console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
       }
     });
@@ -114,7 +102,11 @@ export function registerSponsorFamilyCommands(program: Command): void {
         .argument("<name>", "sponsor family display name")
         .option("--resolver-version <v>", "resolver version", "1.0.0")
         .action(async (name: string, opts: { resolverVersion: string }) => {
-          const ciks = await spacIssuersByFamilyName(name, opts.resolverVersion);
+          const { ciks } = await runWorkflowCli<IssuersByFamilyTaskOutput>([
+            new IssuersByFamilyTask({
+              defaults: { family: "sponsor", name, resolverVersion: opts.resolverVersion },
+            }),
+          ]);
           console.log(JSON.stringify(ciks));
         })
     );
