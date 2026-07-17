@@ -20,6 +20,7 @@ test("barrel exposes the accredited-portal feature's sec dependencies", () => {
     "isBadPersonField", "TypeSecCik", "TypeNullable",
     "streamMatchingRows", "KeyedMutex", "parseCik",
     "createServiceToken", "InMemoryTabularStorage",
+    "resetDependencyInjectionsForTesting",
   ]) {
     expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
   }

@@ -115,3 +115,6 @@ export {
   type AnyTabularStorage,
   type ITabularStorage,
 } from "workglow";
+
+// ── Test helpers a downstream feature package needs in its own test setup ────
+export { resetDependencyInjectionsForTesting } from "./config/TestingDI";
