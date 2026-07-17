@@ -8,8 +8,8 @@ import { mkdirSync } from "node:fs";
 import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FetchUrlTaskOutput, TaskInput, TaskOutput, TaskOutputRepository } from "workglow";
-import { isDryRun } from "../cli/isDryRun";
-import { secDate, YYYYdMMdDD } from "../util/parseDate";
+import { isDryRun } from "../../cli/isDryRun";
+import { secDate, YYYYdMMdDD } from "../../util/parseDate";
 
 /**
  * Resolves `relative` against `folderPath` and asserts the result stays

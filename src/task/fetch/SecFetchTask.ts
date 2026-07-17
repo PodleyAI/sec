@@ -11,7 +11,7 @@ import {
   FetchUrlTaskOutput,
   TaskOutput,
 } from "workglow";
-import { SecJobQueueName, SecUserAgent } from "../config/Constants";
+import { SecJobQueueName, SecUserAgent } from "../../config/Constants";
 
 /**
  * SEC-specific fetch task

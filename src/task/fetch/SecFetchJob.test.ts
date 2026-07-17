@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput } from "workglow";
 
-import { SecUserAgent } from "../config/Constants";
+import { SecUserAgent } from "../../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 
 describe("SecFetchJob", () => {

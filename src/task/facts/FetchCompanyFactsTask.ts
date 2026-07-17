@@ -6,7 +6,7 @@
 
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
-import { SecCachedFetchTask } from "../../fetch/SecCachedFetchTask";
+import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
 import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";

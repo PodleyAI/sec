@@ -13,8 +13,8 @@ import {
   TaskConfig,
   TaskOutput,
 } from "workglow";
-import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
-import { YYYYdMMdDD } from "../util/parseDate";
+import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { YYYYdMMdDD } from "../../util/parseDate";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 import { SecFetchTask } from "./SecFetchTask";
 

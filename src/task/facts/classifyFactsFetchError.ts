@@ -9,7 +9,7 @@ import {
   isRetryableJobErrorShape,
   NETWORK_ERRNO_PATTERN,
   NETWORK_MESSAGE_PATTERN,
-} from "../../fetch/SecFetchJob";
+} from "../fetch/SecFetchJob";
 import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 
 export type FactsFetchReasonCode = Extract<
