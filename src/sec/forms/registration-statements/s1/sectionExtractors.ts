@@ -377,7 +377,12 @@ async function runStructured(
     maxTokens: MAX_TOKENS,
     maxRetries: 1,
   };
-  const task = new StructuredGenerationTask({ defaults: input } as any);
+  // Own the generation task on the caller's execute context: when the form
+  // pipeline threads its real context down, this subtask is registered in that
+  // task's graph and inherits its registry + abort signal, so the graph knows a
+  // subtask is involved. Against the eval / unit-test stub context, `own` is an
+  // identity no-op.
+  const task = context.own(new StructuredGenerationTask({ defaults: input } as any));
   // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
   // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
   // events to `config.updateProgress`, which we forward to the caller's

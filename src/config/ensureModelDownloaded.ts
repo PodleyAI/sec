@@ -97,7 +97,11 @@ export async function ensureModelDownloaded(
   }
 
   const input = { model };
-  const task = new ModelDownloadTask({ defaults: input } as any);
+  // Own the download task on the caller's execute context so it is registered in
+  // the running task's graph and inherits its registry + abort signal — the graph
+  // then knows this subtask is involved. Against a stub context (direct / test
+  // callers), `own` is an identity no-op.
+  const task = context.own(new ModelDownloadTask({ defaults: input } as any));
   // Drive the download through its `run()` lifecycle. `run` routes the download
   // run-fn's `phase` events to `config.updateProgress`, which we forward to the
   // caller's `context.updateProgress` so a multi-GB fetch renders a live
