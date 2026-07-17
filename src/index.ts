@@ -59,9 +59,14 @@ export { closePgPool, getPgPool } from "./util/pg";
 export { terminateWorkers } from "./util/workers";
 
 // ── Re-exported workglow primitives a superset commonly needs ────────────────
-// Saves supersets from taking a direct `workglow` dependency just to stop the
-// shared task-queue registry during shutdown.
-export { getTaskQueueRegistry } from "workglow";
+// Saves supersets from taking a direct `workglow` dependency. Routing DI +
+// schema access through the barrel is REQUIRED for correctness, not just
+// convenience: a downstream package that imported its own `workglow` /
+// `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
+// different TypeBox instance, so its DI registrations and schemas would not be
+// visible to sec. Import these from `@workglow/sec` to share sec's instances.
+export { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
+export { Type, type Static } from "typebox";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
 // A downstream feature (e.g. `embarc-data`'s accredited-portal hosting) registers
