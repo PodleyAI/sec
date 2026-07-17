@@ -66,6 +66,7 @@ export { terminateWorkers } from "./util/workers";
 // different TypeBox instance, so its DI registrations and schemas would not be
 // visible to sec. Import these from `@workglow/sec` to share sec's instances.
 export { getTaskQueueRegistry, globalServiceRegistry } from "workglow";
+export type { ServiceToken } from "workglow";
 export { Type, type Static } from "typebox";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
