@@ -5,6 +5,7 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { listDatabaseExtensionTokens } from "./databaseExtensions";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -196,4 +197,8 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_SPONSOR_LINK_REPOSITORY_TOKEN).deleteAll();
+  // Truncate any downstream-registered extension repos after the built-in ones.
+  for (const token of listDatabaseExtensionTokens()) {
+    await globalServiceRegistry.get(token).deleteAll();
+  }
 }

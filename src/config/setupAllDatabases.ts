@@ -103,6 +103,7 @@ import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
+import { listDatabaseExtensionTokens } from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -208,6 +209,11 @@ export async function setupAllDatabases(): Promise<void> {
   // of the legacy table cannot be ALTERed away on either backend.
   await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
+  // Downstream packages register their repo tokens via registerDatabaseExtension()
+  // so `db setup` creates their tables after the built-in SEC ones.
+  for (const token of listDatabaseExtensionTokens()) {
+    await globalServiceRegistry.get(token).setupDatabase();
+  }
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.
