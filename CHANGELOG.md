@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.11
+
+### Chores
+
+- update package.json and sec.ts for project rebranding and structure
+
 ## 0.0.10
 
 ### Features
