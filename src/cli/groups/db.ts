@@ -1,9 +1,12 @@
 import type { Command } from "commander";
-import { resetAllDatabases } from "../../config/resetAllDatabases";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
+import type { DbStatusResult } from "../queries/DbStatus";
+import { DbResetTask } from "../../task/db/DbResetTask";
+import { DbSetupTask } from "../../task/db/DbSetupTask";
+import { DbStatsTask, type DbStatsTaskOutput } from "../../task/db/DbStatsTask";
+import { DbStatusTask } from "../../task/db/DbStatusTask";
 import { renderTable } from "../output/TableRenderer";
-import { getDbStats, getDbStatus } from "../queries/DbStatus";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 export function addDbCommands(program: Command): void {
   const db = program.command("db").description("Database management commands");
@@ -12,7 +15,7 @@ export function addDbCommands(program: Command): void {
     .description("Create or migrate all database tables")
     .action(async () => {
       await runCommand(async () => {
-        await setupAllDatabases();
+        await runWorkflowCli([new DbSetupTask()]);
       });
     });
 
@@ -21,7 +24,7 @@ export function addDbCommands(program: Command): void {
     .option("--format <format>", "Output format (table, json)", "table")
     .action(async (options: Record<string, string>) => {
       await runCommand(async () => {
-        const status = await getDbStatus();
+        const status = await runWorkflowCli<DbStatusResult>([new DbStatusTask()]);
 
         if (options.format === "json") {
           console.log(JSON.stringify(status, null, 2));
@@ -44,7 +47,7 @@ export function addDbCommands(program: Command): void {
     .option("--format <format>", "Output format (table, json)", "table")
     .action(async (options: Record<string, string>) => {
       await runCommand(async () => {
-        const stats = await getDbStats();
+        const { tables } = await runWorkflowCli<DbStatsTaskOutput>([new DbStatsTask()]);
 
         const columns = [
           { key: "table", header: "Table", width: 25 },
@@ -52,7 +55,7 @@ export function addDbCommands(program: Command): void {
         ];
 
         console.log(
-          renderTable(stats as unknown as Record<string, unknown>[], columns, {
+          renderTable(tables as unknown as Record<string, unknown>[], columns, {
             format: (options.format as "table" | "json") ?? "table",
           })
         );
@@ -69,8 +72,7 @@ export function addDbCommands(program: Command): void {
         return;
       }
       await runCommand(async () => {
-        await resetAllDatabases();
-        await setupAllDatabases();
+        await runWorkflowCli([new DbResetTask()]);
         console.log("Database reset complete.");
       });
     });

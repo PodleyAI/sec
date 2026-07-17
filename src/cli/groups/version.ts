@@ -6,36 +6,50 @@
 
 import type { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
-import type { ResolverId } from "../../resolver/resolverIds";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import {
-  dropNext as dropNextCeremony,
-  dropPrevious as dropPreviousCeremony,
-  promote as promoteCeremony,
-  rollback as rollbackCeremony,
-  startDev as startDevCeremony,
-} from "../../storage/versioning/ceremonies";
+import type { ResolverCoverageResult } from "../queries/ResolverCoverage";
+import type { VersionCoverageResult } from "../queries/VersionCoverage";
 import { isRegisteredComponent } from "../../storage/versioning/componentRegistry";
 import {
   COMPONENT_KINDS,
   COMPONENT_VERSION_REPOSITORY_TOKEN,
   ComponentKind,
 } from "../../storage/versioning/ComponentVersionSchema";
-import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
-import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
-import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import type { TaskPorts } from "../../task/taskPorts";
+import { ResolverCoverageTask } from "../../task/versioning/ResolverCoverageTask";
+import { VersionCoverageTask } from "../../task/versioning/VersionCoverageTask";
+import {
+  VersionDropNextTask,
+  type VersionDropNextTaskOutput,
+} from "../../task/versioning/VersionDropNextTask";
+import {
+  VersionDropPreviousTask,
+  type VersionDropPreviousTaskOutput,
+} from "../../task/versioning/VersionDropPreviousTask";
+import {
+  VersionHistoryTask,
+  type VersionHistoryTaskOutput,
+} from "../../task/versioning/VersionHistoryTask";
+import {
+  VersionPromoteTask,
+  type VersionPromoteTaskOutput,
+} from "../../task/versioning/VersionPromoteTask";
+import {
+  VersionRollbackTask,
+  type VersionRollbackTaskOutput,
+} from "../../task/versioning/VersionRollbackTask";
+import {
+  VersionStartDevTask,
+  type VersionStartDevTaskOutput,
+} from "../../task/versioning/VersionStartDevTask";
+import {
+  VersionStatusTask,
+  type VersionStatusTaskOutput,
+} from "../../task/versioning/VersionStatusTask";
 import { parseGlobalOptions } from "../GlobalOptions";
 import { renderTable } from "../output/TableRenderer";
-import { computeResolverCoverage } from "../queries/ResolverCoverage";
-import { getVersionCoverage } from "../queries/VersionCoverage";
-import { getVersionHistory } from "../queries/VersionHistory";
-import { getVersionStatus } from "../queries/VersionStatus";
 import { runCommand } from "../runCommand";
-import { countEligibleDeadLetters } from "./extractor";
+import { runWorkflowCli } from "../runWorkflow";
 
 function assertComponentKind(s: string): asserts s is ComponentKind {
   if (!(COMPONENT_KINDS as readonly string[]).includes(s)) {
@@ -60,35 +74,6 @@ function assertFormat(s: string): asserts s is "table" | "json" {
   }
 }
 
-/**
- * For a major-bump extractor start-dev, snapshot the count of filings
- * handled by this extractor. Stored on the next-slot row; used as the
- * promote-gate denominator.
- *
- * This is extractor-specific today. When resolvers gain a major
- * dev-cycle, they will need their own kind-aware snapshot strategy
- * (count of observations? count of canonical identities? TBD). Add a
- * dispatch table keyed on ComponentKind when resolver support lands.
- */
-async function snapshotTargetCount(kind: ComponentKind, id: string): Promise<number> {
-  if (kind !== "extractor") {
-    throw new Error(
-      `snapshotTargetCount: kind '${kind}' is not yet supported; only 'extractor' has a snapshot strategy. Add resolver support when implemented.`
-    );
-  }
-  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-  const forms = Object.entries(FORM_TO_EXTRACTOR_ID)
-    .filter(([, eid]) => eid === id)
-    .map(([form]) => form);
-  let total = 0;
-  for (const form of forms) {
-    // COUNT() path — at Form D scale (hundreds of thousands of filings)
-    // materializing every row was ~100MB transient.
-    total += await filingRepo.count({ form });
-  }
-  return total;
-}
-
 export function addVersionCommands(program: Command): void {
   const version = program
     .command("version")
@@ -102,7 +87,7 @@ export function addVersionCommands(program: Command): void {
     .action(async (options: Record<string, string>) => {
       await runCommand(async () => {
         assertFormat(options.format);
-        const rows = await getVersionStatus();
+        const { rows } = await runWorkflowCli<VersionStatusTaskOutput>([new VersionStatusTask()]);
 
         if (options.format === "json") {
           console.log(JSON.stringify(rows, null, 2));
@@ -151,7 +136,9 @@ export function addVersionCommands(program: Command): void {
         if (Number.isNaN(limit) || limit < 1) {
           throw new Error(`Invalid --limit '${options.limit}'. Expected positive integer.`);
         }
-        const events = await getVersionHistory(kind, id, limit);
+        const { events } = await runWorkflowCli<VersionHistoryTaskOutput>([
+          new VersionHistoryTask({ defaults: { kind, id, limit } }),
+        ]);
         if (options.format === "json") {
           console.log(JSON.stringify(events, null, 2));
           return;
@@ -187,16 +174,9 @@ export function addVersionCommands(program: Command): void {
         assertComponentKind(kind);
         assertFormat(options.format);
         if (kind === "resolver") {
-          const versionRegistry = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const slot = await getActiveSlot(versionRegistry, "resolver", id);
-          if (!slot) {
-            // Throw (not process.exit) so runCommand renders the error and sets
-            // the exit code without bypassing the top-level teardown.
-            throw new Error(`No active slot for resolver:${id}`);
-          }
-          const result = await computeResolverCoverage(id as ResolverId, slot.semver);
+          const result = await runWorkflowCli<TaskPorts<ResolverCoverageResult>>([
+            new ResolverCoverageTask({ defaults: { id } }),
+          ]);
           if (options.format === "json") {
             console.log(JSON.stringify(result, null, 2));
             return;
@@ -206,7 +186,9 @@ export function addVersionCommands(program: Command): void {
           );
           return;
         }
-        const result = await getVersionCoverage(kind, id);
+        const result = await runWorkflowCli<TaskPorts<VersionCoverageResult>>([
+          new VersionCoverageTask({ defaults: { kind, id } }),
+        ]);
         if (options.format === "json") {
           console.log(JSON.stringify(result, null, 2));
           return;
@@ -255,27 +237,14 @@ export function addVersionCommands(program: Command): void {
               );
             }
           }
-          const reg = new VersionRegistry(
-            globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-          );
-          const events = new VersionEventRepo(
-            globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-          );
-          const targetCount = bumpArg === "major" ? await snapshotTargetCount(kind, id) : null;
           const notes =
             typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
           const dryRun = parseGlobalOptions(program).dryRun;
-          await startDevCeremony({
-            reg,
-            events,
-            kind,
-            id,
-            semver,
-            bump: bumpArg,
-            targetCount,
-            notes,
-            dryRun,
-          });
+          const { targetCount } = await runWorkflowCli<VersionStartDevTaskOutput>([
+            new VersionStartDevTask({
+              defaults: { kind, id, semver, bump: bumpArg, notes, dryRun },
+            }),
+          ]);
           if (dryRun) {
             console.log(
               `(dry-run) start-dev ${kind} ${id} ${semver} --bump ${bumpArg} would succeed${
@@ -304,33 +273,19 @@ export function addVersionCommands(program: Command): void {
     .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
       await runCommand(async () => {
         assertComponentKind(kind);
-        const reg = new VersionRegistry(
-          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-        );
-        const events = new VersionEventRepo(
-          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-        );
-        const runs = new ExtractorRunRepo(
-          globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-        );
         const notes =
           typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
         const dryRun = parseGlobalOptions(program).dryRun;
-        await promoteCeremony({
-          reg,
-          events,
-          runs,
-          kind,
-          id,
-          force: options.force === true,
-          notes,
-          dryRun,
-        });
+        const { eligibleDeadLetters } = await runWorkflowCli<VersionPromoteTaskOutput>([
+          new VersionPromoteTask({
+            defaults: { kind, id, force: options.force === true, notes, dryRun },
+          }),
+        ]);
         console.log(
           dryRun ? `(dry-run) promote ${kind} ${id} would succeed` : `Promoted ${kind}:${id}`
         );
         if (!dryRun && kind === "extractor") {
-          const eligible = await countEligibleDeadLetters(id);
+          const eligible = eligibleDeadLetters;
           if (eligible > 0) {
             console.log(
               `${eligible} dead-letter entr${eligible === 1 ? "y is" : "ies are"} now eligible ` +
@@ -349,23 +304,12 @@ export function addVersionCommands(program: Command): void {
     .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
       await runCommand(async () => {
         assertComponentKind(kind);
-        const reg = new VersionRegistry(
-          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-        );
-        const events = new VersionEventRepo(
-          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-        );
         const notes =
           typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
         const dryRun = parseGlobalOptions(program).dryRun;
-        await rollbackCeremony({
-          reg,
-          events,
-          kind,
-          id,
-          notes,
-          dryRun,
-        });
+        await runWorkflowCli<VersionRollbackTaskOutput>([
+          new VersionRollbackTask({ defaults: { kind, id, notes, dryRun } }),
+        ]);
         console.log(
           dryRun ? `(dry-run) rollback ${kind} ${id} would succeed` : `Rolled back ${kind}:${id}`
         );
@@ -380,23 +324,12 @@ export function addVersionCommands(program: Command): void {
     .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
       await runCommand(async () => {
         assertComponentKind(kind);
-        const reg = new VersionRegistry(
-          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-        );
-        const events = new VersionEventRepo(
-          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-        );
         const notes =
           typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
         const dryRun = parseGlobalOptions(program).dryRun;
-        await dropNextCeremony({
-          reg,
-          events,
-          kind,
-          id,
-          notes,
-          dryRun,
-        });
+        await runWorkflowCli<VersionDropNextTaskOutput>([
+          new VersionDropNextTask({ defaults: { kind, id, notes, dryRun } }),
+        ]);
         console.log(
           dryRun
             ? `(dry-run) drop-next ${kind} ${id} would succeed`
@@ -413,28 +346,12 @@ export function addVersionCommands(program: Command): void {
     .action(async (kind: string, id: string, options: Record<string, boolean | string>) => {
       await runCommand(async () => {
         assertComponentKind(kind);
-        const reg = new VersionRegistry(
-          globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-        );
-        const events = new VersionEventRepo(
-          globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-        );
         const notes =
           typeof options.notes === "string" && options.notes !== "" ? options.notes : null;
         const dryRun = parseGlobalOptions(program).dryRun;
-        const runs =
-          kind === "extractor"
-            ? new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN))
-            : undefined;
-        await dropPreviousCeremony({
-          reg,
-          events,
-          kind,
-          id,
-          notes,
-          dryRun,
-          runs,
-        });
+        await runWorkflowCli<VersionDropPreviousTaskOutput>([
+          new VersionDropPreviousTask({ defaults: { kind, id, notes, dryRun } }),
+        ]);
         console.log(
           dryRun
             ? `(dry-run) drop-previous ${kind} ${id} would succeed`

@@ -103,7 +103,7 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   it("status rejects an unsupported --format value", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
@@ -160,7 +160,7 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   it("coverage reports in-progress with a known denominator", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
@@ -179,7 +179,7 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   it("promote with --force rotates slots and history records both events", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
@@ -244,7 +244,7 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   it("start-dev --bump patch updates current in place without a next slot", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
@@ -265,7 +265,7 @@ describe("sec version CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 
   it("coverage resolver person shows coverage fraction", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));

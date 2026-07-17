@@ -722,8 +722,22 @@ time** and a queryable **current state**:
 
 ### Layered Structure
 
-- **`src/commands/`** — Commander CLI command definitions. Each command wires up tasks and invokes them.
-- **`src/task/`** — Workglow task graph tasks (fetch, store, process). Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`.
+- **`src/commands/` and `src/cli/groups/`** — Commander CLI command definitions. Every
+  subcommand follows the same shape: parse/validate CLI arguments, construct one or more
+  task instances (inputs passed via the constructor's `defaults` config), run them as a
+  task graph through `runWorkflowCli` (`src/cli/runWorkflow.ts`), then render the returned
+  structured output (tables/JSON/text). `runWorkflowCli` pipes the tasks plus an
+  `OutputTask` sink into a `Workflow` and executes it via `@workglow/cli`'s `withCli` —
+  on a TTY that renders the live `renderWorkflowRun` progress UI, when piped it runs
+  plainly — and returns the sink's collected output. Commands hold no business logic:
+  work lives in tasks, presentation in the command. Pass task inputs via `defaults`, not
+  the graph run-input (arrays in run-inputs can trigger fan-out semantics).
+- **`src/task/`** — Workglow task graph tasks (fetch, store, process, query, ceremonies).
+  Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`,
+  `query/`, `db/`, `versioning/`, `resolve/`, `canonical/`, `spac/`, `editorial/`,
+  `offering/`, `fixtures/`, `init/`, `eval/`. `taskPorts.ts` exports `TaskPorts<T>`, a
+  type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
+  constraint on `Task<Input, Output>`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
 - **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
   - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.

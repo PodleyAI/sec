@@ -1,16 +1,25 @@
 import type { Command } from "commander";
+import type { QueryResult } from "../queries/EntityQuery";
+import type { CikQueryResult } from "../queries/CikQuery";
+import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
+import type { XbrlFactRow } from "../../storage/xbrl/XbrlFactSchema";
+import { QueryCiksTask } from "../../task/query/QueryCiksTask";
+import { QueryCrowdfundingTask } from "../../task/query/QueryCrowdfundingTask";
+import { QueryEntitiesTask } from "../../task/query/QueryEntitiesTask";
+import { QueryFactsTask } from "../../task/query/QueryFactsTask";
+import { QueryFilingsTask } from "../../task/query/QueryFilingsTask";
+import { QueryOfferingsTask } from "../../task/query/QueryOfferingsTask";
+import { QueryPersonsTask } from "../../task/query/QueryPersonsTask";
+import {
+  QueryRegASummaryTask,
+  type QueryRegASummaryTaskOutput,
+} from "../../task/query/QueryRegASummaryTask";
+import { QueryRegATask } from "../../task/query/QueryRegATask";
+import { QueryXbrlTask } from "../../task/query/QueryXbrlTask";
 import { parseIntOption } from "../GlobalOptions";
+import { renderTable, type ColumnDef } from "../output/TableRenderer";
 import { runCommand } from "../runCommand";
-import { renderTable } from "../output/TableRenderer";
-import { queryCiks } from "../queries/CikQuery";
-import { queryCrowdfunding } from "../queries/CrowdfundingQuery";
-import { queryEntities } from "../queries/EntityQuery";
-import { queryFacts } from "../queries/FactsQuery";
-import { queryFilings } from "../queries/FilingQuery";
-import { queryOfferings } from "../queries/OfferingQuery";
-import { queryPersons } from "../queries/PersonQuery";
-import { queryRegAOfferings, summarizeRegA } from "../queries/RegAQuery";
-import { formatXbrlDimensions, formatXbrlPeriod, queryXbrlFacts } from "../queries/XbrlQuery";
+import { runWorkflowCli } from "../runWorkflow";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
@@ -35,6 +44,25 @@ function wrapAction<A extends unknown[]>(
   };
 }
 
+/** Print a query task's row page through the shared table renderer. */
+function renderQueryResult(
+  result: QueryResult<unknown>,
+  columns: readonly ColumnDef[],
+  format: OutputFormat,
+  offset: number,
+  limit: number
+): void {
+  console.log(
+    renderTable(result.rows as Record<string, unknown>[], columns, {
+      format,
+      total: result.total,
+      totalApprox: result.totalApprox,
+      offset,
+      limit,
+    })
+  );
+}
+
 export function addQueryCommands(program: Command): void {
   const query = program.command("query").description("Query stored SEC data");
 
@@ -50,27 +78,17 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryCiks({
-          name,
-          exact: Boolean(options.exact),
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<CikQueryResult>([
+          new QueryCiksTask({
+            defaults: { name, exact: Boolean(options.exact), limit, offset },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
           { key: "name", header: "Name", width: 60 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
 
         if (result.tableEmpty && format === "table") {
           console.log(
@@ -83,7 +101,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("entities [search]")
     .description("Search entities in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--sic <sic>", "Filter by SIC code")
     .option("--state <state>", "Filter by state")
     .option("--limit <n>", "Limit results", parseIntOption, 25)
@@ -95,15 +113,19 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryEntities({
-          search,
-          cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-          sic: options.sic ? parseInt(options.sic as string, 10) : undefined,
-          state: options.state as string | undefined,
-          limit,
-          offset,
-          sort: options.sort as string | undefined,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryEntitiesTask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              sic: options.sic ? parseInt(options.sic as string, 10) : undefined,
+              state: options.state as string | undefined,
+              limit,
+              offset,
+              sort: options.sort as string | undefined,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
@@ -111,23 +133,14 @@ export function addQueryCommands(program: Command): void {
           { key: "sic", header: "SIC", width: 6 },
           { key: "state_incorporation", header: "State", width: 5 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
   query
     .command("filings [search]")
     .description("Search filings in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--form <form>", "Filter by form type")
     .option("--after <date>", "Filter filings after date")
     .option("--before <date>", "Filter filings before date")
@@ -139,15 +152,19 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryFilings({
-          search,
-          cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-          form: options.form as string | undefined,
-          after: options.after as string | undefined,
-          before: options.before as string | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryFilingsTask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              form: options.form as string | undefined,
+              after: options.after as string | undefined,
+              before: options.before as string | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
@@ -156,23 +173,14 @@ export function addQueryCommands(program: Command): void {
           { key: "filing_date", header: "Filed", width: 12 },
           { key: "primary_doc", header: "Document", width: 25 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
   query
     .command("offerings [search]")
     .description("Search investment offerings")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--industry <industry>", "Filter by industry")
     .option("--exemption <exemption>", "Filter by exemption type")
     .option("--after <date>", "Filter after date")
@@ -185,16 +193,20 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryOfferings({
-          search,
-          cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-          industry: options.industry as string | undefined,
-          exemption: options.exemption as string | undefined,
-          after: options.after as string | undefined,
-          before: options.before as string | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryOfferingsTask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              industry: options.industry as string | undefined,
+              exemption: options.exemption as string | undefined,
+              after: options.after as string | undefined,
+              before: options.before as string | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
@@ -202,23 +214,14 @@ export function addQueryCommands(program: Command): void {
           { key: "industry_group", header: "Industry", width: 20 },
           { key: "date_of_first_sale", header: "First Sale", width: 12 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
   query
     .command("crowdfunding [search]")
     .description("Search crowdfunding offerings")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--portal <portal>", "Filter by portal")
     .option("--after <date>", "Filter after date")
     .option("--before <date>", "Filter before date")
@@ -230,15 +233,19 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryCrowdfunding({
-          search,
-          cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-          portal: options.portal ? parseInt(options.portal as string, 10) : undefined,
-          after: options.after as string | undefined,
-          before: options.before as string | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryCrowdfundingTask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              portal: options.portal ? parseInt(options.portal as string, 10) : undefined,
+              after: options.after as string | undefined,
+              before: options.before as string | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
@@ -246,16 +253,7 @@ export function addQueryCommands(program: Command): void {
           { key: "filing_date", header: "Filed", width: 12 },
           { key: "status", header: "Status", width: 10 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
@@ -274,15 +272,19 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryRegAOfferings({
-          search,
-          cik: options.cik as number | undefined,
-          tier: options.tier as string | undefined,
-          status: options.status as string | undefined,
-          jurisdiction: options.jurisdiction as string | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryRegATask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              tier: options.tier as string | undefined,
+              status: options.status as string | undefined,
+              jurisdiction: options.jurisdiction as string | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "cik", header: "CIK", width: 10 },
@@ -292,16 +294,7 @@ export function addQueryCommands(program: Command): void {
           { key: "status", header: "Status", width: 10 },
           { key: "jurisdiction", header: "Juris", width: 6 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
@@ -314,15 +307,19 @@ export function addQueryCommands(program: Command): void {
     .action(
       wrapAction(async (cik: string | undefined, options: Record<string, unknown>) => {
         const format = validateFormat(options.format as string);
-        const summary = await summarizeRegA(cik ? parseIntOption(cik) : undefined);
+        const summary = await runWorkflowCli<QueryRegASummaryTaskOutput>([
+          new QueryRegASummaryTask({
+            defaults: { cik: cik ? parseIntOption(cik) : undefined },
+          }),
+        ]);
 
         const rows: Array<{ metric: string; value: string | number }> = [
           { metric: "offerings", value: summary.offeringCount },
-          ...[...summary.byStatus.entries()].map(([status, n]) => ({
+          ...Object.entries(summary.byStatus).map(([status, n]) => ({
             metric: `status:${status}`,
             value: n,
           })),
-          ...[...summary.byTier.entries()].map(([tier, n]) => ({
+          ...Object.entries(summary.byTier).map(([tier, n]) => ({
             metric: `tier:${tier}`,
             value: n,
           })),
@@ -361,14 +358,18 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryFacts({
-          cik: parseInt(cik, 10),
-          name: options.name as string | undefined,
-          taxonomy: options.taxonomy as string | undefined,
-          year: options.year as number | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryFactsTask({
+            defaults: {
+              cik: parseInt(cik, 10),
+              name: options.name as string | undefined,
+              taxonomy: options.taxonomy as string | undefined,
+              year: options.year as number | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "name", header: "Fact", width: 25 },
@@ -378,16 +379,7 @@ export function addQueryCommands(program: Command): void {
           { key: "fp", header: "FP", width: 4 },
           { key: "filed_date", header: "Filed", width: 12 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 
@@ -429,14 +421,18 @@ export function addQueryCommands(program: Command): void {
           throw new Error("Provide an accession argument or --cik.");
         }
 
-        const result = await queryXbrlFacts({
-          accession,
-          cik,
-          concept: options.concept as string | undefined,
-          numericOnly: Boolean(options.numericOnly),
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<XbrlFactRow>>([
+          new QueryXbrlTask({
+            defaults: {
+              accession,
+              cik,
+              concept: options.concept as string | undefined,
+              numericOnly: Boolean(options.numericOnly),
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const byCik = cik !== undefined;
         const rows = result.rows.map((r) => ({
@@ -476,7 +472,7 @@ export function addQueryCommands(program: Command): void {
   query
     .command("persons [search]")
     .description("Search persons in the database")
-    .option("--cik <cik>", "Filter by CIK")
+    .option("--cik <cik>", "Filter by CIK", parseIntOption)
     .option("--relationship <relationship>", "Filter by relationship")
     .option("--limit <n>", "Limit results", parseIntOption, 25)
     .option("--offset <n>", "Offset results", parseIntOption, 0)
@@ -486,13 +482,17 @@ export function addQueryCommands(program: Command): void {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        const result = await queryPersons({
-          search,
-          cik: options.cik ? parseInt(options.cik as string, 10) : undefined,
-          relationship: options.relationship as string | undefined,
-          limit,
-          offset,
-        });
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryPersonsTask({
+            defaults: {
+              search,
+              cik: options.cik as number | undefined,
+              relationship: options.relationship as string | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
 
         const columns = [
           { key: "first_name", header: "First", width: 15 },
@@ -500,16 +500,7 @@ export function addQueryCommands(program: Command): void {
           { key: "titles", header: "Title", width: 20 },
           { key: "source_filing_issuer_cik", header: "CIK", width: 10 },
         ];
-
-        console.log(
-          renderTable(result.rows as Record<string, unknown>[], columns, {
-            format,
-            total: result.total,
-            totalApprox: result.totalApprox,
-            offset,
-            limit,
-          })
-        );
+        renderQueryResult(result, columns, format, offset, limit);
       })
     );
 }

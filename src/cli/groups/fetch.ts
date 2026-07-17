@@ -1,32 +1,38 @@
-import { withCli } from "@workglow/cli";
 import type { Command } from "commander";
-import { Workflow, type IExecuteContext } from "workglow";
-import { isFormParsingSupported } from "../../sec/forms/all-forms";
 import {
   EXEMPT_OFFERING_FORM_CODES,
   type ExemptOfferingFormCode,
 } from "../../sec/forms/exempt-offerings/form-slugs";
-import { EntityRepo } from "../../storage/entity/EntityRepo";
-import { fetchAndStoreCompanyFacts } from "../../task/facts/fetchAndStoreCompanyFacts";
+import {
+  FetchCompanyFactsForCikTask,
+  type FetchCompanyFactsForCikTaskOutput,
+} from "../../task/facts/FetchCompanyFactsForCikTask";
+import {
+  FetchFixturesTask,
+  type FetchFixturesTaskOutput,
+} from "../../task/fixtures/FetchFixturesTask";
+import {
+  FetchS1FixturesTask,
+  type FetchS1FixturesTaskOutput,
+} from "../../task/fixtures/FetchS1FixturesTask";
 import {
   DEFAULT_FIXTURES_PER_FORM,
-  fetchFixtures,
   parseFormCodes,
   parseQuarterStrings,
 } from "../../task/fixtures/fetchFixtures";
-import {
-  DEFAULT_MIN_SPAC,
-  DEFAULT_S1_SAMPLE_COUNT,
-  fetchS1Fixtures,
-} from "../../task/fixtures/fetchS1Fixtures";
-import { edgarS1Deps } from "../../task/fixtures/s1FixtureSource";
+import { DEFAULT_MIN_SPAC, DEFAULT_S1_SAMPLE_COUNT } from "../../task/fixtures/fetchS1Fixtures";
 import { FetchAndStoreFormsTask } from "../../task/forms/FetchAndStoreFormsTask";
 import { ProcessAccessionDocFormTask } from "../../task/forms/ProcessAccessionDocFormTask";
+import {
+  ListFormTypesTask,
+  type ListFormTypesTaskOutput,
+} from "../../task/query/ListFormTypesTask";
 import { FetchSubmissionsTask } from "../../task/submissions/FetchSubmissionsTask";
 import { StoreSubmissionsTask } from "../../task/submissions/StoreSubmissionsTask";
 import { secDate } from "../../util/parseDate";
 import { renderTable } from "../output/TableRenderer";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 function parseCikArg(value: string): number {
   // Require an all-digit string. parseInt would silently accept "123abc" as
@@ -43,30 +49,19 @@ function parseCikArg(value: string): number {
 }
 
 async function listAvailableFormTypesForCik(cik: number): Promise<void> {
-  const entityRepo = new EntityRepo();
-  const filings = await entityRepo.getFilings(cik);
-  const counts = new Map<string, number>();
-  for (const f of filings) {
-    if (f.form == null || f.form === "") continue;
-    counts.set(f.form, (counts.get(f.form) ?? 0) + 1);
-  }
-  if (counts.size === 0) {
+  const result = await runWorkflowCli<ListFormTypesTaskOutput>([
+    new ListFormTypesTask({ defaults: { cik } }),
+  ]);
+  if (result.empty) {
     console.log(
       `No filings in the local database for CIK ${cik}. Run \`sec fetch submissions ${cik}\` to load filing metadata, then run this command again.`
     );
     return;
   }
-  const rows = [...counts.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([form, count]) => ({
-      form,
-      count,
-      parse: isFormParsingSupported(form) ? "yes" : "no",
-    }));
   console.log(`Form types available in stored filings for CIK ${cik}:\n`);
   console.log(
     renderTable(
-      rows as Record<string, unknown>[],
+      result.forms as unknown as Record<string, unknown>[],
       [
         { key: "form", header: "Form", width: 24 },
         { key: "count", header: "Filings", width: 10 },
@@ -87,17 +82,15 @@ export function addFetchCommands(program: Command): void {
     .option("--date <date>", "Cache buster date")
     .action(async (cik: string, options) => {
       await runCommand(async () => {
-        const wf = new Workflow();
-        wf.pipe(
+        await runWorkflowCli([
           new FetchSubmissionsTask({
             defaults: {
               cik: parseCikArg(cik),
               date: options.date ? secDate(options.date) : undefined,
             },
           }),
-          new StoreSubmissionsTask()
-        );
-        await withCli(wf).run();
+          new StoreSubmissionsTask(),
+        ]);
       });
     });
 
@@ -107,16 +100,14 @@ export function addFetchCommands(program: Command): void {
     .option("--date <date>", "Cache buster date")
     .action(async (cik: string, options) => {
       await runCommand(async () => {
-        // Route through the orchestrator (not a raw Fetch→Store pipe) so the
-        // processed_facts outcome — incl. NO_XBRL_FACTS on 404 — is recorded
-        // exactly once, same as the batch update path.
-        const cikNum = parseCikArg(cik);
-        const date = options.date ? secDate(options.date) : undefined;
-        const wf = new Workflow();
-        wf.pipe(async (_input: Record<string, never>, ctx: IExecuteContext) => {
-          return await fetchAndStoreCompanyFacts({ cik: cikNum, date }, ctx);
-        });
-        await withCli(wf).run();
+        await runWorkflowCli<FetchCompanyFactsForCikTaskOutput>([
+          new FetchCompanyFactsForCikTask({
+            defaults: {
+              cik: parseCikArg(cik),
+              date: options.date ? secDate(options.date) : undefined,
+            },
+          }),
+        ]);
       });
     });
 
@@ -132,11 +123,11 @@ export function addFetchCommands(program: Command): void {
           await listAvailableFormTypesForCik(cikNum);
           return;
         }
-        await withCli(new FetchAndStoreFormsTask()).run({
-          cik: cikNum,
-          form,
-          docid: accession,
-        });
+        await runWorkflowCli([
+          new FetchAndStoreFormsTask({
+            defaults: { cik: cikNum, form, docid: accession },
+          }),
+        ]);
       });
     });
 
@@ -145,10 +136,11 @@ export function addFetchCommands(program: Command): void {
     .description("Process a specific accession document")
     .action(async (accession: string, filename?: string) => {
       await runCommand(async () => {
-        await withCli(new ProcessAccessionDocFormTask()).run({
-          accessionNumber: accession,
-          fileName: filename,
-        });
+        await runWorkflowCli([
+          new ProcessAccessionDocFormTask({
+            defaults: { accessionNumber: accession, fileName: filename },
+          }),
+        ]);
       });
     });
 
@@ -176,13 +168,16 @@ export function addFetchCommands(program: Command): void {
             forms.length > 0 ? parseFormCodes(forms) : [...EXEMPT_OFFERING_FORM_CODES];
           const quarters =
             options.quarter.length > 0 ? parseQuarterStrings(options.quarter) : undefined;
-          const result = await fetchFixtures({
-            forms: formCodes,
-            count: options.count,
-            quarters,
-            listOnly: options.list,
-            log: (msg) => console.log(msg),
-          });
+          const result = await runWorkflowCli<FetchFixturesTaskOutput>([
+            new FetchFixturesTask({
+              defaults: {
+                forms: formCodes,
+                count: options.count,
+                quarters,
+                listOnly: options.list,
+              },
+            }),
+          ]);
           console.log(
             `Done. downloaded=${result.downloaded} failed=${result.failed} skipped=${result.skipped}`
           );
@@ -207,11 +202,11 @@ export function addFetchCommands(program: Command): void {
     )
     .action(async (options: { count?: number; minSpac?: number }) => {
       await runCommand(async () => {
-        const result = await fetchS1Fixtures({
-          count: options.count,
-          minSpac: options.minSpac,
-          deps: edgarS1Deps((msg) => console.log(msg)),
-        });
+        const result = await runWorkflowCli<FetchS1FixturesTaskOutput>([
+          new FetchS1FixturesTask({
+            defaults: { count: options.count, minSpac: options.minSpac },
+          }),
+        ]);
         console.log(
           `Done. downloaded=${result.downloaded} skipped=${result.skipped} spacs=${result.spacs}`
         );

@@ -5,8 +5,8 @@
  */
 
 import type { Command } from "commander";
-import { withCli } from "@workglow/cli";
 import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import {
   extractorsWithFixtures,
@@ -254,10 +254,7 @@ export function addEvalCommands(program: Command): void {
   cmd
     .command("extract")
     .description("Run golden extraction fixtures across models and rank them")
-    .option(
-      "--models <csv>",
-      `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`
-    )
+    .option("--models <csv>", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
     .option(
       "--extractor <name>",
       // Only offer what is actually scorable: an extractor registered in
@@ -267,12 +264,7 @@ export function addEvalCommands(program: Command): void {
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
     .action(
-      async (opts: {
-        models?: string;
-        extractor?: string;
-        format: string;
-        details: boolean;
-      }) => {
+      async (opts: { models?: string; extractor?: string; format: string; details: boolean }) => {
         await runCommand(async () => {
           const models = parseModels(opts.models);
           if (opts.extractor && !EVAL_EXTRACTORS[opts.extractor]) {
@@ -281,9 +273,11 @@ export function addEvalCommands(program: Command): void {
             );
           }
           const input = opts.extractor ? { models, extractor: opts.extractor } : { models };
-          // withCli renders the task-graph progress UI on a TTY (clearing it
-          // before we print), and runs plainly when piped.
-          const report = (await withCli(new EvalExtractTask()).run(input)) as EvalReport;
+          // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
+          // it before we print), and runs plainly when piped.
+          const report = await runWorkflowCli<EvalReport>([
+            new EvalExtractTask({ defaults: input }),
+          ]);
           if (opts.format === "json") {
             console.log(JSON.stringify(report, null, 2));
             return;
@@ -295,9 +289,7 @@ export function addEvalCommands(program: Command): void {
 
   cmd
     .command("s1")
-    .description(
-      "Compare candidate models against a reference on REAL committed S-1 sections"
-    )
+    .description("Compare candidate models against a reference on REAL committed S-1 sections")
     .option(
       "--reference <id>",
       "reference (oracle) model id, or 'golden' for committed human-verified labels",
@@ -329,10 +321,16 @@ export function addEvalCommands(program: Command): void {
       }) => {
         await runCommand(async () => {
           const candidates = opts.models
-            ? opts.models.split(",").map((s) => s.trim()).filter(Boolean)
+            ? opts.models
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
             : [ORACLE_DEFAULT_CANDIDATE];
           const extractors = opts.extractors
-            ? opts.extractors.split(",").map((s) => s.trim()).filter(Boolean)
+            ? opts.extractors
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
             : ["management"];
           for (const name of extractors) {
             if (!EVAL_EXTRACTORS[name]) {
@@ -347,9 +345,9 @@ export function addEvalCommands(program: Command): void {
             extractors,
             ...(opts.dir ? { dir: opts.dir } : {}),
           };
-          // withCli renders the task-graph progress UI on a TTY (clearing it
-          // before we print), and runs plainly when piped.
-          const report = (await withCli(new EvalS1Task()).run(input)) as OracleReport;
+          // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
+          // it before we print), and runs plainly when piped.
+          const report = await runWorkflowCli<OracleReport>([new EvalS1Task({ defaults: input })]);
           if (opts.format === "json") {
             console.log(JSON.stringify(report, null, 2));
             return;
@@ -364,10 +362,7 @@ export function addEvalCommands(program: Command): void {
     .description(
       "Score offering-terms extraction against embarc's hand-curated SPAC unit structure"
     )
-    .option(
-      "--models <csv>",
-      `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`
-    )
+    .option("--models <csv>", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
     .option(
       "--dir <path>",
       "directory of real S-1 HTML to segment (default: committed mock_data; " +
@@ -375,36 +370,34 @@ export function addEvalCommands(program: Command): void {
     )
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
-    .action(
-      async (opts: { models?: string; dir?: string; format: string; details: boolean }) => {
-        await runCommand(async () => {
-          const models = parseModels(opts.models);
-          const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
-          const report = (await withCli(new EvalUnitTermsTask()).run(
-            input
-          )) as unknown as UnitTermsReport;
-          if (opts.format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          console.log(
-            `Truth: embarc curated unit terms — over ${report.sections} real S-1 offering ` +
-              `section(s)${report.skipped.length ? ` (${report.skipped.length} filing(s) skipped)` : ""}\n`
-          );
-          printTable(
-            report,
-            opts.details,
-            "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
-              "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
-              "row; prec = 1 − spurious rows.\n" +
-              "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
-              "then latency."
-          );
-          if (report.skipped.length) {
-            console.log("\nskipped:");
-            for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
-          }
-        });
-      }
-    );
+    .action(async (opts: { models?: string; dir?: string; format: string; details: boolean }) => {
+      await runCommand(async () => {
+        const models = parseModels(opts.models);
+        const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
+        const report = await runWorkflowCli<UnitTermsReport>([
+          new EvalUnitTermsTask({ defaults: input }),
+        ]);
+        if (opts.format === "json") {
+          console.log(JSON.stringify(report, null, 2));
+          return;
+        }
+        console.log(
+          `Truth: embarc curated unit terms — over ${report.sections} real S-1 offering ` +
+            `section(s)${report.skipped.length ? ` (${report.skipped.length} filing(s) skipped)` : ""}\n`
+        );
+        printTable(
+          report,
+          opts.details,
+          "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
+            "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
+            "row; prec = 1 − spurious rows.\n" +
+            "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
+            "then latency."
+        );
+        if (report.skipped.length) {
+          console.log("\nskipped:");
+          for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
+        }
+      });
+    });
 }
