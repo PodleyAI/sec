@@ -62,3 +62,56 @@ export { terminateWorkers } from "./util/workers";
 // Saves supersets from taking a direct `workglow` dependency just to stop the
 // shared task-queue registry during shutdown.
 export { getTaskQueueRegistry } from "workglow";
+
+// ── Extension seams for downstream feature packages ─────────────────────────
+// A downstream feature (e.g. `embarc-data`'s accredited-portal hosting) registers
+// its own resolver ids and DB-extension repo tokens through these seams, then
+// reuses the versioning / observation / normalization internals below.
+export {
+  getResolverExtension,
+  isFamilyResolverId,
+  listResolverIds,
+  registerResolverExtension,
+  type ResolverExtension,
+} from "./resolver/resolverExtensions";
+export {
+  listDatabaseExtensionTokens,
+  registerDatabaseExtension,
+} from "./config/databaseExtensions";
+
+// ── Versioning internals ────────────────────────────────────────────────────
+export { getActiveSlot } from "./storage/versioning/getActiveSlot";
+export { VersionRegistry } from "./storage/versioning/VersionRegistry";
+export { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./storage/versioning/ComponentVersionSchema";
+
+// ── Observation + filing repos / tokens ─────────────────────────────────────
+export { CompanyObservationRepo } from "./storage/observation/CompanyObservationRepo";
+export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
+export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/CompanyObservationSchema";
+export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
+export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
+
+// ── Normalization helpers ───────────────────────────────────────────────────
+export {
+  generateCompanyHash,
+  hasCompanyEnding,
+  normalizeCompanyName,
+} from "./storage/company/CompanyNormalization";
+export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
+export { normalizePhone } from "./storage/phone/PhoneNormalization";
+
+// ── Typed schema / util helpers ─────────────────────────────────────────────
+export { isBadPersonField } from "./types/edgar/bad-data";
+export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
+export { TypeNullable } from "./util/TypeBoxUtil";
+export { streamMatchingRows } from "./cli/queries/_streamMatches";
+export { KeyedMutex } from "./util/KeyedMutex";
+export { parseCikSafely as parseCik } from "./util/parseCik";
+
+// ── Re-exported workglow storage primitives a feature package builds on ──────
+export {
+  createServiceToken,
+  InMemoryTabularStorage,
+  type AnyTabularStorage,
+  type ITabularStorage,
+} from "workglow";
