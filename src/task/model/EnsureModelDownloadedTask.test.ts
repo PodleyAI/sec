@@ -11,7 +11,7 @@ import {
   EnsureModelDownloadedTask,
   ensureModelDownloaded,
   resetEnsuredModelsForTesting,
-} from "./ensureModelDownloaded";
+} from "./EnsureModelDownloadedTask";
 
 /** A throwaway execute context — these tests never reach a real provider. */
 const ctx = (): IExecuteContext =>

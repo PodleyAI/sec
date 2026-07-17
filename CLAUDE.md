@@ -96,7 +96,7 @@ Local model weights must be on disk before generation, and providers differ on
 when that happens: cloud models have nothing to download; HuggingFace ONNX
 auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
 `model_path` directly and never fetches at generation. `EnsureModelDownloadedTask`
-(`src/config/ensureModelDownloaded.ts`) is the single seam that normalizes this.
+(`src/task/model/EnsureModelDownloadedTask.ts`) is the single seam that normalizes this.
 It takes a **model id** and figures out the provider from the id shape via
 `secModelRecord` (no resolved `ModelConfig` handed in), then owns and runs
 `ModelDownloadTask` for the local providers (no-op for cloud, memoized per model
@@ -739,7 +739,7 @@ time** and a queryable **current state**:
 - **`src/task/`** — Workglow task graph tasks (fetch, store, process, query, ceremonies).
   Organized by domain: `ciknames/`, `facts/`, `forms/`, `index/`, `submissions/`,
   `query/`, `db/`, `versioning/`, `resolve/`, `canonical/`, `spac/`, `editorial/`,
-  `offering/`, `fixtures/`, `init/`, `eval/`. `taskPorts.ts` exports `TaskPorts<T>`, a
+  `offering/`, `fixtures/`, `init/`, `eval/`, `model/`. `taskPorts.ts` exports `TaskPorts<T>`, a
   type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
   constraint on `Task<Input, Output>`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.

@@ -5,7 +5,7 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
-import { prefetchModel } from "../../../config/ensureModelDownloaded";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";

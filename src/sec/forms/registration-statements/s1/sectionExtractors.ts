@@ -6,7 +6,7 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
-import { ensureModelDownloaded } from "../../../../config/ensureModelDownloaded";
+import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import {
   BeneficialOwnershipOutputSchema,

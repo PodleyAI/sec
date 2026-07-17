@@ -5,7 +5,7 @@
  */
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { globalServiceRegistry, renderMarkdown } from "workglow";
-import { prefetchModel } from "../../../config/ensureModelDownloaded";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";

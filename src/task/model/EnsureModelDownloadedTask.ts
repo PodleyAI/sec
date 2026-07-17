@@ -6,7 +6,7 @@
 
 import { Static, Type } from "typebox";
 import { IExecuteContext, ModelDownloadTask, Task } from "workglow";
-import { secModelRecord } from "./registerModels";
+import { secModelRecord } from "../../config/registerModels";
 
 /**
  * Providers whose weights are fetched from a remote source and cached to disk by

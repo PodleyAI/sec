@@ -6,7 +6,7 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { prefetchModel } from "../config/ensureModelDownloaded";
+import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../config/registerModels";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";

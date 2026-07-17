@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository, IExecuteContext, Task } from "workglow";
-import { prefetchModel } from "../../config/ensureModelDownloaded";
+import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { getGoldenLabels } from "../../eval/goldenS1Labels";
