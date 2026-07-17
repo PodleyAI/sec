@@ -4,14 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IExecuteContext, ModelConfig } from "workglow";
-import {
-  AiProviderRegistry,
-  getAiProviderRegistry,
-  setAiProviderRegistry,
-} from "workglow";
+import type { IExecuteContext } from "workglow";
+import { AiProviderRegistry, getAiProviderRegistry, setAiProviderRegistry } from "workglow";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  EnsureModelDownloadedTask,
   ensureModelDownloaded,
   resetEnsuredModelsForTesting,
 } from "./ensureModelDownloaded";
@@ -27,81 +24,43 @@ const ctx = (): IExecuteContext =>
   }) as unknown as IExecuteContext;
 
 /**
- * No AI providers are registered in this suite, so any model that actually
- * dispatches `ModelDownloadTask` rejects fast with "No run function found …
- * model.download". We use that as the observable signal that a download was
- * *attempted*; a clean resolve is the signal that it was *skipped* (a no-op).
+ * The task figures out the provider (and its download config) from the model id
+ * *shape* alone, via `secModelRecord` — no resolved `ModelConfig` is handed in.
+ * No AI providers are registered in this suite, so any id that actually dispatches
+ * `ModelDownloadTask` rejects fast with "No run function found … model.download".
+ * We use that as the observable signal that a download was *attempted*; a clean
+ * resolve is the signal that it was *skipped* (a no-op).
  */
-const cloud = (id: string, provider: string): ModelConfig =>
-  ({ model_id: id, provider, provider_config: { model_name: id } }) as unknown as ModelConfig;
-
-const llamaCpp = (id: string, provider_config: Record<string, unknown>): ModelConfig =>
-  ({ model_id: id, provider: "LOCAL_LLAMACPP", provider_config }) as unknown as ModelConfig;
-
-const hft = (id: string): ModelConfig =>
-  ({
-    model_id: id,
-    provider: "HF_TRANSFORMERS_ONNX",
-    provider_config: { model_path: id },
-  }) as unknown as ModelConfig;
-
-describe("ensureModelDownloaded", () => {
+describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
   beforeEach(() => {
     resetEnsuredModelsForTesting();
   });
 
-  it("is a no-op for cloud providers (nothing to download)", async () => {
-    await expect(ensureModelDownloaded(cloud("claude-sonnet-5", "ANTHROPIC"), ctx())).resolves.toBeUndefined();
-    await expect(ensureModelDownloaded(cloud("gpt-5.5", "OPENAI"), ctx())).resolves.toBeUndefined();
-    await expect(
-      ensureModelDownloaded(cloud("gemini-3-flash-preview", "GOOGLE_GEMINI"), ctx())
-    ).resolves.toBeUndefined();
-    await expect(ensureModelDownloaded(cloud("grok-4.5", "XAI"), ctx())).resolves.toBeUndefined();
+  it("is a no-op for cloud ids, whichever provider the name resolves to", async () => {
+    // claude-* → Anthropic, gpt-* → OpenAI, gemini-* → Gemini, grok-* → xAI —
+    // all cloud, so nothing to download.
+    await expect(ensureModelDownloaded("claude-sonnet-5", ctx())).resolves.toBeUndefined();
+    await expect(ensureModelDownloaded("gpt-5.5", ctx())).resolves.toBeUndefined();
+    await expect(ensureModelDownloaded("gemini-3-flash-preview", ctx())).resolves.toBeUndefined();
+    await expect(ensureModelDownloaded("grok-4.5", ctx())).resolves.toBeUndefined();
   });
 
-  it("skips a bare-path GGUF (no model_url): the file is assumed on disk", async () => {
-    await expect(
-      ensureModelDownloaded(llamaCpp("gguf:/models/x.gguf", { model_path: "/models/x.gguf" }), ctx())
-    ).resolves.toBeUndefined();
+  it("skips a bare-path GGUF id (no model_url): the file is assumed on disk", async () => {
+    await expect(ensureModelDownloaded("gguf:/models/x.gguf", ctx())).resolves.toBeUndefined();
   });
 
-  it("attempts a download for a HuggingFace ONNX model", async () => {
-    await expect(ensureModelDownloaded(hft("onnx-community/x"), ctx())).rejects.toThrow();
+  it("attempts a download for a HuggingFace ONNX id (org/name shape)", async () => {
+    await expect(ensureModelDownloaded("onnx-community/x", ctx())).rejects.toThrow();
   });
 
-  it("attempts a download for a GGUF model that has a model_url", async () => {
-    await expect(
-      ensureModelDownloaded(
-        llamaCpp("gguf:hf:org/repo:Q4_K_M", {
-          model_path: "/models/repo-Q4_K_M.gguf",
-          model_url: "hf:org/repo:Q4_K_M",
-          models_dir: "/models",
-        }),
-        ctx()
-      )
-    ).rejects.toThrow();
+  it("attempts a download for a GGUF id with a remote model_url", async () => {
+    await expect(ensureModelDownloaded("gguf:hf:org/repo:Q4_K_M", ctx())).rejects.toThrow();
   });
 
-  it("downloads each model at most once (memoized across calls)", async () => {
-    const id = "gguf:memo.gguf";
-    // First mark the id ready via the bare-path (no-op) branch.
-    await ensureModelDownloaded(llamaCpp(id, { model_path: "/models/memo.gguf" }), ctx());
-    // A later record with the SAME id would normally attempt a download and
-    // reject — but the memo short-circuits it, so it resolves cleanly.
-    await expect(
-      ensureModelDownloaded(
-        llamaCpp(id, { model_path: "/models/memo.gguf", model_url: "hf:org/memo:Q4" }),
-        ctx()
-      )
-    ).resolves.toBeUndefined();
-    // Sanity: without the memo, the url-bearing record does attempt (and reject).
-    resetEnsuredModelsForTesting();
-    await expect(
-      ensureModelDownloaded(
-        llamaCpp(id, { model_path: "/models/memo.gguf", model_url: "hf:org/memo:Q4" }),
-        ctx()
-      )
-    ).rejects.toThrow();
+  it("no-ops on an empty id", async () => {
+    await expect(ensureModelDownloaded("", ctx())).resolves.toBeUndefined();
+    await expect(ensureModelDownloaded(null, ctx())).resolves.toBeUndefined();
+    await expect(ensureModelDownloaded(undefined, ctx())).resolves.toBeUndefined();
   });
 
   describe("progress + abort forwarding", () => {
@@ -141,19 +100,19 @@ describe("ensureModelDownloaded", () => {
         resourceScope: { register: () => {}, dispose: async () => {} },
       } as unknown as IExecuteContext;
 
-      const model = hft("onnx-community/progress");
-      await ensureModelDownloaded(model, context);
-      // The download's phase event reached the running task's progress sink — this
-      // is what the withCli UI renders on screen.
+      // The download's phase event, emitted two task layers down (the owned
+      // ModelDownloadTask under EnsureModelDownloadedTask), reaches the running
+      // task's progress sink — this is what the withCli UI renders on screen.
+      await ensureModelDownloaded("onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
       expect(progress).toContainEqual([42, "Downloading model"]);
 
       // Memoized: a second call does not re-invoke the download run-fn.
-      await ensureModelDownloaded(model, context);
+      await ensureModelDownloaded("onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
     });
 
-    it("memoizes a model identified by `model` (no model_id)", async () => {
+    it("runs standalone via EnsureModelDownloadedTask.run and reports `downloaded`", async () => {
       let runFnCalls = 0;
       getAiProviderRegistry().registerRunFn("HF_TRANSFORMERS_ONNX", {
         serves: ["model.download"],
@@ -162,21 +121,10 @@ describe("ensureModelDownloaded", () => {
           emit({ type: "finish", data: { model: input.model } });
         },
       } as any);
-      const context = {
-        signal: new AbortController().signal,
-        updateProgress: async () => {},
-        own: <T>(v: T): T => v,
-        registry: { has: () => false, get: () => { throw new Error("x"); } },
-        resourceScope: { register: () => {}, dispose: async () => {} },
-      } as unknown as IExecuteContext;
-      // No model_id — identity comes from `model` (mirrors resolveModelId's fallback).
-      const model = {
-        model: "onnx-community/no-id",
-        provider: "HF_TRANSFORMERS_ONNX",
-        provider_config: { model_path: "onnx-community/no-id" },
-      } as unknown as ModelConfig;
-      await ensureModelDownloaded(model, context);
-      await ensureModelDownloaded(model, context);
+
+      const input = { model: "onnx-community/standalone" };
+      const out = await new EnsureModelDownloadedTask({ defaults: input }).run(input);
+      expect(out.downloaded).toBe(true);
       expect(runFnCalls).toBe(1);
     });
   });

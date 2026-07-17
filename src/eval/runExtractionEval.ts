@@ -194,7 +194,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     // charged to the first fixture's latency, and its progress renders in the CLI
     // task UI. Best-effort: a failed download is surfaced per-fixture as a failed
     // run rather than aborting the whole sweep.
-    await prefetchModel(model, opts.context);
+    await prefetchModel(modelId, opts.context);
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;

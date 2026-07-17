@@ -133,7 +133,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
     await recordLoiRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
-  await prefetchModel(model, args.context);
+  await prefetchModel(model_id, args.context);
 
   let text: string;
   let dropped = 0;

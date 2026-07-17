@@ -132,7 +132,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     const provider = (model as { provider?: string } | undefined)?.provider ?? "unknown";
     // Prefetch a local model's weights before timing (see runExtractionEval).
-    await prefetchModel(model, opts.context);
+    await prefetchModel(modelId, opts.context);
     const modelRows: FixtureRunResult[] = [];
     for (const { section, expected } of covered) {
       if (opts.signal?.aborted) break;

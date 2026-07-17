@@ -7,6 +7,7 @@
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
 import { ensureModelDownloaded } from "../../../../config/ensureModelDownloaded";
+import { resolveModelId } from "./s1Model";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -368,7 +369,7 @@ async function runStructured(
   // weights on disk before generation — cloud models no-op here. Memoized, so the
   // per-section sweep pays the download once; a form/eval run that prefetched with
   // a real context (for visible progress) already satisfied this.
-  await ensureModelDownloaded(model, context);
+  await ensureModelDownloaded(resolveModelId(model), context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,

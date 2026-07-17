@@ -100,7 +100,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const model_id = model ? resolveModelId(model) : null;
   // Fetch a local model's weights up front so the download's progress renders in
   // the CLI task UI before the (silent) per-section extraction begins.
-  await prefetchModel(model, args.context);
+  await prefetchModel(model_id, args.context);
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)

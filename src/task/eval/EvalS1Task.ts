@@ -240,8 +240,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     // download runs through our real context, so its progress renders in the CLI
     // task UI and it is owned by this task's graph.
     for (const id of [...(refModel ? [input.reference] : []), ...input.candidates]) {
-      const m = (await repo.findByName(id)) as ModelConfig | undefined;
-      await prefetchModel(m, context);
+      await prefetchModel(id, context);
     }
     const results: OracleRunResult[] = [];
     const perModel = new Map<string, OracleRunResult[]>();
