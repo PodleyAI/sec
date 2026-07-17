@@ -75,8 +75,12 @@ export class FormDPortalAttributionRepo implements FormDPortalAttributionRepoOpt
     return count;
   }
 
-  /** Clears the whole table ahead of an unscoped recompute. */
-  async clearAll(): Promise<void> {
-    await this.attributionRepository.deleteAll();
+  /** Clears the whole table ahead of an unscoped recompute. Returns rows cleared. */
+  async clearAll(): Promise<number> {
+    const count = await this.attributionRepository.count();
+    if (count > 0) {
+      await this.attributionRepository.deleteAll();
+    }
+    return count;
   }
 }

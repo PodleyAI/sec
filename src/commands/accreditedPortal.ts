@@ -303,9 +303,10 @@ export function registerAccreditedPortalCommands(program: Command): void {
         portalId = portal.portal_id;
       }
       const result = await backfillFormDAttribution({ portalId });
+      const scope = portalId ? `portal ${portalId}` : "all portals";
       console.log(
         `attributed ${result.attributions} filings across ${result.filings} Form D accessions` +
-          (portalId ? ` (portal ${portalId}, cleared ${result.cleared} prior rows)` : "")
+          ` (${scope}, cleared ${result.cleared} prior rows)`
       );
     });
 

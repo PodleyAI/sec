@@ -8,6 +8,7 @@ import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import { SecHftModelDefault, SecModelDefault } from "./Constants";
+import { SecCliConfigurationError } from "./EnvToDI";
 
 /**
  * Provider discriminators. Mirror the constants the provider packages register
@@ -341,7 +342,18 @@ function ggufCacheFileName(uri: string): string {
  */
 function ggufPathConfig(rawPath: string): Record<string, unknown> {
   if (!isRemoteGgufUri(rawPath)) {
-    return { model_path: isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath) };
+    const resolved = isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath);
+    // A `gguf:` id must point at a `.gguf` weights file. Absent the guard, a
+    // typo (or the id shape as a whole) can silently coerce node-llama-cpp
+    // into loading an arbitrary file off disk — the provider takes what the
+    // record's `model_path` says. The remote-URI branch stays unchecked: the
+    // download harness always caches under a synthesized `.gguf` filename.
+    if (!/\.gguf$/i.test(resolved)) {
+      throw new SecCliConfigurationError(
+        `gguf:${rawPath} must resolve to a .gguf file (got ${resolved})`
+      );
+    }
+    return { model_path: resolved };
   }
   const dir = ggufModelsDir();
   return {

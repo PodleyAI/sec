@@ -59,12 +59,10 @@ export async function backfillFormDAttribution(options: {
   const attributionRepo = new FormDPortalAttributionRepo();
   const signalRepo = new AccreditedPortalSignalRepo();
 
-  let cleared = 0;
-  if (options.portalId !== undefined) {
-    cleared = await attributionRepo.clearPortal(options.portalId);
-  } else {
-    await attributionRepo.clearAll();
-  }
+  const cleared =
+    options.portalId !== undefined
+      ? await attributionRepo.clearPortal(options.portalId)
+      : await attributionRepo.clearAll();
 
   const signals =
     options.portalId !== undefined
