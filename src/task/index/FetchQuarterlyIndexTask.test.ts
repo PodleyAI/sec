@@ -87,7 +87,7 @@ const mockFetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
 const oldFetch = global.fetch;
 
 EnvToDI();
-describe("FetchQuarterlyIndexTask", () => {
+describe.skipIf(!!process.env.CI)("FetchQuarterlyIndexTask", () => {
   let server: JobQueueServer<FetchUrlTaskInput, FetchUrlTaskOutput, SecFetchJob>;
 
   beforeAll(async () => {

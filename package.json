@@ -1,11 +1,11 @@
 {
   "name": "@workglow/sec",
   "type": "module",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
   "scripts": {
     "bunset": "bunset --patch --push",
-    "release": "bun run build && bun run test && bun run bunset",
+    "release": "bun run use-dist && bun run build && bun run test && bun run bunset",
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/sec.ts ./src/index.ts",
     "dev-types": "tsc --watch --preserveWatchOutput",
