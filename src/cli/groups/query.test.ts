@@ -14,7 +14,7 @@ describe("query CIK options", () => {
       const cikOption = command?.options.find((option) => option.long === "--cik");
       expect(cikOption?.parseArg).toBeFunction();
       expect(() => cikOption!.parseArg!("", undefined)).toThrow(
-        '"" is not a valid number'
+        '"" is not a non-negative integer.'
       );
     }
   });
@@ -31,7 +31,7 @@ describe("query CIK options", () => {
       const command = query!.commands.find((candidate) => candidate.name() === commandName);
       const option = command?.options.find((o) => o.long === flag);
       expect(option?.parseArg).toBeFunction();
-      expect(() => option!.parseArg!("", undefined)).toThrow('"" is not a valid number');
+      expect(() => option!.parseArg!("", undefined)).toThrow('"" is not a non-negative integer.');
     }
   });
 });

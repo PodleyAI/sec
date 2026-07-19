@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { InvalidArgumentError, type Command } from "commander";
 
 export interface GlobalOptions {
   readonly dryRun: boolean;
@@ -24,9 +24,9 @@ export function parseGlobalOptions(cmd: Command): GlobalOptions {
 }
 
 export function parseIntOption(value: string): number {
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed)) {
-    throw new Error(`"${value}" is not a valid number`);
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed))) {
+    throw new InvalidArgumentError(`"${value}" is not a non-negative integer.`);
   }
-  return parsed;
+  return Number(trimmed);
 }
