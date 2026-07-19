@@ -19,6 +19,8 @@ sec-db/
 
 # Downloaded S-1 fixture cache (use `sec fetch s1-fixtures`); only the curated set under mock_data/s1/*.htm is committed
 src/sec/html/mock_data/s1/.cache/
+# Fixture output written by `sec fetch fixtures` / `sec fetch s1-fixtures` (relative to $SEC_FIXTURES_DIR ?? cwd)
+.sec-fixtures/
 
 # Local one-off probes / scratch files (never commit)
 /*.tmp.ts

@@ -808,6 +808,8 @@ Set in `.env.local` (see `.env.test` for test defaults):
 - `SEC_PG_USER` — PostgreSQL user
 - `SEC_PG_PASSWORD` — PostgreSQL password
 - `SEC_PG_DATABASE` — PostgreSQL database name (default: `edgar`)
+- `SEC_FIXTURES_DIR` — root under which `sec fetch fixtures` / `sec fetch s1-fixtures` write their gitignored cache (default: cwd). Written output goes to `<SEC_FIXTURES_DIR>/.sec-fixtures/exempt-offerings/` and `<SEC_FIXTURES_DIR>/.sec-fixtures/s1/.cache/` — never into the source tree or the bundled `dist/`.
+- `SEC_S1_MOCK_DIR` — override the committed S-1 fixtures directory read by `sec eval s1` and `loadRealS1Sections`. Falls back to the built-tree copy, then the source-tree copy.
 
 ## TypeScript Conventions
 
