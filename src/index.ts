@@ -69,6 +69,7 @@ export { terminateWorkers } from "./util/workers";
 export { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
 export type { ServiceToken } from "workglow";
 export { Type, type Static } from "typebox";
+export { Value } from "typebox/value";
 export { Task, Workflow } from "workglow";
 export type { IExecuteContext, TaskOutput } from "workglow";
 export { isStaleByAsOf } from "./util/asOfGuard";
