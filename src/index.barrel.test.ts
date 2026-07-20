@@ -33,3 +33,10 @@ test("exports task + temporal primitives downstream ingestion needs", () => {
   expect(typeof (sec as Record<string, unknown>).Workflow).toBe("function");
   expect(typeof (sec as Record<string, unknown>).isStaleByAsOf).toBe("function");
 });
+
+test("exports family-tier primitives for a downstream family resolver", () => {
+  const b = sec as Record<string, unknown>;
+  expect(typeof b.FamilyResolver).toBe("function");
+  expect(typeof b.normalizeFamilyName).toBe("function");
+  expect(typeof b.CanonicalFamilyAliasRepo).toBe("function");
+});

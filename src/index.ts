@@ -92,6 +92,10 @@ export {
   registerDatabaseSetupHook,
 } from "./config/databaseExtensions";
 
+// ── Family-tier primitives for downstream resolvers ────────────────────────
+export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
+export { CanonicalFamilyAliasRepo, type FamilyAliasRow } from "./storage/canonical/CanonicalFamilyAliasRepo";
+
 // ── Versioning internals ────────────────────────────────────────────────────
 export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
 export { getActiveSlot } from "./storage/versioning/getActiveSlot";
