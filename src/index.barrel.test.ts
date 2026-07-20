@@ -27,3 +27,9 @@ test("barrel exposes the sec dependencies a downstream feature package builds on
     expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
   }
 });
+
+test("exports task + temporal primitives downstream ingestion needs", () => {
+  expect(typeof (sec as Record<string, unknown>).Task).toBe("function");
+  expect(typeof (sec as Record<string, unknown>).Workflow).toBe("function");
+  expect(typeof (sec as Record<string, unknown>).isStaleByAsOf).toBe("function");
+});
