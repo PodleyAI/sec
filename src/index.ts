@@ -73,6 +73,7 @@ export { Value } from "typebox/value";
 export { Task, Workflow } from "workglow";
 export type { IExecuteContext, TaskOutput } from "workglow";
 export { isStaleByAsOf } from "./util/asOfGuard";
+export type { TaskPorts } from "./task/taskPorts";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
 // A downstream feature package (e.g. `embarc-data`) registers its own resolver
