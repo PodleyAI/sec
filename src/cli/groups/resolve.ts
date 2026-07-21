@@ -5,7 +5,7 @@
  */
 
 import type { Command } from "commander";
-import { RESOLVER_IDS, isFamilyResolverId, type ResolverId } from "../../resolver/resolverIds";
+import { resolverIds, isFamilyResolverId } from "../../resolver/resolverIds";
 import { isValidSemver } from "../../storage/versioning/VersionRegistry";
 import {
   ResolveObservationsTask,
@@ -25,8 +25,8 @@ export function addResolveCommands(program: Command): void {
       // runCommand: a validation throw renders a clean error + sets exit code
       // 1 without bypassing the top-level queue/DB teardown (process.exit would).
       await runCommand(async () => {
-        if (!RESOLVER_IDS.includes(opts.kind as ResolverId)) {
-          throw new Error(`--kind must be one of ${RESOLVER_IDS.join("|")}`);
+        if (!resolverIds().includes(opts.kind)) {
+          throw new Error(`--kind must be one of ${resolverIds().join("|")}`);
         }
         // Family-tier resolvers run inline during S-1 extraction (keyed off the
         // sponsor/underwriter common name), not as a batch pass over

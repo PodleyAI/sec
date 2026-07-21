@@ -4,10 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { registerSecResolvers } from "../../config/registerResolvers";
 
 describe("componentRegistry", () => {
+  beforeEach(() => {
+    clearResolverExtensionsForTesting();
+    registerSecResolvers();
+  });
+  afterEach(() => {
+    clearResolverExtensionsForTesting();
+  });
+
   it("registers all extractors", () => {
     for (const id of [
       "D",
@@ -41,8 +51,8 @@ describe("componentRegistry", () => {
   });
 
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
-    // 16 extractors + 5 resolvers (person, company, sponsor-family,
-    // underwriter-family, portal-attributor).
-    expect(listRegisteredComponents()).toHaveLength(21);
+    // 16 extractors + 4 resolvers (person, company, sponsor-family,
+    // underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(20);
   });
 });

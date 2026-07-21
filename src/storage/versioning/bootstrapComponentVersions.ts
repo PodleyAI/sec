@@ -8,7 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./ComponentVersionSchema";
 import type { ComponentKind } from "./ComponentVersionSchema";
 import { EXTRACTOR_IDS } from "./extractorIds";
-import { RESOLVER_IDS } from "../../resolver/resolverIds";
+import { resolverIds } from "../../resolver/resolverIds";
 import { VersionRegistry } from "./VersionRegistry";
 
 /**
@@ -23,7 +23,7 @@ export async function bootstrapComponentVersions(): Promise<void> {
 
   const tasks: ReadonlyArray<{ kind: ComponentKind; ids: ReadonlyArray<string> }> = [
     { kind: "extractor", ids: EXTRACTOR_IDS },
-    { kind: "resolver", ids: RESOLVER_IDS },
+    { kind: "resolver", ids: resolverIds() },
   ];
 
   for (const { kind, ids } of tasks) {

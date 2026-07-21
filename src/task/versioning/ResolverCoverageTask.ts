@@ -10,7 +10,6 @@ import {
   computeResolverCoverage,
   type ResolverCoverageResult,
 } from "../../cli/queries/ResolverCoverage";
-import type { ResolverId } from "../../resolver/resolverIds";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -57,6 +56,6 @@ export class ResolverCoverageTask extends Task<
     if (!slot) {
       throw new Error(`No active slot for resolver:${input.id}`);
     }
-    return computeResolverCoverage(input.id as ResolverId, slot.semver);
+    return computeResolverCoverage(input.id, slot.semver);
   }
 }

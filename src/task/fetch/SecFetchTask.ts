@@ -24,7 +24,7 @@ export class SecFetchTask<
   constructor(input: FetchUrlTaskInput = {} as FetchUrlTaskInput, config: Config = {} as Config) {
     const defaults: FetchUrlTaskInput = { ...input };
     if (defaults.headers) {
-      defaults.headers = { ...defaults.headers, "User-Agent": SecUserAgent };
+      defaults.headers = { "User-Agent": SecUserAgent, ...defaults.headers };
     } else {
       defaults.headers = { "User-Agent": SecUserAgent };
     }

@@ -37,6 +37,7 @@ export { AddCommands } from "./commands";
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
+export { setupAllDatabases } from "./config/setupAllDatabases";
 export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
 export { registerSecModels } from "./config/registerModels";
 export { registerSecProviders } from "./config/registerProviders";
@@ -59,6 +60,79 @@ export { closePgPool, getPgPool } from "./util/pg";
 export { terminateWorkers } from "./util/workers";
 
 // ── Re-exported workglow primitives a superset commonly needs ────────────────
-// Saves supersets from taking a direct `workglow` dependency just to stop the
-// shared task-queue registry during shutdown.
-export { getTaskQueueRegistry } from "workglow";
+// Saves supersets from taking a direct `workglow` dependency. Routing DI +
+// schema access through the barrel is REQUIRED for correctness, not just
+// convenience: a downstream package that imported its own `workglow` /
+// `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
+// different TypeBox instance, so its DI registrations and schemas would not be
+// visible to sec. Import these from `@workglow/sec` to share sec's instances.
+export { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
+export type { ServiceToken } from "workglow";
+export { Type, type Static } from "typebox";
+export { Value } from "typebox/value";
+export { Task, Workflow } from "workglow";
+export type { IExecuteContext, TaskOutput } from "workglow";
+export { isStaleByAsOf } from "./util/asOfGuard";
+export type { TaskPorts } from "./task/taskPorts";
+
+// ── Extension seams for downstream feature packages ─────────────────────────
+// A downstream feature package (e.g. `embarc-data`) registers its own resolver
+// ids and DB-extension repo tokens through these seams, then reuses the
+// versioning / observation / normalization internals below.
+export {
+  getResolverExtension,
+  isFamilyResolverId,
+  listResolverIds,
+  registerResolverExtension,
+  type ResolverExtension,
+} from "./resolver/resolverExtensions";
+export {
+  listDatabaseExtensionTokens,
+  registerDatabaseExtension,
+  registerDatabaseSetupHook,
+} from "./config/databaseExtensions";
+
+// ── Family-tier primitives for downstream resolvers ────────────────────────
+export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
+export { CanonicalFamilyAliasRepo, type FamilyAliasRow } from "./storage/canonical/CanonicalFamilyAliasRepo";
+
+// ── Versioning internals ────────────────────────────────────────────────────
+export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
+export { getActiveSlot } from "./storage/versioning/getActiveSlot";
+export { VersionRegistry } from "./storage/versioning/VersionRegistry";
+export { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./storage/versioning/ComponentVersionSchema";
+
+// ── Observation + filing repos / tokens ─────────────────────────────────────
+export { CompanyObservationRepo } from "./storage/observation/CompanyObservationRepo";
+export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
+export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/CompanyObservationSchema";
+export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
+export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
+
+// ── Normalization helpers ───────────────────────────────────────────────────
+export {
+  generateCompanyHash,
+  hasCompanyEnding,
+  normalizeCompanyName,
+} from "./storage/company/CompanyNormalization";
+export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
+export { normalizePhone } from "./storage/phone/PhoneNormalization";
+
+// ── Typed schema / util helpers ─────────────────────────────────────────────
+export { isBadPersonField } from "./types/edgar/bad-data";
+export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
+export { TypeNullable } from "./util/TypeBoxUtil";
+export { streamMatchingRows } from "./cli/queries/_streamMatches";
+export { KeyedMutex } from "./util/KeyedMutex";
+export { parseCikSafely as parseCik } from "./util/parseCik";
+
+// ── Re-exported workglow storage primitives a feature package builds on ──────
+export {
+  createServiceToken,
+  InMemoryTabularStorage,
+  type AnyTabularStorage,
+  type ITabularStorage,
+} from "workglow";
+
+// ── Test helpers a downstream feature package needs in its own test setup ────
+export { resetDependencyInjectionsForTesting } from "./config/TestingDI";

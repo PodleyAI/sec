@@ -33,9 +33,6 @@ import {
   CROWDFUNDING_REPOSITORY_TOKEN,
 } from "../storage/portal/CrowdfundingSchema";
 import { PORTAL_REPOSITORY_TOKEN } from "../storage/portal/PortalSchema";
-import { ACCREDITED_PORTAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSchema";
-import { ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN } from "../storage/accredited-portal/AccreditedPortalSignalSchema";
-import { FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN } from "../storage/accredited-portal/FormDPortalAttributionSchema";
 import {
   SECTION16_FILING_REPOSITORY_TOKEN,
   SECTION16_HOLDING_REPOSITORY_TOKEN,
@@ -102,6 +99,8 @@ import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
+import { registerSecResolvers } from "./registerResolvers";
+import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
@@ -120,6 +119,12 @@ export async function setupAllDatabases(): Promise<void> {
   if (typeof Sqlite.init === "function") {
     await Sqlite.init();
   }
+  // Let downstream packages register their DI repos + db-extension tokens +
+  // resolver kinds before we create tables and seed component versions. This is
+  // what makes a superset's tables/resolvers materialize on the `init` path,
+  // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
+  // without ever running the CLI preAction hook that otherwise registers them.
+  runDatabaseSetupHooks();
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
@@ -146,9 +151,6 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ACCREDITED_PORTAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(ACCREDITED_PORTAL_SIGNAL_REPOSITORY_TOKEN).setupDatabase();
-  await globalServiceRegistry.get(FORM_D_PORTAL_ATTRIBUTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();
@@ -207,6 +209,11 @@ export async function setupAllDatabases(): Promise<void> {
   // of the legacy table cannot be ALTERed away on either backend.
   await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
+  // Downstream packages register their repo tokens via registerDatabaseExtension()
+  // so `db setup` creates their tables after the built-in SEC ones.
+  for (const token of listDatabaseExtensionTokens()) {
+    await globalServiceRegistry.get(token).setupDatabase();
+  }
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.
@@ -222,6 +229,12 @@ export async function setupAllDatabases(): Promise<void> {
     }
     backfillExtractorRunsOutcome(db);
   }
+  // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
+  // seed component-version rows: bootstrapComponentVersions() enumerates the
+  // registry, and this path also runs from `init` (which skips the preAction
+  // hook that otherwise calls registerSecResolvers). Idempotent — safe to call
+  // again when the hook already registered them.
+  registerSecResolvers();
   await bootstrapComponentVersions();
 }
 

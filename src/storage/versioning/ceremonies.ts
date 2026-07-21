@@ -10,16 +10,7 @@ import type { ExtractorRunRepo } from "./ExtractorRunRepo";
 import { validateBumpProgression } from "./semver";
 import type { VersionEventRepo } from "./VersionEventRepo";
 import type { VersionRegistry } from "./VersionRegistry";
-import { PersonIdentityLinkRepo } from "../canonical/PersonIdentityLinkRepo";
-import { CompanyIdentityLinkRepo } from "../canonical/CompanyIdentityLinkRepo";
-import { CanonicalPersonRepo } from "../canonical/CanonicalPersonRepo";
-import { CanonicalCompanyRepo } from "../canonical/CanonicalCompanyRepo";
-import { CanonicalPersonAddressRepo } from "../canonical/CanonicalPersonAddressRepo";
-import { CanonicalPersonPhoneRepo } from "../canonical/CanonicalPersonPhoneRepo";
-import { CanonicalCompanyAddressRepo } from "../canonical/CanonicalCompanyAddressRepo";
-import { CanonicalCompanyPhoneRepo } from "../canonical/CanonicalCompanyPhoneRepo";
-import { FormDPortalAttributionRepo } from "../accredited-portal/FormDPortalAttributionRepo";
-import type { ResolverId } from "../../resolver/resolverIds";
+import { getResolverExtension } from "../../resolver/resolverExtensions";
 
 interface BaseArgs {
   readonly reg: VersionRegistry;
@@ -329,42 +320,16 @@ export async function dropPrevious(args: DropPreviousArgs): Promise<void> {
     if (!args.runs) throw new Error("runs repo required for extractor drop-previous");
     await args.runs.deleteForExtractorVersion(id, previous.semver);
   } else {
-    // resolver
-    const resolverId = id as ResolverId;
-    if (resolverId === "person") {
-      const linkRepo = new PersonIdentityLinkRepo();
-      const junctionAddr = new CanonicalPersonAddressRepo();
-      const junctionPhone = new CanonicalPersonPhoneRepo();
-      const canonRepo = new CanonicalPersonRepo();
-      await linkRepo.deleteForResolverVersion(previous.semver);
-      await junctionAddr.deleteForResolverVersion(previous.semver);
-      await junctionPhone.deleteForResolverVersion(previous.semver);
-      await canonRepo.deleteForResolverVersion(previous.semver);
-    } else if (resolverId === "company") {
-      const linkRepo = new CompanyIdentityLinkRepo();
-      const junctionAddr = new CanonicalCompanyAddressRepo();
-      const junctionPhone = new CanonicalCompanyPhoneRepo();
-      const canonRepo = new CanonicalCompanyRepo();
-      await linkRepo.deleteForResolverVersion(previous.semver);
-      await junctionAddr.deleteForResolverVersion(previous.semver);
-      await junctionPhone.deleteForResolverVersion(previous.semver);
-      await canonRepo.deleteForResolverVersion(previous.semver);
-    } else if (resolverId === "portal-attributor") {
-      // Attribution rows are the only version-scoped data this component owns;
-      // portals and signals are curated and version-free.
-      await new FormDPortalAttributionRepo().deleteForAttributorVersion(previous.semver);
-    } else {
-      // Family-tier resolvers (sponsor-family / underwriter-family) store
-      // canonical + membership + link rows, not identity-links/junctions. Their
-      // version-scoped purge is not yet wired; refuse rather than fall through to
-      // the company branch, which would destructively delete unrelated company
-      // canonical/identity-link data at this semver.
+    // resolver — dispatch to the registered kind's version-scoped purge.
+    const ext = getResolverExtension(id);
+    if (!ext) throw new Error(`drop-previous: unknown resolver kind '${id}'`);
+    if (!ext.dropPrevious) {
       throw new Error(
-        `drop-previous is not yet supported for family resolver kind '${resolverId}'. ` +
-          `Purging canonical/membership/link rows by resolver_version is unimplemented; ` +
-          `the previous slot was left intact.`
+        `drop-previous is not supported for resolver kind '${id}' ` +
+          `(no version-scoped purge registered); the previous slot was left intact.`
       );
     }
+    await ext.dropPrevious(previous.semver);
   }
 
   await reg.clearSlot(kind, id, "previous");
