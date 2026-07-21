@@ -38,9 +38,13 @@ import {
 
 export const DEFAULT_FIXTURES_PER_FORM = 50;
 
+// Written output: keep it out of the source tree. `import.meta.dir` after
+// bundling points at `dist/`, which would silently write into the packaged
+// binary's directory — a `SEC_FIXTURES_DIR` override, else cwd, is stable
+// regardless of how the CLI was launched.
 const MOCK_ROOT = resolve(
-  import.meta.dir,
-  "../../sec/forms/exempt-offerings/mock_data"
+  process.env.SEC_FIXTURES_DIR ?? process.cwd(),
+  ".sec-fixtures/exempt-offerings"
 );
 
 export interface FetchFixturesOptions {
@@ -228,6 +232,8 @@ export async function fetchFixtures(options: FetchFixturesOptions = {}): Promise
     throw new Error("count must be a positive number");
   }
   parseQuarterStrings(quarters); // validate shape
+
+  console.log(`[sec fetch] output dir: ${MOCK_ROOT}`);
 
   // Pull form.idx for each requested quarter (cached on disk via the
   // SecCachedFetchTask layer; second runs in the same quarter are free).

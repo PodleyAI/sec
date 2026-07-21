@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "csv-parse/sync";
+import { resolveAsset } from "../util/resolveAsset";
 
 /**
  * embarc's hand-curated SPAC unit structure, flattened per origin CIK into
@@ -36,7 +37,17 @@ export interface EmbarcUnitTermsRef {
   readonly warrant_price: number | null;
 }
 
-const REFERENCE_PATH = join(import.meta.dir, "mock_data", "embarc-spac-unit-terms.csv");
+// `import.meta.dir` resolves to `src/eval/` in dev and `dist/eval/` after the
+// build (the build-js script copies mock_data alongside), so the first
+// candidate covers both. The second candidate is a safety fallback if the
+// module ever moves relative to its assets. Resolved lazily so a missing
+// CSV doesn't crash unrelated code paths at import time.
+function resolveReferencePath(): string {
+  return resolveAsset([
+    join(import.meta.dir, "mock_data/embarc-spac-unit-terms.csv"),
+    join(import.meta.dir, "../eval/mock_data/embarc-spac-unit-terms.csv"),
+  ]);
+}
 
 const toNum = (v: string): number | null => (v === "" ? null : Number(v));
 const toStr = (v: string): string | null => (v === "" ? null : v);
@@ -46,7 +57,7 @@ let cache: Map<number, EmbarcUnitTermsRef> | undefined;
 /** Load (and memoize) the reference set, keyed by SPAC origin CIK. */
 export function loadEmbarcUnitTermsReference(): Map<number, EmbarcUnitTermsRef> {
   if (cache) return cache;
-  const records = parse(readFileSync(REFERENCE_PATH, "utf8"), {
+  const records = parse(readFileSync(resolveReferencePath(), "utf8"), {
     columns: true,
     skip_empty_lines: true,
     trim: true,
