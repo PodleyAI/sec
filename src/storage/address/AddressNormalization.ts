@@ -25,7 +25,57 @@ export type AddressImport = {
   foreignStateTerritory?: string | null;
 };
 
-const parser = new AddressParser();
+// One parser per supported country. EDGAR carries US and Canadian addresses
+// with parseable street lines; every other country keeps its raw street line
+// (see streetParserForCountry).
+const usAddressParser = new AddressParser("us");
+const caAddressParser = new AddressParser("ca");
+
+/**
+ * French-language street lines lead with the street type ("123 Rue Principale")
+ * rather than trailing it ("123 Main St"). Used to preserve the source ordering
+ * when rebuilding a Canadian street line — see {@link normalizeStreetAddress}.
+ */
+const FRENCH_LEADING_STREET_TYPES = new Set([
+  "rue",
+  "chemin",
+  "avenue",
+  "av",
+  "boulevard",
+  "boul",
+  "bd",
+  "allee",
+  "allée",
+  "cote",
+  "côte",
+  "place",
+  "impasse",
+  "montee",
+  "montée",
+  "rang",
+  "croissant",
+  "ruelle",
+  "voie",
+  "promenade",
+  "carre",
+  "carré",
+  "cours",
+]);
+
+/**
+ * Resolves the street parser for a resolved ISO country code, or null when the
+ * country has no dedicated parser (the raw street line is then kept as-is).
+ */
+function streetParserForCountry(countryCode: string | null): AddressParser | null {
+  switch (countryCode) {
+    case "US":
+      return usAddressParser;
+    case "CA":
+      return caAddressParser;
+    default:
+      return null;
+  }
+}
 
 /**
  * Cleans street address by removing care-of patterns and company endings
@@ -107,17 +157,42 @@ function normalizePostalCode(
 }
 
 /**
- * Parses US addresses using address parser for standardization
+ * Counts whitespace-separated tokens across the given lines (punctuation folded
+ * to spaces). Abbreviation ("Street" → "St") and reordering keep the token count
+ * unchanged; dropping a word lowers it — see the loss guard in
+ * {@link normalizeStreetAddress}.
  */
-function normalizeUSStreetAddress(
+function streetTokenCount(...lines: (string | null)[]): number {
+  return lines
+    .filter((line): line is string => !!line)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[.,]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+/**
+ * Standardizes a street line via the country's address parser: abbreviates the
+ * street type, folds a secondary-unit designator down into street2, and (for
+ * Canada) preserves French leading-type ordering.
+ *
+ * Only the street components are read back. City/state/postal come pre-separated
+ * from EDGAR as structured fields, so the parser's re-extracted `city` /
+ * `postal_code` are intentionally ignored — the EDGAR-supplied `zipCode` (run
+ * through {@link normalizePostalCode}) is authoritative, and re-deriving it from
+ * a concatenated string would only add a second, lossier source of truth.
+ */
+function normalizeStreetAddress(
+  parser: AddressParser,
   street1: string | null,
   street2: string | null,
   street3: string | null,
   city: string | null,
   state: string | null,
   zip: string | null
-): [string | null, string | null, string | null, string | null] {
-  if (!street1) return [street1, street2, street3, city];
+): [string | null, string | null, string | null] {
+  if (!street1) return [street1, street2, street3];
 
   try {
     const streetInput = [street1, street2, street3, city, state, zip]
@@ -126,21 +201,33 @@ function normalizeUSStreetAddress(
 
     const parts = parser.parseLocation(streetInput);
 
-    if (!parts) return [street1, street2, street3, city];
+    if (!parts) return [street1, street2, street3];
 
-    const {
-      number,
-      prefix,
-      street,
-      type,
-      suffix,
-      sec_unit_type,
-      sec_unit_num,
-      city: cleanCity,
-    } = parts;
+    const { number, civic_number_suffix, prefix, street, type, suffix, sec_unit_type, sec_unit_num } =
+      parts;
+
+    const houseNumber =
+      [number, civic_number_suffix]
+        .filter((s) => s?.toString().trim())
+        .map((s) => s.toString().trim())
+        .join("") || null;
+
+    // A French street line leads with the type ("123 Rue Principale") while an
+    // English one trails it ("123 Main St"). The parser splits `type` out either
+    // way, so keying off the source ordering — the first token after the civic
+    // number — is what prevents rebuilding "123 Rue Principale" as the reordered
+    // "123 Principale Rue". Ambiguous words (Avenue, Place) are disambiguated by
+    // position, not by the word itself.
+    const streetHint = street1.replace(/^\s*\d+[a-z]?\s+/i, "").trimStart();
+    const firstToken = streetHint.split(/[\s,]+/)[0]?.toLowerCase().replace(/[.]/g, "") ?? "";
+    const typeLeadsStreet = !!type && !!street && FRENCH_LEADING_STREET_TYPES.has(firstToken);
+
+    const orderedStreet1 = typeLeadsStreet
+      ? [houseNumber, prefix, type, street, suffix]
+      : [houseNumber, prefix, street, type, suffix];
 
     const newStreet1 =
-      [number, prefix, street, type, suffix]
+      orderedStreet1
         .filter((s) => s?.toString().trim())
         .map((s) => s.toString().trim())
         .join(" ") || null;
@@ -150,15 +237,24 @@ function normalizeUSStreetAddress(
         .filter((s) => s?.toString().trim())
         .map((s) => s.toString().trim())
         .join(" ") || null;
-    if (newStreet1) {
-      return [newStreet1, newStreet2, null, cleanCity];
-    } else if (newStreet2) {
-      return [newStreet2, null, null, cleanCity];
+
+    // Loss guard: the parser should only abbreviate and reorder, never drop a
+    // word. If the rebuilt street lines carry fewer tokens than the source (the
+    // beta CA parser truncates some French compound names such as "Avenue du
+    // Parc"), keep the raw lines instead of persisting a truncated address.
+    if (streetTokenCount(newStreet1, newStreet2) < streetTokenCount(street1, street2, street3)) {
+      return [street1, street2, street3];
     }
-    return [null, null, null, cleanCity];
+
+    if (newStreet1) {
+      return [newStreet1, newStreet2, null];
+    } else if (newStreet2) {
+      return [newStreet2, null, null];
+    }
+    return [null, null, null];
   } catch (error) {
     console.warn("Address parsing failed:", error);
-    return [street1, street2, street3, city];
+    return [street1, street2, street3];
   }
 }
 
@@ -268,8 +364,10 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
 
   city = normalizeCity(city ?? "");
 
-  if (country_code == "US") {
-    [street1, street2, street3] = normalizeUSStreetAddress(
+  const streetParser = streetParserForCountry(country_code);
+  if (streetParser) {
+    [street1, street2, street3] = normalizeStreetAddress(
+      streetParser,
       street1,
       street2,
       street3,

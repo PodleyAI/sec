@@ -7,7 +7,7 @@
       "dependencies": {
         "@huggingface/transformers": "^4.2.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@sroussey/parse-address": "^2.4.2",
+        "@sroussey/parse-address": "^3.0.0-beta1",
         "@sroussey/parse-full-name": "^2.0.0",
         "@workglow/cli": "0.3.26",
         "awesome-phonenumber": "^7.8.0",
@@ -39,8 +39,8 @@
     },
   },
   "trustedDependencies": [
-    "@huggingface/transformers",
     "onnxruntime-node",
+    "@huggingface/transformers",
   ],
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],
@@ -289,7 +289,7 @@
 
     "@sroussey/json-schema-to-ts": ["@sroussey/json-schema-to-ts@3.1.4", "", { "dependencies": { "@sroussey/ts-algebra": "^2.0.0" } }, "sha512-wGYvgjUI0MoFTICZSoqJEB16bvXJ8lViVHrl3GNNRH871fuk3L6QlsmhWgAr/J0UKHyL1Swz6FVo5ABJTifbKg=="],
 
-    "@sroussey/parse-address": ["@sroussey/parse-address@2.4.2", "", { "dependencies": { "xregexp": "^5.1.2" } }, "sha512-KLQX00WY96RgZnhzQg2pAS/XylVYuXY3MqkynyF/+jMt1vDFJieT7LQSWlwNOpiRpgQbr8x3lBxOVFGil9WMaA=="],
+    "@sroussey/parse-address": ["@sroussey/parse-address@3.0.0-beta1", "", { "dependencies": { "xregexp": "^5.1.2" } }, "sha512-BHsASxmCjPNOg6vzXXv+TxWFoEm27Mg2LhgCp4nIYL6swcOqNfZrMAkjvZs2f3BZKj/NO0XY72wGeVs+l4vqXg=="],
 
     "@sroussey/parse-full-name": ["@sroussey/parse-full-name@2.0.0", "", {}, "sha512-JRfrQnwsQW5HZ8me9BStTc95A4NdgPTElmlHtEEcLlcp1GteExnWaFUIq+zUrEAz8HPT2DnRj8dF7eJGNYG0kw=="],
 
