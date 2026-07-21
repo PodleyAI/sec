@@ -29,7 +29,14 @@ export const DEFAULT_MIN_SPAC = 3;
 /** SEC Standard Industrial Classification code for blank-check (SPAC) issuers. */
 export const SPAC_SIC_CODE = "6770";
 
-const DEFAULT_CACHE_DIR = resolve(import.meta.dir, "../../sec/html/mock_data/s1/.cache");
+// Written output: keep it out of the source tree. `import.meta.dir` after
+// bundling points at `dist/`, which would silently write into the packaged
+// binary's directory — a `SEC_FIXTURES_DIR` override, else cwd, is stable
+// regardless of how the CLI was launched.
+const DEFAULT_CACHE_DIR = resolve(
+  process.env.SEC_FIXTURES_DIR ?? process.cwd(),
+  ".sec-fixtures/s1/.cache"
+);
 
 /** A candidate S-1 filing with the facts needed to select + fetch it. */
 export interface S1Candidate {
@@ -132,6 +139,7 @@ export async function fetchS1Fixtures(
   const shuffle = deps.shuffle ?? defaultShuffle;
 
   if (!existsSync(cacheDir)) mkdirSync(cacheDir, { recursive: true });
+  console.log(`[sec fetch] output dir: ${cacheDir}`);
 
   log("Listing recent S-1 candidates ...");
   const candidates = await deps.listCandidates();

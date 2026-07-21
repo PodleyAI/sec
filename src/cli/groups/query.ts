@@ -345,7 +345,8 @@ export function addQueryCommands(program: Command): void {
     );
 
   query
-    .command("facts <cik>")
+    .command("facts")
+    .argument("<cik>", "Issuer CIK (positive integer)", parseIntOption)
     .description("Query company facts")
     .option("--name <name>", "Filter by fact name")
     .option("--taxonomy <taxonomy>", "Filter by taxonomy")
@@ -354,21 +355,14 @@ export function addQueryCommands(program: Command): void {
     .option("--offset <n>", "Offset results", parseIntOption, 0)
     .option("--format <format>", "Output format (table, json, csv)", "table")
     .action(
-      wrapAction(async (cik: string, options: Record<string, unknown>) => {
+      wrapAction(async (cik: number, options: Record<string, unknown>) => {
         const limit = options.limit as number;
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
-        // Require an all-digit string; parseInt would silently accept
-        // "123abc" as 123 and produce a plausible-but-wrong CIK. Mirrors
-        // the same guard on the `xbrl --cik` option below.
-        const trimmed = cik.trim();
-        if (!/^\d+$/.test(trimmed)) {
-          throw new Error(`Invalid CIK "${cik}". Must be a positive integer.`);
-        }
         const result = await runWorkflowCli<QueryResult<unknown>>([
           new QueryFactsTask({
             defaults: {
-              cik: Number(trimmed),
+              cik,
               name: options.name as string | undefined,
               taxonomy: options.taxonomy as string | undefined,
               year: options.year as number | undefined,
@@ -397,7 +391,8 @@ export function addQueryCommands(program: Command): void {
     )
     .option(
       "--cik <cik>",
-      "Issuer CIK (facts across all the issuer's filings; use instead of an accession)"
+      "Issuer CIK (facts across all the issuer's filings; use instead of an accession)",
+      parseIntOption
     )
     .option("--concept <substr>", "Filter by concept QName substring (e.g. TrustAccount)")
     .option("--numeric-only", "Only numeric (ix:nonFraction) facts", false)
@@ -410,17 +405,7 @@ export function addQueryCommands(program: Command): void {
         const offset = options.offset as number;
         const format = validateFormat(options.format as string);
 
-        const cikRaw = options.cik as string | undefined;
-        let cik: number | undefined;
-        if (cikRaw !== undefined) {
-          // Require an all-digit string; parseInt would silently accept
-          // "123abc" as 123 and produce a plausible-but-wrong CIK.
-          const trimmed = cikRaw.trim();
-          if (!/^\d+$/.test(trimmed)) {
-            throw new Error(`Invalid --cik "${cikRaw}". Must be a positive integer.`);
-          }
-          cik = Number(trimmed);
-        }
+        const cik = options.cik as number | undefined;
         if (accession !== undefined && cik !== undefined) {
           throw new Error("Provide either an accession or --cik, not both.");
         }

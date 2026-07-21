@@ -1,6 +1,6 @@
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { describe, expect, it } from "vitest";
-import { applyGlobalOptions, parseGlobalOptions } from "./GlobalOptions";
+import { applyGlobalOptions, parseGlobalOptions, parseIntOption } from "./GlobalOptions";
 
 function createProgram(): Command {
   const program = new Command();
@@ -59,5 +59,44 @@ describe("GlobalOptions", () => {
       program.parse(["--json"], { from: "user" });
       expect(parseGlobalOptions(program).json).toBe(true);
     });
+  });
+
+  describe("parseIntOption", () => {
+    it("parses plain digit strings", () => {
+      expect(parseIntOption("320193")).toBe(320193);
+    });
+
+    it("parses leading-zero digit strings", () => {
+      expect(parseIntOption("007")).toBe(7);
+    });
+
+    it("parses zero", () => {
+      expect(parseIntOption("0")).toBe(0);
+    });
+
+    const rejected: readonly string[] = [
+      "320193abc",
+      " abc123",
+      "",
+      "   ",
+      "-5",
+      "1.5",
+      "0x10",
+      "1e5",
+      "99999999999999999999",
+    ];
+
+    for (const input of rejected) {
+      it(`rejects ${JSON.stringify(input)} with the original value in the message`, () => {
+        try {
+          parseIntOption(input);
+          throw new Error("expected parseIntOption to throw");
+        } catch (err) {
+          expect(err).toBeInstanceOf(InvalidArgumentError);
+          expect((err as Error).message).toContain(`"${input}"`);
+          expect((err as Error).message).toContain("non-negative integer");
+        }
+      });
+    }
   });
 });

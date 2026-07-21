@@ -4,14 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
 
-/** Directory of committed real S-1 prospectus HTML (see its SOURCES.md). */
-const S1_MOCK_DIR = "src/sec/html/mock_data/s1";
+/**
+ * Build the ordered list of S-1 mock-directory candidates:
+ *   1. explicit `dir` argument (from `--dir` on `sec eval s1`);
+ *   2. `SEC_S1_MOCK_DIR` env var;
+ *   3. built-tree dist candidate (`import.meta.dir` = `dist/eval/`);
+ *   4. dev-tree source candidate (`import.meta.dir` = `src/eval/`).
+ *
+ * `import.meta.dir` points at `src/eval/` in dev and `dist/eval/` after
+ * bundling, so (3) and (4) cover both layouts without depending on cwd.
+ * The old code used a cwd literal ("src/sec/html/mock_data/s1"), which
+ * broke the moment the binary ran from a different directory or was
+ * bundled — this is Fix 2's whole point.
+ */
+function s1MockDirCandidates(dir: string | undefined): string[] {
+  const candidates: string[] = [];
+  if (dir !== undefined) candidates.push(dir);
+  const envDir = process.env.SEC_S1_MOCK_DIR;
+  if (envDir !== undefined && envDir !== "") candidates.push(envDir);
+  candidates.push(join(import.meta.dir, "../sec/html/mock_data/s1"));
+  candidates.push(join(import.meta.dir, "../../src/sec/html/mock_data/s1"));
+  return candidates;
+}
 
 /**
  * Maps an eval extractor name to the S-1 segmenter section it reads, so the
@@ -37,15 +57,29 @@ export interface RealSection {
  * Segment every committed real S-1 HTML and yield the prose for each requested
  * extractor's section, skipping documents where that section is absent/empty.
  * A document that fails to parse is skipped (logged to the returned `skipped`).
+ *
+ * Resolution order for `dir`: an explicit argument wins, else the
+ * `SEC_S1_MOCK_DIR` env var, else the built-tree dist copy, else the
+ * dev-tree source. The last two are `import.meta.dir`-relative so the
+ * bundled `sec` binary can find its fixtures without depending on cwd.
  */
 export function loadRealS1Sections(
   extractorNames: readonly string[],
-  dir: string = S1_MOCK_DIR
+  dir?: string
 ): {
   readonly sections: RealSection[];
   readonly skipped: string[];
 } {
-  const files = readdirSync(dir).filter((f) => f.endsWith(".htm"));
+  const candidates = s1MockDirCandidates(dir);
+  const resolvedDir = candidates.find(existsSync);
+  const files = resolvedDir
+    ? readdirSync(resolvedDir).filter((f) => f.endsWith(".htm"))
+    : [];
+  if (resolvedDir === undefined || files.length === 0) {
+    throw new Error(
+      `No S-1 fixtures found. Searched:\n  - ${candidates.join("\n  - ")}`
+    );
+  }
   const sections: RealSection[] = [];
   const skipped: string[] = [];
 
@@ -64,7 +98,7 @@ export function loadRealS1Sections(
   for (const file of files.sort()) {
     let byName: Map<string, string>;
     try {
-      const html = readFileSync(join(dir, file), "utf8");
+      const html = readFileSync(join(resolvedDir, file), "utf8");
       const doc = parseEdgarHtml(html, file);
       const segmented = new DocumentTreeSegmenter().segment(doc);
       byName = new Map(segmented.map((s) => [s.name as string, s.text]));
