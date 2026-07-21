@@ -117,11 +117,18 @@ export abstract class SecCachedFetchTask<
     const url = this.inputToUrl(input);
     const response_type = guessResponseType(url, input);
 
-    const fetchInput = {
+    const fetchInput: FetchUrlTaskInput = {
       url: url,
       method: "GET",
       response_type: response_type,
     };
+    // Preserve any caller-supplied headers (merged onto the default
+    // SecUserAgent header by SecFetchTask's constructor) — without this a
+    // caller-overridden User-Agent set via `defaults`/constructor input is
+    // silently dropped before reaching the wire.
+    if (input.headers) {
+      fetchInput.headers = input.headers;
+    }
 
     return (await super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig)) as O;
   }
