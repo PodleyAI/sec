@@ -73,6 +73,10 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     } else if (response_type === "blob") {
       // writeFile cannot consume a Blob directly; convert to a Buffer.
       return output.blob;
+    } else if (response_type === "arraybuffer") {
+      // Binary payload (e.g. a downloaded ZIP archive). Buffer.from views the
+      // ArrayBuffer without copying; saveOutput writes it in binary mode.
+      return output.arraybuffer ? Buffer.from(output.arraybuffer as ArrayBuffer) : Buffer.alloc(0);
     } else {
       console.warn(`Unknown response type: ${response_type}, assuming text`);
       return output.text;
@@ -91,6 +95,12 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
       // readFile returns a Buffer; wrap it back into a Blob so downstream
       // consumers see the same shape they wrote.
       result.blob = data instanceof Blob ? data : new Blob([data]);
+    }
+    if (response_type === "arraybuffer") {
+      // readFile returns a Buffer; hand back exactly its bytes as an ArrayBuffer
+      // (slicing off any pooled-buffer slack) so downstream sees what was written.
+      const buf = data as Buffer;
+      result.arraybuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     }
     return result;
   }
@@ -115,13 +125,14 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now().toString(36)}.${Math.random()
       .toString(36)
       .slice(2, 10)}`;
+    const isBinary = responseType === "blob" || responseType === "arraybuffer";
     let serialized = this.outputSerializer(output, responseType);
     if (responseType === "blob" && serialized instanceof Blob) {
       serialized = Buffer.from(await serialized.arrayBuffer());
     }
     try {
       await writeFile(tmpPath, serialized, {
-        encoding: responseType !== "blob" ? "utf-8" : "binary",
+        encoding: isBinary ? "binary" : "utf-8",
       });
       await rename(tmpPath, filePath);
     } catch (error) {
