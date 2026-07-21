@@ -20,6 +20,8 @@ bun test src/path/to/file.test.ts  # Run a single test file
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
+Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow-dev/sec` see live source without needing `src` inside `node_modules/@workglow-dev/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
+
 ### PR4 CLI additions
 
 ```bash
