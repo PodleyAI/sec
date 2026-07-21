@@ -20,7 +20,7 @@ bun test src/path/to/file.test.ts  # Run a single test file
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
-Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow-dev/sec` see live source without needing `src` inside `node_modules/@workglow-dev/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
+Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
 ### PR4 CLI additions
 
@@ -220,7 +220,7 @@ first HFT use).
 
 `scoreExtraction` de-duplicates candidate (and reference) rows on the extractor's
 key field before scoring: a model that emits the same entity twice is over-producing
-*rows*, not inventing distinct hallucinations, so precision is computed over
+_rows_, not inventing distinct hallucinations, so precision is computed over
 **distinct** rows (`candidateDistinct`). The oracle table shows `rows` (raw) and
 `dist` (post-dedupe) side by side — the gap is duplicate over-production.
 
@@ -233,7 +233,7 @@ as the "truth" over **real committed S-1 sections**, then scores each
 so it should be the strongest model available, not the one you are evaluating.
 `realSections.ts` segments the HTML into management / beneficial-ownership /
 related-party prose. The reference retries a few times per section (strong models
-intermittently emit a nested array as a JSON *string* the strict schema rejects);
+intermittently emit a nested array as a JSON _string_ the strict schema rejects);
 a section the reference still fails is dropped from scoring.
 
 **Golden truth (`--reference golden`).** A live reference model is not ground
@@ -244,14 +244,14 @@ instead of a model run — no reference API call, `$0`, deterministic. Only sect
 with a golden entry are scored (the rest are reported as skipped); currently the
 four committed `management` sections and all five `beneficial-ownership` sections.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
-to stay canonical. Use golden truth to tell which model is actually *correct*
+to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
 hand-labeled.
 
 > **Why golden truth matters — a worked example.** The `beneficial-ownership`
-> oracle numbers were long depressed by an *unstated convention*, not by model
+> oracle numbers were long depressed by an _unstated convention_, not by model
 > capability. Ownership tables end in an `All officers and directors as a group
-> (N)` subtotal; the prompt never said whether to emit it, so the reference model
+(N)` subtotal; the prompt never said whether to emit it, so the reference model
 > emitted it for most tables and omitted it for others — and, typed
 > `owner_kind: "company"`,
 > the S-1 persist path resolved those subtotal labels into the **canonical
@@ -260,7 +260,7 @@ hand-labeled.
 > guard) and golden labels committed, sonnet **and** haiku both score 100%
 > agreement / recall / precision across all five sections — with haiku at ~2.8x
 > lower cost. A model-reference oracle could never have surfaced this: the
-> reference *was* the model making the mistake.
+> reference _was_ the model making the mistake.
 
 ```bash
 # Score candidates against human-verified truth (deterministic, no ref call)
@@ -313,7 +313,7 @@ reasoning preamble leaking in — unlike the HFT ONNX thinking-model caveat abov
 ### Company facts outcome tracking
 
 `processed_facts` rows carry `reason_code` / `detail` / `attempts`. A companyfacts
-404 (the entity has no XBRL data — most filer CIKs) is recorded as a *successful*
+404 (the entity has no XBRL data — most filer CIKs) is recorded as a _successful_
 `NO_XBRL_FACTS` outcome and never retried. `FETCH_ERROR` (transient HTTP/network),
 `PARSE_ERROR` (code-fixable), and `STORE_ERROR` rows are failures; `attempts`
 counts consecutive failures and resets on success.
@@ -456,8 +456,7 @@ item codes (known SPACs only — a `spac` row must already exist): item `1.01` �
 `vote`. These group into `spac_deal` attempts via `deriveDeals`
 (recomputed from the event stream on every write, so `deal_index` is stable
 across replays) and roll up automatically. `target_name`, `pipe_amount`, and
-redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A /
-425) land — 8-K item codes carry no names or amounts. Still deferred: Form 25/15
+redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A / 425) land — 8-K item codes carry no names or amounts. Still deferred: Form 25/15
 de-registration.
 
 **De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
@@ -469,7 +468,7 @@ post-close `entity` / `entity_tickers` metadata — the shell keeps its CIK and
 renames, so `current_cik` stays null (it differs only for the deferred newco/S-4
 case) while `surviving_name` / `post_merger_sic` / `post_merger_tickers` come from
 the renamed entity (each set only when it diverges from the SPAC-era value, so
-replays are order-safe). Entity metadata usually refreshes *after* the 2.01 8-K,
+replays are order-safe). Entity metadata usually refreshes _after_ the 2.01 8-K,
 so `sec spac backfill-despac` re-runs the linkage over every completed SPAC to
 fill the still-null slots from now-current entity data.
 
@@ -481,7 +480,7 @@ per-accession `spac_merger_extraction` row (target name/CIK, PIPE amount, merger
 consideration) and observes the target company (`relation: "merger-proxy:target"`,
 `target_cik` resolved from the canonical company when it has one). `deriveDeals`
 correlates each extraction onto the matching `spac_deal` by filing-date window —
-*deriving* `target_name` / `target_cik` / `pipe_amount` (a later filing supersedes
+_deriving_ `target_name` / `target_cik` / `pipe_amount` (a later filing supersedes
 an earlier one — definitive over preliminary, revised over definitive), which
 retires the 8-K path's positional merge-preserve. Only the **definitive merger**
 statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
@@ -750,6 +749,7 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 **`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — resolution algorithms. For persons: CIK fast-path, then normalized-name + issuer-CIK fallback. For companies: CIK → CRD → normalized-name cascade. Both create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
 
 **`VersionRegistry` and slot ceremonies** (`src/storage/versioning/`) — each extractor and resolver has three slots: `previous`, `current`, `next`. Ceremonies:
+
 - `startDev` — opens a new dev cycle (populates `next`; patch bumps update `current` in place).
 - `promote` — rotates `next → current → previous`. Major bumps enforce a coverage gate.
 - `rollback` — swaps `previous` and `current`.
