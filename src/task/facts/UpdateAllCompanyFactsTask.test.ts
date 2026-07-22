@@ -45,6 +45,11 @@ describe("UpdateAllCompanyFactsTask all-CIK read", () => {
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
   });
   afterEach(() => {
+    // Clear the dry-run flag we set in beforeEach. resetDependencyInjectionsForTesting()
+    // only re-registers repos, not SEC_DRY_RUN, so leaving it true leaks into later
+    // test files that share the global registry (e.g. SecFetchFileOutputCache, whose
+    // saveOutput no-ops under dry-run).
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, false);
     resetDependencyInjectionsForTesting();
   });
 
