@@ -165,10 +165,10 @@ describe("cleanAddress", () => {
       expect(result!.street1).toBe("100 King St W");
     });
 
-    it("should keep the raw street line when the parser would drop a word", () => {
-      // The beta CA parser truncates some French compound names ("du Parc" ->
-      // "du"); the loss guard must fall back to the raw line rather than persist
-      // a truncated "1500 Ave du".
+    it("should normalize a French compound street name without dropping a word", () => {
+      // parse-address 3.x captures the full French compound ("du Parc") rather
+      // than truncating to "du", so the type abbreviates in place and no word is
+      // lost: "1500 Avenue du Parc" -> "1500 Ave du Parc".
       const input = {
         street1: "1500 Avenue du Parc",
         city: "Montreal",
@@ -178,7 +178,7 @@ describe("cleanAddress", () => {
 
       const result = normalizeAddress(input);
       expect(result!.country_code).toBe("CA");
-      expect(result!.street1).toBe("1500 Avenue du Parc");
+      expect(result!.street1).toBe("1500 Ave du Parc");
     });
   });
 

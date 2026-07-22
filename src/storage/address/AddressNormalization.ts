@@ -177,25 +177,24 @@ function streetTokenCount(...lines: (string | null)[]): number {
  * street type, folds a secondary-unit designator down into street2, and (for
  * Canada) preserves French leading-type ordering.
  *
- * Only the street components are read back. City/state/postal come pre-separated
- * from EDGAR as structured fields, so the parser's re-extracted `city` /
- * `postal_code` are intentionally ignored — the EDGAR-supplied `zipCode` (run
- * through {@link normalizePostalCode}) is authoritative, and re-deriving it from
- * a concatenated string would only add a second, lossier source of truth.
+ * Only the street lines are handed to the parser. City/state/postal come
+ * pre-separated from EDGAR as structured fields and are deliberately excluded
+ * from the parse input: EDGAR's `stateOrCountry` is a SEC region code (e.g.
+ * "A8" for Quebec), not one the parser recognizes, and appending it would trip
+ * the parser's token-preservation fallback into returning the whole string as
+ * `street`. The EDGAR-supplied `zipCode` (via {@link normalizePostalCode}) is
+ * authoritative, so there is nothing to gain from re-deriving it here either.
  */
 function normalizeStreetAddress(
   parser: AddressParser,
   street1: string | null,
   street2: string | null,
-  street3: string | null,
-  city: string | null,
-  state: string | null,
-  zip: string | null
+  street3: string | null
 ): [string | null, string | null, string | null] {
   if (!street1) return [street1, street2, street3];
 
   try {
-    const streetInput = [street1, street2, street3, city, state, zip]
+    const streetInput = [street1, street2, street3]
       .filter((s) => s?.trim())
       .join(", ");
 
@@ -208,7 +207,7 @@ function normalizeStreetAddress(
 
     const houseNumber =
       [number, civic_number_suffix]
-        .filter((s) => s?.toString().trim())
+        .filter((s): s is string => Boolean(s?.toString().trim()))
         .map((s) => s.toString().trim())
         .join("") || null;
 
@@ -228,20 +227,20 @@ function normalizeStreetAddress(
 
     const newStreet1 =
       orderedStreet1
-        .filter((s) => s?.toString().trim())
+        .filter((s): s is string => Boolean(s?.toString().trim()))
         .map((s) => s.toString().trim())
         .join(" ") || null;
 
     const newStreet2 =
       [sec_unit_type, sec_unit_num]
-        .filter((s) => s?.toString().trim())
+        .filter((s): s is string => Boolean(s?.toString().trim()))
         .map((s) => s.toString().trim())
         .join(" ") || null;
 
-    // Loss guard: the parser should only abbreviate and reorder, never drop a
-    // word. If the rebuilt street lines carry fewer tokens than the source (the
-    // beta CA parser truncates some French compound names such as "Avenue du
-    // Parc"), keep the raw lines instead of persisting a truncated address.
+    // Loss guard (defense-in-depth): @sroussey/parse-address 3.x already
+    // guarantees it never drops a street token, but keep a local check anyway —
+    // if the rebuilt lines ever carry fewer tokens than the source, keep the raw
+    // lines rather than persist a truncated address.
     if (streetTokenCount(newStreet1, newStreet2) < streetTokenCount(street1, street2, street3)) {
       return [street1, street2, street3];
     }
@@ -370,10 +369,7 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
       streetParser,
       street1,
       street2,
-      street3,
-      city,
-      state_or_country,
-      zip
+      street3
     );
   }
 
