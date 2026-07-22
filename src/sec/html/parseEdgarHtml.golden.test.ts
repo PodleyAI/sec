@@ -12,6 +12,8 @@ import type { S1SectionName } from "../forms/registration-statements/s1/Document
 import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
 import { DocumentTreeSegmenter } from "../forms/registration-statements/s1/DocumentTreeSegmenter";
 import { parseEdgarHtml } from "./parseEdgarHtml";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const {
   MANAGEMENT,
@@ -23,7 +25,7 @@ const {
   THE_SPONSOR,
   PROSPECTUS_SUMMARY,
 } = S1_SECTIONS;
-const dir = join(import.meta.dir, "mock_data", "s1");
+const dir = join(importMetaDir, "mock_data", "s1");
 
 /**
  * Real-filing corpus (see SOURCES.md). The expected target sections pin the

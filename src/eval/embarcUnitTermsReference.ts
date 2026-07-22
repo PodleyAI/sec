@@ -8,6 +8,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "csv-parse/sync";
 import { resolveAsset } from "../util/resolveAsset";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 /**
  * embarc's hand-curated SPAC unit structure, flattened per origin CIK into
@@ -37,15 +39,15 @@ export interface EmbarcUnitTermsRef {
   readonly warrant_price: number | null;
 }
 
-// `import.meta.dir` resolves to `src/eval/` in dev and `dist/eval/` after the
+// `importMetaDir` resolves to `src/eval/` in dev and `dist/eval/` after the
 // build (the build-js script copies mock_data alongside), so the first
 // candidate covers both. The second candidate is a safety fallback if the
 // module ever moves relative to its assets. Resolved lazily so a missing
 // CSV doesn't crash unrelated code paths at import time.
 function resolveReferencePath(): string {
   return resolveAsset([
-    join(import.meta.dir, "mock_data/embarc-spac-unit-terms.csv"),
-    join(import.meta.dir, "../eval/mock_data/embarc-spac-unit-terms.csv"),
+    join(importMetaDir, "mock_data/embarc-spac-unit-terms.csv"),
+    join(importMetaDir, "../eval/mock_data/embarc-spac-unit-terms.csv"),
   ]);
 }
 

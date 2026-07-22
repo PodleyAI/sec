@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
 import { SEC_DRY_RUN } from "../../config/tokens";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";

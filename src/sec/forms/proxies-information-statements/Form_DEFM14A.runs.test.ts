@@ -17,8 +17,10 @@ import {
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
 import { Form_DEFM14A } from "./Form_DEFM14A";
 import { processMergerProxy } from "./Form_DEFM14A.storage";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURE = `${import.meta.dir}/mock_data/merger-proxy/defm14a_sample.txt`;
+const FIXTURE = `${importMetaDir}/mock_data/merger-proxy/defm14a_sample.txt`;
 
 async function seedSpac(cik: number): Promise<void> {
   const writer = new SpacReportWriter();

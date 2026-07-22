@@ -8,8 +8,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { parseInlineXbrl } from "./parseInlineXbrl";
 import { extractXbrlCoverPage } from "./coverPage";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURES = join(import.meta.dir, "../html/mock_data/s1");
+const FIXTURES = join(importMetaDir, "../html/mock_data/s1");
 
 function load(name: string): string {
   return readFileSync(join(FIXTURES, name), "utf8");
@@ -89,7 +91,7 @@ describe("parseInlineXbrl golden: Texas Precious Metals Trust S-1 (cover-page-on
 
 describe("parseInlineXbrl golden: Churchill Capital Corp XII EX-FILING FEES exhibit", () => {
   const result = parseInlineXbrl(
-    readFileSync(join(import.meta.dir, "mock_data/exfee_2114227_000121390026039320.htm"), "utf8")
+    readFileSync(join(importMetaDir, "mock_data/exfee_2114227_000121390026039320.htm"), "utf8")
   );
 
   it("parses the ffd-taxonomy fee table", () => {
@@ -117,7 +119,7 @@ describe("parseInlineXbrl golden: Churchill Capital Corp XII EX-FILING FEES exhi
 
 describe("parseInlineXbrl golden: JPMorgan 424B2 EX-FILING FEES exhibit (pay-as-you-go)", () => {
   const result = parseInlineXbrl(
-    readFileSync(join(import.meta.dir, "mock_data/exfee_19617_000183988226028863.htm"), "utf8")
+    readFileSync(join(importMetaDir, "mock_data/exfee_19617_000183988226028863.htm"), "utf8")
   );
 
   it("parses the narrative-format takedown fee disclosure", () => {
