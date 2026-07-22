@@ -37,13 +37,17 @@ export interface EmbarcUnitTermsRef {
   readonly warrant_price: number | null;
 }
 
-// `import.meta.dir` resolves to `src/eval/` in dev and `dist/eval/` after the
-// build (the build-js script copies mock_data alongside), so the first
-// candidate covers both. The second candidate is a safety fallback if the
-// module ever moves relative to its assets. Resolved lazily so a missing
-// CSV doesn't crash unrelated code paths at import time.
+// `$SEC_UNIT_TERMS_REF` overrides the reference CSV path (mirrors
+// `$SEC_S1_MOCK_DIR` for the S-1 oracle) — a downstream package consuming the
+// published @workglow/sec, whose tarball ships no mock_data, points this at its
+// own vendored copy. Otherwise `import.meta.dir` resolves to `src/eval/` in dev
+// and `dist/eval/` after the build (build-js copies mock_data alongside), so the
+// first package-relative candidate covers both; the second is a safety fallback.
+// Resolved lazily so a missing CSV doesn't crash unrelated code paths at import.
 function resolveReferencePath(): string {
+  const envPath = process.env.SEC_UNIT_TERMS_REF;
   return resolveAsset([
+    ...(envPath ? [envPath] : []),
     join(import.meta.dir, "mock_data/embarc-spac-unit-terms.csv"),
     join(import.meta.dir, "../eval/mock_data/embarc-spac-unit-terms.csv"),
   ]);
