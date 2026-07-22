@@ -122,6 +122,64 @@ describe("cleanAddress", () => {
       const result = normalizeAddress(input);
       expect(result!.state_or_country).toBe("A0"); // Should be detected from keyword
     });
+
+    it("should normalize a Canadian (English) street line and split the unit", () => {
+      const input = {
+        street1: "999 Seymour Street",
+        street2: "Suite 1200",
+        city: "Vancouver",
+        stateOrCountry: "A1", // British Columbia
+        zipCode: "V6B 3K1",
+      };
+
+      const result = normalizeAddress(input);
+      expect(result!.country_code).toBe("CA");
+      expect(result!.street1).toBe("999 Seymour St");
+      expect(result!.street2).toBe("Suite 1200");
+    });
+
+    it("should preserve French leading-type ordering on Quebec streets", () => {
+      const input = {
+        street1: "123 Rue Principale",
+        city: "Montreal",
+        stateOrCountry: "A8", // Quebec
+        zipCode: "H1A 1A1",
+      };
+
+      const result = normalizeAddress(input);
+      expect(result!.country_code).toBe("CA");
+      // Must stay "123 Rue Principale", NOT reorder to "123 Principale Rue".
+      expect(result!.street1).toBe("123 Rue Principale");
+    });
+
+    it("should abbreviate an English Ontario street and its trailing direction", () => {
+      const input = {
+        street1: "100 King Street West",
+        city: "Toronto",
+        stateOrCountry: "A6", // Ontario
+        zipCode: "M5X 1A9",
+      };
+
+      const result = normalizeAddress(input);
+      expect(result!.country_code).toBe("CA");
+      expect(result!.street1).toBe("100 King St W");
+    });
+
+    it("should normalize a French compound street name without dropping a word", () => {
+      // parse-address 3.x captures the full French compound ("du Parc") rather
+      // than truncating to "du", so the type abbreviates in place and no word is
+      // lost: "1500 Avenue du Parc" -> "1500 Ave du Parc".
+      const input = {
+        street1: "1500 Avenue du Parc",
+        city: "Montreal",
+        stateOrCountry: "A8", // Quebec
+        zipCode: "H2X 3P6",
+      };
+
+      const result = normalizeAddress(input);
+      expect(result!.country_code).toBe("CA");
+      expect(result!.street1).toBe("1500 Ave du Parc");
+    });
   });
 
   describe("UK Addresses", () => {
