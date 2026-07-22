@@ -46,16 +46,33 @@ export interface FactSummary {
   frame?: Frame;
 }
 
-export const FP = ["FY", "Q1", "Q2", "Q3", "Q4"] as const;
+// EDGAR company-facts emit more fiscal-period codes than the four quarters +
+// full year: `CY` (calendar-year facts) and `H1`/`H2` (half-year) appear in the
+// bulk companyfacts dataset. All fit the 2-char `fp` column.
+export const FP = ["FY", "Q1", "Q2", "Q3", "Q4", "CY", "H1", "H2"] as const;
 export type FP = (typeof FP)[number];
+
+const FP_SET: ReadonlySet<string> = new Set(FP);
+
+/**
+ * The raw companyfacts JSON is cast to {@link FactSummary} without runtime
+ * validation, but EDGAR reports period-agnostic facts with `fp` as an empty
+ * string (or, rarely, an unrecognized code) rather than the documented FY/Q1–Q4
+ * set. Map anything outside the known codes to `null` so it flows through the
+ * task-input schema; the storage boundary coalesces `null` to the "" PK
+ * sentinel. Keeps one odd fact from failing a CIK's entire facts batch.
+ */
+export function normalizeFp(fp: unknown): FP | null {
+  return typeof fp === "string" && FP_SET.has(fp) ? (fp as FP) : null;
+}
 
 export const FactoidSchema = Type.Object({
   cik: Type.Number({ format: "cik", minimum: 0 }),
-  grouping: Type.String({ maxLength: 10 }), // dei or us-gaap
+  grouping: Type.String({ maxLength: 20 }), // dei, us-gaap, ifrs-full, srt, invest, ...
   name: Type.String(),
   filed_date: TypeDate(),
   form: TypeSECForm(),
-  val_unit: Type.String({ maxLength: 12 }),
+  val_unit: Type.String({ maxLength: 32 }),
   val: Type.Number(),
   frame: TypeNullable(Type.String({ maxLength: 12 })),
   accession_number: Type.String({ maxLength: 20 }),

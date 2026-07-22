@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
 import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
-import { CompanyFacts, Factoid, FactoidSchema } from "../../sec/facts/CompanyFacts";
+import { CompanyFacts, Factoid, FactoidSchema, normalizeFp } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";
 
@@ -109,7 +109,7 @@ export class FetchCompanyFactsTask extends Task<
               end_date: summary.end,
               val: summary.val,
               fy: summary.fy,
-              fp: summary.fp,
+              fp: normalizeFp(summary.fp),
             });
           }
         });

@@ -56,11 +56,13 @@ export class UpdateAllCompanyFactsTask extends Task<
     const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
     const processedFactsRepo = globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN);
 
+    // getAll() rather than query({}, …): the tabular backend rejects an empty
+    // criteria object ("Query criteria must not be empty. Use getAll()"), which
+    // is exactly the all-rows read we want here.
     const allCikUpdates =
-      (await cikLastUpdateRepo.query(
-        {},
-        { orderBy: [{ column: "last_update", direction: "DESC" }] }
-      )) ?? [];
+      (await cikLastUpdateRepo.getAll({
+        orderBy: [{ column: "last_update", direction: "DESC" }],
+      })) ?? [];
 
     // Stream rather than getAll() — see UpdateAllSubmissionsTask for the
     // same pattern. We need both cik and last_processed for freshness,

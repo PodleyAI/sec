@@ -15,8 +15,8 @@ export const CompanyFactsSchema = Type.Object({
     description: "Central Index Key (CIK) - unique identifier for entity",
   }),
   grouping: Type.String({
-    maxLength: 8,
-    description: "Facts grouping category",
+    maxLength: 20,
+    description: "Facts grouping category (dei, us-gaap, ifrs-full, srt, invest, ...)",
   }),
   name: Type.String({
     description: "Fact name",
@@ -30,7 +30,7 @@ export const CompanyFactsSchema = Type.Object({
     description: "Form type",
   }),
   val_unit: Type.String({
-    maxLength: 12,
+    maxLength: 32,
     description: "Value unit",
   }),
   frame: TypeNullable(
