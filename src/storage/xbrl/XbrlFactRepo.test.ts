@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { Value } from "typebox/value";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { parseInlineXbrl } from "../../sec/xbrl/parseInlineXbrl";
@@ -12,6 +13,7 @@ import { toXbrlFactRows } from "../../sec/xbrl/toFactRows";
 import { XbrlFactRepo } from "./XbrlFactRepo";
 import {
   XBRL_FACT_REPOSITORY_TOKEN,
+  XbrlFactRowSchema,
   type XbrlFactRepositoryStorage,
   type XbrlFactRow,
 } from "./XbrlFactSchema";
@@ -176,5 +178,48 @@ describe("XbrlFactRepo", () => {
     const series = await repo.getByCikConcept(2114227, "spac:SaleOfSecuritiesGrossProceeds");
     expect(series).toHaveLength(2);
     expect(series.map((r) => r.accession_number)).toEqual([ACCESSION, "0001213900-26-047229"]);
+  });
+});
+
+/**
+ * Regression: iXBRL context ids are auto-generated and dimensional contexts can
+ * exceed the original 128-char cap that overflowed on real filings. The schema
+ * (and, via the widening migration, the Postgres column) now allows up to 512.
+ */
+describe("XbrlFactRowSchema context_ref width", () => {
+  function baseRow(overrides: Partial<XbrlFactRow>): XbrlFactRow {
+    return {
+      accession_number: ACCESSION,
+      fact_index: 0,
+      cik: 2114227,
+      concept: "dei:EntityRegistrantName",
+      namespace: "http://xbrl.sec.gov/dei/2025",
+      context_ref: "c1",
+      unit: null,
+      period_start: null,
+      period_end: null,
+      period_instant: "2026-03-31",
+      value_text: "Churchill Capital Corp XII",
+      value_numeric: null,
+      decimals: null,
+      sign: null,
+      format: null,
+      is_numeric: false,
+      is_hidden: false,
+      dimensions_json: null,
+      source: "inline",
+      created_at: "2026-03-31T00:00:00Z",
+      ...overrides,
+    };
+  }
+
+  it("accepts a long dimensional context id (>128 chars, previously rejected)", () => {
+    const longContextRef = `c-${"Axis_Member_".repeat(20)}`; // ~240 chars
+    expect(longContextRef.length).toBeGreaterThan(128);
+    expect(Value.Check(XbrlFactRowSchema, baseRow({ context_ref: longContextRef }))).toBe(true);
+  });
+
+  it("rejects a context id beyond the 512 cap", () => {
+    expect(Value.Check(XbrlFactRowSchema, baseRow({ context_ref: "x".repeat(513) }))).toBe(false);
   });
 });

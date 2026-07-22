@@ -79,6 +79,7 @@ import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/Use
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
+import { widenNarrowColumns } from "./widenNarrowColumnsMigration";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -214,6 +215,11 @@ export async function setupAllDatabases(): Promise<void> {
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
+  // Widen any columns that a pre-widening Postgres database still has at the old
+  // narrow varchar length (fresh DDL above already uses the new widths, so this
+  // is a no-op on a clean DB). Keeps existing Postgres deployments from
+  // re-hitting the original company-facts / XBRL overflow.
+  await widenNarrowColumns();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

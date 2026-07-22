@@ -21,7 +21,10 @@ export const XbrlFactRowSchema = Type.Object({
   cik: TypeNullable(TypeSecCik()),
   concept: Type.String({ maxLength: 256 }),
   namespace: TypeNullable(Type.String({ maxLength: 256 })),
-  context_ref: TypeNullable(Type.String({ maxLength: 128 })),
+  // iXBRL context ids are auto-generated and can be long (dimensional contexts
+  // concatenate axis/member segments); 128 overflowed on real filings. Not part
+  // of the PK and only denormalized reference data, so widening is safe.
+  context_ref: TypeNullable(Type.String({ maxLength: 512 })),
   unit: TypeNullable(Type.String({ maxLength: 64 })),
   period_start: TypeNullable(Type.String({ maxLength: 10 })),
   period_end: TypeNullable(Type.String({ maxLength: 10 })),
