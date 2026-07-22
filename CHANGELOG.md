@@ -1,5 +1,91 @@
 # Changelog
 
+## 0.0.12
+
+### Features
+
+#### fetch
+
+- let caller-supplied User-Agent override the default
+
+#### barrel
+
+- export FamilyResolver/normalizeFamilyName/CanonicalFamilyAliasRepo for downstream family tiers
+- export TaskPorts type bridge for downstream task authors
+- export Value from typebox/value for downstream schema tests
+- export Task/Workflow/IExecuteContext/isStaleByAsOf for downstream ingestion
+- export ServiceToken type for downstream DI token authoring
+- re-export globalServiceRegistry + typebox Type for single-instance DI/schemas
+- export resetDependencyInjectionsForTesting for downstream test setup
+- export internals needed by downstream feature packages
+
+#### config
+
+- DatabaseExtensionRegistry wired into setup/reset
+- registerSecResolvers registers built-in kinds via the registry
+
+#### resolver
+
+- add ResolverExtensionRegistry
+
+### Bug Fixes
+
+#### fetch
+
+- handle arraybuffer response_type in the file output cache
+- thread caller headers through SecCachedFetchTask.execute
+
+#### docs
+
+- update references to package name in CLAUDE.md and improve formatting for clarity
+
+#### package
+
+- stop shipping src/ in the published tarball; add prepack safeguard (#204)
+
+#### build
+
+- stop trusting import.meta.dir for read-only fixture / write-side cache paths
+
+#### cli
+
+- reject non-integer CIKs at the arg parser instead of parseInt
+
+#### config
+
+- register sec resolvers in setupAllDatabases before version bootstrap
+
+### Refactors
+
+- remove accredited-portal feature from sec (moved to embarc-data)
+
+#### form-d
+
+- remove inline portal attribution from ingestion
+
+#### versioning
+
+- make resolver-versioning registry-driven
+
+### Documentation
+
+- accredited-portal moved to embarc-data; document extension registries
+
+### Chores
+
+- update parse-address dep
+- update deps
+- add link and link-workglow scripts for local libs
+- update package.json for project rebranding and configuration
+
+### Updated Dependencies
+
+- `@sroussey/parse-address`: ^3.0.2
+- `@workglow/cli`: 0.3.27
+- `csv-parse`: ^7.0.1
+- `fast-xml-parser`: ^5.10.1
+- `workglow`: 0.3.27
+
 ## 0.0.11
 
 ### Chores
