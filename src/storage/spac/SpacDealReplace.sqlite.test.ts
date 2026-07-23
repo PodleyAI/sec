@@ -65,10 +65,6 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
   afterEach(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
-    globalServiceRegistry.registerInstance(
-      SEC_DB_TYPE,
-      "memory" as unknown as "sqlite" | "postgres"
-    );
     resetDependencyInjectionsForTesting();
   });
 

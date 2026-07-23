@@ -34,14 +34,6 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
   afterEach(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
-    // ServiceRegistry has no unregister API. Pin the tokens this test set to
-    // sentinels that fail both `dbType === "sqlite"` and `dbType === "postgres"`
-    // dispatch branches downstream so the in-memory test backend stays in
-    // charge for any test that runs after us in the same Bun process.
-    globalServiceRegistry.registerInstance(
-      SEC_DB_TYPE,
-      "memory" as unknown as "sqlite" | "postgres"
-    );
     resetDependencyInjectionsForTesting();
   });
 

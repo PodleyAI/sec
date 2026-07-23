@@ -5,6 +5,7 @@
  */
 
 import { InMemoryTabularStorage, globalServiceRegistry } from "workglow";
+import { ENV_DERIVED_TOKENS } from "./tokens";
 import {
   ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
   AddressesEntityHistoryJunctionSchema,
@@ -365,7 +366,22 @@ import {
   VersionEventSchema,
 } from "../storage/versioning/VersionEventSchema";
 
+/**
+ * Rewire the DI container for a fresh test file: strip env-projected tokens
+ * (see {@link ENV_DERIVED_TOKENS}) so no value bound by a prior test file
+ * leaks into the current one, then re-register the in-memory repositories.
+ *
+ * INVARIANT: any new env-derived token added to `EnvToDI.ts` or set by a CLI
+ * preAction hook must also be appended to `ENV_DERIVED_TOKENS` in
+ * `tokens.ts` — otherwise this reset will not remove it and the container
+ * will carry the stale binding forward.
+ */
 export function resetDependencyInjectionsForTesting() {
+  // Strip env-derived tokens first so a value registered by a previous test
+  // file does not survive into the current file's repo re-registration.
+  for (const token of ENV_DERIVED_TOKENS) {
+    globalServiceRegistry.container.remove(token.id);
+  }
   // Initialize Address repositories
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,
