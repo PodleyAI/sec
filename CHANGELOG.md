@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.13
+
+### Bug Fixes
+
+#### test
+
+- reset SEC_DRY_RUN after UpdateAllCompanyFactsTask tests
+
+#### db
+
+- widen XBRL context_ref + self-heal existing Postgres columns
+
+#### facts
+
+- accept real EDGAR company-facts shapes during ingest
+
 ## 0.0.12
 
 ### Features
