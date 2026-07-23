@@ -7,7 +7,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeAll, describe, expect, it, mock } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { BootstrapDownloadTask, streamDownloadToFile } from "./BootstrapDownloadTask";
@@ -34,7 +34,7 @@ describe("streamDownloadToFile", () => {
     const totalLen = chunks.reduce((s, c) => s + c.length, 0);
 
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           for (const c of chunks) controller.enqueue(c);
@@ -69,7 +69,7 @@ describe("streamDownloadToFile", () => {
 
   it("throws on non-2xx responses without writing the destination file", async () => {
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => new Response("nope", { status: 404 }));
+    (global as any).fetch = vi.fn(async () => new Response("nope", { status: 404 }));
     try {
       const dest = path.join(tmpRoot, "404.bin");
       await expect(streamDownloadToFile("https://example/missing", dest)).rejects.toThrow(
@@ -87,7 +87,7 @@ describe("streamDownloadToFile", () => {
     // unzip. The wrapper must catch the stream error, remove the partial
     // file, and rethrow so the caller surfaces the failure.
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           controller.enqueue(new TextEncoder().encode("first-half"));
@@ -120,7 +120,7 @@ describe("streamDownloadToFile", () => {
     // Server advertised 10 bytes but only sent 4. We want a hard failure
     // (with cleanup) rather than silently honouring a truncated archive.
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("abcd"));
@@ -150,7 +150,7 @@ describe("streamDownloadToFile", () => {
     // fail closed instead so the caller sees the protocol violation.
     const body = new TextEncoder().encode("0123456789");
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(body);
@@ -178,7 +178,7 @@ describe("streamDownloadToFile", () => {
     // parser — many proxies normalise headers with stray spaces.
     const body = new TextEncoder().encode("0123456789");
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(body);
@@ -207,7 +207,7 @@ describe("streamDownloadToFile", () => {
     // than silently downgrade to no-integrity-check.
     const body = new TextEncoder().encode("hello");
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(body);
@@ -239,7 +239,7 @@ describe("streamDownloadToFile", () => {
     // accept it while still rejecting genuinely conflicting values.
     const body = new TextEncoder().encode("0123456789");
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(body);
@@ -270,7 +270,7 @@ describe("streamDownloadToFile", () => {
     // duplicates must fail closed.
     const body = new TextEncoder().encode("0123456789");
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(body);
@@ -295,7 +295,7 @@ describe("streamDownloadToFile", () => {
 
   it("handles responses with no content-length header", async () => {
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("data"));
@@ -356,7 +356,7 @@ describe("BootstrapDownloadTask.execute zip cleanup", () => {
 
   function stubFetchToWriteZip(): () => void {
     const oldFetch = global.fetch;
-    (global as any).fetch = mock(async () => {
+    (global as any).fetch = vi.fn(async () => {
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           // Minimal ZIP magic bytes — we never actually unzip in these

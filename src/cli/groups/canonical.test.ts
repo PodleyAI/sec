@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { runCliProcess } from "../testing/runCliProcess";
+import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,12 +34,11 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], {
-    ...process.env,
+  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
     SEC_DB_TYPE: "sqlite",
     SEC_DB_FOLDER: dbFolder,
     SEC_DB_NAME: "edgar",
-  });
+  }));
 }
 
 const UUID_A = "aaaaaaaa-0000-0000-0000-000000000001";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, spyOn } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
@@ -290,7 +290,7 @@ describe("processForm424", () => {
       // Force the PARSE_ERROR branch by making the segmenter throw. The catch
       // must still call recordSpacIpoEventIfEligible so the deterministic
       // SPAC lifecycle advances.
-      const spy = spyOn(DocumentTreeSegmenter.prototype, "segment").mockImplementation(() => {
+      const spy = vi.spyOn(DocumentTreeSegmenter.prototype, "segment").mockImplementation(() => {
         throw new Error("synthetic segmenter failure");
       });
       try {

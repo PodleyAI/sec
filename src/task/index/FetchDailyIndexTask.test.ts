@@ -7,7 +7,7 @@
 import { Glob } from "bun";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { afterAll, beforeAll, describe, expect, it, mock } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   EvenlySpacedRateLimiter,
   FetchUrlTaskInput,
@@ -62,7 +62,7 @@ const createMockResponse = (date: string): Response => {
 };
 
 // Mock fetch for testing
-const mockFetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+const mockFetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   const inputString = input.toString();
 
   // Extract date from URL - handle both formats:

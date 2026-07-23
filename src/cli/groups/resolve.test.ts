@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { runCliProcess } from "../testing/runCliProcess";
+import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PersonResolver } from "../../resolver/PersonResolver";
 import { CanonicalPersonAliasRepo } from "../../storage/canonical/CanonicalPersonAliasRepo";
@@ -23,12 +23,11 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], {
-    ...process.env,
+  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
     SEC_DB_TYPE: "sqlite",
     SEC_DB_FOLDER: dbFolder,
     SEC_DB_NAME: "edgar",
-  });
+  }));
 }
 
 describe("resolve in-process with seeded data", () => {

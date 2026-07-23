@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { runCliProcess } from "../testing/runCliProcess";
+import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,12 +18,11 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], {
-    ...process.env,
+  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
     SEC_DB_TYPE: "sqlite",
     SEC_DB_FOLDER: dbFolder,
     SEC_DB_NAME: "edgar",
-  });
+  }));
 }
 
 /**
@@ -41,12 +40,11 @@ function spawnUntilWarning(
 ): Promise<{ output: string; sawWarning: boolean }> {
   return new Promise((resolve) => {
     const proc = spawn("bun", ["src/sec.ts", ...args], {
-      env: {
-        ...process.env,
+      env: cliEnv({
         SEC_DB_TYPE: "sqlite",
         SEC_DB_FOLDER: dbFolder,
         SEC_DB_NAME: "edgar",
-      },
+      }),
     });
 
     const warningPattern = /--force no longer affects form processing/i;

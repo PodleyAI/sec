@@ -5,7 +5,7 @@
 //    *   Licensed under the Apache License, Version 2.0 (the "License");           *
 //    *******************************************************************************
 
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EntityHistory } from "./EntityHistorySchema";
 import { Entity } from "./EntitySchema";
 import { EntityTemporalRepo } from "./EntityTemporalRepo";
@@ -19,30 +19,30 @@ describe("EntityTemporalRepo", () => {
   let randomUUIDSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
-    randomUUIDSpy = spyOn(crypto, "randomUUID").mockImplementation(
+    randomUUIDSpy = vi.spyOn(crypto, "randomUUID").mockImplementation(
       () => `test-uuid-${Math.random()}` as `${string}-${string}-${string}-${string}-${string}`
     );
 
     // Reset mocks
     mockEntityRepo = {
-      getEntity: mock(),
-      saveEntity: mock(),
-      searchEntities: mock(),
-      getAllEntities: mock(),
+      getEntity: vi.fn(),
+      saveEntity: vi.fn(),
+      searchEntities: vi.fn(),
+      getAllEntities: vi.fn(),
     };
 
     mockEntityHistoryRepository = {
-      get: mock(),
-      put: mock(),
-      query: mock(),
-      getAll: mock(),
+      get: vi.fn(),
+      put: vi.fn(),
+      query: vi.fn(),
+      getAll: vi.fn(),
     };
 
     mockChangeLogRepository = {
-      get: mock(),
-      put: mock(),
-      query: mock(),
-      getAll: mock(),
+      get: vi.fn(),
+      put: vi.fn(),
+      query: vi.fn(),
+      getAll: vi.fn(),
     };
 
     entityTemporalRepo = new EntityTemporalRepo({

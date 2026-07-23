@@ -13,6 +13,24 @@ export interface CliRunResult {
 }
 
 /**
+ * Build a curated environment for a spawned `sec` CLI subprocess.
+ *
+ * Deliberately does NOT spread the whole `process.env`: under the vitest runner
+ * the worker's env carries injected variables that make the child CLI emit
+ * provider-registration noise onto stdout, corrupting `--format json` output.
+ * Only the handful of vars the child genuinely needs (to locate `bun`, resolve
+ * temp dirs, etc.) plus the caller's explicit overrides are passed through.
+ */
+export function cliEnv(overrides: Record<string, string>): NodeJS.ProcessEnv {
+  const passthrough = ["PATH", "HOME", "TMPDIR", "LANG", "SHELL"] as const;
+  const base: NodeJS.ProcessEnv = {};
+  for (const key of passthrough) {
+    if (process.env[key] !== undefined) base[key] = process.env[key];
+  }
+  return { ...base, ...overrides };
+}
+
+/**
  * Spawn a CLI subprocess and capture stdout/stderr separately.
  *
  * Uses `node:child_process` (which Bun implements natively) rather than

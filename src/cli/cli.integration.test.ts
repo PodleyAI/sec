@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { runCliProcess } from "./testing/runCliProcess";
+import { cliEnv, runCliProcess } from "./testing/runCliProcess";
 
-const ENV = {
-  ...process.env,
+const ENV = cliEnv({
   SEC_DB_FOLDER: "/tmp/sec-cli-integration-test",
   SEC_DB_NAME: "edgar",
   SEC_RAW_DATA_FOLDER: "/tmp/sec-cli-integration-test-raw",
-};
+});
 
 const SEC_TS = new URL("../sec.ts", import.meta.url).pathname;
 
