@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
@@ -17,8 +18,10 @@ import {
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
 import { Form_DEFM14A } from "./Form_DEFM14A";
 import { processMergerProxy } from "./Form_DEFM14A.storage";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURE = `${import.meta.dir}/mock_data/merger-proxy/defm14a_sample.txt`;
+const FIXTURE = `${importMetaDir}/mock_data/merger-proxy/defm14a_sample.txt`;
 
 async function seedSpac(cik: number): Promise<void> {
   const writer = new SpacReportWriter();
@@ -73,7 +76,7 @@ describe("processMergerProxy extractor_runs recording", () => {
   it("records a successful run after a happy-path processMergerProxy", async () => {
     await seedSpac(900);
     cleanup = scriptHappyPath();
-    const txt = await Bun.file(FIXTURE).text();
+    const txt = readFileSync(FIXTURE, "utf-8");
     const parsed = await Form_DEFM14A.parse("DEFM14A", txt);
     await processMergerProxy({
       cik: 900,
@@ -124,7 +127,7 @@ describe("processMergerProxy extractor_runs recording", () => {
 
   it("writes no extractor_runs row when the CIK has no spac row (gate)", async () => {
     cleanup = scriptHappyPath();
-    const txt = await Bun.file(FIXTURE).text();
+    const txt = readFileSync(FIXTURE, "utf-8");
     const parsed = await Form_DEFM14A.parse("DEFM14A", txt);
     await processMergerProxy({
       cik: 999,

@@ -206,7 +206,7 @@ describe("EntityObserver.observePerson", () => {
 
     const result = await observer.observePerson(claim);
 
-    expect(result.canonical_person_id).toBeString();
+    expect(result.canonical_person_id).toBeTypeOf("string");
     expect(result.observation_id).toBeGreaterThan(0);
 
     // identity link was written
@@ -280,7 +280,7 @@ describe("EntityObserver.observeCompany", () => {
 
     const result = await observer.observeCompany(claim);
 
-    expect(result.canonical_company_id).toBeString();
+    expect(result.canonical_company_id).toBeTypeOf("string");
     expect(result.observation_id).toBeGreaterThan(0);
 
     // identity link was written

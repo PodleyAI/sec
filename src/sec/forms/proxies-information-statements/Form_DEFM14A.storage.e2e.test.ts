@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
@@ -16,8 +17,10 @@ import {
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
 import { Form_DEFM14A } from "./Form_DEFM14A";
 import { processMergerProxy } from "./Form_DEFM14A.storage";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURE = `${import.meta.dir}/mock_data/merger-proxy/defm14a_sample.txt`;
+const FIXTURE = `${importMetaDir}/mock_data/merger-proxy/defm14a_sample.txt`;
 
 // The stub model returns a fixed merger deal; source_span must appear verbatim
 // in the fixture's "The Business Combination" section text (verifyRow gate).
@@ -76,7 +79,7 @@ describe("processMergerProxy (e2e)", () => {
     form = "DEFM14A",
     filing_date = "2021-05-01"
   ): Promise<void> {
-    const txt = await Bun.file(FIXTURE).text();
+    const txt = readFileSync(FIXTURE, "utf-8");
     const parsed = await Form_DEFM14A.parse(form, txt);
     await processMergerProxy({
       cik,

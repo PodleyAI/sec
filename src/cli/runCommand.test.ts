@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, mock } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { runCommand } from "./runCommand";
 
 describe("runCommand", () => {
@@ -11,22 +11,22 @@ describe("runCommand", () => {
   });
 
   it("returns 0 on success", async () => {
-    const action = mock(() => Promise.resolve());
+    const action = vi.fn(() => Promise.resolve());
     const code = await runCommand(action);
     expect(code).toBe(0);
     expect(process.exitCode).toBe(0);
   });
 
   it("calls the action function", async () => {
-    const action = mock(() => Promise.resolve());
+    const action = vi.fn(() => Promise.resolve());
     await runCommand(action);
     expect(action).toHaveBeenCalledTimes(1);
   });
 
   it("returns 1 on error and calls onError callback", async () => {
     const error = new Error("boom");
-    const action = mock(() => Promise.reject(error));
-    const onError = mock(() => {});
+    const action = vi.fn(() => Promise.reject(error));
+    const onError = vi.fn(() => {});
     const code = await runCommand(action, { onError });
     expect(code).toBe(1);
     expect(process.exitCode).toBe(1);
@@ -35,8 +35,8 @@ describe("runCommand", () => {
   });
 
   it("returns 1 on error and logs to stderr when no onError provided", async () => {
-    const action = mock(() => Promise.reject(new Error("fail")));
-    const stderrWrite = mock(() => true);
+    const action = vi.fn(() => Promise.reject(new Error("fail")));
+    const stderrWrite = vi.fn(() => true);
     const origWrite = process.stderr.write;
     process.stderr.write = stderrWrite as typeof process.stderr.write;
     try {
@@ -55,8 +55,8 @@ describe("runCommand", () => {
     const { globalServiceRegistry } = await import("workglow");
     const { SEC_JSON_OUTPUT } = await import("../config/tokens");
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
-    const action = mock(() => Promise.reject(new Error("kaboom")));
-    const stderrWrite = mock(() => true);
+    const action = vi.fn(() => Promise.reject(new Error("kaboom")));
+    const stderrWrite = vi.fn(() => true);
     const origWrite = process.stderr.write;
     process.stderr.write = stderrWrite as typeof process.stderr.write;
     try {
@@ -74,7 +74,7 @@ describe("runCommand", () => {
     const { globalServiceRegistry } = await import("workglow");
     const { SEC_DRY_RUN } = await import("../config/tokens");
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
-    const action = mock(() => Promise.resolve());
+    const action = vi.fn(() => Promise.resolve());
     const origLog = console.log;
     const logs: string[] = [];
     console.log = (...args: unknown[]) => logs.push(args.join(" "));
@@ -90,13 +90,13 @@ describe("runCommand", () => {
   });
 
   it("sets process.exitCode to 0 on success", async () => {
-    const action = mock(() => Promise.resolve());
+    const action = vi.fn(() => Promise.resolve());
     await runCommand(action);
     expect(process.exitCode).toBe(0);
   });
 
   it("sets process.exitCode to 1 on error", async () => {
-    const action = mock(() => Promise.reject(new Error("oops")));
+    const action = vi.fn(() => Promise.reject(new Error("oops")));
     await runCommand(action, { onError: () => {} });
     expect(process.exitCode).toBe(1);
   });
