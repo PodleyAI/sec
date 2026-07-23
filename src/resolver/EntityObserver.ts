@@ -68,6 +68,20 @@ interface EntityObserverOptions {
 }
 
 /**
+ * Column-width clamp for filer-authored free text. EDGAR name/role fields are
+ * unbounded prose — a bank-as-trustee `rptOwnerName` spelling out the full
+ * trust instrument runs past `last_name`'s VARCHAR(128), and Form 144's
+ * `relationshipToIssuer` join can outgrow `relationship`'s VARCHAR(64) — and
+ * one overlong value would otherwise reject the whole filing at the SQL
+ * layer ("value too long for type character varying"). Limits mirror the
+ * declared maxLengths in PersonObservationSchema / CompanyObservationSchema.
+ * Deterministic, so resolver keys derived from clamped values stay stable.
+ */
+function clamp(s: string | null, max: number): string | null {
+  return s != null && s.length > max ? s.slice(0, max) : s;
+}
+
+/**
  * Shared helper that form storage modules call to normalize, upsert, resolve,
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
@@ -101,16 +115,16 @@ export class EntityObserver {
       observation_index: claim.observation_index,
       source_filing_issuer_cik: claim.source_filing_issuer_cik ?? null,
       cik: claim.cik ?? null,
-      first_name: claim.first_name ?? null,
-      middle_name: claim.middle_name ?? null,
-      last_name: claim.last_name ?? null,
-      suffix: claim.suffix ?? null,
-      normalized_first: normalized?.first ?? null,
-      normalized_middle: normalized?.middle ?? null,
-      normalized_last: normalized?.last ?? null,
-      normalized_suffix: normalized?.suffix ?? null,
-      titles: claim.titles ? [...claim.titles] : null,
-      relationship: claim.relationship ?? null,
+      first_name: clamp(claim.first_name ?? null, 128),
+      middle_name: clamp(claim.middle_name ?? null, 128),
+      last_name: clamp(claim.last_name ?? null, 128),
+      suffix: clamp(claim.suffix ?? null, 32),
+      normalized_first: clamp(normalized?.first ?? null, 128),
+      normalized_middle: clamp(normalized?.middle ?? null, 128),
+      normalized_last: clamp(normalized?.last ?? null, 128),
+      normalized_suffix: clamp(normalized?.suffix ?? null, 32),
+      titles: claim.titles ? claim.titles.map((t) => clamp(t, 256) as string) : null,
+      relationship: clamp(claim.relationship ?? null, 64),
       birth_year: claim.birth_year ?? null,
       bio: claim.bio ?? null,
       raw_address_id: claim.address_id ?? null,
@@ -168,10 +182,10 @@ export class EntityObserver {
       observation_index: claim.observation_index,
       cik: claim.cik ?? null,
       crd_number: claim.crd_number ?? null,
-      name: claim.name ?? null,
-      normalized_name,
-      jurisdiction: claim.jurisdiction ?? null,
-      entity_type: claim.entity_type ?? null,
+      name: clamp(claim.name ?? null, 512),
+      normalized_name: clamp(normalized_name, 512),
+      jurisdiction: clamp(claim.jurisdiction ?? null, 64),
+      entity_type: clamp(claim.entity_type ?? null, 64),
       raw_address_id: claim.address_id ?? null,
       raw_phone_id: claim.international_number ?? null,
       source_context: claim.source_context ?? null,

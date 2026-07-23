@@ -109,6 +109,16 @@ export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/Comp
 export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
 export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
 
+// ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
+// Exposes the resolved company tier so a downstream superset (e.g. embarc-data)
+// can map a Form D issuer CIK to its canonical company — `findByResolverAndCik`
+// — and join that to its own records (startup.canonical_company_id).
+export { CanonicalCompanyRepo } from "./storage/canonical/CanonicalCompanyRepo";
+export {
+  CANONICAL_COMPANY_REPOSITORY_TOKEN,
+  type CanonicalCompany,
+} from "./storage/canonical/CanonicalCompanySchema";
+
 // ── Normalization helpers ───────────────────────────────────────────────────
 export {
   generateCompanyHash,

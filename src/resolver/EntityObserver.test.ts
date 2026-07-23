@@ -244,6 +244,33 @@ describe("EntityObserver.observePerson", () => {
     expect(second.observation_id).toBe(first.observation_id);
     expect(second.canonical_person_id).toBe(first.canonical_person_id);
   });
+
+  it("clamps filer-authored free text to the observation column widths", async () => {
+    // Real-world trigger: a bank-as-trustee rptOwnerName spelling out the full
+    // trust instrument (> 128 chars) — one overlong value must not reject the
+    // whole filing with "value too long for type character varying".
+    const longName =
+      "1st Source Bank, as trustee of the Irrevocable Living Trust Created by " +
+      "Ella L. Morris Designated as Trust No. P-2877 dated August 6, 1960";
+    const longRelationship = "other: " + "x".repeat(100);
+    const claim: PersonClaim = {
+      accession_number: "0001-25-000003",
+      extractor_id: "3",
+      extractor_version: "1.0.0",
+      observation_index: 1,
+      last_name: longName,
+      relationship: longRelationship,
+      titles: ["t".repeat(300)],
+    };
+
+    const result = await observer.observePerson(claim);
+
+    const row = await personSetup.personObsRepo.getById(result.observation_id);
+    expect(row?.last_name).toBe(longName.slice(0, 128));
+    expect(row?.relationship).toBe(longRelationship.slice(0, 64));
+    expect(row?.titles?.[0]).toBe("t".repeat(256));
+    expect(row?.normalized_last!.length).toBeLessThanOrEqual(128);
+  });
 });
 
 describe("EntityObserver.observeCompany", () => {
