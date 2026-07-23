@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { runCliProcess } from "./testing/runCliProcess";
 
 const ENV = {
   ...process.env,
@@ -10,14 +11,7 @@ const ENV = {
 const SEC_TS = new URL("../sec.ts", import.meta.url).pathname;
 
 async function runCli(...args: string[]): Promise<string> {
-  const proc = Bun.spawn(["bun", "run", SEC_TS, ...args], {
-    env: ENV,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
+  const { stdout, stderr } = await runCliProcess(["bun", "run", SEC_TS, ...args], ENV);
   return stdout + stderr;
 }
 

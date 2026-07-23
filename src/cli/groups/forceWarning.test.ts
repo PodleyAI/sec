@@ -5,6 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { spawn } from "node:child_process";
+import { runCliProcess } from "../testing/runCliProcess";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,22 +18,12 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  const proc = Bun.spawn(["bun", "src/sec.ts", ...args], {
-    env: {
-      ...process.env,
-      SEC_DB_TYPE: "sqlite",
-      SEC_DB_FOLDER: dbFolder,
-      SEC_DB_NAME: "edgar",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
+  return runCliProcess(["bun", "src/sec.ts", ...args], {
+    ...process.env,
+    SEC_DB_TYPE: "sqlite",
+    SEC_DB_FOLDER: dbFolder,
+    SEC_DB_NAME: "edgar",
   });
-  const exitCode = await proc.exited;
-  return {
-    stdout: await new Response(proc.stdout).text(),
-    stderr: await new Response(proc.stderr).text(),
-    exitCode,
-  };
 }
 
 /**
@@ -42,59 +34,52 @@ async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
  * fast and avoids depending on `--dry-run` flags that these commands
  * don't expose.
  */
-async function spawnUntilWarning(
+function spawnUntilWarning(
   args: string[],
   dbFolder: string,
   timeoutMs = 30_000
 ): Promise<{ output: string; sawWarning: boolean }> {
-  const proc = Bun.spawn(["bun", "src/sec.ts", ...args], {
-    env: {
-      ...process.env,
-      SEC_DB_TYPE: "sqlite",
-      SEC_DB_FOLDER: dbFolder,
-      SEC_DB_NAME: "edgar",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  return new Promise((resolve) => {
+    const proc = spawn("bun", ["src/sec.ts", ...args], {
+      env: {
+        ...process.env,
+        SEC_DB_TYPE: "sqlite",
+        SEC_DB_FOLDER: dbFolder,
+        SEC_DB_NAME: "edgar",
+      },
+    });
 
-  const warningPattern = /--force no longer affects form processing/i;
-  let combined = "";
-  let sawWarning = false;
+    const warningPattern = /--force no longer affects form processing/i;
+    let combined = "";
+    let sawWarning = false;
+    let settled = false;
 
-  const decoder = new TextDecoder();
-  const readStream = async (stream: ReadableStream<Uint8Array> | null): Promise<void> => {
-    if (!stream) return;
-    const reader = stream.getReader();
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) return;
-        const chunk = decoder.decode(value, { stream: true });
-        combined += chunk;
-        if (!sawWarning && warningPattern.test(combined)) {
-          sawWarning = true;
-          proc.kill();
-          return;
-        }
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutHandle);
+      try {
+        proc.kill();
+      } catch {
+        // already exited
       }
-    } catch {
-      // stream closed when we killed the process
-    }
-  };
+      resolve({ output: combined, sawWarning });
+    };
 
-  const timeoutHandle = setTimeout(() => {
-    proc.kill();
-  }, timeoutMs);
+    const onData = (chunk: Buffer): void => {
+      combined += chunk.toString();
+      if (!sawWarning && warningPattern.test(combined)) {
+        sawWarning = true;
+        finish();
+      }
+    };
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
+    proc.on("close", finish);
+    proc.on("error", finish);
 
-  await Promise.all([
-    readStream(proc.stdout as unknown as ReadableStream<Uint8Array> | null),
-    readStream(proc.stderr as unknown as ReadableStream<Uint8Array> | null),
-    proc.exited,
-  ]);
-  clearTimeout(timeoutHandle);
-
-  return { output: combined, sawWarning };
+    const timeoutHandle = setTimeout(finish, timeoutMs);
+  });
 }
 
 describe("--force warning on commands that no longer reprocess forms", () => {

@@ -12,7 +12,7 @@ describe("query CIK options", () => {
     for (const commandName of ["entities", "filings", "offerings", "crowdfunding", "persons"]) {
       const command = query!.commands.find((candidate) => candidate.name() === commandName);
       const cikOption = command?.options.find((option) => option.long === "--cik");
-      expect(cikOption?.parseArg).toBeFunction();
+      expect(cikOption?.parseArg).toBeTypeOf("function");
       expect(() => cikOption!.parseArg!("", undefined)).toThrow(
         '"" is not a non-negative integer.'
       );
@@ -30,7 +30,7 @@ describe("query CIK options", () => {
     for (const [commandName, flag] of cases) {
       const command = query!.commands.find((candidate) => candidate.name() === commandName);
       const option = command?.options.find((o) => o.long === flag);
-      expect(option?.parseArg).toBeFunction();
+      expect(option?.parseArg).toBeTypeOf("function");
       expect(() => option!.parseArg!("", undefined)).toThrow('"" is not a non-negative integer.');
     }
   });
