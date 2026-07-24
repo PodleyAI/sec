@@ -109,7 +109,7 @@ export class UpdateAllFormsTask extends Task<UpdateAllFormsTaskInput, UpdateAllF
 
     if (formsToProcess.length) {
       const wf = context.own(new Workflow());
-      const loop = wf.map({ concurrencyLimit: 10, maxIterations: formsToProcess.length });
+      const loop = wf.map({ concurrencyLimit: 20, maxIterations: formsToProcess.length });
       loop.pipe(new ProcessAccessionDocFormTask());
       loop.endMap();
       await wf.run({

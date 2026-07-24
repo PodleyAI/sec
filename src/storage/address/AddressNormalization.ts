@@ -300,8 +300,14 @@ function findCountryCode(
 
   if (byCountryName) return byCountryName;
 
-  // Return provided country code if valid
-  if (countryCode?.trim()) return countryCode.trim();
+  // `countryCode` is frequently an EDGAR stateOrCountry code (e.g. "F8" for
+  // Colombia), NOT an ISO code — resolve it to ISO via the SEC-code column
+  // before falling back to returning it verbatim.
+  if (countryCode?.trim()) {
+    const cc = countryCode.trim().toUpperCase();
+    const byCountryCodeAsSec = COUNTRY_STATE_CODE_ARRAY.find(([iso, sec]) => sec === cc)?.[0];
+    return byCountryCodeAsSec ?? cc;
+  }
 
   return null;
 }
@@ -386,7 +392,20 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
     zip = zip || importAddress.zipCode || null;
   }
 
-  if (!street1 || !state_or_country || !city || !country_code) {
+  // The schema requires a region, but a foreign address often carries none. When
+  // we resolved a country but no region, use the country's own SEC code as the
+  // region — so a foreign address (e.g. Colombia, country CO / SEC F8) is kept
+  // rather than dropped for lacking a US-style state.
+  if (!state_or_country && country_code) {
+    const secForCountry = COUNTRY_STATE_CODE_ARRAY.find(([iso]) => iso === country_code)?.[1];
+    if (secForCountry) state_or_country = secForCountry as StateOrCountryCode;
+  }
+
+  // The country code is the discriminator for a usable address: without a
+  // resolvable country (or a street/city to place it), the address is truly bad
+  // and dropped. `state_or_country` is guaranteed above whenever a country
+  // resolved, so requiring it here is equivalent to requiring the country.
+  if (!street1 || !city || !country_code || !state_or_country) {
     return undefined;
   }
 

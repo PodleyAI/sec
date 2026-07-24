@@ -507,6 +507,55 @@ describe("cleanAddress", () => {
       expect(result!.state_or_country).toBe("K3");
       expect(result!.country_code).toBe("HK");
     });
+
+    it("adopts the countryCode as the region when stateOrCountry is blank (foreign owner address)", () => {
+      // A real Form 3/4/5 reporting-owner address: EDGAR put the country SEC
+      // code in `countryCode` and left `stateOrCountry` null. Previously this
+      // dropped the whole address (no state); now it normalizes with the
+      // country as the region.
+      const input = {
+        street1: "CRA. 48 # 26-85",
+        street2: null,
+        city: "MEDELLIN, COLOMBIA",
+        stateOrCountry: null,
+        countryCode: "F8",
+        stateOrCountryDescription: "COLOMBIA",
+        zipCode: "050001",
+        isForeignLocation: true,
+      };
+
+      const result = normalizeAddress(input);
+      expect(result).toBeDefined();
+      expect(result!.state_or_country).toBe("F8"); // country SEC code adopted as region
+      expect(result!.country_code).toBe("CO"); // resolved to ISO
+      expect(result!.street1).toBe("CRA. 48 # 26-85");
+      expect(result!.zip).toBe("050001");
+    });
+
+    it("drops an address with a street and city but NO resolvable country", () => {
+      // The country code is the discriminator: with no state, no countryCode, no
+      // country, and nothing keyword-detectable, the address is truly bad.
+      const result = normalizeAddress({
+        street1: "123 Some St",
+        city: "Someplace",
+        stateOrCountry: null,
+        countryCode: null,
+        zipCode: "00000",
+      });
+      expect(result).toBeUndefined();
+    });
+
+    it("resolves a bare SEC country code in countryCode to its ISO country", () => {
+      // countryCode is an EDGAR stateOrCountry code, not ISO — it must resolve.
+      const result = normalizeAddress({
+        street1: "1 Rue de la Paix",
+        city: "Paris",
+        stateOrCountry: null,
+        countryCode: "I0", // SEC code for France
+      });
+      expect(result?.country_code).toBe("FR");
+      expect(result?.state_or_country).toBe("I0");
+    });
   });
 
   describe("Complex Address Scenarios", () => {
