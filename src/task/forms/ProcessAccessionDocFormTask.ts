@@ -312,15 +312,46 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: false };
     }
 
-    // --- Domain 3: parse + store (hard error -> record + rethrow, unchanged) ---
+    // --- Domain 3: parse (contained) then store (hard error -> record + rethrow) ---
     // Captured before any observe so the post-run reap can tell rows this run
     // refreshed (created_at >= runStart) from stale orphans of a prior run.
     const runStart = new Date().toISOString();
+
+    const formCls = ALL_FORMS_MAP.get(form!);
+    if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
+
+    // Parse is its own containment domain, distinct from store: what parse
+    // sees is the filing's own bytes, so a throw ("Maximum nested tags
+    // exceeded" on a deeply nested legacy HTML table) or an empty result (a
+    // structured-XML form whose primary document has no XML root — e.g.
+    // ownership forms 3/4/5 filed as narrative HTML/text before the
+    // 2003-06-30 XML mandate) is a property of the input, not an extractor
+    // bug. Contain both as a filing-level PARSE_ERROR dead-letter
+    // (version-gated retry) instead of crashing the whole sweep. Parsers that
+    // legitimately handle non-XML bodies return an object (Form_8_K returns
+    // `{}`; Form_S_1 parses the text) and never hit either guard. Store
+    // throws below remain hard errors: they run on parsed data, so a throw
+    // there is a code bug that should surface loudly.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Form.parse returns any; each switch arm narrows it
+    let parsed: any;
+    try {
+      parsed = await formCls.parse(form!, text);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const detail = `Parse failed for primary doc '${fileName}': ${message}`;
+      await recordDeadLetterSafe("PARSE_ERROR", detail.slice(0, 1024));
+      await recordRunFailed(`PARSE_ERROR: ${detail}`);
+      return { success: false };
+    }
+    if (parsed == null) {
+      const detail = `Parsed document is empty — primary doc '${fileName}' is not the expected XML format for form '${form}'`;
+      await recordDeadLetterSafe("PARSE_ERROR", detail);
+      await recordRunFailed(`PARSE_ERROR: ${detail}`);
+      return { success: false };
+    }
+
     let parseError: unknown = undefined;
     try {
-      const formCls = ALL_FORMS_MAP.get(form!);
-      if (!formCls) throw new TaskError(`Form '${form}' not found in ALL_FORMS_MAP`);
-      const parsed = await formCls.parse(form!, text);
       const storageArgs = {
         cik: cik!,
         file_number: file_number ?? "",
