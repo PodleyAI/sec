@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.15
+
+### Features
+
+#### canonical
+
+- add CanonicalCompanyRepo and related exports for entity mapping
+
 ## 0.0.14
 
 ### Features
