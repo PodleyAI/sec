@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "csv-parse/sync";
 import { resolveAsset } from "../util/resolveAsset";
@@ -39,12 +39,29 @@ export interface EmbarcUnitTermsRef {
   readonly warrant_price: number | null;
 }
 
-// `importMetaDir` resolves to `src/eval/` in dev and `dist/eval/` after the
-// build (the build-js script copies mock_data alongside), so the first
-// candidate covers both. The second candidate is a safety fallback if the
-// module ever moves relative to its assets. Resolved lazily so a missing
-// CSV doesn't crash unrelated code paths at import time.
+// `$SEC_UNIT_TERMS_REF` overrides the reference CSV path (mirrors
+// `$SEC_S1_MOCK_DIR` for the S-1 oracle) — a downstream package consuming the
+// published @workglow/sec, whose tarball ships no mock_data, points this at its
+// own vendored copy. When the env var is set, its path is honored strictly: a
+// missing file throws (naming the env var and the path) rather than silently
+// falling through to the package-relative default, so a typo in a downstream
+// caller's env cannot masquerade as "fixture missing, using default". When
+// unset, `importMetaDir` resolves to `src/eval/` in dev and `dist/eval/` after
+// the build (the build-js script copies mock_data alongside), so the first
+// candidate covers both; the second is a safety fallback if the module ever
+// moves relative to its assets. Resolved lazily so a missing CSV doesn't crash
+// unrelated code paths at import time.
 function resolveReferencePath(): string {
+  const envPath = process.env.SEC_UNIT_TERMS_REF;
+  if (envPath !== undefined && envPath !== "") {
+    if (!existsSync(envPath)) {
+      throw new Error(
+        `SEC_UNIT_TERMS_REF points at ${envPath}, which does not exist. ` +
+          `Unset the env var to use the package-shipped default, or fix the path.`
+      );
+    }
+    return envPath;
+  }
   return resolveAsset([
     join(importMetaDir, "mock_data/embarc-spac-unit-terms.csv"),
     join(importMetaDir, "../eval/mock_data/embarc-spac-unit-terms.csv"),
@@ -55,6 +72,15 @@ const toNum = (v: string): number | null => (v === "" ? null : Number(v));
 const toStr = (v: string): string | null => (v === "" ? null : v);
 
 let cache: Map<number, EmbarcUnitTermsRef> | undefined;
+
+/**
+ * Test-only: clear the memoized reference so the next load re-resolves the
+ * path (honoring any `SEC_UNIT_TERMS_REF` change) and re-parses the CSV. Avoids
+ * needing `vi.resetModules()` to exercise the env-override branches.
+ */
+export function _resetEmbarcUnitTermsCacheForTesting(): void {
+  cache = undefined;
+}
 
 /** Load (and memoize) the reference set, keyed by SPAC origin CIK. */
 export function loadEmbarcUnitTermsReference(): Map<number, EmbarcUnitTermsRef> {

@@ -3,8 +3,12 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  _resetEmbarcUnitTermsCacheForTesting,
   cikFromFilingName,
   embarcExpectedRow,
   loadEmbarcUnitTermsReference,
@@ -73,5 +77,59 @@ describe("embarc unit-terms reference dataset", () => {
       right_fraction_per_unit: 0.1,
       unit_composition: "one share and one-third of one warrant",
     });
+  });
+});
+
+describe("SEC_UNIT_TERMS_REF override", () => {
+  const CSV_HEADER =
+    "cik,name,unit_common,unit_price,unit_warrant," +
+    "warrant_fraction_per_unit,right_fraction_per_unit," +
+    "right_share_conversion,warrant_ratio,warrant_price";
+  const originalEnv = process.env.SEC_UNIT_TERMS_REF;
+  let tmpDir: string;
+
+  beforeEach(() => {
+    _resetEmbarcUnitTermsCacheForTesting();
+    tmpDir = mkdtempSync(join(tmpdir(), "sec-unit-terms-ref-"));
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.SEC_UNIT_TERMS_REF;
+    else process.env.SEC_UNIT_TERMS_REF = originalEnv;
+    _resetEmbarcUnitTermsCacheForTesting();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("env set + file exists → loads from the override path", () => {
+    const csvPath = join(tmpDir, "override.csv");
+    writeFileSync(
+      csvPath,
+      `${CSV_HEADER}\n` + `9999999,Override SPAC Corp.,1,10,1/2,0.5,,,,11.5\n`,
+      "utf8"
+    );
+    process.env.SEC_UNIT_TERMS_REF = csvPath;
+
+    const ref = loadEmbarcUnitTermsReference();
+    expect(ref.size).toBe(1);
+    const row = ref.get(9999999)!;
+    expect(row.name).toBe("Override SPAC Corp.");
+    expect(row.unit_price).toBe(10);
+    expect(row.warrant_fraction_per_unit).toBeCloseTo(0.5);
+  });
+
+  it("env set + file missing → throws naming the env var and the path (no silent fallback)", () => {
+    const missingPath = join(tmpDir, "does-not-exist.csv");
+    process.env.SEC_UNIT_TERMS_REF = missingPath;
+
+    expect(() => loadEmbarcUnitTermsReference()).toThrow(
+      /SEC_UNIT_TERMS_REF.*does not exist/
+    );
+  });
+
+  it("env unset → falls back to the package-shipped fixture", () => {
+    delete process.env.SEC_UNIT_TERMS_REF;
+
+    const ref = loadEmbarcUnitTermsReference();
+    expect(ref.size).toBeGreaterThan(1200);
   });
 });

@@ -793,6 +793,7 @@ Set in `.env.local` (see `.env.test` for test defaults):
 - `SEC_PG_DATABASE` — PostgreSQL database name (default: `edgar`)
 - `SEC_FIXTURES_DIR` — root under which `sec fetch fixtures` / `sec fetch s1-fixtures` write their gitignored cache (default: cwd). Written output goes to `<SEC_FIXTURES_DIR>/.sec-fixtures/exempt-offerings/` and `<SEC_FIXTURES_DIR>/.sec-fixtures/s1/.cache/` — never into the source tree or the bundled `dist/`.
 - `SEC_S1_MOCK_DIR` — override the committed S-1 fixtures directory read by `sec eval s1` and `loadRealS1Sections`. Falls back to the built-tree copy, then the source-tree copy.
+- `SEC_UNIT_TERMS_REF` — override the embarc unit-terms reference CSV read by `sec eval unit-terms` and `loadEmbarcUnitTermsReference` (mirrors `SEC_S1_MOCK_DIR`). A downstream package consuming the published tarball (which ships no `mock_data/`) points this at its own vendored copy. Fail-fast semantics: when the env var is set, a missing file throws (naming the env var and the path) instead of silently falling through to the package-relative default, so a typo cannot masquerade as "fixture missing, using default". When unset, resolves the package-shipped CSV (dist copy in the built tarball, src copy in dev).
 
 ## TypeScript Conventions
 
