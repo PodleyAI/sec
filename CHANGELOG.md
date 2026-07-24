@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.16
+
+### Chores
+
+- update workglow
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.28
+- `typebox`: 1.3.7
+- `workglow`: 0.3.28
+
 ## 0.0.15
 
 ### Features
