@@ -6,6 +6,7 @@
 
 import type { Command } from "commander";
 import type { ITask } from "workglow";
+import { BootstrapAccessionDocsTask } from "../../task/bootstrap/BootstrapAccessionDocsTask";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
@@ -34,6 +35,13 @@ export function addBootstrapCommands(program: Command): void {
     .option("--skip-download", "Skip the bulk download step", false)
     .option("--skip-ingest", "Skip the ingest step", false)
     .option("--skip-forms", "Skip the forms processing step", false)
+    .option(
+      "--download-docs",
+      "Download accession documents for the ingested submissions via daily Feed tarballs (populates the on-disk doc cache before the forms step)",
+      false
+    )
+    .option("--docs-from <date>", "With --download-docs: earliest filing day to fetch (YYYY-MM-DD)")
+    .option("--docs-to <date>", "With --download-docs: latest filing day to fetch (YYYY-MM-DD)")
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
       if (options.force) {
@@ -62,6 +70,18 @@ export function addBootstrapCommands(program: Command): void {
               new FetchAllCikNamesTask(),
               new BootstrapSubmissionsTask({ defaults: { force } }),
               new BootstrapCompanyFactsTask({ defaults: { force } })
+            );
+          }
+
+          // Accession-document download runs after ingest (so the filings it
+          // scans exist) and before forms (so the forms step reads documents
+          // from the on-disk cache instead of fetching each one over the wire).
+          if (options.downloadDocs) {
+            tasks.push(
+              new BootstrapAccessionDocsTask({
+                title: "Download accession documents",
+                defaults: { from: options.docsFrom, to: options.docsTo, force },
+              })
             );
           }
 
@@ -111,6 +131,32 @@ export function addBootstrapCommands(program: Command): void {
           })
         );
       });
+    });
+
+  bootstrap
+    .command("download-docs")
+    .description(
+      "Download accession documents for ingested submissions via daily Feed tarballs (YYYYMMDD.nc.tar.gz)"
+    )
+    .option("--from <date>", "Earliest filing day to fetch (YYYY-MM-DD)")
+    .option("--to <date>", "Latest filing day to fetch (YYYY-MM-DD)")
+    .option("--force", "Re-download days already completed and overwrite cached documents", false)
+    .action(async (_options, command) => {
+      // Merge ancestor options: the parent `bootstrap` command also declares
+      // `--force`, and commander attributes a shared flag to the parent, so the
+      // subcommand's own `options.force` would stay false. optsWithGlobals()
+      // reads the flag wherever commander parked it.
+      const options = command.optsWithGlobals();
+      await runCommand(
+        async () => {
+          await runWorkflowCli([
+            new BootstrapAccessionDocsTask({
+              defaults: { from: options.from, to: options.to, force: options.force === true },
+            }),
+          ]);
+        },
+        { force: options.force === true }
+      );
     });
 
   bootstrap

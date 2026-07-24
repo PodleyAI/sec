@@ -50,7 +50,7 @@ import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
  * .txt — Form.parse() needs the <SEC-HEADER> and sibling <DOCUMENT> blocks
  * (XBRL instance, EX-FILING FEES exhibit), not just the primary document.
  */
-const REGISTRATION_PROSPECTUS_FORMS = new Set([
+export const REGISTRATION_PROSPECTUS_FORMS = new Set([
   "S-1",
   "S-1/A",
   "S-1MEF",

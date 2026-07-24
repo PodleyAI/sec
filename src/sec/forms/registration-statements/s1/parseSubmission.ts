@@ -40,8 +40,25 @@ function bodyAfterHeader(txt: string): string {
 }
 
 /**
- * Parses the human-readable EDGAR submission header (and the older tagged
- * `<ASSIGNED-SIC>` form as a fallback). Tolerant: any missing field is null.
+ * Parses an EDGAR submission header. Handles both dialects seen in practice:
+ *
+ * 1. The **public** full-submission `.txt` (served at
+ *    `…/<accession>.txt`), whose `<SEC-HEADER>` block is a human-readable dump
+ *    (`CENTRAL INDEX KEY:`, `COMPANY CONFORMED NAME:`, `FILED AS OF DATE:`,
+ *    `STANDARD INDUSTRIAL CLASSIFICATION: … [NNNN]`).
+ * 2. The **dissemination** `.nc` header (the members of the daily Feed
+ *    tarballs, cached by `BootstrapAccessionDocsTask`), which is tagged SGML
+ *    (`<CIK>`, `<CONFORMED-NAME>`, `<FILING-DATE>`, `<ASSIGNED-SIC>`) with no
+ *    human-readable lines. The document bodies (`<DOCUMENT>…<TEXT>`) are
+ *    identical across both dialects; only the header differs.
+ *
+ * Each field tries the human-readable form first, then the tagged form, so the
+ * same parser reads a network `.txt` and a cached `.nc` identically. The tagged
+ * fallbacks are line-anchored (`^…`, multiline) so `<CIK>` does not match
+ * `<OWNER-CIK>` and `<CONFORMED-NAME>` does not match `<FORMER-CONFORMED-NAME>`;
+ * the first match is the primary filer (the registration subject). Tolerant:
+ * any missing field is null. (`.nc` carries only the numeric SIC, so
+ * `sicDescription` stays null there.)
  */
 export function parseSecHeader(txt: string): FormS1Header {
   const head = headerSlice(txt);
@@ -57,13 +74,16 @@ export function parseSecHeader(txt: string): FormS1Header {
     if (tagged) sic = Number(tagged[1]);
   }
 
-  const cikMatch = head.match(/CENTRAL INDEX KEY:\s*(\d+)/i);
+  const cikMatch = head.match(/CENTRAL INDEX KEY:\s*(\d+)/i) ?? head.match(/^<CIK>\s*(\d+)/im);
   const cik = cikMatch ? Number(cikMatch[1]) : null;
 
-  const nameMatch = head.match(/COMPANY CONFORMED NAME:\s*(.+?)\s*[\r\n]/i);
+  const nameMatch =
+    head.match(/COMPANY CONFORMED NAME:\s*(.+?)\s*[\r\n]/i) ??
+    head.match(/^<CONFORMED-NAME>\s*(.+?)\s*$/im);
   const companyName = nameMatch ? nameMatch[1].trim() : null;
 
-  const dateMatch = head.match(/FILED AS OF DATE:\s*(\d{8})/i);
+  const dateMatch =
+    head.match(/FILED AS OF DATE:\s*(\d{8})/i) ?? head.match(/^<FILING-DATE>\s*(\d{8})/im);
   const filingDate = dateMatch ? dateMatch[1] : null;
 
   return { sic, sicDescription, cik, companyName, filingDate };

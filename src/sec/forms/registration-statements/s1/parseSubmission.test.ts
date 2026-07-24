@@ -52,6 +52,47 @@ describe("parseSecHeader", () => {
     expect(h.sic).toBeNull();
     expect(h.cik).toBeNull();
   });
+
+  it("reads the dissemination `.nc` tagged header (Feed tarball members)", () => {
+    // Shape taken verbatim from a real 20210305 Feed member — no <SEC-HEADER>
+    // block, tagged <SUBMISSION> fields instead. Line-anchored fallbacks must
+    // ignore <OWNER-CIK> / <FORMER-CONFORMED-NAME> and take the primary filer.
+    const nc = [
+      "<SUBMISSION>",
+      "<ACCESSION-NUMBER>0001628280-21-003998",
+      "<TYPE>S-1",
+      "<FILING-DATE>20210305",
+      "<DATE-OF-FILING-DATE-CHANGE>20210305",
+      "<FILER>",
+      "<COMPANY-DATA>",
+      "<CONFORMED-NAME>IMMERSION CORP",
+      "<CIK>0001058811",
+      "<ASSIGNED-SIC>3577",
+      "</COMPANY-DATA>",
+      "<FORMER-COMPANY>",
+      "<FORMER-CONFORMED-NAME>OLD IMMERSION NAME",
+      "</FORMER-COMPANY>",
+      "</FILER>",
+      "<SERIES>",
+      "<OWNER-CIK>0009999999",
+      "</SERIES>",
+      "<DOCUMENT>",
+      "<TYPE>S-1",
+      "<FILENAME>immr.htm",
+      "<TEXT>",
+      "<html></html>",
+      "</TEXT>",
+      "</DOCUMENT>",
+      "</SUBMISSION>",
+    ].join("\n");
+    const h = parseSecHeader(nc);
+    expect(h.sic).toBe(3577);
+    expect(h.cik).toBe(1058811); // <CIK>, not <OWNER-CIK>
+    expect(h.companyName).toBe("IMMERSION CORP"); // not <FORMER-CONFORMED-NAME>
+    expect(h.filingDate).toBe("20210305");
+    // .nc carries only the numeric SIC, so the human-readable description is absent.
+    expect(h.sicDescription).toBeNull();
+  });
 });
 
 describe("parseRegistrationSubmission", () => {

@@ -24,6 +24,55 @@ Source is not shipped in the tarball. `use-source` is a workspace-local `bun lin
 
 Local Workglow deps: from a libs checkout run `bun run link-all` (and usually `bun run use-source`), then in sec run `bun run link-workglow`. Register this package for consumers with `bun run link`. For the full libs → sec → embarc-data chain, run `bun ./dev-link.ts` from the parent `workglow/` folder (or `bun run dev-link` in libs). Re-run `link-workglow` after any `bun install`.
 
+### Accession-document bulk cache (Feed tarballs)
+
+The forms pipeline reads each filing's document from an on-disk cache
+(`<SEC_RAW_DATA_FOLDER>/accessiondocs/<0-padded cik>/<accession-no-dashes>-<fileName>`,
+see `readCachedDoc` in `ProcessAccessionDocFormTask`) before falling back to the
+rate-limited per-document fetch. Fetching every filing's document individually is
+millions of throttled requests; instead, `BootstrapAccessionDocsTask`
+(`src/task/bootstrap/`) pre-populates that cache from EDGAR **daily Feed
+tarballs** (`/Archives/edgar/Feed/YYYY/QTRn/YYYYMMDD.nc.tar.gz`) — one download
+per filing day covers that whole day.
+
+The days to fetch are exactly the distinct `filing_date` values of the ingested
+`filings` (so weekends/holidays are never requested, and only submissions you
+have are kept), optionally bounded by an inclusive `[from, to]` range.
+`streamFeedTarball` (`feedTarball.ts`) decompresses and walks each tar in a
+single streaming pass — buffering only wanted members, so peak memory is one
+submission, not the multi-GB day (a single day is ~1.5 GB compressed). Each kept
+member is a `.nc` **dissemination** submission: its `<DOCUMENT>…<TEXT>` bodies
+are byte-identical to the public per-document files, but its header is tagged
+SGML (`<SUBMISSION>`/`<CIK>`/`<CONFORMED-NAME>`/`<ASSIGNED-SIC>`/`<FILING-DATE>`),
+**not** the public `.txt`'s human-readable `<SEC-HEADER>` block. Each member
+writes, per form:
+
+- the verbatim `.nc` as the full-submission `.txt` for forms parsed from the full
+  submission (`REGISTRATION_PROSPECTUS_FORMS` and 8-Ks, which SPAC narrative
+  passes read). `parseSecHeader` reads both header dialects (human-readable first,
+  tagged `.nc` fallback), so a cached `.nc` yields the same sic/cik/name/date as a
+  network `.txt`; and
+- the primary document, sliced **losslessly** out of the submission SGML by exact
+  `<FILENAME>` match (`extractPrimaryDocFromSubmission`; binary `<PDF>`/uuencoded
+  members are skipped so the cache never holds a corrupt doc), for every other form.
+
+Completed days are marked under `accessiondocs/.feed-done/`, so a re-run resumes;
+`--force` re-downloads and overwrites. A day with no Feed archive yet (recent
+dates → 404) is warned and left unmarked to retry next run. Backend-dispatched
+day/filing queries (`feedFilings.ts`) mirror `createCikNameBulkWriter`
+(SQLite → `getDb()`, Postgres → `getPgPool()`, else the repository).
+
+> ⚠️ A full-history pull is a large storage commitment — roughly tens of TB
+> decompressed, back-loaded onto recent years. Bound it with `--from`/`--to`.
+
+```bash
+# Standalone: download accession docs for ingested submissions (optional range)
+sec bootstrap download-docs [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--force]
+
+# Or as a pipeline step (runs after ingest, before the forms step):
+sec bootstrap --download-docs [--docs-from YYYY-MM-DD] [--docs-to YYYY-MM-DD]
+```
+
 ### PR4 CLI additions
 
 ```bash
