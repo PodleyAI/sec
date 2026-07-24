@@ -47,4 +47,24 @@ describe("runWorkflowCli", () => {
     expect(output).toEqual({ value: "ok" });
     expect(interactiveRun).not.toHaveBeenCalled();
   });
+
+  it("runs plainly (no Ink) when stdout is not a TTY, so backgrounded/redirected shards don't grab the terminal", async () => {
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
+    const originalIsTTY = process.stdout.isTTY;
+    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
+    try {
+      const { runWorkflowCli } = await import("./runWorkflow");
+      const output = await runWorkflowCli<{ readonly value: string }>([
+        new EchoTask({ defaults: { value: "ok" } }),
+      ]);
+      expect(output).toEqual({ value: "ok" });
+      // Non-TTY, non-JSON => plain runner; the interactive renderer must NOT run.
+      expect(interactiveRun).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
+    }
+  });
 });

@@ -99,6 +99,7 @@ import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-p
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
+import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
@@ -242,6 +243,13 @@ export async function setupAllDatabases(): Promise<void> {
   // again when the hook already registered them.
   registerSecResolvers();
   await bootstrapComponentVersions();
+
+  // Create the shared SEC-fetch rate-limiter tables once here (Postgres only,
+  // no-op otherwise), so a multi-shard sweep can enforce EDGAR's 10 req/sec
+  // budget across processes without each process racing to create the DDL.
+  if (dbType === "postgres" && !isDryRun()) {
+    await setupSecFetchRateLimiter();
+  }
 }
 
 /**

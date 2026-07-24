@@ -10,7 +10,11 @@ import { BootstrapAccessionDocsTask } from "../../task/bootstrap/BootstrapAccess
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
-import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
+import {
+  addFormsSweepLoop,
+  newFormsWorklistTask,
+  parseShardOption,
+} from "../../task/forms/formsSweep";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -42,6 +46,10 @@ export function addBootstrapCommands(program: Command): void {
     )
     .option("--docs-from <date>", "With --download-docs: earliest filing day to fetch (YYYY-MM-DD)")
     .option("--docs-to <date>", "With --download-docs: latest filing day to fetch (YYYY-MM-DD)")
+    .option(
+      "--shard <i/N>",
+      "Forms step: process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
+    )
     .option("--force", "Reprocess all items, ignoring processed state", false)
     .action(async (options) => {
       if (options.force) {
@@ -90,7 +98,7 @@ export function addBootstrapCommands(program: Command): void {
           // output arrays. The loop node then lives in the outer workflow, so
           // the CLI renders live per-iteration progress.
           if (!options.skipForms) {
-            tasks.push(newFormsWorklistTask());
+            tasks.push(newFormsWorklistTask(undefined, parseShardOption(options.shard)));
           }
 
           if (tasks.length > 0) {

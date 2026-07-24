@@ -17,7 +17,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
-import { addFormsSweepLoop } from "./formsSweep";
+import { addFormsSweepLoop, parseShardOption } from "./formsSweep";
 import {
   ProcessAccessionDocFormTask,
   type ProcessAccessionDocFormTaskInput,
@@ -96,6 +96,47 @@ describe("forms sweep wiring", () => {
     expect(out.fileName).toEqual(["a.xml", "b.xml"]);
   });
 
+  it("shards the worklist disjointly and completely across shardCount", async () => {
+    const accessions: string[] = [];
+    for (let i = 1; i <= 40; i++) {
+      const acc = `0000000${String(i).padStart(3, "0")}-26-000001`;
+      accessions.push(acc);
+      await seed({ cik: 100 + i, accession_number: acc, form: "3", primary_doc: "a.xml" });
+    }
+
+    const N = 3;
+    const perShard: string[][] = [];
+    for (let s = 0; s < N; s++) {
+      const out = await new ComputeFormsWorklistTask({
+        defaults: { form: ["3"], shardIndex: s, shardCount: N },
+      }).run({});
+      perShard.push(out.accessionNumber);
+      expect(out.count).toBe(out.accessionNumber.length);
+    }
+
+    // Complete: union of shards == every filing.
+    const union = new Set(perShard.flat());
+    expect(union.size).toBe(accessions.length);
+    for (const a of accessions) expect(union.has(a)).toBe(true);
+    // Disjoint: total across shards has no duplicates.
+    expect(perShard.flat().length).toBe(accessions.length);
+    // Deterministic: the same shard yields the same set on a second run.
+    const rerun = await new ComputeFormsWorklistTask({
+      defaults: { form: ["3"], shardIndex: 0, shardCount: N },
+    }).run({});
+    expect(new Set(rerun.accessionNumber)).toEqual(new Set(perShard[0]));
+  });
+
+  it("parseShardOption converts 1-based i/N to a 0-based shard and rejects bad input", () => {
+    expect(parseShardOption(undefined)).toBeUndefined();
+    expect(parseShardOption("")).toBeUndefined();
+    expect(parseShardOption("1/6")).toEqual({ index: 0, count: 6 });
+    expect(parseShardOption("6/6")).toEqual({ index: 5, count: 6 });
+    expect(() => parseShardOption("0/6")).toThrow(); // 1-based, 0 invalid
+    expect(() => parseShardOption("7/6")).toThrow(); // out of range
+    expect(() => parseShardOption("abc")).toThrow();
+  });
+
   it("forEach loop fans one iteration per filing with correctly zipped inputs", async () => {
     await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
     await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "b.xml" });
@@ -118,6 +159,43 @@ describe("forms sweep wiring", () => {
     expect(byAccession.get("0000000001-26-000001")).toMatchObject({ cik: 111, form: "3", fileName: "a.xml" });
     expect(byAccession.get("0000000002-26-000002")).toMatchObject({ cik: 222, form: "3", fileName: "b.xml" });
     expect(byAccession.get("0000000003-26-000003")).toMatchObject({ cik: 333, form: "3", fileName: "c.xml" });
+  });
+
+  it("surfaces the inner task's updateProgress message on the iterator's iteration_progress", async () => {
+    // End-to-end propagation: an inner task's context.updateProgress(p, msg)
+    // must reach the ForEach node's iteration_progress event (that is what the
+    // CLI renders on each worker row). Without it every iteration row is a bare
+    // spinner.
+    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
+
+    class ProgressTask extends ProcessAccessionDocFormTask {
+      static readonly type = "ProgressTask";
+      override async execute(
+        input: ProcessAccessionDocFormTaskInput,
+        context: IExecuteContext
+      ): Promise<{ success: boolean }> {
+        await context.updateProgress(50, `${input.form} ${input.accessionNumber} · working`);
+        return { success: true };
+      }
+    }
+
+    const wf = new Workflow();
+    wf.pipe(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>);
+    const loop = wf.forEach({ concurrencyLimit: 20 });
+    loop.pipe(new ProgressTask() as ITask<DataPorts, DataPorts>);
+    loop.endForEach();
+    wf.pipe(new OutputTask() as ITask<DataPorts, DataPorts>);
+
+    const messages: Array<string | undefined> = [];
+    const iterator = wf.graph.getTasks().find((t) => (t as { type?: string }).type === "ForEachTask");
+    expect(iterator).toBeDefined();
+    iterator!.events.on("iteration_progress", (_i, _n, _p, message) => {
+      messages.push(message);
+    });
+
+    await wf.run({});
+
+    expect(messages).toContain("3 0000000001-26-000001 · working");
   });
 
   it("addFormsSweepLoop builds a runnable loop over the producer's worklist", async () => {

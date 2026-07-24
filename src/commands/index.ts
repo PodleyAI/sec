@@ -29,7 +29,7 @@ import { registerSecModels } from "../config/registerModels";
 import { registerSecProviders } from "../config/registerProviders";
 import { registerSecResolvers } from "../config/registerResolvers";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
-import { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "../task/fetch/SecJobQueue";
+import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
@@ -57,15 +57,18 @@ export const AddCommands = (program: Command): void => {
     await registerSecModels();
     await registerSecProviders();
 
+    // Built lazily (after DI/env) so the Postgres-backed shared rate limiter
+    // can read the pool + SEC_DB_TYPE from the registry.
+    const secJobQueue = await getSecJobQueue();
     getTaskQueueRegistry().registerQueue({
-      server: SecJobQueueServer,
-      client: SecJobQueueClient,
-      storage: SecJobQueueStorage,
+      server: secJobQueue.server,
+      client: secJobQueue.client,
+      storage: secJobQueue.storage,
     });
     // Must await: otherwise a fast command can finish and stopQueues() while start() is
     // still in fixupJobs(); stop() then completes before workers start, and start()
     // resumes and leaves workers running — process never exits (e.g. `sec db status`).
-    await SecJobQueueServer.start();
+    await secJobQueue.server.start();
   });
 
   addBootstrapCommands(program);

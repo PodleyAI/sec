@@ -45,10 +45,17 @@ export async function runWorkflowCli<T>(
   // original flat pipe-through.
   buildAfter?.(wf);
   wf.pipe(sink as ITask<DataPorts, DataPorts>);
-  if (isJsonOutput()) {
-    await wf.run(input);
-  } else {
+  // Use the interactive Ink renderer only on a real TTY. When stdout is
+  // redirected (e.g. `update forms … --shard 1/6 > shard1.log 2>&1 &`), the Ink
+  // UI would write control codes into a logfile AND, worse, grab raw-mode on
+  // the terminal — a backgrounded process cannot own the TTY, so it is stopped
+  // by SIGTTIN and the run dies immediately. In that case run plainly; progress
+  // is monitored out-of-band (DB counts / logs) for batch/background shards.
+  const interactive = !isJsonOutput() && Boolean(process.stdout.isTTY);
+  if (interactive) {
     await withCli(wf).run(input);
+  } else {
+    await wf.run(input);
   }
   return sink.runOutputData as T;
 }

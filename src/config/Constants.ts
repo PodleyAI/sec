@@ -16,6 +16,21 @@ export const SecUserAgent = process.env.SEC_USER_AGENT?.trim() || DEFAULT_SEC_US
 export const SecJobQueueName = "sec_job_queue";
 
 /**
+ * Steady-state SEC fetch cap in requests/second, shared across ALL processes
+ * via the cluster rate limiter. Held at 8 — deliberately below EDGAR's
+ * documented 10 req/s ceiling — so startup bursts and clock skew across shards
+ * don't trip a ~10-minute IP block; a real 429 escalates to the cluster
+ * cooldown. Override DOWN via SEC_FETCH_MAX_PER_SEC (1–8); the ceiling is
+ * clamped to 8 so we stay consistently under EDGAR's limit and a stray higher
+ * value can't push us to the edge.
+ */
+export const SecFetchMaxPerSec = ((): number => {
+  const raw = process.env.SEC_FETCH_MAX_PER_SEC?.trim();
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 8;
+  return parsed >= 1 && parsed <= 8 ? parsed : 8;
+})();
+
+/**
  * General default model id shared by every SEC AI extractor (S-1, merger-proxy,
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.

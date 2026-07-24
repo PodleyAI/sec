@@ -43,6 +43,9 @@ import {
   hasBlockingSectionFailure,
   reapStaleObservations,
 } from "../../resolver/reapStaleObservations";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
@@ -133,6 +136,18 @@ export class ProcessAccessionDocFormTask extends Task<
     fileName: string,
     context: IExecuteContext
   ): Promise<string> {
+    // Fast path: serve an already-cached primary document straight from disk,
+    // bypassing the rate-limited SEC fetch queue. A cache hit touches no
+    // network, so throttling it against EDGAR's 10 req/sec budget is pure
+    // waste — and with a sharded fleet sharing ONE cluster limiter, routing
+    // every cached filing through it serializes all shards down to ~10/sec
+    // total (the whole point of sharding is lost). Only genuine cache MISSES
+    // (below) hit the network and must count against the shared budget.
+    const cached = await this.readCachedDoc(cik, accessionNumber, fileName);
+    if (cached !== undefined && cached.length > 0) {
+      return cached;
+    }
+
     const wf = context.own(new Workflow());
     let text: string | undefined;
     wf.pipe(
@@ -147,6 +162,36 @@ export class ProcessAccessionDocFormTask extends Task<
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
     }
     return text;
+  }
+
+  /**
+   * Reads the primary document from the on-disk fetch cache without touching
+   * the rate-limited queue. The path mirrors
+   * {@link SecFetchAccessionDocTask.inputToFileName} /
+   * {@link SecFetchFileOutputCache} exactly:
+   * `<SEC_RAW_DATA_FOLDER>/accessiondocs/<0-padded cik>/<accession w/o dashes>-<fileName>`.
+   * Accession primary documents are immutable once filed, so a cached copy is
+   * always valid (no freshness check needed). Returns undefined on a miss
+   * (ENOENT) so the caller falls back to the network fetch; other read errors
+   * propagate.
+   */
+  private async readCachedDoc(
+    cik: number,
+    accessionNumber: string,
+    fileName: string
+  ): Promise<string | undefined> {
+    if (!globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) return undefined;
+    const root = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
+    const rel = `accessiondocs/${String(cik).padStart(10, "0")}/${accessionNumber.replaceAll(
+      "-",
+      ""
+    )}-${fileName}`;
+    try {
+      return await readFile(path.join(root, rel), "utf-8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return undefined;
+      throw err;
+    }
   }
 
   async execute(
@@ -193,6 +238,16 @@ export class ProcessAccessionDocFormTask extends Task<
     if (!form) {
       throw new TaskError(`Filing ${accessionNumber} has no form type`);
     }
+
+    // Per-iteration progress label. In the forms sweep each ProcessAccessionDoc
+    // run is one iteration of the outer ForEach, so the updateProgress calls
+    // below surface on that iteration's CLI row (the framework forwards a task's
+    // progress → the iteration subgraph's graph_progress → the iterator's
+    // iteration_progress event). Without them the row is just a bare spinner —
+    // they identify which filing a worker is on and which stage it reached.
+    // First emitted at the fetch stage (below), i.e. only once the filing is
+    // actually committed to processing — after extractor/slot resolution.
+    const label = `${form} ${accessionNumber}`;
 
     // Registration prospectus forms (S-1 / DRS family) are fetched as the full
     // submission .txt so Form.parse() can read the <SEC-HEADER> and select the
@@ -302,6 +357,7 @@ export class ProcessAccessionDocFormTask extends Task<
     }
 
     // --- Domain 2: body fetch (filing-level) ---
+    await context.updateProgress(20, `${label} · fetching`);
     let text: string;
     try {
       text = await this.runFetch(cik!, accessionNumber, fileName, context);
@@ -332,6 +388,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // `{}`; Form_S_1 parses the text) and never hit either guard. Store
     // throws below remain hard errors: they run on parsed data, so a throw
     // there is a code bug that should surface loudly.
+    await context.updateProgress(60, `${label} · parsing`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Form.parse returns any; each switch arm narrows it
     let parsed: any;
     try {
@@ -350,6 +407,7 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: false };
     }
 
+    await context.updateProgress(80, `${label} · storing`);
     let parseError: unknown = undefined;
     try {
       const storageArgs = {

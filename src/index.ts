@@ -50,7 +50,7 @@ export {
   type response_type,
 } from "./task/fetch/SecCachedFetchTask";
 export { SecFetchTask } from "./task/fetch/SecFetchTask";
-export { SecJobQueueClient, SecJobQueueServer, SecJobQueueStorage } from "./task/fetch/SecJobQueue";
+export { getSecJobQueue, setupSecFetchRateLimiter } from "./task/fetch/SecJobQueue";
 
 // ── Lifecycle / teardown ────────────────────────────────────────────────────
 // A superset CLI must run these in its own shutdown path (mirroring src/sec.ts)

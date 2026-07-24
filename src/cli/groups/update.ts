@@ -1,6 +1,10 @@
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
+import {
+  addFormsSweepLoop,
+  newFormsWorklistTask,
+  parseShardOption,
+} from "../../task/forms/formsSweep";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -44,10 +48,15 @@ export function addUpdateCommands(program: Command): void {
   update
     .command("forms <types>")
     .description("Update forms for all companies (comma-separated form types)")
-    .action(async (types: string) => {
+    .option(
+      "--shard <i/N>",
+      "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
+    )
+    .action(async (types: string, options: { shard?: string }) => {
       await runCommand(async () => {
         const formTypes = types.split(",");
-        await runWorkflowCli([newFormsWorklistTask(formTypes)], undefined, addFormsSweepLoop);
+        const shard = parseShardOption(options.shard);
+        await runWorkflowCli([newFormsWorklistTask(formTypes, shard)], undefined, addFormsSweepLoop);
       });
     });
 }

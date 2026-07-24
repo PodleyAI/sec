@@ -12,6 +12,7 @@ import {
   JobConstructorParam,
 } from "workglow";
 import { SecUserAgent } from "../../config/Constants";
+import { signalSecFetchThrottle } from "./secFetchThrottle";
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -247,6 +248,18 @@ export class SecFetchJob<
           throw error;
         }
         const retryAfter = getRetryAfterMs(error as MaybeHttpError);
+        // A 429 means EDGAR is throttling this IP. Pause the WHOLE fetch cluster
+        // (every shard process) via the shared limiter's cluster-visible
+        // next-available sentinel, so NEW dispatches back off together instead
+        // of piling on and keeping the block alive. This job's OWN retry keeps
+        // the normal fast backoff (honoring Retry-After when present) so a
+        // genuinely transient 429 still recovers quickly; a sustained block just
+        // exhausts this job's few attempts and dead-letters (retried next
+        // sweep) while the cluster stays paused. Non-429 retryables (5xx,
+        // timeouts, network blips) don't pause the cluster.
+        if (getHttpErrorStatus(error) === 429) {
+          await signalSecFetchThrottle(retryAfter);
+        }
         const delay = retryAfter ?? backoffDelay(attempt);
         await sleepWithAbort(delay, context.signal);
       } finally {

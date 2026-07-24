@@ -16,11 +16,37 @@ import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
+import { SecFetchMaxPerSec } from "../../config/Constants";
 
 export type ComputeFormsWorklistTaskInput = {
   /** Omit (or pass empty) to process every form with a registered extractor. */
   readonly form?: string[];
+  /**
+   * 0-based shard index for horizontal fan-out across processes. When
+   * `shardCount > 1`, this producer keeps only the filings whose accession
+   * number hashes into this shard, so N processes each with a distinct
+   * `shardIndex` (0..N-1) and the same `shardCount` cover the worklist
+   * disjointly with no coordination. Defaults to the single-shard identity
+   * (index 0, count 1 → keep everything).
+   */
+  readonly shardIndex?: number;
+  readonly shardCount?: number;
 };
+
+/**
+ * Deterministic 32-bit FNV-1a hash of the accession number, used only to
+ * assign a filing to a shard. Must be stable across processes and runs so the
+ * same filing always lands in the same shard; it is not security-sensitive.
+ */
+function accessionShard(accession: string, shardCount: number): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < accession.length; i++) {
+    h ^= accession.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  // `>>> 0` coerces to unsigned before the modulo so the shard is non-negative.
+  return (h >>> 0) % shardCount;
+}
 
 export type ComputeFormsWorklistTaskOutput = {
   /** Parallel arrays, aligned by index — one entry per filing to process. */
@@ -57,6 +83,8 @@ export class ComputeFormsWorklistTask extends Task<
   public static inputSchema() {
     return Type.Object({
       form: Type.Optional(Type.Array(Type.String())),
+      shardIndex: Type.Optional(Type.Integer({ minimum: 0 })),
+      shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
 
@@ -90,6 +118,16 @@ export class ComputeFormsWorklistTask extends Task<
         ? input.form
         : Object.keys(FORM_TO_EXTRACTOR_ID);
     const formSet = new Set(requestedForms);
+
+    const shardCount = input.shardCount ?? 1;
+    const shardIndex = input.shardIndex ?? 0;
+    if (shardCount < 1 || shardIndex < 0 || shardIndex >= shardCount) {
+      throw new Error(
+        `Invalid shard ${shardIndex}/${shardCount}: need shardCount >= 1 and 0 <= shardIndex < shardCount.`
+      );
+    }
+    const sharding = shardCount > 1;
+
     const formsToProcess: Filing[] = [];
 
     // Cache active-slot lookups per extractor_id. Active slot is "next if a
@@ -123,15 +161,33 @@ export class ComputeFormsWorklistTask extends Task<
         form
       );
       for (const f of unprocessed) {
+        if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) {
+          continue;
+        }
         formsToProcess.push(f);
       }
     }
 
     if (isDryRun()) {
       const forms = [...formSet].join(", ");
-      console.log(`Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}`);
+      // Display 1-based to match the `--shard i/N` the operator typed.
+      const shardNote = sharding ? ` (shard ${shardIndex + 1}/${shardCount})` : "";
+      console.log(
+        `Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}${shardNote}`
+      );
       return { accessionNumber: [], cik: [], form: [], fileName: [], count: 0 };
     }
+
+    // Startup banner — one line per process so each shard's terminal shows
+    // exactly what it's doing: the forms, its shard, the worklist size, and the
+    // shared fetch ceiling (the fetch budget is cluster-wide across all shards,
+    // not per-process).
+    const shardNote = sharding ? ` · shard ${shardIndex + 1}/${shardCount}` : "";
+    console.log(
+      `▶ forms sweep · form(s): ${[...formSet].join(",")}${shardNote} · ` +
+        `${formsToProcess.length} filing(s) to process · ` +
+        `fetch ≤${SecFetchMaxPerSec} req/s (shared across shards)`
+    );
 
     return {
       accessionNumber: formsToProcess.map((f) => f.accession_number),

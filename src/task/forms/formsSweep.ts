@@ -9,21 +9,53 @@ import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 /**
- * Number of filings processed concurrently by the forms sweep. Also the number
- * of live iteration rows the CLI shows at once. Bounded well under the fetch
- * queue's own 10 req/sec limiter — extra workers past that just wait on cached
- * hits or CPU/AI extraction, which are not queue-limited.
+ * Number of filings processed concurrently by ONE forms-sweep process (also the
+ * number of live iteration rows its CLI shows at once). Horizontal scale now
+ * comes from running multiple sharded processes (`--shard i/N`) across cores —
+ * each pins ~1 core since JS execution is single-threaded — so per-process
+ * concurrency stays modest at 10. That keeps DB-pool pressure sane under a
+ * multi-shard launch (N processes × the ~10-connection pool) and matches the
+ * fetch queue's 10 req/sec ceiling, above which extra workers only ever wait.
  */
-export const FORMS_SWEEP_CONCURRENCY_LIMIT = 20;
+export const FORMS_SWEEP_CONCURRENCY_LIMIT = 10;
+
+/** Horizontal fan-out: `{ index, count }` selects one shard of the worklist. */
+export interface FormsShard {
+  readonly index: number;
+  readonly count: number;
+}
 
 /**
  * The producer task for a forms sweep. Emits the index-aligned worklist arrays
  * that {@link addFormsSweepLoop} fans out. Pass this as the last task in a
  * command's task list, then hand {@link addFormsSweepLoop} to `runWorkflowCli`'s
- * `buildAfter` hook.
+ * `buildAfter` hook. When `shard` is supplied (count > 1), this producer emits
+ * only the filings hashing into `shard.index`, so N processes each with a
+ * distinct index cover the worklist disjointly.
  */
-export function newFormsWorklistTask(form?: string[]): ComputeFormsWorklistTask {
-  return new ComputeFormsWorklistTask({ defaults: { form } });
+export function newFormsWorklistTask(form?: string[], shard?: FormsShard): ComputeFormsWorklistTask {
+  return new ComputeFormsWorklistTask({
+    defaults: { form, shardIndex: shard?.index, shardCount: shard?.count },
+  });
+}
+
+/**
+ * Parses a `--shard i/N` CLI value into a 0-based {@link FormsShard}. Accepts
+ * 1-based user input (`1/6`..`6/6`) and converts to 0-based internally.
+ * Returns undefined for a missing/blank value (no sharding).
+ */
+export function parseShardOption(value: string | undefined): FormsShard | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const m = /^(\d+)\/(\d+)$/.exec(value.trim());
+  if (!m) {
+    throw new Error(`Invalid --shard "${value}": expected the form i/N (1-based), e.g. 1/6.`);
+  }
+  const oneBasedIndex = Number(m[1]);
+  const count = Number(m[2]);
+  if (count < 1 || oneBasedIndex < 1 || oneBasedIndex > count) {
+    throw new Error(`Invalid --shard "${value}": need 1 <= i <= N and N >= 1.`);
+  }
+  return { index: oneBasedIndex - 1, count };
 }
 
 /**
