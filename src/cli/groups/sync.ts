@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
+import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
 import { FetchDailyIndexTask } from "../../task/index/FetchDailyIndexTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
@@ -26,13 +26,18 @@ export function addSyncCommand(program: Command): void {
         async () => {
           const formTypes =
             options.forms !== undefined ? (options.forms as string).split(",") : undefined;
-          await runWorkflowCli([
-            new FetchDailyIndexTask(),
-            new StoreCikLastUpdatedTask(),
-            new UpdateAllSubmissionsTask({ defaults: { force: options.force } }),
-            new UpdateAllCompanyFactsTask({ defaults: { force: options.force } }),
-            new UpdateAllFormsTask({ defaults: { form: formTypes } }),
-          ]);
+          await runWorkflowCli(
+            [
+              new FetchDailyIndexTask(),
+              new StoreCikLastUpdatedTask(),
+              new UpdateAllSubmissionsTask({ defaults: { force: options.force } }),
+              new UpdateAllCompanyFactsTask({ defaults: { force: options.force } }),
+              // Producer must be last so the sweep loop connects to its worklist.
+              newFormsWorklistTask(formTypes),
+            ],
+            undefined,
+            addFormsSweepLoop
+          );
         },
         { force: options.force }
       );

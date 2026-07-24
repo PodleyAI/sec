@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
+import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -47,7 +47,7 @@ export function addUpdateCommands(program: Command): void {
     .action(async (types: string) => {
       await runCommand(async () => {
         const formTypes = types.split(",");
-        await runWorkflowCli([new UpdateAllFormsTask({ defaults: { form: formTypes } })]);
+        await runWorkflowCli([newFormsWorklistTask(formTypes)], undefined, addFormsSweepLoop);
       });
     });
 }

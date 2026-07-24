@@ -39,8 +39,8 @@ type FetchAndStoreFormsTaskOutput = Static<ReturnType<typeof FetchAndStoreFormsT
 /**
  * Fetches and processes every filing matching (cik, form[, docid]).
  *
- * Intentionally bypasses the version gate: unlike UpdateAllFormsTask
- * (which skips filings that already have a successful extractor_runs
+ * Intentionally bypasses the version gate: unlike the forms sweep
+ * (ComputeFormsWorklistTask, which skips filings that already have a successful extractor_runs
  * row at the current version), this task unconditionally schedules
  * ProcessAccessionDocFormTask for every matching filing. The PK on
  * extractor_runs means the existing row is overwritten in place, so

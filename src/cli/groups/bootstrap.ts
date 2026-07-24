@@ -9,7 +9,7 @@ import type { ITask } from "workglow";
 import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTask";
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
-import { UpdateAllFormsTask } from "../../task/forms/UpdateAllFormsTask";
+import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -65,12 +65,20 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
+          // The forms producer must be the LAST task so the sweep loop
+          // (spliced in via `addFormsSweepLoop`) auto-connects to its worklist
+          // output arrays. The loop node then lives in the outer workflow, so
+          // the CLI renders live per-iteration progress.
           if (!options.skipForms) {
-            tasks.push(new UpdateAllFormsTask());
+            tasks.push(newFormsWorklistTask());
           }
 
           if (tasks.length > 0) {
-            await runWorkflowCli(tasks);
+            await runWorkflowCli(
+              tasks,
+              undefined,
+              options.skipForms ? undefined : addFormsSweepLoop
+            );
           }
         },
         { force: options.force }

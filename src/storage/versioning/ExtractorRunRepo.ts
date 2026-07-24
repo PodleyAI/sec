@@ -31,7 +31,7 @@ export interface FilingKey {
  * Helper around the extractor_runs table. Call sites use:
  *   - recordRun: every ProcessAccessionDocFormTask attempt writes one row.
  *   - hasSuccessfulRun: single-filing check.
- *   - listFilingsWithoutSuccessfulRun: UpdateAllFormsTask scheduling.
+ *   - listFilingsWithoutSuccessfulRun: ComputeFormsWorklistTask scheduling.
  *
  * Re-running the same (cik, accession, extractor_id, extractor_version)
  * overwrites the prior row by PK — preserving a per-execution history
@@ -130,7 +130,7 @@ export class ExtractorRunRepo {
    * migration should switch to a streaming or anti-join (WHERE NOT EXISTS) query
    * once the data set grows.
    *
-   * UpdateAllFormsTask always passes `form`. The no-form path is retained
+   * ComputeFormsWorklistTask always passes `form`. The no-form path is retained
    * for coverage queries that may need to count across an extractor's variants.
    */
   async deleteForExtractorVersion(

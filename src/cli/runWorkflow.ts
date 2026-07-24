@@ -29,13 +29,22 @@ import { isJsonOutput } from "./isJsonOutput";
  */
 export async function runWorkflowCli<T>(
   tasks: readonly ITask[],
-  input?: Record<string, unknown>
+  input?: Record<string, unknown>,
+  buildAfter?: (wf: Workflow) => void
 ): Promise<T> {
   const wf = new Workflow();
   const sink = new OutputTask();
-  for (const task of [...tasks, sink]) {
+  for (const task of tasks) {
     wf.pipe(task as ITask<DataPorts, DataPorts>);
   }
+  // `buildAfter` lets a caller splice loop/branch nodes (e.g. a `.forEach()`
+  // fan-out) into the graph AFTER the flat task list and BEFORE the sink — so
+  // those nodes are first-class members of the graph the CLI renderer
+  // subscribes to (live per-iteration progress), rather than buried inside a
+  // task's private nested Workflow. Omit it and behaviour is identical to the
+  // original flat pipe-through.
+  buildAfter?.(wf);
+  wf.pipe(sink as ITask<DataPorts, DataPorts>);
   if (isJsonOutput()) {
     await wf.run(input);
   } else {
