@@ -9,9 +9,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { Form_F_1 } from "./Form_F_1";
 import { Form_F_1MEF } from "./Form_F_1MEF";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 const FIXTURE = path.join(
-  import.meta.dir,
+  importMetaDir,
   "../../html/mock_data/s1/f1_2000001_000000000026000777.txt"
 );
 

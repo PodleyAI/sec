@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
@@ -18,8 +19,10 @@ import {
 import { MAX_STORED_SPAN_CHARS } from "../registration-statements/s1/verifySourceSpan";
 import { Form_DEFM14A } from "./Form_DEFM14A";
 import { processMergerProxy } from "./Form_DEFM14A.storage";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURE = `${import.meta.dir}/mock_data/merger-proxy/defm14a_sample.txt`;
+const FIXTURE = `${importMetaDir}/mock_data/merger-proxy/defm14a_sample.txt`;
 
 async function seedSpac(cik: number): Promise<void> {
   const writer = new SpacReportWriter();
@@ -43,7 +46,7 @@ async function seedSpac(cik: number): Promise<void> {
 }
 
 async function runProxy(cik: number, accession_number: string): Promise<void> {
-  const txt = await Bun.file(FIXTURE).text();
+  const txt = readFileSync(FIXTURE, "utf-8");
   const parsed = await Form_DEFM14A.parse("DEFM14A", txt);
   await processMergerProxy({
     cik,

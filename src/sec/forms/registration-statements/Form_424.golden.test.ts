@@ -10,8 +10,10 @@ import { parseInlineXbrl } from "../../xbrl/parseInlineXbrl";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
-const FIXTURES = join(import.meta.dir, "../../html/mock_data/424");
+const FIXTURES = join(importMetaDir, "../../html/mock_data/424");
 
 /**
  * Real priced-IPO prospectus: Churchill Capital Corp XII 424B4 (the priced

@@ -9,15 +9,17 @@ import { join } from "node:path";
 import { parseEdgarHtml } from "../sec/html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../sec/forms/registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS } from "../sec/forms/registration-statements/s1/DocumentSegmenter";
+import { fileURLToPath } from "node:url";
+const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
 /**
  * Build the ordered list of S-1 mock-directory candidates:
  *   1. explicit `dir` argument (from `--dir` on `sec eval s1`);
  *   2. `SEC_S1_MOCK_DIR` env var;
- *   3. built-tree dist candidate (`import.meta.dir` = `dist/eval/`);
- *   4. dev-tree source candidate (`import.meta.dir` = `src/eval/`).
+ *   3. built-tree dist candidate (`importMetaDir` = `dist/eval/`);
+ *   4. dev-tree source candidate (`importMetaDir` = `src/eval/`).
  *
- * `import.meta.dir` points at `src/eval/` in dev and `dist/eval/` after
+ * `importMetaDir` points at `src/eval/` in dev and `dist/eval/` after
  * bundling, so (3) and (4) cover both layouts without depending on cwd.
  * The old code used a cwd literal ("src/sec/html/mock_data/s1"), which
  * broke the moment the binary ran from a different directory or was
@@ -28,8 +30,8 @@ function s1MockDirCandidates(dir: string | undefined): string[] {
   if (dir !== undefined) candidates.push(dir);
   const envDir = process.env.SEC_S1_MOCK_DIR;
   if (envDir !== undefined && envDir !== "") candidates.push(envDir);
-  candidates.push(join(import.meta.dir, "../sec/html/mock_data/s1"));
-  candidates.push(join(import.meta.dir, "../../src/sec/html/mock_data/s1"));
+  candidates.push(join(importMetaDir, "../sec/html/mock_data/s1"));
+  candidates.push(join(importMetaDir, "../../src/sec/html/mock_data/s1"));
   return candidates;
 }
 
@@ -60,7 +62,7 @@ export interface RealSection {
  *
  * Resolution order for `dir`: an explicit argument wins, else the
  * `SEC_S1_MOCK_DIR` env var, else the built-tree dist copy, else the
- * dev-tree source. The last two are `import.meta.dir`-relative so the
+ * dev-tree source. The last two are `importMetaDir`-relative so the
  * bundled `sec` binary can find its fixtures without depending on cwd.
  */
 export function loadRealS1Sections(

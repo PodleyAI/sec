@@ -3,7 +3,7 @@
  * Copyright 2026 Steven Roussey <sroussey@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import * as sec from "./index";
 
 test("barrel exposes the sec dependencies a downstream feature package builds on", () => {

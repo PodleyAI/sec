@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,22 +34,11 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  const proc = Bun.spawn(["bun", "src/sec.ts", ...args], {
-    env: {
-      ...process.env,
-      SEC_DB_TYPE: "sqlite",
-      SEC_DB_FOLDER: dbFolder,
-      SEC_DB_NAME: "edgar",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const exitCode = await proc.exited;
-  return {
-    stdout: await new Response(proc.stdout).text(),
-    stderr: await new Response(proc.stderr).text(),
-    exitCode,
-  };
+  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
+    SEC_DB_TYPE: "sqlite",
+    SEC_DB_FOLDER: dbFolder,
+    SEC_DB_NAME: "edgar",
+  }));
 }
 
 const UUID_A = "aaaaaaaa-0000-0000-0000-000000000001";
