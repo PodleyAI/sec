@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
-import { addFormsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
+import { formsSweepLoop, newFormsWorklistTask } from "../../task/forms/formsSweep";
 import { FetchDailyIndexTask } from "../../task/index/FetchDailyIndexTask";
 import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
@@ -32,11 +32,10 @@ export function addSyncCommand(program: Command): void {
               new StoreCikLastUpdatedTask(),
               new UpdateAllSubmissionsTask({ defaults: { force: options.force } }),
               new UpdateAllCompanyFactsTask({ defaults: { force: options.force } }),
-              // Producer must be last so the sweep loop connects to its worklist.
-              newFormsWorklistTask(formTypes),
             ],
             undefined,
-            addFormsSweepLoop
+            // The producer is the sweep loop's body, not a task ahead of it.
+            formsSweepLoop(newFormsWorklistTask(formTypes))
           );
         },
         { force: options.force }

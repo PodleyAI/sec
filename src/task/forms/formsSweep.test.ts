@@ -17,7 +17,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
-import { addFormsSweepLoop, parseShardOption } from "./formsSweep";
+import { formsSweepLoop, parseShardOption } from "./formsSweep";
 import {
   ProcessAccessionDocFormTask,
   type ProcessAccessionDocFormTaskInput,
@@ -127,51 +127,65 @@ describe("forms sweep wiring", () => {
     expect(new Set(rerun.accessionNumber)).toEqual(new Set(perShard[0]));
   });
 
-  it("streams each form by bounded page instead of materializing the whole form", async () => {
+  it("reads each form in bounded pages instead of materializing the whole form", async () => {
     // Regression guard for the worklist OOM: the producer used to call
     // `filingRepo.query({ form })`, pulling every filing of a form into one
     // array (~4.6M rows for form 4, ~3 GB per process — and every `--shard`
     // process paid it in full, because the shard filter ran afterwards).
-    // The scan must stay paged and bounded no matter how large the form is.
+    // Every read must stay bounded no matter how large the form is.
     await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
     await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "b.xml" });
 
     const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    const bareQueries: unknown[] = [];
-    const pageLimits: Array<number | undefined> = [];
+    const limits: Array<number | undefined> = [];
     const realQuery = repo.query.bind(repo);
-    const realQueryPage = repo.queryPage.bind(repo);
-    repo.query = ((criteria: never, options: never) => {
-      // The regressed call was a bare `query({ form })` with no second
-      // argument. Storage's own generic pager also reaches `query`, but always
-      // with options (orderBy, and a limit unless it is over-fetching to
-      // filter in memory), so the missing-options case isolates the producer.
-      if (options === undefined) bareQueries.push(criteria);
-      return realQuery(criteria, options);
+    repo.query = ((criteria: never, options: { limit?: number } | undefined) => {
+      limits.push(options?.limit);
+      return realQuery(criteria, options as never);
     }) as typeof repo.query;
-    repo.queryPage = ((criteria: never, request: { limit?: number } | undefined) => {
-      pageLimits.push(request?.limit);
-      return realQueryPage(criteria, request as never);
-    }) as typeof repo.queryPage;
 
     try {
       const out = await new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }).run({});
       expect(out.count).toBe(2);
 
-      // No whole-form read: every filing read goes through the pager.
-      expect(bareQueries).toEqual([]);
-      expect(pageLimits.length).toBeGreaterThan(0);
-      // Every page the producer requests is bounded — an undefined limit would
-      // leave the page size to a default the producer does not control.
-      for (const limit of pageLimits) {
+      expect(limits.length).toBeGreaterThan(0);
+      // A bare `query({ form })` — the regressed call — has no options at all,
+      // so an undefined limit is exactly the failure this guards against.
+      for (const limit of limits) {
         expect(limit).toBeTypeOf("number");
         expect(limit!).toBeGreaterThan(0);
         expect(limit!).toBeLessThanOrEqual(10_000);
       }
     } finally {
       repo.query = realQuery;
-      repo.queryPage = realQueryPage;
     }
+  });
+
+  it("emits bounded batches and resumes across them, covering every filing once", async () => {
+    // The batch ceiling is what keeps the producer's memory independent of the
+    // corpus: it must hand out at most `batchSize` per call and pick up exactly
+    // where it left off, with no filing dropped or repeated across batches.
+    const accessions: string[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const acc = `0000000${String(i).padStart(3, "0")}-26-000001`;
+      accessions.push(acc);
+      await seed({ cik: 100 + i, accession_number: acc, form: "3", primary_doc: "a.xml" });
+    }
+
+    const producer = new ComputeFormsWorklistTask({ defaults: { form: ["3"], batchSize: 3 } });
+    const batches: string[][] = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      batches.push(out.accessionNumber);
+      expect(out.accessionNumber.length).toBeLessThanOrEqual(3);
+      expect(out.count).toBe(out.accessionNumber.length);
+      expect(batches.length).toBeLessThanOrEqual(10); // guard against a non-advancing loop
+    }
+
+    expect(batches.length).toBeGreaterThan(1); // actually batched, not one big list
+    const emitted = batches.flat();
+    expect(emitted.length).toBe(accessions.length); // no duplicates across batches
+    expect(new Set(emitted)).toEqual(new Set(accessions)); // and none dropped
   });
 
   it("parseShardOption converts 1-based i/N to a 0-based shard and rejects bad input", () => {
@@ -245,7 +259,7 @@ describe("forms sweep wiring", () => {
     expect(messages).toContain("3 0000000001-26-000001 · working");
   });
 
-  it("addFormsSweepLoop builds a runnable loop over the producer's worklist", async () => {
+  it("formsSweepLoop builds a runnable while+forEach sweep over the batches", async () => {
     // Exercises the exact production helper (not a hand-rolled copy) end to end.
     // ProcessAccessionDocFormTask has no primary_doc match here, so it
     // dead-letters PRIMARY_DOC_UNRESOLVED and returns {success:false} per
@@ -255,8 +269,7 @@ describe("forms sweep wiring", () => {
     await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "" });
 
     const wf = new Workflow();
-    wf.pipe(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>);
-    addFormsSweepLoop(wf);
+    formsSweepLoop(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }))(wf);
     wf.pipe(new OutputTask() as ITask<DataPorts, DataPorts>);
 
     await expect(wf.run({})).resolves.toBeDefined();
