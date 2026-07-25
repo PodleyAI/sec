@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import {
-  addFormsSweepLoop,
+  formsSweepLoop,
   newFormsWorklistTask,
   parseShardOption,
 } from "../../task/forms/formsSweep";
@@ -56,7 +56,8 @@ export function addUpdateCommands(program: Command): void {
       await runCommand(async () => {
         const formTypes = types.split(",");
         const shard = parseShardOption(options.shard);
-        await runWorkflowCli([newFormsWorklistTask(formTypes, shard)], undefined, addFormsSweepLoop);
+        // The producer is the sweep loop's body, not a task ahead of it.
+        await runWorkflowCli([], undefined, formsSweepLoop(newFormsWorklistTask(formTypes, shard)));
       });
     });
 }

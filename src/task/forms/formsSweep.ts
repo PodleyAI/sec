@@ -59,21 +59,43 @@ export function parseShardOption(value: string | undefined): FormsShard | undefi
 }
 
 /**
- * Splices the forms fan-out loop onto a workflow whose current tail is a
- * {@link ComputeFormsWorklistTask}. The `.forEach()` loop node auto-connects
- * the producer's `accessionNumber` / `cik` / `form` / `fileName` array output
- * ports and runs one {@link ProcessAccessionDocFormTask} per filing, up to
- * {@link FORMS_SWEEP_CONCURRENCY_LIMIT} concurrently. `maxIterations` is left
- * to default to "unbounded" so the loop iterates the full worklist length,
- * which is only known at run time. Results are discarded (`forEach`), so no
- * per-iteration output is retained for a worklist that can be millions long.
+ * Builds the forms sweep: a `while` loop whose body is the batch producer
+ * followed by a `.forEach()` fan-out over the batch it just emitted.
  *
- * Because the loop is added to the OUTER workflow (not a task-private nested
- * one), it is a first-class node in the graph the CLI run renderer subscribes
- * to, so the sweep shows live per-worker iteration rows.
+ * The producer used to sit in the flat task list and compute the entire
+ * worklist once, before the first filing was fetched. It now runs once per
+ * `while` iteration and yields a bounded batch, so memory is capped by the
+ * batch rather than the corpus and work starts immediately. Pass the result to
+ * `runWorkflowCli`'s `buildAfter` and leave the producer out of the task list —
+ * it belongs to the loop body, not the graph ahead of it.
+ *
+ * The loop condition closes over the producer instance instead of reading a
+ * chained output port. The body's merged output is the fan-out's, not the
+ * producer's, so a resume key routed through ports would arrive stale on the
+ * next iteration and the loop would never advance. `maxIterations` is
+ * "unbounded" because the batch count is only known at run time; the producer's
+ * `exhausted` flag is the real terminator.
+ *
+ * The fan-out auto-connects the producer's `accessionNumber` / `cik` / `form` /
+ * `fileName` array ports by name and runs one
+ * {@link ProcessAccessionDocFormTask} per filing, up to
+ * {@link FORMS_SWEEP_CONCURRENCY_LIMIT} concurrently. Results are discarded
+ * (`forEach`), so no per-iteration output accumulates.
+ *
+ * Both loop nodes live in the OUTER workflow rather than a task-private nested
+ * one, so they stay first-class nodes in the graph the CLI renderer subscribes
+ * to and the sweep still shows live per-worker iteration rows.
  */
-export function addFormsSweepLoop(wf: Workflow): void {
-  const loop = wf.forEach({ concurrencyLimit: FORMS_SWEEP_CONCURRENCY_LIMIT });
-  loop.pipe(new ProcessAccessionDocFormTask() as ITask<DataPorts, DataPorts>);
-  loop.endForEach();
+export function formsSweepLoop(producer: ComputeFormsWorklistTask): (wf: Workflow) => void {
+  return (wf: Workflow) => {
+    const batches = wf.while({
+      condition: () => !producer.exhausted,
+      maxIterations: "unbounded",
+    });
+    batches.pipe(producer as ITask<DataPorts, DataPorts>);
+    const fanOut = batches.forEach({ concurrencyLimit: FORMS_SWEEP_CONCURRENCY_LIMIT });
+    fanOut.pipe(new ProcessAccessionDocFormTask() as ITask<DataPorts, DataPorts>);
+    fanOut.endForEach();
+    batches.endWhile();
+  };
 }
