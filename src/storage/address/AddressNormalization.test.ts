@@ -428,7 +428,7 @@ describe("cleanAddress", () => {
       expect(result).toBeUndefined();
     });
 
-    it("should return undefined when state/country cannot be determined", () => {
+    it("assumes the US, with no state, when state/country cannot be determined", () => {
       const input = {
         street1: "123 Main St",
         city: "Unknown City",
@@ -437,7 +437,10 @@ describe("cleanAddress", () => {
       };
 
       const result = normalizeAddress(input);
-      expect(result).toBeUndefined();
+      expect(result).toBeDefined();
+      expect(result!.country_code).toBe("US");
+      expect(result!.state_or_country).toBeNull();
+      expect(result!.zip).toBe("12345");
     });
 
     it("should handle whitespace-only fields", () => {
@@ -532,9 +535,10 @@ describe("cleanAddress", () => {
       expect(result!.zip).toBe("050001");
     });
 
-    it("drops an address with a street and city but NO resolvable country", () => {
-      // The country code is the discriminator: with no state, no countryCode, no
-      // country, and nothing keyword-detectable, the address is truly bad.
+    it("assumes the US for a street+city address with NO resolvable country", () => {
+      // With no state, no countryCode, no country, and nothing keyword-detectable,
+      // the filer is a domestic one who skipped the fields — keep the address as
+      // US with an unknown region rather than dropping it.
       const result = normalizeAddress({
         street1: "123 Some St",
         city: "Someplace",
@@ -542,7 +546,41 @@ describe("cleanAddress", () => {
         countryCode: null,
         zipCode: "00000",
       });
-      expect(result).toBeUndefined();
+      expect(result).toBeDefined();
+      expect(result!.country_code).toBe("US");
+      expect(result!.state_or_country).toBeNull();
+    });
+
+    it("assumes the US when country, state, and zip are all missing", () => {
+      const result = normalizeAddress({
+        street1: "500 Boylston Street",
+        city: "Boston",
+        stateOrCountry: null,
+        countryCode: null,
+        zipCode: null,
+      });
+      expect(result).toBeDefined();
+      expect(result!.country_code).toBe("US");
+      expect(result!.state_or_country).toBeNull();
+      expect(result!.zip).toBeNull();
+      // The US assumption is made before street normalization, so the US parser
+      // still abbreviates the street type.
+      expect(result!.street1).toBe("500 Boylston St");
+    });
+
+    it("keeps a country-level SEC region rather than an arbitrary subdivision", () => {
+      // Canada's country-level code is Z4; A0 (Alberta) merely sorts first.
+      // (City deliberately not in KEYWORD_STATE_OR_COUNTRY_MAP, so the country
+      // name is the only signal.)
+      const result = normalizeAddress({
+        street1: "100 King Street West",
+        city: "Kingston",
+        stateOrCountry: null,
+        country: "Canada",
+        zipCode: "M5X 1A9",
+      });
+      expect(result!.country_code).toBe("CA");
+      expect(result!.state_or_country).toBe("Z4");
     });
 
     it("resolves a bare SEC country code in countryCode to its ISO country", () => {
