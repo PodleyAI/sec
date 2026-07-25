@@ -79,6 +79,7 @@ import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/Use
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
+import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
 import { widenNarrowColumns } from "./widenNarrowColumnsMigration";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
@@ -127,6 +128,10 @@ export async function setupAllDatabases(): Promise<void> {
   // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
   // without ever running the CLI preAction hook that otherwise registers them.
   runDatabaseSetupHooks();
+  // Relax `addresses.state_or_country` to nullable on a database created before
+  // US-with-unknown-state addresses were kept rather than dropped. Row-preserving
+  // (junction tables reference address_hash_id) and a no-op on a fresh DB.
+  await migrateAddressRegionNullable();
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
