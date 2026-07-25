@@ -31,7 +31,10 @@ export const AddressSchema = Type.Object({
   street2: TypeNullable(Type.String({ description: "Second line of the address" })),
   street3: TypeNullable(Type.String({ description: "Third line of the address" })),
   city: Type.String({ description: "City of the address" }),
-  state_or_country: STATE_COUNTRY_CODE,
+  // Nullable: a US address whose filer left the state blank is kept as
+  // `country_code: "US"` with no region rather than dropped — see
+  // `normalizeAddress`.
+  state_or_country: TypeNullable(STATE_COUNTRY_CODE),
   country_code: COUNTRY_CODE,
   zip: TypeNullable(Type.String({ description: "Zip code of the address" })),
 });
