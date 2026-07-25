@@ -155,6 +155,28 @@ export class ExtractorRunRepo {
     extractor_version: string,
     form?: string
   ): Promise<T[]> {
+    const successfulKeys = await this.successfulRunKeys(extractor_id, extractor_version, form);
+    return filings.filter((f) => !successfulKeys.has(filingRunKey(f)));
+  }
+
+  /**
+   * The `cik::accession_number` keys of every filing already processed
+   * successfully at (extractor_id, major.minor of extractor_version[, form]).
+   *
+   * Split out of {@link listFilingsWithoutSuccessfulRun} so a caller streaming
+   * a large candidate set can build this set ONCE and test each page against
+   * it, rather than re-running the query per page. Test membership with
+   * {@link filingRunKey} so both sides agree on the key format.
+   *
+   * Sized by the extractor's successful-run count, not by the candidate
+   * filings — bounded by the extractor_runs table, so it stays modest even
+   * when the candidate set runs to millions of filings.
+   */
+  async successfulRunKeys(
+    extractor_id: string,
+    extractor_version: string,
+    form?: string
+  ): Promise<Set<string>> {
     // Patch-ceremony reading-side gating: match on major.minor
     // prefix so a row at "1.0.0" satisfies the gate for any "1.0.x" current.
     // A row at "1.1.0" or "2.0.0" does NOT satisfy a "1.0.x" gate.
@@ -181,14 +203,18 @@ export class ExtractorRunRepo {
             form,
           });
 
-    const successfulKeys = new Set(
+    return new Set(
       (successful ?? [])
         .filter((r) => r.extractor_version.startsWith(prefix))
         // Partial rows have success=true but outcome="partial"; they are NOT
         // "successful enough" — retry-dead-letters should still pick them up.
         .filter((r) => inferOutcome(r) === "success")
-        .map((r) => `${r.cik}::${r.accession_number}`)
+        .map((r) => filingRunKey(r))
     );
-    return filings.filter((f) => !successfulKeys.has(`${f.cik}::${f.accession_number}`));
   }
+}
+
+/** Key format shared by {@link ExtractorRunRepo.successfulRunKeys} and its callers. */
+export function filingRunKey(f: FilingKey): string {
+  return `${f.cik}::${f.accession_number}`;
 }

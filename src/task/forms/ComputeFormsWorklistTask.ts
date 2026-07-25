@@ -9,10 +9,10 @@ import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { isDryRun } from "../../cli/isDryRun";
-import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { FORM_TO_EXTRACTOR_ID, formToExtractorId } from "../../storage/versioning/extractorIds";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { ExtractorRunRepo, filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -32,6 +32,20 @@ export type ComputeFormsWorklistTaskInput = {
   readonly shardIndex?: number;
   readonly shardCount?: number;
 };
+
+/**
+ * Rows pulled per `queryPage` call while scanning a form's filings.
+ *
+ * The candidate set is far too large to materialize: form 4 alone is ~4.6M
+ * filings and the full 55-form worklist ~6.4M, at a measured ~460 bytes per
+ * 15-column row — ~3 GB per process, multiplied again by every `--shard`
+ * process, since each one scans the whole set. Paging keeps the resident cost
+ * at one page of rows plus the four scalar output arrays.
+ *
+ * 10k trades round trips against that resident page: ~5 MB in flight, ~460
+ * pages for the largest form and ~640 for the whole worklist.
+ */
+const FILING_PAGE_SIZE = 10_000;
 
 /**
  * Deterministic 32-bit FNV-1a hash of the accession number, used only to
@@ -127,8 +141,18 @@ export class ComputeFormsWorklistTask extends Task<
       );
     }
     const sharding = shardCount > 1;
+    const dryRun = isDryRun();
 
-    const formsToProcess: Filing[] = [];
+    // The worklist is accumulated straight into the output arrays — four
+    // scalars per surviving filing — rather than into an intermediate
+    // Filing[]. A candidate set of millions of 15-column rows does not fit in
+    // memory (see the streaming note on FILING_PAGE_SIZE), and only these four
+    // fields are ever read downstream.
+    const accessionNumber: string[] = [];
+    const cik: number[] = [];
+    const formOut: string[] = [];
+    const fileName: string[] = [];
+    let count = 0;
 
     // Cache active-slot lookups per extractor_id. Active slot is "next if a
     // dev version exists, else current" — shared across every form that maps
@@ -153,28 +177,46 @@ export class ComputeFormsWorklistTask extends Task<
       }
       const extractorVersion = active.semver;
 
-      const _filings = (await filingRepo.query({ form })) ?? [];
-      const unprocessed = await runRepo.listFilingsWithoutSuccessfulRun(
-        _filings,
-        extractorId,
-        extractorVersion,
-        form
-      );
-      for (const f of unprocessed) {
-        if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) {
-          continue;
+      // Built once per form, then tested per page. Sized by this extractor's
+      // successful runs, not by the form's filing count.
+      const successfulKeys = await runRepo.successfulRunKeys(extractorId, extractorVersion, form);
+
+      // Page through the form's filings instead of materializing them all.
+      // Termination follows the Page contract: stop on an empty page as well
+      // as on an absent cursor, so a concurrent delete can't spin this loop.
+      // `workglow` does not re-export PageCursor, so the opaque cursor type is
+      // inferred from the call it round-trips through.
+      let cursor: Awaited<ReturnType<typeof filingRepo.queryPage>>["nextCursor"];
+      do {
+        const page = await filingRepo.queryPage({ form }, { limit: FILING_PAGE_SIZE, cursor });
+        for (const f of page.items) {
+          // Shard first: it is a pure hash over a field already in hand and
+          // discards (shardCount-1)/shardCount of the candidates, so every
+          // later test runs on this shard's slice only.
+          if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) {
+            continue;
+          }
+          if (successfulKeys.has(filingRunKey(f))) continue;
+          count++;
+          if (dryRun) continue;
+          accessionNumber.push(f.accession_number);
+          cik.push(f.cik);
+          formOut.push(f.form!);
+          // Strip the EDGAR inline-XBRL viewer prefix ("xslF345X02/…") so the
+          // fetch resolves the raw primary document, mirroring the prior map
+          // input mapping.
+          fileName.push(f.primary_doc.replaceAll(/^(xsl[^/]+\/)/g, ""));
         }
-        formsToProcess.push(f);
-      }
+        if (page.items.length === 0) break;
+        cursor = page.nextCursor;
+      } while (cursor);
     }
 
-    if (isDryRun()) {
+    if (dryRun) {
       const forms = [...formSet].join(", ");
       // Display 1-based to match the `--shard i/N` the operator typed.
       const shardNote = sharding ? ` (shard ${shardIndex + 1}/${shardCount})` : "";
-      console.log(
-        `Would process ${formsToProcess.length} unprocessed filings for forms: ${forms}${shardNote}`
-      );
+      console.log(`Would process ${count} unprocessed filings for forms: ${forms}${shardNote}`);
       return { accessionNumber: [], cik: [], form: [], fileName: [], count: 0 };
     }
 
@@ -185,18 +227,10 @@ export class ComputeFormsWorklistTask extends Task<
     const shardNote = sharding ? ` · shard ${shardIndex + 1}/${shardCount}` : "";
     console.log(
       `▶ forms sweep · form(s): ${[...formSet].join(",")}${shardNote} · ` +
-        `${formsToProcess.length} filing(s) to process · ` +
+        `${count} filing(s) to process · ` +
         `fetch ≤${SecFetchMaxPerSec} req/s (shared across shards)`
     );
 
-    return {
-      accessionNumber: formsToProcess.map((f) => f.accession_number),
-      cik: formsToProcess.map((f) => f.cik),
-      form: formsToProcess.map((f) => f.form!),
-      // Strip the EDGAR inline-XBRL viewer prefix ("xslF345X02/…") so the fetch
-      // resolves the raw primary document, mirroring the prior map input mapping.
-      fileName: formsToProcess.map((f) => f.primary_doc.replaceAll(/^(xsl[^/]+\/)/g, "")),
-      count: formsToProcess.length,
-    };
+    return { accessionNumber, cik, form: formOut, fileName, count };
   }
 }
