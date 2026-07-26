@@ -46,6 +46,7 @@ import {
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { assertInsideDir, sanitizePrimaryDoc } from "../../util/accessionDocPath";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
@@ -182,12 +183,25 @@ export class ProcessAccessionDocFormTask extends Task<
   ): Promise<string | undefined> {
     if (!globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) return undefined;
     const root = globalServiceRegistry.get(SEC_RAW_DATA_FOLDER);
+    // `fileName` originates from a filer-authored field on the EDGAR
+    // submissions API; a value like `../../etc/passwd` would otherwise let the
+    // cache lookup read anything the process can. Treat an unsafe name as a
+    // silent cache miss so the caller falls back to the normal network fetch.
+    let safeName: string;
+    try {
+      safeName = sanitizePrimaryDoc(fileName);
+    } catch {
+      return undefined;
+    }
+    const cikDir = path.join(root, "accessiondocs", String(cik).padStart(10, "0"));
     const rel = `accessiondocs/${String(cik).padStart(10, "0")}/${accessionNumber.replaceAll(
       "-",
       ""
-    )}-${fileName}`;
+    )}-${safeName}`;
+    const fullPath = path.join(root, rel);
+    assertInsideDir(fullPath, cikDir);
     try {
-      return await readFile(path.join(root, rel), "utf-8");
+      return await readFile(fullPath, "utf-8");
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return undefined;
       throw err;
