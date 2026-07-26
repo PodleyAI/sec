@@ -28,10 +28,15 @@ const COLUMN = "state_or_country";
  * re-extracted: entity/canonical junction rows reference `address_hash_id`.
  * So the rows are preserved on both backends —
  *
- * - Postgres: `ALTER COLUMN ... DROP NOT NULL`, a catalog-only change.
+ * - Postgres: `ALTER COLUMN ... DROP NOT NULL`, a single atomic DDL — no
+ *   transaction wrapping is needed. Do not add one.
  * - SQLite: no ALTER can relax a column constraint, so the table is rebuilt —
  *   rename aside, recreate at the current schema, copy every row back, drop the
  *   old one. The column list comes from `AddressSchema`, so it cannot drift.
+ *   The rebuild is a single atomic `BEGIN IMMEDIATE`/`COMMIT` block, and a
+ *   partial run left behind by a prior interrupt (a stranded
+ *   `addresses__legacy_region`) is self-healed on the next boot before the
+ *   normal flow runs.
  *
  * Idempotent: a fresh DB has no table (no-op), an already-migrated DB has a
  * nullable column (no-op).
@@ -61,6 +66,51 @@ export async function migrateAddressRegionNullable(): Promise<void> {
 async function migrateSqlite(): Promise<void> {
   const db = getDb();
 
+  // Self-heal a prior interrupted run before deciding whether the current-shape
+  // checks below have anything to do. A previous crash between RENAME and the
+  // final DROP would leave `addresses__legacy_region` on disk (with the real
+  // rows), while `addresses` is either missing or an empty rebuilt copy. Without
+  // this, the notnull check further down would short-circuit — a fresh-nullable
+  // `addresses` looks already-migrated — and strand those rows forever.
+  const legacyPresent = db
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='${LEGACY_TABLE}'`
+    )
+    .get();
+  if (legacyPresent) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const legacyCount = db
+        .prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${LEGACY_TABLE}`)
+        .get();
+      const currentPresent = db
+        .prepare<[], { name: string }>(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name='${TABLE}'`
+        )
+        .get();
+      const currentCount = currentPresent
+        ? db.prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${TABLE}`).get()
+        : { n: 0 };
+      const legacyN = legacyCount?.n ?? 0;
+      const currentN = currentCount?.n ?? 0;
+      if (legacyN > 0 && (!currentPresent || currentN === 0)) {
+        // Legacy carries the data, `addresses` does not — restore the
+        // pre-migration state so the normal flow below rebuilds it from scratch.
+        db.exec(`DROP TABLE IF EXISTS ${TABLE}`);
+        db.exec(`ALTER TABLE ${LEGACY_TABLE} RENAME TO ${TABLE}`);
+      } else {
+        // Current already carries the data (a COMMITted rebuild that died
+        // before the final drop, or an empty legacy from a rerun) — discard
+        // the stale scratch table.
+        db.exec(`DROP TABLE ${LEGACY_TABLE}`);
+      }
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
   const tableExists = db
     .prepare<[], { name: string }>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='${TABLE}'`
@@ -76,34 +126,47 @@ async function migrateSqlite(): Promise<void> {
   // nullable → nothing to do.
   if (!region || region.notnull === 0) return;
 
-  // A previous interrupted run could have left the legacy table behind; the
-  // rename below would fail on it.
-  db.exec(`DROP TABLE IF EXISTS ${LEGACY_TABLE}`);
-  db.exec(`ALTER TABLE ${TABLE} RENAME TO ${LEGACY_TABLE}`);
+  // All five DDL steps must succeed or fail as a unit; otherwise an interrupt
+  // between RENAME and INSERT strands historical rows in the legacy table.
+  // A manual `BEGIN IMMEDIATE` (not `db.transaction(...)`) is required because
+  // one of the steps — `addressRepo.setupDatabase()` — is async and the sync
+  // callback form of the wrapper cannot await. Every DDL step below runs on
+  // the single `getDb()` connection, so it is enrolled in this transaction.
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    // The recovery block above should have handled this, but stay defensive:
+    // the rename would fail on any stray legacy table.
+    db.exec(`DROP TABLE IF EXISTS ${LEGACY_TABLE}`);
+    db.exec(`ALTER TABLE ${TABLE} RENAME TO ${LEGACY_TABLE}`);
 
-  // SQLite carries a renamed table's indexes along under their original names,
-  // which would make the `CREATE INDEX IF NOT EXISTS` in setupDatabase() a
-  // silent no-op and leave the rebuilt table unindexed. Drop them first.
-  // (`sql IS NULL` marks auto-indexes, which cannot be dropped directly.)
-  const legacyIndexes = db
-    .prepare<[], { name: string }>(
-      `SELECT name FROM sqlite_master
-        WHERE type='index' AND tbl_name='${LEGACY_TABLE}' AND sql IS NOT NULL`
-    )
-    .all();
-  for (const { name } of legacyIndexes) {
-    db.exec(`DROP INDEX IF EXISTS \`${name}\``);
+    // SQLite carries a renamed table's indexes along under their original names,
+    // which would make the `CREATE INDEX IF NOT EXISTS` in setupDatabase() a
+    // silent no-op and leave the rebuilt table unindexed. Drop them first.
+    // (`sql IS NULL` marks auto-indexes, which cannot be dropped directly.)
+    const legacyIndexes = db
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master
+          WHERE type='index' AND tbl_name='${LEGACY_TABLE}' AND sql IS NOT NULL`
+      )
+      .all();
+    for (const { name } of legacyIndexes) {
+      db.exec(`DROP INDEX IF EXISTS \`${name}\``);
+    }
+
+    // Recreate `addresses` at the current schema (nullable region). setupAllDatabases
+    // calls this again right after; the second call is a no-op.
+    await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
+
+    const cols = Object.keys(AddressSchema.properties)
+      .map((c) => `\`${c}\``)
+      .join(", ");
+    db.exec(`INSERT INTO ${TABLE} (${cols}) SELECT ${cols} FROM ${LEGACY_TABLE}`);
+    db.exec(`DROP TABLE ${LEGACY_TABLE}`);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
   }
-
-  // Recreate `addresses` at the current schema (nullable region). setupAllDatabases
-  // calls this again right after; the second call is a no-op.
-  await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
-
-  const cols = Object.keys(AddressSchema.properties)
-    .map((c) => `\`${c}\``)
-    .join(", ");
-  db.exec(`INSERT INTO ${TABLE} (${cols}) SELECT ${cols} FROM ${LEGACY_TABLE}`);
-  db.exec(`DROP TABLE ${LEGACY_TABLE}`);
 }
 
 async function migratePostgres(): Promise<void> {
