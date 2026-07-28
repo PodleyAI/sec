@@ -194,6 +194,193 @@ describe("PersonRoleRepo.closeUnasserted", () => {
   });
 });
 
+describe("PersonRoleRepo regression: review findings", () => {
+  let repo: PersonRoleRepo;
+
+  beforeEach(() => {
+    repo = makeRepo();
+  });
+
+  it("re-opening absorbs the interposed return tenure into one open row", async () => {
+    // A1 opens; roster A2 (v1 missed the person) closes; A3 re-asserts (new
+    // tenure); a v2 re-run of A2 now finds the person and undoes its closure.
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-01-01", accession_number: "A1" });
+    await repo.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2023-06-01",
+      accession_number: "A2",
+      asserted: new Set(),
+    });
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-09-01", accession_number: "A3" });
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-06-01", accession_number: "A2" });
+
+    const roles = await repo.listForPerson("person-1", "1.0.0");
+    expect(roles).toHaveLength(1);
+    expect(roles[0].start_date).toBe("2023-01-01");
+    expect(roles[0].end_date).toBeNull();
+    expect(roles[0].last_seen_date).toBe("2023-09-01");
+  });
+
+  it("a same-accession re-run that no longer asserts deletes its own phantom tenure", async () => {
+    // v1 hallucinated the person; the tenure's only support is accession A1.
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-05-01", accession_number: "A1" });
+    const closed = await repo.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2023-05-01",
+      accession_number: "A1",
+      asserted: new Set(),
+    });
+    expect(closed).toBe(1);
+    expect(await repo.listForPerson("person-1", "1.0.0")).toHaveLength(0);
+  });
+
+  it("a same-accession re-run closes (not deletes) a tenure other filings support", async () => {
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-01-01", accession_number: "A0" });
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-05-01", accession_number: "A1" });
+    const closed = await repo.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2023-05-01",
+      accession_number: "A1",
+      asserted: new Set(),
+    });
+    expect(closed).toBe(1);
+    const roles = await repo.listForPerson("person-1", "1.0.0");
+    expect(roles).toHaveLength(1);
+    expect(roles[0].start_date).toBe("2023-01-01");
+    expect(roles[0].end_date).toBe("2023-05-01");
+  });
+
+  it("an out-of-order earlier roster tightens end_date to the first non-asserting filing", async () => {
+    await repo.recordAssertion({ ...BASE, filing_date: "2020-01-01", accession_number: "A1" });
+    const close = (filing_date: string, accession_number: string) =>
+      repo.closeUnasserted({
+        resolver_version: "1.0.0",
+        company_cik: 123,
+        extractor_id: "D",
+        role_scope: "form-d:related-person",
+        filing_date,
+        accession_number,
+        asserted: new Set(),
+      });
+    await close("2021-01-01", "R2");
+    await close("2020-06-01", "R1");
+    const roles = await repo.listForPerson("person-1", "1.0.0");
+    expect(roles[0].end_date).toBe("2020-06-01");
+    expect(roles[0].end_accession).toBe("R1");
+  });
+
+  it("same-day sibling filings converge on open regardless of processing order", async () => {
+    // Order 1: assertion (accession D) then roster (accession DA) — guard blocks.
+    await repo.recordAssertion({ ...BASE, filing_date: "2020-01-01", accession_number: "A0" });
+    await repo.recordAssertion({ ...BASE, filing_date: "2024-03-01", accession_number: "D" });
+    await repo.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2024-03-01",
+      accession_number: "DA",
+      asserted: new Set(),
+    });
+    expect((await repo.listForPerson("person-1", "1.0.0"))[0].end_date).toBeNull();
+
+    // Order 2: roster first closes, then the same-day assertion re-opens (tie
+    // goes to the assertion).
+    const repo2 = makeRepo();
+    await repo2.recordAssertion({ ...BASE, filing_date: "2020-01-01", accession_number: "A0" });
+    await repo2.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2024-03-01",
+      accession_number: "DA",
+      asserted: new Set(),
+    });
+    await repo2.recordAssertion({ ...BASE, filing_date: "2024-03-01", accession_number: "D" });
+    const roles2 = await repo2.listForPerson("person-1", "1.0.0");
+    expect(roles2).toHaveLength(1);
+    expect(roles2[0].end_date).toBeNull();
+  });
+
+  it("an overlong title matches its own tenure instead of duplicating", async () => {
+    const longTitle = "Senior Executive Vice President of " + "x".repeat(300);
+    await repo.recordAssertion({
+      ...BASE,
+      title: longTitle,
+      filing_date: "2023-01-01",
+      accession_number: "A1",
+    });
+    await repo.recordAssertion({
+      ...BASE,
+      title: longTitle,
+      filing_date: "2023-06-01",
+      accession_number: "A2",
+    });
+    const roles = await repo.listForPerson("person-1", "1.0.0");
+    expect(roles).toHaveLength(1);
+    // Closure with the same overlong title in the asserted set must not close it.
+    const closed = await repo.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2024-01-01",
+      accession_number: "A3",
+      asserted: new Set([personRoleAssertionKey("person-1", longTitle)]),
+    });
+    expect(closed).toBe(0);
+  });
+
+  it("re-checks the assertion guard under the lock so a concurrent assertion wins", async () => {
+    // Delay the alias resolve so the closure's pre-lock snapshot goes stale
+    // while a newer filing's assertion lands.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const slowAlias = {
+      resolve: async (id: string) => {
+        await gate;
+        return id;
+      },
+    } as unknown as CanonicalPersonAliasRepo;
+    const racy = new PersonRoleRepo({
+      personRoleRepository: new InMemoryTabularStorage<
+        typeof PersonRoleSchema,
+        typeof PersonRolePrimaryKeyNames,
+        PersonRole
+      >(PersonRoleSchema, PersonRolePrimaryKeyNames, []),
+      canonicalPersonAliasRepo: slowAlias,
+    });
+    await racy.recordAssertion({ ...BASE, filing_date: "2024-01-01", accession_number: "A1" });
+    const closing = racy.closeUnasserted({
+      resolver_version: "1.0.0",
+      company_cik: 123,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      filing_date: "2024-06-01",
+      accession_number: "X",
+      asserted: new Set(),
+    });
+    // While the closure is parked on the alias lookup, a NEWER filing asserts.
+    await racy.recordAssertion({ ...BASE, filing_date: "2024-09-01", accession_number: "Y" });
+    release();
+    const closed = await closing;
+    expect(closed).toBe(0);
+    const roles = await racy.listForPerson("person-1", "1.0.0");
+    expect(roles[0].end_date).toBeNull();
+    expect(roles[0].last_seen_date).toBe("2024-09-01");
+  });
+});
+
 describe("PersonRoleRepo.closeUnasserted with alias merges", () => {
   it("does not close a retired-id tenure when the merged target is asserted", async () => {
     const aliasRepo = new CanonicalPersonAliasRepo({

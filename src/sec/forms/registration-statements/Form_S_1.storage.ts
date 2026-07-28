@@ -436,7 +436,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
     extract: (text) => extractManagement(text, model, args.context),
-    persist: async (rows) => {
+    persist: async (rows, meta) => {
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
@@ -469,14 +469,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         });
       }
       // The management section names the COMPLETE roster of officers and
-      // directors, so an open role this filing no longer asserts has ended.
-      await observer.closeUnassertedPersonRoles({
-        accession_number,
-        extractor_id: EXTRACTOR_ID,
-        role_scope: "s1:management",
-        company_cik: cik,
-        filing_date: args.filing_date,
-      });
+      // directors, so an open role this filing no longer asserts has ended —
+      // but only when every extracted row survived filtering: a person dropped
+      // by the confidence floor or span verification is still named in the
+      // filing, and closing their role from the partial subset would record a
+      // false departure.
+      if (meta.complete) {
+        await observer.closeUnassertedPersonRoles({
+          accession_number,
+          extractor_id: EXTRACTOR_ID,
+          role_scope: "s1:management",
+          company_cik: cik,
+          filing_date: args.filing_date,
+        });
+      }
       return rows.length;
     },
   });

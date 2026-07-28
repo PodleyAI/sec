@@ -813,9 +813,15 @@ population call `observer.closeUnassertedPersonRoles(...)` after their person lo
 management section (`s1:management`); everything else (signatures, sales-comp
 recipients, Section 16 owners, CFPORTAL contacts/owners) is assert-only, because
 absence there means nothing. Closure is guarded by `filing_date >
-last_seen_date` (strict), so out-of-order replays never close a role a newer
-filing asserts; a re-extraction that now finds a person re-opens the tenure its
-own accession closed; a departure-and-return yields two tenure rows. Placeholder
+last_seen_date` (re-checked under a per-tenure lock), so out-of-order replays
+never close a role a newer filing asserts; a re-extraction that now finds a
+person re-opens the tenure its own accession closed (absorbing any interposed
+return tenure), and one that no longer finds a person it alone supported
+deletes the phantom row; an earlier out-of-order roster tightens a closed
+tenure's end back to the first non-asserting filing; a departure-and-return
+yields two tenure rows. Roster closure is completeness-gated: S-1 management
+only when no extracted row was dropped by filtering, Form D only when at least
+one person was actually observed. Placeholder
 titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
 "Connection") stay on the observation title rows but never mint tenures. Closure
 is alias-aware: a roster asserting a merged person under the alias target does

@@ -290,13 +290,13 @@ async function processRelatedPerson(
   person: RelatedPerson,
   ctx: FormDStorageContext,
   index: number
-): Promise<void> {
+): Promise<boolean> {
   const addressRepo = new AddressRepo();
   if (
     isBadPersonField(person.relatedPersonName.firstName) &&
     isBadPersonField(person.relatedPersonName.lastName)
   ) {
-    return;
+    return false;
   }
 
   if (isCompanyInPersonField(person)) {
@@ -330,7 +330,7 @@ async function processRelatedPerson(
         }),
       });
     }
-    return;
+    return false;
   }
 
   let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
@@ -366,6 +366,7 @@ async function processRelatedPerson(
       titles: person.relatedPersonRelationshipList.relationship,
     }),
   });
+  return true;
 }
 
 async function processSignature(
@@ -536,16 +537,24 @@ export async function processFormD({
 
   // Related persons: indices 200–299
   let relatedPersonIndex = 200;
-  const relatedPersons = formD.relatedPersonsList?.relatedPersonInfo || [];
-  for (const person of relatedPersons) {
-    await processRelatedPerson(cik, "form-d:related-person", person, ctx, relatedPersonIndex++);
+  let observedRelatedPersons = 0;
+  for (const person of formD.relatedPersonsList?.relatedPersonInfo || []) {
+    const observed = await processRelatedPerson(
+      cik,
+      "form-d:related-person",
+      person,
+      ctx,
+      relatedPersonIndex++
+    );
+    if (observed) observedRelatedPersons++;
   }
   // Form D's related-persons list is the COMPLETE roster of the issuer's
   // executive officers, directors, and promoters, so an open role this filing
-  // no longer asserts has ended. The form requires at least one related
-  // person, so an empty list is a parse anomaly — never treat it as
-  // "everyone left" and mass-close the issuer's roles.
-  if (relatedPersons.length > 0) {
+  // no longer asserts has ended. Gate on at least one PERSON actually being
+  // observed: an empty or junk-only list ("N/A" placeholders the bad-person
+  // filter drops) or an all-entity list is not evidence everyone left, and
+  // must never mass-close the issuer's roles.
+  if (observedRelatedPersons > 0) {
     await observer.closeUnassertedPersonRoles({
       accession_number,
       extractor_id: "D",

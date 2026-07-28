@@ -295,7 +295,7 @@ export class EntityObserver {
     role_scope: string,
     company_cik: number
   ): string {
-    return `${accession_number} ${extractor_id} ${role_scope} ${company_cik}`;
+    return `${accession_number}\x00${extractor_id}\x00${role_scope}\x00${company_cik}`;
   }
 
   async observeCompany(
