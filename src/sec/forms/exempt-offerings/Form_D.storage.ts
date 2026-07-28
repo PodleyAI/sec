@@ -28,6 +28,7 @@ import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
@@ -39,6 +40,7 @@ import { CanonicalPersonAddressRepo } from "../../../storage/canonical/Canonical
 import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -47,6 +49,7 @@ interface FormDStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "D";
   readonly extractor_version: string;
+  readonly filing_date: string;
   readonly observer: EntityObserver;
 }
 
@@ -201,6 +204,7 @@ async function processSalesCompensationRecipient(
       last_name: recipientName,
       titles: ["Sales Compensation Recipient"],
       relationship: "form-d:sales-compensation",
+      filing_date: ctx.filing_date,
       address_id: addr?.address_hash_id ?? null,
       source_context: JSON.stringify({
         relation: "form-d:sales-compensation",
@@ -352,7 +356,10 @@ async function processRelatedPerson(
     first_name: person.relatedPersonName.firstName || null,
     middle_name: person.relatedPersonName.middleName || null,
     last_name: person.relatedPersonName.lastName || null,
+    titles: person.relatedPersonRelationshipList.relationship,
     relationship: relation_type,
+    filing_date: ctx.filing_date,
+    role_scope: relation_type,
     address_id: addr?.address_hash_id ?? null,
     source_context: JSON.stringify({
       relation: relation_type,
@@ -402,6 +409,8 @@ async function processSignature(
       last_name: signerName,
       titles: cleanTitles,
       relationship: "form-d:signature",
+      filing_date: ctx.filing_date,
+      role_scope: "form-d:signature",
       source_context: JSON.stringify({ relation: "form-d:signature", titles: cleanTitles }),
     });
   }
@@ -464,6 +473,7 @@ export async function processFormD({
   const extractor_version = "1.0.0";
 
   const personObservationRepo = new PersonObservationRepo();
+  const personObservationTitleRepo = new PersonObservationTitleRepo();
   const companyObservationRepo = new CompanyObservationRepo();
   const personIdentityLinkRepo = new PersonIdentityLinkRepo();
   const companyIdentityLinkRepo = new CompanyIdentityLinkRepo();
@@ -475,6 +485,7 @@ export async function processFormD({
   const canonicalPersonPhoneRepo = new CanonicalPersonPhoneRepo();
   const canonicalCompanyAddressRepo = new CanonicalCompanyAddressRepo();
   const canonicalCompanyPhoneRepo = new CanonicalCompanyPhoneRepo();
+  const personRoleRepo = new PersonRoleRepo();
 
   const personResolver = new PersonResolver({
     canonicalPersonRepo,
@@ -490,6 +501,7 @@ export async function processFormD({
 
   const observer = new EntityObserver({
     personObservationRepo,
+    personObservationTitleRepo,
     companyObservationRepo,
     personIdentityLinkRepo,
     companyIdentityLinkRepo,
@@ -499,6 +511,7 @@ export async function processFormD({
     canonicalPersonPhoneRepo,
     canonicalCompanyAddressRepo,
     canonicalCompanyPhoneRepo,
+    personRoleRepo,
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });
@@ -507,6 +520,7 @@ export async function processFormD({
     accession_number,
     extractor_id: "D",
     extractor_version,
+    filing_date,
     observer,
   };
 
@@ -522,8 +536,23 @@ export async function processFormD({
 
   // Related persons: indices 200–299
   let relatedPersonIndex = 200;
-  for (const person of formD.relatedPersonsList?.relatedPersonInfo || []) {
+  const relatedPersons = formD.relatedPersonsList?.relatedPersonInfo || [];
+  for (const person of relatedPersons) {
     await processRelatedPerson(cik, "form-d:related-person", person, ctx, relatedPersonIndex++);
+  }
+  // Form D's related-persons list is the COMPLETE roster of the issuer's
+  // executive officers, directors, and promoters, so an open role this filing
+  // no longer asserts has ended. The form requires at least one related
+  // person, so an empty list is a parse anomaly — never treat it as
+  // "everyone left" and mass-close the issuer's roles.
+  if (relatedPersons.length > 0) {
+    await observer.closeUnassertedPersonRoles({
+      accession_number,
+      extractor_id: "D",
+      role_scope: "form-d:related-person",
+      company_cik: cik,
+      filing_date,
+    });
   }
 
   // Signatures: indices 300–399

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../../config/TestingDI";
 import { setupAllDatabases } from "../../../../config/setupAllDatabases";
 import { PersonObservationRepo } from "../../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../../storage/observation/PersonObservationTitleRepo";
 import { birthYearFromAge, processFormS1 } from "../Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -84,7 +85,10 @@ describe("Leadership bio + birth_year end-to-end", () => {
     const rows = await new PersonObservationRepo().listByAccession("0000000000-26-000801");
     const john = rows.find((r) => r.last_name === "Doe");
     expect(john).toBeDefined();
-    expect(john!.titles).toEqual(["Chief Executive Officer"]);
+    const titles = await new PersonObservationTitleRepo().listForObservation(
+      john!.observation_id
+    );
+    expect(titles).toEqual(["Chief Executive Officer"]);
     expect(john!.birth_year).toBe(1971); // 2026 - 55
     expect(john!.bio).toContain("served as our CEO since 2019");
   });

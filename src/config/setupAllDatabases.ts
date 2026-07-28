@@ -93,6 +93,8 @@ import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Pers
 import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
+import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
@@ -173,6 +175,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
@@ -183,6 +186,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();

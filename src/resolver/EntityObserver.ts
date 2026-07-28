@@ -6,7 +6,9 @@
 
 import { normalizePerson } from "../storage/person/PersonNormalization";
 import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
+import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
 import type { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import type { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import type { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import type { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import type { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
@@ -14,6 +16,8 @@ import type { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalP
 import type { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
 import type { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
 import type { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
+import { personRoleAssertionKey } from "../storage/canonical/PersonRoleRepo";
+import type { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import type { PersonResolver } from "./PersonResolver";
 import type { CompanyResolver } from "./CompanyResolver";
 
@@ -28,8 +32,23 @@ export interface PersonClaim {
   readonly middle_name?: string | null;
   readonly last_name?: string | null;
   readonly suffix?: string | null;
+  /**
+   * The titles this one filing asserts. In-memory call convention only —
+   * storage is one row per title (`person_observation_title`), never an array.
+   */
   readonly titles?: readonly string[] | null;
   readonly relationship?: string | null;
+  /**
+   * ISO filing date of the source filing. Required (with
+   * `source_filing_issuer_cik` and `role_scope`) for dated person-role
+   * tenures to be recorded.
+   */
+  readonly filing_date?: string | null;
+  /**
+   * Stable population tag for role tenures (e.g. `form-d:related-person`,
+   * `s1:management`). Claims without it record titles but no tenure.
+   */
+  readonly role_scope?: string | null;
   readonly birth_year?: number | null;
   readonly bio?: string | null;
   readonly address_id?: string | null;
@@ -54,6 +73,7 @@ export interface CompanyClaim {
 
 interface EntityObserverOptions {
   personObservationRepo: PersonObservationRepo;
+  personObservationTitleRepo: PersonObservationTitleRepo;
   companyObservationRepo: CompanyObservationRepo;
   personIdentityLinkRepo: PersonIdentityLinkRepo;
   companyIdentityLinkRepo: CompanyIdentityLinkRepo;
@@ -63,6 +83,7 @@ interface EntityObserverOptions {
   canonicalPersonPhoneRepo: CanonicalPersonPhoneRepo;
   canonicalCompanyAddressRepo: CanonicalCompanyAddressRepo;
   canonicalCompanyPhoneRepo: CanonicalCompanyPhoneRepo;
+  personRoleRepo: PersonRoleRepo;
   activeResolverPersonVersion: string;
   activeResolverCompanyVersion: string;
 }
@@ -82,11 +103,32 @@ function clamp(s: string | null, max: number): string | null {
 }
 
 /**
+ * Writer-synthesized placeholders that are not job titles ("Signer" is the
+ * signature-block fallback, "Authorized Representative" a signing capacity).
+ * They stay on the observation's title rows as the raw claim, but minting a
+ * dated role tenure from them would fabricate roles the person doesn't hold.
+ */
+const PLACEHOLDER_TITLES: ReadonlySet<string> = new Set([
+  "signer",
+  "authorized representative",
+  "sales compensation recipient",
+  "connection",
+]);
+
+/**
  * Shared helper that form storage modules call to normalize, upsert, resolve,
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
  */
 export class EntityObserver {
+  /**
+   * Role-assertion keys accumulated per filing+population, so a roster
+   * filing's closure pass ({@link closeUnassertedPersonRoles}) knows which
+   * (person, title) pairs the filing DID assert. Keyed by the same tuple the
+   * closure runs over.
+   */
+  private readonly assertedRoleKeys = new Map<string, Set<string>>();
+
   constructor(private readonly opts: EntityObserverOptions) {}
 
   async observePerson(
@@ -123,7 +165,6 @@ export class EntityObserver {
       normalized_middle: clamp(normalized?.middle ?? null, 128),
       normalized_last: clamp(normalized?.last ?? null, 128),
       normalized_suffix: clamp(normalized?.suffix ?? null, 32),
-      titles: claim.titles ? claim.titles.map((t) => clamp(t, 256) as string) : null,
       relationship: clamp(claim.relationship ?? null, 64),
       birth_year: claim.birth_year ?? null,
       bio: claim.bio ?? null,
@@ -132,6 +173,13 @@ export class EntityObserver {
       source_context: claim.source_context ?? null,
       created_at: now,
     });
+
+    // One row per title. Whole-list replacement keeps replays idempotent (a
+    // re-extraction with fewer titles must not leave stale rows behind).
+    await this.opts.personObservationTitleRepo.replaceForObservation(
+      upserted.observation_id,
+      claim.titles ?? []
+    );
 
     // Resolve to canonical person
     const canonical_person_id = await this.opts.personResolver.resolve(upserted);
@@ -142,6 +190,8 @@ export class EntityObserver {
       this.opts.activeResolverPersonVersion,
       canonical_person_id
     );
+
+    await this.recordPersonRoles(claim, canonical_person_id);
 
     // Record address and phone junctions
     const seen_at = now;
@@ -163,6 +213,89 @@ export class EntityObserver {
     }
 
     return { canonical_person_id, observation_id: upserted.observation_id };
+  }
+
+  /**
+   * Record dated role tenures for a person claim. Requires the filing date
+   * (tenure anchor), the issuer CIK (the company side of the role), and a
+   * role_scope (the population tag closure compares within); claims missing
+   * any of these record titles but no tenure. Titles are canonicalized here
+   * (compound split, canonical casing) so `person_role` rows are uniform
+   * regardless of writer — the observation child rows keep the verbatim text.
+   */
+  private async recordPersonRoles(claim: PersonClaim, canonical_person_id: string): Promise<void> {
+    const company_cik = claim.source_filing_issuer_cik;
+    if (!claim.filing_date || !claim.role_scope || company_cik == null) return;
+    const titles = normalizeManagementTitles(claim.titles ?? []).filter(
+      (t) => !PLACEHOLDER_TITLES.has(t.toLowerCase())
+    );
+    if (titles.length === 0) return;
+
+    const groupKey = this.roleGroupKey(
+      claim.accession_number,
+      claim.extractor_id,
+      claim.role_scope,
+      company_cik
+    );
+    let asserted = this.assertedRoleKeys.get(groupKey);
+    if (!asserted) {
+      asserted = new Set<string>();
+      this.assertedRoleKeys.set(groupKey, asserted);
+    }
+    for (const title of titles) {
+      await this.opts.personRoleRepo.recordAssertion({
+        canonical_person_id,
+        resolver_version: this.opts.activeResolverPersonVersion,
+        company_cik,
+        extractor_id: claim.extractor_id,
+        role_scope: claim.role_scope,
+        title,
+        filing_date: claim.filing_date,
+        accession_number: claim.accession_number,
+      });
+      asserted.add(personRoleAssertionKey(canonical_person_id, title));
+    }
+  }
+
+  /**
+   * Roster closure: after a filing that enumerates the COMPLETE population of
+   * `(extractor_id, role_scope)` for the company has had all its persons
+   * observed, close every open tenure in that population the filing did not
+   * assert (`end_date = filing_date`). Only storage modules whose filing type
+   * genuinely lists the whole population may call this — for everything else,
+   * absence means nothing and tenures stay open. Returns the number closed.
+   */
+  async closeUnassertedPersonRoles(args: {
+    readonly accession_number: string;
+    readonly extractor_id: string;
+    readonly role_scope: string;
+    readonly company_cik: number;
+    readonly filing_date: string;
+  }): Promise<number> {
+    const groupKey = this.roleGroupKey(
+      args.accession_number,
+      args.extractor_id,
+      args.role_scope,
+      args.company_cik
+    );
+    return await this.opts.personRoleRepo.closeUnasserted({
+      resolver_version: this.opts.activeResolverPersonVersion,
+      company_cik: args.company_cik,
+      extractor_id: args.extractor_id,
+      role_scope: args.role_scope,
+      filing_date: args.filing_date,
+      accession_number: args.accession_number,
+      asserted: this.assertedRoleKeys.get(groupKey) ?? new Set<string>(),
+    });
+  }
+
+  private roleGroupKey(
+    accession_number: string,
+    extractor_id: string,
+    role_scope: string,
+    company_cik: number
+  ): string {
+    return `${accession_number} ${extractor_id} ${role_scope} ${company_cik}`;
   }
 
   async observeCompany(

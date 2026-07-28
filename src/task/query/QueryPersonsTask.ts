@@ -8,8 +8,7 @@ import { Type } from "typebox";
 import { Task } from "workglow";
 import type { TaskPorts } from "../taskPorts";
 import type { QueryResult } from "../../cli/queries/EntityQuery";
-import { queryPersons } from "../../cli/queries/PersonQuery";
-import type { PersonObservation } from "../../storage/observation/PersonObservationSchema";
+import { queryPersons, type PersonQueryRow } from "../../cli/queries/PersonQuery";
 import { queryResultSchema } from "./queryResultSchema";
 
 export type QueryPersonsTaskInput = {
@@ -23,7 +22,7 @@ export type QueryPersonsTaskInput = {
 /** Searches person observations in the local database. */
 export class QueryPersonsTask extends Task<
   QueryPersonsTaskInput,
-  TaskPorts<QueryResult<PersonObservation>>
+  TaskPorts<QueryResult<PersonQueryRow>>
 > {
   static readonly type = "QueryPersonsTask";
   static readonly category = "SEC";
@@ -44,7 +43,7 @@ export class QueryPersonsTask extends Task<
     return queryResultSchema();
   }
 
-  async execute(input: QueryPersonsTaskInput): Promise<TaskPorts<QueryResult<PersonObservation>>> {
+  async execute(input: QueryPersonsTaskInput): Promise<TaskPorts<QueryResult<PersonQueryRow>>> {
     return queryPersons(input);
   }
 }

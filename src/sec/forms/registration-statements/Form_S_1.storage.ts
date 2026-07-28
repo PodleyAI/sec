@@ -449,6 +449,8 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           suffix: name.suffix,
           titles: r.titles,
           relationship: r.relationship ?? "s1:management",
+          filing_date: args.filing_date,
+          role_scope: "s1:management",
           // Store birth_year (not age) so present age stays recomputable; a
           // stated age is relative to the filing date.
           birth_year: birthYearFromAge(r.age, args.filing_date),
@@ -466,6 +468,15 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           extra: null,
         });
       }
+      // The management section names the COMPLETE roster of officers and
+      // directors, so an open role this filing no longer asserts has ended.
+      await observer.closeUnassertedPersonRoles({
+        accession_number,
+        extractor_id: EXTRACTOR_ID,
+        role_scope: "s1:management",
+        company_cik: cik,
+        filing_date: args.filing_date,
+      });
       return rows.length;
     },
   });

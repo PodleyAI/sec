@@ -52,11 +52,8 @@ export const PersonObservationSchema = Type.Object({
   normalized_middle: TypeNullable(Type.String({ maxLength: 128 })),
   normalized_last: TypeNullable(Type.String({ maxLength: 128 })),
   normalized_suffix: TypeNullable(Type.String({ maxLength: 32 })),
-  titles: TypeNullable(
-    Type.Array(Type.String({ maxLength: 256 }), {
-      description: "The person's distinct roles (e.g. ['Chief Executive Officer', 'Director'])",
-    })
-  ),
+  // The person's titles live in `person_observation_title` (one row per single
+  // title, keyed by observation_id) — see PersonObservationTitleSchema.
   relationship: TypeNullable(Type.String({ maxLength: 64 })),
   // Leadership enrichment (embarc-facing). `birth_year` is derived from a stated
   // age in the filing (filing_year − age) so present age stays recomputable;

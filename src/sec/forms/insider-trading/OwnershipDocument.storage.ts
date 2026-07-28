@@ -13,6 +13,7 @@ import { AddressRepo } from "../../../storage/address/AddressRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
 import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
 import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
@@ -23,6 +24,7 @@ import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentit
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import type {
   Section16Holding,
@@ -48,6 +50,7 @@ interface OwnershipStorageContext {
   readonly accession_number: string;
   readonly extractor_id: string;
   readonly extractor_version: string;
+  readonly filing_date: string;
   // Null when the XML `issuer.issuerCik` is missing or unparseable. Must NOT
   // be coerced to 0 on the observation path: PersonResolver's `personKey`
   // includes `source_filing_issuer_cik` in the name-fallback key, so a 0
@@ -167,6 +170,8 @@ async function processReportingOwners(
         last_name: name,
         titles: title == null ? null : [title],
         relationship,
+        filing_date: ctx.filing_date,
+        role_scope: "section16:reporting-owner",
         address_id,
         source_context,
       });
@@ -245,6 +250,7 @@ export async function processOwnershipForm({
 
   const observer = new EntityObserver({
     personObservationRepo: new PersonObservationRepo(),
+    personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo: new CompanyObservationRepo(),
     personIdentityLinkRepo: new PersonIdentityLinkRepo(),
     companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
@@ -254,6 +260,7 @@ export async function processOwnershipForm({
     canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
     canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
     canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
+    personRoleRepo: new PersonRoleRepo(),
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });
@@ -262,6 +269,7 @@ export async function processOwnershipForm({
     accession_number,
     extractor_id,
     extractor_version,
+    filing_date,
     issuer_cik,
     observer,
   };

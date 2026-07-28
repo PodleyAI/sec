@@ -797,6 +797,35 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) — form storage modules call `observePerson()` / `observeCompany()` on this shared helper instead of writing person/company rows directly. It normalizes the claim, upserts the observation, calls the resolver, writes the identity link, and records address/phone junctions in one step.
 
+**Person titles & dated roles.** Titles are never stored as arrays. The raw tier
+stores one row per single title in `person_observation_title`
+(`(observation_id, title_index, title)`, replaced wholesale on re-observation and
+reaped with the observation); the canonical tier stores one row per **tenure** in
+`person_role` (`PersonRoleRepo`): a canonical person holding one canonical title
+(via `normalizeManagementTitles` — compound titles split into separate rows) at one
+company (`company_cik`), with a required `start_date` (earliest asserting filing
+date), an optional `end_date` (null = current), and `last_seen_date` as the
+order-safety guard. A claim participates when it carries `filing_date`,
+`source_filing_issuer_cik`, and a `role_scope` population tag. Tenures are scoped
+by `(extractor_id, role_scope)`, and only forms that enumerate a COMPLETE
+population call `observer.closeUnassertedPersonRoles(...)` after their person loop
+— currently Form D related persons (`form-d:related-person`) and the S-1
+management section (`s1:management`); everything else (signatures, sales-comp
+recipients, Section 16 owners, CFPORTAL contacts/owners) is assert-only, because
+absence there means nothing. Closure is guarded by `filing_date >
+last_seen_date` (strict), so out-of-order replays never close a role a newer
+filing asserts; a re-extraction that now finds a person re-opens the tenure its
+own accession closed; a departure-and-return yields two tenure rows. Placeholder
+titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
+"Connection") stay on the observation title rows but never mint tenures. Closure
+is alias-aware: a roster asserting a merged person under the alias target does
+not close the retired id's open tenure. `person_role`
+rows are resolver-versioned like the junctions: purged by `dropPrevious` (person),
+rebuilt by re-extraction replays (batch `resolve` rebuilds identity links only,
+same as junctions). Query with `sec query person-roles <cik> [--current]`; the
+`sec query persons` titles column joins from the child table. Design spec:
+`prd/docs/superpowers/specs/2026-07-28-sec-dated-person-roles-design.md`.
+
 **`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — resolution algorithms. For persons: CIK fast-path, then normalized-name + issuer-CIK fallback. For companies: CIK → CRD → normalized-name cascade. Both create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
 
 **`VersionRegistry` and slot ceremonies** (`src/storage/versioning/`) — each extractor and resolver has three slots: `previous`, `current`, `next`. Ceremonies:

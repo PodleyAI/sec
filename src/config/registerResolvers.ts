@@ -13,6 +13,7 @@ import { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPh
 import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
 import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
+import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
 
 /**
@@ -35,6 +36,7 @@ export function registerSecResolvers(): void {
       await new PersonIdentityLinkRepo().deleteForResolverVersion(version);
       await new CanonicalPersonAddressRepo().deleteForResolverVersion(version);
       await new CanonicalPersonPhoneRepo().deleteForResolverVersion(version);
+      await new PersonRoleRepo().deleteForResolverVersion(version);
       await new CanonicalPersonRepo().deleteForResolverVersion(version);
     },
   });

@@ -23,6 +23,8 @@ import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/Proce
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../../storage/observation/PersonObservationTitleSchema";
+import { PERSON_ROLE_REPOSITORY_TOKEN } from "../../storage/canonical/PersonRoleSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../../storage/observation/CompanyObservationSchema";
 import { CANONICAL_PERSON_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalPersonSchema";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../../storage/canonical/CanonicalCompanySchema";
@@ -95,6 +97,8 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "portal", token: PORTAL_REPOSITORY_TOKEN as any },
   { table: "extractor_runs", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
   { table: "person_observation", token: PERSON_OBSERVATION_REPOSITORY_TOKEN as any },
+  { table: "person_observation_titles", token: PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN as any },
+  { table: "person_role", token: PERSON_ROLE_REPOSITORY_TOKEN as any },
   { table: "company_observation", token: COMPANY_OBSERVATION_REPOSITORY_TOKEN as any },
   { table: "canonical_person", token: CANONICAL_PERSON_REPOSITORY_TOKEN as any },
   { table: "canonical_company", token: CANONICAL_COMPANY_REPOSITORY_TOKEN as any },

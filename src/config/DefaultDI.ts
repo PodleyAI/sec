@@ -280,6 +280,11 @@ import {
   PersonIdentityLinkSchema,
 } from "../storage/canonical/PersonIdentityLinkSchema";
 import {
+  PERSON_ROLE_REPOSITORY_TOKEN,
+  PersonRolePrimaryKeyNames,
+  PersonRoleSchema,
+} from "../storage/canonical/PersonRoleSchema";
+import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   CompanyObservationPrimaryKeyNames,
   CompanyObservationSchema,
@@ -289,6 +294,11 @@ import {
   PersonObservationPrimaryKeyNames,
   PersonObservationSchema,
 } from "../storage/observation/PersonObservationSchema";
+import {
+  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  PersonObservationTitlePrimaryKeyNames,
+  PersonObservationTitleSchema,
+} from "../storage/observation/PersonObservationTitleSchema";
 import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
   ObservationProvenancePrimaryKeyNames,
@@ -732,6 +742,15 @@ export const DefaultDI = () => {
     )
   );
   globalServiceRegistry.registerInstance(
+    PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+    createStorage(
+      "person_observation_titles",
+      PersonObservationTitleSchema,
+      PersonObservationTitlePrimaryKeyNames,
+      [["observation_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
     COMPANY_OBSERVATION_REPOSITORY_TOKEN,
     createStorage(
       "company_observations",
@@ -830,6 +849,14 @@ export const DefaultDI = () => {
       CompanyIdentityLinkPrimaryKeyNames,
       [["canonical_company_id", "resolver_version"], ["resolver_version"]]
     )
+  );
+  globalServiceRegistry.registerInstance(
+    PERSON_ROLE_REPOSITORY_TOKEN,
+    createStorage("person_role", PersonRoleSchema, PersonRolePrimaryKeyNames, [
+      ["canonical_person_id", "resolver_version"],
+      ["company_cik", "resolver_version"],
+      ["company_cik", "extractor_id", "role_scope", "resolver_version"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN,

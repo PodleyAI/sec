@@ -5,6 +5,7 @@
  */
 
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
@@ -76,6 +77,7 @@ export function hasBlockingSectionFailure(
 
 export interface ReapStaleObservationsDeps {
   personObservationRepo?: PersonObservationRepo;
+  personObservationTitleRepo?: PersonObservationTitleRepo;
   companyObservationRepo?: CompanyObservationRepo;
   personIdentityLinkRepo?: PersonIdentityLinkRepo;
   companyIdentityLinkRepo?: CompanyIdentityLinkRepo;
@@ -106,6 +108,7 @@ export async function reapStaleObservations(
   deps: ReapStaleObservationsDeps = {}
 ): Promise<{ reaped: number }> {
   const personObs = deps.personObservationRepo ?? new PersonObservationRepo();
+  const personTitles = deps.personObservationTitleRepo ?? new PersonObservationTitleRepo();
   const companyObs = deps.companyObservationRepo ?? new CompanyObservationRepo();
   const personLinks = deps.personIdentityLinkRepo ?? new PersonIdentityLinkRepo();
   const companyLinks = deps.companyIdentityLinkRepo ?? new CompanyIdentityLinkRepo();
@@ -142,6 +145,7 @@ export async function reapStaleObservations(
     }
     await personLinks.deleteForObservation(o.observation_id);
     await provenance.deleteForObservation("person", o.observation_id);
+    await personTitles.deleteForObservation(o.observation_id);
     await personObs.deleteByObservationId(o.observation_id);
     reaped++;
   }

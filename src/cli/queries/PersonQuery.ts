@@ -10,6 +10,7 @@ import {
   PERSON_OBSERVATION_REPOSITORY_TOKEN,
   type PersonObservation,
 } from "../../storage/observation/PersonObservationSchema";
+import { PersonObservationTitleRepo } from "../../storage/observation/PersonObservationTitleRepo";
 import type { QueryResult } from "./EntityQuery";
 import { collectPage, streamMatchingRows } from "./_streamMatches";
 
@@ -21,9 +22,14 @@ export interface PersonQueryParams {
   readonly offset?: number;
 }
 
+/** A person observation with its titles joined in from the per-title rows. */
+export interface PersonQueryRow extends PersonObservation {
+  readonly titles: readonly string[];
+}
+
 export async function queryPersons(
   params: PersonQueryParams
-): Promise<QueryResult<PersonObservation>> {
+): Promise<QueryResult<PersonQueryRow>> {
   const repo = globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN);
   const limit = params.limit ?? 25;
   const offset = params.offset ?? 0;
@@ -45,11 +51,11 @@ export async function queryPersons(
     if (hasCriteria) {
       const total = await repo.count(criteria);
       const rows = (await repo.query(criteria, { limit, offset })) ?? [];
-      return { rows, total };
+      return { rows: await joinTitles(rows), total };
     }
     const total = await repo.size();
     const rows = (await repo.getOffsetPage(offset, limit)) ?? [];
-    return { rows, total };
+    return { rows: await joinTitles(rows), total };
   }
 
   const searchLower = hasSearch ? params.search!.toLowerCase() : null;
@@ -76,5 +82,13 @@ export async function queryPersons(
   );
   // totalApprox is the "this number is a lower bound" signal — only
   // emit it when the stream was capped, not when it drained.
-  return exhausted ? { rows, total } : { rows, total, totalApprox: { atLeast: total } };
+  const joined = await joinTitles(rows);
+  return exhausted ? { rows: joined, total } : { rows: joined, total, totalApprox: { atLeast: total } };
+}
+
+/** Titles live one row per title; join them back per returned page row. */
+async function joinTitles(rows: readonly PersonObservation[]): Promise<PersonQueryRow[]> {
+  const titleRepo = new PersonObservationTitleRepo();
+  const byId = await titleRepo.listForObservations(rows.map((r) => r.observation_id));
+  return rows.map((r) => ({ ...r, titles: byId.get(r.observation_id) ?? [] }));
 }
