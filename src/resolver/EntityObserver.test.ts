@@ -437,6 +437,7 @@ describe("EntityObserver.observePerson", () => {
       extractor_version: "1.0.0",
       source_filing_issuer_cik: 999,
       role_scope: "form-d:related-person",
+      first_name: "Cora",
       last_name: "Comeback",
     };
     const { canonical_person_id } = await observer.observePerson({
@@ -444,6 +445,17 @@ describe("EntityObserver.observePerson", () => {
       accession_number: "0001-25-000010",
       observation_index: 0,
       filing_date: "2020-01-01",
+      titles: ["Director"],
+    });
+    // The departure roster asserts a different person (a roster that asserts
+    // nobody is treated as incomplete and never closes).
+    await observer.observePerson({
+      ...base,
+      first_name: "Sam",
+      last_name: "Successor",
+      accession_number: "0001-25-000011",
+      observation_index: 0,
+      filing_date: "2021-01-01",
       titles: ["Director"],
     });
     await observer.closeUnassertedPersonRoles({
@@ -475,6 +487,7 @@ describe("EntityObserver.observePerson", () => {
       extractor_version: "1.0.0",
       source_filing_issuer_cik: 555,
       role_scope: "form-d:related-person",
+      first_name: "Mona",
       last_name: "Missed",
     };
     const { canonical_person_id } = await observer.observePerson({
@@ -484,7 +497,17 @@ describe("EntityObserver.observePerson", () => {
       filing_date: "2023-05-01",
       titles: ["Director"],
     });
-    // A buggy extraction of the next filing missed the person and closed the role.
+    // A buggy extraction of the next filing missed the person (it observed
+    // only a colleague) and so closed the role.
+    await observer.observePerson({
+      ...base,
+      first_name: "Cole",
+      last_name: "Colleague",
+      accession_number: "0001-25-000014",
+      observation_index: 1,
+      filing_date: "2023-09-01",
+      titles: ["Executive Officer"],
+    });
     await observer.closeUnassertedPersonRoles({
       accession_number: "0001-25-000014",
       extractor_id: "D",

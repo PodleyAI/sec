@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { InvalidArgumentError } from "commander";
 import type { QueryResult } from "../queries/EntityQuery";
 import type { CikQueryResult } from "../queries/CikQuery";
 import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
@@ -24,6 +25,15 @@ import { runWorkflowCli } from "../runWorkflow";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
+
+/** A CIK positional must be entirely digits — a NaN or partial parse would
+ * silently query nothing (or the wrong company). */
+function parseCikArgStrict(value: string): number {
+  if (!/^\d+$/.test(value.trim())) {
+    throw new InvalidArgumentError(`Invalid CIK: ${value}`);
+  }
+  return Number.parseInt(value.trim(), 10);
+}
 
 function validateFormat(value: string): OutputFormat {
   if (!FORMAT_CHOICES.includes(value as OutputFormat)) {
@@ -512,7 +522,7 @@ export function addQueryCommands(program: Command): void {
         const result = await runWorkflowCli<QueryResult<unknown>>([
           new QueryPersonRolesTask({
             defaults: {
-              cik: Number.parseInt(cikArg, 10),
+              cik: parseCikArgStrict(cikArg),
               current: Boolean(options.current),
               limit,
               offset,

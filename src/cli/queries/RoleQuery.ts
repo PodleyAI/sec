@@ -50,16 +50,17 @@ export async function queryPersonRoles(
   const limit = params.limit ?? 25;
   const page = roles.slice(offset, offset + limit);
 
-  const names = new Map<string, string>();
-  const rows: PersonRoleRow[] = [];
-  for (const role of page) {
-    let name = names.get(role.canonical_person_id);
-    if (name === undefined) {
-      const person = await personRepo.getById(role.canonical_person_id);
-      name = [person?.display_first, person?.display_last].filter(Boolean).join(" ");
-      names.set(role.canonical_person_id, name);
-    }
-    rows.push({ ...role, person_name: name });
-  }
+  const ids = [...new Set(page.map((r) => r.canonical_person_id))];
+  const people = await Promise.all(ids.map((id) => personRepo.getById(id)));
+  const names = new Map(
+    ids.map((id, i) => [
+      id,
+      [people[i]?.display_first, people[i]?.display_last].filter(Boolean).join(" "),
+    ])
+  );
+  const rows: PersonRoleRow[] = page.map((role) => ({
+    ...role,
+    person_name: names.get(role.canonical_person_id) ?? "",
+  }));
   return { rows, total };
 }

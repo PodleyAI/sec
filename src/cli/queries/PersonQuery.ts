@@ -83,11 +83,17 @@ export async function queryPersons(
   // totalApprox is the "this number is a lower bound" signal — only
   // emit it when the stream was capped, not when it drained.
   const joined = await joinTitles(rows);
-  return exhausted ? { rows: joined, total } : { rows: joined, total, totalApprox: { atLeast: total } };
+  return exhausted
+    ? { rows: joined, total }
+    : { rows: joined, total, totalApprox: { atLeast: total } };
 }
 
-/** Titles live one row per title; join them back per returned page row. */
+/**
+ * Titles live one row per title; join them back per returned page row only —
+ * never over the streamed candidates.
+ */
 async function joinTitles(rows: readonly PersonObservation[]): Promise<PersonQueryRow[]> {
+  if (rows.length === 0) return [];
   const titleRepo = new PersonObservationTitleRepo();
   const byId = await titleRepo.listForObservations(rows.map((r) => r.observation_id));
   return rows.map((r) => ({ ...r, titles: byId.get(r.observation_id) ?? [] }));

@@ -5,11 +5,18 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { KeyedMutex } from "../../util/KeyedMutex";
 import {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
   type PersonObservationTitle,
   type PersonObservationTitleRepositoryStorage,
 } from "./PersonObservationTitleSchema";
+
+/**
+ * Serialises whole-list replacement per observation. Single-process only —
+ * same caveat as the junction repos' lock.
+ */
+const titleLocks = new KeyedMutex<number>();
 
 interface PersonObservationTitleRepoOptions {
   personObservationTitleRepository?: PersonObservationTitleRepositoryStorage;
@@ -39,7 +46,6 @@ export class PersonObservationTitleRepo {
     observation_id: number,
     titles: readonly string[]
   ): Promise<PersonObservationTitle[]> {
-    await this.deleteForObservation(observation_id);
     const seen = new Set<string>();
     const rows: PersonObservationTitle[] = [];
     for (const raw of titles) {
@@ -50,10 +56,17 @@ export class PersonObservationTitleRepo {
       seen.add(key);
       rows.push({ observation_id, title_index: rows.length, title });
     }
-    for (const row of rows) {
-      await this.repo.put(row);
-    }
-    return rows;
+    return titleLocks.lock(observation_id, async () => {
+      // Replays are the common case: skip the delete+rewrite when the stored
+      // list already matches.
+      const existing = await this.listForObservation(observation_id);
+      if (existing.length === rows.length && existing.every((t, i) => t === rows[i].title)) {
+        return rows;
+      }
+      await this.repo.deleteSearch({ observation_id });
+      if (rows.length > 0) await this.repo.putBulk(rows);
+      return rows;
+    });
   }
 
   /** The observation's titles in `title_index` (source) order. */
@@ -64,17 +77,14 @@ export class PersonObservationTitleRepo {
 
   /** Titles for many observations at once, keyed by observation id. */
   async listForObservations(observation_ids: readonly number[]): Promise<Map<number, string[]>> {
-    const out = new Map<number, string[]>();
-    for (const id of observation_ids) {
-      out.set(id, await this.listForObservation(id));
-    }
-    return out;
+    const distinct = [...new Set(observation_ids)];
+    const lists = await Promise.all(distinct.map((id) => this.listForObservation(id)));
+    return new Map(distinct.map((id, i) => [id, lists[i]]));
   }
 
   async deleteForObservation(observation_id: number): Promise<void> {
-    const rows = (await this.repo.query({ observation_id })) ?? [];
-    for (const row of rows) {
-      await this.repo.delete({ observation_id: row.observation_id, title_index: row.title_index });
-    }
+    await titleLocks.lock(observation_id, async () => {
+      await this.repo.deleteSearch({ observation_id });
+    });
   }
 }

@@ -194,7 +194,7 @@ describe("PersonRoleRepo.closeUnasserted", () => {
   });
 });
 
-describe("PersonRoleRepo regression: review findings", () => {
+describe("PersonRoleRepo out-of-order and re-extraction convergence", () => {
   let repo: PersonRoleRepo;
 
   beforeEach(() => {
@@ -421,6 +421,38 @@ describe("PersonRoleRepo.closeUnasserted with alias merges", () => {
     expect(closed).toBe(0);
     const roles = await repo.listForPerson("old-id", "1.0.0");
     expect(roles[0].end_date).toBeNull();
+  });
+});
+
+describe("PersonRoleRepo.deleteSoleSupport", () => {
+  it("deletes only tenures both opened and last asserted by the reaped accession", async () => {
+    const repo = makeRepo();
+    // Sole support: opened and last seen by A1.
+    await repo.recordAssertion({ ...BASE, filing_date: "2023-01-01", accession_number: "A1" });
+    // Multi-support: opened by A1 but re-asserted by A2.
+    await repo.recordAssertion({
+      ...BASE,
+      title: "Chief Executive Officer",
+      filing_date: "2023-01-01",
+      accession_number: "A1",
+    });
+    await repo.recordAssertion({
+      ...BASE,
+      title: "Chief Executive Officer",
+      filing_date: "2023-06-01",
+      accession_number: "A2",
+    });
+
+    const deleted = await repo.deleteSoleSupport({
+      canonical_person_id: "person-1",
+      resolver_version: "1.0.0",
+      extractor_id: "D",
+      accession_number: "A1",
+    });
+    expect(deleted).toBe(1);
+    const roles = await repo.listForPerson("person-1", "1.0.0");
+    expect(roles).toHaveLength(1);
+    expect(roles[0].title).toBe("Chief Executive Officer");
   });
 });
 

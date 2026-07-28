@@ -854,8 +854,8 @@ export const DefaultDI = () => {
     PERSON_ROLE_REPOSITORY_TOKEN,
     createStorage("person_role", PersonRoleSchema, PersonRolePrimaryKeyNames, [
       ["canonical_person_id", "resolver_version"],
-      ["company_cik", "resolver_version"],
       ["company_cik", "extractor_id", "role_scope", "resolver_version"],
+      ["resolver_version"],
     ])
   );
   globalServiceRegistry.registerInstance(

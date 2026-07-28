@@ -6,6 +6,7 @@
 
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
 import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
+import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
@@ -78,6 +79,7 @@ export function hasBlockingSectionFailure(
 export interface ReapStaleObservationsDeps {
   personObservationRepo?: PersonObservationRepo;
   personObservationTitleRepo?: PersonObservationTitleRepo;
+  personRoleRepo?: PersonRoleRepo;
   companyObservationRepo?: CompanyObservationRepo;
   personIdentityLinkRepo?: PersonIdentityLinkRepo;
   companyIdentityLinkRepo?: CompanyIdentityLinkRepo;
@@ -109,6 +111,7 @@ export async function reapStaleObservations(
 ): Promise<{ reaped: number }> {
   const personObs = deps.personObservationRepo ?? new PersonObservationRepo();
   const personTitles = deps.personObservationTitleRepo ?? new PersonObservationTitleRepo();
+  const personRoles = deps.personRoleRepo ?? new PersonRoleRepo();
   const companyObs = deps.companyObservationRepo ?? new CompanyObservationRepo();
   const personLinks = deps.personIdentityLinkRepo ?? new PersonIdentityLinkRepo();
   const companyLinks = deps.companyIdentityLinkRepo ?? new CompanyIdentityLinkRepo();
@@ -142,6 +145,18 @@ export async function reapStaleObservations(
           resolver_version: link.resolver_version,
         });
       }
+    }
+    // Assert-only scopes have no roster pass to retract a reaped person's
+    // tenure, so mirror closure's self-retraction here: a tenure both opened
+    // and last asserted by this filing loses its only support with the
+    // observation and is deleted.
+    for (const link of links) {
+      await personRoles.deleteSoleSupport({
+        canonical_person_id: link.canonical_person_id,
+        resolver_version: link.resolver_version,
+        extractor_id: args.extractor_id,
+        accession_number: args.accession_number,
+      });
     }
     await personLinks.deleteForObservation(o.observation_id);
     await provenance.deleteForObservation("person", o.observation_id);

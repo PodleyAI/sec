@@ -798,7 +798,7 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) — form storage modules call `observePerson()` / `observeCompany()` on this shared helper instead of writing person/company rows directly. It normalizes the claim, upserts the observation, calls the resolver, writes the identity link, and records address/phone junctions in one step.
 
 **Person titles & dated roles.** Titles are never stored as arrays. The raw tier
-stores one row per single title in `person_observation_title`
+stores one row per single title in `person_observation_titles`
 (`(observation_id, title_index, title)`, replaced wholesale on re-observation and
 reaped with the observation); the canonical tier stores one row per **tenure** in
 `person_role` (`PersonRoleRepo`): a canonical person holding one canonical title

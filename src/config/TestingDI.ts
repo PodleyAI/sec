@@ -555,9 +555,7 @@ export function resetDependencyInjectionsForTesting() {
 
   globalServiceRegistry.registerInstance(
     SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [
-      ["cik"],
-    ])
+    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [["cik"]])
   );
 
   // Initialize Crowdfunding repositories
@@ -698,9 +696,11 @@ export function resetDependencyInjectionsForTesting() {
   );
   globalServiceRegistry.registerInstance(
     PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(PersonObservationTitleSchema, PersonObservationTitlePrimaryKeyNames, [
-      ["observation_id"],
-    ])
+    new InMemoryTabularStorage(
+      PersonObservationTitleSchema,
+      PersonObservationTitlePrimaryKeyNames,
+      [["observation_id"]]
+    )
   );
   globalServiceRegistry.registerInstance(
     COMPANY_OBSERVATION_REPOSITORY_TOKEN,
@@ -789,8 +789,8 @@ export function resetDependencyInjectionsForTesting() {
     PERSON_ROLE_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(PersonRoleSchema, PersonRolePrimaryKeyNames, [
       ["canonical_person_id", "resolver_version"],
-      ["company_cik", "resolver_version"],
       ["company_cik", "extractor_id", "role_scope", "resolver_version"],
+      ["resolver_version"],
     ])
   );
   globalServiceRegistry.registerInstance(

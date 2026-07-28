@@ -34,7 +34,7 @@ export interface PersonClaim {
   readonly suffix?: string | null;
   /**
    * The titles this one filing asserts. In-memory call convention only —
-   * storage is one row per title (`person_observation_title`), never an array.
+   * storage is one row per title (`person_observation_titles`), never an array.
    */
   readonly titles?: readonly string[] | null;
   readonly relationship?: string | null;
@@ -116,6 +116,25 @@ const PLACEHOLDER_TITLES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A seated board role ("… of the Board of Directors" — not a Nominee) implies
+ * a Director role. Asserting the implied "Director" keeps a person's Director
+ * tenure continuous when they gain or lose a chairmanship: the canonical form
+ * writers supply drops the redundant bare "Director" next to a board-seat
+ * title, and without re-adding it here a roster listing "Chairman of the
+ * Board of Directors" would close the person's open Director tenure.
+ */
+function expandBoardSeatDirector(titles: readonly string[]): string[] {
+  const out = [...titles];
+  if (
+    titles.some((t) => /of the board of directors$/i.test(t)) &&
+    !titles.some((t) => t.toLowerCase() === "director")
+  ) {
+    out.push("Director");
+  }
+  return out;
+}
+
+/**
  * Shared helper that form storage modules call to normalize, upsert, resolve,
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
@@ -128,6 +147,13 @@ export class EntityObserver {
    * closure runs over.
    */
   private readonly assertedRoleKeys = new Map<string, Set<string>>();
+
+  /**
+   * Groups where a participating claim contributed no assertions (all titles
+   * filtered/empty): the filing names the person, so its roster is not a
+   * complete population and closure must not run.
+   */
+  private readonly incompleteRoleGroups = new Set<string>();
 
   constructor(private readonly opts: EntityObserverOptions) {}
 
@@ -221,22 +247,30 @@ export class EntityObserver {
    * role_scope (the population tag closure compares within); claims missing
    * any of these record titles but no tenure. Titles are canonicalized here
    * (compound split, canonical casing) so `person_role` rows are uniform
-   * regardless of writer — the observation child rows keep the verbatim text.
+   * regardless of writer — the observation child rows keep the writer's text
+   * (trimmed and de-duplicated, not canonicalized).
    */
   private async recordPersonRoles(claim: PersonClaim, canonical_person_id: string): Promise<void> {
     const company_cik = claim.source_filing_issuer_cik;
     if (!claim.filing_date || !claim.role_scope || company_cik == null) return;
-    const titles = normalizeManagementTitles(claim.titles ?? []).filter(
-      (t) => !PLACEHOLDER_TITLES.has(t.toLowerCase())
+    const titles = expandBoardSeatDirector(
+      normalizeManagementTitles(claim.titles ?? []).filter(
+        (t) => !PLACEHOLDER_TITLES.has(t.toLowerCase())
+      )
     );
-    if (titles.length === 0) return;
-
     const groupKey = this.roleGroupKey(
       claim.accession_number,
       claim.extractor_id,
       claim.role_scope,
       company_cik
     );
+    if (titles.length === 0) {
+      // A participating person whose titles all filtered away is still named
+      // by the filing: the roster this filing carries is incomplete for
+      // closure purposes (their absent assertions would read as departures).
+      this.incompleteRoleGroups.add(groupKey);
+      return;
+    }
     let asserted = this.assertedRoleKeys.get(groupKey);
     if (!asserted) {
       asserted = new Set<string>();
@@ -272,12 +306,23 @@ export class EntityObserver {
     readonly company_cik: number;
     readonly filing_date: string;
   }): Promise<number> {
+    if (!args.filing_date) return 0;
     const groupKey = this.roleGroupKey(
       args.accession_number,
       args.extractor_id,
       args.role_scope,
       args.company_cik
     );
+    // Closure is the terminal use of the accumulated assertions — consume them
+    // so a reused observer never poisons a later pass with stale keys.
+    const asserted = this.assertedRoleKeys.get(groupKey);
+    this.assertedRoleKeys.delete(groupKey);
+    const incomplete = this.incompleteRoleGroups.delete(groupKey);
+    // No recorded assertions means nobody observed this population through
+    // this observer (or every title filtered away): treating that as "the
+    // filing asserts no one" would mass-close the company's roles. An
+    // incomplete group (a named person contributed nothing) is equally unsafe.
+    if (incomplete || asserted === undefined || asserted.size === 0) return 0;
     return await this.opts.personRoleRepo.closeUnasserted({
       resolver_version: this.opts.activeResolverPersonVersion,
       company_cik: args.company_cik,
@@ -285,7 +330,7 @@ export class EntityObserver {
       role_scope: args.role_scope,
       filing_date: args.filing_date,
       accession_number: args.accession_number,
-      asserted: this.assertedRoleKeys.get(groupKey) ?? new Set<string>(),
+      asserted,
     });
   }
 

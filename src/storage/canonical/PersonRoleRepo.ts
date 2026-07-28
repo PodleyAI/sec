@@ -78,31 +78,20 @@ function normalizeRoleTitle(title: string): string {
  */
 export class PersonRoleRepo {
   private repo: PersonRoleRepositoryStorage;
-  private aliasRepoOption: CanonicalPersonAliasRepo | undefined;
-  private aliasRepoResolved = false;
+  /**
+   * Alias awareness is best-effort: absent an injected repo, resolve from DI;
+   * a bare unit-test registry without the alias token skips alias handling.
+   */
+  private readonly aliasRepo: CanonicalPersonAliasRepo | undefined;
 
   constructor(options: PersonRoleRepoOptions = {}) {
     this.repo =
       options.personRoleRepository ?? globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN);
-    this.aliasRepoOption = options.canonicalPersonAliasRepo;
-    this.aliasRepoResolved = options.canonicalPersonAliasRepo !== undefined;
-  }
-
-  /**
-   * Alias awareness is best-effort: absent an injected repo, resolve from DI
-   * once; a bare unit-test registry without the alias token simply skips
-   * alias handling.
-   */
-  private aliasRepo(): CanonicalPersonAliasRepo | undefined {
-    if (!this.aliasRepoResolved) {
-      this.aliasRepoResolved = true;
-      try {
-        this.aliasRepoOption = new CanonicalPersonAliasRepo();
-      } catch {
-        this.aliasRepoOption = undefined;
-      }
+    try {
+      this.aliasRepo = options.canonicalPersonAliasRepo ?? new CanonicalPersonAliasRepo();
+    } catch {
+      this.aliasRepo = undefined;
     }
-    return this.aliasRepoOption;
   }
 
   /**
@@ -132,26 +121,47 @@ export class PersonRoleRepo {
       (t) => t.start_date <= d && (t.end_date === null || d <= t.end_date)
     );
     if (containing) {
-      // Re-open when this accession retracts its own earlier closure, or when
-      // the assertion is dated exactly at the closure date (same-day sibling
-      // filings disagree — assertion wins the tie, so both processing orders
-      // converge on an open tenure).
-      const reopen =
-        containing.end_date !== null &&
-        (containing.end_accession === args.accession_number || containing.end_date === d);
+      const laterExists = tenures.some(
+        (t) => t.role_id !== containing.role_id && t.start_date > containing.start_date
+      );
+      // Re-open when this accession retracts its own earlier closure (also
+      // absorbing the "return" tenures that closure created), or — only when
+      // no interposed tenure records a real gap — when the assertion is dated
+      // exactly at the closure date (same-day sibling filings disagree;
+      // assertion wins the tie so both processing orders converge on open).
+      const selfUndo =
+        containing.end_date !== null && containing.end_accession === args.accession_number;
+      const tieReopen =
+        containing.end_date !== null && containing.end_date === d && !selfUndo && !laterExists;
+      const reopen = selfUndo || tieReopen;
       const advance = d > containing.last_seen_date;
-      if (!reopen && !advance) return containing;
+      // A second same-day accession asserting an open tenure must be recorded
+      // as its latest supporter: otherwise a later re-extraction of the first
+      // accession would retract (even delete) a tenure this filing supports.
+      const tieSupport =
+        containing.end_date === null &&
+        d === containing.last_seen_date &&
+        args.accession_number !== containing.last_seen_accession;
+      if (!reopen && !advance && !tieSupport) return containing;
       let updated: PersonRole = {
         ...containing,
         end_date: reopen ? null : containing.end_date,
         end_accession: reopen ? null : containing.end_accession,
         last_seen_date: advance ? d : containing.last_seen_date,
-        last_seen_accession: advance ? args.accession_number : containing.last_seen_accession,
+        last_seen_accession:
+          advance || tieSupport ? args.accession_number : containing.last_seen_accession,
       };
-      if (reopen) {
-        updated = await this.absorbLaterTenures(updated, tenures);
+      let absorbed: PersonRole[] = [];
+      if (selfUndo && laterExists) {
+        ({ merged: updated, absorbed } = this.mergeLaterTenures(updated, tenures));
       }
       await this.repo.put(updated);
+      // Delete the absorbed rows only after the merged row is durable, so a
+      // failure between the writes leaves recoverable duplicates rather than
+      // lost tenure history (a replay re-absorbs them).
+      for (const t of absorbed) {
+        await this.repo.delete({ role_id: t.role_id });
+      }
       return updated;
     }
 
@@ -187,25 +197,24 @@ export class PersonRoleRepo {
   }
 
   /**
-   * Re-opening a tenure can overlap tenures that started after its (now
-   * undone) closure — the "return" rows that closure created. Fold them into
-   * the re-opened row and delete them, so one continuous (person, title)
-   * period is one row again: their assertions extend `last_seen`, and a
-   * closed absorbed row supplies the merged end when it postdates every
-   * assertion.
+   * Re-opening a tenure via self-undo can overlap tenures that started after
+   * the (now undone) closure — the "return" rows that closure created. Fold
+   * them into the re-opened row so one continuous (person, title) period is
+   * one row again: their assertions extend `last_seen`, and a closed absorbed
+   * row supplies the merged end when it postdates every assertion. The caller
+   * persists the merged row before deleting the absorbed ones.
    */
-  private async absorbLaterTenures(
+  private mergeLaterTenures(
     reopened: PersonRole,
     tenures: readonly PersonRole[]
-  ): Promise<PersonRole> {
-    const later = tenures.filter(
+  ): { merged: PersonRole; absorbed: PersonRole[] } {
+    const absorbed = tenures.filter(
       (t) => t.role_id !== reopened.role_id && t.start_date > reopened.start_date
     );
-    if (later.length === 0) return reopened;
     let merged = reopened;
     let anyOpen = false;
     let maxEnd: { end_date: string; end_accession: string | null } | null = null;
-    for (const t of later) {
+    for (const t of absorbed) {
       if (t.last_seen_date > merged.last_seen_date) {
         merged = {
           ...merged,
@@ -218,12 +227,11 @@ export class PersonRoleRepo {
       } else if (maxEnd === null || t.end_date > maxEnd.end_date) {
         maxEnd = { end_date: t.end_date, end_accession: t.end_accession };
       }
-      await this.repo.delete({ role_id: t.role_id });
     }
     if (!anyOpen && maxEnd !== null && maxEnd.end_date > merged.last_seen_date) {
       merged = { ...merged, end_date: maxEnd.end_date, end_accession: maxEnd.end_accession };
     }
-    return merged;
+    return { merged, absorbed };
   }
 
   /**
@@ -243,15 +251,14 @@ export class PersonRoleRepo {
       })) ?? [];
 
     let closed = 0;
-    const aliasRepo = this.aliasRepo();
     for (const tenure of candidates) {
       const key = personRoleAssertionKey(tenure.canonical_person_id, tenure.normalized_title);
       if (args.asserted.has(key)) continue;
       // An alias-merged person's open tenure sits under the retired canonical
       // id while post-merge filings assert under the target id — that is a
       // continuation, not a departure, so it must not be end-dated.
-      if (aliasRepo) {
-        const target = await aliasRepo.resolve(tenure.canonical_person_id);
+      if (this.aliasRepo) {
+        const target = await this.aliasRepo.resolve(tenure.canonical_person_id);
         if (
           target !== tenure.canonical_person_id &&
           args.asserted.has(personRoleAssertionKey(target, tenure.normalized_title))
@@ -290,13 +297,13 @@ export class PersonRoleRepo {
         } else if (args.filing_date < live.end_date && args.filing_date > live.last_seen_date) {
           // Already closed, but this roster is EARLIER evidence of the same
           // departure: tighten end_date back so out-of-order ingestion
-          // converges on the first non-asserting filing.
+          // converges on the first non-asserting filing. Not counted in the
+          // return value — no open tenure changed state.
           await this.repo.put({
             ...live,
             end_date: args.filing_date,
             end_accession: args.accession_number,
           });
-          closed++;
         }
       });
     }
@@ -340,11 +347,51 @@ export class PersonRoleRepo {
   }
 
   async deleteForResolverVersion(resolver_version: string): Promise<number> {
-    const rows = (await this.repo.query({ resolver_version })) ?? [];
-    for (const row of rows) {
-      await this.repo.delete({ role_id: row.role_id });
+    const n = await this.repo.count({ resolver_version });
+    await this.repo.deleteSearch({ resolver_version });
+    return n;
+  }
+
+  /**
+   * Delete tenures whose only recorded support is `accession_number` — the
+   * reap counterpart of closure's self-retraction, for scopes with no roster
+   * pass. A tenure both opened and last asserted by the reaped filing has no
+   * other filing standing behind it.
+   */
+  async deleteSoleSupport(args: {
+    readonly canonical_person_id: string;
+    readonly resolver_version: string;
+    readonly extractor_id: string;
+    readonly accession_number: string;
+  }): Promise<number> {
+    const rows =
+      (await this.repo.query({
+        canonical_person_id: args.canonical_person_id,
+        resolver_version: args.resolver_version,
+        extractor_id: args.extractor_id,
+      })) ?? [];
+    let deleted = 0;
+    for (const tenure of rows) {
+      if (
+        tenure.start_accession !== args.accession_number ||
+        tenure.last_seen_accession !== args.accession_number
+      ) {
+        continue;
+      }
+      await tenureLocks.lock(this.tenureLockKey(tenure, tenure.normalized_title), async () => {
+        const live = await this.repo.get({ role_id: tenure.role_id });
+        if (!live) return;
+        if (
+          live.start_accession !== args.accession_number ||
+          live.last_seen_accession !== args.accession_number
+        ) {
+          return;
+        }
+        await this.repo.delete({ role_id: live.role_id });
+        deleted++;
+      });
     }
-    return rows.length;
+    return deleted;
   }
 
   private async tenuresFor(
