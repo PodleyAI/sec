@@ -833,6 +833,10 @@ same as junctions). Query with `sec query person-roles <cik> [--current]`; the
 `sec query persons` titles column joins from the child table. Design spec:
 `prd/docs/superpowers/specs/2026-07-28-sec-dated-person-roles-design.md`.
 
+On upgrade, `sec db setup` auto-migrates any legacy `person_observations.titles`
+JSON-array column into `person_observation_titles`. The column is left in place
+(SQLite cannot drop it without a table rebuild) and read paths ignore it.
+
 **`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — resolution algorithms. For persons: CIK fast-path, then normalized-name + issuer-CIK fallback. For companies: CIK → CRD → normalized-name cascade. Both create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
 
 **`VersionRegistry` and slot ceremonies** (`src/storage/versioning/`) — each extractor and resolver has three slots: `previous`, `current`, `next`. Ceremonies:
