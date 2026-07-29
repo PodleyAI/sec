@@ -24,18 +24,18 @@ function makeRepo(): PersonObservationTitleRepo {
 }
 
 describe("PersonObservationTitleRepo", () => {
-  it("stores one row per title in source order, deduped case-insensitively", async () => {
+  it("stores one row per title, deduped case-insensitively", async () => {
     const repo = makeRepo();
     await repo.replaceForObservation(1, [
-      "Chief Executive Officer",
       "Director",
+      "Chief Executive Officer",
       "  chief executive officer ",
       "",
     ]);
     expect(await repo.listForObservation(1)).toEqual(["Chief Executive Officer", "Director"]);
   });
 
-  it("a reorder updates title_index in place — same rows, no duplicates", async () => {
+  it("a reordered replay is a no-op — same rows, no duplicates", async () => {
     const storage = new InMemoryTabularStorage<
       typeof PersonObservationTitleSchema,
       typeof PersonObservationTitlePrimaryKeyNames,
@@ -46,7 +46,7 @@ describe("PersonObservationTitleRepo", () => {
     await repo.replaceForObservation(1, ["Director", "Chief Executive Officer"]);
     const rows = (await storage.query({ observation_id: 1 })) ?? [];
     expect(rows).toHaveLength(2);
-    expect(await repo.listForObservation(1)).toEqual(["Director", "Chief Executive Officer"]);
+    expect(await repo.listForObservation(1)).toEqual(["Chief Executive Officer", "Director"]);
   });
 
   it("replaces wholesale so a shorter re-observation leaves no stale rows", async () => {

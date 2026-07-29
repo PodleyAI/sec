@@ -799,9 +799,9 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 
 **Person titles & dated roles.** Titles are never stored as arrays. The raw tier
 stores one row per single title in `person_observation_titles`
-(PK `(observation_id, title)` — the title text is the row's identity, with
-`title_index` as a plain source-order column — diffed per title on
-re-observation and reaped with the observation); the canonical tier stores one row per **tenure** in
+(PK `(observation_id, title)` — the title text is the row's identity; source
+order is not stored — diffed per title on re-observation and reaped with the
+observation); the canonical tier stores one row per **tenure** in
 `person_role` (`PersonRoleRepo`): a canonical person holding one canonical title
 (via `normalizeManagementTitles` — compound titles split into separate rows) at one
 company (`company_cik`), with a required `start_date` (earliest asserting filing

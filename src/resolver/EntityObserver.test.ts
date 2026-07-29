@@ -544,8 +544,8 @@ describe("EntityObserver.observePerson", () => {
     // The raw claim keeps its title rows...
     const obs = await personSetup.personObsRepo.getByNaturalKey("0001-25-000016", "D", 0);
     expect(await personSetup.titleRepo.listForObservation(obs!.observation_id)).toEqual([
-      "Signer",
       "Authorized Representative",
+      "Signer",
     ]);
     // ...but no dated role tenure is fabricated from them.
     expect(await personSetup.roleRepo.listForPerson(canonical_person_id, "1.0.0")).toHaveLength(0);

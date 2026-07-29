@@ -12,13 +12,13 @@ import { createServiceToken } from "workglow";
  * One row per single title a person observation claims — the per-filing raw
  * assertion "this filing says this person holds this title". A person with
  * several titles yields several rows; there are no title arrays in storage.
- * The title text IS the row's identity within its observation (the PK), so
- * replays and concurrent writers converge on the same rows; `title_index` is
- * plain data preserving the filing's source order and moves with the title
- * when a re-observation reorders the list. Rows whose title a re-observation
- * no longer asserts are deleted (a title list is the claim of one filing,
- * with no cross-filing accumulation), and all rows die with a reaped
- * observation. Uniqueness at the PK is case-sensitive; the repo's
+ * The title text IS the row's identity within its observation (the whole
+ * row is the PK), so replays and concurrent writers converge on the same
+ * rows and a reordered re-observation is a no-op — source order carries no
+ * meaning across filings and is not stored. Rows whose title a
+ * re-observation no longer asserts are deleted (a title list is the claim
+ * of one filing, with no cross-filing accumulation), and all rows die with
+ * a reaped observation. Uniqueness at the PK is case-sensitive; the repo's
  * case-insensitive de-duplication keeps "CEO"/"ceo" from becoming two rows.
  */
 export const PersonObservationTitleSchema = Type.Object({
@@ -28,10 +28,6 @@ export const PersonObservationTitleSchema = Type.Object({
   title: Type.String({
     maxLength: 256,
     description: "A single title/role as the filing states it (e.g. 'Chief Executive Officer')",
-  }),
-  title_index: Type.Integer({
-    minimum: 0,
-    description: "Ordinal within the observation (source order); not part of the identity",
   }),
 });
 
