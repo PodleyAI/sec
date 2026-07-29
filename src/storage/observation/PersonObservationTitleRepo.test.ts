@@ -35,6 +35,20 @@ describe("PersonObservationTitleRepo", () => {
     expect(await repo.listForObservation(1)).toEqual(["Chief Executive Officer", "Director"]);
   });
 
+  it("a reorder updates title_index in place — same rows, no duplicates", async () => {
+    const storage = new InMemoryTabularStorage<
+      typeof PersonObservationTitleSchema,
+      typeof PersonObservationTitlePrimaryKeyNames,
+      PersonObservationTitle
+    >(PersonObservationTitleSchema, PersonObservationTitlePrimaryKeyNames, [["observation_id"]]);
+    const repo = new PersonObservationTitleRepo({ personObservationTitleRepository: storage });
+    await repo.replaceForObservation(1, ["Chief Executive Officer", "Director"]);
+    await repo.replaceForObservation(1, ["Director", "Chief Executive Officer"]);
+    const rows = (await storage.query({ observation_id: 1 })) ?? [];
+    expect(rows).toHaveLength(2);
+    expect(await repo.listForObservation(1)).toEqual(["Director", "Chief Executive Officer"]);
+  });
+
   it("replaces wholesale so a shorter re-observation leaves no stale rows", async () => {
     const repo = makeRepo();
     await repo.replaceForObservation(1, ["Chief Executive Officer", "Director", "President"]);

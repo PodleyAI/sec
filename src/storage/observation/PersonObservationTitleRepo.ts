@@ -40,7 +40,11 @@ export class PersonObservationTitleRepo {
   /**
    * Replace an observation's title rows with `titles` (empties dropped,
    * case-insensitively de-duplicated preserving first-seen order, clamped to
-   * the column width). Returns the persisted rows in `title_index` order.
+   * the column width). A per-title diff, not a wholesale rewrite: a title is
+   * keyed by its text, so an unchanged title keeps its physical row, a pure
+   * reorder only updates `title_index` in place, and only titles the new list
+   * no longer asserts are deleted. Returns the persisted rows in
+   * `title_index` order.
    */
   async replaceForObservation(
     observation_id: number,
@@ -54,17 +58,21 @@ export class PersonObservationTitleRepo {
       const key = title.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      rows.push({ observation_id, title_index: rows.length, title });
+      rows.push({ observation_id, title, title_index: rows.length });
     }
     return titleLocks.lock(observation_id, async () => {
-      // Replays are the common case: skip the delete+rewrite when the stored
-      // list already matches.
-      const existing = await this.listForObservation(observation_id);
-      if (existing.length === rows.length && existing.every((t, i) => t === rows[i].title)) {
-        return rows;
+      const existing = (await this.repo.query({ observation_id })) ?? [];
+      const incoming = new Map(rows.map((r) => [r.title, r]));
+      for (const ex of existing) {
+        if (!incoming.has(ex.title)) {
+          await this.repo.delete({ observation_id, title: ex.title });
+        }
       }
-      await this.repo.deleteSearch({ observation_id });
-      if (rows.length > 0) await this.repo.putBulk(rows);
+      const existingByTitle = new Map(existing.map((r) => [r.title, r]));
+      const changed = rows.filter(
+        (r) => existingByTitle.get(r.title)?.title_index !== r.title_index
+      );
+      if (changed.length > 0) await this.repo.putBulk(changed);
       return rows;
     });
   }
