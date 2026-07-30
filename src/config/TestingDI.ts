@@ -316,6 +316,11 @@ import {
   PersonIdentityLinkSchema,
 } from "../storage/canonical/PersonIdentityLinkSchema";
 import {
+  PERSON_ROLE_REPOSITORY_TOKEN,
+  PersonRolePrimaryKeyNames,
+  PersonRoleSchema,
+} from "../storage/canonical/PersonRoleSchema";
+import {
   COMPANY_OBSERVATION_REPOSITORY_TOKEN,
   CompanyObservationPrimaryKeyNames,
   CompanyObservationSchema,
@@ -325,6 +330,11 @@ import {
   PersonObservationPrimaryKeyNames,
   PersonObservationSchema,
 } from "../storage/observation/PersonObservationSchema";
+import {
+  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  PersonObservationTitlePrimaryKeyNames,
+  PersonObservationTitleSchema,
+} from "../storage/observation/PersonObservationTitleSchema";
 import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
   ObservationProvenancePrimaryKeyNames,
@@ -545,9 +555,7 @@ export function resetDependencyInjectionsForTesting() {
 
   globalServiceRegistry.registerInstance(
     SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN,
-    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [
-      ["cik"],
-    ])
+    new InMemoryTabularStorage(SpacLoiExtractionSchema, SpacLoiExtractionPrimaryKeyNames, [["cik"]])
   );
 
   // Initialize Crowdfunding repositories
@@ -687,6 +695,14 @@ export function resetDependencyInjectionsForTesting() {
     )
   );
   globalServiceRegistry.registerInstance(
+    PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(
+      PersonObservationTitleSchema,
+      PersonObservationTitlePrimaryKeyNames,
+      [["observation_id"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
     COMPANY_OBSERVATION_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(
       CompanyObservationSchema,
@@ -766,6 +782,14 @@ export function resetDependencyInjectionsForTesting() {
     COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(CompanyIdentityLinkSchema, CompanyIdentityLinkPrimaryKeyNames, [
       ["canonical_company_id", "resolver_version"],
+      ["resolver_version"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    PERSON_ROLE_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(PersonRoleSchema, PersonRolePrimaryKeyNames, [
+      ["canonical_person_id", "resolver_version"],
+      ["company_cik", "extractor_id", "role_scope", "resolver_version"],
       ["resolver_version"],
     ])
   );

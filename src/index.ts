@@ -94,7 +94,10 @@ export {
 
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
-export { CanonicalFamilyAliasRepo, type FamilyAliasRow } from "./storage/canonical/CanonicalFamilyAliasRepo";
+export {
+  CanonicalFamilyAliasRepo,
+  type FamilyAliasRow,
+} from "./storage/canonical/CanonicalFamilyAliasRepo";
 
 // ── Versioning internals ────────────────────────────────────────────────────
 export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
@@ -107,7 +110,19 @@ export { CompanyObservationRepo } from "./storage/observation/CompanyObservation
 export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
 export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/CompanyObservationSchema";
 export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
+export { PersonObservationTitleRepo } from "./storage/observation/PersonObservationTitleRepo";
+export {
+  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  type PersonObservationTitle,
+} from "./storage/observation/PersonObservationTitleSchema";
 export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
+
+// ── Dated person roles (person↔company title tenures) ───────────────────────
+export { PersonRoleRepo } from "./storage/canonical/PersonRoleRepo";
+export {
+  PERSON_ROLE_REPOSITORY_TOKEN,
+  type PersonRole,
+} from "./storage/canonical/PersonRoleSchema";
 
 // ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
 // Exposes the resolved company tier so a downstream superset (e.g. embarc-data)

@@ -31,6 +31,18 @@ import {
   type PersonIdentityLink,
 } from "../storage/canonical/PersonIdentityLinkSchema";
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
+import {
+  PersonObservationTitlePrimaryKeyNames,
+  PersonObservationTitleSchema,
+  type PersonObservationTitle,
+} from "../storage/observation/PersonObservationTitleSchema";
+import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
+import {
+  PersonRolePrimaryKeyNames,
+  PersonRoleSchema,
+  type PersonRole,
+} from "../storage/canonical/PersonRoleSchema";
 import {
   PersonObservationPrimaryKeyNames,
   PersonObservationSchema,
@@ -84,6 +96,20 @@ function makePersonRepos() {
   const addressRepo = new CanonicalPersonAddressRepo({
     canonicalPersonAddressRepository: addressJunctionStorage,
   });
+  const titleRepo = new PersonObservationTitleRepo({
+    personObservationTitleRepository: new InMemoryTabularStorage<
+      typeof PersonObservationTitleSchema,
+      typeof PersonObservationTitlePrimaryKeyNames,
+      PersonObservationTitle
+    >(PersonObservationTitleSchema, PersonObservationTitlePrimaryKeyNames, [["observation_id"]]),
+  });
+  const roleRepo = new PersonRoleRepo({
+    personRoleRepository: new InMemoryTabularStorage<
+      typeof PersonRoleSchema,
+      typeof PersonRolePrimaryKeyNames,
+      PersonRole
+    >(PersonRoleSchema, PersonRolePrimaryKeyNames, []),
+  });
   const resolver = new PersonResolver({
     canonicalPersonRepo: canonRepo,
     canonicalPersonAliasRepo: aliasRepo,
@@ -92,9 +118,11 @@ function makePersonRepos() {
 
   return {
     personObsRepo,
+    titleRepo,
     identityLinkRepo,
     addressRepo,
     addressJunctionStorage,
+    roleRepo,
     resolver,
   };
 }
@@ -107,6 +135,7 @@ describe("EntityObserver concurrency", () => {
     setup = makePersonRepos();
     observer = new EntityObserver({
       personObservationRepo: setup.personObsRepo,
+      personObservationTitleRepo: setup.titleRepo,
       companyObservationRepo: undefined as any,
       personIdentityLinkRepo: setup.identityLinkRepo,
       companyIdentityLinkRepo: undefined as any,
@@ -116,6 +145,7 @@ describe("EntityObserver concurrency", () => {
       canonicalPersonPhoneRepo: undefined as any,
       canonicalCompanyAddressRepo: undefined as any,
       canonicalCompanyPhoneRepo: undefined as any,
+      personRoleRepo: setup.roleRepo,
       activeResolverPersonVersion: "1.0.0",
       activeResolverCompanyVersion: "1.0.0",
     });

@@ -50,7 +50,17 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly unverifiedAllDetail?: string;
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
-  readonly persist: (rows: TRow[]) => Promise<number>;
+  readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
+}
+
+/**
+ * Facts about the filtering that happened between extraction and persist.
+ * `complete` is true only when every extracted row survived the confidence
+ * floor and span verification — the only state in which the persisted rows can
+ * be treated as the section's complete population (e.g. for roster closure).
+ */
+export interface SectionPersistMeta {
+  readonly complete: boolean;
 }
 
 export type RunSection = <TRow extends { confidence: number }>(
@@ -128,7 +138,7 @@ export function makeRunSection(opts: {
         await record(reason, detail);
         return;
       }
-      const wrote = await sargs.persist(rows);
+      const wrote = await sargs.persist(rows, { complete: rows.length === raw.length });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
         return;

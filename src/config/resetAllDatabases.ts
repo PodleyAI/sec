@@ -58,6 +58,8 @@ import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Com
 import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
+import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -142,6 +144,8 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).deleteAll();

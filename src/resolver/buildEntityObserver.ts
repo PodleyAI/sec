@@ -5,6 +5,7 @@
  */
 
 import { PersonObservationRepo } from "../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../storage/canonical/CompanyIdentityLinkRepo";
@@ -16,6 +17,7 @@ import { CanonicalPersonAddressRepo } from "../storage/canonical/CanonicalPerson
 import { CanonicalPersonPhoneRepo } from "../storage/canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { EntityObserver } from "./EntityObserver";
 import { PersonResolver } from "./PersonResolver";
 import { CompanyResolver } from "./CompanyResolver";
@@ -42,6 +44,7 @@ export function buildEntityObserver(args: {
   });
   return new EntityObserver({
     personObservationRepo: new PersonObservationRepo(),
+    personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo: new CompanyObservationRepo(),
     personIdentityLinkRepo: new PersonIdentityLinkRepo(),
     companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
@@ -51,6 +54,7 @@ export function buildEntityObserver(args: {
     canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
     canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
     canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
+    personRoleRepo: new PersonRoleRepo(),
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });

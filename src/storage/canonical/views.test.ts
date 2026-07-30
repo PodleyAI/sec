@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 import { CURRENT_CANONICAL_VIEW_DDL } from "./views";
 
 describe("current_canonical_* views DDL", () => {
-  it("emits eight CREATE VIEW statements", () => {
-    expect(CURRENT_CANONICAL_VIEW_DDL).toHaveLength(8);
+  it("emits nine CREATE VIEW statements", () => {
+    expect(CURRENT_CANONICAL_VIEW_DDL).toHaveLength(9);
     for (const ddl of CURRENT_CANONICAL_VIEW_DDL) {
       expect(ddl).toMatch(/^CREATE VIEW IF NOT EXISTS /);
       expect(ddl).toMatch(/JOIN component_versions/);
@@ -24,7 +24,7 @@ describe("current_canonical_* views DDL", () => {
     const companyDdls = CURRENT_CANONICAL_VIEW_DDL.filter((d) =>
       d.includes("component_id = 'company'")
     );
-    expect(personDdls).toHaveLength(4);
+    expect(personDdls).toHaveLength(5);
     expect(companyDdls).toHaveLength(4);
   });
 });

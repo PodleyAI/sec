@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { InvalidArgumentError } from "commander";
 import type { QueryResult } from "../queries/EntityQuery";
 import type { CikQueryResult } from "../queries/CikQuery";
 import { formatXbrlDimensions, formatXbrlPeriod } from "../queries/XbrlQuery";
@@ -10,6 +11,7 @@ import { QueryFactsTask } from "../../task/query/QueryFactsTask";
 import { QueryFilingsTask } from "../../task/query/QueryFilingsTask";
 import { QueryOfferingsTask } from "../../task/query/QueryOfferingsTask";
 import { QueryPersonsTask } from "../../task/query/QueryPersonsTask";
+import { QueryPersonRolesTask } from "../../task/query/QueryPersonRolesTask";
 import {
   QueryRegASummaryTask,
   type QueryRegASummaryTaskOutput,
@@ -23,6 +25,15 @@ import { runWorkflowCli } from "../runWorkflow";
 
 const FORMAT_CHOICES = ["table", "json", "csv"] as const;
 type OutputFormat = (typeof FORMAT_CHOICES)[number];
+
+/** A CIK positional must be entirely digits — a NaN or partial parse would
+ * silently query nothing (or the wrong company). */
+function parseCikArgStrict(value: string): number {
+  if (!/^\d+$/.test(value.trim())) {
+    throw new InvalidArgumentError(`Invalid CIK: ${value}`);
+  }
+  return Number.parseInt(value.trim(), 10);
+}
 
 function validateFormat(value: string): OutputFormat {
   if (!FORMAT_CHOICES.includes(value as OutputFormat)) {
@@ -491,6 +502,40 @@ export function addQueryCommands(program: Command): void {
           { key: "last_name", header: "Last", width: 20 },
           { key: "titles", header: "Title", width: 20 },
           { key: "source_filing_issuer_cik", header: "CIK", width: 10 },
+        ];
+        renderQueryResult(result, columns, format, offset, limit);
+      })
+    );
+
+  query
+    .command("person-roles <cik>")
+    .description("Dated person↔title tenures at a company (open roles first)")
+    .option("--current", "Only open tenures (no end date)")
+    .option("--limit <n>", "Limit results", parseIntOption, 25)
+    .option("--offset <n>", "Offset results", parseIntOption, 0)
+    .option("--format <format>", "Output format (table, json, csv)", "table")
+    .action(
+      wrapAction(async (cikArg: string, options: Record<string, unknown>) => {
+        const limit = options.limit as number;
+        const offset = options.offset as number;
+        const format = validateFormat(options.format as string);
+        const result = await runWorkflowCli<QueryResult<unknown>>([
+          new QueryPersonRolesTask({
+            defaults: {
+              cik: parseCikArgStrict(cikArg),
+              current: Boolean(options.current),
+              limit,
+              offset,
+            },
+          }),
+        ]);
+
+        const columns = [
+          { key: "person_name", header: "Person", width: 22 },
+          { key: "title", header: "Title", width: 30 },
+          { key: "start_date", header: "Start", width: 10 },
+          { key: "end_date", header: "End", width: 10 },
+          { key: "role_scope", header: "Source", width: 22 },
         ];
         renderQueryResult(result, columns, format, offset, limit);
       })

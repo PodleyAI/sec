@@ -120,7 +120,10 @@ export async function streamFeedTarball(
 ): Promise<void> {
   const source =
     typeof (body as ReadableStream).getReader === "function"
-      ? Readable.fromWeb(body as import("node:stream/web").ReadableStream<Uint8Array>)
+      ? // Through `unknown`: the DOM and node:stream/web ReadableStream types
+        // no longer overlap under current @types/node, but the runtime object
+        // a fetch body provides is exactly what fromWeb consumes.
+        Readable.fromWeb(body as unknown as import("node:stream/web").ReadableStream<Uint8Array>)
       : (body as Readable);
 
   const gunzip = createGunzip();
