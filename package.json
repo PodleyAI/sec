@@ -1,7 +1,7 @@
 {
   "name": "@workglow/sec",
   "type": "module",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "repository": {
     "type": "git",
     "url": "https://github.com/workglow-dev/sec.git"
@@ -42,10 +42,10 @@
   ],
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@sroussey/parse-address": "^3.2.0",
     "@sroussey/parse-full-name": "^2.0.0",
-    "@workglow/cli": "0.3.28",
+    "@workglow/cli": "0.3.29",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",
     "cheerio-json-mapper": "^1.0.4",
@@ -58,20 +58,21 @@
     "pg": "^8.22.0",
     "typebox": "1.3.8",
     "words-to-numbers": "^1.5.1",
-    "workglow": "0.3.28",
+    "workglow": "0.3.29",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
     "@types/pg": "^8.15.2",
     "@types/xml2js": "^0.4.14",
-    "better-sqlite3": "^13.0.1",
+    "better-sqlite3": "^12.11.1",
     "bunset": "1.0.13",
     "concurrently": "^10.0.4",
     "vitest": "^4.1.10"
   },
   "trustedDependencies": [
     "@huggingface/transformers",
+    "better-sqlite3",
     "onnxruntime-node"
   ],
   "private": false,

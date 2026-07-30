@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.0.17
+
+### Features
+
+#### forms
+
+- scale the forms sweep — cluster rate limiting, sharding, doc cache
+
+#### bootstrap
+
+- download accession documents via daily Feed tarballs
+
+#### address
+
+- enhance address normalization for foreign addresses
+
+### Bug Fixes
+
+#### eval
+
+- restore SEC_UNIT_TERMS_REF override with fail-fast on missing path
+
+### Refactors
+
+- store person titles as dated per-title rows, not arrays (#216)
+
+#### forms
+
+- replace UpdateAllFormsTask with ComputeFormsWorklistTask and enhance forms processing
+
+### Tests
+
+#### config
+
+- strip env-derived DI tokens on TestingDI reset
+
+### Chores
+
+- update dep parse-address
+
+#### test
+
+- switch runner to vitest with hardening
+
+### Updated Dependencies
+
+- `@modelcontextprotocol/sdk`: ^1.30.0
+- `@sroussey/parse-address`: ^3.2.0
+- `@workglow/cli`: 0.3.29
+- `typebox`: 1.3.8
+- `workglow`: 0.3.29
+- `concurrently`: ^10.0.4
+
 ## 0.0.16
 
 ### Chores
