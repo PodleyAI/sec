@@ -10,8 +10,14 @@ import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
+import {
+  SEC_DB_FOLDER,
+  SEC_DB_NAME,
+  SEC_DB_TYPE,
+  SEC_PG_URL,
+} from "../../config/tokens";
 import { closeDb, getDb } from "../../util/db";
+import { closePgPool, getPgPool } from "../../util/pg";
 import { migrateLegacyPersonObservationTitles } from "./PersonObservationTitlesLegacyMigration";
 
 const TEST_DB_NAME = "person_observation_titles_migration_test";
@@ -277,3 +283,128 @@ describe("migrateLegacyPersonObservationTitles (sqlite)", () => {
     expect(captured).toBe(5000);
   });
 });
+
+describe.skipIf(!process.env.SEC_PG_URL)(
+  "migrateLegacyPersonObservationTitles (postgres)",
+  () => {
+    beforeEach(async () => {
+      resetDependencyInjectionsForTesting();
+      await closePgPool();
+      globalServiceRegistry.registerInstance(SEC_DB_TYPE, "postgres");
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      globalServiceRegistry.registerInstance(SEC_PG_URL, process.env.SEC_PG_URL!);
+
+      const client = await getPgPool().connect();
+      try {
+        // Fresh test DB expected; drop any prior artefacts so the test is
+        // reproducible even if a previous run aborted before cleanup.
+        await client.query(`DROP TABLE IF EXISTS person_observation_titles`);
+        await client.query(`DROP TABLE IF EXISTS person_observations`);
+        await client.query(
+          `CREATE TABLE person_observations (
+             observation_id INTEGER PRIMARY KEY,
+             titles TEXT NULL
+           )`
+        );
+        await client.query(
+          `CREATE TABLE person_observation_titles (
+             observation_id INTEGER NOT NULL,
+             title TEXT NOT NULL,
+             PRIMARY KEY (observation_id, title)
+           )`
+        );
+      } finally {
+        client.release();
+      }
+    });
+
+    afterEach(async () => {
+      const client = await getPgPool().connect();
+      try {
+        await client.query(`DROP TABLE IF EXISTS person_observation_titles`);
+        await client.query(`DROP TABLE IF EXISTS person_observations`);
+      } finally {
+        client.release();
+      }
+      await closePgPool();
+      resetDependencyInjectionsForTesting();
+    });
+
+    it("bulk-inserts titles via UNNEST and is idempotent on a second run", async () => {
+      const client = await getPgPool().connect();
+      try {
+        // 50 rows with a mix of shapes: multi-title arrays, some empty arrays,
+        // one with case-duplicates that normalizeTitles should collapse.
+        for (let i = 1; i <= 50; i += 1) {
+          let titles: string | null;
+          if (i % 10 === 0) {
+            titles = "[]"; // empty
+          } else if (i === 7) {
+            // case-duplicate — normalizeTitles keeps the first casing only
+            titles = JSON.stringify(["Founder", "  founder  ", "Chairman"]);
+          } else if (i % 3 === 0) {
+            titles = JSON.stringify([`Title ${i} A`, `Title ${i} B`]);
+          } else {
+            titles = JSON.stringify([`Title ${i}`]);
+          }
+          await client.query(
+            `INSERT INTO person_observations (observation_id, titles) VALUES ($1, $2)`,
+            [i, titles]
+          );
+        }
+
+        // Sanity: expected observation count is 50.
+        const expectedRows = await client.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM person_observations WHERE titles IS NOT NULL`
+        );
+        expect(Number(expectedRows.rows[0]!.c)).toBe(50);
+      } finally {
+        client.release();
+      }
+
+      // Expected title-row count matches normalizeTitles' semantics: every
+      // tenth observation has an empty array (rows 10, 20, 30, 40, 50 → 5
+      // empty). Of the 45 non-empty rows, multiples of 3 (except row 7) yield
+      // 2 titles; row 7 yields 2 after case-dup collapse; the rest yield 1.
+      let expected = 0;
+      for (let i = 1; i <= 50; i += 1) {
+        if (i % 10 === 0) continue;
+        if (i === 7) {
+          expected += 2;
+          continue;
+        }
+        expected += i % 3 === 0 ? 2 : 1;
+      }
+
+      await migrateLegacyPersonObservationTitles();
+
+      const check = await getPgPool().connect();
+      try {
+        const total = await check.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM person_observation_titles`
+        );
+        expect(Number(total.rows[0]!.c)).toBe(expected);
+
+        const row7 = await check.query<{ title: string }>(
+          `SELECT title FROM person_observation_titles WHERE observation_id = 7 ORDER BY title`
+        );
+        expect(row7.rows.map((r) => r.title)).toEqual(["Chairman", "Founder"]);
+      } finally {
+        check.release();
+      }
+
+      // Idempotent: a second run over the same source rows must not throw and
+      // must not change the child-table count.
+      await migrateLegacyPersonObservationTitles();
+      const check2 = await getPgPool().connect();
+      try {
+        const total2 = await check2.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM person_observation_titles`
+        );
+        expect(Number(total2.rows[0]!.c)).toBe(expected);
+      } finally {
+        check2.release();
+      }
+    });
+  }
+);

@@ -207,28 +207,32 @@ async function migratePostgres(): Promise<void> {
       );
       if (res.rows.length === 0) break;
 
-      const chunkPairs: [number, string][] = [];
+      const obsIds: number[] = [];
+      const titles: string[] = [];
       for (const row of res.rows) {
         cursor = row.observation_id;
         // `titles::text` serializes a jsonb array to the same JSON literal a
         // text-typed column carries, so `normalizeTitles` handles both.
         const parsed = normalizeTitles(row.titles);
         for (const title of parsed) {
-          chunkPairs.push([row.observation_id, title]);
+          obsIds.push(row.observation_id);
+          titles.push(title);
         }
       }
 
-      if (chunkPairs.length > 0) {
+      if (titles.length > 0) {
         await client.query("BEGIN");
         try {
-          for (const [id, title] of chunkPairs) {
-            await client.query(
-              `INSERT INTO person_observation_titles (observation_id, title)
-               VALUES ($1, $2)
-               ON CONFLICT DO NOTHING`,
-              [id, title]
-            );
-          }
+          // Single per-chunk bulk insert: node-postgres serializes number[] as
+          // int[] and string[] as text[] natively, and UNNEST zips the two flat
+          // arrays into rows so the whole chunk is one round-trip instead of
+          // one RTT per title.
+          await client.query(
+            `INSERT INTO person_observation_titles (observation_id, title)
+             SELECT * FROM UNNEST($1::int[], $2::text[])
+             ON CONFLICT DO NOTHING`,
+            [obsIds, titles]
+          );
           await client.query("COMMIT");
         } catch (err) {
           await client.query("ROLLBACK");
@@ -240,8 +244,8 @@ async function migratePostgres(): Promise<void> {
         }
         // Count attempted pairs, not res.rowCount — a re-run over already-
         // migrated rows returns rowCount 0 despite doing the right thing.
-        migrated += chunkPairs.length;
-        sinceLastLog += chunkPairs.length;
+        migrated += titles.length;
+        sinceLastLog += titles.length;
         if (sinceLastLog >= PROGRESS_INTERVAL) {
           console.log(
             `[migrate person_observation_titles] wrote ${migrated} title rows so far`
