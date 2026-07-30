@@ -184,4 +184,96 @@ describe("migrateLegacyPersonObservationTitles (sqlite)", () => {
       { observation_id: 1, title: "Director" },
     ]);
   });
+
+  it("an interrupt mid-run preserves prior chunks and a re-run finishes cleanly", async () => {
+    const db = getDb();
+    createLegacyPersonObservationsTable(db);
+    createTitlesTable(db);
+    // 10_001 rows — chunk 1 covers observation_ids 1..5000, chunk 2 covers
+    // 5001..10_000, chunk 3 covers 10_001. We arrange for chunk 2's insert to
+    // throw at observation_id 7500 so chunk 1 must survive independently and
+    // chunk 3 must not have started.
+    for (let i = 1; i <= 10_001; i += 1) {
+      insertLegacyObservation(db, i, JSON.stringify([`Title ${i}`]));
+    }
+
+    const originalPrepare = db.prepare.bind(db);
+    let interceptActive = true;
+    (db as { prepare: unknown }).prepare = ((sql: string) => {
+      const stmt = originalPrepare(sql);
+      if (interceptActive && sql.includes("INSERT OR IGNORE INTO person_observation_titles")) {
+        const originalRun = stmt.run.bind(stmt);
+        stmt.run = (...params: unknown[]) => {
+          if (params[0] === 7500) {
+            throw new Error("simulated insert failure at observation_id 7500");
+          }
+          return originalRun(...(params as never[]));
+        };
+      }
+      return stmt;
+    }) as typeof db.prepare;
+
+    await expect(migrateLegacyPersonObservationTitles()).rejects.toThrow(
+      /simulated insert failure/
+    );
+
+    const count = db
+      .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM person_observation_titles`)
+      .get();
+    expect(count?.c).toBe(5000);
+
+    // Remove the intercept and re-run — should finish cleanly, no PK violation
+    // (INSERT OR IGNORE elides chunk 1's already-committed pairs) and every
+    // observation is now covered.
+    interceptActive = false;
+    await migrateLegacyPersonObservationTitles();
+
+    const finalCount = db
+      .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM person_observation_titles`)
+      .get();
+    expect(finalCount?.c).toBe(10_001);
+  });
+
+  it("prior chunk is visible to a separate connection before the next chunk starts", async () => {
+    const db = getDb();
+    createLegacyPersonObservationsTable(db);
+    createTitlesTable(db);
+    for (let i = 1; i <= 10_001; i += 1) {
+      insertLegacyObservation(db, i, JSON.stringify([`Title ${i}`]));
+    }
+
+    const dbPath = join(tmpDir, `${TEST_DB_NAME}.sqlite`);
+    let captured: number | null = null;
+
+    const originalPrepare = db.prepare.bind(db);
+    (db as { prepare: unknown }).prepare = ((sql: string) => {
+      const stmt = originalPrepare(sql);
+      if (sql.includes("INSERT OR IGNORE INTO person_observation_titles")) {
+        const originalRun = stmt.run.bind(stmt);
+        stmt.run = (...params: unknown[]) => {
+          // First insert of chunk 2 — chunk 1 has just committed. A separate
+          // connection must be able to observe the 5000 rows chunk 1 wrote.
+          if (params[0] === 5001 && captured === null) {
+            const second = new Sqlite.Database(dbPath);
+            try {
+              const row = second
+                .prepare<[], { c: number }>(
+                  `SELECT COUNT(*) AS c FROM person_observation_titles`
+                )
+                .get();
+              captured = row?.c ?? 0;
+            } finally {
+              second.close();
+            }
+          }
+          return originalRun(...(params as never[]));
+        };
+      }
+      return stmt;
+    }) as typeof db.prepare;
+
+    await migrateLegacyPersonObservationTitles();
+
+    expect(captured).toBe(5000);
+  });
 });

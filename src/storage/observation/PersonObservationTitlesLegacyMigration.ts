@@ -22,6 +22,12 @@ import { getPgPool } from "../../util/pg";
  * safe to re-run: `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` on the child
  * table's `(observation_id, title)` PK skips rows already present, so replays
  * (or partial prior runs) do not disturb existing rows.
+ *
+ * The backfill is **chunked into per-commit batches** so an interrupt only
+ * loses the in-flight chunk. Prior successful chunks stay committed; a re-run
+ * resumes by re-scanning from `observation_id > 0` and the PK guard silently
+ * skips already-written rows. The Postgres branch additionally holds row locks
+ * only for the duration of a single chunk, not the whole run.
  */
 export async function migrateLegacyPersonObservationTitles(): Promise<void> {
   // This backfill writes rows through raw SQL, reaching around the repository
@@ -46,6 +52,7 @@ export async function migrateLegacyPersonObservationTitles(): Promise<void> {
   // In-memory backend: nothing to migrate (tests start with a clean store).
 }
 
+// per-commit batch size — an interrupt loses at most one chunk
 const CHUNK_SIZE = 5000;
 const TITLE_MAX_LENGTH = 256;
 const PROGRESS_INTERVAL = 100_000;
@@ -112,38 +119,58 @@ function migrateSqlite(): void {
     `INSERT OR IGNORE INTO person_observation_titles (observation_id, title) VALUES (?, ?)`
   );
 
-  db.exec("BEGIN");
-  try {
-    let cursor = 0;
-    let migrated = 0;
-    let sinceLastLog = 0;
-    for (;;) {
-      const rows = select.all(cursor, CHUNK_SIZE);
-      if (rows.length === 0) break;
-      for (const row of rows) {
-        cursor = row.observation_id;
-        const titles = normalizeTitles(row.titles);
-        for (const title of titles) {
-          insert.run(row.observation_id, title);
-          migrated += 1;
-          sinceLastLog += 1;
-          if (sinceLastLog >= PROGRESS_INTERVAL) {
-            console.log(
-              `[migrate person_observation_titles] wrote ${migrated} title rows so far`
-            );
-            sinceLastLog = 0;
-          }
-        }
+  // better-sqlite3's transaction() wraps its callback in BEGIN/COMMIT with an
+  // automatic ROLLBACK on throw — so we get per-chunk atomicity without the
+  // outer-run transaction that previously kept a mid-run interrupt from
+  // preserving any successful chunk.
+  const insertChunk = db.transaction((pairs: readonly (readonly [number, string])[]) => {
+    for (const [id, title] of pairs) {
+      insert.run(id, title);
+    }
+  });
+
+  let cursor = 0;
+  let lastCommittedObservationId = 0;
+  let migrated = 0;
+  let sinceLastLog = 0;
+  for (;;) {
+    const rows = select.all(cursor, CHUNK_SIZE);
+    if (rows.length === 0) break;
+
+    const pairs: [number, string][] = [];
+    for (const row of rows) {
+      cursor = row.observation_id;
+      const titles = normalizeTitles(row.titles);
+      for (const title of titles) {
+        pairs.push([row.observation_id, title]);
       }
-      if (rows.length < CHUNK_SIZE) break;
     }
-    db.exec("COMMIT");
-    if (migrated > 0) {
-      console.log(`[migrate person_observation_titles] wrote ${migrated} title rows total`);
+
+    if (pairs.length > 0) {
+      try {
+        insertChunk(pairs);
+      } catch (err) {
+        console.warn(
+          `[migrate person_observation_titles] chunk rolled back after observation_id ` +
+            `${lastCommittedObservationId}; re-run resumes from there`
+        );
+        throw err;
+      }
+      migrated += pairs.length;
+      sinceLastLog += pairs.length;
+      if (sinceLastLog >= PROGRESS_INTERVAL) {
+        console.log(
+          `[migrate person_observation_titles] wrote ${migrated} title rows so far`
+        );
+        sinceLastLog = 0;
+      }
     }
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
+    lastCommittedObservationId = cursor;
+
+    if (rows.length < CHUNK_SIZE) break;
+  }
+  if (migrated > 0) {
+    console.log(`[migrate person_observation_titles] wrote ${migrated} title rows total`);
   }
 }
 
@@ -161,56 +188,73 @@ async function migratePostgres(): Promise<void> {
     );
     if (cols.rowCount === 0) return;
 
-    await client.query("BEGIN");
-    try {
-      let cursor = 0;
-      let migrated = 0;
-      let sinceLastLog = 0;
-      for (;;) {
-        // Bring rows back as text either way so the JS normalizer sees a
-        // uniform shape; jsonb is serialized deterministically by pg.
-        const res = await client.query<{ observation_id: number; titles: string | null }>(
-          `SELECT observation_id, titles::text AS titles
-             FROM person_observations
-            WHERE titles IS NOT NULL
-              AND titles::text NOT IN ('[]', 'null')
-              AND observation_id > $1
-            ORDER BY observation_id
-            LIMIT $2`,
-          [cursor, CHUNK_SIZE]
-        );
-        if (res.rows.length === 0) break;
-        for (const row of res.rows) {
-          cursor = row.observation_id;
-          // `titles::text` serializes a jsonb array to the same JSON literal a
-          // text-typed column carries, so `normalizeTitles` handles both.
-          const titles = normalizeTitles(row.titles);
-          for (const title of titles) {
+    let cursor = 0;
+    let lastCommittedObservationId = 0;
+    let migrated = 0;
+    let sinceLastLog = 0;
+    for (;;) {
+      // Plain SELECT — no transaction needed, and holding one across every
+      // chunk was the source of the multi-hour row-lock hold.
+      const res = await client.query<{ observation_id: number; titles: string | null }>(
+        `SELECT observation_id, titles::text AS titles
+           FROM person_observations
+          WHERE titles IS NOT NULL
+            AND titles::text NOT IN ('[]', 'null')
+            AND observation_id > $1
+          ORDER BY observation_id
+          LIMIT $2`,
+        [cursor, CHUNK_SIZE]
+      );
+      if (res.rows.length === 0) break;
+
+      const chunkPairs: [number, string][] = [];
+      for (const row of res.rows) {
+        cursor = row.observation_id;
+        // `titles::text` serializes a jsonb array to the same JSON literal a
+        // text-typed column carries, so `normalizeTitles` handles both.
+        const parsed = normalizeTitles(row.titles);
+        for (const title of parsed) {
+          chunkPairs.push([row.observation_id, title]);
+        }
+      }
+
+      if (chunkPairs.length > 0) {
+        await client.query("BEGIN");
+        try {
+          for (const [id, title] of chunkPairs) {
             await client.query(
               `INSERT INTO person_observation_titles (observation_id, title)
                VALUES ($1, $2)
                ON CONFLICT DO NOTHING`,
-              [row.observation_id, title]
+              [id, title]
             );
-            migrated += 1;
-            sinceLastLog += 1;
-            if (sinceLastLog >= PROGRESS_INTERVAL) {
-              console.log(
-                `[migrate person_observation_titles] wrote ${migrated} title rows so far`
-              );
-              sinceLastLog = 0;
-            }
           }
+          await client.query("COMMIT");
+        } catch (err) {
+          await client.query("ROLLBACK");
+          console.warn(
+            `[migrate person_observation_titles] chunk rolled back after observation_id ` +
+              `${lastCommittedObservationId}; re-run resumes from there`
+          );
+          throw err;
         }
-        if (res.rows.length < CHUNK_SIZE) break;
+        // Count attempted pairs, not res.rowCount — a re-run over already-
+        // migrated rows returns rowCount 0 despite doing the right thing.
+        migrated += chunkPairs.length;
+        sinceLastLog += chunkPairs.length;
+        if (sinceLastLog >= PROGRESS_INTERVAL) {
+          console.log(
+            `[migrate person_observation_titles] wrote ${migrated} title rows so far`
+          );
+          sinceLastLog = 0;
+        }
       }
-      await client.query("COMMIT");
-      if (migrated > 0) {
-        console.log(`[migrate person_observation_titles] wrote ${migrated} title rows total`);
-      }
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
+      lastCommittedObservationId = cursor;
+
+      if (res.rows.length < CHUNK_SIZE) break;
+    }
+    if (migrated > 0) {
+      console.log(`[migrate person_observation_titles] wrote ${migrated} title rows total`);
     }
   } finally {
     client.release();
