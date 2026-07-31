@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.18
+
+### Chores
+
+- update workglow
+- update dev container
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.31
+- `typebox`: 1.3.9
+- `workglow`: 0.3.31
+- `better-sqlite3`: ^13.0.2
+
 ## 0.0.17
 
 ### Features
