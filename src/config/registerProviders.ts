@@ -19,6 +19,9 @@
  *   `GEMINI_API_KEY` at run time.
  * - **xAI Grok** (`provider: "XAI"`) — inline; the `grok-*` family (`grok-4.5`,
  *   …). Needs `XAI_API_KEY` at run time.
+ * - **DeepSeek** (`provider: "DEEPSEEK"`) — inline; the `deepseek-*` family
+ *   (`deepseek-v4-flash`, `deepseek-v4-pro`). Needs `DEEPSEEK_API_KEY` at run
+ *   time.
  * - **HuggingFace Transformers ONNX** (`provider: "HF_TRANSFORMERS_ONNX"`) —
  *   **worker-backed, not inline**: the heavy `@huggingface/transformers` graph
  *   runs in a spawned worker (`hftWorker.ts`), never on the main thread. Lets us
@@ -39,6 +42,7 @@ export async function registerSecProviders(): Promise<void> {
   await registerOpenAi();
   await registerGemini();
   await registerXai();
+  await registerDeepSeek();
   await registerHft();
   await registerLlamaCpp();
 }
@@ -76,6 +80,27 @@ async function registerXai(): Promise<void> {
     await registerXaiInline();
   } catch (err) {
     warn("xAI", err);
+  }
+}
+
+/**
+ * `workglow/deepseek/runtime` is newer than the `workglow` version this package
+ * currently pins, so a static specifier would fail to typecheck against an older
+ * install. The specifier is therefore built at run time: resolution is deferred to
+ * the import itself, and an install without the subpath takes the same
+ * warn-and-skip path as a provider whose optional dependency is missing. Collapse
+ * this back to a literal specifier once the pinned `workglow` ships the subpath.
+ */
+const DEEPSEEK_RUNTIME_MODULE = "workglow/deepseek/runtime";
+
+async function registerDeepSeek(): Promise<void> {
+  try {
+    const mod = (await import(DEEPSEEK_RUNTIME_MODULE)) as {
+      registerDeepSeekInline: () => Promise<void>;
+    };
+    await mod.registerDeepSeekInline();
+  } catch (err) {
+    warn("DeepSeek", err);
   }
 }
 

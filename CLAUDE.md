@@ -121,17 +121,21 @@ model ids (the default plus any set overrides, plus the local HFT default
 (`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape — a
 `gguf:` id → a `LOCAL_LLAMACPP` record, a HuggingFace `org/name` id → an
 `HF_TRANSFORMERS_ONNX` record, a `gpt-*`/`o*` id → an `OPENAI` record, a
-`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record,
-otherwise an `ANTHROPIC` record — and each explicitly declares the `json-mode`
-capability `StructuredGenerationTask` gates on (the installed provider's
+`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record, a
+`deepseek-*` id → a `DEEPSEEK` record, otherwise an `ANTHROPIC` record — and each
+explicitly declares the `json-mode` capability
+`StructuredGenerationTask` gates on (the installed provider's
 capability inference doesn't recognize newer ids like `claude-sonnet-5`,
-`gpt-5.5`, `gemini-3.1-pro-preview`, or `grok-4.5`). So
+`gpt-5.5`, `gemini-3.1-pro-preview`, `grok-4.5`, or `deepseek-v4-pro`). The
+`deepseek-*` prefix is matched only after the HuggingFace `org/name` check, so a
+`deepseek-ai/…` repo id still routes to the local ONNX provider. So
 `getGlobalModelRepository().findByName(id)` resolves any of them. Startup also
 registers the AI **providers** via `registerSecProviders`
-(`src/config/registerProviders.ts`): four inline cloud providers — Anthropic
+(`src/config/registerProviders.ts`): five inline cloud providers — Anthropic
 (`ANTHROPIC`, `ANTHROPIC_API_KEY`), OpenAI (`OPENAI`, `OPENAI_API_KEY`), Google
-Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), and xAI Grok (`XAI`, `XAI_API_KEY`)
-— plus the worker-backed local providers HuggingFace Transformers ONNX
+Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), xAI Grok (`XAI`, `XAI_API_KEY`), and
+DeepSeek (`DEEPSEEK`, `DEEPSEEK_API_KEY`) — plus the worker-backed local providers
+HuggingFace Transformers ONNX
 (`HF_TRANSFORMERS_ONNX`, `hftWorker.ts`) and node-llama-cpp GGUF
 (`LOCAL_LLAMACPP`, `llamaCppWorker.ts`). Each provider registers defensively (a
 load failure or missing key warns and is skipped). Absent a working provider /
@@ -219,15 +223,27 @@ sec eval extract                              # default: haiku vs sonnet
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 
-# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI. Each id
-# routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini, grok-*→xAI);
-# needs the matching *_API_KEY per provider used. An id a provider doesn't serve
+# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI vs DeepSeek.
+# Each id routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini,
+# grok-*→xAI, deepseek-*→DeepSeek); needs the matching *_API_KEY per provider
+# used. An id a provider doesn't serve
 # is recorded as a failed run, not a crash — verify ids against each provider's
 # models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
-# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com).
+# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com,
+# /models on api.deepseek.com).
 sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
-gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5"
+gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5,\
+deepseek-v4-flash,deepseek-v4-pro"
 ```
+
+DeepSeek is the cheapest cloud tier in the table by a wide margin — at list price
+`deepseek-v4-flash` is $0.14/1M input vs `claude-haiku-4-5`'s $1.00, which works out
+to roughly **8x cheaper** on an input-heavy extraction section. That is a reason to
+*rank* it, not to adopt it: score it against golden truth
+(`sec eval s1 --reference golden`) before trusting it for production extraction.
+Its cost line uses DeepSeek's **cache-miss** input price, since each section is a
+distinct prompt that never hits the context cache; DeepSeek has also announced
+(not yet enabled) 2x peak-hour pricing, which the table does not model.
 
 A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
 `onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
