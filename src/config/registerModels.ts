@@ -22,6 +22,7 @@ const ANTHROPIC_PROVIDER = "ANTHROPIC";
 const OPENAI_PROVIDER = "OPENAI";
 const GEMINI_PROVIDER = "GOOGLE_GEMINI";
 const XAI_PROVIDER = "XAI";
+const DEEPSEEK_PROVIDER = "DEEPSEEK";
 const HFT_PROVIDER = "HF_TRANSFORMERS_ONNX";
 const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
 
@@ -65,6 +66,16 @@ function isGeminiModelId(modelId: string): boolean {
 /** xAI Grok cloud ids — `grok-4.5`, `grok-4.3`, … */
 function isXaiModelId(modelId: string): boolean {
   return /^grok-/i.test(modelId);
+}
+
+/**
+ * DeepSeek cloud ids — `deepseek-v4-flash`, `deepseek-v4-pro`, …. Matched only
+ * after {@link isHftModelId}, so a HuggingFace repo id under the `deepseek-ai`
+ * org (`deepseek-ai/DeepSeek-R1-…`) still routes to the local ONNX provider —
+ * it carries a `/`, which the cloud prefixes never do.
+ */
+function isDeepSeekModelId(modelId: string): boolean {
+  return /^deepseek-/i.test(modelId);
 }
 
 /**
@@ -179,12 +190,13 @@ export function openAiModelRecord(modelId: string): ModelRecord {
 }
 
 /**
- * Full capability set for a Google Gemini / xAI Grok chat model. Same rationale
- * as the Anthropic/OpenAI sets — declare `json-mode` / `text.generation`
- * explicitly rather than rely on the installed provider's id-based capability
- * inference (which doesn't recognize newer ids like `gemini-3.1-pro-preview` or
- * `grok-4.5`) so `StructuredGenerationTask`'s gate passes. Gemini serves
- * `json-mode` via `responseSchema`; Grok via native json-schema output.
+ * Full capability set for a Google Gemini / xAI Grok / DeepSeek chat model. Same
+ * rationale as the Anthropic/OpenAI sets — declare `json-mode` /
+ * `text.generation` explicitly rather than rely on the installed provider's
+ * id-based capability inference (which doesn't recognize newer ids like
+ * `gemini-3.1-pro-preview`, `grok-4.5`, or `deepseek-v4-pro`) so
+ * `StructuredGenerationTask`'s gate passes. Gemini serves `json-mode` via
+ * `responseSchema`; Grok and DeepSeek via native json-schema output.
  */
 const CLOUD_CHAT_CAPABILITIES: readonly string[] = [
   "text.generation",
@@ -219,6 +231,24 @@ export function xaiModelRecord(modelId: string): ModelRecord {
     title: modelId,
     description: `xAI Grok ${modelId}`,
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
+    provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
+    metadata: {},
+  };
+}
+
+/**
+ * Builds a fully-specified DeepSeek {@link ModelRecord} (`provider: "DEEPSEEK"`).
+ * The v4 models are text-only, so the shared cloud-chat set's `vision-input` tag
+ * is dropped — nothing in the extraction path requests it, and claiming it would
+ * let a vision task resolve to a model that cannot serve it.
+ */
+export function deepSeekModelRecord(modelId: string): ModelRecord {
+  return {
+    model_id: modelId,
+    provider: DEEPSEEK_PROVIDER,
+    title: modelId,
+    description: `DeepSeek ${modelId}`,
+    capabilities: CLOUD_CHAT_CAPABILITIES.filter((c) => c !== "vision-input"),
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
   };
@@ -385,9 +415,9 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
  * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
  * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
  * `org/name` id → HFT ONNX (local), a `gpt-*`/`o*` id → OpenAI, a `gemini-*` id
- * → Google Gemini, a `grok-*` id → xAI, otherwise Anthropic (all cloud). Shared
- * by {@link registerSecModels} and the `sec eval` harness so both mint identical
- * records for the same id.
+ * → Google Gemini, a `grok-*` id → xAI, a `deepseek-*` id → DeepSeek, otherwise
+ * Anthropic (all cloud). Shared by {@link registerSecModels} and the `sec eval`
+ * harness so both mint identical records for the same id.
  */
 export function secModelRecord(modelId: string): ModelRecord {
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
@@ -395,6 +425,7 @@ export function secModelRecord(modelId: string): ModelRecord {
   if (isOpenAiModelId(modelId)) return openAiModelRecord(modelId);
   if (isGeminiModelId(modelId)) return geminiModelRecord(modelId);
   if (isXaiModelId(modelId)) return xaiModelRecord(modelId);
+  if (isDeepSeekModelId(modelId)) return deepSeekModelRecord(modelId);
   return anthropicModelRecord(modelId);
 }
 

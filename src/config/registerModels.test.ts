@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SecHftModelDefault } from "./Constants";
 import {
   anthropicModelRecord,
+  deepSeekModelRecord,
   geminiModelRecord,
   hftModelRecord,
   llamaCppModelRecord,
@@ -67,18 +68,28 @@ describe("registerSecModels", () => {
     expect(record.capabilities).toContain("json-mode");
   });
 
-  it("builds routable OpenAI / Gemini / xAI records", () => {
+  it("builds routable OpenAI / Gemini / xAI / DeepSeek records", () => {
     expect(openAiModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(openAiModelRecord("gpt-5.4-mini").provider_config.model_name).toBe("gpt-5.4-mini");
     expect(geminiModelRecord("gemini-3-flash-preview").provider).toBe("GOOGLE_GEMINI");
     expect(xaiModelRecord("grok-4.5").provider).toBe("XAI");
+    expect(deepSeekModelRecord("deepseek-v4-pro").provider).toBe("DEEPSEEK");
+    expect(deepSeekModelRecord("deepseek-v4-pro").provider_config.model_name).toBe(
+      "deepseek-v4-pro"
+    );
     for (const r of [
       openAiModelRecord("gpt-5.4-mini"),
       geminiModelRecord("gemini-3-flash-preview"),
       xaiModelRecord("grok-4.5"),
+      deepSeekModelRecord("deepseek-v4-flash"),
     ]) {
       expect(r.capabilities).toContain("json-mode");
     }
+  });
+
+  it("does not claim vision-input for the text-only DeepSeek models", () => {
+    expect(deepSeekModelRecord("deepseek-v4-flash").capabilities).not.toContain("vision-input");
+    expect(deepSeekModelRecord("deepseek-v4-flash").capabilities).toContain("text.generation");
   });
 
   it("dispatches secModelRecord by id shape across all providers", () => {
@@ -87,10 +98,18 @@ describe("registerSecModels", () => {
     expect(secModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(secModelRecord("gemini-3.1-pro-preview").provider).toBe("GOOGLE_GEMINI");
     expect(secModelRecord("grok-4.5").provider).toBe("XAI");
+    expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
+    expect(secModelRecord("deepseek-v4-pro").provider).toBe("DEEPSEEK");
     expect(secModelRecord("onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(
       "HF_TRANSFORMERS_ONNX"
     );
     expect(secModelRecord("gguf:model.gguf").provider).toBe("LOCAL_LLAMACPP");
+  });
+
+  it("routes a deepseek-ai HuggingFace repo id to the local ONNX provider, not DeepSeek cloud", () => {
+    expect(secModelRecord("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B").provider).toBe(
+      "HF_TRANSFORMERS_ONNX"
+    );
   });
 
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {

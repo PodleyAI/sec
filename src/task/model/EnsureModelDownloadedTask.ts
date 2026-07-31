@@ -11,7 +11,7 @@ import { secModelRecord } from "../../config/registerModels";
 /**
  * Providers whose weights are fetched from a remote source and cached to disk by
  * a `model.download` run-fn — the local providers. The cloud providers
- * (`ANTHROPIC`, `OPENAI`, `GOOGLE_GEMINI`, `XAI`) register no such run-fn, so a
+ * (`ANTHROPIC`, `OPENAI`, `GOOGLE_GEMINI`, `XAI`, `DEEPSEEK`) register no such run-fn, so a
  * `ModelDownloadTask` for them would throw "no run-fn for provider serving
  * model.download"; downloading is therefore a no-op for anything not listed here.
  */
@@ -53,7 +53,7 @@ export type EnsureModelDownloadedOutput = Static<ReturnType<typeof OutputSchema>
  * deriving what to do entirely from the **model id**.
  *
  * `secModelRecord` dispatches on the id shape (a `gguf:` id → node-llama-cpp, an
- * `org/name` id → HuggingFace ONNX, a `gpt-*`/`gemini-*`/`grok-*` id → the matching
+ * `org/name` id → HuggingFace ONNX, a `gpt-*`/`gemini-*`/`grok-*`/`deepseek-*` id → the matching
  * cloud provider, otherwise Anthropic — the same dispatch registration uses), so
  * the task figures out the provider without being handed a resolved `ModelConfig`.
  * From the derived record it decides what a download requires:

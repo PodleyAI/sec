@@ -54,9 +54,25 @@ const XAI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = 
 ];
 
 /**
- * Public list pricing (standard, non-intro): Anthropic by family, OpenAI by
- * id-substring table, and $0 for local models. Returns null for an unknown id so
- * the harness reports cost as unavailable rather than guessing.
+ * DeepSeek list pricing (USD per 1M tokens), from
+ * https://api-docs.deepseek.com/quick_start/pricing.
+ *
+ * DeepSeek quotes two input prices — cache hit and cache miss. We use the
+ * **cache-miss** figure: each eval section is a distinct prompt, so a fresh
+ * extraction never hits the context cache, and the hit price (~50x cheaper)
+ * would understate real cost by two orders of magnitude. DeepSeek has also
+ * announced 2x peak-hour pricing (09:00–12:00 and 14:00–18:00 Beijing time),
+ * not yet in effect; this table is the off-peak/base rate.
+ */
+const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = [
+  ["deepseek-v4-flash", { inputPerM: 0.14, outputPerM: 0.28 }],
+  ["deepseek-v4-pro", { inputPerM: 0.435, outputPerM: 0.87 }],
+];
+
+/**
+ * Public list pricing (standard, non-intro): Anthropic by family, the cloud
+ * vendors by id-substring table, and $0 for local models. Returns null for an
+ * unknown id so the harness reports cost as unavailable rather than guessing.
  */
 function priceFor(modelId: string): ModelPrice | null {
   if (modelId.includes("/")) return { inputPerM: 0, outputPerM: 0 }; // local (HFT/ONNX)
@@ -65,7 +81,7 @@ function priceFor(modelId: string): ModelPrice | null {
   if (/sonnet/i.test(modelId)) return { inputPerM: 3, outputPerM: 15 };
   if (/haiku/i.test(modelId)) return { inputPerM: 1, outputPerM: 5 };
   const id = modelId.toLowerCase();
-  for (const table of [OPENAI_PRICING, GEMINI_PRICING, XAI_PRICING]) {
+  for (const table of [OPENAI_PRICING, GEMINI_PRICING, XAI_PRICING, DEEPSEEK_PRICING]) {
     const hit = table.find(([match]) => id.includes(match));
     if (hit) return hit[1];
   }
