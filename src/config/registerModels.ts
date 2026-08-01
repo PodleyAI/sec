@@ -46,13 +46,16 @@ function isLlamaCppModelId(modelId: string): boolean {
   return modelId.startsWith(GGUF_ID_PREFIX);
 }
 
+/** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-4-8`, …). */
+function isAnthropicModelId(modelId: string): boolean {
+  return /^claude-/i.test(modelId);
+}
+
 /**
  * OpenAI cloud ids — the GPT chat family (`gpt-5.5`, `gpt-5.5-mini`, `gpt-4o`, …)
- * and the `o`/`chatgpt` reasoning families. Matched before the Anthropic
- * fall-through so a `gpt-*` id routes to the OpenAI provider rather than being
- * sent to Anthropic. NOTE: only non-thinking instruct models produce clean
- * `json-mode` output — the `o`-series reasoning models wrap the JSON in a
- * reasoning preamble (same caveat as the local thinking models).
+ * and the `o`/`chatgpt` reasoning families. NOTE: only non-thinking instruct
+ * models produce clean `json-mode` output — the `o`-series reasoning models wrap
+ * the JSON in a reasoning preamble (same caveat as the local thinking models).
  */
 function isOpenAiModelId(modelId: string): boolean {
   return /^(gpt-|chatgpt-|o[134](-|$))/i.test(modelId);
@@ -416,21 +419,59 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
 }
 
 /**
- * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
- * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
- * `org/name` id → HFT ONNX (local), a `gpt-*`/`o*` id → OpenAI, a `gemini-*` id
- * → Google Gemini, a `grok-*` id → xAI, a `deepseek-*` id → DeepSeek, otherwise
- * Anthropic (all cloud). Shared by {@link registerSecModels} and the `sec eval`
- * harness so both mint identical records for the same id.
+ * Provider prefixes recognized by {@link secModelRecord}, in the message shown
+ * when an id matches none of them. Kept next to the dispatch below so the two
+ * can't drift.
  */
-export function secModelRecord(modelId: string): ModelRecord {
+const KNOWN_MODEL_ID_SHAPES =
+  "claude-* (Anthropic), gpt-*/chatgpt-*/o1-*/o3-*/o4-* (OpenAI), " +
+  "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
+  "org/name (local HuggingFace ONNX), gguf:… (local node-llama-cpp)";
+
+/**
+ * {@link secModelRecord} without the unknown-id throw: `undefined` when no
+ * provider claims the id's shape. For callers that merely *inspect* a model id
+ * they did not mint — chiefly `EnsureModelDownloadedTask`, which asks "does this
+ * need weights fetched?" about ids that may have been registered directly in the
+ * model repository by an operator, a harness, or a test. Such an id is legal and
+ * simply isn't ours to route, so those callers must not treat it as a failure.
+ */
+export function trySecModelRecord(modelId: string): ModelRecord | undefined {
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
   if (isHftModelId(modelId)) return hftModelRecord(modelId);
+  if (isAnthropicModelId(modelId)) return anthropicModelRecord(modelId);
   if (isOpenAiModelId(modelId)) return openAiModelRecord(modelId);
   if (isGeminiModelId(modelId)) return geminiModelRecord(modelId);
   if (isXaiModelId(modelId)) return xaiModelRecord(modelId);
   if (isDeepSeekModelId(modelId)) return deepSeekModelRecord(modelId);
-  return anthropicModelRecord(modelId);
+  return undefined;
+}
+
+/**
+ * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
+ * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
+ * `org/name` id → HFT ONNX (local), a `claude-*` id → Anthropic, a `gpt-*`/`o*`
+ * id → OpenAI, a `gemini-*` id → Google Gemini, a `grok-*` id → xAI, a
+ * `deepseek-*` id → DeepSeek. Shared by {@link registerSecModels} and the
+ * `sec eval` harness so both mint identical records for the same id.
+ *
+ * An id matching no known shape is a hard error rather than a fall-through to
+ * one provider. This used to default to Anthropic, which turned every typo and
+ * every id from a provider sec doesn't wire up into a record that *looked*
+ * valid: dispatch succeeded, the model registered, and the failure surfaced far
+ * downstream as a bare `404 model: <id>` from the Anthropic API — naming the
+ * wrong provider and burying the real cause. Failing here instead names the id
+ * and the shapes that would have worked, before any request goes out.
+ *
+ * Only for the mint-a-record path. Callers inspecting an id they did not mint
+ * want {@link trySecModelRecord}, which returns `undefined` instead.
+ */
+export function secModelRecord(modelId: string): ModelRecord {
+  const record = trySecModelRecord(modelId);
+  if (record) return record;
+  throw new SecCliConfigurationError(
+    `Unknown model id "${modelId}" — no provider matches its shape. Expected one of: ${KNOWN_MODEL_ID_SHAPES}.`
+  );
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 } from "workglow";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SecHftModelDefault } from "./Constants";
+import { SecCliConfigurationError } from "./EnvToDI";
 import {
   anthropicModelRecord,
   deepSeekModelRecord,
@@ -104,6 +105,22 @@ describe("registerSecModels", () => {
       "HF_TRANSFORMERS_ONNX"
     );
     expect(secModelRecord("gguf:model.gguf").provider).toBe("LOCAL_LLAMACPP");
+  });
+
+  it("throws on a model id matching no provider shape instead of defaulting to Anthropic", () => {
+    // Regression: these used to mint an ANTHROPIC record, so a typo or an
+    // unwired provider only surfaced downstream as a `404 model: <id>` from the
+    // Anthropic API — the wrong provider's error, well after registration.
+    for (const id of ["sonnet-5", "llama-4-70b", "mistral-large", ""]) {
+      expect(() => secModelRecord(id)).toThrow(SecCliConfigurationError);
+    }
+    expect(() => secModelRecord("claude--typo")).not.toThrow();
+  });
+
+  it("names the offending id and the accepted shapes when it throws", () => {
+    expect(() => secModelRecord("deepseek-v4-flash".replace("deepseek", "deapseek"))).toThrow(
+      /deapseek-v4-flash.*deepseek-\*/s
+    );
   });
 
   it("routes a deepseek-ai HuggingFace repo id to the local ONNX provider, not DeepSeek cloud", () => {

@@ -45,6 +45,15 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded("grok-4.5", ctx())).resolves.toBeUndefined();
   });
 
+  it("is a no-op for an id whose shape sec does not route", async () => {
+    // Such an id is legal — a record registered straight into the model
+    // repository by an operator, a harness, or a test fixture. It is simply not
+    // ours to download, so this must skip rather than reject: `secModelRecord`
+    // throws on an unrecognized shape, and letting that escape here would fail
+    // every extraction driven by a directly-registered model.
+    await expect(ensureModelDownloaded("fake-s1-model", ctx())).resolves.toBeUndefined();
+  });
+
   it("owns no task node for a cloud id after the first call", async () => {
     // A sweep calls this once per section. The first call settles "nothing to
     // download"; every later one must short-circuit before `own()`, or the CLI

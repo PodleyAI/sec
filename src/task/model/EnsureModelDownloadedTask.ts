@@ -6,7 +6,7 @@
 
 import { Static, Type } from "typebox";
 import { IExecuteContext, ModelDownloadTask, Task } from "workglow";
-import { secModelRecord } from "../../config/registerModels";
+import { trySecModelRecord } from "../../config/registerModels";
 
 /**
  * Providers whose weights are fetched from a remote source and cached to disk by
@@ -52,10 +52,12 @@ export type EnsureModelDownloadedOutput = Static<ReturnType<typeof OutputSchema>
  * Ensure a model's weights are present locally before it is used for generation,
  * deriving what to do entirely from the **model id**.
  *
- * `secModelRecord` dispatches on the id shape (a `gguf:` id → node-llama-cpp, an
- * `org/name` id → HuggingFace ONNX, a `gpt-*`/`gemini-*`/`grok-*`/`deepseek-*` id → the matching
- * cloud provider, otherwise Anthropic — the same dispatch registration uses), so
- * the task figures out the provider without being handed a resolved `ModelConfig`.
+ * `trySecModelRecord` dispatches on the id shape (a `gguf:` id → node-llama-cpp,
+ * an `org/name` id → HuggingFace ONNX, a `claude-*`/`gpt-*`/`gemini-*`/`grok-*`/`deepseek-*`
+ * id → the matching cloud provider — the same dispatch registration uses), so the
+ * task figures out the provider without being handed a resolved `ModelConfig`.
+ * The non-throwing variant, because an id sec doesn't route may still be a model
+ * registered directly in the repository — see the `execute` comment.
  * From the derived record it decides what a download requires:
  *
  * - cloud models have nothing to download (no-op);
@@ -97,9 +99,13 @@ export class EnsureModelDownloadedTask extends Task<
     if (!modelId || ensured.has(modelId)) return { downloaded: false };
 
     // Figure out the provider (and its download config) from the id shape alone.
-    const record = secModelRecord(modelId);
-    const provider = record.provider;
-    if (!provider || !DOWNLOADABLE_PROVIDERS.has(provider)) {
+    // An id whose shape sec doesn't route (`undefined`) is not an error here: it
+    // belongs to a record registered directly in the model repository by an
+    // operator or harness, so it is simply not ours to download — fall into the
+    // nothing-to-fetch branch below rather than failing the caller's extraction.
+    const record = trySecModelRecord(modelId);
+    const provider = record?.provider;
+    if (!record || !provider || !DOWNLOADABLE_PROVIDERS.has(provider)) {
       // A cloud model has nothing to fetch, ever. Memoize that verdict like a
       // completed download: otherwise `ensureModelDownloaded`'s short-circuit
       // never trips for cloud ids and every section of a sweep owns another
