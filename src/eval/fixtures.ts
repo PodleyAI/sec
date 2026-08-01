@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ModelConfig } from "workglow";
+import type { IExecuteContext, ModelConfig } from "workglow";
 import {
   extractBeneficialOwnership,
   extractLoi,
@@ -20,9 +20,15 @@ import {
  * and returns an array of row objects (single-object extractors wrap their one
  * result). `keyField` aligns candidate rows with a fixture's expected rows; omit
  * it for positional (single-object / order-stable) extractors.
+ *
+ * `context` is the running eval task's execute context, threaded so the
+ * generation task each extractor spawns is `context.own`ed onto that task's
+ * subgraph (inheriting its registry and abort signal) and its phase progress
+ * reaches the CLI row. Omitted by direct callers (tests), which fall back to the
+ * self-contained stub context inside `runStructured`.
  */
 export interface EvalExtractor {
-  readonly run: (text: string, model: ModelConfig) => Promise<unknown[]>;
+  readonly run: (text: string, model: ModelConfig, context?: IExecuteContext) => Promise<unknown[]>;
   readonly keyField?: string;
   /**
    * Fields that count toward the score when comparing against a reference (used
@@ -46,13 +52,13 @@ export interface EvalExtractor {
  */
 export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
-    run: (text, model) => extractManagement(text, model),
+    run: (text, model, context) => extractManagement(text, model, context),
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
     instructionOverheadChars: 900,
   },
   "beneficial-ownership": {
-    run: (text, model) => extractBeneficialOwnership(text, model),
+    run: (text, model, context) => extractBeneficialOwnership(text, model, context),
     keyField: "name",
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
@@ -60,7 +66,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructionOverheadChars: 1000,
   },
   "related-party": {
-    run: (text, model) => extractRelatedParty(text, model),
+    run: (text, model, context) => extractRelatedParty(text, model, context),
     keyField: "name",
     compareFields: ["name"],
     instructionOverheadChars: 900,
@@ -68,8 +74,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Single-object extractor over an S-1/424 "The Offering" section; positional
   // alignment (no keyField). Scored on the objective numeric unit terms.
   "offering-terms": {
-    run: async (text, model) => {
-      const row = await extractOfferingTerms(text, model);
+    run: async (text, model, context) => {
+      const row = await extractOfferingTerms(text, model, context);
       return row === null ? [] : [row];
     },
     compareFields: [
@@ -83,8 +89,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Single-object extractor over a SPAC "The Offering" / "The Sponsor" section;
   // positional alignment (no keyField). Scored on the objective promote figures.
   "sponsor-promote": {
-    run: async (text, model) => {
-      const row = await extractSponsorPromote(text, model);
+    run: async (text, model, context) => {
+      const row = await extractSponsorPromote(text, model, context);
       return row === null ? [] : [row];
     },
     compareFields: [
@@ -100,8 +106,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // true SPAC yields one row; a shell or operating company yields none, so a
   // fixture with `expected: []` scores a false positive as lost precision.
   "spac-classification": {
-    run: async (text, model) => {
-      const row = await extractSpacClassification(text, model);
+    run: async (text, model, context) => {
+      const row = await extractSpacClassification(text, model, context);
       return row === null ? [] : [row];
     },
     keyField: "entity_kind",
@@ -113,8 +119,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // agreements, vote results, LOI terminations) yields none, so a fixture with
   // `expected: []` scores a false positive as lost precision.
   loi: {
-    run: async (text, model) => {
-      const row = await extractLoi(text, model);
+    run: async (text, model, context) => {
+      const row = await extractLoi(text, model, context);
       return row === null ? [] : [row];
     },
     keyField: "target_name",
@@ -156,7 +162,6 @@ Jonathan P. Reyes has served as our Chief Executive Officer and a director since
 Aisha Nwosu, 44, has served as our Chief Financial Officer since inception. Ms. Nwosu was previously a managing director at a global investment bank.
 
 Robert Kaminski, 67, serves as the Chairman of our board of directors. Mr. Kaminski has founded and led three prior blank check companies.`;
-
 
 /**
  * Known-SPAC 8-K narratives for the `loi` extractor: three positives reporting

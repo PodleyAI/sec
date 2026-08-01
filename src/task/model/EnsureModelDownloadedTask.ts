@@ -19,10 +19,11 @@ const DOWNLOADABLE_PROVIDERS = new Set<string>(["HF_TRANSFORMERS_ONNX", "LOCAL_L
 const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
 
 /**
- * Model ids downloaded (or confirmed ready) in this process. A multi-section run
- * or an eval sweep drives the same model many times; the download run-fn is
- * idempotent but not free (it re-scans/verifies on-disk files and re-emits
- * progress), so we run it at most once per model id.
+ * Model ids downloaded — or settled as needing no download — in this process. A
+ * multi-section run or an eval sweep drives the same model many times; the
+ * download run-fn is idempotent but not free (it re-scans/verifies on-disk files
+ * and re-emits progress), so we run it at most once per model id. Cloud ids are
+ * recorded too, so the sweep stops minting a no-op task node per section.
  */
 const ensured = new Set<string>();
 
@@ -98,7 +99,14 @@ export class EnsureModelDownloadedTask extends Task<
     // Figure out the provider (and its download config) from the id shape alone.
     const record = secModelRecord(modelId);
     const provider = record.provider;
-    if (!provider || !DOWNLOADABLE_PROVIDERS.has(provider)) return { downloaded: false };
+    if (!provider || !DOWNLOADABLE_PROVIDERS.has(provider)) {
+      // A cloud model has nothing to fetch, ever. Memoize that verdict like a
+      // completed download: otherwise `ensureModelDownloaded`'s short-circuit
+      // never trips for cloud ids and every section of a sweep owns another
+      // (no-op) task node onto the running task's subgraph.
+      ensured.add(modelId);
+      return { downloaded: false };
+    }
 
     if (provider === LLAMACPP_PROVIDER) {
       const config = record.provider_config as { model_url?: string } | undefined;

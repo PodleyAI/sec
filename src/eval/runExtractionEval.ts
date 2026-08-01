@@ -8,6 +8,7 @@ import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
 import { registerModelIds } from "../config/registerModels";
 import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
+import { sweepStepContext } from "./evalProgressContext";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
@@ -58,8 +59,11 @@ export interface RunEvalOptions {
   /**
    * The running task's execute context. When present, a local model's weights are
    * prefetched through it so the download's progress renders in the CLI task UI
-   * (and Ctrl-C aborts the fetch). Omitted by direct callers (tests); the download
-   * then falls back to the per-section safety-net in `runStructured`.
+   * (and Ctrl-C aborts the fetch), and every extraction's generation task is
+   * owned onto the running task's subgraph rather than a throwaway stub — so it
+   * inherits the registry/abort signal and its phase progress reaches the task
+   * row. Omitted by direct callers (tests); the download then falls back to the
+   * per-section safety-net in `runStructured`.
    */
   readonly context?: IExecuteContext;
 }
@@ -90,13 +94,14 @@ function selectFixtures(extractor: string | undefined): EvalFixture[] {
 async function runOne(
   modelId: string,
   model: ModelConfig,
-  fixture: EvalFixture
+  fixture: EvalFixture,
+  context: IExecuteContext | undefined
 ): Promise<FixtureRunResult> {
   const extractor = EVAL_EXTRACTORS[fixture.extractor];
   const promptChars = fixture.text.length + extractor.instructionOverheadChars;
   const t0 = Bun.nanoseconds();
   try {
-    const rows = await extractor.run(fixture.text, model);
+    const rows = await extractor.run(fixture.text, model, context);
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
     const score = scoreExtraction(rows, fixture.expected, { keyField: extractor.keyField });
     const cost = estimateCost(modelId, promptChars, JSON.stringify(rows).length);
@@ -183,9 +188,15 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;
-      progress(done, total, `${modelId} — ${fixture.name}`);
+      const label = `${modelId} — ${fixture.name}`;
+      progress(done, total, label);
       const result = model
-        ? await runOne(modelId, model, fixture)
+        ? await runOne(
+            modelId,
+            model,
+            fixture,
+            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label)
+          )
         : ({
             model: modelId,
             fixture: fixture.name,

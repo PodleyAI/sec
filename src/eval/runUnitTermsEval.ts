@@ -13,15 +13,12 @@ import {
   embarcExpectedRow,
   loadEmbarcUnitTermsReference,
 } from "./embarcUnitTermsReference";
+import { sweepStepContext } from "./evalProgressContext";
 import { EVAL_EXTRACTORS } from "./fixtures";
 import { estimateCost } from "./modelPricing";
 import { loadRealS1Sections, type RealSection } from "./realSections";
 import { scoreExtraction } from "./scoreExtraction";
-import {
-  summarizeModelRuns,
-  type EvalReport,
-  type FixtureRunResult,
-} from "./runExtractionEval";
+import { summarizeModelRuns, type EvalReport, type FixtureRunResult } from "./runExtractionEval";
 import { unloadLocalModel } from "./unloadModel";
 
 /**
@@ -64,11 +61,11 @@ const UNIT_FIELDS = [
 ] as const;
 
 /**
- * Round the scored numeric fields to 2 decimals on BOTH sides before scoring:
- * `scoreExtraction` compares numbers by exact stringification, and repeating
- * fractions would otherwise never match (embarc's one-third is
- * 0.3333333333333333; a model may emit 0.33 or 0.3333). Two decimals keeps the
- * real fractions (1, 3/4, 1/2, 1/3, 1/4, …, 1/20) distinct.
+ * Round the scored numeric fields to 2 decimals on BOTH sides before scoring.
+ * `scoreExtraction` already accepts a candidate that is MORE precise than the
+ * reference, but embarc's own one-third is full-precision (0.3333333333333333),
+ * so without this a model emitting 0.33 — or even 0.3333 — would never match.
+ * Two decimals keeps the real fractions (1, 3/4, 1/2, 1/3, 1/4, …, 1/20) distinct.
  */
 export function roundUnitFields(row: Record<string, unknown>): Record<string, unknown> {
   const out = { ...row };
@@ -136,15 +133,20 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
     const modelRows: FixtureRunResult[] = [];
     for (const { section, expected } of covered) {
       if (opts.signal?.aborted) break;
-      progress(done, total, `${modelId} — ${section.filing}`);
+      const label = `${modelId} — ${section.filing}`;
+      progress(done, total, label);
       const promptChars = section.text.length + extractor.instructionOverheadChars;
       const t0 = Bun.nanoseconds();
       let result: FixtureRunResult;
       try {
         if (!model) throw new Error(`model "${modelId}" not registered`);
-        const rows = (await extractor.run(section.text, model)).map((r) =>
-          roundUnitFields(r as Record<string, unknown>)
-        );
+        const rows = (
+          await extractor.run(
+            section.text,
+            model,
+            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label)
+          )
+        ).map((r) => roundUnitFields(r as Record<string, unknown>));
         result = {
           model: modelId,
           fixture: section.filing,

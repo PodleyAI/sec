@@ -31,7 +31,7 @@ export interface ModelPrice {
 const OPENAI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = [
   ["gpt-5.6-sol", { inputPerM: 5, outputPerM: 30 }],
   ["gpt-5.6-terra", { inputPerM: 2.5, outputPerM: 15 }],
-  ["gpt-5.6-luna", { inputPerM: 1, outputPerM: 6 }],
+  ["gpt-5.6-luna", { inputPerM: 0.2, outputPerM: 1.2 }],
   ["gpt-5.5", { inputPerM: 5, outputPerM: 30 }],
   ["gpt-5.4-mini", { inputPerM: 0.75, outputPerM: 4.5 }],
   ["gpt-5.4-nano", { inputPerM: 0.2, outputPerM: 1.25 }],
