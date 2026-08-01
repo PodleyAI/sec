@@ -12,8 +12,12 @@ import { describe, expect, it } from "vitest";
 const TASK_DIR = dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = join(TASK_DIR, "..");
 
-/** `export class Foo extends Task<...>` / `class Foo extends SecCachedFetchTask<...>` */
-const CLASS_RE = /^\s*(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s+extends\s+(\w+)</;
+/**
+ * `export class Foo extends Task<...>` / `class Foo extends SecCachedFetchTask<...>`.
+ * The trailing `[<{]` accepts an un-parameterized `extends Task {` too, so a task
+ * declared without type arguments cannot slip past this guard.
+ */
+const CLASS_RE = /^\s*(?:export\s+)?(?:abstract\s+)?class\s+(\w+)\s+extends\s+(\w+)\s*[<{]/;
 const TASK_BASES = new Set([
   "Task",
   "GraphAsTask",
