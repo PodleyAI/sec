@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.0.19
+
+### Features
+
+#### models
+
+- enhance secModelRecord to throw on unknown model ids
+
+#### address, phone
+
+- introduce saveAddressIfUsable and savePhoneIfUsable methods
+
+#### eval
+
+- recognize deepseek-* model ids and price them
+- introduce sweepStepContext for improved progress tracking
+
+#### bootstrap
+
+- add --force option to re-download archives
+
+#### address
+
+- keep US addresses whose filer left the state blank
+
+### Bug Fixes
+
+#### config
+
+- stop warning on the absent DeepSeek subpath; correct json-mode docs
+
+#### forms
+
+- stream the worklist producer instead of materializing every filing
+
+### Performance
+
+#### forms
+
+- emit the worklist in bounded batches instead of all at once
+
+### Documentation
+
+- note that DeepSeek's json-mode is not schema-enforced
+
+### Chores
+
+#### deps
+
+- bump workglow to 0.3.33 and make DeepSeek routable
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.33
+- `workglow`: 0.3.33
+
 ## 0.0.18
 
 ### Chores
