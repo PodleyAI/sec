@@ -239,7 +239,7 @@ deepseek-v4-flash,deepseek-v4-pro"
 DeepSeek is the cheapest cloud tier in the table by a wide margin — at list price
 `deepseek-v4-flash` is $0.14/1M input vs `claude-haiku-4-5`'s $1.00, which works out
 to roughly **8x cheaper** on an input-heavy extraction section. That is a reason to
-*rank* it, not to adopt it: score it against golden truth
+_rank_ it, not to adopt it: score it against golden truth
 (`sec eval s1 --reference golden`) before trusting it for production extraction.
 Its cost line uses DeepSeek's **cache-miss** input price, since each section is a
 distinct prompt that never hits the context cache; DeepSeek has also announced
@@ -247,7 +247,7 @@ distinct prompt that never hits the context cache; DeepSeek has also announced
 
 > ⚠️ **DeepSeek's `json-mode` is not schema-enforced.** The API supports only
 > `response_format: {type: "json_object"}` — it rejects the OpenAI `json_schema`
-> form — so the provider passes the schema in the *prompt* and the model is free
+> form — so the provider passes the schema in the _prompt_ and the model is free
 > to ignore it. That is weaker than every other extraction path here: Anthropic /
 > OpenAI / Gemini enforce the schema server-side, and llama.cpp constrains
 > generation with a grammar. `StructuredGenerationTask` still re-validates the

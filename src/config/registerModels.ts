@@ -196,7 +196,11 @@ export function openAiModelRecord(modelId: string): ModelRecord {
  * id-based capability inference (which doesn't recognize newer ids like
  * `gemini-3.1-pro-preview`, `grok-4.5`, or `deepseek-v4-pro`) so
  * `StructuredGenerationTask`'s gate passes. Gemini serves `json-mode` via
- * `responseSchema`; Grok and DeepSeek via native json-schema output.
+ * `responseSchema` and Grok via native json-schema output; DeepSeek accepts only
+ * `response_format: {type: "json_object"}`, so its provider passes the schema in
+ * the prompt and the shape is *not* enforced server-side — expect a higher
+ * schema-failure rate there (the task re-validates, so a bad shape still fails
+ * loudly rather than persisting).
  */
 const CLOUD_CHAT_CAPABILITIES: readonly string[] = [
   "text.generation",

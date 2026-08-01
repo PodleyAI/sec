@@ -90,9 +90,14 @@ function priceFor(modelId: string): ModelPrice | null {
 
 const CHARS_PER_TOKEN = 4;
 
+/** Estimated token count for a character count (~4 chars/token). */
+function tokensForChars(chars: number): number {
+  return Math.ceil(chars / CHARS_PER_TOKEN);
+}
+
 /** Estimated token count for a chunk of text (~4 chars/token). */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
+  return tokensForChars(text.length);
 }
 
 export interface CostEstimate {
@@ -111,8 +116,8 @@ export function estimateCost(
   promptChars: number,
   outputChars: number
 ): CostEstimate {
-  const inputTokens = estimateTokens("x".repeat(promptChars));
-  const outputTokens = estimateTokens("x".repeat(outputChars));
+  const inputTokens = tokensForChars(promptChars);
+  const outputTokens = tokensForChars(outputChars);
   const price = priceFor(modelId);
   const usd =
     price === null
