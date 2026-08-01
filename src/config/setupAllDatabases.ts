@@ -7,6 +7,7 @@
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
+import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
   ADDRESS_REPOSITORY_TOKEN,
@@ -104,6 +105,7 @@ import { bootstrapComponentVersions } from "../storage/versioning/bootstrapCompo
 import { registerSecResolvers } from "./registerResolvers";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { SEC_DB_FOLDER, SEC_DB_TYPE } from "./tokens";
+import { widenNarrowColumns } from "./widenNarrowColumnsMigration";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -127,6 +129,11 @@ export async function setupAllDatabases(): Promise<void> {
   // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
   // without ever running the CLI preAction hook that otherwise registers them.
   runDatabaseSetupHooks();
+  // In-place Postgres upgrade path — no-op on fresh installs and on
+  // SQLite/in-memory. Relaxes `addresses.state_or_country` to nullable before
+  // any DDL touches that column, so the current schema can insert rows a
+  // pre-existing NOT NULL column would otherwise reject. Data-preserving.
+  await migrateAddressRegionNullable();
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
@@ -214,6 +221,13 @@ export async function setupAllDatabases(): Promise<void> {
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
+  // In-place Postgres upgrade path — no-op on fresh installs and on
+  // SQLite/in-memory. Converges narrow varchar columns (widened after real
+  // EDGAR data overflowed them) to their current schema widths without data
+  // loss. Runs after every table has been created above so a `CREATE TABLE`
+  // for a genuinely new table cannot race the migration's information_schema
+  // probe.
+  await widenNarrowColumns();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

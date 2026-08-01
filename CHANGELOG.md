@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.19
+
+### Bug Fixes
+
+#### db
+
+- restore in-place Postgres column widening on `sec db setup` — a data-preserving upgrade path that ALTERs pre-0.0.18 narrow varchar columns (phones.international_number 20→64, filings.form 8→32, filings.file_number 10→255, filings.film_number 10→255, filings.primary_doc 45→128, filings.primary_doc_description 45→255, filings.act 2→16, canonical_person_phone.international_number 20→64, canonical_company_phone.international_number 20→64), plus the earlier company_facts.val_unit / company_facts.grouping / xbrl_fact.context_ref widenings. Idempotent — a fresh or already-wide database is a no-op. SQLite / in-memory backends are unaffected. Without this, an existing Postgres deployment updated to 0.0.18 would begin rejecting inserts with `value too long for type varchar`.
+- relax `addresses.state_or_country` to nullable on pre-existing Postgres deployments (restores the migration deleted in 0.0.18).
+
 ## 0.0.18
 
 ### Chores
