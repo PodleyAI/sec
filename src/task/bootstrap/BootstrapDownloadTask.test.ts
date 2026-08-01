@@ -548,14 +548,22 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
     }
   });
 
-  it("sends If-None-Match and skips extraction entirely on 304", async () => {
+  it("sends BOTH validators and skips extraction entirely on 304", async () => {
+    // www.sec.gov ignores If-None-Match but honours If-Modified-Since, so
+    // sending only the ETag would never produce a 304 against the real origin.
     const { folder, targetFolder, targetDir } = setup();
     mkdirSync(targetDir, { recursive: true });
     writeFileSync(path.join(targetDir, "already-here.json"), "{}");
     mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
     writeFileSync(
       path.join(folder, ".bulk-done", `${targetFolder}.json`),
-      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+      JSON.stringify({
+        url: URL,
+        etag: '"abc"',
+        lastModified: "Fri, 31 Jul 2026 04:40:43 GMT",
+        contentLength: 4,
+        extractedAt: "2026-07-31",
+      })
     );
     const fetchStub = stubFetch({ status: 304, etag: '"abc"' });
     const bun = stubBun();
@@ -565,6 +573,7 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
 
       expect(result.success).toBe(true);
       expect(fetchStub.seen[0]["If-None-Match"]).toBe('"abc"');
+      expect(fetchStub.seen[0]["If-Modified-Since"]).toBe("Fri, 31 Jul 2026 04:40:43 GMT");
       expect(bun.cmds).toHaveLength(0); // never unzipped
     } finally {
       bun.restore();

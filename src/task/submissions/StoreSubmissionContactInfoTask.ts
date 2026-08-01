@@ -54,7 +54,12 @@ export class StoreSubmissionContactInfoTask extends Task<
     for (const [kind, address] of Object.entries(submission.addresses)) {
       if (address) {
         const addressRepo = new AddressRepo();
-        const addressRecord = await addressRepo.saveAddress(address as AddressImport);
+        // EDGAR routinely carries an address object with every field blank (or a
+        // street with no city). Such an address cannot be normalized, and it is
+        // one contact detail among many — dropping it must not discard the whole
+        // filer's submission, which is what throwing here used to do.
+        const addressRecord = await addressRepo.saveAddressIfUsable(address as AddressImport);
+        if (!addressRecord) continue;
         if (!country_code && addressRecord.country_code) {
           country_code = addressRecord.country_code;
         }
@@ -63,11 +68,15 @@ export class StoreSubmissionContactInfoTask extends Task<
     }
     if (submission.phone) {
       const phoneRepo = new PhoneRepo();
-      const phone = await phoneRepo.savePhone({
+      // Same reasoning as the address above: an unparseable phone number is one
+      // contact detail, and must not cost us the whole filer's submission.
+      const phone = await phoneRepo.savePhoneIfUsable({
         phone_raw: submission.phone,
         country_code: country_code,
       });
-      await phoneRepo.saveRelatedEntity(phone.international_number, "entity:contact", cik);
+      if (phone) {
+        await phoneRepo.saveRelatedEntity(phone.international_number, "entity:contact", cik);
+      }
     }
 
     return { success: true };

@@ -41,15 +41,38 @@ export class PhoneRepo implements PhoneRepoOptions {
   }
 
   async savePhone(phone: PhoneImport): Promise<Phone> {
-    let normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = this.normalize(phone);
     if (!normalizedPhone) {
-      normalizedPhone = normalizePhone({ phone_raw: phone.phone_raw, country_code: "US" });
-    }
-    if (!normalizedPhone) {
-      throw new Error(`Unable to clean and normalize the provided phone: ${phone}`);
+      // JSON.stringify, not template interpolation — `${phone}` on an object
+      // renders the useless "[object Object]".
+      throw new Error(`Unable to clean and normalize the provided phone: ${JSON.stringify(phone)}`);
     }
     await this.phoneRepository.put(normalizedPhone);
     return normalizedPhone;
+  }
+
+  /**
+   * Like {@link savePhone}, but returns undefined instead of throwing when the
+   * number cannot be normalized.
+   *
+   * Mirrors `AddressRepo.saveAddressIfUsable`: where the phone is one contact
+   * detail among many, an unparseable number must not discard the enclosing
+   * record. EDGAR carries plenty of unusable values in this field.
+   */
+  async savePhoneIfUsable(phone: PhoneImport): Promise<Phone | undefined> {
+    const normalizedPhone = this.normalize(phone);
+    if (!normalizedPhone) return undefined;
+    await this.phoneRepository.put(normalizedPhone);
+    return normalizedPhone;
+  }
+
+  /** Normalize, retrying as US when the given country code yields nothing. */
+  private normalize(phone: PhoneImport): Phone | undefined {
+    return (
+      normalizePhone(phone) ||
+      normalizePhone({ phone_raw: phone.phone_raw, country_code: "US" }) ||
+      undefined
+    );
   }
 
   async saveRelatedEntity(

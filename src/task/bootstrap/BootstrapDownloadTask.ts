@@ -288,10 +288,18 @@ export class BootstrapDownloadTask extends Task<
     const marker = force ? undefined : readBulkArchiveMarker(rawDataFolder, input.targetFolder);
     const usableMarker = markerCoversTarget(marker, input.url, targetDir) ? marker : undefined;
 
+    // Send BOTH validators when we have them. www.sec.gov serves an ETag but
+    // ignores `If-None-Match` (answers 200 with the full body); it honours
+    // `If-Modified-Since` and answers 304. Preferring the ETag — the usual
+    // choice, since RFC 9110 has a server evaluate If-None-Match and ignore
+    // If-Modified-Since when both are present — silently disables the skip
+    // against the one origin this exists for. Sending both costs nothing and
+    // works whichever validator a host actually implements.
     const headers: Record<string, string> = { "User-Agent": SecUserAgent };
     if (usableMarker?.etag !== undefined) {
       headers["If-None-Match"] = usableMarker.etag;
-    } else if (usableMarker?.lastModified !== undefined) {
+    }
+    if (usableMarker?.lastModified !== undefined) {
       headers["If-Modified-Since"] = usableMarker.lastModified;
     }
 

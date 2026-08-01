@@ -32,31 +32,40 @@ export const FilingSchema = Type.Object({
   acceptance_date: Type.String({
     description: "Date and time the filing was accepted by the SEC (ISO 8601 format)",
   }),
+  // Widths below are sized against real EDGAR data, not the nominal shape of a
+  // single value: `file_number`, `film_number` and `act` arrive comma-joined for
+  // multi-registrant filings, so their length scales with the number of
+  // co-registrants and has no natural bound. A 20k-CIK scan of the bulk
+  // submissions found max 16 / 107 / 89 / 80 / 5 for form / file_number /
+  // film_number / primary_doc_description / act — the previous 8 / 10 / 10 / 45
+  // / 2 rejected ~4%, ~10%, ~0.6%, ~6% and ~0.6% of CIKs respectively, and a
+  // rejected address or column overflow fails that CIK's entire submission.
+  // Postgres varchar(n) costs nothing over a shorter n, so these are generous.
   form: TypeNullable(
     Type.String({
-      maxLength: 8,
-      description: "Form type (e.g., 10-K, 10-Q, 8-K)",
+      maxLength: 32,
+      description: "Form type (e.g., 10-K, 10-Q, 8-K, SEC STAFF ACTION)",
     })
   ),
   file_number: TypeNullable(
     Type.String({
-      maxLength: 10,
-      description: "File number assigned by the SEC",
+      maxLength: 255,
+      description: "File number(s) assigned by the SEC, comma-joined when several apply",
     })
   ),
   film_number: TypeNullable(
     Type.String({
-      maxLength: 10,
-      description: "Film number assigned by the SEC",
+      maxLength: 255,
+      description: "Film number(s) assigned by the SEC, comma-joined when several apply",
     })
   ),
   primary_doc: Type.String({
-    maxLength: 45,
+    maxLength: 128,
     description: "Primary document filename",
   }),
   primary_doc_description: TypeNullable(
     Type.String({
-      maxLength: 45,
+      maxLength: 255,
       description: "Description of the primary document",
     })
   ),
@@ -83,8 +92,8 @@ export const FilingSchema = Type.Object({
   ),
   act: TypeNullable(
     Type.String({
-      maxLength: 2,
-      description: "Act under which the filing was made",
+      maxLength: 16,
+      description: 'Act(s) under which the filing was made, comma-joined when several apply (e.g. "40,33")',
     })
   ),
 });

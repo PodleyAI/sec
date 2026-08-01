@@ -51,7 +51,9 @@ export const CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN =
  */
 export const CanonicalPersonPhoneSchema = Type.Object({
   canonical_person_id: Type.String({ maxLength: 36 }),
-  international_number: Type.String({ maxLength: 20 }),
+  // Must track PhoneSchema.international_number (64) — this column holds the
+  // same value, and a normalized number carries its extension inline.
+  international_number: Type.String({ maxLength: 64 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),
@@ -101,7 +103,9 @@ export const CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN =
 /** Canonical-company ↔ phone junction. */
 export const CanonicalCompanyPhoneSchema = Type.Object({
   canonical_company_id: Type.String({ maxLength: 36 }),
-  international_number: Type.String({ maxLength: 20 }),
+  // Must track PhoneSchema.international_number (64) — this column holds the
+  // same value, and a normalized number carries its extension inline.
+  international_number: Type.String({ maxLength: 64 }),
   resolver_version: Type.String({ maxLength: 32 }),
   observation_count: Type.Integer({ minimum: 1 }),
   first_seen_at: Type.String(),
