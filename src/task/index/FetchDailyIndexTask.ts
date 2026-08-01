@@ -30,6 +30,7 @@ export type FetchDailyIndexTaskOutput = {
 class SecFetchDailyIndexTask extends SecCachedFetchTask<FetchDailyIndexTaskInput> {
   static readonly type = "SecFetchDailyIndexTask";
   static readonly category = "Hidden";
+  static readonly title = "Download daily index file";
   static readonly immutable = false;
 
   response_type: response_type = "text";
@@ -60,6 +61,7 @@ class SecFetchDailyIndexTask extends SecCachedFetchTask<FetchDailyIndexTaskInput
 export class FetchDailyIndexTask extends Task<FetchDailyIndexTaskInput, FetchDailyIndexTaskOutput> {
   static readonly type = "FetchDailyIndexTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch daily index";
   static readonly cacheable = true;
 
   public static inputSchema() {

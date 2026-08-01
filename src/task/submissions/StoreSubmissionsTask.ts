@@ -35,6 +35,7 @@ export class StoreSubmissionsTask extends Task<
 > {
   static readonly type = "StoreSubmissionsTask";
   static readonly category = "SEC";
+  static readonly title = "Store company submissions";
   static readonly cacheable = false;
 
   static inputSchema() {
@@ -58,7 +59,7 @@ export class StoreSubmissionsTask extends Task<
     if (!submission) throw new TaskError("No submission data");
     const cik = submission.cik;
 
-    const workflow = context.own(new Workflow());
+    const workflow = context.own(new Workflow(), { title: `Store submission ${cik}` });
     workflow.pipe(
       parallel([
         new StoreSubmissionSicTask({ defaults: input }),

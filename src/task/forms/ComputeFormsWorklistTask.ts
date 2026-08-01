@@ -119,6 +119,7 @@ export class ComputeFormsWorklistTask extends Task<
 > {
   static readonly type = "ComputeFormsWorklistTask";
   static readonly category = "SEC";
+  static readonly title = "Compute forms worklist";
   static readonly cacheable = false;
 
   public static inputSchema() {
@@ -294,7 +295,12 @@ export class ComputeFormsWorklistTask extends Task<
         );
       }
 
-      const { rows, full } = await this.readPage(filingRepo, form, this.lastCik, this.lastAccession);
+      const { rows, full } = await this.readPage(
+        filingRepo,
+        form,
+        this.lastCik,
+        this.lastAccession
+      );
       if (rows.length === 0 && !full) {
         // Form drained — advance and reset its per-form resume state.
         this.formPos++;
@@ -373,17 +379,14 @@ export class ComputeFormsWorklistTask extends Task<
     afterAccession: string | undefined
   ): Promise<{ rows: Filing[]; full: boolean }> {
     const criteria =
-      fromCik === undefined
-        ? { form }
-        : { form, cik: { value: fromCik, operator: ">=" as const } };
-    const page =
-      ((await filingRepo.query(criteria as never, {
-        orderBy: [
-          { column: "cik", direction: "ASC" },
-          { column: "accession_number", direction: "ASC" },
-        ],
-        limit: FILING_PAGE_SIZE,
-      })) ?? []) as Filing[];
+      fromCik === undefined ? { form } : { form, cik: { value: fromCik, operator: ">=" as const } };
+    const page = ((await filingRepo.query(criteria as never, {
+      orderBy: [
+        { column: "cik", direction: "ASC" },
+        { column: "accession_number", direction: "ASC" },
+      ],
+      limit: FILING_PAGE_SIZE,
+    })) ?? []) as Filing[];
 
     // `full` reports whether the DATABASE returned a full page, which is what
     // says more rows may exist. It must not be derived from the returned row

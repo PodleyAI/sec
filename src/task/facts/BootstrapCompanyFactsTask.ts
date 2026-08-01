@@ -34,6 +34,7 @@ export class BootstrapCompanyFactsTask extends Task<
 > {
   static readonly type = "BootstrapCompanyFactsTask";
   static readonly category = "SEC";
+  static readonly title = "Ingest bulk company facts";
   static readonly cacheable = false;
 
   public static inputSchema() {
@@ -102,7 +103,9 @@ export class BootstrapCompanyFactsTask extends Task<
     }
 
     if (ciksToProcess.length) {
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `Ingest company facts for ${ciksToProcess.length} CIKs`,
+      });
       const loop = wf.map({ concurrencyLimit: 2, maxIterations: ciksToProcess.length });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();

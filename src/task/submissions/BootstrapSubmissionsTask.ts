@@ -33,6 +33,7 @@ export class BootstrapSubmissionsTask extends Task<
 > {
   static readonly type = "BootstrapSubmissionsTask";
   static readonly category = "SEC";
+  static readonly title = "Ingest bulk submissions";
   static readonly cacheable = false;
 
   public static inputSchema() {
@@ -105,7 +106,9 @@ export class BootstrapSubmissionsTask extends Task<
     }
 
     if (ciksToProcess.length) {
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `Ingest submissions for ${ciksToProcess.length} CIKs`,
+      });
       const loop = wf.map({ concurrencyLimit: 2, maxIterations: ciksToProcess.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();

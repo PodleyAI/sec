@@ -79,6 +79,7 @@ export class BootstrapAccessionDocsTask extends Task<
 > {
   static readonly type = "BootstrapAccessionDocsTask";
   static readonly category = "SEC";
+  static readonly title = "Download accession documents";
   static readonly cacheable = false;
 
   public static inputSchema() {

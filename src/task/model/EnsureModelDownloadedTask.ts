@@ -81,6 +81,7 @@ export class EnsureModelDownloadedTask extends Task<
 > {
   static readonly type = "EnsureModelDownloadedTask";
   static readonly category = "SEC";
+  static readonly title = "Ensure model downloaded";
   static readonly cacheable = false;
 
   static inputSchema() {
@@ -126,7 +127,9 @@ export class EnsureModelDownloadedTask extends Task<
     const downloadInput = { model: record };
     // Own the download on this task's execute context so it is registered in the
     // graph and inherits the registry + abort signal.
-    const download = context.own(new ModelDownloadTask({ defaults: downloadInput } as any));
+    const download = context.own(
+      new ModelDownloadTask({ title: `Download ${modelId}`, defaults: downloadInput } as any)
+    );
     // Drive the download through its `run()` lifecycle. `run` routes the download
     // run-fn's `phase` events to `config.updateProgress`, which we forward to the
     // caller's `context.updateProgress` so a multi-GB fetch renders a live
@@ -153,7 +156,9 @@ export async function ensureModelDownloaded(
 ): Promise<void> {
   if (!model || ensured.has(model)) return;
   const input = { model };
-  const task = context.own(new EnsureModelDownloadedTask({ defaults: input }));
+  const task = context.own(
+    new EnsureModelDownloadedTask({ title: `Ensure ${model} downloaded`, defaults: input })
+  );
   await task.run(input, {
     updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
     signal: context.signal,

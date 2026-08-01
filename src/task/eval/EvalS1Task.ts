@@ -193,6 +193,7 @@ export type EvalS1TaskOutput = Static<ReturnType<typeof OutputSchema>>;
 export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
   static readonly type = "EvalS1Task";
   static readonly category = "SEC";
+  static readonly title = "Evaluate S-1 extraction";
   static readonly cacheable = false;
 
   static inputSchema() {

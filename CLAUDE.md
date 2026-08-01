@@ -799,6 +799,15 @@ time** and a queryable **current state**:
   `offering/`, `fixtures/`, `init/`, `eval/`, `model/`. `taskPorts.ts` exports `TaskPorts<T>`, a
   type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
   constraint on `Task<Input, Output>`.
+
+  **Every task class declares `static readonly title`** — the CLI progress UI labels each
+  row with the task's `title`, falling back to the class type name. `taskTitles.test.ts`
+  fails the build on a task without one. When a graph runs several instances of the same
+  class, or the instance's parameters are what distinguish it (which CIK, which archive,
+  which section), pass a per-instance `title` in the task config — the two bulk downloads
+  in `sec bootstrap` are `Download submissions` / `Download facts`, not two identical
+  `BootstrapDownloadTask` rows. An owned graph or workflow is wrapped in a task the caller
+  never sees, so name it through the second argument: `context.own(new Workflow(), { title })`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
 - **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
   - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.
