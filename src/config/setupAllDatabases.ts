@@ -78,8 +78,6 @@ import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Underwri
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
-import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
-import { widenNarrowColumns } from "./widenNarrowColumnsMigration";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -93,6 +91,8 @@ import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Pers
 import { CURRENT_CANONICAL_VIEW_DDL } from "../storage/canonical/views";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
+import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
@@ -173,6 +173,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
@@ -183,6 +184,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_PERSON_PHONE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN).setupDatabase();
@@ -206,21 +208,12 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
-  // Drop the legacy form_8k_events shape (no event_id / extractor_id /
-  // extractor_version) before creating the current one; the natural-key PK
-  // of the legacy table cannot be ALTERed away on either backend.
-  await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
   // Downstream packages register their repo tokens via registerDatabaseExtension()
   // so `db setup` creates their tables after the built-in SEC ones.
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
-  // Widen any columns that a pre-widening Postgres database still has at the old
-  // narrow varchar length (fresh DDL above already uses the new widths, so this
-  // is a no-op on a clean DB). Keeps existing Postgres deployments from
-  // re-hitting the original company-facts / XBRL overflow.
-  await widenNarrowColumns();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.

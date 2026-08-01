@@ -32,6 +32,7 @@ export type FetchCompanyFactsTaskOutput = Static<ReturnType<typeof FetchCompanyF
 class SecFetchCompanyFactsTask extends SecCachedFetchTask<FetchCompanyFactsTaskInput> {
   static readonly type = "SecFetchCompanyFactsTask";
   static readonly category = "Hidden";
+  static readonly title = "Download companyfacts JSON";
   static readonly immutable = false;
 
   public static inputSchema() {
@@ -58,6 +59,7 @@ export class FetchCompanyFactsTask extends Task<
 > {
   static readonly type = "FetchCompanyFactsTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch and parse company facts";
   static readonly cacheable = true;
 
   public static inputSchema() {

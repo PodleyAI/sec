@@ -24,6 +24,7 @@ export interface SecFetchAccessionDocTaskOutput extends TaskInput {
 export class SecFetchAccessionDocTask extends SecCachedFetchTask<SecFetchAccessionDocTaskInput> {
   static readonly type = "SecFetchAccessionDocTask";
   static readonly category = "Hidden";
+  static readonly title = "Download filing document";
   static readonly immutable = true;
 
   public static inputSchema() {

@@ -117,6 +117,28 @@ describe("AddressRepo", () => {
       expect(allJunctions || []).toEqual([]);
     });
 
+    it("returns undefined from saveAddressIfUsable instead of throwing", async () => {
+      // EDGAR ships address objects with every field blank. Callers for whom the
+      // address is one detail among many must be able to skip it without losing
+      // the enclosing record — see StoreSubmissionContactInfoTask.
+      await expect(addressRepo.saveAddressIfUsable(badAddressImport)).resolves.toBeUndefined();
+
+      const allAddresses = await addressStorage.getAll();
+      const allJunctions = await addressJunctionStorage.getAll();
+      expect(allAddresses || []).toEqual([]);
+      expect(allJunctions || []).toEqual([]);
+    });
+
+    it("saveAddressIfUsable still persists a usable address", async () => {
+      const saved = await addressRepo.saveAddressIfUsable(mockAddressImport);
+      expect(saved).toEqual(mockAddress);
+
+      const storedAddress = await addressStorage.get({
+        address_hash_id: mockAddress.address_hash_id,
+      });
+      expect(storedAddress).toEqual(mockAddress);
+    });
+
     it("should throw error when cleanAddress returns undefined", async () => {
       await expect(addressRepo.saveAddress(badAddressImport)).rejects.toThrow(
         "Unable to clean and normalize the provided address"

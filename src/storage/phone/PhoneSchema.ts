@@ -38,8 +38,13 @@ export const PhoneSchema = Type.Object({
     description: "ISO 3166-1 alpha-2 country code",
   }),
   international_number: Type.String({
-    maxLength: 20,
-    description: "International phone number with country code",
+    // `parsePhoneNumber(...).number.international` keeps the extension inline,
+    // so an EDGAR value like "5164821200 EXT. 108" normalizes to
+    // "+1 516 482 1200 ext. 108" — 24 chars. The old 20 fit a bare
+    // international number but not an extension, and this column is the
+    // primary key, so the overflow failed the whole filer's submission.
+    maxLength: 64,
+    description: "International phone number with country code, extension included when present",
   }),
   type: Type.Optional(PHONE_TYPE),
   raw_phone: Type.String({ description: "Original phone number as entered" }),

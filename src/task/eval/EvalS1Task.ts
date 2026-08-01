@@ -9,6 +9,7 @@ import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository, IExecuteContext, Task } from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
+import { sweepStepContext } from "../../eval/evalProgressContext";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { getGoldenLabels } from "../../eval/goldenS1Labels";
 import { estimateCost, type CostEstimate } from "../../eval/modelPricing";
@@ -69,13 +70,14 @@ const REFERENCE_MAX_ATTEMPTS = 3;
 async function runSection(
   modelId: string,
   model: ModelConfig,
-  section: RealSection
+  section: RealSection,
+  context: IExecuteContext | undefined
 ): Promise<{ rows: unknown[]; result: Omit<OracleRunResult, "score"> }> {
   const extractor = EVAL_EXTRACTORS[section.extractor];
   const promptChars = section.text.length + extractor.instructionOverheadChars;
   const t0 = Bun.nanoseconds();
   try {
-    const rows = await extractor.run(section.text, model);
+    const rows = await extractor.run(section.text, model, context);
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
     return {
       rows,
@@ -191,6 +193,7 @@ export type EvalS1TaskOutput = Static<ReturnType<typeof OutputSchema>>;
 export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
   static readonly type = "EvalS1Task";
   static readonly category = "SEC";
+  static readonly title = "Evaluate S-1 extraction";
   static readonly cacheable = false;
 
   static inputSchema() {
@@ -215,7 +218,9 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     const extractorNames = input.extractors.length ? input.extractors : ["management"];
     const useGolden = input.reference === GOLDEN_REFERENCE;
     // Golden mode runs no reference model — the truth is committed.
-    await registerModelIds(useGolden ? [...input.candidates] : [input.reference, ...input.candidates]);
+    await registerModelIds(
+      useGolden ? [...input.candidates] : [input.reference, ...input.candidates]
+    );
     const repo = getGlobalModelRepository();
     const loaded = loadRealS1Sections(extractorNames, input.dir);
     const skipped = [...loaded.skipped];
@@ -290,9 +295,14 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
         done += 1;
         emitProgress(done, total, `${tag} golden: ${golden.length} rows`);
       } else if (refModel) {
-        let outcome = await runSection(input.reference, refModel, section);
+        const refStep = sweepStepContext(
+          context,
+          Math.floor((done / (total || 1)) * 100),
+          `${tag} ref ${input.reference}`
+        );
+        let outcome = await runSection(input.reference, refModel, section, refStep);
         for (let attempt = 1; !outcome.result.ok && attempt < REFERENCE_MAX_ATTEMPTS; attempt++) {
-          outcome = await runSection(input.reference, refModel, section);
+          outcome = await runSection(input.reference, refModel, section, refStep);
         }
         refRows = outcome.rows;
         refOk = outcome.result.ok;
@@ -323,7 +333,16 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
           done += 1;
           continue;
         }
-        const { rows, result } = await runSection(candidateId, candModel, section);
+        const { rows, result } = await runSection(
+          candidateId,
+          candModel,
+          section,
+          sweepStepContext(
+            context,
+            Math.floor((done / (total || 1)) * 100),
+            `${tag} ${candidateId}`
+          )
+        );
         // Only score when the reference produced a usable truth for this section.
         const score = refOk
           ? scoreExtraction(rows, expected, {
@@ -348,8 +367,8 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
       const provider =
         modelId === GOLDEN_REFERENCE
           ? "golden"
-          : ((await repo.findByName(modelId)) as { provider?: string } | undefined)?.provider ??
-            "unknown";
+          : (((await repo.findByName(modelId)) as { provider?: string } | undefined)?.provider ??
+            "unknown");
       summaries.push(summarize(modelId, provider, role, rows));
     }
     // Reference first, then candidates ranked by agreement desc.

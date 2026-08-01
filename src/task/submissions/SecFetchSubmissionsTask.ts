@@ -41,6 +41,7 @@ export class SecFetchSubmissionsTask extends SecCachedFetchTask<
 > {
   static readonly type = "SecFetchSubmissionsTask";
   static readonly category = "Hidden";
+  static readonly title = "Download submissions JSON";
   static readonly immutable = false;
 
   public static inputSchema() {

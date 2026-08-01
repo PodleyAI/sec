@@ -22,6 +22,7 @@ import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
@@ -33,6 +34,7 @@ import { CanonicalPersonAddressRepo } from "../../../storage/canonical/Canonical
 import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -41,6 +43,7 @@ interface FormCStorageContext {
   readonly accession_number: string;
   readonly extractor_id: "C";
   readonly extractor_version: string;
+  readonly filing_date: string;
   readonly observer: EntityObserver;
 }
 
@@ -206,6 +209,8 @@ async function processSignatures(
         last_name: sigName,
         titles: titles,
         relationship: "form-c:signature",
+        filing_date: ctx.filing_date,
+        role_scope: "form-c:signature",
         source_context: JSON.stringify({ relation: "form-c:signature", titles }),
       });
     }
@@ -240,6 +245,8 @@ async function processSignatures(
           last_name: sigName,
           titles: titles,
           relationship: "form-c:signature",
+          filing_date: ctx.filing_date,
+          role_scope: "form-c:signature",
           source_context: JSON.stringify({ relation: "form-c:signature", titles }),
         });
       }
@@ -398,6 +405,7 @@ export async function processFormC({
 
   const observer = new EntityObserver({
     personObservationRepo,
+    personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo,
     personIdentityLinkRepo,
     companyIdentityLinkRepo,
@@ -407,6 +415,7 @@ export async function processFormC({
     canonicalPersonPhoneRepo,
     canonicalCompanyAddressRepo,
     canonicalCompanyPhoneRepo,
+    personRoleRepo: new PersonRoleRepo(),
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });
@@ -415,6 +424,7 @@ export async function processFormC({
     accession_number,
     extractor_id: "C",
     extractor_version,
+    filing_date,
     observer,
   };
 

@@ -31,7 +31,7 @@ export interface ModelPrice {
 const OPENAI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = [
   ["gpt-5.6-sol", { inputPerM: 5, outputPerM: 30 }],
   ["gpt-5.6-terra", { inputPerM: 2.5, outputPerM: 15 }],
-  ["gpt-5.6-luna", { inputPerM: 1, outputPerM: 6 }],
+  ["gpt-5.6-luna", { inputPerM: 0.2, outputPerM: 1.2 }],
   ["gpt-5.5", { inputPerM: 5, outputPerM: 30 }],
   ["gpt-5.4-mini", { inputPerM: 0.75, outputPerM: 4.5 }],
   ["gpt-5.4-nano", { inputPerM: 0.2, outputPerM: 1.25 }],
@@ -54,9 +54,25 @@ const XAI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = 
 ];
 
 /**
- * Public list pricing (standard, non-intro): Anthropic by family, OpenAI by
- * id-substring table, and $0 for local models. Returns null for an unknown id so
- * the harness reports cost as unavailable rather than guessing.
+ * DeepSeek list pricing (USD per 1M tokens), from
+ * https://api-docs.deepseek.com/quick_start/pricing.
+ *
+ * DeepSeek quotes two input prices — cache hit and cache miss. We use the
+ * **cache-miss** figure: each eval section is a distinct prompt, so a fresh
+ * extraction never hits the context cache, and the hit price (~50x cheaper)
+ * would understate real cost by two orders of magnitude. DeepSeek has also
+ * announced 2x peak-hour pricing (09:00–12:00 and 14:00–18:00 Beijing time),
+ * not yet in effect; this table is the off-peak/base rate.
+ */
+const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = [
+  ["deepseek-v4-flash", { inputPerM: 0.14, outputPerM: 0.28 }],
+  ["deepseek-v4-pro", { inputPerM: 0.435, outputPerM: 0.87 }],
+];
+
+/**
+ * Public list pricing (standard, non-intro): Anthropic by family, the cloud
+ * vendors by id-substring table, and $0 for local models. Returns null for an
+ * unknown id so the harness reports cost as unavailable rather than guessing.
  */
 function priceFor(modelId: string): ModelPrice | null {
   if (modelId.includes("/")) return { inputPerM: 0, outputPerM: 0 }; // local (HFT/ONNX)
@@ -65,7 +81,7 @@ function priceFor(modelId: string): ModelPrice | null {
   if (/sonnet/i.test(modelId)) return { inputPerM: 3, outputPerM: 15 };
   if (/haiku/i.test(modelId)) return { inputPerM: 1, outputPerM: 5 };
   const id = modelId.toLowerCase();
-  for (const table of [OPENAI_PRICING, GEMINI_PRICING, XAI_PRICING]) {
+  for (const table of [OPENAI_PRICING, GEMINI_PRICING, XAI_PRICING, DEEPSEEK_PRICING]) {
     const hit = table.find(([match]) => id.includes(match));
     if (hit) return hit[1];
   }
@@ -74,9 +90,14 @@ function priceFor(modelId: string): ModelPrice | null {
 
 const CHARS_PER_TOKEN = 4;
 
+/** Estimated token count for a character count (~4 chars/token). */
+function tokensForChars(chars: number): number {
+  return Math.ceil(chars / CHARS_PER_TOKEN);
+}
+
 /** Estimated token count for a chunk of text (~4 chars/token). */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
+  return tokensForChars(text.length);
 }
 
 export interface CostEstimate {
@@ -95,8 +116,8 @@ export function estimateCost(
   promptChars: number,
   outputChars: number
 ): CostEstimate {
-  const inputTokens = estimateTokens("x".repeat(promptChars));
-  const outputTokens = estimateTokens("x".repeat(outputChars));
+  const inputTokens = tokensForChars(promptChars);
+  const outputTokens = tokensForChars(outputChars);
   const price = priceFor(modelId);
   const usd =
     price === null

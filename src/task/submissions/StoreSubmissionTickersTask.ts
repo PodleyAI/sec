@@ -20,6 +20,7 @@ export class StoreSubmissionTickersTask extends Task<
 > {
   static readonly type = "StoreSubmissionTickersTask";
   static readonly category = "SEC";
+  static readonly title = "Store submission tickers";
   static readonly cacheable = false;
 
   static inputSchema() {

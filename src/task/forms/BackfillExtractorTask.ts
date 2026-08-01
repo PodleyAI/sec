@@ -4,13 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Static, Type } from "typebox";
-import {
-  globalServiceRegistry,
-  IExecuteContext,
-  Task,
-  TaskAbortedError,
-  Workflow,
-} from "workglow";
+import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError, Workflow } from "workglow";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
@@ -138,6 +132,7 @@ export class BackfillExtractorTask extends Task<
 > {
   static readonly type = "BackfillExtractorTask";
   static readonly category = "SEC";
+  static readonly title = "Backfill extractor";
   static readonly cacheable = false;
 
   static inputSchema() {
@@ -158,7 +153,7 @@ export class BackfillExtractorTask extends Task<
       dryRun: input.dryRun === true,
       signal: context.signal,
       processFiling: async (accessionNumber) => {
-        const wf = context.own(new Workflow());
+        const wf = context.own(new Workflow(), { title: `Backfill ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
         await wf.run({ accessionNumber });
       },

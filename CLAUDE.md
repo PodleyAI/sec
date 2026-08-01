@@ -121,17 +121,21 @@ model ids (the default plus any set overrides, plus the local HFT default
 (`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape — a
 `gguf:` id → a `LOCAL_LLAMACPP` record, a HuggingFace `org/name` id → an
 `HF_TRANSFORMERS_ONNX` record, a `gpt-*`/`o*` id → an `OPENAI` record, a
-`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record,
-otherwise an `ANTHROPIC` record — and each explicitly declares the `json-mode`
-capability `StructuredGenerationTask` gates on (the installed provider's
+`gemini-*` id → a `GOOGLE_GEMINI` record, a `grok-*` id → an `XAI` record, a
+`deepseek-*` id → a `DEEPSEEK` record, otherwise an `ANTHROPIC` record — and each
+explicitly declares the `json-mode` capability
+`StructuredGenerationTask` gates on (the installed provider's
 capability inference doesn't recognize newer ids like `claude-sonnet-5`,
-`gpt-5.5`, `gemini-3.1-pro-preview`, or `grok-4.5`). So
+`gpt-5.5`, `gemini-3.1-pro-preview`, `grok-4.5`, or `deepseek-v4-pro`). The
+`deepseek-*` prefix is matched only after the HuggingFace `org/name` check, so a
+`deepseek-ai/…` repo id still routes to the local ONNX provider. So
 `getGlobalModelRepository().findByName(id)` resolves any of them. Startup also
 registers the AI **providers** via `registerSecProviders`
-(`src/config/registerProviders.ts`): four inline cloud providers — Anthropic
+(`src/config/registerProviders.ts`): five inline cloud providers — Anthropic
 (`ANTHROPIC`, `ANTHROPIC_API_KEY`), OpenAI (`OPENAI`, `OPENAI_API_KEY`), Google
-Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), and xAI Grok (`XAI`, `XAI_API_KEY`)
-— plus the worker-backed local providers HuggingFace Transformers ONNX
+Gemini (`GOOGLE_GEMINI`, `GEMINI_API_KEY`), xAI Grok (`XAI`, `XAI_API_KEY`), and
+DeepSeek (`DEEPSEEK`, `DEEPSEEK_API_KEY`) — plus the worker-backed local providers
+HuggingFace Transformers ONNX
 (`HF_TRANSFORMERS_ONNX`, `hftWorker.ts`) and node-llama-cpp GGUF
 (`LOCAL_LLAMACPP`, `llamaCppWorker.ts`). Each provider registers defensively (a
 load failure or missing key warns and is skipped). Absent a working provider /
@@ -219,15 +223,37 @@ sec eval extract                              # default: haiku vs sonnet
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 
-# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI. Each id
-# routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini, grok-*→xAI);
-# needs the matching *_API_KEY per provider used. An id a provider doesn't serve
+# Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI vs DeepSeek.
+# Each id routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini,
+# grok-*→xAI, deepseek-*→DeepSeek); needs the matching *_API_KEY per provider
+# used. An id a provider doesn't serve
 # is recorded as a failed run, not a crash — verify ids against each provider's
 # models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
-# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com).
+# api.x.ai, .../v1beta/models on generativelanguage.googleapis.com,
+# /models on api.deepseek.com).
 sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
-gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5"
+gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5,\
+deepseek-v4-flash,deepseek-v4-pro"
 ```
+
+DeepSeek is the cheapest cloud tier in the table by a wide margin — at list price
+`deepseek-v4-flash` is $0.14/1M input vs `claude-haiku-4-5`'s $1.00, which works out
+to roughly **8x cheaper** on an input-heavy extraction section. That is a reason to
+_rank_ it, not to adopt it: score it against golden truth
+(`sec eval s1 --reference golden`) before trusting it for production extraction.
+Its cost line uses DeepSeek's **cache-miss** input price, since each section is a
+distinct prompt that never hits the context cache; DeepSeek has also announced
+(not yet enabled) 2x peak-hour pricing, which the table does not model.
+
+> ⚠️ **DeepSeek's `json-mode` is not schema-enforced.** The API supports only
+> `response_format: {type: "json_object"}` — it rejects the OpenAI `json_schema`
+> form — so the provider passes the schema in the _prompt_ and the model is free
+> to ignore it. That is weaker than every other extraction path here: Anthropic /
+> OpenAI / Gemini enforce the schema server-side, and llama.cpp constrains
+> generation with a grammar. `StructuredGenerationTask` still re-validates the
+> parsed object, so a bad shape fails loudly (and dead-letters) rather than
+> corrupting data — but expect a higher schema-failure rate than the cost table
+> alone suggests, and weigh that against the savings when ranking it.
 
 A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
 `onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
@@ -773,6 +799,15 @@ time** and a queryable **current state**:
   `offering/`, `fixtures/`, `init/`, `eval/`, `model/`. `taskPorts.ts` exports `TaskPorts<T>`, a
   type-level bridge that lets an `interface`-typed result satisfy the `DataPorts`
   constraint on `Task<Input, Output>`.
+
+  **Every task class declares `static readonly title`** — the CLI progress UI labels each
+  row with the task's `title`, falling back to the class type name. `taskTitles.test.ts`
+  fails the build on a task without one. When a graph runs several instances of the same
+  class, or the instance's parameters are what distinguish it (which CIK, which archive,
+  which section), pass a per-instance `title` in the task config — the two bulk downloads
+  in `sec bootstrap` are `Download submissions` / `Download facts`, not two identical
+  `BootstrapDownloadTask` rows. An owned graph or workflow is wrapped in a task the caller
+  never sees, so name it through the second argument: `context.own(new Workflow(), { title })`.
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
 - **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
   - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.
@@ -796,6 +831,42 @@ PR4 introduced an observation/canonical/resolver tier on top of raw form storage
 4. **Junction** (`src/storage/canonical/Canonical*AddressRepo`, `Canonical*PhoneRepo`) — co-occurrence tables associating canonical entities with addresses/phones at a given resolver version.
 
 **`EntityObserver`** (`src/resolver/EntityObserver.ts`) — form storage modules call `observePerson()` / `observeCompany()` on this shared helper instead of writing person/company rows directly. It normalizes the claim, upserts the observation, calls the resolver, writes the identity link, and records address/phone junctions in one step.
+
+**Person titles & dated roles.** Titles are never stored as arrays. The raw tier
+stores one row per single title in `person_observation_titles`
+(PK `(observation_id, title)` — the title text is the row's identity; source
+order is not stored — diffed per title on re-observation and reaped with the
+observation); the canonical tier stores one row per **tenure** in
+`person_role` (`PersonRoleRepo`): a canonical person holding one canonical title
+(via `normalizeManagementTitles` — compound titles split into separate rows) at one
+company (`company_cik`), with a required `start_date` (earliest asserting filing
+date), an optional `end_date` (null = current), and `last_seen_date` as the
+order-safety guard. A claim participates when it carries `filing_date`,
+`source_filing_issuer_cik`, and a `role_scope` population tag. Tenures are scoped
+by `(extractor_id, role_scope)`, and only forms that enumerate a COMPLETE
+population call `observer.closeUnassertedPersonRoles(...)` after their person loop
+— currently Form D related persons (`form-d:related-person`) and the S-1
+management section (`s1:management`); everything else (signatures, sales-comp
+recipients, Section 16 owners, CFPORTAL contacts/owners) is assert-only, because
+absence there means nothing. Closure is guarded by `filing_date >
+last_seen_date` (re-checked under a per-tenure lock), so out-of-order replays
+never close a role a newer filing asserts; a re-extraction that now finds a
+person re-opens the tenure its own accession closed (absorbing any interposed
+return tenure), and one that no longer finds a person it alone supported
+deletes the phantom row; an earlier out-of-order roster tightens a closed
+tenure's end back to the first non-asserting filing; a departure-and-return
+yields two tenure rows. Roster closure is completeness-gated: S-1 management
+only when no extracted row was dropped by filtering, Form D only when at least
+one person was actually observed. Placeholder
+titles ("Signer", "Authorized Representative", "Sales Compensation Recipient",
+"Connection") stay on the observation title rows but never mint tenures. Closure
+is alias-aware: a roster asserting a merged person under the alias target does
+not close the retired id's open tenure. `person_role`
+rows are resolver-versioned like the junctions: purged by `dropPrevious` (person),
+rebuilt by re-extraction replays (batch `resolve` rebuilds identity links only,
+same as junctions). Query with `sec query person-roles <cik> [--current]`; the
+`sec query persons` titles column joins from the child table. Design spec:
+`prd/docs/superpowers/specs/2026-07-28-sec-dated-person-roles-design.md`.
 
 **`PersonResolver` / `CompanyResolver`** (`src/resolver/`) — resolution algorithms. For persons: CIK fast-path, then normalized-name + issuer-CIK fallback. For companies: CIK → CRD → normalized-name cascade. Both create a fresh canonical row on first sight and delegate alias resolution to the alias repo.
 

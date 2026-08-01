@@ -34,6 +34,7 @@ export class UpdateAllCompanyFactsTask extends Task<
 > {
   static readonly type = "UpdateAllCompanyFactsTask";
   static readonly category = "SEC";
+  static readonly title = "Update company facts for all CIKs";
   static readonly cacheable = false;
 
   public static inputSchema() {
@@ -101,9 +102,15 @@ export class UpdateAllCompanyFactsTask extends Task<
       return { success: true };
     }
 
-    const runLane = async (items: FactsWorkItem[], concurrencyLimit: number): Promise<void> => {
+    const runLane = async (
+      lane: string,
+      items: FactsWorkItem[],
+      concurrencyLimit: number
+    ): Promise<void> => {
       if (!items.length) return;
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `${lane} company facts (${items.length} CIKs)`,
+      });
       const loop = wf.map({ concurrencyLimit, maxIterations: items.length });
       loop.pipe(fetchAndStoreCompanyFacts);
       loop.endMap();
@@ -113,9 +120,9 @@ export class UpdateAllCompanyFactsTask extends Task<
       });
     };
 
-    await runLane(needsUpdating, 1);
-    await runLane(needsRetrying, 1);
-    await runLane(needsProcessing, 10);
+    await runLane("Update changed", needsUpdating, 1);
+    await runLane("Retry failed", needsRetrying, 1);
+    await runLane("Process new", needsProcessing, 10);
 
     return { success: true };
   }

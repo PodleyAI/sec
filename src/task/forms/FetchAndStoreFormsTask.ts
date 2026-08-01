@@ -53,6 +53,7 @@ export class FetchAndStoreFormsTask extends Task<
 > {
   static readonly type = "FetchAndStoreFormsTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch and store forms";
   static readonly cacheable = true;
 
   public static inputSchema() {
@@ -80,7 +81,9 @@ export class FetchAndStoreFormsTask extends Task<
     }
 
     if (filings.length > 0) {
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `Process ${filings.length} ${form} filings for CIK ${cik}`,
+      });
       const loop = wf.map({ concurrencyLimit: 5, maxIterations: filings.length });
       loop.pipe(new ProcessAccessionDocFormTask());
       loop.endMap();

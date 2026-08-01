@@ -46,6 +46,7 @@ export type FetchSubmissionsOutput = Static<ReturnType<typeof FetchSubmissionsTa
 export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchSubmissionsOutput> {
   static readonly type = "FetchSubmissionsTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch company submissions";
   static readonly cacheable = true;
 
   public static inputSchema() {
@@ -64,10 +65,11 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
     if (!cik) throw new TaskFailedError("CIK is required");
     const date = input.date ? secDate(input.date) : undefined;
 
-    const builder = context.own(new Workflow());
+    const builder = context.own(new Workflow(), { title: `Fetch submissions for CIK ${cik}` });
     builder.pipe(
       new SecFetchSubmissionsTask(input, {
         id: "fetch-company-submissions",
+        title: `Download CIK ${cik} submissions`,
       }),
       async function cleanupInput(input) {
         try {
@@ -81,7 +83,7 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
         }
       },
       async function combineFilings(input, config) {
-        const graph = config.own(new TaskGraph());
+        const graph = config.own(new TaskGraph(), { title: `Fetch paged filings for CIK ${cik}` });
         graph.addTask(async function passThroughOriginalFilings() {
           return { filings: input.filings };
         });
@@ -94,7 +96,7 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
                 date: date,
                 file: fileName,
               },
-              { id: `fetch-${fileName}` }
+              { id: `fetch-${fileName}`, title: `Download ${fileName}` }
             )
           );
           graph.addTask(
@@ -105,7 +107,7 @@ export class FetchSubmissionsTask extends Task<FetchSubmissionsTaskInput, FetchS
                 filings: filings,
               };
             },
-            { id: `parse-${fileName}` }
+            { id: `parse-${fileName}`, title: `Parse ${fileName}` }
           );
           graph.addDataflow(new Dataflow(`fetch-${fileName}`, "json", `parse-${fileName}`, "json"));
         }

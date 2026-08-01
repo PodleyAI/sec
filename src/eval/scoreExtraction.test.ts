@@ -139,6 +139,38 @@ describe("scoreExtraction", () => {
     expect(s.score).toBe(1);
   });
 
+  describe("numeric fields", () => {
+    it("accepts a fuller-precision candidate for a rounded reference ratio", () => {
+      // 1/3 written out in full is the same warrant coverage as a golden 0.3333.
+      const s = scoreExtraction(
+        [{ public_warrant_coverage: 0.3333333333 }],
+        [{ public_warrant_coverage: 0.3333 }]
+      );
+      expect(s.score).toBe(1);
+      expect(s.diff.mismatches).toEqual([]);
+    });
+
+    it("ignores trailing-zero and integer/decimal formatting differences", () => {
+      const s = scoreExtraction(
+        [{ trust_per_public_share: "10.20", founder_shares: "6,250,000" }],
+        [{ trust_per_public_share: 10.2, founder_shares: 6250000 }]
+      );
+      expect(s.score).toBe(1);
+    });
+
+    it("still flags a value that differs at the reference's own precision", () => {
+      const s = scoreExtraction(
+        [{ public_warrant_coverage: 0.3339, trust_per_public_share: 10 }],
+        [{ public_warrant_coverage: 0.3333, trust_per_public_share: 10.2 }]
+      );
+      expect(s.score).toBe(0);
+      expect(s.diff.mismatches.map((m) => m.field)).toEqual([
+        "public_warrant_coverage",
+        "trust_per_public_share",
+      ]);
+    });
+  });
+
   it("treats an empty candidate against non-empty expected as zero", () => {
     const s = scoreExtraction([], expected, { keyField: "full_name" });
     expect(s.score).toBe(0);

@@ -51,6 +51,24 @@ export class AddressRepo implements AddressRepoOptions {
     return normalizedAddress;
   }
 
+  /**
+   * Like {@link saveAddress}, but returns undefined instead of throwing when the
+   * address cannot be normalized into a usable one (no street, or no city).
+   *
+   * For callers where the address is one detail among many — a company's contact
+   * block, say — an unusable address must not take down the whole record. EDGAR
+   * routinely carries an address object with every field blank, so throwing
+   * there would discard the entire filer. Normalization runs once, so this is
+   * not `saveAddress` wrapped in a try/catch (which would also swallow genuine
+   * storage errors).
+   */
+  async saveAddressIfUsable(address: AddressImport) {
+    const normalizedAddress = normalizeAddress(address);
+    if (!normalizedAddress) return undefined;
+    await this.addressRepository.put(normalizedAddress);
+    return normalizedAddress;
+  }
+
   async saveRelatedEntity(address_hash_id: string, relation_name: string, cik: number) {
     await this.addressJunctionRepository.put({
       address_hash_id,

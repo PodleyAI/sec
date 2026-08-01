@@ -45,6 +45,35 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded("grok-4.5", ctx())).resolves.toBeUndefined();
   });
 
+  it("is a no-op for an id whose shape sec does not route", async () => {
+    // Such an id is legal — a record registered straight into the model
+    // repository by an operator, a harness, or a test fixture. It is simply not
+    // ours to download, so this must skip rather than reject: `secModelRecord`
+    // throws on an unrecognized shape, and letting that escape here would fail
+    // every extraction driven by a directly-registered model.
+    await expect(ensureModelDownloaded("fake-s1-model", ctx())).resolves.toBeUndefined();
+  });
+
+  it("owns no task node for a cloud id after the first call", async () => {
+    // A sweep calls this once per section. The first call settles "nothing to
+    // download"; every later one must short-circuit before `own()`, or the CLI
+    // task UI fills with one no-op EnsureModelDownloadedTask row per section.
+    const owned: unknown[] = [];
+    const counting = {
+      ...ctx(),
+      own: <T,>(v: T): T => {
+        owned.push(v);
+        return v;
+      },
+    } as unknown as IExecuteContext;
+
+    await ensureModelDownloaded("claude-haiku-4-5", counting);
+    expect(owned).toHaveLength(1);
+    await ensureModelDownloaded("claude-haiku-4-5", counting);
+    await ensureModelDownloaded("claude-haiku-4-5", counting);
+    expect(owned).toHaveLength(1);
+  });
+
   it("skips a bare-path GGUF id (no model_url): the file is assumed on disk", async () => {
     await expect(ensureModelDownloaded("gguf:/models/x.gguf", ctx())).resolves.toBeUndefined();
   });

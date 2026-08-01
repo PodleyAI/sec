@@ -58,6 +58,13 @@ export const CURRENT_CANONICAL_VIEW_DDL: ReadonlyArray<string> = [
       AND cv.component_id = 'person'
       AND cv.slot = 'current'
       AND cv.semver = j.resolver_version`,
+  `CREATE VIEW IF NOT EXISTS current_person_role AS
+   SELECT pr.* FROM person_role pr
+     JOIN component_versions cv
+       ON cv.component_kind = 'resolver'
+      AND cv.component_id = 'person'
+      AND cv.slot = 'current'
+      AND cv.semver = pr.resolver_version`,
   `CREATE VIEW IF NOT EXISTS current_canonical_company_address AS
    SELECT j.* FROM canonical_company_address j
      JOIN component_versions cv

@@ -58,6 +58,7 @@ export class FetchQuarterlyIndexRangeTask extends Task<
 > {
   static readonly type = "FetchQuarterlyIndexRangeTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch quarterly index range";
   static readonly cacheable = true;
 
   public static inputSchema() {
@@ -99,7 +100,7 @@ export class FetchQuarterlyIndexRangeTask extends Task<
 
     if (dates.length === 0) return { updateList: [] };
 
-    const wf = context.own(new Workflow());
+    const wf = context.own(new Workflow(), { title: `Fetch ${dates.length} quarterly indexes` });
     const loop = wf.map({ preserveOrder: false, maxIterations: dates.length });
     loop.pipe(new FetchQuarterlyIndexTask());
     loop.endMap();

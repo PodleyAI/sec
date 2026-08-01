@@ -34,6 +34,7 @@ export class StoreCikLastUpdatedTask extends Task<
 > {
   static readonly type = "StoreCikLastUpdatedTask";
   static readonly category = "SEC";
+  static readonly title = "Store CIK last-updated dates";
   static readonly cacheable = false;
 
   public static inputSchema() {

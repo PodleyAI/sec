@@ -57,6 +57,7 @@ import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
 import { CompanyResolver } from "../../../resolver/CompanyResolver";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
@@ -68,6 +69,7 @@ import { CanonicalPersonAddressRepo } from "../../../storage/canonical/Canonical
 import { CanonicalPersonPhoneRepo } from "../../../storage/canonical/CanonicalPersonPhoneRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -398,6 +400,7 @@ export async function processForm1A({
 
   const observer = new EntityObserver({
     personObservationRepo,
+    personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo,
     personIdentityLinkRepo,
     companyIdentityLinkRepo,
@@ -407,6 +410,7 @@ export async function processForm1A({
     canonicalPersonPhoneRepo,
     canonicalCompanyAddressRepo,
     canonicalCompanyPhoneRepo,
+    personRoleRepo: new PersonRoleRepo(),
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });

@@ -45,6 +45,47 @@ describe("parseConfidenceFloor", () => {
   });
 });
 
+describe("makeRunSection persist meta", () => {
+  it("reports complete only when every extracted row survives filtering", async () => {
+    const { repo } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-meta",
+      confidenceFloor: 0.5,
+    });
+    const seen: boolean[] = [];
+    const run = (rows: Array<{ confidence: number; span: string }>) =>
+      runSection({
+        sectionName: "management",
+        text: "verbatim span here",
+        emptyDetail: "empty",
+        lowConfidenceDetail: "low",
+        verifyRow: (text, r) => text.includes(r.span),
+        extract: async () => rows,
+        persist: async (persisted, meta) => {
+          seen.push(meta.complete);
+          return persisted.length;
+        },
+      });
+
+    // All rows survive -> complete.
+    await run([{ confidence: 0.9, span: "verbatim span" }]);
+    // One row dropped by the confidence floor -> incomplete.
+    await run([
+      { confidence: 0.9, span: "verbatim span" },
+      { confidence: 0.1, span: "verbatim span" },
+    ]);
+    // One row dropped by span verification -> incomplete.
+    await run([
+      { confidence: 0.9, span: "verbatim span" },
+      { confidence: 0.9, span: "not in the text" },
+    ]);
+    expect(seen).toEqual([true, false, false]);
+  });
+});
+
 describe("makeRunSection confidenceFloor", () => {
   const baseRow = { confidence: 0.5, value: 1 };
 

@@ -1,5 +1,128 @@
 # Changelog
 
+## 0.0.19
+
+### Features
+
+#### models
+
+- enhance secModelRecord to throw on unknown model ids
+
+#### address, phone
+
+- introduce saveAddressIfUsable and savePhoneIfUsable methods
+
+#### eval
+
+- recognize deepseek-* model ids and price them
+- introduce sweepStepContext for improved progress tracking
+
+#### bootstrap
+
+- add --force option to re-download archives
+
+#### address
+
+- keep US addresses whose filer left the state blank
+
+### Bug Fixes
+
+#### config
+
+- stop warning on the absent DeepSeek subpath; correct json-mode docs
+
+#### forms
+
+- stream the worklist producer instead of materializing every filing
+
+### Performance
+
+#### forms
+
+- emit the worklist in bounded batches instead of all at once
+
+### Documentation
+
+- note that DeepSeek's json-mode is not schema-enforced
+
+### Chores
+
+#### deps
+
+- bump workglow to 0.3.33 and make DeepSeek routable
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.33
+- `workglow`: 0.3.33
+
+## 0.0.18
+
+### Chores
+
+- update workglow
+- update dev container
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.31
+- `typebox`: 1.3.9
+- `workglow`: 0.3.31
+- `better-sqlite3`: ^13.0.2
+
+## 0.0.17
+
+### Features
+
+#### forms
+
+- scale the forms sweep — cluster rate limiting, sharding, doc cache
+
+#### bootstrap
+
+- download accession documents via daily Feed tarballs
+
+#### address
+
+- enhance address normalization for foreign addresses
+
+### Bug Fixes
+
+#### eval
+
+- restore SEC_UNIT_TERMS_REF override with fail-fast on missing path
+
+### Refactors
+
+- store person titles as dated per-title rows, not arrays (#216)
+
+#### forms
+
+- replace UpdateAllFormsTask with ComputeFormsWorklistTask and enhance forms processing
+
+### Tests
+
+#### config
+
+- strip env-derived DI tokens on TestingDI reset
+
+### Chores
+
+- update dep parse-address
+
+#### test
+
+- switch runner to vitest with hardening
+
+### Updated Dependencies
+
+- `@modelcontextprotocol/sdk`: ^1.30.0
+- `@sroussey/parse-address`: ^3.2.0
+- `@workglow/cli`: 0.3.29
+- `typebox`: 1.3.8
+- `workglow`: 0.3.29
+- `concurrently`: ^10.0.4
+
 ## 0.0.16
 
 ### Chores

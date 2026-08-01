@@ -5,7 +5,11 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { isDryRun } from "../cli/isDryRun";
+import { getDb } from "../util/db";
+import { getPgPool } from "../util/pg";
 import { listDatabaseExtensionTokens } from "./databaseExtensions";
+import { SEC_DB_TYPE } from "./tokens";
 import { ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN } from "../storage/address/AddressHistorySchema";
 import {
   ADDRESS_JUNCTION_REPOSITORY_TOKEN,
@@ -58,6 +62,8 @@ import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Com
 import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../storage/canonical/PersonIdentityLinkSchema";
 import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/CompanyObservationSchema";
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
+import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
+import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/ComponentVersionSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
@@ -102,13 +108,75 @@ import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/Use
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 
 /**
- * Truncates every registered repository. Used by `sec db reset --confirm`
- * before re-running `setupAllDatabases()` to recreate the schema.
+ * Drops every table so `setupAllDatabases()` can recreate the whole schema at
+ * the current DDL. Used by `sec db reset --confirm`.
+ *
+ * Dropping rather than truncating is what makes a reset a genuine clean slate:
+ *
+ *  - `deleteAll()` only removes rows, so a table whose columns changed since
+ *    the database was first created keeps its old shape — `CREATE TABLE IF NOT
+ *    EXISTS` never alters an existing table. A reset would silently leave you
+ *    on a stale schema.
+ *  - A per-repo list can only touch tables it knows about. It throws on a table
+ *    the database doesn't have yet (a repo added after the database was
+ *    created), and it can never reach an orphan table whose repo was removed.
+ *
+ * Dropping the whole schema sidesteps all of that, and is order-independent so
+ * foreign keys can't dictate a sequence.
+ */
+export async function resetAllDatabases(): Promise<void> {
+  // Raw DDL reaches around the repository layer, so the dry-run
+  // ReadOnlyTabularStorage wrapper cannot intercept it — bail explicitly.
+  if (isDryRun()) return;
+
+  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
+    ? globalServiceRegistry.get(SEC_DB_TYPE)
+    : null;
+
+  if (dbType === "postgres") {
+    const pool = getPgPool();
+    const client = await pool.connect();
+    try {
+      // CASCADE clears tables, views, sequences and indexes in one statement,
+      // including workglow's own `_storage_migrations` bookkeeping.
+      await client.query("DROP SCHEMA public CASCADE");
+      await client.query("CREATE SCHEMA public");
+    } finally {
+      client.release();
+    }
+    return;
+  }
+
+  if (dbType === "sqlite") {
+    const db = getDb();
+    // FKs off for the duration: dropping in catalog order would otherwise fail
+    // on tables still referenced by ones not yet dropped.
+    db.exec("PRAGMA foreign_keys = OFF");
+    try {
+      const tables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        .all() as { name: string }[];
+      for (const { name } of tables) {
+        db.exec(`DROP TABLE IF EXISTS "${name.replace(/"/g, '""')}"`);
+      }
+    } finally {
+      db.exec("PRAGMA foreign_keys = ON");
+    }
+    return;
+  }
+
+  // In-memory / other backends have no schema to drop, so fall back to
+  // truncating each registered repository.
+  await truncateAllRepositories();
+}
+
+/**
+ * Row-level fallback for backends without a droppable schema.
  *
  * NOTE: When adding a new repository token in DefaultDI.ts, add its
  * deleteAll() call here so reset doesn't leave orphan rows behind.
  */
-export async function resetAllDatabases(): Promise<void> {
+async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).deleteAll();
@@ -142,6 +210,8 @@ export async function resetAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(PERSON_ROLE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(CANONICAL_COMPANY_REPOSITORY_TOKEN).deleteAll();

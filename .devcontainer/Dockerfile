@@ -1,5 +1,5 @@
 # Base image with Node.js
-FROM mcr.microsoft.com/devcontainers/typescript-node:24-bookworm
+FROM mcr.microsoft.com/devcontainers/typescript-node:24
 
 # Install Bun as the node user
 RUN su - node -c "curl -fsSL https://bun.sh/install | bash"

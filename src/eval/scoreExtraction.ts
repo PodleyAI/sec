@@ -116,6 +116,40 @@ function asRow(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+/** A plain decimal number, optionally signed — the form models emit for numeric fields. */
+const DECIMAL = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
+
+/** Parsed number for an already-{@link normalize}d value, or null when it isn't one. */
+function asNumber(normalized: string): number | null {
+  if (!DECIMAL.test(normalized)) return null;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Decimal places a numeric literal states: `"0.3333"` → 4, `"10"` → 0. */
+function decimalPlaces(literal: string): number {
+  const dot = literal.indexOf(".");
+  return dot < 0 ? 0 : Math.min(literal.length - dot - 1, 15);
+}
+
+/**
+ * Numeric equality **at the precision the reference states**: the candidate is
+ * rounded to the expected literal's decimal places before comparing, so a model
+ * that reports a repeating ratio in full (`0.3333333333` for 1/3) agrees with a
+ * golden `0.3333` instead of being scored as a disagreement. Returns null when
+ * either side isn't a plain number, leaving the string comparison in charge.
+ *
+ * The reference's own precision is the tolerance — never the candidate's — so a
+ * coarser candidate is still a miss (`10` does not satisfy an expected `10.20`).
+ */
+function numericallyEqual(expectedValue: string, candidateValue: string): boolean | null {
+  const expectedNum = asNumber(expectedValue);
+  const candidateNum = asNumber(candidateValue);
+  if (expectedNum === null || candidateNum === null) return null;
+  const places = decimalPlaces(expectedValue);
+  return Number(candidateNum.toFixed(places)) === Number(expectedNum.toFixed(places));
+}
+
 /**
  * Raw (un-normalized) display string for a field value; "" for null/undefined.
  * An array is rendered as a bracketed, quoted list (`["Chairman", "Director"]`)
@@ -259,7 +293,11 @@ export function scoreExtraction(
         // score exceeded 1 and ranked a model that emits nothing above one that
         // fills the field in.
         if (expectedValue === "" && candidateValue === "") continue;
-        if (candidateValue === expectedValue) {
+        // Numbers agree at the reference's stated precision; everything else is
+        // compared as normalized text.
+        const agrees =
+          numericallyEqual(expectedValue, candidateValue) ?? candidateValue === expectedValue;
+        if (agrees) {
           matchedFieldValues += 1;
         } else {
           mismatches.push({

@@ -351,6 +351,9 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
 
   [street1, street2, street3] = consolidateStreetAddresses(street1, street2, street3);
 
+  // `findCountryByKeyword` returns "" on no match — keep the "unknown region"
+  // state as a single value (null) so downstream checks can't see an empty
+  // string where they expect a code.
   state_or_country =
     state_or_country ||
     (findCountryByKeyword([
@@ -359,13 +362,22 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
       street3,
       city,
       state_or_country,
-    ]) as StateOrCountryCode | null);
+    ]) as StateOrCountryCode) ||
+    null;
 
-  let country_code = findCountryCode(
-    state_or_country,
-    importAddress.country,
-    importAddress.countryCode
-  ) as CountryCode | null;
+  // Nothing identified a country: no state code, no country code, no country
+  // name, and no keyword hit. In EDGAR that overwhelmingly means a domestic
+  // filer who did not bother to fill the field out — a foreign filer fills it in
+  // because the form makes them. Assume the US rather than drop the address, and
+  // assume it *here*, before street/postal normalization, so an unlabeled
+  // address gets the same US street parsing and 5-digit zip treatment as a
+  // labeled one.
+  let country_code =
+    (findCountryCode(
+      state_or_country,
+      importAddress.country,
+      importAddress.countryCode
+    ) as CountryCode | null) ?? "US";
 
   city = normalizeCity(city ?? "");
 
@@ -388,24 +400,26 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
     city = city || importAddress.city || null;
     state_or_country =
       state_or_country || (importAddress.stateOrCountry as StateOrCountryCode) || null;
-    country_code = country_code || (importAddress.countryCode as CountryCode) || null;
     zip = zip || importAddress.zipCode || null;
   }
 
-  // The schema requires a region, but a foreign address often carries none. When
-  // we resolved a country but no region, use the country's own SEC code as the
-  // region — so a foreign address (e.g. Colombia, country CO / SEC F8) is kept
-  // rather than dropped for lacking a US-style state.
-  if (!state_or_country && country_code) {
-    const secForCountry = COUNTRY_STATE_CODE_ARRAY.find(([iso]) => iso === country_code)?.[1];
+  // A foreign address often carries no region. When we resolved a country but no
+  // region, use the country's own country-level SEC code as the region — so a
+  // foreign address (e.g. Colombia, country CO / SEC F8) keeps a region rather
+  // than borrowing an arbitrary subdivision's code. Country-level rows are the
+  // ones with no state name; the US has none (every US row is a state), so a US
+  // address with no state is stored with a null region, which is the intent —
+  // "United States, state unknown", not a guessed state.
+  if (!state_or_country) {
+    const secForCountry = COUNTRY_STATE_CODE_ARRAY.find(
+      ([iso, sec, state]) => iso === country_code && !state
+    )?.[1];
     if (secForCountry) state_or_country = secForCountry as StateOrCountryCode;
   }
 
-  // The country code is the discriminator for a usable address: without a
-  // resolvable country (or a street/city to place it), the address is truly bad
-  // and dropped. `state_or_country` is guaranteed above whenever a country
-  // resolved, so requiring it here is equivalent to requiring the country.
-  if (!street1 || !city || !country_code || !state_or_country) {
+  // A street and a city are what make an address usable; the country is now
+  // always known (US by assumption above), and the region is optional.
+  if (!street1 || !city) {
     return undefined;
   }
 

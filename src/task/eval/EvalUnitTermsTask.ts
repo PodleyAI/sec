@@ -38,6 +38,7 @@ export type EvalUnitTermsTaskOutput = Static<ReturnType<typeof OutputSchema>>;
 export class EvalUnitTermsTask extends Task<EvalUnitTermsTaskInput, EvalUnitTermsTaskOutput> {
   static readonly type = "EvalUnitTermsTask";
   static readonly category = "SEC";
+  static readonly title = "Evaluate SPAC unit terms";
   static readonly cacheable = false;
 
   static inputSchema() {

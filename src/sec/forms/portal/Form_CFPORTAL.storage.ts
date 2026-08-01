@@ -10,6 +10,7 @@ import { PortalRepo } from "../../../storage/portal/PortalRepo";
 import { CanonicalCompanyAddressRepo } from "../../../storage/canonical/CanonicalCompanyAddressRepo";
 import { CanonicalCompanyAliasRepo } from "../../../storage/canonical/CanonicalCompanyAliasRepo";
 import { CanonicalCompanyPhoneRepo } from "../../../storage/canonical/CanonicalCompanyPhoneRepo";
+import { PersonRoleRepo } from "../../../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
 import { CanonicalPersonAddressRepo } from "../../../storage/canonical/CanonicalPersonAddressRepo";
 import { CanonicalPersonAliasRepo } from "../../../storage/canonical/CanonicalPersonAliasRepo";
@@ -19,6 +20,7 @@ import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdent
 import { PersonIdentityLinkRepo } from "../../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { PersonObservationTitleRepo } from "../../../storage/observation/PersonObservationTitleRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
@@ -85,6 +87,7 @@ export async function processFormCFPORTAL({
   const canonicalCompanyRepo = new CanonicalCompanyRepo();
   const observer = new EntityObserver({
     personObservationRepo: new PersonObservationRepo(),
+    personObservationTitleRepo: new PersonObservationTitleRepo(),
     companyObservationRepo: new CompanyObservationRepo(),
     personIdentityLinkRepo: new PersonIdentityLinkRepo(),
     companyIdentityLinkRepo: new CompanyIdentityLinkRepo(),
@@ -102,6 +105,7 @@ export async function processFormCFPORTAL({
     canonicalPersonPhoneRepo: new CanonicalPersonPhoneRepo(),
     canonicalCompanyAddressRepo: new CanonicalCompanyAddressRepo(),
     canonicalCompanyPhoneRepo: new CanonicalCompanyPhoneRepo(),
+    personRoleRepo: new PersonRoleRepo(),
     activeResolverPersonVersion,
     activeResolverCompanyVersion,
   });
@@ -174,6 +178,8 @@ export async function processFormCFPORTAL({
       suffix: contact.suffix ?? null,
       titles: identifying?.contactEmployeeTitle ? [identifying.contactEmployeeTitle] : null,
       relationship: "cfportal:contact",
+      filing_date,
+      role_scope: "cfportal:contact",
       source_context: JSON.stringify({ relation: "cfportal:contact" }),
     });
   }
@@ -218,6 +224,8 @@ export async function processFormCFPORTAL({
         last_name: name.last_name,
         titles: owner.titleStatus ? [owner.titleStatus] : null,
         relationship: "cfportal:owner",
+        filing_date,
+        role_scope: "cfportal:owner",
         source_context,
       });
     } else {

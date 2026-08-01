@@ -11,7 +11,7 @@ import { BootstrapDownloadTask } from "../../task/bootstrap/BootstrapDownloadTas
 import { FetchAllCikNamesTask } from "../../task/ciknames/FetchAllCikNamesTask";
 import { BootstrapCompanyFactsTask } from "../../task/facts/BootstrapCompanyFactsTask";
 import {
-  addFormsSweepLoop,
+  formsSweepLoop,
   newFormsWorklistTask,
   parseShardOption,
 } from "../../task/forms/formsSweep";
@@ -67,7 +67,7 @@ export function addBootstrapCommands(program: Command): void {
                 (c) =>
                   new BootstrapDownloadTask({
                     title: `Download ${c.targetFolder}`,
-                    defaults: { url: c.url, targetFolder: c.targetFolder },
+                    defaults: { url: c.url, targetFolder: c.targetFolder, force },
                   })
               )
             );
@@ -93,19 +93,19 @@ export function addBootstrapCommands(program: Command): void {
             );
           }
 
-          // The forms producer must be the LAST task so the sweep loop
-          // (spliced in via `addFormsSweepLoop`) auto-connects to its worklist
-          // output arrays. The loop node then lives in the outer workflow, so
-          // the CLI renders live per-iteration progress.
-          if (!options.skipForms) {
-            tasks.push(newFormsWorklistTask(undefined, parseShardOption(options.shard)));
-          }
+          // The forms producer is NOT a member of the flat task list: it is the
+          // body of the sweep's `while` loop, re-run once per batch. The loop
+          // nodes live in the outer workflow, so the CLI renders live
+          // per-iteration progress.
+          const producer = options.skipForms
+            ? undefined
+            : newFormsWorklistTask(undefined, parseShardOption(options.shard));
 
-          if (tasks.length > 0) {
+          if (tasks.length > 0 || producer !== undefined) {
             await runWorkflowCli(
               tasks,
               undefined,
-              options.skipForms ? undefined : addFormsSweepLoop
+              producer === undefined ? undefined : formsSweepLoop(producer)
             );
           }
         },
@@ -116,7 +116,12 @@ export function addBootstrapCommands(program: Command): void {
   bootstrap
     .command("download <type>")
     .description("Download bulk SEC data (submissions, facts, ciks, or all)")
-    .action(async (type: string) => {
+    .option(
+      "--force",
+      "Re-download and fully overwrite even when the archive is unchanged since the last run",
+      false
+    )
+    .action(async (type: string, options: { force?: boolean }) => {
       await runCommand(async () => {
         if (type === "ciks") {
           await runWorkflowCli([new FetchAllCikNamesTask()]);
@@ -134,7 +139,12 @@ export function addBootstrapCommands(program: Command): void {
           types.map((t) => {
             const config = BULK_DOWNLOADS[t];
             return new BootstrapDownloadTask({
-              defaults: { url: config.url, targetFolder: config.targetFolder },
+              title: `Download ${config.targetFolder}`,
+              defaults: {
+                url: config.url,
+                targetFolder: config.targetFolder,
+                force: options.force ?? false,
+              },
             });
           })
         );
