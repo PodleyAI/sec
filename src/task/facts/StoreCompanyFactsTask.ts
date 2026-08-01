@@ -43,6 +43,7 @@ export class StoreCompanyFactsTask extends Task<
 > {
   static readonly type = "StoreCompanyFactsTask";
   static readonly category = "SEC";
+  static readonly title = "Store company facts";
   static readonly cacheable = false;
 
   public static inputSchema() {

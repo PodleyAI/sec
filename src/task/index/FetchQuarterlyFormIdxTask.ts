@@ -51,6 +51,7 @@ export type FetchQuarterlyFormIdxTaskOutput = {
 class SecFetchQuarterlyFormIdxTask extends SecCachedFetchTask<FetchQuarterlyFormIdxTaskInput> {
   static readonly type = "SecFetchQuarterlyFormIdxTask";
   static readonly category = "Hidden";
+  static readonly title = "Download quarterly form.idx";
   // Past-quarter form.idx files are immutable; the current quarter is not.
   // Tracking the parent's `immutable = false` keeps behaviour conservative
   // (the cache layer re-validates rather than serves stale text).
@@ -100,7 +101,10 @@ export function parseQuarterlyFormIdx(content: string): QuarterlyFormIdxRow[] {
   for (let i = divider + 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
-    const parts = line.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
+    const parts = line
+      .split(/\s{2,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (parts.length < 5) continue;
     const [formType, companyName, cikStr, dateFiled, fileName] = parts;
     const cik = parseInt(cikStr, 10);
@@ -141,6 +145,7 @@ export class FetchQuarterlyFormIdxTask extends Task<
 > {
   static readonly type = "FetchQuarterlyFormIdxTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch quarterly form index";
   static readonly cacheable = true;
 
   public static inputSchema(): DataPortSchemaObject {

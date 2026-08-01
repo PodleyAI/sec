@@ -40,6 +40,7 @@ export class RetryDeadLettersTask extends Task<
 > {
   static readonly type = "RetryDeadLettersTask";
   static readonly category = "SEC";
+  static readonly title = "Retry dead letters";
   static readonly cacheable = false;
 
   static inputSchema() {
@@ -77,7 +78,7 @@ export class RetryDeadLettersTask extends Task<
       // parse/store errors, and a recovery sweep must grind through the whole
       // worklist rather than abandon every later accession on one bad filing.
       try {
-        const wf = context.own(new Workflow());
+        const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
         await wf.run({ accessionNumber });
         reprocessed++;

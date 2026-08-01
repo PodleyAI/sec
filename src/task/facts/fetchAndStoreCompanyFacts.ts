@@ -24,7 +24,10 @@ export interface FetchAndStoreFactsDeps {
 }
 
 const defaultDeps: FetchAndStoreFactsDeps = {
-  fetchFacts: async (input, ctx) => await ctx.own(new FetchCompanyFactsTask()).run(input),
+  fetchFacts: async (input, ctx) =>
+    await ctx
+      .own(new FetchCompanyFactsTask({ title: `Fetch facts for CIK ${input.cik}` }))
+      .run(input),
   storeFacts: async (fetched, ctx) => {
     await ctx.own(new StoreCompanyFactsTask()).run(fetched);
   },

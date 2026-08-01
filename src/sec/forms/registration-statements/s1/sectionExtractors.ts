@@ -355,6 +355,7 @@ export function requireNonEmptyGrammarArrays(schema: object): object {
 }
 
 async function runStructured(
+  label: string,
   model: ModelConfig,
   prompt: string,
   outputSchema: object,
@@ -383,7 +384,12 @@ async function runStructured(
   // task's graph and inherits its registry + abort signal, so the graph knows a
   // subtask is involved. Against the eval / unit-test stub context, `own` is an
   // identity no-op.
-  const task = context.own(new StructuredGenerationTask({ defaults: input } as any));
+  const task = context.own(
+    new StructuredGenerationTask({
+      title: `Extract ${label} (${resolveModelId(model)})`,
+      defaults: input,
+    } as any)
+  );
   // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
   // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
   // events to `config.updateProgress`, which we forward to the caller's
@@ -437,6 +443,7 @@ function stripNonceSeen(schema: object): object {
  * call site identical and provider-agnostic.
  */
 async function runGuardedExtraction(
+  label: string,
   model: ModelConfig,
   instructions: string,
   sectionText: string,
@@ -448,6 +455,7 @@ async function runGuardedExtraction(
   const preamble = local ? buildUntrustedPreamble() : buildUntrustedPreamble(nonce);
   const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
   const obj = await runStructured(
+    label,
     model,
     prompt,
     local ? stripNonceSeen(outputSchema) : outputSchema,
@@ -498,7 +506,14 @@ export async function extractManagement(
     "For example 'member of our board of directors' -> ['Director'] and 'Chairman of our " +
     "board of directors' -> ['Chairman of the Board of Directors']. " +
     "Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, ManagementOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "management",
+    model,
+    instructions,
+    sectionText,
+    ManagementOutputSchema,
+    context
+  );
   const people = (obj.people as ManagementPersonRow[] | undefined) ?? [];
   // Post-model canonicalization: split compound titles and canonicalize each
   // role, so the stored roles are consistent regardless of which model produced
@@ -545,6 +560,7 @@ export async function extractBeneficialOwnership(
     "directors (e.g. 'All officers and directors as a group (9 individuals)'): it is a " +
     "total of the rows above, not a stockholder. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "beneficial ownership",
     model,
     instructions,
     sectionText,
@@ -569,6 +585,7 @@ export async function extractRelatedParty(
     "and a transactions array (counterparty, nature, amount, period, footnote — any may " +
     "be null). Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "related party",
     model,
     instructions,
     sectionText,
@@ -594,6 +611,7 @@ export async function extractOfferingTerms(
     "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
     "and a verbatim source_span. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "offering terms",
     model,
     instructions,
     sectionText,
@@ -632,6 +650,7 @@ export async function extractSponsorPromote(
     "text does not state. Give a confidence in [0,1] and the verbatim source_span you drew " +
     "the figures from. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "sponsor promote",
     model,
     instructions,
     sectionText,
@@ -666,7 +685,14 @@ export async function extractUnderwriters(
     "'underwriter'; null if unclear), shares_allocated (the number of shares " +
     "underwritten, or null), over_allotment_shares (or null), a confidence in [0,1], " +
     "and the verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, UnderwriterOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "underwriters",
+    model,
+    instructions,
+    sectionText,
+    UnderwriterOutputSchema,
+    context
+  );
   return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
 }
 
@@ -681,7 +707,14 @@ export async function extractSpacSponsors(
     "legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name (the sponsor brand/family " +
     "without the legal suffix or series number, e.g. 'Acme Sponsor'), a confidence in " +
     "[0,1], and the verbatim source_span. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacSponsorOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "SPAC sponsors",
+    model,
+    instructions,
+    sectionText,
+    SpacSponsorOutputSchema,
+    context
+  );
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
 }
 
@@ -711,7 +744,14 @@ export async function extractSpacProfile(
     "management/sponsor team's background and experience (or null). Give url_spac: the " +
     "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
     "source_span you drew the focus/description from. Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, SpacProfileOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "SPAC profile",
+    model,
+    instructions,
+    sectionText,
+    SpacProfileOutputSchema,
+    context
+  );
   if (obj.confidence == null || obj.source_span == null) return null;
   return {
     focus: Array.isArray(obj.focus) ? (obj.focus as string[]) : [],
@@ -752,6 +792,7 @@ export async function extractSpacClassification(
     "source_span you drew the determination from (null only if is_spac is false). Return " +
     "JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "SPAC classification",
     model,
     instructions,
     sectionText,
@@ -791,7 +832,14 @@ export async function extractMergerDeal(
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
     "Return JSON matching the schema.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, MergerDealOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "merger deal",
+    model,
+    instructions,
+    sectionText,
+    MergerDealOutputSchema,
+    context
+  );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
 }
@@ -807,6 +855,7 @@ export async function extractUseOfProceeds(
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
     "and the verbatim source_span. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
+    "use of proceeds",
     model,
     instructions,
     sectionText,
@@ -832,7 +881,14 @@ export async function extractRedemption(
     "only figures explicitly stated — do NOT multiply shares by price to " +
     "synthesize an amount. If the text does not report realized redemptions, " +
     "return confidence 0 and null fields.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, RedemptionOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "redemption",
+    model,
+    instructions,
+    sectionText,
+    RedemptionOutputSchema,
+    context
+  );
   if (obj.confidence == null || obj.source_span == null) return null;
   // A "no realized redemption" response carries neither figure — not a redemption.
   if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
@@ -863,7 +919,14 @@ export async function extractLoi(
     "confidence in [0,1], and the verbatim source_span you drew the determination " +
     "from. If the text reports no LOI, return is_loi false with confidence for that " +
     "determination and a null source_span.";
-  const obj = await runGuardedExtraction(model, instructions, sectionText, LoiOutputSchema, context);
+  const obj = await runGuardedExtraction(
+    "LOI",
+    model,
+    instructions,
+    sectionText,
+    LoiOutputSchema,
+    context
+  );
   if (obj.is_loi !== true) return null;
   // As in extractSpacClassification: a positive with no confidence/span is not the
   // auto-resolved "no LOI" negative, so surface it rather than dropping it.

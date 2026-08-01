@@ -23,6 +23,7 @@ export class StoreSubmissionContactInfoTask extends Task<
 > {
   static readonly type = "StoreSubmissionContactInfoTask";
   static readonly category = "SEC";
+  static readonly title = "Store submission contact info";
   static readonly cacheable = false;
 
   static inputSchema() {

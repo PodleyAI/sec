@@ -35,6 +35,7 @@ export class SecFetchCikLookupTask extends SecCachedFetchTask<
 > {
   static readonly type = "SecFetchCikLookupTask";
   static readonly category = "Hidden";
+  static readonly title = "Download cik-lookup-data.txt";
   static readonly immutable = true;
 
   public static inputSchema() {
@@ -82,6 +83,7 @@ export class FetchAllCikNamesTask extends Task<
 > {
   static readonly type = "FetchAllCikNamesTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch all CIK names";
   static readonly cacheable = false;
   static readonly compoundMerge = "last";
 
@@ -98,12 +100,15 @@ export class FetchAllCikNamesTask extends Task<
     context: IExecuteContext
   ): Promise<FetchAllCikNamesTaskOutput> {
     const secFetch = context.own(
-      new SecFetchTask({
-        url: `https://www.sec.gov/Archives/edgar/cik-lookup-data.txt${
-          input.date ? `?date=${input.date}` : ""
-        }`,
-        response_type: "text",
-      })
+      new SecFetchTask(
+        {
+          url: `https://www.sec.gov/Archives/edgar/cik-lookup-data.txt${
+            input.date ? `?date=${input.date}` : ""
+          }`,
+          response_type: "text",
+        },
+        { title: "Download cik-lookup-data.txt" }
+      )
     );
     const secData = await secFetch.run();
     const secText = secData.text!;

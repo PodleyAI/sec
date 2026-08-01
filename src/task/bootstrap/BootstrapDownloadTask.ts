@@ -125,9 +125,7 @@ export async function streamDownloadToFile(
     return { bytes: 0, totalBytes: undefined, notModified: true, etag, lastModified };
   }
   if (!response.ok) {
-    throw new Error(
-      `Download failed: HTTP ${response.status} ${response.statusText} for ${url}`
-    );
+    throw new Error(`Download failed: HTTP ${response.status} ${response.statusText} for ${url}`);
   }
   if (response.body === null) {
     throw new Error(`Download returned no body for ${url}`);
@@ -179,9 +177,7 @@ export async function streamDownloadToFile(
     }
     await writer.flush();
     if (totalBytes !== undefined && bytes !== totalBytes) {
-      throw new Error(
-        `Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`
-      );
+      throw new Error(`Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`);
     }
   } catch (err) {
     originalError = err;
@@ -237,6 +233,7 @@ export class BootstrapDownloadTask extends Task<
 > {
   static readonly type = "BootstrapDownloadTask";
   static readonly category = "SEC";
+  static readonly title = "Download bulk archive";
   static readonly cacheable = false;
 
   public static inputSchema() {

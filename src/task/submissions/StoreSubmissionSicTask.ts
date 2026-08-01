@@ -24,6 +24,7 @@ export class StoreSubmissionSicTask extends Task<
 > {
   static readonly type = "StoreSubmissionSicTask";
   static readonly category = "SEC";
+  static readonly title = "Store submission SIC code";
   static readonly cacheable = false;
 
   static inputSchema() {

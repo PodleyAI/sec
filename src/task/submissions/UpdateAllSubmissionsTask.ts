@@ -31,6 +31,7 @@ export class UpdateAllSubmissionsTask extends Task<
 > {
   static readonly type = "UpdateAllSubmissionsTask";
   static readonly category = "SEC";
+  static readonly title = "Update submissions for all CIKs";
   static readonly cacheable = false;
 
   public static inputSchema() {
@@ -100,7 +101,9 @@ export class UpdateAllSubmissionsTask extends Task<
     }
 
     if (needsUpdating.length) {
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `Update changed submissions (${needsUpdating.length} CIKs)`,
+      });
       const loop = wf.map({ concurrencyLimit: 1, maxIterations: needsUpdating.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();
@@ -111,7 +114,9 @@ export class UpdateAllSubmissionsTask extends Task<
     }
 
     if (needsInitialProcessing.length) {
-      const wf = context.own(new Workflow());
+      const wf = context.own(new Workflow(), {
+        title: `Process new submissions (${needsInitialProcessing.length} CIKs)`,
+      });
       const loop = wf.map({ concurrencyLimit: 2, maxIterations: needsInitialProcessing.length });
       loop.pipe(fetchAndStoreSubmission);
       loop.endMap();

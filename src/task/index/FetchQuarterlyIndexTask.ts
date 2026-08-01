@@ -30,6 +30,7 @@ export type FetchQuarterlyIndexTaskOutput = {
 class SecFetchQuarterlyIndexTask extends SecCachedFetchTask<FetchQuarterlyIndexTaskInput> {
   static readonly type = "SecFetchQuarterlyIndexTask";
   static readonly category = "Hidden";
+  static readonly title = "Download quarterly index file";
   static readonly immutable = false;
 
   response_type: response_type = "text";
@@ -61,6 +62,7 @@ export class FetchQuarterlyIndexTask extends Task<
 > {
   static readonly type = "FetchQuarterlyIndexTask";
   static readonly category = "SEC";
+  static readonly title = "Fetch quarterly index";
   static readonly cacheable = true;
 
   public static inputSchema() {

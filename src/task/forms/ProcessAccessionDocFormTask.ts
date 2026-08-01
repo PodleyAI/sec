@@ -116,6 +116,7 @@ export class ProcessAccessionDocFormTask extends Task<
 > {
   static readonly type = "ProcessAccessionDocFormTask";
   static readonly category = "SEC";
+  static readonly title = "Process filing document";
   static readonly cacheable = true;
 
   public static inputSchema() {
@@ -148,7 +149,7 @@ export class ProcessAccessionDocFormTask extends Task<
       return cached;
     }
 
-    const wf = context.own(new Workflow());
+    const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
     let text: string | undefined;
     wf.pipe(
       new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
@@ -304,7 +305,8 @@ export class ProcessAccessionDocFormTask extends Task<
     // from "same-version re-run" (LLM sampling variance alone must not delete
     // observations that are still legitimately present).
     const priorRun = await runRepo.findLatestRun(cik!, accessionNumber, extractorId);
-    const versionChanged = priorRun !== undefined && priorRun.extractor_version !== extractorVersion;
+    const versionChanged =
+      priorRun !== undefined && priorRun.extractor_version !== extractorVersion;
 
     const deadLetters = new ExtractionDeadLetterRepo();
 

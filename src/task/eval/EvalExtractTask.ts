@@ -54,6 +54,7 @@ export type EvalExtractTaskOutput = Static<ReturnType<typeof OutputSchema>>;
 export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskOutput> {
   static readonly type = "EvalExtractTask";
   static readonly category = "SEC";
+  static readonly title = "Compare extraction models";
   static readonly cacheable = false;
 
   static inputSchema() {

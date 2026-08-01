@@ -139,6 +139,7 @@ export function addBootstrapCommands(program: Command): void {
           types.map((t) => {
             const config = BULK_DOWNLOADS[t];
             return new BootstrapDownloadTask({
+              title: `Download ${config.targetFolder}`,
               defaults: {
                 url: config.url,
                 targetFolder: config.targetFolder,

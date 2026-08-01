@@ -12,7 +12,9 @@ export async function fetchAndStoreSubmission(
   input: { cik: number; date?: string },
   ctx: IExecuteContext
 ): Promise<{ success: boolean }> {
-  const pipeline = ctx.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]));
+  const pipeline = ctx.own(pipe([new FetchSubmissionsTask(), new StoreSubmissionsTask()]), {
+    title: `CIK ${input.cik}`,
+  });
   try {
     await pipeline.run(input);
   } catch (e) {
