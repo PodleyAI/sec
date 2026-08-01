@@ -29,6 +29,9 @@ import { Form_20FR12G } from "./Form_20FR12G";
 import { Form_F_7 } from "./Form_F_7";
 import { Form_F_8 } from "./Form_F_8";
 import { Form_F_9 } from "./Form_F_9";
+import { Form_F_80 } from "./Form_F_80";
+import { Form_F_9EF } from "./Form_F_9EF";
+import { Form_F_4EF } from "./Form_F_4EF";
 
 export const FOREIGN_REGISTRATION_FORM_NAMES_MAP = [
   ...Form_CB.forms.map((form) => [form, Form_CB] as const),
@@ -56,6 +59,9 @@ export const FOREIGN_REGISTRATION_FORM_NAMES_MAP = [
   ...Form_F_10EF.forms.map((form) => [form, Form_F_10EF] as const),
   ...Form_F_10POS.forms.map((form) => [form, Form_F_10POS] as const),
   ...Form_F_N.forms.map((form) => [form, Form_F_N] as const),
+  ...Form_F_80.forms.map((form) => [form, Form_F_80] as const),
+  ...Form_F_9EF.forms.map((form) => [form, Form_F_9EF] as const),
+  ...Form_F_4EF.forms.map((form) => [form, Form_F_4EF] as const),
 ] as const;
 
 export const FOREIGN_REGISTRATION_FORM_NAMES = FOREIGN_REGISTRATION_FORM_NAMES_MAP.map(

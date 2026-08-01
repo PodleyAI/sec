@@ -10,5 +10,5 @@ export class Form_S_6EL24 extends Form {
   static readonly name = "Registration Statement (S-6EL24)";
   static readonly description =
     "Registration statements of unit investment trusts with 24f-2 election.";
-  static readonly forms = ["S-6EL24"] as const;
+  static readonly forms = ["S-6EL24", "S-6EL24/A"] as const;
 }

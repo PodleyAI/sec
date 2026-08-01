@@ -9,6 +9,7 @@ import { Form_424B8 } from "./Form_424B8";
 import { Form_424H } from "./Form_424H";
 import { Form_425 } from "./Form_425";
 import { Form_DRS } from "./Form_DRS";
+import { Form_DRSLTR } from "./Form_DRSLTR";
 import { Form_FWP } from "./Form_FWP";
 import { Form_POS_AM } from "./Form_POS_AM";
 import { Form_POS_AMI } from "./Form_POS_AMI";
@@ -35,6 +36,11 @@ import { Form_POS_EX } from "./Form_POS_EX";
 import { Form_POS_8C } from "./Form_POS_8C";
 import { Form_POS_AMC } from "./Form_POS_AMC";
 import { Form_486BXT } from "./Form_486BXT";
+import { Form_424I } from "./Form_424I";
+import { Form_486A24E } from "./Form_486A24E";
+import { Form_486B24E } from "./Form_486B24E";
+import { Form_UNDER } from "./Form_UNDER";
+import { Form_SPDSCL } from "./Form_SPDSCL";
 
 export const REGISTRATION_STATEMENT_FORM_NAMES_MAP = [
   ...Form_424.forms.map((form) => [form, Form_424] as const),
@@ -42,6 +48,7 @@ export const REGISTRATION_STATEMENT_FORM_NAMES_MAP = [
   ...Form_424H.forms.map((form) => [form, Form_424H] as const),
   ...Form_425.forms.map((form) => [form, Form_425] as const),
   ...Form_DRS.forms.map((form) => [form, Form_DRS] as const),
+  ...Form_DRSLTR.forms.map((form) => [form, Form_DRSLTR] as const),
   ...Form_FWP.forms.map((form) => [form, Form_FWP] as const),
   ...Form_POS_AM.forms.map((form) => [form, Form_POS_AM] as const),
   ...Form_POS_AMI.forms.map((form) => [form, Form_POS_AMI] as const),
@@ -68,6 +75,11 @@ export const REGISTRATION_STATEMENT_FORM_NAMES_MAP = [
   ...Form_POS_8C.forms.map((form) => [form, Form_POS_8C] as const),
   ...Form_POS_AMC.forms.map((form) => [form, Form_POS_AMC] as const),
   ...Form_486BXT.forms.map((form) => [form, Form_486BXT] as const),
+  ...Form_424I.forms.map((form) => [form, Form_424I] as const),
+  ...Form_486A24E.forms.map((form) => [form, Form_486A24E] as const),
+  ...Form_486B24E.forms.map((form) => [form, Form_486B24E] as const),
+  ...Form_UNDER.forms.map((form) => [form, Form_UNDER] as const),
+  ...Form_SPDSCL.forms.map((form) => [form, Form_SPDSCL] as const),
 ] as const;
 
 export const REGISTRATION_STATEMENT_FORM_NAMES = REGISTRATION_STATEMENT_FORM_NAMES_MAP.map(

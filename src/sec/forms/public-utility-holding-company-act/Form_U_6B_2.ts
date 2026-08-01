@@ -10,5 +10,5 @@ export class Form_U_6B_2 extends Form {
   static readonly name = "Security Issue Certificate";
   static readonly description =
     "Certificate of notification of security issue, renewal or guaranty filed pursuant to Rule 20(d) of the Public Utility Holding Company Act.";
-  static readonly forms = ["U-6B-2"] as const;
+  static readonly forms = ["U-6B-2", "U-6B-2/A"] as const;
 }

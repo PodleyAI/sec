@@ -31,6 +31,9 @@ import { Form_485BXT } from "./Form_485BXT";
 import { Form_AW_WD } from "./Form_AW_WD";
 import { Form_SUPPL } from "./Form_SUPPL";
 import { Form_SE } from "./Form_SE";
+import { Form_34_12H } from "./Form_34_12H";
+import { Form_ID_NEWCIK } from "./Form_ID_NEWCIK";
+import { Form_26 } from "./Form_26";
 
 export const MISCELLANEOUS_FILINGS_FORM_NAMES_MAP = [
   ...Form_AW_WD.forms.map((form) => [form, Form_AW_WD] as const),
@@ -60,6 +63,9 @@ export const MISCELLANEOUS_FILINGS_FORM_NAMES_MAP = [
   ...Form_485BPOS.forms.map((form) => [form, Form_485BPOS] as const),
   ...Form_485BXT.forms.map((form) => [form, Form_485BXT] as const),
   ...Form_SE.forms.map((form) => [form, Form_SE] as const),
+  ...Form_34_12H.forms.map((form) => [form, Form_34_12H] as const),
+  ...Form_ID_NEWCIK.forms.map((form) => [form, Form_ID_NEWCIK] as const),
+  ...Form_26.forms.map((form) => [form, Form_26] as const),
 ] as const;
 
 export const MISCELLANEOUS_FILINGS_FORM_NAMES = MISCELLANEOUS_FILINGS_FORM_NAMES_MAP.map(

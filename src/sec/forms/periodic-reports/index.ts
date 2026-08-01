@@ -38,6 +38,13 @@ import { Form_13F_E } from "./Form_13F_E";
 import { Form_13F_HR } from "./Form_13F_HR";
 import { Form_13F_NT } from "./Form_13F_NT";
 import { Form_NTFNSAR } from "./Form_NTFNSAR";
+import { Form_SBSE } from "./Form_SBSE";
+import { Form_SBSE_BD } from "./Form_SBSE_BD";
+import { Form_SBSE_W } from "./Form_SBSE_W";
+import { Form_SBSEF } from "./Form_SBSEF";
+import { Form_SDR } from "./Form_SDR";
+import { Form_NTN_10D } from "./Form_NTN_10D";
+import { Form_NTN_11K } from "./Form_NTN_11K";
 
 export const ANNUAL_REPORT_FORM_NAMES_MAP = [
   ...Form_ARS.forms.map((form) => [form, Form_ARS] as const),
@@ -66,6 +73,13 @@ export const ANNUAL_REPORT_FORM_NAMES_MAP = [
   ...Form_20F.forms.map((form) => [form, Form_20F] as const),
   ...Form_NT_20F.forms.map((form) => [form, Form_NT_20F] as const),
   ...Form_NTFNSAR.forms.map((form) => [form, Form_NTFNSAR] as const),
+  ...Form_SBSE.forms.map((form) => [form, Form_SBSE] as const),
+  ...Form_SBSE_BD.forms.map((form) => [form, Form_SBSE_BD] as const),
+  ...Form_SBSE_W.forms.map((form) => [form, Form_SBSE_W] as const),
+  ...Form_SBSEF.forms.map((form) => [form, Form_SBSEF] as const),
+  ...Form_SDR.forms.map((form) => [form, Form_SDR] as const),
+  ...Form_NTN_10D.forms.map((form) => [form, Form_NTN_10D] as const),
+  ...Form_NTN_11K.forms.map((form) => [form, Form_NTN_11K] as const),
 ] as const;
 
 export const ANNUAL_REPORT_FORM_NAMES = ANNUAL_REPORT_FORM_NAMES_MAP.map(([form, Form]) => form);

@@ -21,5 +21,10 @@ export class Form_N_23C_3 extends Form {
     "N-23C3A/A",
     "N-23C3B",
     "N-23C3B/A",
+    // "C" marks a discretionary repurchase offer under Rule 23c-3(c).
+    "N-23C3C",
+    "N-23C3C/A",
+    "N-23C-3C",
+    "N-23C-3C/A",
   ] as const;
 }

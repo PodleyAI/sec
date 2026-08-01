@@ -10,5 +10,7 @@ export class Form_MA extends Form {
   static readonly name = "Municipal Advisor Registration";
   static readonly description =
     "Application for municipal advisor registration under Section 15B(a)(1) of the Exchange Act.";
-  static readonly forms = ["MA", "MA/A", "MA-W", "CANCELLATION-MA"] as const; // MA-W (Withdrawal of a Municipal Advisor Registration)
+  // MA-W is the registrant's own withdrawal; CANCELLATION-MA and
+  // REVOCATION-MA are Commission actions against the 867- file number.
+  static readonly forms = ["MA", "MA/A", "MA-W", "CANCELLATION-MA", "REVOCATION-MA"] as const;
 }

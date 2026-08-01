@@ -11,9 +11,13 @@ import { Form_FOCUSN } from "./Form_FOCUSN";
 import { Form_7M } from "./Form_7M";
 import { Form_8M } from "./Form_8M";
 import { Form_9M } from "./Form_9M";
+import { Form_BDCO } from "./Form_BDCO";
+import { Form_G_405 } from "./Form_G_405";
 import { Form_G_FIN } from "./Form_G_FIN";
+import { Form_G_FINW } from "./Form_G_FINW";
 import { Form_MSD } from "./Form_MSD";
 import { Form_REG_NR } from "./Form_REG_NR";
+import { Form_10_M } from "./Form_10_M";
 
 export const BROKER_DEALER_FORM_NAMES_MAP = [
   ...Form_17HACON.forms.map((form) => [form, Form_17HACON] as const),
@@ -23,9 +27,13 @@ export const BROKER_DEALER_FORM_NAMES_MAP = [
   ...Form_7M.forms.map((form) => [form, Form_7M] as const),
   ...Form_8M.forms.map((form) => [form, Form_8M] as const),
   ...Form_9M.forms.map((form) => [form, Form_9M] as const),
+  ...Form_BDCO.forms.map((form) => [form, Form_BDCO] as const),
+  ...Form_G_405.forms.map((form) => [form, Form_G_405] as const),
   ...Form_G_FIN.forms.map((form) => [form, Form_G_FIN] as const),
+  ...Form_G_FINW.forms.map((form) => [form, Form_G_FINW] as const),
   ...Form_MSD.forms.map((form) => [form, Form_MSD] as const),
   ...Form_REG_NR.forms.map((form) => [form, Form_REG_NR] as const),
+  ...Form_10_M.forms.map((form) => [form, Form_10_M] as const),
 ] as const;
 
 export const BROKER_DEALER_FORM_NAMES = BROKER_DEALER_FORM_NAMES_MAP.map(([form, Form]) => form);

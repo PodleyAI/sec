@@ -28,5 +28,8 @@ export class Form_CERT extends Form {
     "CERTBATS/A",
     "CERTBSE",
     "CERTBSE/A",
+    // Two further exchange codes appear in the EDGAR record.
+    "CERTCSE",
+    "CERTPBS",
   ] as const;
 }

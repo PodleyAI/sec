@@ -18,8 +18,13 @@ export class Form_497 extends Form {
     "497J/A",
     "497K",
     "497K/A",
+    // Legacy fund "profile" filings under Rule 497(k); 497K1/K2/K3A/K3B are
+    // the retired variants that predate the summary prospectus (497K).
     "497K1",
     "497K1/A",
+    "497K2",
+    "497K3A",
+    "497K3B",
     "497VPI",
     "497VPI/A",
     "497VPSUB",

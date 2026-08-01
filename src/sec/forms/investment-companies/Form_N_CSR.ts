@@ -10,5 +10,5 @@ export class Form_N_CSR extends Form {
   static readonly name = "Certified Annual Shareholder Report";
   static readonly description =
     "Certified annual shareholder report of registered management investment companies filed on Form N-CSR.";
-  static readonly forms = ["N-CSR", "N-CSR/A", "NT-NCSR", "NTFNCSR"] as const;
+  static readonly forms = ["N-CSR", "N-CSR/A", "NT-NCSR", "NT-NCSR/A", "NTFNCSR"] as const;
 }

@@ -11,6 +11,9 @@ import { Form_1_SA } from "./Form_1_SA";
 import { Form_1_U } from "./Form_1_U";
 import { Form_1_Z } from "./Form_1_Z";
 import { Form_1_Z_W } from "./Form_1_Z_W";
+import { Form_2_A } from "./Form_2_A";
+import { Form_2_AF } from "./Form_2_AF";
+import { Form_WDL_REQ } from "./Form_WDL_REQ";
 import { Form_DOS } from "./Form_DOS";
 import { Form_DOSLTR } from "./Form_DOSLTR";
 import { Form_C } from "./Form_C";
@@ -22,6 +25,8 @@ import { Form_253G3 } from "./Form_253G3";
 import { Form_253G4 } from "./Form_253G4";
 import { Form_QUALIF } from "./Form_QUALIF";
 import { Form_TTW } from "./Form_TTW";
+import { Form_DEF_OC } from "./Form_DEF_OC";
+import { Form_SL } from "./Form_SL";
 
 export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_1_A.forms.map((form) => [form, Form_1_A] as const),
@@ -31,6 +36,9 @@ export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_1_U.forms.map((form) => [form, Form_1_U] as const),
   ...Form_1_Z.forms.map((form) => [form, Form_1_Z] as const),
   ...Form_1_Z_W.forms.map((form) => [form, Form_1_Z_W] as const),
+  ...Form_2_A.forms.map((form) => [form, Form_2_A] as const),
+  ...Form_2_AF.forms.map((form) => [form, Form_2_AF] as const),
+  ...Form_WDL_REQ.forms.map((form) => [form, Form_WDL_REQ] as const),
   ...Form_DOS.forms.map((form) => [form, Form_DOS] as const),
   ...Form_DOSLTR.forms.map((form) => [form, Form_DOSLTR] as const),
   ...Form_C.forms.map((form) => [form, Form_C] as const),
@@ -42,6 +50,8 @@ export const EXEMPT_OFFERING_FORM_NAMES_MAP = [
   ...Form_253G4.forms.map((form) => [form, Form_253G4] as const),
   ...Form_QUALIF.forms.map((form) => [form, Form_QUALIF] as const),
   ...Form_TTW.forms.map((form) => [form, Form_TTW] as const),
+  ...Form_DEF_OC.forms.map((form) => [form, Form_DEF_OC] as const),
+  ...Form_SL.forms.map((form) => [form, Form_SL] as const),
 ] as const;
 
 export const EXEMPT_OFFERING_FORM_NAMES = EXEMPT_OFFERING_FORM_NAMES_MAP.map(

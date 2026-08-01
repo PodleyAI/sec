@@ -12,6 +12,8 @@ import { Form_SEC_STAFF_LETTER } from "./Form_SEC_STAFF_LETTER";
 import { Form_EFFECT } from "./Form_EFFECT";
 import { Form_UPLOAD } from "./Form_UPLOAD";
 import { Form_CT_ORDER } from "./Form_CT_ORDER";
+import { Form_STOP_ORDER } from "./Form_STOP_ORDER";
+import { Form_SEC_ACTION } from "./Form_SEC_ACTION";
 
 export const CORRESPONDENCE_SUBMISSION_TYPE_FORM_NAMES_MAP = [
   ...Form_CORRESP.forms.map((form) => [form, Form_CORRESP] as const),
@@ -22,6 +24,8 @@ export const CORRESPONDENCE_SUBMISSION_TYPE_FORM_NAMES_MAP = [
   ...Form_EFFECT.forms.map((form) => [form, Form_EFFECT] as const),
   ...Form_UPLOAD.forms.map((form) => [form, Form_UPLOAD] as const),
   ...Form_CT_ORDER.forms.map((form) => [form, Form_CT_ORDER] as const),
+  ...Form_STOP_ORDER.forms.map((form) => [form, Form_STOP_ORDER] as const),
+  ...Form_SEC_ACTION.forms.map((form) => [form, Form_SEC_ACTION] as const),
 ] as const;
 
 export const CORRESPONDENCE_SUBMISSION_TYPE_FORM_NAMES =

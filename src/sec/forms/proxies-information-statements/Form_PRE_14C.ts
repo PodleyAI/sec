@@ -9,5 +9,6 @@ import { Form } from "../Form";
 export class Form_PRE_14C extends Form {
   static readonly name = "Preliminary Information Statement";
   static readonly description = "A preliminary proxy statement containing all other information.";
-  static readonly forms = ["PRE 14C"] as const;
+  // "PREA14C" is an unspaced variant EDGAR recorded once.
+  static readonly forms = ["PRE 14C", "PREA14C"] as const;
 }

@@ -10,5 +10,7 @@ export class Form_SF1 extends Form {
   static readonly name = "Registration Statement for Asset-Backed Securities (SF-1)";
   static readonly description =
     "Registration statement for asset-backed securities under the Securities Act of 1933.";
-  static readonly forms = ["SF-1", "SF-1/A", "SF-1MEP"] as const;
+  // EDGAR indexes the Rule 462(b) companion registration as "SF-1MEF";
+  // "SF-1MEP" is the misfiled spelling.
+  static readonly forms = ["SF-1", "SF-1/A", "SF-1MEF", "SF-1MEP"] as const;
 }

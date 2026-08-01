@@ -48,6 +48,7 @@ import { Form_NPORT_P } from "./Form_NPORT_P";
 import { Form_N_PX } from "./Form_N_PX";
 import { Form_N_Q } from "./Form_N_Q";
 import { Form_N_1A } from "./Form_N_1A";
+import { Form_N_1A_EL } from "./Form_N_1A_EL";
 import { Form_N_2 } from "./Form_N_2";
 import { Form_N_3 } from "./Form_N_3";
 import { Form_N_4 } from "./Form_N_4";
@@ -59,11 +60,21 @@ import { Form_N_14MEF } from "./Form_N_14MEF";
 import { Form_N_14AE } from "./Form_N_14AE";
 import { Form_N_14EL24 } from "./Form_N_14EL24";
 import { Form_497 } from "./Form_497";
+import { Form_ADV_E } from "./Form_ADV_E";
 import { Form_ADV_NR } from "./Form_ADV_NR";
 import { Form_N_CR } from "./Form_N_CR";
 import { Form_N_LIQUID } from "./Form_N_LIQUID";
 import { Form_6B_ORDR } from "./Form_6B_ORDR";
 import { Form_6B_NTC } from "./Form_6B_NTC";
+import { Form_8F_2 } from "./Form_8F_2";
+import { Form_40_RPT } from "./Form_40_RPT";
+import { Form_N_8B_4 } from "./Form_N_8B_4";
+import { Form_N_3_EL } from "./Form_N_3_EL";
+import { Form_ADV } from "./Form_ADV";
+import { Form_ADVW } from "./Form_ADVW";
+import { Form_ADVCO } from "./Form_ADVCO";
+import { Form_ADV_H } from "./Form_ADV_H";
+import { Form_40_ADVISERS_ACT } from "./Form_40_ADVISERS_ACT";
 
 export const INVESTMENT_COMPANY_FORM_NAMES_MAP = [
   ...Form_N_8A.forms.map((form) => [form, Form_N_8A] as const),
@@ -110,6 +121,7 @@ export const INVESTMENT_COMPANY_FORM_NAMES_MAP = [
   ...Form_N_PX.forms.map((form) => [form, Form_N_PX] as const),
   ...Form_N_Q.forms.map((form) => [form, Form_N_Q] as const),
   ...Form_N_1A.forms.map((form) => [form, Form_N_1A] as const),
+  ...Form_N_1A_EL.forms.map((form) => [form, Form_N_1A_EL] as const),
   ...Form_N_2.forms.map((form) => [form, Form_N_2] as const),
   ...Form_N_3.forms.map((form) => [form, Form_N_3] as const),
   ...Form_N_4.forms.map((form) => [form, Form_N_4] as const),
@@ -121,11 +133,21 @@ export const INVESTMENT_COMPANY_FORM_NAMES_MAP = [
   ...Form_N_14AE.forms.map((form) => [form, Form_N_14AE] as const),
   ...Form_N_14EL24.forms.map((form) => [form, Form_N_14EL24] as const),
   ...Form_497.forms.map((form) => [form, Form_497] as const),
+  ...Form_ADV_E.forms.map((form) => [form, Form_ADV_E] as const),
   ...Form_ADV_NR.forms.map((form) => [form, Form_ADV_NR] as const),
   ...Form_N_CR.forms.map((form) => [form, Form_N_CR] as const),
   ...Form_N_LIQUID.forms.map((form) => [form, Form_N_LIQUID] as const),
   ...Form_6B_NTC.forms.map((form) => [form, Form_6B_NTC] as const),
   ...Form_6B_ORDR.forms.map((form) => [form, Form_6B_ORDR] as const),
+  ...Form_8F_2.forms.map((form) => [form, Form_8F_2] as const),
+  ...Form_40_RPT.forms.map((form) => [form, Form_40_RPT] as const),
+  ...Form_N_8B_4.forms.map((form) => [form, Form_N_8B_4] as const),
+  ...Form_N_3_EL.forms.map((form) => [form, Form_N_3_EL] as const),
+  ...Form_ADV.forms.map((form) => [form, Form_ADV] as const),
+  ...Form_ADVW.forms.map((form) => [form, Form_ADVW] as const),
+  ...Form_ADVCO.forms.map((form) => [form, Form_ADVCO] as const),
+  ...Form_ADV_H.forms.map((form) => [form, Form_ADV_H] as const),
+  ...Form_40_ADVISERS_ACT.forms.map((form) => [form, Form_40_ADVISERS_ACT] as const),
 ] as const;
 
 export const INVESTMENT_COMPANY_FORM_NAMES = INVESTMENT_COMPANY_FORM_NAMES_MAP.map(

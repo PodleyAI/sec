@@ -31,8 +31,22 @@ export class Form_40 extends Form {
     "40-17F1/A",
     "40-17F2",
     "40-17F2/A",
+    // Section 8(f) deregistration applications on Form N-8F. The trailing
+    // letter is the reason checked on the form: -A abandonment of
+    // registration, -B election of status as a business development company,
+    // -L liquidation, -M merger. All four were folded into plain N-8F.
     "40-8F-2",
     "40-8F-2/A",
+    "40-8F-A",
+    "40-8F-A/A",
+    "40-8F-B",
+    "40-8F-B/A",
+    "40-8F-L",
+    "40-8F-L/A",
+    "40-8F-M",
+    "40-8F-M/A",
+    "40-8FC",
+    "40-8FC/A",
     "40-8B25",
     "40-8B25/A",
   ] as const;
