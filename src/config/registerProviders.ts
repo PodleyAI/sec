@@ -83,42 +83,11 @@ async function registerXai(): Promise<void> {
   }
 }
 
-/**
- * `workglow/deepseek/runtime` is newer than the `workglow` version this package
- * currently pins, so a static specifier would fail to typecheck against an older
- * install. The specifier is therefore built at run time: resolution is deferred to
- * the import itself, and an install without the subpath takes the same
- * warn-and-skip path as a provider whose optional dependency is missing. Collapse
- * this back to a literal specifier once the pinned `workglow` ships the subpath.
- */
-const DEEPSEEK_RUNTIME_MODULE = "workglow/deepseek/runtime";
-
-/**
- * Node/Bun error codes for "the installed package simply does not expose this
- * specifier". Until the pinned `workglow` ships `./deepseek/runtime`, that is
- * the *expected* outcome on every CLI start, so it is skipped silently instead
- * of printing a warning on every command; a genuine load failure (bad export,
- * throwing module) still warns.
- */
-const MODULE_ABSENT_CODES = new Set([
-  "ERR_MODULE_NOT_FOUND",
-  "ERR_PACKAGE_PATH_NOT_EXPORTED",
-  "MODULE_NOT_FOUND",
-]);
-
-function isModuleAbsent(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code;
-  return typeof code === "string" && MODULE_ABSENT_CODES.has(code);
-}
-
 async function registerDeepSeek(): Promise<void> {
   try {
-    const mod = (await import(DEEPSEEK_RUNTIME_MODULE)) as {
-      registerDeepSeekInline: () => Promise<void>;
-    };
-    await mod.registerDeepSeekInline();
+    const { registerDeepSeekInline } = await import("workglow/deepseek/runtime");
+    await registerDeepSeekInline();
   } catch (err) {
-    if (isModuleAbsent(err)) return;
     warn("DeepSeek", err);
   }
 }
