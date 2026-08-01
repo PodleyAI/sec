@@ -67,7 +67,7 @@ export function addBootstrapCommands(program: Command): void {
                 (c) =>
                   new BootstrapDownloadTask({
                     title: `Download ${c.targetFolder}`,
-                    defaults: { url: c.url, targetFolder: c.targetFolder },
+                    defaults: { url: c.url, targetFolder: c.targetFolder, force },
                   })
               )
             );
@@ -116,7 +116,12 @@ export function addBootstrapCommands(program: Command): void {
   bootstrap
     .command("download <type>")
     .description("Download bulk SEC data (submissions, facts, ciks, or all)")
-    .action(async (type: string) => {
+    .option(
+      "--force",
+      "Re-download and fully overwrite even when the archive is unchanged since the last run",
+      false
+    )
+    .action(async (type: string, options: { force?: boolean }) => {
       await runCommand(async () => {
         if (type === "ciks") {
           await runWorkflowCli([new FetchAllCikNamesTask()]);
@@ -134,7 +139,11 @@ export function addBootstrapCommands(program: Command): void {
           types.map((t) => {
             const config = BULK_DOWNLOADS[t];
             return new BootstrapDownloadTask({
-              defaults: { url: config.url, targetFolder: config.targetFolder },
+              defaults: {
+                url: config.url,
+                targetFolder: config.targetFolder,
+                force: options.force ?? false,
+              },
             });
           })
         );

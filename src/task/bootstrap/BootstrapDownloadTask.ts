@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
@@ -15,7 +15,75 @@ import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 export type BootstrapDownloadTaskInput = {
   readonly url: string;
   readonly targetFolder: string;
+  /** Re-download and fully overwrite even when the archive is unchanged. */
+  readonly force?: boolean;
 };
+
+/**
+ * What we remember about the last successfully-extracted archive, so a re-run
+ * can ask EDGAR "has this changed?" instead of re-pulling ~1.5 GB. Mirrors the
+ * `accessiondocs/.feed-done/` marker idiom used by `BootstrapAccessionDocsTask`.
+ */
+export type BulkArchiveMarker = {
+  readonly url: string;
+  readonly etag?: string;
+  readonly lastModified?: string;
+  readonly contentLength?: number;
+  readonly extractedAt: string;
+};
+
+/** Directory holding the per-archive markers, under SEC_RAW_DATA_FOLDER. */
+export const BULK_DONE_DIR = ".bulk-done";
+
+/**
+ * Reads the marker for `targetFolder`, or undefined when absent/corrupt. A
+ * corrupt marker is treated as "no marker" rather than an error: the worst
+ * case is one redundant download, whereas throwing would wedge the pipeline.
+ */
+export function readBulkArchiveMarker(
+  rawDataFolder: string,
+  targetFolder: string
+): BulkArchiveMarker | undefined {
+  const markerPath = join(rawDataFolder, BULK_DONE_DIR, `${targetFolder}.json`);
+  if (!existsSync(markerPath)) return undefined;
+  try {
+    const parsed = JSON.parse(readFileSync(markerPath, "utf8")) as BulkArchiveMarker;
+    if (typeof parsed?.url !== "string") return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeBulkArchiveMarker(
+  rawDataFolder: string,
+  targetFolder: string,
+  marker: BulkArchiveMarker
+): void {
+  const doneDir = join(rawDataFolder, BULK_DONE_DIR);
+  mkdirSync(doneDir, { recursive: true });
+  writeFileSync(join(doneDir, `${targetFolder}.json`), JSON.stringify(marker, null, 2));
+}
+
+/**
+ * True when the marker can be trusted to mean "the extracted tree is already
+ * present and current". A marker whose URL no longer matches is stale, and a
+ * marker whose target directory has since been emptied or deleted would
+ * otherwise make us skip a download we genuinely need.
+ */
+export function markerCoversTarget(
+  marker: BulkArchiveMarker | undefined,
+  url: string,
+  targetDir: string
+): boolean {
+  if (marker === undefined || marker.url !== url) return false;
+  if (!existsSync(targetDir)) return false;
+  try {
+    return readdirSync(targetDir).length > 0;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Streams an HTTP response body directly to disk without buffering the
@@ -25,6 +93,12 @@ export type BootstrapDownloadTaskInput = {
  *
  * Exported for testing — the task wraps it with logging and the SEC
  * User-Agent header.
+ *
+ * When the caller sends a conditional header (`If-None-Match` /
+ * `If-Modified-Since`) and the origin answers `304 Not Modified`, this returns
+ * `notModified: true` without touching `destPath`. The 304 check must precede
+ * both the `response.ok` guard (304 is not "ok") and the body-null guard (a 304
+ * legitimately carries no body).
  */
 export async function streamDownloadToFile(
   url: string,
@@ -34,11 +108,22 @@ export async function streamDownloadToFile(
     readonly signal?: AbortSignal;
     readonly onProgress?: (downloadedBytes: number, totalBytes: number | undefined) => void;
   } = {}
-): Promise<{ bytes: number; totalBytes: number | undefined }> {
+): Promise<{
+  bytes: number;
+  totalBytes: number | undefined;
+  notModified: boolean;
+  etag: string | undefined;
+  lastModified: string | undefined;
+}> {
   const response = await fetch(url, {
     headers: opts.headers,
     signal: opts.signal,
   });
+  const etag = response.headers.get("etag") ?? undefined;
+  const lastModified = response.headers.get("last-modified") ?? undefined;
+  if (response.status === 304) {
+    return { bytes: 0, totalBytes: undefined, notModified: true, etag, lastModified };
+  }
   if (!response.ok) {
     throw new Error(
       `Download failed: HTTP ${response.status} ${response.statusText} for ${url}`
@@ -136,7 +221,7 @@ export async function streamDownloadToFile(
 
   if (originalError !== undefined) throw originalError;
   if (endError !== undefined) throw endError;
-  return { bytes, totalBytes };
+  return { bytes, totalBytes, notModified: false, etag, lastModified };
 }
 
 export type BootstrapDownloadTaskOutput = {
@@ -158,6 +243,7 @@ export class BootstrapDownloadTask extends Task<
     return Type.Object({
       url: Type.String(),
       targetFolder: Type.String(),
+      force: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -184,14 +270,30 @@ export class BootstrapDownloadTask extends Task<
       );
     }
 
+    const force = input.force ?? false;
+
     if (dryRun) {
-      console.log(`Would download ${input.url} to ${targetDir}`);
+      console.log(`Would download ${input.url} to ${targetDir}${force ? " (forced)" : ""}`);
       return { success: true };
     }
 
     mkdirSync(targetDir, { recursive: true });
 
     const zipPath = join(rawDataFolder, `${input.targetFolder}.zip`);
+
+    // Conditional fetch: when a previous run recorded the archive's validators
+    // AND the extracted tree is still on disk, ask EDGAR whether anything has
+    // changed instead of re-pulling ~1.5 GB. SEC serves both ETag and
+    // Last-Modified on the bulk archives. `--force` skips this entirely.
+    const marker = force ? undefined : readBulkArchiveMarker(rawDataFolder, input.targetFolder);
+    const usableMarker = markerCoversTarget(marker, input.url, targetDir) ? marker : undefined;
+
+    const headers: Record<string, string> = { "User-Agent": SecUserAgent };
+    if (usableMarker?.etag !== undefined) {
+      headers["If-None-Match"] = usableMarker.etag;
+    } else if (usableMarker?.lastModified !== undefined) {
+      headers["If-Modified-Since"] = usableMarker.lastModified;
+    }
 
     console.log(`Downloading ${input.url} ...`);
 
@@ -207,8 +309,14 @@ export class BootstrapDownloadTask extends Task<
     // concern for a single download.
     let lastReportedPct = -1;
     let sizeLogged = false;
-    const { bytes: downloadedBytes } = await streamDownloadToFile(input.url, zipPath, {
-      headers: { "User-Agent": SecUserAgent },
+    const {
+      bytes: downloadedBytes,
+      totalBytes,
+      notModified,
+      etag,
+      lastModified,
+    } = await streamDownloadToFile(input.url, zipPath, {
+      headers,
       signal: context.signal,
       onProgress: (downloaded, total) => {
         if (!sizeLogged && total !== undefined) {
@@ -224,6 +332,31 @@ export class BootstrapDownloadTask extends Task<
         }
       },
     });
+
+    if (notModified) {
+      console.log(
+        `${input.targetFolder}: unchanged since ${usableMarker?.extractedAt ?? "the last run"} (HTTP 304) — skipping download and extraction.`
+      );
+      return { success: true };
+    }
+
+    // Belt-and-braces: some intermediaries drop conditional headers and answer
+    // 200 with a byte-identical archive. If the validators still match what we
+    // extracted last time, the freshly-staged zip is redundant — bin it rather
+    // than re-extracting ~1M files over identical content.
+    if (
+      usableMarker !== undefined &&
+      etag !== undefined &&
+      usableMarker.etag === etag &&
+      usableMarker.contentLength === downloadedBytes
+    ) {
+      rmSync(zipPath, { force: true });
+      console.log(
+        `${input.targetFolder}: unchanged since ${usableMarker.extractedAt} (matching ETag) — skipping extraction.`
+      );
+      return { success: true };
+    }
+
     console.log(`Download complete (${downloadedBytes} bytes). Extracting to ${targetDir} ...`);
 
     const unzipPath = Bun.which("unzip");
@@ -233,8 +366,15 @@ export class BootstrapDownloadTask extends Task<
       );
     }
 
+    // "-uo" extracts only members that are new or newer than their on-disk
+    // copy, so an archive that changed in a handful of companies rewrites a
+    // handful of files rather than ~1M. The "-o" half suppresses the overwrite
+    // prompt, which matters because a prompt in a spawned process would block
+    // forever with no tty. "--force" reverts to a full "-o" clobber.
+    const unzipFlags = force ? "-o" : "-uo";
+
     try {
-      const proc = Bun.spawn([unzipPath, "-o", zipPath, "-d", targetDir], {
+      const proc = Bun.spawn([unzipPath, unzipFlags, zipPath, "-d", targetDir], {
         stdout: "inherit",
         stderr: "inherit",
       });
@@ -243,6 +383,16 @@ export class BootstrapDownloadTask extends Task<
       if (exitCode !== 0) {
         throw new Error(`unzip exited with code ${exitCode}`);
       }
+
+      // Record validators only after a clean extraction, so a crash mid-unzip
+      // re-downloads next run instead of falsely reporting the tree as current.
+      writeBulkArchiveMarker(rawDataFolder, input.targetFolder, {
+        url: input.url,
+        etag,
+        lastModified,
+        contentLength: totalBytes ?? downloadedBytes,
+        extractedAt: new Date().toISOString(),
+      });
     } finally {
       // Always remove the staged zip — on extract failure the partial
       // archive can be many GB and would silently leak into rawDataFolder

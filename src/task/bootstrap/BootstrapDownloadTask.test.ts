@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -448,6 +448,205 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
     } finally {
       restoreBun();
       restoreFetch();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional download", () => {
+  // The bulk archives are ~1.5 GB each and EDGAR serves ETag/Last-Modified on
+  // both, so a re-run should ask "changed?" rather than re-pulling. These tests
+  // pin the marker round-trip, the 304 skip, and the -uo/-o flag choice.
+
+  const URL = "https://example/file.zip";
+
+  function setup(): { folder: string; targetFolder: string; targetDir: string; zipPath: string } {
+    const folder = mkdtempSync(path.join(tmpdir(), "sec-conditional-test-"));
+    const targetFolder = "extract-target";
+    globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, folder);
+    return {
+      folder,
+      targetFolder,
+      targetDir: path.join(folder, targetFolder),
+      zipPath: path.join(folder, `${targetFolder}.zip`),
+    };
+  }
+
+  /** Records the headers each request carried, and replies with `status`. */
+  function stubFetch(opts: {
+    status?: number;
+    etag?: string;
+    lastModified?: string;
+  }): { seen: Record<string, string>[]; restore: () => void } {
+    const seen: Record<string, string>[] = [];
+    const oldFetch = global.fetch;
+    (global as any).fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      seen.push({ ...((init?.headers as Record<string, string>) ?? {}) });
+      const headers: Record<string, string> = {};
+      if (opts.etag !== undefined) headers.etag = opts.etag;
+      if (opts.lastModified !== undefined) headers["last-modified"] = opts.lastModified;
+      if (opts.status === 304) {
+        return new Response(null, { status: 304, headers });
+      }
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { ...headers, "content-length": "4" },
+      });
+    });
+    return { seen, restore: () => ((global as any).fetch = oldFetch) };
+  }
+
+  function stubBun(): { cmds: readonly string[][]; restore: () => void } {
+    const cmds: string[][] = [];
+    const realSpawn = Bun.spawn;
+    const realWhich = Bun.which;
+    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((cmd: readonly string[]) => {
+      cmds.push([...cmd]);
+      return { exited: Promise.resolve(0) };
+    }) as unknown as typeof Bun.spawn;
+    (Bun as unknown as { which: typeof Bun.which }).which = ((_n: string) =>
+      "/usr/bin/unzip") as typeof Bun.which;
+    return {
+      cmds,
+      restore: () => {
+        (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = realSpawn;
+        (Bun as unknown as { which: typeof Bun.which }).which = realWhich;
+      },
+    };
+  }
+
+  const ctx = {
+    signal: new AbortController().signal,
+    updateProgress: async () => {},
+  } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
+
+  it("sends no conditional header on a first run and records a marker", async () => {
+    const { folder, targetFolder } = setup();
+    const fetchStub = stubFetch({ etag: '"abc"', lastModified: "Fri, 31 Jul 2026 04:40:43 GMT" });
+    const bun = stubBun();
+    try {
+      const input = { url: URL, targetFolder };
+      await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+
+      expect(fetchStub.seen[0]["If-None-Match"]).toBeUndefined();
+      const marker = JSON.parse(
+        readFileSync(path.join(folder, ".bulk-done", `${targetFolder}.json`), "utf8")
+      );
+      expect(marker.etag).toBe('"abc"');
+      expect(marker.contentLength).toBe(4);
+      expect(marker.url).toBe(URL);
+    } finally {
+      bun.restore();
+      fetchStub.restore();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("sends If-None-Match and skips extraction entirely on 304", async () => {
+    const { folder, targetFolder, targetDir } = setup();
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(path.join(targetDir, "already-here.json"), "{}");
+    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+    writeFileSync(
+      path.join(folder, ".bulk-done", `${targetFolder}.json`),
+      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+    );
+    const fetchStub = stubFetch({ status: 304, etag: '"abc"' });
+    const bun = stubBun();
+    try {
+      const input = { url: URL, targetFolder };
+      const result = await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+
+      expect(result.success).toBe(true);
+      expect(fetchStub.seen[0]["If-None-Match"]).toBe('"abc"');
+      expect(bun.cmds).toHaveLength(0); // never unzipped
+    } finally {
+      bun.restore();
+      fetchStub.restore();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores a marker whose extracted tree is gone", async () => {
+    const { folder, targetFolder } = setup();
+    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+    writeFileSync(
+      path.join(folder, ".bulk-done", `${targetFolder}.json`),
+      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+    );
+    const fetchStub = stubFetch({ etag: '"def"' });
+    const bun = stubBun();
+    try {
+      const input = { url: URL, targetFolder };
+      await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+
+      // No target dir contents => marker untrusted => unconditional download.
+      expect(fetchStub.seen[0]["If-None-Match"]).toBeUndefined();
+      expect(bun.cmds).toHaveLength(1);
+    } finally {
+      bun.restore();
+      fetchStub.restore();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("extracts with -uo normally and -o under force, and force skips the marker", async () => {
+    const { folder, targetFolder, targetDir } = setup();
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(path.join(targetDir, "already-here.json"), "{}");
+    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+    writeFileSync(
+      path.join(folder, ".bulk-done", `${targetFolder}.json`),
+      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+    );
+    const fetchStub = stubFetch({ etag: '"changed"' });
+    const bun = stubBun();
+    try {
+      const plain = { url: URL, targetFolder };
+      await new BootstrapDownloadTask({ defaults: plain }).execute(plain, ctx);
+      expect(bun.cmds[0]).toContain("-uo");
+      expect(fetchStub.seen[0]["If-None-Match"]).toBe('"abc"');
+
+      const forced = { url: URL, targetFolder, force: true };
+      await new BootstrapDownloadTask({ defaults: forced }).execute(forced, ctx);
+      expect(bun.cmds[1]).toContain("-o");
+      expect(bun.cmds[1]).not.toContain("-uo");
+      expect(fetchStub.seen[1]["If-None-Match"]).toBeUndefined();
+    } finally {
+      bun.restore();
+      fetchStub.restore();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("skips extraction when a 200 comes back with the same ETag and length", async () => {
+    const { folder, targetFolder, targetDir, zipPath } = setup();
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(path.join(targetDir, "already-here.json"), "{}");
+    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+    writeFileSync(
+      path.join(folder, ".bulk-done", `${targetFolder}.json`),
+      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+    );
+    // Origin ignores the conditional header and replies 200 with identical bytes.
+    const fetchStub = stubFetch({ etag: '"abc"' });
+    const bun = stubBun();
+    try {
+      const input = { url: URL, targetFolder };
+      const result = await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+
+      expect(result.success).toBe(true);
+      expect(bun.cmds).toHaveLength(0);
+      expect(existsSync(zipPath)).toBe(false); // staged zip binned
+    } finally {
+      bun.restore();
+      fetchStub.restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });

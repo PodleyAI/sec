@@ -8,10 +8,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Drift guard for `sec db reset --confirm`. `resetAllDatabases()` truncates a
- * hand-maintained list of repository tokens; if a new table is registered in
- * DefaultDI but its `deleteAll()` is forgotten here, a "reset" silently leaves
- * that table fully populated (orphan rows + dangling cross-tier references).
+ * Drift guard for `sec db reset --confirm`. The SQL backends drop the schema
+ * outright, but the in-memory fallback still truncates a hand-maintained list
+ * of repository tokens; if a new table is registered in DefaultDI but its
+ * `deleteAll()` is forgotten there, a "reset" on that backend silently leaves
+ * the table fully populated (orphan rows + dangling cross-tier references).
  *
  * This mirrors `form-wiring.test.ts`: it pins the data/wiring consistency at the
  * source level so a forgotten table fails CI instead of corrupting a "clean" DB.
