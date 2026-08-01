@@ -309,6 +309,67 @@ describe("BootstrapAccessionDocsTask", () => {
     expect(third.requested).toEqual(["2021-03-05"]);
   });
 
+  it("refuses a filer-controlled primary_doc that tries to escape the cik directory", async () => {
+    const acc = "0001193125-21-066108";
+    const attackerRel = "../../../../../etc/edgar-attacker";
+    await seedFilings([
+      filing({
+        cik: 1193125,
+        accession_number: acc,
+        form: "4",
+        primary_doc: attackerRel,
+      }),
+    ]);
+    // The `<FILENAME>` in the .nc matches the raw filer value, so the
+    // extractor would happily slice a body — the sanitizer is what stops us
+    // from writing it to a traversed path.
+    const submission = [
+      "<DOCUMENT>",
+      "<TYPE>4",
+      `<FILENAME>${attackerRel}`,
+      "<TEXT>",
+      "pwned",
+      "</TEXT>",
+      "</DOCUMENT>",
+    ].join("\n");
+    const gz = makeTarGz([{ name: `${acc}.nc`, body: submission }]);
+
+    const origWarn = console.warn;
+    const warned: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warned.push(args.map((a) => (typeof a === "string" ? a : String(a))).join(" "));
+    };
+    let out;
+    try {
+      const task = new TestBootstrapAccessionDocsTask(new Map([["2021-03-05", gz]]));
+      out = await task.execute({}, ctx());
+    } finally {
+      console.warn = origWarn;
+    }
+
+    // The unsafe primary doc is skipped; only the full-submission `.txt`
+    // fallback under the cik directory is allowed to write.
+    expect(out.docsWritten).toBe(1);
+    const fullSubPath = path.join(
+      raw,
+      "accessiondocs",
+      "0001193125",
+      `000119312521066108-${acc}.txt`
+    );
+    expect(readFileSync(fullSubPath, "utf-8")).toBe(submission);
+
+    // Nothing escaped the cik directory to the raw root's parent…
+    expect(existsSync(path.join(path.dirname(raw), "edgar-attacker"))).toBe(false);
+    // …nor to `/etc/edgar-attacker` (test only asserts absence; system dirs stay clean).
+    expect(existsSync("/etc/edgar-attacker")).toBe(false);
+
+    // A warning identifies the filing and the offending value.
+    const warnedJoined = warned.join("\n");
+    expect(warnedJoined).toContain("1193125");
+    expect(warnedJoined).toContain(acc);
+    expect(warnedJoined).toContain(JSON.stringify(attackerRel));
+  });
+
   it("honours the [from, to] date range", async () => {
     await seedFilings([
       filing({ cik: 1, accession_number: "0000000001-21-000001", form: "4", primary_doc: "a.xml", filing_date: "2021-03-01" }),

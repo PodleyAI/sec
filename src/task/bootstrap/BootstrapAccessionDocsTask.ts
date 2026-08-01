@@ -11,6 +11,7 @@ import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { assertInsideDir, sanitizePrimaryDoc } from "../../util/accessionDocPath";
 import { parseDate } from "../../util/parseDate";
 import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
 import { extractPrimaryDocFromSubmission, streamFeedTarball } from "./feedTarball";
@@ -156,7 +157,22 @@ export class BootstrapAccessionDocsTask extends Task<
     // document in the submissions metadata — the whole filing IS the `.txt`.
     // With no primary doc to slice, the full submission is the only content to
     // cache, so store it regardless of form.
-    const hasPrimary = primaryName.length > 0;
+    let hasPrimary = primaryName.length > 0;
+    // `primary_doc` is filer-authored on the EDGAR submissions API; validate it
+    // before composing any on-disk cache path so a hostile value can't escape
+    // the cik directory. On rejection, fall through to the full-submission
+    // fallback below rather than aborting the whole day's ingest.
+    let safeName = "";
+    if (hasPrimary) {
+      try {
+        safeName = sanitizePrimaryDoc(primaryName);
+      } catch {
+        console.warn(
+          `Skipping unsafe primary_doc for cik=${filing.cik} accession=${filing.accession_number}: ${JSON.stringify(primaryName)}`
+        );
+        hasPrimary = false;
+      }
+    }
 
     let written = 0;
 
@@ -169,7 +185,8 @@ export class BootstrapAccessionDocsTask extends Task<
     // filing's content is still captured.
     let sliced = false;
     if (!isRegistration && hasPrimary) {
-      const primaryPath = join(dir, `${accNoDash}-${primaryName}`);
+      const primaryPath = join(dir, `${accNoDash}-${safeName}`);
+      assertInsideDir(primaryPath, dir);
       const alreadyCached = !force && existsSync(primaryPath);
       if (alreadyCached) {
         sliced = true;
@@ -191,6 +208,7 @@ export class BootstrapAccessionDocsTask extends Task<
     // fallback when a primary doc exists but could not be sliced.
     if (isRegistration || isEightK || !hasPrimary || !sliced) {
       const fullSubPath = join(dir, `${accNoDash}-${filing.accession_number}.txt`);
+      assertInsideDir(fullSubPath, dir);
       if (force || !existsSync(fullSubPath)) {
         this.ensureDir(dir);
         writeFileSync(fullSubPath, submissionText);
