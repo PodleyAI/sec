@@ -245,6 +245,16 @@ Its cost line uses DeepSeek's **cache-miss** input price, since each section is 
 distinct prompt that never hits the context cache; DeepSeek has also announced
 (not yet enabled) 2x peak-hour pricing, which the table does not model.
 
+> ⚠️ **DeepSeek's `json-mode` is not schema-enforced.** The API supports only
+> `response_format: {type: "json_object"}` — it rejects the OpenAI `json_schema`
+> form — so the provider passes the schema in the *prompt* and the model is free
+> to ignore it. That is weaker than every other extraction path here: Anthropic /
+> OpenAI / Gemini enforce the schema server-side, and llama.cpp constrains
+> generation with a grammar. `StructuredGenerationTask` still re-validates the
+> parsed object, so a bad shape fails loudly (and dead-letters) rather than
+> corrupting data — but expect a higher schema-failure rate than the cost table
+> alone suggests, and weigh that against the savings when ranking it.
+
 A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
 `onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
 models work for `json-mode` — a thinking model wraps the JSON in reasoning.
