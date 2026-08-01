@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.0.20
+
+### Features
+
+#### task
+
+- give every task a title so progress rows are readable
+
+### Tests
+
+#### task
+
+- don't let an un-parameterized task class evade the title guard
+
+### Chores
+
+#### deps
+
+- bump workglow to 0.3.34 for the two-argument context.own
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.34
+- `workglow`: 0.3.34
+- `@types/pg`: ^8.20.3
+
 ## 0.0.19
 
 ### Features
