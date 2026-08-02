@@ -77,8 +77,8 @@ export class RetryDeadLettersTask extends Task<
       // Isolate each accession: ProcessAccessionDocFormTask rethrows hard
       // parse/store errors, and a recovery sweep must grind through the whole
       // worklist rather than abandon every later accession on one bad filing.
-      const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
       try {
+        const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
         await wf.run({ accessionNumber });
         reprocessed++;
@@ -87,11 +87,6 @@ export class RetryDeadLettersTask extends Task<
         failed++;
         const message = e instanceof Error ? e.message : String(e);
         console.warn(`retry-dead-letters: ${accessionNumber} failed to reprocess: ${message}`);
-      } finally {
-        // One of these is owned per worklist entry inside a single `execute()`;
-        // without releasing them the sweep holds every reprocessed filing's
-        // pipeline until the whole worklist is done.
-        context.disown(wf);
       }
     }
     return { eligibleAccessions: accessions, reprocessed, failed };

@@ -445,6 +445,60 @@ describe("generation node reuse", () => {
       // `runInputData` copy may keep the section text reachable.
       expect(node.defaults.prompt).toBeUndefined();
       expect(node.runInputData.prompt).toBeUndefined();
+      // Nor may the last section's extracted rows.
+      expect(node.runOutputData.object).toBeUndefined();
+    } finally {
+      unregister();
+    }
+  });
+
+  // A section that fails schema validation is the routine case (it dead-letters
+  // and the filing carries on), and the node it failed on now serves every later
+  // section. `run()` never clears `task.error`, so without an explicit reset the
+  // failure's rejected attempt objects stay reachable for the rest of the filing
+  // and the node ends up COMPLETED while still reporting an earlier section's
+  // error.
+  class FailThenSucceedSweepTask extends Task {
+    public static override readonly type = "FailThenSucceedSweepTask";
+    public static override readonly category = "Test";
+    public static override readonly title = "Fail then succeed sweep";
+
+    public firstSectionError: unknown;
+    public ownerCount = 0;
+
+    override async execute(_input: TaskOutput, context: IExecuteContext): Promise<TaskOutput> {
+      try {
+        await extractManagement("Jane Roe, Director", fakeS1Model(), context);
+      } catch (e) {
+        this.firstSectionError = e;
+      }
+      const owners = await extractBeneficialOwnership(
+        "ACME Fund\t1,000,000\t12.5%",
+        fakeS1Model(),
+        context
+      );
+      this.ownerCount = owners.length;
+      return {};
+    }
+  }
+
+  it("carries no error from a failed section onto the reused node", async () => {
+    // First section's payload never satisfies ManagementOutputSchema (on the
+    // retry either), so it exhausts attempts and throws.
+    const { unregister } = registerFakeStructuredProvider([
+      { people: "not-an-array" },
+      OWNERSHIP_PAYLOAD,
+    ]);
+    try {
+      const task = new FailThenSucceedSweepTask();
+      await task.run();
+
+      expect(task.firstSectionError).toBeDefined();
+      // The later section still runs on the same node, and succeeds.
+      expect(task.ownerCount).toBe(1);
+      expect(task.subGraph.getTasks()).toHaveLength(1);
+      const node = task.subGraph.getTasks()[0];
+      expect(node.error).toBeUndefined();
     } finally {
       unregister();
     }
