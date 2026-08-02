@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IExecuteContext, TaskOutput } from "workglow";
+import { Task } from "workglow";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   extractManagement,
@@ -283,8 +285,22 @@ it("extractUseOfProceeds returns parsed line items", async () => {
   const { unregister } = registerFakeStructuredProvider([
     {
       line_items: [
-        { purpose: "repay debt", amount: 20000000, percent: 40, note: null, confidence: 0.8, source_span: "repay" },
-        { purpose: "working capital", amount: null, percent: null, note: "remainder", confidence: 0.6, source_span: "wc" },
+        {
+          purpose: "repay debt",
+          amount: 20000000,
+          percent: 40,
+          note: null,
+          confidence: 0.8,
+          source_span: "repay",
+        },
+        {
+          purpose: "working capital",
+          amount: null,
+          percent: null,
+          note: "remainder",
+          confidence: 0.6,
+          source_span: "wc",
+        },
       ],
     },
   ]);
@@ -324,7 +340,12 @@ it("forwards generation phase progress to a threaded execute context", async () 
       messages.push(m);
     },
     own: <T>(v: T): T => v,
-    registry: { has: () => false, get: () => { throw new Error("x"); } },
+    registry: {
+      has: () => false,
+      get: () => {
+        throw new Error("x");
+      },
+    },
     resourceScope: { register: () => {}, dispose: async () => {} },
   } as any;
   try {
@@ -340,4 +361,92 @@ it("forwards generation phase progress to a threaded execute context", async () 
   } finally {
     unregister();
   }
+});
+
+// The generation task is owned on the caller's execute context, and `own` is
+// add-only — a task's subgraph is cleared only between graph runs. A node per
+// section therefore pinned every section's prompt (a beneficial-ownership
+// section runs to ~57k chars) for as long as the owning task lived, and under
+// `extractor backfill` the owner is itself owned by the sweep.
+describe("generation node reuse", () => {
+  const MANAGEMENT_PAYLOAD = {
+    people: [
+      {
+        full_name: "Jane Roe",
+        titles: ["Director"],
+        relationship: null,
+        confidence: 0.9,
+        source_span: "Jane Roe, Director",
+      },
+    ],
+  };
+  const OWNERSHIP_PAYLOAD = {
+    owners: [
+      {
+        name: "ACME Fund",
+        owner_kind: "company",
+        security_class: "Common",
+        shares_owned: 1000000,
+        percent_owned: 12.5,
+        shares_offered: null,
+        shares_after: null,
+        percent_after: null,
+        is_selling_stockholder: false,
+        footnote: null,
+        confidence: 0.8,
+        source_span: "ACME Fund 1,000,000 12.5%",
+      },
+    ],
+  };
+
+  class SectionSweepTask extends Task {
+    public static override readonly type = "SectionSweepTask";
+    public static override readonly category = "Test";
+    public static override readonly title = "Section sweep";
+
+    public readonly titlesSeen: string[] = [];
+
+    override async execute(_input: TaskOutput, context: IExecuteContext): Promise<TaskOutput> {
+      await extractManagement("Jane Roe, Director", fakeS1Model(), context);
+      this.titlesSeen.push(...this.subGraph.getTasks().map((t) => t.title));
+
+      await extractBeneficialOwnership("ACME Fund\t1,000,000\t12.5%", fakeS1Model(), context);
+      this.titlesSeen.push(...this.subGraph.getTasks().map((t) => t.title));
+      return {};
+    }
+  }
+
+  it("owns one node across a filing's sections and relabels it per section", async () => {
+    const { unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD, OWNERSHIP_PAYLOAD]);
+    try {
+      const task = new SectionSweepTask();
+      await task.run();
+
+      // Two sections, one owned generation node — not one per section.
+      expect(task.subGraph.getTasks()).toHaveLength(1);
+      // Relabelled per section, so a progress UI names the section running now.
+      expect(task.titlesSeen).toEqual([
+        "Extract management (fake-s1-model)",
+        "Extract beneficial ownership (fake-s1-model)",
+      ]);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("leaves no section prompt on the idle node between sections", async () => {
+    const { unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD, OWNERSHIP_PAYLOAD]);
+    try {
+      const task = new SectionSweepTask();
+      await task.run();
+
+      const node = task.subGraph.getTasks()[0];
+      // Neither the construction-time `defaults` copy nor the post-run
+      // `runInputData` copy may keep the section text reachable.
+      expect(node.defaults.prompt).toBeUndefined();
+      expect(node.runInputData.prompt).toBeUndefined();
+    } finally {
+      unregister();
+    }
+  });
 });

@@ -153,9 +153,17 @@ export class BackfillExtractorTask extends Task<
       dryRun: input.dryRun === true,
       signal: context.signal,
       processFiling: async (accessionNumber) => {
+        // Disowned once the filing is done: a sweep runs one of these per
+        // candidate filing inside a single `execute()`, and `own` alone would
+        // hold every one of them — plus everything each filing's pipeline owned
+        // in turn — until the whole backfill finished.
         const wf = context.own(new Workflow(), { title: `Backfill ${accessionNumber}` });
-        wf.pipe(new ProcessAccessionDocFormTask());
-        await wf.run({ accessionNumber });
+        try {
+          wf.pipe(new ProcessAccessionDocFormTask());
+          await wf.run({ accessionNumber });
+        } finally {
+          context.disown(wf);
+        }
       },
     });
   }
