@@ -733,7 +733,12 @@ export const DefaultDI = () => {
       "person_observations",
       PersonObservationSchema,
       PersonObservationPrimaryKeyNames,
-      [["accession_number"]],
+      // The issuer index serves "everyone this filer disclosed", the roster
+      // read every downstream consumer issues. Without it that is a sequential
+      // scan of the largest table in the database (one row per person mention
+      // in every filing), so extractor_id trails the issuer to keep a
+      // single-extractor roster (e.g. S-1 management) index-only.
+      [["accession_number"], ["source_filing_issuer_cik", "extractor_id"]],
       // The natural key is UNIQUE (one row per mention). Enforcing it at the
       // storage layer closes the find-or-insert race in upsertByNaturalKey
       // (two concurrent inserts both saw no row) the same way the resolver
@@ -955,6 +960,11 @@ export const DefaultDI = () => {
     createStorage("spac_sponsor_link", SpacSponsorLinkSchema, SpacSponsorLinkPrimaryKeyNames, [
       ["accession_number"],
       ["sponsor_family_id"],
+      // "Which families sponsor this issuer", always qualified by the active
+      // resolver version. The issuer leads because it is the selective term —
+      // a resolver_version-first index degenerates to a scan, since nearly
+      // every row carries the current version.
+      ["issuer_cik", "resolver_version"],
     ])
   );
   globalServiceRegistry.registerInstance(
@@ -1015,6 +1025,9 @@ export const DefaultDI = () => {
     createStorage("underwriter_link", UnderwriterLinkSchema, UnderwriterLinkPrimaryKeyNames, [
       ["accession_number"],
       ["underwriter_family_id"],
+      // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
+      // active resolver version does not scan the table.
+      ["issuer_cik", "resolver_version"],
     ])
   );
   globalServiceRegistry.registerInstance(
