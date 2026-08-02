@@ -383,6 +383,33 @@ sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/
 sec fetch s1-fixtures -c 20 --min-spac 5
 ```
 
+#### Golden fixture provenance
+
+The **committed** corpus under `src/sec/html/mock_data/{s1,424}/` stays committed
+— the golden tests are hermetic and must not depend on EDGAR being reachable
+(the quarterly `form.idx` endpoint already 403s from cloud containers). What is
+pinned instead is its provenance: `src/task/fixtures/goldenFixtureManifest.ts`
+records, per fixture, the EDGAR primary-document filename, the SHA-256 of the
+bytes EDGAR serves, the capture `transform`, and the SHA-256 of the committed
+file.
+
+```bash
+sec fetch golden-fixtures --verify   # re-fetch from EDGAR, compare, write nothing (non-zero exit on mismatch)
+sec fetch golden-fixtures [--force]  # reproduce the corpus from the manifest
+```
+
+Verify reports `remote-changed` and `local-modified` separately because they
+demand opposite responses: the first means re-pin the manifest, the second means
+a golden fixture was edited and the tests it backs are measuring an artifact. A
+digest mismatch is never written to disk, so a truncated response or an EDGAR
+error page cannot silently replace a fixture. Most entries are `verbatim` (which
+for several of these files includes the dissemination SGML wrapper EDGAR serves);
+the one `strip-sgml-wrapper` entry stores the inner body, matching what
+`Form_424.parse()` hands the converter. The synthetic `.txt` submissions are
+deliberately absent from the manifest — they exist nowhere on EDGAR.
+`goldenFixtures.test.ts` re-hashes the committed files against the manifest with
+no network, so an in-place edit fails in CI.
+
 #### iXBRL / XBRL facts
 
 Modern S-1s embed inline XBRL (`ix:nonFraction` / `ix:nonNumeric` facts against the
