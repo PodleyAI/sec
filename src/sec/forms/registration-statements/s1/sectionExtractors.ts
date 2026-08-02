@@ -272,8 +272,8 @@ export function wrapUntrusted(sectionText: string): { wrapped: string; nonce: st
 /**
  * Minimal execution context for driving a {@link StructuredGenerationTask}
  * outside a full task-graph run. The task only uses `signal`, `updateProgress`,
- * `own`, and (defensively) `registry`/`resourceScope` during a structured
- * generation, so a lightweight stub suffices.
+ * `own`/`disown`, and (defensively) `registry`/`resourceScope` during a
+ * structured generation, so a lightweight stub suffices.
  */
 function makeExecuteContext(): IExecuteContext {
   const controller = new AbortController();
@@ -281,6 +281,7 @@ function makeExecuteContext(): IExecuteContext {
     signal: controller.signal,
     updateProgress: async () => {},
     own: <T>(value: T): T => value,
+    disown: () => {},
     registry: {
       has: () => false,
       get: () => {
@@ -294,19 +295,6 @@ function makeExecuteContext(): IExecuteContext {
   } as IExecuteContext;
 }
 
-/**
- * Runs one real structured-generation round-trip against the registered
- * provider for `model`, validating the result against `outputSchema`, and
- * returns the parsed object.
- *
- * We drive the task via `execute(input, ctx)` rather than the `structuredGeneration()`
- * / `.run()` helper deliberately: `.run()` routes through the full TaskRunner
- * lifecycle (caching, graph wiring), which requires runtime setup we neither have
- * nor want for a one-shot CLI extraction call — provider resolution itself is
- * global (via the AiProviderRegistry), independent of the context. The `as any`
- * casts adapt our concrete input/config to the task's generic `NoInfer<Partial<…>>`
- * config shape, which TypeScript cannot narrow from the structured literal here.
- */
 /**
  * Grammar-constrained providers (node-llama-cpp `LOCAL_LLAMACPP`) build a GBNF
  * grammar from the JSON schema and sample against it. When an array is allowed
@@ -354,6 +342,45 @@ export function requireNonEmptyGrammarArrays(schema: object): object {
   return cloned;
 }
 
+/**
+ * One reusable generation node per owning execute context.
+ *
+ * `context.own` is add-only and a task's subgraph is cleared only between graph
+ * runs, so owning a fresh node per section kept every section's prompt — a
+ * beneficial-ownership section runs to ~57k chars — reachable for as long as the
+ * owning task lived. Under `extractor backfill` the owner is itself owned by the
+ * sweep, so that was every section of every filing held at once.
+ *
+ * Sections run strictly sequentially within a filing, so a single node serves
+ * them all; it is relabelled per section so the progress UI names the section
+ * actually running. Keyed weakly by context identity: each filing's task gets
+ * its own context, and the entry dies with it. A caller that hands each call a
+ * *derived* context object (the eval sweeps wrap one per step to relabel
+ * progress) is a distinct key and gets its own node — correct, but no reuse.
+ */
+const generationNodes = new WeakMap<IExecuteContext, StructuredGenerationTask>();
+
+function generationNodeFor(context: IExecuteContext, title: string): StructuredGenerationTask {
+  const existing = generationNodes.get(context);
+  if (existing !== undefined) {
+    // Relabel in place: `title` reads through `config.title`, and the CLI row
+    // re-reads it, so the reused node names the section running now.
+    existing.config.title = title;
+    return existing;
+  }
+  // Constructed without `defaults`: the prompt reaches the task through
+  // `run(input)`, and a construction-time copy would sit in `task.defaults` for
+  // the instance's whole life — exactly the retention this node exists to avoid.
+  const task = context.own(new StructuredGenerationTask({ title }));
+  generationNodes.set(context, task);
+  return task;
+}
+
+/**
+ * Runs one real structured-generation round-trip against the registered
+ * provider for `model`, validating the result against `outputSchema`, and
+ * returns the parsed object.
+ */
 async function runStructured(
   label: string,
   model: ModelConfig,
@@ -366,11 +393,12 @@ async function runStructured(
   // render on that task's row in the CLI UI. Absent (eval sweeps, unit tests), a
   // throwaway stub keeps the one-shot call self-contained.
   const context = callerContext ?? makeExecuteContext();
+  const modelId = resolveModelId(model);
   // Correctness safety-net: local providers (GGUF especially) must have their
   // weights on disk before generation — cloud models no-op here. Memoized, so the
   // per-section sweep pays the download once; a form/eval run that prefetched with
   // a real context (for visible progress) already satisfied this.
-  await ensureModelDownloaded(resolveModelId(model), context);
+  await ensureModelDownloaded(modelId, context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const input = {
     model,
@@ -379,17 +407,12 @@ async function runStructured(
     maxTokens: MAX_TOKENS,
     maxRetries: 1,
   };
-  // Own the generation task on the caller's execute context: when the form
+  // The generation task is owned on the caller's execute context: when the form
   // pipeline threads its real context down, this subtask is registered in that
   // task's graph and inherits its registry + abort signal, so the graph knows a
   // subtask is involved. Against the eval / unit-test stub context, `own` is an
   // identity no-op.
-  const task = context.own(
-    new StructuredGenerationTask({
-      title: `Extract ${label} (${resolveModelId(model)})`,
-      defaults: input,
-    } as any)
-  );
+  const task = generationNodeFor(context, `Extract ${label} (${modelId})`);
   // Drive the task through its `run()` lifecycle (not a bare `execute()` with a
   // throwaway context): `run` routes the task's `Preparing`/`Generating` phase
   // events to `config.updateProgress`, which we forward to the caller's
@@ -397,12 +420,25 @@ async function runStructured(
   // (a no-op against the stub context). `signal` propagates Ctrl-C. Caching is
   // off — a fresh per-call nonce already makes cloud prompts unique, and matching
   // `execute()`'s never-cache semantics keeps replays side-effect-identical.
-  const result = (await task.run(input as any, {
-    updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
-    signal: context.signal,
-    cacheable: false,
-  })) as { object?: unknown } | undefined;
-  return (result?.object as Record<string, unknown> | undefined) ?? {};
+  try {
+    const result = (await task.run(input as any, {
+      updateProgress: (_t, progress, message) => context.updateProgress(progress, message),
+      signal: context.signal,
+      cacheable: false,
+    })) as { object?: unknown } | undefined;
+    return (result?.object as Record<string, unknown> | undefined) ?? {};
+  } finally {
+    // `run` leaves this section's prompt in `runInputData` (and its result in
+    // `runOutputData`). Clearing both keeps the idle node between sections empty
+    // rather than pinning the largest section of the filing until the next call.
+    task.resetInputData();
+    task.runOutputData = {};
+    // A failed run leaves `task.error` set and no later `run()` clears it, so a
+    // schema-validation failure would otherwise keep its rejected attempt objects
+    // alive for the rest of the filing — and leave the node reporting COMPLETED
+    // with a stale error from an earlier section.
+    task.error = undefined;
+  }
 }
 
 /**

@@ -5,8 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
+import { ALL_FORMS_MAP, isFormParsingSupported } from "../../sec/forms/all-forms";
 import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
+import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
 import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID, formToExtractorId } from "./extractorIds";
 
 describe("extractorIds", () => {
@@ -147,11 +148,15 @@ describe("extractorIds — F-1 (foreign issuer) dispatch mapping", () => {
   });
 });
 
-describe("Form_DRS — DRSLTR not advertised", () => {
+describe("Form_DRS — DRSLTR catalogued separately, never extracted", () => {
   it("Form_DRS.forms does not include DRSLTR (correspondence letter, not a prospectus)", () => {
     expect(Form_DRS.forms).not.toContain("DRSLTR");
   });
-  it("ALL_FORMS_MAP does not include DRSLTR", () => {
-    expect(ALL_FORMS_MAP.has("DRSLTR")).toBe(false);
+  it("DRSLTR is described by its own Form class, not the prospectus one", () => {
+    expect(ALL_FORMS_MAP.get("DRSLTR")).toBe(Form_DRSLTR);
+  });
+  it("being catalogued does not route DRSLTR to an extractor", () => {
+    expect(formToExtractorId("DRSLTR")).toBeUndefined();
+    expect(isFormParsingSupported("DRSLTR")).toBe(false);
   });
 });
