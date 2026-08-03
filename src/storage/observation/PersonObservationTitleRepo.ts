@@ -6,11 +6,17 @@
 
 import { globalServiceRegistry } from "workglow";
 import { KeyedMutex } from "../../util/KeyedMutex";
+import { readTitlesForObservations } from "./personObservationTitleBulkReader";
 import {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
   type PersonObservationTitle,
   type PersonObservationTitleRepositoryStorage,
 } from "./PersonObservationTitleSchema";
+
+/** Deterministic output order; titles carry no meaningful source order. */
+function byTitle(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 
 /**
  * Serialises whole-list replacement per observation. Single-process only —
@@ -77,14 +83,23 @@ export class PersonObservationTitleRepo {
   /** The observation's titles, sorted by title text for deterministic output. */
   async listForObservation(observation_id: number): Promise<string[]> {
     const rows = (await this.repo.query({ observation_id })) ?? [];
-    return rows.map((r) => r.title).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    return rows.map((r) => r.title).sort(byTitle);
   }
 
-  /** Titles for many observations at once, keyed by observation id. */
+  /**
+   * Titles for many observations at once, keyed by observation id — one round
+   * trip on a real database rather than one query per id (see
+   * {@link readTitlesForObservations}). Every requested id gets an entry, empty
+   * when the observation has no title rows.
+   */
   async listForObservations(observation_ids: readonly number[]): Promise<Map<number, string[]>> {
     const distinct = [...new Set(observation_ids)];
-    const lists = await Promise.all(distinct.map((id) => this.listForObservation(id)));
-    return new Map(distinct.map((id, i) => [id, lists[i]]));
+    const byId = new Map<number, string[]>(distinct.map((id) => [id, []]));
+    for (const row of await readTitlesForObservations(this.repo, distinct)) {
+      byId.get(row.observation_id)?.push(row.title);
+    }
+    for (const titles of byId.values()) titles.sort(byTitle);
+    return byId;
   }
 
   async deleteForObservation(observation_id: number): Promise<void> {

@@ -5,10 +5,10 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 
 /** One filing on a given day, with just the fields the feed cache writer needs. */
 export interface FeedFiling {
@@ -16,28 +16,6 @@ export interface FeedFiling {
   readonly cik: number;
   readonly primary_doc: string;
   readonly form: string | null;
-}
-
-/**
- * Picks the SQLite fast path only when the full production config is present —
- * mirroring `createCikNameBulkWriter`, since `getDb()` dereferences both
- * `SEC_DB_FOLDER` and `SEC_DB_NAME` unconditionally and throws when
- * `SEC_DB_TYPE !== "sqlite"`. Unit tests that register an in-memory filing repo
- * without standing up a real DB fall through to the repository scan.
- */
-function activeBackend(): "sqlite" | "postgres" | "repository" {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-  if (
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return "sqlite";
-  }
-  if (dbType === "postgres") return "postgres";
-  return "repository";
 }
 
 function inRange(date: string, from: string | undefined, to: string | undefined): boolean {
@@ -57,7 +35,7 @@ export async function listFilingDates(
   from: string | undefined,
   to: string | undefined
 ): Promise<string[]> {
-  const backend = activeBackend();
+  const backend = resolveSqlBackend();
 
   if (backend === "sqlite") {
     const db = getDb();
@@ -116,7 +94,7 @@ export async function listFilingDates(
  * by accession to route each Feed tarball member to its on-disk cache path.
  */
 export async function filingsForDate(date: string): Promise<FeedFiling[]> {
-  const backend = activeBackend();
+  const backend = resolveSqlBackend();
 
   if (backend === "sqlite") {
     const db = getDb();

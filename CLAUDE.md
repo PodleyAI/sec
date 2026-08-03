@@ -882,7 +882,11 @@ same as junctions). Query with `sec query person-roles <cik> [--current]`; the
 
 `src/sec.ts` invokes **`Sqlite.init()`** when the installed `workglow` package defines it (`typeof Sqlite.init === "function"`), so newer Workglow releases load the SQLite binding before `getDb()` opens a database. Older `workglow` versions without `init` skip this step.
 
-**`getDb()` is SQLite-only.** It throws `SecCliConfigurationError` when `SEC_DB_TYPE !== "sqlite"` to prevent the silent data divergence that occurred before (`getDb()` would open a stray SQLite file even under Postgres, and rows written through it never reached the configured backend). Tasks that need a raw SQL fast path beyond what `ITabularStorage` exposes must branch on `SEC_DB_TYPE` themselves — see `src/storage/entity/cikNameBulkWriter.ts` for the pattern (SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise → repository `putBulk` for tests).
+**`getDb()` is SQLite-only.** It throws `SecCliConfigurationError` when `SEC_DB_TYPE !== "sqlite"` to prevent the silent data divergence that occurred before (`getDb()` would open a stray SQLite file even under Postgres, and rows written through it never reached the configured backend).
+
+Code that needs a raw SQL fast path beyond what `ITabularStorage` exposes dispatches through **`resolveSqlBackend(repo?)`** (`src/util/sqlBackend.ts`, also exported from the barrel): SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise → the repository (tests / in-memory). `"sqlite"` requires the full production config, not just `SEC_DB_TYPE` — `getDb()` dereferences `SEC_DB_FOLDER` and `SEC_DB_NAME` unconditionally. **Pass the repo whenever you have one**: registry bindings live for the process, so a `SEC_DB_TYPE` left behind by an earlier test file would otherwise route a test's in-memory repo into a backend that was never set up; a non-durable repo forces the repository path. Call sites: `cikNameBulkWriter.ts`, `feedFilings.ts`, `Form8KEventReplace.ts`, `SpacDealReplace.ts`, `personObservationTitleBulkReader.ts`.
+
+The read-side reason to reach for it is the `IN`-list: `ITabularStorage.query` matches one column value, so "rows for these N ids" is N queries through the abstraction. `readTitlesForObservations` (`src/storage/observation/`) is the worked example — it backs `PersonObservationTitleRepo.listForObservations`, which joins titles onto a page of person observations in one statement (chunked only where SQLite's bind-parameter cap forces it) instead of one query per person.
 
 ### Dependency Injection
 

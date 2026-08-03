@@ -5,9 +5,9 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 import { CIK_NAME_REPOSITORY_TOKEN } from "./CikNameSchema";
 
 export interface CikNameRow {
@@ -34,26 +34,9 @@ export interface CikNameBulkWriter {
  * regression.
  */
 export function createCikNameBulkWriter(): CikNameBulkWriter {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-
-  // SQLite fast path needs BOTH SEC_DB_FOLDER and SEC_DB_NAME — getDb()
-  // dereferences both unconditionally. When the test harness leaves
-  // SEC_DB_TYPE=sqlite registered as the default but the rest of the
-  // production config is absent — e.g. in unit tests that exercise this
-  // task without standing up a real DB — fall through to the
-  // repository-backed writer instead of crashing in getDb().
-  if (
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return createSqliteWriter();
-  }
-  if (dbType === "postgres") {
-    return createPostgresWriter();
-  }
+  const backend = resolveSqlBackend();
+  if (backend === "sqlite") return createSqliteWriter();
+  if (backend === "postgres") return createPostgresWriter();
   return createRepositoryWriter();
 }
 

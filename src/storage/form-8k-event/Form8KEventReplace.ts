@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 import type { Form8KEvent, Form8KEventRepositoryStorage } from "./Form8KEventSchema";
 
 export interface ReplaceForm8KEventsArgs {
@@ -30,32 +29,15 @@ export async function replaceForm8KEvents(
   repo: Form8KEventRepositoryStorage,
   args: ReplaceForm8KEventsArgs
 ): Promise<void> {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-
-  // SEC_DB_TYPE lives in the global ServiceRegistry, which has no unregister
-  // API — once any test (or production code path) registers it, it sticks
-  // for the lifetime of the process. The test harness wires
+  // Passing `repo` matters: the test harness wires
   // FORM_8K_EVENT_REPOSITORY_TOKEN to an InMemoryTabularStorage but cannot
-  // clear SEC_DB_TYPE, so dispatching on dbType alone would route writes
-  // for the in-memory test repo into a real SQLite/Postgres backend that
-  // was never set up. Trust the actual repo: when it is non-durable
-  // (in-memory) take the repo path regardless of dbType.
-  const isInMemoryRepo = typeof (repo as { isDurable?: () => boolean }).isDurable === "function"
-    && (repo as { isDurable: () => boolean }).isDurable() === false;
+  // clear a `SEC_DB_TYPE` an earlier test file registered, so dispatching on
+  // the token alone would route writes for the in-memory repo into a real
+  // backend that was never set up.
+  const backend = resolveSqlBackend(repo);
 
-  if (
-    !isInMemoryRepo &&
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return replaceSqlite(args);
-  }
-  if (!isInMemoryRepo && dbType === "postgres") {
-    return replacePostgres(args);
-  }
+  if (backend === "sqlite") return replaceSqlite(args);
+  if (backend === "postgres") return replacePostgres(args);
   return replaceRepository(repo, args);
 }
 
