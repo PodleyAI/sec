@@ -8,15 +8,13 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Entity schema - represents companies and other entities in the SEC database
  */
 export const EntitySchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   name: TypeNullable(Type.String({ description: "Entity name" })),
   type: TypeNullable(Type.String({ description: "Entity type" })),
   sic: TypeNullable(

@@ -8,15 +8,13 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Crowdfunding schema - represents crowdfunding entities
  */
 export const CrowdfundingSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
     maxLength: 10,
     description: "File number",
@@ -45,10 +43,7 @@ export const CrowdfundingSchema = Type.Object({
     maxLength: 255,
     description: "URL",
   }),
-  portal_cik: Type.Integer({
-    minimum: 0,
-    description: "Portal CIK",
-  }),
+  portal_cik: TypeSecCik({ description: "Portal CIK" }),
   status: Type.String({
     maxLength: 20,
     description: "Status",
@@ -90,10 +85,7 @@ export const CROWDFUNDING_REPOSITORY_TOKEN = createServiceToken<CrowdfundingRepo
  * Crowdfunding Offerings schema - represents crowdfunding offerings
  */
 export const CrowdfundingOfferingsSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
     maxLength: 10,
     description: "File number",
@@ -195,10 +187,7 @@ export const CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN =
  * Crowdfunding Reports schema - represents crowdfunding reports
  */
 export const CrowdfundingReportsSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
     maxLength: 10,
     description: "File number",

@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** Lifecycle status of a SPAC. Terminal states: completed, liquidated, withdrawn. */
 export const SPAC_STATUSES = [
@@ -37,9 +38,9 @@ export type SurvivingNameSource = (typeof SURVIVING_NAME_SOURCES)[number];
  * scalar fields are merged under the `as_of` out-of-order guard.
  */
 export const SpacSchema = Type.Object({
-  cik: Type.Integer({ minimum: 0, description: "SPAC origin CIK (primary key)" }),
+  cik: TypeSecCik({ description: "SPAC origin CIK (primary key)" }),
   current_cik: TypeNullable(
-    Type.Integer({ minimum: 0, description: "Surviving entity CIK if it differs from cik" })
+    TypeSecCik({ description: "Surviving entity CIK if it differs from cik" })
   ),
   status: TypeStringEnum(SPAC_STATUSES, { description: "Lifecycle status" }),
 
@@ -67,9 +68,13 @@ export const SpacSchema = Type.Object({
   current_name: TypeNullable(Type.String({ maxLength: 200, description: "Latest known name" })),
 
   // SIC (three eras)
-  spac_sic: TypeNullable(Type.Integer({ minimum: 0, description: "SIC at IPO (≈6770)" })),
-  post_merger_sic: TypeNullable(Type.Integer({ minimum: 0, description: "SIC at de-SPAC close" })),
-  current_sic: TypeNullable(Type.Integer({ minimum: 0, description: "Latest SIC" })),
+  spac_sic: TypeNullable(
+    Type.Integer({ minimum: 0, maximum: 9999, description: "SIC at IPO (≈6770)" })
+  ),
+  post_merger_sic: TypeNullable(
+    Type.Integer({ minimum: 0, maximum: 9999, description: "SIC at de-SPAC close" })
+  ),
+  current_sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999, description: "Latest SIC" })),
 
   // Tickers (three eras; JSON-encoded string arrays)
   spac_tickers: TypeNullable(Type.String({ description: "JSON string[] of SPAC-era tickers" })),

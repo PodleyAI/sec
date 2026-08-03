@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
@@ -93,7 +93,8 @@ export const FilingSchema = Type.Object({
   act: TypeNullable(
     Type.String({
       maxLength: 16,
-      description: 'Act(s) under which the filing was made, comma-joined when several apply (e.g. "40,33")',
+      description:
+        'Act(s) under which the filing was made, comma-joined when several apply (e.g. "40,33")',
     })
   ),
 });

@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /** Filing-level SPAC classification. `classifier_source` discriminates origin. */
@@ -15,7 +15,7 @@ export const S1ClassificationSchema = Type.Object({
   extractor_id: Type.String({ maxLength: 16 }),
   accession_number: Type.String({ maxLength: 25 }),
   cik: TypeNullable(TypeSecCik()),
-  sic: TypeNullable(Type.Integer()),
+  sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999 })),
   sic_description: TypeNullable(Type.String({ maxLength: 256 })),
   is_spac: Type.Boolean(),
   classifier_source: Type.String({ maxLength: 32, description: "sgml-header | sic-unknown | ai" }),

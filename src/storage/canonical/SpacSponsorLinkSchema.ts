@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** Per-filing fact: a SPAC issuer (raw CIK) is backed by a legal sponsor + family. */
 export const SpacSponsorLinkSchema = Type.Object({

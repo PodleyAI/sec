@@ -8,11 +8,12 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** One row per LOI-extraction filing. Current-state: a re-extraction overwrites by accession. */
 export const SpacLoiExtractionSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
-  cik: Type.Integer({ minimum: 0, description: "SPAC origin CIK (filer)" }),
+  cik: TypeSecCik({ description: "SPAC origin CIK (filer)" }),
   form: Type.String({ maxLength: 20 }),
   filing_date: Type.String({ format: "date" }),
   extractor_id: Type.String({ maxLength: 32 }),
@@ -37,6 +38,4 @@ export type SpacLoiExtractionRepositoryStorage = ITabularStorage<
 >;
 
 export const SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN =
-  createServiceToken<SpacLoiExtractionRepositoryStorage>(
-    "sec.storage.spacLoiExtractionRepository"
-  );
+  createServiceToken<SpacLoiExtractionRepositoryStorage>("sec.storage.spacLoiExtractionRepository");

@@ -8,15 +8,13 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Crowdfunding History schema - tracks changes to crowdfunding entity attributes over time
  */
 export const CrowdfundingHistorySchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   valid_from: Type.String({
     format: "date-time",
     description: "When this version became valid",
@@ -73,12 +71,7 @@ export const CrowdfundingHistorySchema = Type.Object({
       description: "URL",
     })
   ),
-  portal_cik: TypeNullable(
-    Type.Integer({
-      minimum: 0,
-      description: "Portal CIK",
-    })
-  ),
+  portal_cik: TypeNullable(TypeSecCik({ description: "Portal CIK" })),
   status: TypeNullable(
     Type.String({
       maxLength: 20,
@@ -111,7 +104,11 @@ export type CrowdfundingHistory = Static<typeof CrowdfundingHistorySchema>;
 /**
  * Crowdfunding History repository storage type and primary key definitions
  */
-export const CrowdfundingHistoryPrimaryKeyNames = ["cik", "valid_from", "accession_number"] as const;
+export const CrowdfundingHistoryPrimaryKeyNames = [
+  "cik",
+  "valid_from",
+  "accession_number",
+] as const;
 export type CrowdfundingHistoryRepositoryStorage = ITabularStorage<
   typeof CrowdfundingHistorySchema,
   typeof CrowdfundingHistoryPrimaryKeyNames,

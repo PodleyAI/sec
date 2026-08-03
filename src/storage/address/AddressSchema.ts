@@ -10,6 +10,7 @@ import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 import { ISO_COUNTRY_CODE_ARRAY, SEC_STATE_CODE_ARRAY } from "./AddressSchemaCodes";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 export type StateOrCountryCode = (typeof SEC_STATE_CODE_ARRAY)[number];
 export type CountryCode = (typeof ISO_COUNTRY_CODE_ARRAY)[number];
@@ -66,10 +67,7 @@ export const AddressesEntityJunctionSchema = Type.Object({
     maxLength: 50,
     description: "Name of the relationship type between address and entity",
   }),
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) of the entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) of the entity" }),
   address_hash_id: Type.String({ description: "Reference to the address hash ID" }),
 });
 

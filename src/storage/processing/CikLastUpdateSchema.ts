@@ -7,12 +7,10 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 export const CikLastUpdateSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   last_update: Type.String({
     description: "Date of the last known update for this CIK (YYYY-MM-DD format)",
   }),
