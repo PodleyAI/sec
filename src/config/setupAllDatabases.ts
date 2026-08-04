@@ -79,6 +79,9 @@ import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Underwri
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
+import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
+import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
+import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -128,6 +131,10 @@ export async function setupAllDatabases(): Promise<void> {
   // which reaches setupAllDatabases (via InitApplyTask, after EnvToDI/DefaultDI)
   // without ever running the CLI preAction hook that otherwise registers them.
   runDatabaseSetupHooks();
+  // Relax `addresses.state_or_country` to nullable on a database created before
+  // US-with-unknown-state addresses were kept rather than dropped. Row-preserving
+  // (junction tables reference address_hash_id) and a no-op on a fresh DB.
+  await migrateAddressRegionNullable();
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN).setupDatabase();
@@ -210,12 +217,22 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
+  // Drop the legacy form_8k_events shape (no event_id / extractor_id /
+  // extractor_version) before creating the current one; the natural-key PK
+  // of the legacy table cannot be ALTERed away on either backend.
+  await migrateLegacyForm8KEventsTable();
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).setupDatabase();
   // Downstream packages register their repo tokens via registerDatabaseExtension()
   // so `db setup` creates their tables after the built-in SEC ones.
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
+  // Widen / relax any column an existing Postgres database still has at a
+  // narrower or stricter shape than the current schema declares. Runs after the
+  // extension loop because the table registry is only fully populated once every
+  // superset has built its repos through createStorage. A no-op on a fresh DB
+  // (the DDL above already uses the current shape) and on non-Postgres backends.
+  await alignPostgresColumnTypes();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
   // isn't sqlite). Tests use the in-memory backend where views don't apply.
