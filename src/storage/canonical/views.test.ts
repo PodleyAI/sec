@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { CURRENT_CANONICAL_VIEW_DDL } from "./views";
+import { CURRENT_CANONICAL_VIEW_DDL, CURRENT_CANONICAL_VIEW_NAMES } from "./views";
 
 describe("current_canonical_* views DDL", () => {
   it("emits nine CREATE VIEW statements", () => {
@@ -26,5 +26,17 @@ describe("current_canonical_* views DDL", () => {
     );
     expect(personDdls).toHaveLength(5);
     expect(companyDdls).toHaveLength(4);
+  });
+
+  it("keeps CURRENT_CANONICAL_VIEW_NAMES in sync with the DDL", () => {
+    // `db reset` drops the views by name; a name added to the DDL but not to
+    // the name list would silently survive a reset (and then block the CREATE
+    // that follows, or keep pointing at a dropped table).
+    const namesFromDdl = CURRENT_CANONICAL_VIEW_DDL.map((ddl) => {
+      const match = /^CREATE VIEW IF NOT EXISTS (\w+) AS/.exec(ddl);
+      expect(match).not.toBeNull();
+      return match![1];
+    });
+    expect(CURRENT_CANONICAL_VIEW_NAMES).toEqual(namesFromDdl);
   });
 });
