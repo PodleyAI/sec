@@ -9,6 +9,7 @@ import { KeyedMutex } from "../../util/KeyedMutex";
 import { readTitlesForObservations } from "./personObservationTitleBulkReader";
 import {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  PersonObservationTitleTable,
   type PersonObservationTitle,
   type PersonObservationTitleRepositoryStorage,
 } from "./PersonObservationTitleSchema";
@@ -96,7 +97,19 @@ export class PersonObservationTitleRepo {
     const distinct = [...new Set(observation_ids)];
     const byId = new Map<number, string[]>(distinct.map((id) => [id, []]));
     for (const row of await readTitlesForObservations(this.repo, distinct)) {
-      byId.get(row.observation_id)?.push(row.title);
+      const titles = byId.get(row.observation_id);
+      // The map is keyed by JS number. A backend handing `observation_id` back
+      // as a string or BigInt (a widened column read through node-postgres, a
+      // safe-integers SQLite handle, a proxied storage) would miss every key,
+      // so raise instead of silently reporting every person as title-less.
+      if (titles === undefined) {
+        throw new Error(
+          `${PersonObservationTitleTable} returned observation_id ` +
+            `${JSON.stringify(row.observation_id)} (${typeof row.observation_id}), ` +
+            `which was not among the ${distinct.length} requested id(s) — backend id-type mismatch?`
+        );
+      }
+      titles.push(row.title);
     }
     for (const titles of byId.values()) titles.sort(byTitle);
     return byId;

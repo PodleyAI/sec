@@ -35,6 +35,12 @@ export type PersonObservationTitle = Static<typeof PersonObservationTitleSchema>
 
 export const PersonObservationTitlePrimaryKeyNames = ["observation_id", "title"] as const;
 
+/**
+ * Physical table name. Shared by the DI registration and by the raw-SQL bulk
+ * reader, which names the table directly and would otherwise drift from it.
+ */
+export const PersonObservationTitleTable = "person_observation_titles";
+
 export type PersonObservationTitleRepositoryStorage = ITabularStorage<
   typeof PersonObservationTitleSchema,
   typeof PersonObservationTitlePrimaryKeyNames,

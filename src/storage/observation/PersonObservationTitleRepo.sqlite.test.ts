@@ -4,51 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { globalServiceRegistry, Sqlite } from "workglow";
-import { DefaultDI } from "../../config/DefaultDI";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
-import { closeDb } from "../../util/db";
+import { describe, expect, it, vi } from "vitest";
+import { globalServiceRegistry } from "workglow";
+import { withSqliteDb } from "../../config/testing/withSqliteDb";
+import { getDb } from "../../util/db";
+import { SQLITE_MAX_IDS_PER_STATEMENT } from "./personObservationTitleBulkReader";
 import { PersonObservationTitleRepo } from "./PersonObservationTitleRepo";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "./PersonObservationTitleSchema";
-
-const TEST_DB_NAME = "person_observation_titles_sqlite_test";
 
 /**
  * `listForObservations` used to fan out into one `ITabularStorage.query` per
  * observation id. On a real database that is an N+1 for every caller joining
  * titles onto a page of person observations, so these tests pin BOTH the
  * grouped result and the fact that the storage abstraction is never consulted
- * per id — the read is a single `IN`-list statement.
+ * per id — the read is an `IN`-list statement.
  */
 describe("PersonObservationTitleRepo.listForObservations (sqlite)", () => {
-  let tmpDir: string;
-
-  beforeEach(async () => {
-    resetDependencyInjectionsForTesting();
-    closeDb();
-    if (typeof Sqlite.init === "function") {
-      await Sqlite.init();
-    }
-    tmpDir = mkdtempSync(join(tmpdir(), "sec-obs-titles-"));
-    globalServiceRegistry.registerInstance(SEC_DB_TYPE, "sqlite");
-    globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
-    globalServiceRegistry.registerInstance(SEC_DB_NAME, TEST_DB_NAME);
-    DefaultDI();
-    await setupAllDatabases();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    closeDb();
-    rmSync(tmpDir, { recursive: true, force: true });
-    resetDependencyInjectionsForTesting();
-  });
+  withSqliteDb("person_observation_titles_sqlite_test", [
+    PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  ]);
 
   it("groups titles by observation without one query per id", async () => {
     const repo = new PersonObservationTitleRepo();
@@ -69,21 +43,38 @@ describe("PersonObservationTitleRepo.listForObservations (sqlite)", () => {
     expect(querySpy).not.toHaveBeenCalled();
   });
 
-  it("reads an id list longer than SQLite's bind-parameter cap", async () => {
+  it("splits the id list into bind-parameter-bounded chunks", async () => {
+    // Asserting on the SQL rather than on results: the installed SQLite caps a
+    // statement at 32766 parameters, so an unchunked read of this list would
+    // execute fine and every result assertion would still pass. The chunking
+    // exists for builds that cap at 999, which this suite never runs against —
+    // the statement shape is the only thing that can hold it in place.
     const storage = globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN);
-    const ids = Array.from({ length: 2100 }, (_, i) => i + 1);
+    const chunks = 3;
+    const remainder = 300;
+    const total = SQLITE_MAX_IDS_PER_STATEMENT * (chunks - 1) + remainder;
+    const ids = Array.from({ length: total }, (_, i) => i + 1);
     await storage.putBulk(
       ids.map((observation_id) => ({ observation_id, title: `Title ${observation_id}` }))
     );
 
+    const prepareSpy = vi.spyOn(getDb(), "prepare");
     const byId = await new PersonObservationTitleRepo().listForObservations(ids);
 
-    expect(byId.size).toBe(ids.length);
-    // One id from each chunk the reader has to split the list into.
+    const sqls = prepareSpy.mock.calls.map((call) => String(call[0]));
+    const widths = sqls.map((sql) => (sql.match(/\?/g) ?? []).length);
+    // No statement may exceed the chunk size, whatever the engine would allow.
+    for (const width of widths) expect(width).toBeLessThanOrEqual(SQLITE_MAX_IDS_PER_STATEMENT);
+    // Two full chunks share one prepared statement; the short tail needs its own.
+    expect(widths).toEqual([SQLITE_MAX_IDS_PER_STATEMENT, remainder]);
+
+    expect(byId.size).toBe(total);
+    // One id from each of the three chunks.
     expect(byId.get(1)).toEqual(["Title 1"]);
-    expect(byId.get(950)).toEqual(["Title 950"]);
-    expect(byId.get(1801)).toEqual(["Title 1801"]);
-    expect(byId.get(2100)).toEqual(["Title 2100"]);
+    expect(byId.get(SQLITE_MAX_IDS_PER_STATEMENT + 1)).toEqual([
+      `Title ${SQLITE_MAX_IDS_PER_STATEMENT + 1}`,
+    ]);
+    expect(byId.get(total)).toEqual([`Title ${total}`]);
   });
 
   it("returns an empty map for an empty id list without touching the database", async () => {

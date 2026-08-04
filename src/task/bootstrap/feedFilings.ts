@@ -18,6 +18,18 @@ export interface FeedFiling {
   readonly form: string | null;
 }
 
+/**
+ * The registered filing repo, when there is one. Handed to `resolveSqlBackend`
+ * so a non-durable (in-memory) binding forces the repository scan even under a
+ * `SEC_DB_TYPE` that would otherwise select a raw-SQL path — the fast path
+ * would read a real database the caller never populated and report no filings.
+ */
+function filingRepoIfRegistered(): { isDurable?(): boolean } | undefined {
+  return globalServiceRegistry.has(FILING_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(FILING_REPOSITORY_TOKEN)
+    : undefined;
+}
+
 function inRange(date: string, from: string | undefined, to: string | undefined): boolean {
   if (from !== undefined && date < from) return false;
   if (to !== undefined && date > to) return false;
@@ -35,7 +47,7 @@ export async function listFilingDates(
   from: string | undefined,
   to: string | undefined
 ): Promise<string[]> {
-  const backend = resolveSqlBackend();
+  const backend = resolveSqlBackend(filingRepoIfRegistered());
 
   if (backend === "sqlite") {
     const db = getDb();
@@ -94,7 +106,7 @@ export async function listFilingDates(
  * by accession to route each Feed tarball member to its on-disk cache path.
  */
 export async function filingsForDate(date: string): Promise<FeedFiling[]> {
-  const backend = resolveSqlBackend();
+  const backend = resolveSqlBackend(filingRepoIfRegistered());
 
   if (backend === "sqlite") {
     const db = getDb();

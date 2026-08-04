@@ -34,10 +34,21 @@ export interface CikNameBulkWriter {
  * regression.
  */
 export function createCikNameBulkWriter(): CikNameBulkWriter {
-  const backend = resolveSqlBackend();
+  const backend = resolveSqlBackend(cikNameRepoIfRegistered());
   if (backend === "sqlite") return createSqliteWriter();
   if (backend === "postgres") return createPostgresWriter();
   return createRepositoryWriter();
+}
+
+/**
+ * The registered repo, when there is one. Handed to `resolveSqlBackend` so a
+ * non-durable (in-memory) binding forces the repository writer even under a
+ * `SEC_DB_TYPE` that would otherwise select a raw-SQL path.
+ */
+function cikNameRepoIfRegistered(): { isDurable?(): boolean } | undefined {
+  return globalServiceRegistry.has(CIK_NAME_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN)
+    : undefined;
 }
 
 function createSqliteWriter(): CikNameBulkWriter {
