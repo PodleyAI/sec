@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+#### db
+
+- restore the schema migrations `db setup` runs on an existing database
+- align Postgres column widths and nullability with the declared schemas
+- scope `db reset` to the tables sec owns, with `--cascade` / `--drop-schema`
+
+#### forms
+
+- release each filing's owned fetch workflow so an unbounded sweep stops
+  retaining every submission body it fetched
+
+### Chores
+
+#### deps
+
+- bump workglow to 0.3.36 for `context.disown` (0.3.35 was never published)
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.36
+- `workglow`: 0.3.36
+
 ## 0.0.20
 
 ### Features
@@ -40,7 +66,7 @@
 
 #### eval
 
-- recognize deepseek-* model ids and price them
+- recognize deepseek-\* model ids and price them
 - introduce sweepStepContext for improved progress tracking
 
 #### bootstrap
@@ -373,7 +399,7 @@
 
 - add SponsorFamilyMembership + SpacSponsorLink tables with DI
 - add CanonicalSponsorFamily + alias tables with DI
-- emit current_canonical_* view DDL
+- emit current*canonical*\* view DDL
 - add alias repos with single-hop invariant
 - add four canonical-level address/phone junction repos
 - add CompanyIdentityLinkRepo

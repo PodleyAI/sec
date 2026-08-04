@@ -210,10 +210,33 @@ describe("BackfillExtractorTask", () => {
     await seedSpac(82);
     await seedFiling({ cik: 82, accession_number: "acc-dry", form: "8-K", items: "7.01" });
 
-    const out = await new BackfillExtractorTask().execute(
-      { extractorId: "loi", dryRun: true },
-      { signal: undefined, own: (x: unknown) => x } as never
-    );
+    const out = await new BackfillExtractorTask().execute({ extractorId: "loi", dryRun: true }, {
+      signal: undefined,
+      own: (x: unknown) => x,
+      disown: () => {},
+    } as never);
     expect(out).toEqual({ selected: 1, processed: 0, skipped: 0 });
+  });
+
+  it("releases each filing's owned workflow instead of retaining the whole sweep", async () => {
+    await seedSpac(83);
+    for (let i = 0; i < 5; i++) {
+      await seedFiling({ cik: 83, accession_number: `acc-own-${i}`, form: "8-K", items: "7.01" });
+    }
+
+    const task = new BackfillExtractorTask();
+    // A post-run count alone cannot tell "held all five, then dropped them"
+    // from "never held more than one", so sample the live count as each
+    // wrapper is added. ProcessAccessionDocFormTask throws "Filing not found"
+    // for the seeded-metadata-only filings — the sweep isolates that per
+    // filing, and the ownership churn still happens without any network.
+    let peak = 0;
+    task.subGraph.on("task_added", () => {
+      peak = Math.max(peak, task.subGraph.getTasks().length);
+    });
+
+    await task.run({ extractorId: "loi" } as never);
+    expect(peak).toBe(1);
+    expect(task.subGraph.getTasks()).toHaveLength(0);
   });
 });
