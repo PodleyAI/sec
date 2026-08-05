@@ -71,12 +71,20 @@ async function migratePostgres(): Promise<void> {
   const pool = getPgPool();
   const client = await pool.connect();
   try {
+    // Scoped to `current_schema()`: `information_schema` spans every schema the
+    // role can see, so a same-named table in another schema would otherwise
+    // decide this probe — either skipping the drop the current schema needs, or
+    // dropping the current schema's good table because a foreign one looked
+    // legacy. The DROP itself resolves through the search_path, so the probe
+    // has to look at exactly the table the DROP would hit.
     const exists = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_name = 'form_8k_events'`
+      `SELECT 1 FROM information_schema.tables
+        WHERE table_schema = current_schema() AND table_name = 'form_8k_events'`
     );
     if (exists.rowCount === 0) return;
     const cols = await client.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = 'form_8k_events'`
+      `SELECT column_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'form_8k_events'`
     );
     const hasEventId = cols.rows.some((r: { column_name: string }) => r.column_name === "event_id");
     if (hasEventId) return;

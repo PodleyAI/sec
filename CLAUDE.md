@@ -860,24 +860,33 @@ sec exposes the general downstream seams embarc-data (and future features) build
   a database created before a column was widened or relaxed would otherwise
   keep the old shape forever and keep rejecting real EDGAR values. The pass
   reads `information_schema` and issues only one-directional `ALTER TABLE`s —
-  widen a `varchar`, drop a `NOT NULL` — which makes it idempotent (empty plan
+  widen a `varchar` (up to unbounded `text`, when the schema dropped its
+  `maxLength`), drop a `NOT NULL` — which makes it idempotent (empty plan
   on a fresh DB). Postgres only; SQLite emits TEXT, and its one NOT NULL
   relaxation needs the rename/recreate rebuild in
   `AddressRegionNullableMigration`. ⚠️ Widening a `varchar` is
   binary-coercible so the heap is not rewritten, but every index on the column
   — including the unique index backing a primary key — is rebuilt under an
   ACCESS EXCLUSIVE lock. On a large deployment, run `db setup` in a maintenance
-  window. A column with a dependent view is skipped with a warning naming the
-  view and the exact DDL, rather than failing the whole setup.
+  window. A **type** change on a column a view reads is skipped with a warning
+  naming the view and the exact DDL, rather than failing the whole setup; a
+  `DROP NOT NULL` is never view-gated, because Postgres does not refuse it.
 
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets
   included), the `current_canonical_*` views, `_storage_migrations`, and the
-  Postgres rate-limiter tables. Tables it does not own are left in place and
-  named in a warning. `--cascade` drops dependent objects; `--drop-schema`
-  restores the old whole-schema drop (Postgres only, destroys unowned objects
-  too). A drop blocked by a dependent object raises an error naming the table,
-  Postgres's DETAIL, and both flags.
+  Postgres rate-limiter tables. Every Postgres drop is schema-qualified to
+  `current_schema()` — an unqualified name resolves through the search_path and
+  would reach a same-named table in the *next* schema on it. Tables it does not
+  own are left in place and named in a warning. `--cascade` drops dependent
+  objects; `--drop-schema` restores the old whole-schema drop (Postgres only,
+  destroys unowned objects too). A drop blocked by a dependent object raises an
+  error naming the table, Postgres's DETAIL, and both flags.
+
+  > Caveat: a scoped reset drops `_storage_migrations` (workglow's global
+  > migration ledger) while leaving unowned tables standing, so an unowned
+  > table's applied-migration rows go with it. Nothing in sec declares
+  > `tabularMigrations` today; revisit if another package shares the schema.
 
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).

@@ -82,6 +82,22 @@ async function migrateSqlite(): Promise<void> {
   // nullable → nothing to do.
   if (!region || region.notnull === 0) return;
 
+  // The copy below selects the CURRENT schema's column list out of the renamed
+  // table, so a column added to `AddressSchema` after this database was created
+  // would make it fail — after the rename, leaving an empty `addresses` beside
+  // the stranded legacy table. The next run would then see a nullable column
+  // and return early, so the rows would never come back. Refuse before touching
+  // anything instead, and say exactly what is missing.
+  const existing = new Set(columns.map((c) => c.name));
+  const missing = Object.keys(AddressSchema.properties).filter((c) => !existing.has(c));
+  if (missing.length > 0) {
+    throw new Error(
+      `db setup: cannot rebuild \`${TABLE}\` to relax \`${COLUMN}\` — the existing table is ` +
+        `missing column(s) ${missing.join(", ")} that the current schema declares. ` +
+        `Add them (or drop and re-ingest \`${TABLE}\`) before re-running \`sec db setup\`.`
+    );
+  }
+
   // A previous interrupted run could have left the legacy table behind; the
   // rename below would fail on it.
   db.exec(`DROP TABLE IF EXISTS ${LEGACY_TABLE}`);
@@ -116,10 +132,14 @@ async function migratePostgres(): Promise<void> {
   const pool = getPgPool();
   const client = await pool.connect();
   try {
+    // Scoped to `current_schema()`: `information_schema` spans every schema the
+    // role can see, so a same-named table in another schema would otherwise
+    // decide this probe while the ALTER below resolves through the search_path.
     const info = await client.query(
       `SELECT is_nullable
          FROM information_schema.columns
-        WHERE table_name = $1 AND column_name = $2`,
+        WHERE table_schema = current_schema()
+          AND table_name = $1 AND column_name = $2`,
       [TABLE, COLUMN]
     );
     // Table/column absent (nothing created yet) or already nullable → skip.

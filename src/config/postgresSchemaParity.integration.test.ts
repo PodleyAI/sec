@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { DefaultDI } from "./DefaultDI";
-import { declaredVarcharWidth } from "./alignPostgresColumnTypes";
+import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
 import { resetAllDatabases } from "./resetAllDatabases";
 import { setupAllDatabases } from "./setupAllDatabases";
 import { LONG_FILE_NUMBER, LONG_PHONE_INTERNATIONAL } from "./schemaRoundTripFixtures";
@@ -44,26 +44,26 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  async function liveColumns(): Promise<Map<string, { length: number | null; nullable: boolean }>> {
+  async function liveColumns(): Promise<LiveColumn[]> {
     const pool = getPgPool();
     const result = await pool.query(
       `SELECT table_name, column_name, character_maximum_length, is_nullable
          FROM information_schema.columns
         WHERE table_schema = current_schema()`
     );
-    const map = new Map<string, { length: number | null; nullable: boolean }>();
-    for (const row of result.rows as {
-      table_name: string;
-      column_name: string;
-      character_maximum_length: number | null;
-      is_nullable: string;
-    }[]) {
-      map.set(`${row.table_name} ${row.column_name}`, {
-        length: row.character_maximum_length,
-        nullable: row.is_nullable === "YES",
-      });
-    }
-    return map;
+    return (
+      result.rows as {
+        table_name: string;
+        column_name: string;
+        character_maximum_length: number | null;
+        is_nullable: string;
+      }[]
+    ).map((row) => ({
+      table: row.table_name,
+      column: row.column_name,
+      characterMaximumLength: row.character_maximum_length,
+      isNullable: row.is_nullable === "YES",
+    }));
   }
 
   it("brings a degraded schema back into line with every declared column", async () => {
@@ -81,29 +81,15 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     await setupAllDatabases();
 
     // Generic assertion over the ownership registry rather than a fixed list:
-    // a column widened tomorrow is covered without touching this test.
+    // a column widened tomorrow is covered without touching this test. Asserted
+    // through the planner itself, so the declared-shape rules cannot drift from
+    // the ones `db setup` actually applies — an empty plan IS "the live schema
+    // matches every declared column".
     const live = await liveColumns();
-    const shortfalls: string[] = [];
-    for (const entry of listRegisteredTables()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw TypeBox schema properties
-      const properties = (entry.schema as any).properties ?? {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw TypeBox schema
-      const required = new Set<string>(((entry.schema as any).required ?? []) as string[]);
-      for (const column of Object.keys(properties)) {
-        const actual = live.get(`${entry.table} ${column}`);
-        if (!actual) continue;
-        const declared = declaredVarcharWidth(properties[column]);
-        if (declared !== undefined && actual.length !== null && actual.length < declared) {
-          shortfalls.push(`${entry.table}.${column}: varchar(${actual.length}) < ${declared}`);
-        }
-        const declaredNullable = !entry.primaryKeyNames.includes(column) && !required.has(column);
-        if (declaredNullable && !actual.nullable) {
-          shortfalls.push(`${entry.table}.${column}: NOT NULL but declared nullable`);
-        }
-      }
-    }
-    expect(shortfalls).toEqual([]);
-    expect(live.get("addresses state_or_country")?.nullable).toBe(true);
+    expect(planColumnAlignment(listRegisteredTables(), live).map((s) => s.sql)).toEqual([]);
+    expect(
+      live.find((c) => c.table === "addresses" && c.column === "state_or_country")?.isNullable
+    ).toBe(true);
   });
 
   it("round-trips the same values the sqlite suite asserts", async () => {

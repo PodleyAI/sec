@@ -108,13 +108,57 @@ describe("planColumnAlignment", () => {
     ]);
   });
 
+  it("unbinds a live varchar whose schema dropped its maxLength", () => {
+    // Same overflow the widening branch fixes: the declared type is now
+    // unbounded TEXT, so there is no width to compare against and the column
+    // would otherwise keep rejecting values the schema allows.
+    const declared = [table("t", Type.Object({ id: Type.String(), v: Type.String() }), ["id"])];
+    const plan = planColumnAlignment(declared, [text("t", "id"), varchar("t", "v", 20)]);
+    expect(plan).toEqual([
+      {
+        table: "t",
+        column: "v",
+        kind: "unbound",
+        width: undefined,
+        sql: 'ALTER TABLE "t" ALTER COLUMN "v" TYPE text',
+      },
+    ]);
+    // Idempotent: nothing left to do once the column is already text.
+    expect(planColumnAlignment(declared, [text("t", "id"), text("t", "v")])).toEqual([]);
+  });
+
+  it("treats a null branch on `oneOf` as nullable, like the DDL does", () => {
+    const declared = [
+      table(
+        "t",
+        {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            v: { oneOf: [{ type: "string" }, { type: "null" }] },
+          },
+          required: ["id", "v"],
+        },
+        ["id"]
+      ),
+    ];
+    const plan = planColumnAlignment(declared, [text("t", "id"), text("t", "v")]);
+    expect(plan.map((s) => s.kind)).toEqual(["drop-not-null"]);
+  });
+
   it("skips a declared column the live schema does not have yet", () => {
     const declared = [
-      table("t", Type.Object({ id: Type.String(), added_later: Type.String({ maxLength: 99 }) }), [
-        "id",
-      ]),
+      table(
+        "t",
+        Type.Object({
+          id: Type.String({ maxLength: 10 }),
+          added_later: Type.String({ maxLength: 99 }),
+        }),
+        ["id"]
+      ),
     ];
-    // Only `id` exists live; the new column is created by setupDatabase(), not altered.
+    // Only `id` exists live (and already at its declared width); the new column
+    // is created by setupDatabase(), not altered.
     expect(planColumnAlignment(declared, [varchar("t", "id", 10)])).toEqual([]);
   });
 

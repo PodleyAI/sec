@@ -8,7 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
-import { listDatabaseExtensionTokens } from "./databaseExtensions";
+import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 import { CURRENT_CANONICAL_VIEW_NAMES } from "../storage/canonical/views";
@@ -166,6 +166,23 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
     ? globalServiceRegistry.get(SEC_DB_TYPE)
     : null;
 
+  if (dbType === "postgres" || dbType === "sqlite") {
+    // Let downstream packages register their DI repos before we read the
+    // ownership registry: a superset's tables only land in it once its repo
+    // family has been built through `createStorage`, and the documented seam
+    // (`registerDatabaseExtension`) promises those tables are dropped by
+    // `db reset` as well as created by `db setup`. Without this, a superset that
+    // registers only through the setup hook has every one of its tables reported
+    // as unowned and silently left in place. Idempotent — a superset whose CLI
+    // preAction already registered is a no-op.
+    //
+    // Only on a real backend: a hook builds its repos through `createStorage`,
+    // which reads SEC_DB_TYPE unguarded and opens the SQLite/Postgres handle.
+    // The in-memory fallback below has neither, and truncates by DI token
+    // rather than by the registry, so running hooks there would only throw.
+    runDatabaseSetupHooks();
+  }
+
   if (dbType === "postgres") {
     await resetPostgres(options);
     return;
@@ -181,20 +198,45 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
   await truncateAllRepositories();
 }
 
-/** Every object name this reset owns, views first so tables drop cleanly after. */
+/** Every table name this reset owns: the registry plus the few created outside it. */
 function ownedTableNames(): ReadonlyArray<string> {
   return [...listRegisteredTables().map((t) => t.table), ...NON_REGISTRY_OWNED_TABLES];
+}
+
+/** The schema sec's tables live in, i.e. the one `CREATE TABLE` writes to. */
+async function currentSchemaName(client: {
+  query: (sql: string) => Promise<{ rows: { name: string }[] }>;
+}): Promise<string> {
+  const result = await client.query("SELECT current_schema() AS name");
+  const name = result.rows[0]?.name;
+  if (!name) {
+    throw new Error("db reset: the connection has no current schema (empty search_path).");
+  }
+  return name;
 }
 
 async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
   const pool = getPgPool();
   const client = await pool.connect();
   try {
+    // Every drop below is schema-qualified. An unqualified `DROP TABLE` resolves
+    // through the search_path, so a name sec owns but that is absent from the
+    // current schema would be found — and destroyed — in the NEXT schema on the
+    // path. That is exactly the unowned-object destruction this reset exists to
+    // avoid, and it is the common shape: sec in its own schema with `public`
+    // still on the path.
+    const schema = await currentSchemaName(client);
+    const qualify = (object: string): string => `"${quote(schema)}"."${quote(object)}"`;
+
     if (options.dropSchema) {
       // CASCADE clears tables, views, sequences and indexes in one statement.
-      // Destroys unowned objects too — opt-in only.
-      await client.query("DROP SCHEMA public CASCADE");
-      await client.query("CREATE SCHEMA public");
+      // Destroys unowned objects too — opt-in only. Resolved from
+      // `current_schema()` rather than hardcoded to `public`: sec's tables live
+      // wherever the connection's search_path points (SEC_PG_URL can carry
+      // `options=-csearch_path=…`), and dropping `public` there would destroy
+      // an unrelated schema while leaving every sec table standing.
+      await client.query(`DROP SCHEMA "${quote(schema)}" CASCADE`);
+      await client.query(`CREATE SCHEMA "${quote(schema)}"`);
       return;
     }
 
@@ -211,11 +253,11 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     // the table drops from needing CASCADE for sec's own objects.
     for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
       await client.query(
-        `DROP VIEW IF EXISTS "${quote(view)}"${options.cascade ? " CASCADE" : ""}`
+        `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
       );
     }
     for (const table of owned) {
-      const sql = `DROP TABLE IF EXISTS "${quote(table)}"${options.cascade ? " CASCADE" : ""}`;
+      const sql = `DROP TABLE IF EXISTS ${qualify(table)}${options.cascade ? " CASCADE" : ""}`;
       try {
         await client.query(sql);
       } catch (err) {
@@ -228,6 +270,15 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
 }
 
 function resetSqlite(options: ResetAllDatabasesOptions): void {
+  // SQLite has neither a droppable schema nor `DROP TABLE ... CASCADE`, and the
+  // scoped path below is already what either flag would degrade to. Say so
+  // rather than accepting the flag and silently doing something else.
+  if (options.cascade || options.dropSchema) {
+    console.warn(
+      "db reset: --cascade / --drop-schema are Postgres-only; the SQLite reset drops the " +
+        "tables sec owns either way."
+    );
+  }
   const db = getDb();
   const present = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
@@ -245,15 +296,14 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
     for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
       db.exec(`DROP VIEW IF EXISTS "${quote(view)}"`);
     }
+    // SQLite has a single schema per attached database, so an unqualified name
+    // cannot resolve outside it the way Postgres's search_path allows.
     for (const table of owned) {
       db.exec(`DROP TABLE IF EXISTS "${quote(table)}"`);
     }
   } finally {
     db.exec("PRAGMA foreign_keys = ON");
   }
-  // SQLite has no schema-level drop; `dropSchema` is a Postgres-only escape
-  // hatch, and the scoped path above is already what it would degrade to.
-  void options.dropSchema;
 }
 
 function quote(identifier: string): string {
@@ -265,10 +315,7 @@ function quote(identifier: string): string {
  * scoped reset deliberately left in place — including the orphan table of a
  * repository that was removed, which no per-repo list could ever reach.
  */
-function reportUnownedTables(
-  present: ReadonlyArray<string>,
-  owned: ReadonlyArray<string>
-): ReadonlyArray<string> {
+function reportUnownedTables(present: ReadonlyArray<string>, owned: ReadonlyArray<string>): void {
   const ownedSet = new Set(owned);
   const unowned = present.filter((name) => !ownedSet.has(name)).sort();
   if (unowned.length > 0) {
@@ -277,7 +324,6 @@ function reportUnownedTables(
         `${unowned.join(", ")}. Drop them by hand if they are orphans of a removed repository.`
     );
   }
-  return unowned;
 }
 
 /**

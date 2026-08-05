@@ -66,7 +66,7 @@
 
 #### eval
 
-- recognize deepseek-\* model ids and price them
+- recognize `deepseek-*` model ids and price them
 - introduce sweepStepContext for improved progress tracking
 
 #### bootstrap
@@ -399,7 +399,7 @@
 
 - add SponsorFamilyMembership + SpacSponsorLink tables with DI
 - add CanonicalSponsorFamily + alias tables with DI
-- emit current*canonical*\* view DDL
+- emit `current_canonical_*` view DDL
 - add alias repos with single-hop invariant
 - add four canonical-level address/phone junction repos
 - add CompanyIdentityLinkRepo

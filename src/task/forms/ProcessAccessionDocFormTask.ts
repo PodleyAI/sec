@@ -152,37 +152,46 @@ export class ProcessAccessionDocFormTask extends Task<
 
     const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
     let text: string | undefined;
-    const fetchTask = new SecFetchAccessionDocTask({ cik, accessionNumber, fileName });
-    wf.pipe(fetchTask, async function capture(fetchOutput: FetchUrlTaskOutput) {
-      text = fetchOutput.text ?? undefined;
-      return { success: true };
-    });
+    wf.pipe(
+      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
+      async function capture(fetchOutput: FetchUrlTaskOutput) {
+        text = fetchOutput.text ?? undefined;
+        return { success: true };
+      }
+    );
     try {
       await wf.run();
     } finally {
       // The document body — a whole SEC submission, often multi-MB — lands in
-      // three places: the `text` local above, the fetch task's output port, and
-      // the dataflow edge carrying it to `capture`. Only the local is still
-      // needed. The other two are cleared solely by the next run of this graph,
-      // which never comes: the workflow is built fresh per filing and run once,
-      // so without this the body stays reachable for the whole sweep — once per
-      // filing, unbounded.
+      // four places: the `text` local above, the fetch task's output port, the
+      // dataflow edge carrying it to `capture`, and (because the edge is an
+      // all-ports edge whose value the runner copies onto the consumer) the
+      // `capture` task's own input port. Only the local is still needed. The
+      // rest are cleared solely by the next run of this graph, which never
+      // comes: the workflow is built fresh per filing and run once, so without
+      // this the body stays reachable for the whole sweep — once per filing,
+      // unbounded.
       //
       // Deliberately not `resetGraph()`: that also flips every node's status
       // back to PENDING, which makes the CLI progress rows flicker.
       for (const dataflow of wf.graph.getDataflows()) {
         dataflow.reset();
       }
-      fetchTask.resetInputData();
-      fetchTask.runOutputData = {};
-      fetchTask.error = undefined;
+      for (const task of wf.graph.getTasks()) {
+        task.resetInputData();
+        task.runOutputData = {};
+        task.error = undefined;
+      }
+      // `own` is add-only, and a task's subgraph is cleared only between runs
+      // of that task — so a caller that processes many filings under one
+      // running task accumulates one wrapper per filing. Releasing it detaches
+      // this branch regardless of what the caller does, and this task is also
+      // driven by callers that never disown (`FetchAndStoreFormsTask`,
+      // `sec fetch form`). In the `finally` because a failed fetch — a 404, a
+      // network error, an abort — is the common case in an unbounded sweep,
+      // and it retains the wrapper just the same.
+      context.disown(wf);
     }
-    // `own` is add-only, and a task's subgraph is cleared only between runs of
-    // that task — so a caller that processes many filings under one running
-    // task accumulates one wrapper per filing. Releasing it here detaches this
-    // branch regardless of what the caller does, and this task is also driven
-    // by callers that never disown (`FetchAndStoreFormsTask`, `sec fetch form`).
-    context.disown(wf);
     if (!text) {
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
     }
