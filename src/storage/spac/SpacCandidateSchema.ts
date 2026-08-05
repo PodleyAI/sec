@@ -47,7 +47,11 @@ export type SpacCandidateConfidence = (typeof SPAC_CANDIDATE_CONFIDENCES)[number
  */
 export const SpacCandidateSchema = Type.Object({
   cik: TypeSecCik(),
-  name: TypeNullable(Type.String({ maxLength: 200, description: "Entity name at scan time" })),
+  // 512, matching CompanyObservationSchema / CanonicalCompanySchema. `entities.name`
+  // is unbounded, so this column is the only place a conformed name is truncated —
+  // and on Postgres an over-long value does not truncate, it aborts the whole
+  // 1000-row putBulk the scan writes in.
+  name: TypeNullable(Type.String({ maxLength: 512, description: "Entity name at scan time" })),
   current_sic: TypeNullable(Type.Integer({ minimum: 0, description: "entities.sic at scan time" })),
 
   /** `entities.sic` reads 6770 (Blank Checks) right now. */
@@ -55,7 +59,7 @@ export const SpacCandidateSchema = Type.Object({
   /** The entity's *current* name looks like a blank check. */
   signal_name_match: Type.Boolean(),
   /** A *former* name looked like a blank check; carries that name. */
-  signal_renamed_from: TypeNullable(Type.String({ maxLength: 200 })),
+  signal_renamed_from: TypeNullable(Type.String({ maxLength: 512 })),
 
   /**
    * Earliest Securities Act registration and its form — `S-1` / `F-1` for a

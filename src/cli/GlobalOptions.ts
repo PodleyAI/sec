@@ -30,3 +30,21 @@ export function parseIntOption(value: string): number {
   }
   return Number(trimmed);
 }
+
+/** The output formats `renderTable` understands. */
+export const OUTPUT_FORMATS = ["table", "csv", "json"] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+
+/**
+ * Commander parser for a `--format` option. Rejects an unrecognised value at
+ * parse time rather than silently rendering a table — a `--format jsonl` that
+ * quietly produced a table would look like the command ignoring the flag, and
+ * a script piping the output would only find out downstream.
+ */
+export function parseOutputFormat(value: string): OutputFormat {
+  const trimmed = value.trim().toLowerCase();
+  if (!(OUTPUT_FORMATS as readonly string[]).includes(trimmed)) {
+    throw new InvalidArgumentError(`"${value}" is not one of: ${OUTPUT_FORMATS.join(" | ")}.`);
+  }
+  return trimmed as OutputFormat;
+}
