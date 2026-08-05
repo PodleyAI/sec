@@ -86,14 +86,14 @@ export function decodePredefinedEntities<T>(value: T): T {
  * entities. Returned by {@link Form.getParser}.
  */
 export interface FormXmlParser {
-  parse(xml: string): any;
+  parse(xml: string): unknown;
 }
 
 export abstract class Form {
   static readonly name: string;
   static readonly description: string;
   static readonly forms: readonly string[];
-  static async parse(form: string, xml: string): Promise<any> {
+  static async parse(form: string, xml: string): Promise<unknown> {
     throw new Error(`Parsing not implemented for ${form}`);
   }
 
@@ -134,13 +134,24 @@ export abstract class Form {
     };
     const parser = new XMLParser(options);
     return {
-      parse(xml: string): any {
+      parse(xml: string): unknown {
         return decodePredefinedEntities(parser.parse(stripDoctype(xml)));
       },
     };
   }
 }
 
-export type FormConstructor = typeof Form & {
-  parse(form: string, xml: string): Promise<any>;
+/**
+ * The static side of a {@link Form} subclass, optionally carrying the type its
+ * {@link Form.parse} produces.
+ *
+ * The parsed type is a parameter of this alias rather than of `Form` itself
+ * because `parse` is `static`: TypeScript forbids a static member from
+ * referencing a class type parameter, so `abstract class Form<TParsed>` cannot
+ * type its own `parse`. Registries that hold mixed form classes keep the
+ * default `unknown`; `ParsedFormDocument` (`./parsedFormDocument`) is what
+ * recovers the concrete type per form name.
+ */
+export type FormConstructor<TParsed = unknown> = typeof Form & {
+  parse(form: string, xml: string): Promise<TParsed>;
 };
