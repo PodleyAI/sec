@@ -7,7 +7,7 @@
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { Static, Type } from "typebox";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 export const PHONE_TYPE = Type.Union(
   [

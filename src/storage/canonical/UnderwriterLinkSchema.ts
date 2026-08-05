@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /** Underwriter role detail. Stored as text; values follow this `as const` set. */

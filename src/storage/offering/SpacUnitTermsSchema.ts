@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /** Filing-level SPAC unit offering terms (one row per SPAC filing). */

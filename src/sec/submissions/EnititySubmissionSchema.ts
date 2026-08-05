@@ -9,6 +9,9 @@ import { Format } from "typebox/format";
 import { ArrayToObject } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 import { ALL_FORM_NAMES } from "../forms/all-forms";
+import { TypeSecCik } from "../../util/TypeSecCik";
+
+export { TypeSecCik } from "../../util/TypeSecCik";
 
 // const TypeSECForm = () => Type.Union(ALL_FORM_NAMES.map((f) => Type.Literal(f)));
 
@@ -38,12 +41,6 @@ export const TypeAddress = (annotations: Record<string, unknown> = {}) =>
     },
     annotations
   );
-export const TypeSecCik = (annotations: Record<string, unknown> = {}) =>
-  Type.Codec(
-    Type.Number({ format: "cik", minimum: 0, maximum: 9999999999, title: "CIK", ...annotations })
-  )
-    .Decode((value) => value.toString())
-    .Encode((value) => parseInt(value));
 
 export type Address = Static<ReturnType<typeof TypeAddress>>;
 

@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
@@ -59,6 +59,4 @@ export type CanonicalCompanyRepositoryStorage = ITabularStorage<
 >;
 
 export const CANONICAL_COMPANY_REPOSITORY_TOKEN =
-  createServiceToken<CanonicalCompanyRepositoryStorage>(
-    "sec.storage.canonicalCompanyRepository"
-  );
+  createServiceToken<CanonicalCompanyRepositoryStorage>("sec.storage.canonicalCompanyRepository");

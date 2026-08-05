@@ -7,15 +7,13 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Entity Ticker schema - represents stock tickers and exchanges for entities
  */
 export const EntityTickerSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - reference to entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - reference to entity" }),
   ticker: Type.String({
     maxLength: 8,
     description: "Stock ticker symbol",

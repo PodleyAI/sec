@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Lifecycle event vocabulary. `registration` / `ipo` come from S-1/424; the
@@ -42,7 +43,7 @@ export type SpacEventType = (typeof SPAC_EVENT_TYPES)[number];
 
 /** Append-only lifecycle event; one row per dated event tied to a filing. */
 export const SpacEventSchema = Type.Object({
-  cik: Type.Integer({ minimum: 0, description: "SPAC origin CIK" }),
+  cik: TypeSecCik({ description: "SPAC origin CIK" }),
   accession_number: Type.String({ maxLength: 25 }),
   event_type: TypeStringEnum(SPAC_EVENT_TYPES, { description: "Event type" }),
   event_date: Type.String({ format: "date" }),

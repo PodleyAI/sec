@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** Outcome of a business-combination attempt. */
 export const SPAC_DEAL_OUTCOMES = ["pending", "completed", "terminated"] as const;
@@ -15,10 +16,10 @@ export type SpacDealOutcome = (typeof SPAC_DEAL_OUTCOMES)[number];
 
 /** One row per business-combination attempt. Append-only; terminated attempts are retained. */
 export const SpacDealSchema = Type.Object({
-  cik: Type.Integer({ minimum: 0, description: "SPAC origin CIK" }),
+  cik: TypeSecCik({ description: "SPAC origin CIK" }),
   deal_index: Type.Integer({ minimum: 0, description: "0-based ordinal of the attempt" }),
   target_name: TypeNullable(Type.String({ maxLength: 200 })),
-  target_cik: TypeNullable(Type.Integer({ minimum: 0 })),
+  target_cik: TypeNullable(TypeSecCik()),
   target_description: TypeNullable(
     Type.String({ description: "Target company description (from the merger proxy)" })
   ),

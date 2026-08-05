@@ -7,12 +7,10 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 export const ProcessedSubmissionsSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   last_processed: Type.String({
     description: "Date this CIK's submissions were last processed (YYYY-MM-DD format)",
   }),

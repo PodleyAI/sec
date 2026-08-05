@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 import { TypeNullable } from "../../util/TypeBoxUtil";
 
 /**
@@ -43,8 +43,7 @@ export const CanonicalPersonSchema = Type.Object({
   normalized_suffix: TypeNullable(Type.String({ maxLength: 32 })),
   source_filing_issuer_cik: TypeNullable(
     TypeSecCik({
-      description:
-        "Set only when the canonical was name-keyed; scopes name fallback to one issuer",
+      description: "Set only when the canonical was name-keyed; scopes name fallback to one issuer",
     })
   ),
   created_at: Type.String({ description: "ISO 8601 timestamp" }),
@@ -61,6 +60,4 @@ export type CanonicalPersonRepositoryStorage = ITabularStorage<
 >;
 
 export const CANONICAL_PERSON_REPOSITORY_TOKEN =
-  createServiceToken<CanonicalPersonRepositoryStorage>(
-    "sec.storage.canonicalPersonRepository"
-  );
+  createServiceToken<CanonicalPersonRepositoryStorage>("sec.storage.canonicalPersonRepository");

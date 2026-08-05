@@ -7,7 +7,7 @@
 import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Issuer schema based on edgar_issuers table - represents the relationship between entities and their issuers

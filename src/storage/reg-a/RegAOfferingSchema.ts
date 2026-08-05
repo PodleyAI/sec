@@ -8,15 +8,13 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Reg-A Offering schema - core offering entity for Regulation A filings (1-A, 1-K, 1-Z)
  */
 export const RegAOfferingSchema = Type.Object({
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
     maxLength: 17,
     description: "SEC file number for the offering",
@@ -36,6 +34,7 @@ export const RegAOfferingSchema = Type.Object({
   sic_code: TypeNullable(
     Type.Integer({
       minimum: 0,
+      maximum: 9999,
       description: "Standard Industrial Classification code",
     })
   ),

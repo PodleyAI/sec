@@ -9,6 +9,7 @@ import { createServiceToken } from "workglow";
 import { Static, Type } from "typebox";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Form 8-K Event schema — one row per item reported in an 8-K filing
@@ -28,10 +29,7 @@ export const Form8KEventSchema = Type.Object({
     description: "Synthetic surrogate key; AUTOINCREMENT INTEGER PRIMARY KEY",
     "x-auto-generated": true,
   }),
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) - unique identifier for entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   accession_number: TypeAccessionNumber({
     description: "SEC accession number - unique identifier for the filing",
   }),
@@ -85,5 +83,6 @@ export type Form8KEventRepositoryStorage = ITabularStorage<
   Form8KEvent
 >;
 
-export const FORM_8K_EVENT_REPOSITORY_TOKEN =
-  createServiceToken<Form8KEventRepositoryStorage>("sec.storage.form8kEventRepository");
+export const FORM_8K_EVENT_REPOSITORY_TOKEN = createServiceToken<Form8KEventRepositoryStorage>(
+  "sec.storage.form8kEventRepository"
+);

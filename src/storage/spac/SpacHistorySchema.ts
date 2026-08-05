@@ -8,21 +8,22 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /** Versioned snapshot of the mutable `spac` row for point-in-time reconstruction. */
 export const SpacHistorySchema = Type.Object({
-  cik: Type.Integer({ minimum: 0 }),
+  cik: TypeSecCik(),
   valid_from: Type.String({ format: "date-time", description: "When this version became valid" }),
   valid_to: TypeNullable(Type.String({ format: "date-time", description: "null = current" })),
   status: TypeNullable(Type.String({ maxLength: 20 })),
-  current_cik: TypeNullable(Type.Integer({ minimum: 0 })),
+  current_cik: TypeNullable(TypeSecCik()),
   spac_name: TypeNullable(Type.String({ maxLength: 200 })),
   target_name: TypeNullable(Type.String({ maxLength: 200 })),
   surviving_name: TypeNullable(Type.String({ maxLength: 200 })),
   current_name: TypeNullable(Type.String({ maxLength: 200 })),
-  spac_sic: TypeNullable(Type.Integer({ minimum: 0 })),
-  post_merger_sic: TypeNullable(Type.Integer({ minimum: 0 })),
-  current_sic: TypeNullable(Type.Integer({ minimum: 0 })),
+  spac_sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999 })),
+  post_merger_sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999 })),
+  current_sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999 })),
   spac_tickers: TypeNullable(Type.String()),
   post_merger_tickers: TypeNullable(Type.String()),
   current_tickers: TypeNullable(Type.String()),

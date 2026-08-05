@@ -9,6 +9,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * Address Entity History Junction schema - tracks temporal relationships between addresses and entities
@@ -18,10 +19,7 @@ export const AddressesEntityHistoryJunctionSchema = Type.Object({
     maxLength: 50,
     description: "Name of the relationship type between address and entity",
   }),
-  cik: Type.Integer({
-    minimum: 0,
-    description: "Central Index Key (CIK) of the entity",
-  }),
+  cik: TypeSecCik({ description: "Central Index Key (CIK) of the entity" }),
   address_hash_id: Type.String({ description: "Reference to the address hash ID" }),
   valid_from: Type.String({
     format: "date-time",

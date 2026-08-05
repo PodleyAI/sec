@@ -8,7 +8,7 @@ import { Static, Type } from "typebox";
 import type { ITabularStorage } from "workglow";
 import { createServiceToken } from "workglow";
 import { TypeNullable } from "../../util/TypeBoxUtil";
-import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
  * One row per Form 144 / 144/A filing. The single `securitiesInformation`
@@ -107,6 +107,4 @@ export type Form144RecentSaleRepositoryStorage = ITabularStorage<
 >;
 
 export const FORM144_RECENT_SALE_REPOSITORY_TOKEN =
-  createServiceToken<Form144RecentSaleRepositoryStorage>(
-    "sec.storage.form144RecentSaleRepository"
-  );
+  createServiceToken<Form144RecentSaleRepositoryStorage>("sec.storage.form144RecentSaleRepository");
