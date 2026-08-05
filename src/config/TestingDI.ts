@@ -352,6 +352,11 @@ import {
   BeneficialOwnershipSchema,
 } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import {
+  EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+  ExecutiveCompensationPrimaryKeyNames,
+  ExecutiveCompensationSchema,
+} from "../storage/executive-compensation/ExecutiveCompensationSchema";
+import {
   RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
   RelatedPartyTransactionPrimaryKeyNames,
   RelatedPartyTransactionSchema,
@@ -750,6 +755,12 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(BeneficialOwnershipSchema, BeneficialOwnershipPrimaryKeyNames, [
+      ["accession_number"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(ExecutiveCompensationSchema, ExecutiveCompensationPrimaryKeyNames, [
       ["accession_number"],
     ])
   );

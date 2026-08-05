@@ -311,6 +311,11 @@ import {
   BeneficialOwnershipSchema,
 } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import {
+  EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+  ExecutiveCompensationPrimaryKeyNames,
+  ExecutiveCompensationSchema,
+} from "../storage/executive-compensation/ExecutiveCompensationSchema";
+import {
   RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
   RelatedPartyTransactionPrimaryKeyNames,
   RelatedPartyTransactionSchema,
@@ -793,6 +798,15 @@ export const DefaultDI = () => {
       "beneficial_ownership",
       BeneficialOwnershipSchema,
       BeneficialOwnershipPrimaryKeyNames,
+      [["accession_number"]]
+    )
+  );
+  globalServiceRegistry.registerInstance(
+    EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+    createStorage(
+      "executive_compensation",
+      ExecutiveCompensationSchema,
+      ExecutiveCompensationPrimaryKeyNames,
       [["accession_number"]]
     )
   );

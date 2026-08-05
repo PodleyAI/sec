@@ -470,6 +470,59 @@ sec query xbrl --cik <cik> --concept AssetsHeldInTrust
 The committed Churchill Capital Corp XII fixture (`s1_2114227_...htm`, a 2026 SPAC
 with full `spac`-taxonomy tagging) pins the parser via `parseXbrl.golden.test.ts`.
 
+#### Executive compensation (Summary Compensation Table)
+
+The Item 402 **Summary Compensation Table** lands in `executive_compensation`
+(`src/storage/executive-compensation/`), one row per named executive officer
+**per fiscal year**, keyed `(extractor_id, accession_number, row_index)` and
+cleared before re-insert like the ownership/related-party tiers. The money
+columns are the union of Item 402(c) and the scaled Item 402(n) most S-1
+registrants report under (which omits the non-equity-incentive and
+pension/NQDC columns and shows two fiscal years, not three) — every one is
+nullable, so both regimes map onto the same row without a discriminator.
+
+The officer is linked by `observation_id` — minted **once per officer**, so an
+officer shown for two fiscal years is two rows against one mention, which is why
+the row key and the FK are separate columns. The claim carries **no
+`role_scope`**: the
+compensation table names only the named executive officers — a strict subset of
+the management roster — so it records observation titles but mints no
+`person_role` tenure and can never participate in the `s1:management` roster
+closure. `principal_position` stays on the compensation row because it is the
+position as stated for that fiscal year.
+
+Extraction is an AI pass, not a deterministic table parse, even though the
+column set is prescribed by regulation. In real EDGAR markup the caption row is
+`<td>` rather than `<th>` (so `TableExtractor` reports zero header rows),
+captions are colspan-stretched across the spacer columns carrying the `$` sign
+and footnote markers, and the officer's name, position and per-year figures are
+distributed across grid rows differently by every filer agent. The stable part
+is the caption vocabulary, not the grid — which is exactly what the
+`hasSummaryCompensationTable` gate (`s1/compensationHeuristic.ts`) keys on.
+
+That gate runs first and is what keeps the section cheap: a blank-check
+company's compensation section is one sentence stating that no officer has been
+paid, and most registration statements have no compensation section at all.
+Neither is a failure, so neither costs an AI call — and the skip path resolves
+any dead letter a previous version left, so a correctly-behaving filing never
+lingers on the retry worklist. Dead letters are recorded under the `S-1`
+extractor id with section name `Executive Compensation`
+(`sec extractor dead-letters S-1`).
+
+The `executive-compensation` entry in `EVAL_EXTRACTORS` ranks the prompt through
+`sec eval extract`, against two golden fixtures: a two-year, three-officer table
+in the spacer-column layout real markup converts to (the name and position lines
+carrying different fiscal years — the layout a model most often misreads by
+emitting the position line as a second person), and a combined
+"Executive and Director Compensation" section whose separate Item 402(r)
+director table must **not** be extracted.
+
+```bash
+sec eval extract --extractor executive-compensation
+```
+
+Not yet wired into the priced-424 path, which repeats the same table.
+
 #### Offering terms / underwriters / use of proceeds
 
 S-1/F-1 prospectuses also yield the deal itself: offering terms (equity →
