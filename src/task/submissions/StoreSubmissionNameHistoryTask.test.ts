@@ -71,4 +71,86 @@ describe("StoreSubmissionNameHistoryTask", () => {
 
     expect((await history(1277021)) ?? []).toHaveLength(2);
   });
+
+  it("a later rename that does not chain does not leave a second current row", async () => {
+    // CIK 1820372's real two-ingest sequence: the second ingest adds a rename,
+    // which moves where the open interval starts. Without a reconcile the row
+    // written at 2020-08-10 by ingest A stays behind, still `valid_to: null`.
+    const task = new StoreSubmissionNameHistoryTask();
+    await task.execute(
+      {
+        submission: {
+          cik: 1820372,
+          name: "FAIRWOOD SUSTAINABILITY, INC.",
+          sic: "",
+          formerNames: [
+            {
+              name: "JW Sustainable Solutions, Inc.",
+              from: "2020-08-07T00:00:00.000Z",
+              to: "2020-08-10T00:00:00.000Z",
+            },
+          ],
+        },
+      } as never,
+      ctx
+    );
+    await task.execute(
+      {
+        submission: {
+          cik: 1820372,
+          name: "FAIRWOOD SUSTAINABILITY LLC",
+          sic: "",
+          formerNames: [
+            {
+              name: "JW Sustainable Solutions, Inc.",
+              from: "2020-08-07T00:00:00.000Z",
+              to: "2020-08-10T00:00:00.000Z",
+            },
+            {
+              name: "FAIRWOOD SUSTAINABILITY, INC.",
+              from: "2020-08-17T00:00:00.000Z",
+              to: "2020-08-20T00:00:00.000Z",
+            },
+          ],
+        },
+      } as never,
+      ctx
+    );
+
+    const rows = (await history(1820372)) ?? [];
+    expect(rows.filter((r) => r.valid_to === null)).toHaveLength(1);
+    expect(rows.map((r) => r.valid_from)).not.toContain("2020-08-10T00:00:00.000Z");
+  });
+
+  it("leaves rows written by another change source alone", async () => {
+    // `entities_history` is shared: EntityTemporalRepo.saveEntityWithHistory
+    // writes under its caller's own change_source. An unscoped reconcile would
+    // delete those rows because they are not in the rebuilt set.
+    const repo = globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN);
+    await repo.put({
+      cik: 1277021,
+      valid_from: "2019-01-01T00:00:00.000Z",
+      valid_to: null,
+      name: "SOMETHING ELSE",
+      type: null,
+      sic: null,
+      ein: null,
+      description: null,
+      website: null,
+      investor_website: null,
+      category: null,
+      fiscal_year: null,
+      state_incorporation: null,
+      state_incorporation_desc: null,
+      change_source: "ENTITY_UPDATE",
+      change_date: "2019-01-01T00:00:00.000Z",
+    });
+
+    await new StoreSubmissionNameHistoryTask().execute({ submission: renamed } as never, ctx);
+
+    const rows = (await history(1277021)) ?? [];
+    const survivor = rows.find((r) => r.change_source === "ENTITY_UPDATE");
+    expect(survivor).toBeDefined();
+    expect(survivor?.name).toBe("SOMETHING ELSE");
+  });
 });

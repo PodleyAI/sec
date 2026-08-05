@@ -31,24 +31,27 @@ const dailyIndexFiles = readdirSync(mockDataDir)
   .sort()
   .map((name) => join(mockDataDir, name));
 
-// Load mock data for all daily index files
+// Read lazily: the `describe` below skips entirely under CI and under Node, but
+// module-scope reads happen regardless of the skip, so eager loading made every
+// run pay for fixtures no test would use.
 const mockData = new Map<string, string>();
-for (const filePath of dailyIndexFiles) {
+function fixtureContent(date: string): string {
+  const cached = mockData.get(date);
+  if (cached !== undefined) return cached;
+  const filePath = dailyIndexFiles.find((p) => p.endsWith(`${date}.master.idx`));
+  if (!filePath) throw new Error(`No mock data for date: ${date}`);
   const content = readFileSync(filePath, "utf-8");
-  const fileName = filePath.split("/").pop()!;
-  const date = fileName.replace(".master.idx", "");
   mockData.set(date, content);
+  return content;
 }
+
+// Small fixtures stand in for EDGAR's 403 error body rather than a real index.
+const isErrorFixture = (date: string): boolean => fixtureContent(date).length < 1000;
 
 // Create mock response factory
 const createMockResponse = (date: string): Response => {
-  const content = mockData.get(date);
-  if (!content) {
-    throw new Error(`No mock data for date: ${date}`);
-  }
-
-  // Determine status based on content size (simulating different scenarios)
-  const isError = content.length < 1000; // Small files are likely error responses
+  const content = fixtureContent(date);
+  const isError = isErrorFixture(date);
 
   return new Response(content, {
     status: isError ? 403 : 200,
@@ -78,7 +81,7 @@ const mockFetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     date = `${year}-QTR${quarter}`;
   }
 
-  if (date && mockData.has(date)) {
+  if (date && dailyIndexFiles.some((p) => p.endsWith(`${date}.master.idx`))) {
     return createMockResponse(date);
   }
 
@@ -138,8 +141,7 @@ describe.skipIf(!!process.env.CI || typeof Bun === "undefined")("FetchQuarterlyI
   for (const filePath of dailyIndexFiles) {
     const fileName = filePath.split("/").pop()!;
     const date = fileName.replace(".master.idx", "");
-    const content = mockData.get(date)!;
-    const isErrorFile = content.length < 1000;
+    const isErrorFile = isErrorFixture(date);
     const year = parseInt(date.split("-")[0]);
     const quarter = parseInt(date.split("QTR")[1]);
     const month = (quarter - 1) * 3 + 1; // Calculate the first month of the quarter

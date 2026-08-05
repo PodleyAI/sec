@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { EntityHistory } from "../../storage/entity/EntityHistorySchema";
+import type {
+  EntityHistory,
+  EntityHistoryRepositoryStorage,
+} from "../../storage/entity/EntityHistorySchema";
 
 /** Marks rows derived from the submissions feed's `formerNames` array. */
 export const NAME_HISTORY_CHANGE_SOURCE = "SUBMISSIONS_FORMER_NAMES";
@@ -70,33 +73,58 @@ export function buildNameHistoryRows(
     state_incorporation_desc: null,
   } as const;
 
-  const rows: EntityHistory[] = [];
-  let latestTo: string | undefined;
+  // Sorted, because the close-at-the-next-rename rule below reads its
+  // successor and EDGAR does not guarantee `formerNames` order.
+  const formers = formerNames
+    .map((former) => ({
+      validFrom: isoOrUndefined(former.from),
+      validTo: isoOrUndefined(former.to) ?? null,
+      name: former.name,
+    }))
+    .filter(
+      (f): f is { validFrom: string; validTo: string | null; name: string } =>
+        f.validFrom !== undefined && typeof f.name === "string"
+    )
+    .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
 
-  for (const former of formerNames) {
-    const validFrom = isoOrUndefined(former.from);
-    if (validFrom === undefined || typeof former.name !== "string") continue;
-    const validTo = isoOrUndefined(former.to) ?? null;
+  if (formers.length === 0) return [];
+
+  const currentName = typeof submission.name === "string" ? submission.name : null;
+
+  const rows: EntityHistory[] = [];
+  let latestEnd: string | undefined;
+
+  for (const [index, former] of formers.entries()) {
+    // EDGAR sometimes leaves a rename's `to` blank. The interval still ends —
+    // at the next rename's `from`, which is the only date EDGAR actually gave
+    // us for it. A trailing blank `to` has no successor, so it stays open only
+    // when there is no current name to promote over it; otherwise
+    // `submission.name` is the authoritative name for the present and takes the
+    // open interval. Closing it at `change_date` instead would fabricate a date
+    // EDGAR never supplied, which this module never does.
+    const validTo = former.validTo ?? formers[index + 1]?.validFrom ?? null;
     rows.push({
       cik,
-      valid_from: validFrom,
-      valid_to: validTo,
+      valid_from: former.validFrom,
+      valid_to: currentName === null ? validTo : (validTo ?? former.validFrom),
       name: former.name,
       sic: null,
       ...unknownAtTime,
       change_source: NAME_HISTORY_CHANGE_SOURCE,
       change_date: changeDate,
     });
-    if (validTo !== null && (latestTo === undefined || validTo > latestTo)) latestTo = validTo;
+    // The open interval starts after every former interval — so `valid_to` when
+    // there is one, and the interval's own `valid_from` for a trailing blank
+    // `to`. Taking only `max(valid_to)` left the blank-`to` row open alongside
+    // the current-name row, i.e. two current names for one CIK.
+    const end = validTo ?? former.validFrom;
+    if (latestEnd === undefined || end > latestEnd) latestEnd = end;
   }
 
-  if (rows.length === 0) return [];
-
-  const currentName = typeof submission.name === "string" ? submission.name : null;
-  if (currentName !== null && latestTo !== undefined) {
+  if (currentName !== null && latestEnd !== undefined) {
     rows.push({
       cik,
-      valid_from: latestTo,
+      valid_from: latestEnd,
       valid_to: null,
       name: currentName,
       sic: sicOrNull(submission.sic),
@@ -111,4 +139,37 @@ export function buildNameHistoryRows(
   const byValidFrom = new Map<string, EntityHistory>();
   for (const row of rows) byValidFrom.set(row.valid_from, row);
   return [...byValidFrom.values()];
+}
+
+/**
+ * Writes one CIK's name-history rows, reconciling away rows this module wrote
+ * on a previous ingest that the current `formerNames` no longer produces.
+ *
+ * A plain `putBulk` upserts on `(cik, valid_from)` and so can only ever add. But
+ * EDGAR revises `formerNames` — a later rename shifts where the open interval
+ * starts, and the row that used to hold it stays behind still carrying
+ * `valid_to: null`, leaving a CIK with two "current" names. Deleting the rows
+ * that fell out of the rebuild is what keeps the timeline single-valued.
+ *
+ * Scoped to {@link NAME_HISTORY_CHANGE_SOURCE}: `entities_history` is shared
+ * with `EntityTemporalRepo.saveEntityWithHistory`, which writes under its
+ * caller's own `change_source`. An unscoped reconcile would silently delete
+ * those rows.
+ */
+export async function writeNameHistoryRows(
+  repo: EntityHistoryRepositoryStorage,
+  cik: number,
+  rows: readonly EntityHistory[]
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  const keep = new Set(rows.map((r) => r.valid_from));
+  const existing = (await repo.query({ cik })) ?? [];
+  for (const row of existing) {
+    if (row.change_source !== NAME_HISTORY_CHANGE_SOURCE) continue;
+    if (keep.has(row.valid_from)) continue;
+    await repo.delete({ cik, valid_from: row.valid_from });
+  }
+
+  await repo.putBulk(rows as EntityHistory[]);
 }

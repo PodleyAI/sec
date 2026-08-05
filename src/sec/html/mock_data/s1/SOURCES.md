@@ -29,6 +29,26 @@ without hitting the network. These are **NOT** real EDGAR captures.
 
 URL pattern: `https://www.sec.gov/Archives/edgar/data/<cik>/<accession-no-dashes>/<primary-doc>.htm`
 
+### Provenance is pinned in code
+
+The exact source document and digest for every real `.htm` here (and under
+`../424/`) live in `src/task/fixtures/goldenFixtureManifest.ts`, which records
+each fixture's primary-document filename, the SHA-256 of the bytes EDGAR serves,
+the capture transform, and the SHA-256 of the committed file. That makes the
+corpus reproducible and auditable:
+
+```sh
+sec fetch golden-fixtures --verify   # re-fetch from EDGAR and compare; no writes
+sec fetch golden-fixtures            # reproduce any missing/changed fixture
+```
+
+Most fixtures are stored **verbatim** as EDGAR serves them — which for several of
+these means the dissemination SGML wrapper (`<DOCUMENT>`/`<TYPE>`/`<TEXT>`) is
+part of the file. The one exception is recorded as `strip-sgml-wrapper` in the
+manifest. `goldenFixtures.test.ts` re-hashes the committed files against the
+manifest on every test run (no network), so editing a fixture in place fails
+loudly instead of silently re-baselining the golden tests above.
+
 ### Synthetic full-submission `.txt` fixtures
 
 | File | CIK | Accession | Company | SIC | Type | Purpose |
