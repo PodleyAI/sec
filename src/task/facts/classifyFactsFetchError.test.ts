@@ -6,8 +6,32 @@
 
 import { describe, expect, it } from "vitest";
 import { classifyFactsFetchError } from "./classifyFactsFetchError";
+import { NoXbrlFactsError } from "./NoXbrlFactsError";
 
 describe("classifyFactsFetchError", () => {
+  it("classifies a facts-less 200 body as NO_XBRL_FACTS", () => {
+    // data.sec.gov answers `200 {}` for a filer with no XBRL, so there is no
+    // status to key off — only the typed error from FetchCompanyFactsTask.
+    expect(classifyFactsFetchError(new NoXbrlFactsError(3521))).toBe("NO_XBRL_FACTS");
+  });
+
+  it("classifies a wrapped NoXbrlFactsError as NO_XBRL_FACTS", () => {
+    expect(
+      classifyFactsFetchError({
+        name: "JobTaskFailedError",
+        message: "job failed",
+        cause: { name: "NoXbrlFactsError", message: "no 'facts' object" },
+      })
+    ).toBe("NO_XBRL_FACTS");
+    expect(
+      classifyFactsFetchError({
+        name: "JobTaskFailedError",
+        message: "job failed",
+        jobError: { name: "NoXbrlFactsError" },
+      })
+    ).toBe("NO_XBRL_FACTS");
+  });
+
   it("classifies a 404 status as NO_XBRL_FACTS", () => {
     expect(classifyFactsFetchError({ status: 404 })).toBe("NO_XBRL_FACTS");
     expect(classifyFactsFetchError({ statusCode: 404 })).toBe("NO_XBRL_FACTS");
@@ -33,6 +57,26 @@ describe("classifyFactsFetchError", () => {
     expect(classifyFactsFetchError(err)).toBe("FETCH_ERROR");
     expect(classifyFactsFetchError(new Error("fetch failed"))).toBe("FETCH_ERROR");
     expect(classifyFactsFetchError(new Error("Connect Timeout Error"))).toBe("FETCH_ERROR");
+  });
+
+  it("classifies DNS failures as FETCH_ERROR", () => {
+    // SafeFetch surfaces these as a PermanentJobError whose errno lives in the
+    // message text, not in `.code`.
+    expect(
+      classifyFactsFetchError(
+        new Error("PermanentJobError: DNS lookup failed for 'data.sec.gov': getaddrinfo ENOTFOUND")
+      )
+    ).toBe("FETCH_ERROR");
+    expect(
+      classifyFactsFetchError(new Error("DNS lookup returned no addresses for 'data.sec.gov'"))
+    ).toBe("FETCH_ERROR");
+    expect(
+      classifyFactsFetchError({
+        name: "PermanentJobError",
+        code: "FETCH_DNS_FAILED",
+        message: "DNS lookup failed for 'data.sec.gov': getaddrinfo EAI_AGAIN",
+      })
+    ).toBe("FETCH_ERROR");
   });
 
   it("classifies statusless non-network errors as PARSE_ERROR", () => {

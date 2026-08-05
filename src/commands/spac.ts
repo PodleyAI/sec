@@ -7,7 +7,16 @@
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
+import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
 import { runWorkflowCli } from "../cli/runWorkflow";
+import {
+  SPAC_CANDIDATE_CONFIDENCES,
+  type SpacCandidateConfidence,
+} from "../storage/spac/SpacCandidateSchema";
+import {
+  ListSpacCandidatesTask,
+  type ListSpacCandidatesTaskOutput,
+} from "../task/spac/ListSpacCandidatesTask";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
@@ -58,6 +67,16 @@ export async function assembleSpacReport(
     underwriterCount: underwriterRows.length,
   };
 }
+
+const SPAC_CANDIDATE_COLUMNS: ReadonlyArray<ColumnDef> = [
+  { key: "cik", header: "CIK", width: 9 },
+  { key: "name", header: "Name", width: 34 },
+  { key: "current_sic", header: "SIC", width: 5 },
+  { key: "confidence", header: "Conf", width: 6 },
+  { key: "first_reg_form", header: "Reg", width: 6 },
+  { key: "first_reg_date", header: "Reg date", width: 10 },
+  { key: "signal_renamed_from", header: "Was", width: 28 },
+];
 
 /** Parse a CLI CIK argument, returning null (after printing an error) when it is not a non-negative integer. */
 function parseCikArg(cikArg: string): number | null {
@@ -122,6 +141,50 @@ export function registerSpacCommands(program: Command): void {
         );
       }
     });
+
+  spacCmd
+    .command("candidates")
+    .description(
+      "List SPAC candidates identified from submissions metadata (populated by `sec update spacs`)"
+    )
+    .option("--confidence <tier>", "Filter to one tier: high | medium | low")
+    .option("--limit <n>", "Rows to show (default 50)")
+    .option("--offset <n>", "Rows to skip")
+    .option("--format <format>", "output format: table | csv | json", "table")
+    .action(
+      async (opts: { confidence?: string; limit?: string; offset?: string; format: string }) => {
+        if (
+          opts.confidence !== undefined &&
+          !SPAC_CANDIDATE_CONFIDENCES.includes(opts.confidence as SpacCandidateConfidence)
+        ) {
+          console.error(
+            `Invalid --confidence "${opts.confidence}". Must be one of: ${SPAC_CANDIDATE_CONFIDENCES.join(", ")}.`
+          );
+          process.exitCode = 1;
+          return;
+        }
+        const limit = opts.limit === undefined ? undefined : Number(opts.limit);
+        const offset = opts.offset === undefined ? undefined : Number(opts.offset);
+        const { rows, total } = await runWorkflowCli<ListSpacCandidatesTaskOutput>([
+          new ListSpacCandidatesTask({
+            defaults: {
+              confidence: opts.confidence as SpacCandidateConfidence | undefined,
+              limit,
+              offset,
+            },
+          }),
+        ]);
+        const format = opts.format === "csv" || opts.format === "json" ? opts.format : "table";
+        console.log(
+          renderTable(rows as unknown as Record<string, unknown>[], SPAC_CANDIDATE_COLUMNS, {
+            format,
+            total,
+            offset: offset ?? 0,
+            limit: limit ?? 50,
+          })
+        );
+      }
+    );
 
   // De-SPAC linkage refresh: the item-2.01 8-K that closes a combination is
   // usually processed BEFORE the surviving entity's renamed submissions land, so

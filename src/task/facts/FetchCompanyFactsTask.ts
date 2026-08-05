@@ -5,8 +5,9 @@
  */
 
 import { Static, Type } from "typebox";
-import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError, TaskError } from "workglow";
+import { DataPortSchemaObject, IExecuteContext, Task, TaskAbortedError } from "workglow";
 import { SecCachedFetchTask } from "../fetch/SecCachedFetchTask";
+import { NoXbrlFactsError } from "./NoXbrlFactsError";
 import { CompanyFacts, Factoid, FactoidSchema, normalizeFp } from "../../sec/facts/CompanyFacts";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { secDate, TypeOptionalSecDate } from "../../util/parseDate";
@@ -86,7 +87,10 @@ export class FetchCompanyFactsTask extends Task<
     const companyFacts = secData.json as unknown as CompanyFacts | undefined;
     const facts = companyFacts?.facts;
     if (!facts || typeof facts !== "object") {
-      throw new TaskError(`Company facts JSON for CIK ${cik} has no 'facts' object`);
+      // A CIK with no XBRL data comes back as 200 `{}` (cached to disk as such
+      // by the bulk/company-facts file cache), so this is the only place the
+      // "no facts" outcome is visible — see NoXbrlFactsError.
+      throw new NoXbrlFactsError(cik);
     }
     // linearize the facts
 

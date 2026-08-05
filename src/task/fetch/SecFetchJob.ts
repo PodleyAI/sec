@@ -48,7 +48,13 @@ interface MaybeHttpError {
 /** Error code / message heuristics shared with consumers classifying fetch failures. */
 export const NETWORK_ERRNO_PATTERN =
   /^E(CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/;
-export const NETWORK_MESSAGE_PATTERN = /network|timeout|timed out|fetch failed|socket hang up/i;
+// DNS failures arrive carrying only the message SafeFetch built ("DNS lookup
+// failed for '<host>': getaddrinfo ENOTFOUND", "DNS lookup returned no
+// addresses for '<host>'") — the errno is baked into the text rather than
+// exposed as `.code`, so NETWORK_ERRNO_PATTERN never sees it. A resolver blip
+// mid-run is a network condition, not a code-fixable parse defect.
+export const NETWORK_MESSAGE_PATTERN =
+  /network|timeout|timed out|fetch failed|socket hang up|dns lookup (?:failed|returned no addresses)|getaddrinfo|enotfound|eai_again/i;
 
 function getStatus(error: MaybeHttpError): number | undefined {
   return error.status ?? error.statusCode ?? error.httpStatus ?? error.response?.status;

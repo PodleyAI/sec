@@ -15,6 +15,7 @@ import {
   newFormsWorklistTask,
   parseShardOption,
 } from "../../task/forms/formsSweep";
+import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHistoryTask";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -148,6 +149,17 @@ export function addBootstrapCommands(program: Command): void {
             });
           })
         );
+      });
+    });
+
+  bootstrap
+    .command("name-history")
+    .description(
+      "Repair pass: backfill entities_history from the cached submissions' formerNames, so a renamed company keeps the name it filed under. Ingest writes these rows as it goes, so this is only needed for data ingested before that landed"
+    )
+    .action(async () => {
+      await runCommand(async () => {
+        await runWorkflowCli([new BackfillNameHistoryTask()]);
       });
     });
 

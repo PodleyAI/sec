@@ -637,6 +637,104 @@ sec spac history <cik> [--format json]  # state-change history
 sec spac backfill-despac [--dry-run]    # refresh post-merger identity for completed SPACs
 ```
 
+### SPAC identification from submissions (`spac_candidate`)
+
+`spac` is populated by the S-1 extractor, which needs the filing document. The
+`spac_candidate` table is the cheap screen that runs off **submissions metadata
+alone** — no document fetches — so a usable list exists the moment submissions
+are ingested, and so the forms sweep has a worklist to aim at.
+
+```bash
+sec update spacs                        # incremental: CIKs whose submissions changed
+sec update spacs --full                 # rescan every entity
+sec spac candidates [--confidence high] [--limit n] [--format csv|json]
+```
+
+Three signals, each kept as its own column so a consumer can re-derive its own
+rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
+blank-check-shaped _former_ name. Graded into `confidence`:
+
+- **high** — registered on the S-1 family (`S-1`/`F-1`/`DRS` + amendments) while
+  still carrying a blank-check name. Survives the de-SPAC, which is exactly
+  where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
+- **medium** — 6770 plus a registration, no name evidence.
+- **low** — a blank-check name only in history with the registration filed
+  _after_ the rename. That is the Form 10 shell pattern (register on 10-12G,
+  reverse-merge, then S-1 for the operating company's resale), not a SPAC.
+
+Why the screen is worth having at all: `entities.sic` is the _current_ code, and
+it drifts off 6770 at the de-SPAC — sometimes before the rename (Melar
+Acquisition Corp. I reads 7389 while its own S-1 header says 6770). The header
+is the authority, but EDGAR increasingly omits it: Viking Acquisition Corp I's
+S-1 carries no `STANDARD INDUSTRIAL CLASSIFICATION` line at all, so the
+extractor's deterministic check falls through to the AI content classifier.
+
+The name patterns were mined from the names EDGAR itself codes 6770, scored by
+the share of S-1-family registrants matching each pattern that carry that code
+(an undercount — a de-SPAC's SIC has already moved off it):
+
+| pattern             | 6770 / matched | example                      |
+| ------------------- | -------------- | ---------------------------- |
+| `%acquisition%`     | 1099 / 1342    | the anchor                   |
+| `%partnering corp%` | 5 / 5          | Corsair Partnering Corp      |
+| `%opportunit%corp%` | 15 / 17        | Elliott Opportunity II Corp. |
+| `%growth corp%`     | 12 / 14        | Cartesian Growth Corp IV     |
+| `%merger corp%`     | 16 / 23        | Legato Merger Corp. III      |
+
+Rejected on the same measurement: `%capital corp%` (31/99 — Sprint Capital, BBX
+Capital and other lenders), `%investment corp%` (BDCs, mortgage REITs),
+`%holdings corp%` (19/153), `%ventures corp%`, `%spac%` (matches "space"). Only
+LP/LLC legal forms are excluded, never a bare "partners": 12 of the 13
+registrants named both "acquisition" and "partners" without an LP/LLC suffix are
+coded 6770 (Supernova Partners Acquisition Co III, Catalyst Partners …).
+
+A second, weaker class (`MODERN_SPAC_NAME_PATTERNS`: `%capital corp%`,
+`%investment corp%`, `%special purpose%`) makes a company a candidate and can
+reach `medium`, but never `high` on its own. These are near-certain in the
+modern era (29/32, 37/40, 5/5 among 2019-2024 registrants) and near-worthless
+before it — "Capital Corp" is what SPRINT CAPITAL CORP, BBX CAPITAL CORP and
+EVEREN CAPITAL CORP called themselves, and over all vintages the pattern
+collapses to 33/103. SIC 6770 or a strong name is what lifts them to `high`.
+
+**Validation against embarc's curated list** (`embarc/data/generated/spacs.json`,
+1,476 SPACs, S-1 dates 2006-03 → 2025-05):
+
+| Reference vintage | In list | Found | Recall  |
+| ----------------- | ------- | ----- | ------- |
+| 2021-2025         | 1,005   | 977   | 97%     |
+| 2019-2020         | 379     | 340   | 90%     |
+| 2015-2018         | 78      | 62    | 79%     |
+| overall           | 1,476   | 1,387 | **94%** |
+
+Recall by lifecycle status shows where the screen is strong and why:
+
+| Status                              | In list | Found | Recall   |
+| ----------------------------------- | ------- | ----- | -------- |
+| Withdrawn (registered, never IPO'd) | 207     | 207   | **100%** |
+| Failed (IPO'd, no combination)      | 492     | 485   | 99%      |
+| S1 / Unit / DA / IPO (in flight)    | 211     | 207   | 98%      |
+| Completed (de-SPAC'd)               | 567     | 489   | 86%      |
+
+**A SPAC that withdrew or liquidated is still a SPAC** — the attempt is the
+fact worth recording, and it is what sponsor-level grading is built on. Those
+are exactly the ones the screen never loses: a vehicle that never completed a
+combination keeps its blank-check name and its 6770 coding forever. Only a
+_completed_ de-SPAC erases its own evidence, by renaming and recoding to the
+operating business, and 78 of the 89 total misses are that case: CENAQ Energy
+Corp, CC Neuberger Principal Holdings, Landcadia Holdings III, dMY Technology
+Group III, GigCapital3, Social Capital Hedosophia — names sharing no token with
+any other. No name rule reaches them; the as-filed header SIC in the forms
+pipeline is what closes that gap.
+
+In the other direction the screen finds high-confidence SPACs the curated list
+does not have: 751 registered from 2006 on — before its coverage starts (the
+2007-08 wave), after it ends, and at the recent edge where it thins out — plus
+more from the pre-2006 era it does not cover at all.
+
+Known false positives: transaction merger subsidiaries ("DEAC NV Merger Corp",
+"AECOM MERGER CORP") and operating companies that happen to fit ("Canopy Growth
+Corp"), roughly 6 of the 65 matches the non-"acquisition" patterns add.
+
 ### Generalized extractor backfill
 
 When a new extractor lands, its historical filings are recovered with the

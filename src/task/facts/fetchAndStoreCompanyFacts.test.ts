@@ -10,6 +10,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedFactsSchema";
 import type { FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
 import { fetchAndStoreCompanyFactsWithDeps } from "./fetchAndStoreCompanyFacts";
+import { NoXbrlFactsError } from "./NoXbrlFactsError";
 
 const ctx = {} as IExecuteContext;
 
@@ -56,6 +57,24 @@ describe("fetchAndStoreCompanyFactsWithDeps", () => {
     expect(result).toEqual({ success: true });
     expect(storeCalled).toBe(false);
     const row = await getRow(2);
+    expect(row?.success).toBe(true);
+    expect(row?.reason_code).toBe("NO_XBRL_FACTS");
+    expect(row?.attempts).toBe(0);
+  });
+
+  it("records a facts-less 200 body as a successful NO_XBRL_FACTS outcome without storing", async () => {
+    let storeCalled = false;
+    const result = await fetchAndStoreCompanyFactsWithDeps({ cik: 3521, date: "2026-06-10" }, ctx, {
+      fetchFacts: async () => {
+        throw new NoXbrlFactsError(3521);
+      },
+      storeFacts: async () => {
+        storeCalled = true;
+      },
+    });
+    expect(result).toEqual({ success: true });
+    expect(storeCalled).toBe(false);
+    const row = await getRow(3521);
     expect(row?.success).toBe(true);
     expect(row?.reason_code).toBe("NO_XBRL_FACTS");
     expect(row?.attempts).toBe(0);

@@ -252,6 +252,11 @@ import {
 } from "../storage/form-8k-event/Form8KEventSchema";
 import { SPAC_REPOSITORY_TOKEN, SpacPrimaryKeyNames, SpacSchema } from "../storage/spac/SpacSchema";
 import {
+  SPAC_CANDIDATE_REPOSITORY_TOKEN,
+  SpacCandidatePrimaryKeyNames,
+  SpacCandidateSchema,
+} from "../storage/spac/SpacCandidateSchema";
+import {
   SPAC_DEAL_REPOSITORY_TOKEN,
   SpacDealPrimaryKeyNames,
   SpacDealSchema,
@@ -536,6 +541,13 @@ export function resetDependencyInjectionsForTesting() {
   globalServiceRegistry.registerInstance(
     SPAC_REPOSITORY_TOKEN,
     new InMemoryTabularStorage(SpacSchema, SpacPrimaryKeyNames, [["status"], ["current_cik"]])
+  );
+  globalServiceRegistry.registerInstance(
+    SPAC_CANDIDATE_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(SpacCandidateSchema, SpacCandidatePrimaryKeyNames, [
+      ["confidence"],
+      ["first_reg_date"],
+    ])
   );
   globalServiceRegistry.registerInstance(
     SPAC_DEAL_REPOSITORY_TOKEN,

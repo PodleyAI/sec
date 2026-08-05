@@ -5,6 +5,7 @@ import {
   newFormsWorklistTask,
   parseShardOption,
 } from "../../task/forms/formsSweep";
+import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
@@ -43,6 +44,28 @@ export function addUpdateCommands(program: Command): void {
         },
         { force: options.force }
       );
+    });
+
+  // Runs off submissions metadata only — no document fetches — so it is cheap
+  // enough to follow `update submissions` every day. The authoritative
+  // classification still comes from the S-1 extractor during the forms sweep;
+  // this keeps a same-day list of who to look at.
+  update
+    .command("spacs")
+    .description(
+      "Identify SPAC candidates from submissions (SIC 6770, blank-check names, registration form) into spac_candidate"
+    )
+    .option(
+      "--full",
+      "Rescan every entity instead of only those whose submissions changed since the last run",
+      false
+    )
+    .action(async (options: { full?: boolean }) => {
+      await runCommand(async () => {
+        await runWorkflowCli([
+          new IdentifySpacsTask({ defaults: { full: options.full ?? false } }),
+        ]);
+      });
     });
 
   update

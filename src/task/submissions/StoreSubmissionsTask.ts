@@ -20,6 +20,7 @@ import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissions
 import { StoreSubmissionContactInfoTask } from "./StoreSubmissionContactInfoTask";
 import { StoreSubmissionEntityTask } from "./StoreSubmissionEntityTask";
 import { StoreSubmissionFilingsTask } from "./StoreSubmissionFilingsTask";
+import { StoreSubmissionNameHistoryTask } from "./StoreSubmissionNameHistoryTask";
 import { StoreSubmissionSicTask } from "./StoreSubmissionSicTask";
 import { StoreSubmissionTickersTask } from "./StoreSubmissionTickersTask";
 
@@ -64,6 +65,7 @@ export class StoreSubmissionsTask extends Task<
       parallel([
         new StoreSubmissionSicTask({ defaults: input }),
         new StoreSubmissionEntityTask({ defaults: input }),
+        new StoreSubmissionNameHistoryTask({ defaults: input }),
         new StoreSubmissionContactInfoTask({ defaults: input }),
         new StoreSubmissionTickersTask({ defaults: input }),
         new StoreSubmissionFilingsTask({ defaults: input }),
