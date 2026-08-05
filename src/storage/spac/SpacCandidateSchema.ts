@@ -11,13 +11,21 @@ import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 
 /**
- * How strongly the submissions metadata alone says "SPAC". See
- * `classifySpacCandidate` for the ladder; in short:
+ * How strongly the submissions metadata alone says "SPAC".
+ * `classifySpacCandidate` is the authoritative statement of the ladder; this is
+ * the same rule in short:
  *
- * - `high`   — registered on the S-1 family *while* carrying a blank-check name
- * - `medium` — SIC 6770 today plus an S-1-family registration, no name evidence
- * - `low`    — blank-check name only in history, and the registration came after
- *              the rename (the Form 10 shell / reverse-merger pattern)
+ * - `high`   — an S-1-family registration plus either a blank-check name
+ *              (current or former) or EDGAR's 6770 coding, with nothing arguing
+ *              against it. 6770-plus-registration sits here on measurement (150
+ *              of 168 such 2019-2024 registrants appear in embarc's curated
+ *              list, 89%).
+ * - `medium` — one weakened or contradicted signal: a weak-class name with a
+ *              registration and nothing else, or a 6770 filer that registered
+ *              only AFTER shedding a blank-check name.
+ * - `low`    — a blank-check name only in history with the registration filed
+ *              after the rename (the Form 10 shell pattern), OR 6770 with no
+ *              registration on file at all.
  */
 export const SPAC_CANDIDATE_CONFIDENCES = ["high", "medium", "low"] as const;
 export type SpacCandidateConfidence = (typeof SPAC_CANDIDATE_CONFIDENCES)[number];
@@ -39,7 +47,11 @@ export type SpacCandidateConfidence = (typeof SPAC_CANDIDATE_CONFIDENCES)[number
  */
 export const SpacCandidateSchema = Type.Object({
   cik: TypeSecCik(),
-  name: TypeNullable(Type.String({ maxLength: 200, description: "Entity name at scan time" })),
+  // 512, matching CompanyObservationSchema / CanonicalCompanySchema. `entities.name`
+  // is unbounded, so this column is the only place a conformed name is truncated —
+  // and on Postgres an over-long value does not truncate, it aborts the whole
+  // 1000-row putBulk the scan writes in.
+  name: TypeNullable(Type.String({ maxLength: 512, description: "Entity name at scan time" })),
   current_sic: TypeNullable(Type.Integer({ minimum: 0, description: "entities.sic at scan time" })),
 
   /** `entities.sic` reads 6770 (Blank Checks) right now. */
@@ -47,7 +59,7 @@ export const SpacCandidateSchema = Type.Object({
   /** The entity's *current* name looks like a blank check. */
   signal_name_match: Type.Boolean(),
   /** A *former* name looked like a blank check; carries that name. */
-  signal_renamed_from: TypeNullable(Type.String({ maxLength: 200 })),
+  signal_renamed_from: TypeNullable(Type.String({ maxLength: 512 })),
 
   /**
    * Earliest Securities Act registration and its form — `S-1` / `F-1` for a

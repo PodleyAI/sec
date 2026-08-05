@@ -14,7 +14,7 @@ import {
 } from "workglow";
 import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../../storage/entity/EntityHistorySchema";
 import { FetchSubmissionsOutput, FetchSubmissionsTask } from "./FetchSubmissionsTask";
-import { buildNameHistoryRows } from "./nameHistoryRows";
+import { buildNameHistoryRows, writeNameHistoryRows } from "./nameHistoryRows";
 
 export type StoreSubmissionNameHistoryTaskInput = FetchSubmissionsOutput;
 
@@ -70,7 +70,7 @@ export class StoreSubmissionNameHistoryTask extends Task<
     if (rows.length === 0) return { success: true };
 
     const repo = globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN);
-    await repo.putBulk(rows);
+    await writeNameHistoryRows(repo, submission.cik, rows);
 
     return { success: true };
   }

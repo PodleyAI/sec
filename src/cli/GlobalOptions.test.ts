@@ -1,6 +1,11 @@
 import { Command, InvalidArgumentError } from "commander";
 import { describe, expect, it } from "vitest";
-import { applyGlobalOptions, parseGlobalOptions, parseIntOption } from "./GlobalOptions";
+import {
+  applyGlobalOptions,
+  parseGlobalOptions,
+  parseIntOption,
+  parseOutputFormat,
+} from "./GlobalOptions";
 
 function createProgram(): Command {
   const program = new Command();
@@ -95,6 +100,34 @@ describe("GlobalOptions", () => {
           expect(err).toBeInstanceOf(InvalidArgumentError);
           expect((err as Error).message).toContain(`"${input}"`);
           expect((err as Error).message).toContain("non-negative integer");
+        }
+      });
+    }
+  });
+
+  describe("parseOutputFormat", () => {
+    it("accepts each supported format", () => {
+      expect(parseOutputFormat("table")).toBe("table");
+      expect(parseOutputFormat("csv")).toBe("csv");
+      expect(parseOutputFormat("json")).toBe("json");
+    });
+
+    it("normalizes surrounding whitespace and case", () => {
+      expect(parseOutputFormat("  JSON ")).toBe("json");
+      expect(parseOutputFormat("Csv")).toBe("csv");
+    });
+
+    const rejected: readonly string[] = ["jsonl", "", "  ", "tsv", "TABLE!", "json5"];
+
+    for (const input of rejected) {
+      it(`rejects ${JSON.stringify(input)} rather than silently falling back to a table`, () => {
+        try {
+          parseOutputFormat(input);
+          throw new Error("expected parseOutputFormat to throw");
+        } catch (err) {
+          expect(err).toBeInstanceOf(InvalidArgumentError);
+          expect((err as Error).message).toContain(`"${input}"`);
+          expect((err as Error).message).toContain("table | csv | json");
         }
       });
     }

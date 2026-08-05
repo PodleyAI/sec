@@ -38,7 +38,11 @@ export class ListSpacCandidatesTask extends Task<
   public static inputSchema() {
     return Type.Object({
       confidence: Type.Optional(Type.Union(SPAC_CANDIDATE_CONFIDENCES.map((c) => Type.Literal(c)))),
-      limit: Type.Optional(Type.Integer({ minimum: 1 })),
+      // `minimum: 0`, matching the CLI's `parseIntOption`: `--limit 0` asks for
+      // the total with no rows, which `slice` already does. Rejecting it in the
+      // schema would surface as a validation failure from a value the option
+      // parser accepted.
+      limit: Type.Optional(Type.Integer({ minimum: 0 })),
       offset: Type.Optional(Type.Integer({ minimum: 0 })),
     });
   }

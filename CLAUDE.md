@@ -681,13 +681,19 @@ Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
 blank-check-shaped _former_ name. Graded into `confidence`:
 
-- **high** — registered on the S-1 family (`S-1`/`F-1`/`DRS` + amendments) while
-  still carrying a blank-check name. Survives the de-SPAC, which is exactly
-  where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
-- **medium** — 6770 plus a registration, no name evidence.
+- **high** — an S-1-family registration (`S-1`/`F-1`/`DRS` + amendments) plus
+  either a blank-check name (current or former) or EDGAR's 6770 coding, with
+  nothing arguing against it. The name half survives the de-SPAC, which is
+  exactly where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
+  6770-plus-registration sits here on measurement (150 of 168 such 2019-2024
+  registrants appear in embarc's curated list, 89%).
+- **medium** — one weakened or contradicted signal: a weak-class name with a
+  registration and nothing else, or a 6770 filer that registered only AFTER
+  shedding a blank-check name.
 - **low** — a blank-check name only in history with the registration filed
-  _after_ the rename. That is the Form 10 shell pattern (register on 10-12G,
-  reverse-merge, then S-1 for the operating company's resale), not a SPAC.
+  after the rename (the Form 10 shell pattern: register on 10-12G,
+  reverse-merge, then S-1 for the operating company's resale), OR 6770 with no
+  registration on file at all.
 
 Why the screen is worth having at all: `entities.sic` is the _current_ code, and
 it drifts off 6770 at the de-SPAC — sometimes before the rename (Melar
@@ -722,6 +728,8 @@ modern era (29/32, 37/40, 5/5 among 2019-2024 registrants) and near-worthless
 before it — "Capital Corp" is what SPRINT CAPITAL CORP, BBX CAPITAL CORP and
 EVEREN CAPITAL CORP called themselves, and over all vintages the pattern
 collapses to 33/103. SIC 6770 or a strong name is what lifts them to `high`.
+
+The recall/precision tables below were measured on this rule.
 
 **Validation against embarc's curated list** (`embarc/data/generated/spacs.json`,
 1,476 SPACs, S-1 dates 2006-03 → 2025-05):
