@@ -183,6 +183,10 @@ export interface SpacCandidateFacts {
    * interval's `valid_to`, not the first: EDGAR records cosmetic variants
    * ("Corp." → "Corp") as separate intervals, and the earliest one ends while
    * the company is still very much a SPAC.
+   *
+   * Consulted only when {@link name} no longer matches either naming class. A
+   * company still carrying the name has not renamed away from it, so a closed
+   * interval on it describes a variant it kept, not an era it left.
    */
   readonly spac_name_ended: string | null;
 }
@@ -247,12 +251,20 @@ export function classifySpacCandidate(
   // Whether the earliest registration predates the loss of the blank-check
   // name. Only answerable when the company renamed away from one; a company
   // that still carries the name has, trivially, not renamed away from it yet.
+  //
+  // The CURRENT name is consulted first, and that order is the whole point: a
+  // company still carrying a SPAC-shaped name today never renamed away from
+  // one, whatever `spac_name_ended` says. Any earlier closed interval is a
+  // cosmetic variant ("Corp." -> "Corp") or a pre-IPO sponsor rebrand, and
+  // dating the registration against it would wrongly read as "registered after
+  // shedding the name" — the Form 10 shell shape — and demote a live SPAC to
+  // `low`.
   let reg_while_spac_named: boolean | null = null;
-  if (hasRegistration && facts.spac_name_ended !== null) {
-    reg_while_spac_named = facts.first_reg_date! <= facts.spac_name_ended.slice(0, 10);
-  } else if (hasRegistration && (signal_name_match || looksLikeModernSpacName(facts.name))) {
+  if (hasRegistration && (signal_name_match || looksLikeModernSpacName(facts.name))) {
     // Still carrying the name today, so it has not renamed away from it.
     reg_while_spac_named = true;
+  } else if (hasRegistration && facts.spac_name_ended !== null) {
+    reg_while_spac_named = facts.first_reg_date! <= facts.spac_name_ended.slice(0, 10);
   }
 
   // `false` is the one value that argues against a SPAC: the company registered

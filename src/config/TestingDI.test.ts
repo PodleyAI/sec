@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { ADDRESS_REPOSITORY_TOKEN } from "../storage/address/AddressSchema";
+import { SEC_STORAGE_REGISTRY } from "./storageRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { ENV_DERIVED_TOKENS } from "./tokens";
 
@@ -26,10 +27,13 @@ describe("resetDependencyInjectionsForTesting", () => {
     }
   });
 
-  it("re-registers the in-memory repository bindings", () => {
-    // Guard against a future refactor that clobbers the repo re-registration —
-    // ADDRESS_REPOSITORY_TOKEN stands in for the whole set.
+  it("binds an in-memory storage for every table in the registry", () => {
     resetDependencyInjectionsForTesting();
-    expect(globalServiceRegistry.has(ADDRESS_REPOSITORY_TOKEN)).toBe(true);
+
+    const unbound = SEC_STORAGE_REGISTRY.filter(
+      (definition) => !globalServiceRegistry.has(definition.token)
+    ).map((definition) => definition.token.id);
+    expect(unbound).toEqual([]);
+    expect(globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).isDurable()).toBe(false);
   });
 });

@@ -36,8 +36,7 @@ export interface SecJobQueueHandles {
 
 function isPostgres(): boolean {
   return (
-    globalServiceRegistry.has(SEC_DB_TYPE) &&
-    globalServiceRegistry.get(SEC_DB_TYPE) === "postgres"
+    globalServiceRegistry.has(SEC_DB_TYPE) && globalServiceRegistry.get(SEC_DB_TYPE) === "postgres"
   );
 }
 
@@ -59,6 +58,27 @@ export function createSecFetchRateLimiterStorage(pool: Pool): PostgresRateLimite
 export async function setupSecFetchRateLimiter(): Promise<void> {
   if (!isPostgres()) return;
   await createSecFetchRateLimiterStorage(getPgPool()).migrate();
+}
+
+/**
+ * The applied-version ledger components {@link setupSecFetchRateLimiter} records
+ * rows under, so a reset that drops the rate-limiter tables can clear exactly
+ * those rows and nothing else. Read back from the storage that writes them
+ * rather than spelled out here, so the two cannot drift apart.
+ *
+ * Empty off Postgres: the other backends use an in-memory limiter, which
+ * records nothing.
+ */
+export function secFetchRateLimiterLedgerComponents(): ReadonlyArray<string> {
+  if (!isPostgres()) return [];
+  // Through the shared factory, not a bare `new`: the component names are
+  // derived from the storage's table names, which are themselves derived from
+  // the prefix columns in `SecFetchRateLimiterOptions`. Constructing without
+  // that configuration would report the unprefixed components while the reset
+  // dropped the prefixed tables — the exact drift the factory exists to close.
+  return createSecFetchRateLimiterStorage(getPgPool())
+    .getMigrations()
+    .map((m) => m.component);
 }
 
 let handles: SecJobQueueHandles | undefined;

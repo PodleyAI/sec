@@ -409,6 +409,33 @@ sec fetch s1-fixtures                 # ~10 real S-1s (>= 3 SPACs) -> mock_data/
 sec fetch s1-fixtures -c 20 --min-spac 5
 ```
 
+#### Golden fixture provenance
+
+The **committed** corpus under `src/sec/html/mock_data/{s1,424}/` stays committed
+— the golden tests are hermetic and must not depend on EDGAR being reachable
+(the quarterly `form.idx` endpoint already 403s from cloud containers). What is
+pinned instead is its provenance: `src/task/fixtures/goldenFixtureManifest.ts`
+records, per fixture, the EDGAR primary-document filename, the SHA-256 of the
+bytes EDGAR serves, the capture `transform`, and the SHA-256 of the committed
+file.
+
+```bash
+sec fetch golden-fixtures --verify   # re-fetch from EDGAR, compare, write nothing (non-zero exit on mismatch)
+sec fetch golden-fixtures [--force]  # reproduce the corpus from the manifest
+```
+
+Verify reports `remote-changed` and `local-modified` separately because they
+demand opposite responses: the first means re-pin the manifest, the second means
+a golden fixture was edited and the tests it backs are measuring an artifact. A
+digest mismatch is never written to disk, so a truncated response or an EDGAR
+error page cannot silently replace a fixture. Most entries are `verbatim` (which
+for several of these files includes the dissemination SGML wrapper EDGAR serves);
+the one `strip-sgml-wrapper` entry stores the inner body, matching what
+`Form_424.parse()` hands the converter. The synthetic `.txt` submissions are
+deliberately absent from the manifest — they exist nowhere on EDGAR.
+`goldenFixtures.test.ts` re-hashes the committed files against the manifest with
+no network, so an in-place edit fails in CI.
+
 #### iXBRL / XBRL facts
 
 Modern S-1s embed inline XBRL (`ix:nonFraction` / `ix:nonNumeric` facts against the
@@ -654,13 +681,19 @@ Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
 blank-check-shaped _former_ name. Graded into `confidence`:
 
-- **high** — registered on the S-1 family (`S-1`/`F-1`/`DRS` + amendments) while
-  still carrying a blank-check name. Survives the de-SPAC, which is exactly
-  where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
-- **medium** — 6770 plus a registration, no name evidence.
+- **high** — an S-1-family registration (`S-1`/`F-1`/`DRS` + amendments) plus
+  either a blank-check name (current or former) or EDGAR's 6770 coding, with
+  nothing arguing against it. The name half survives the de-SPAC, which is
+  exactly where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
+  6770-plus-registration sits here on measurement (150 of 168 such 2019-2024
+  registrants appear in embarc's curated list, 89%).
+- **medium** — one weakened or contradicted signal: a weak-class name with a
+  registration and nothing else, or a 6770 filer that registered only AFTER
+  shedding a blank-check name.
 - **low** — a blank-check name only in history with the registration filed
-  _after_ the rename. That is the Form 10 shell pattern (register on 10-12G,
-  reverse-merge, then S-1 for the operating company's resale), not a SPAC.
+  after the rename (the Form 10 shell pattern: register on 10-12G,
+  reverse-merge, then S-1 for the operating company's resale), OR 6770 with no
+  registration on file at all.
 
 Why the screen is worth having at all: `entities.sic` is the _current_ code, and
 it drifts off 6770 at the de-SPAC — sometimes before the rename (Melar
@@ -695,6 +728,8 @@ modern era (29/32, 37/40, 5/5 among 2019-2024 registrants) and near-worthless
 before it — "Capital Corp" is what SPRINT CAPITAL CORP, BBX CAPITAL CORP and
 EVEREN CAPITAL CORP called themselves, and over all vintages the pattern
 collapses to 33/103. SIC 6770 or a strong name is what lifts them to `high`.
+
+The recall/precision tables below were measured on this rule.
 
 **Validation against embarc's curated list** (`embarc/data/generated/spacs.json`,
 1,476 SPACs, S-1 dates 2006-03 → 2025-05):
@@ -874,16 +909,16 @@ sec exposes the general downstream seams embarc-data (and future features) build
 
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets
-  included), the `current_canonical_*` views, `_storage_migrations`, and the
-  Postgres rate-limiter tables. The rate-limiter names are **derived**, not
-  literals: `PostgresRateLimiterStorage` names its tables after its prefix
-  columns, so `setupSecFetchRateLimiter` and the reset both read one
-  configuration (`SecFetchRateLimiterOptions` /
-  `secFetchRateLimiterTableNames`, `src/task/fetch/secFetchRateLimiterConfig.ts`)
-  — sharding the fetch budget by a prefix column renames the tables on both
-  sides at once instead of silently orphaning them (the derivation is pinned
-  against the installed storage's own migration DDL by
-  `resetAllDatabases.test.ts`). Every Postgres drop is schema-qualified to
+  included), the `current_canonical_*` views, and the Postgres rate-limiter
+  tables. The rate-limiter names are **derived**, not literals:
+  `PostgresRateLimiterStorage` names its tables after its prefix columns, so
+  `setupSecFetchRateLimiter` and the reset both read one configuration
+  (`SecFetchRateLimiterOptions` / `secFetchRateLimiterTableNames`,
+  `src/task/fetch/secFetchRateLimiterConfig.ts`) — sharding the fetch budget by
+  a prefix column renames the tables on both sides at once instead of silently
+  orphaning them (the derivation is pinned against the installed storage's own
+  migration DDL by `resetAllDatabases.test.ts`). Every Postgres drop is
+  schema-qualified to
   `current_schema()` — an unqualified name resolves through the search_path and
   would reach a same-named table in the *next* schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
@@ -893,6 +928,21 @@ sec exposes the general downstream seams embarc-data (and future features) build
   whole set of drops runs in one transaction, so a blocked drop rolls the
   earlier ones back rather than leaving a half-dropped database that the failed
   command never recreates.
+
+  `_storage_migrations` is **not** dropped. It is `@workglow/storage`'s
+  applied-version ledger — one fixed-name table that every package built on the
+  library records into, a row per `(component, version)` — so dropping it would
+  take a co-tenant's rows with it and make their next setup replay `addColumn`
+  ops against tables that already carry those columns. It is left standing and
+  reported like any other unowned table. Its rows are still scoped, though:
+  the reset issues a `DELETE ... WHERE component = ANY(...)` over the components
+  sec's own setup records under, read back from the storage that writes them
+  (`secFetchRateLimiterLedgerComponents`). That delete is mandatory, not tidy —
+  a runner skips a `(component, version)` it finds recorded, so a row outliving
+  the table its migration created would stop `db setup` from ever recreating it.
+  Today the set is exactly the Postgres rate limiter's: no sec table declares
+  tabular migrations, and `createStorage` does not accept them. `--drop-schema`
+  still takes the ledger, along with everything else in the schema.
 
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).
@@ -955,7 +1005,7 @@ time** and a queryable **current state**:
   - **`canonical/`** — deduplicated canonical entities (`CanonicalPersonRepo`, `CanonicalCompanyRepo`) with UUID IDs, plus alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) and identity-link tables (`PersonIdentityLinkRepo`, `CompanyIdentityLinkRepo`) that join observation rows to canonical rows at a specific `resolver_version`. Junction tables for address/phone co-occurrence also live here.
   - **`versioning/`** — `VersionRegistry`, slot ceremonies (`startDev`, `promote`, `rollback`, `dropNext`, `dropPrevious`), extractor run tracking, and semver helpers.
 - **`src/task/fetch/`** — SEC-specific fetch tasks with caching and job queue integration.
-- **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, `DefaultDI.ts` registers SQLite-backed repos, `TestingDI.ts` registers in-memory repos.
+- **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, and `storageRegistry.ts` declares every tabular storage sec owns as one `{ token, table, schema, primaryKeyNames, indexes, uniqueIndexes }` list. Both bootstraps map over that list rather than repeating it: `DefaultDI.ts` builds each entry through `createStorage` (SQLite/Postgres), `TestingDI.ts` builds each as an `InMemoryTabularStorage`. Add a table by adding one `defineStorage({...})` entry — plus its `setupDatabase()` / `deleteAll()` call in `setupAllDatabases.ts` / `resetAllDatabases.ts`, which their coverage tests enforce against the registry.
 - **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
 - **`src/util/`** — Database helpers (`db.ts` manages SQLite connection and prepared statement caching).
 

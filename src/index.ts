@@ -126,6 +126,22 @@ export {
 } from "./storage/observation/PersonObservationTitleSchema";
 export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
 
+// ── Canonical person identity tier (observation → canonical id, merge aliases)
+// The join a downstream superset needs to get from a person observation to the
+// canonical id `person_role` and the junction tables are keyed by: the identity
+// link resolves it at a given `resolver_version`, and the alias table redirects
+// an id that a later merge retired.
+export { PersonIdentityLinkRepo } from "./storage/canonical/PersonIdentityLinkRepo";
+export {
+  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
+  type PersonIdentityLink,
+} from "./storage/canonical/PersonIdentityLinkSchema";
+export { CanonicalPersonAliasRepo } from "./storage/canonical/CanonicalPersonAliasRepo";
+export {
+  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+  type CanonicalPersonAlias,
+} from "./storage/canonical/CanonicalAliasSchemas";
+
 // ── Dated person roles (person↔company title tenures) ───────────────────────
 export { PersonRoleRepo } from "./storage/canonical/PersonRoleRepo";
 export {
