@@ -159,7 +159,39 @@ export class ProcessAccessionDocFormTask extends Task<
         return { success: true };
       }
     );
-    await wf.run();
+    try {
+      await wf.run();
+    } finally {
+      // The document body — a whole SEC submission, often multi-MB — lands in
+      // four places: the `text` local above, the fetch task's output port, the
+      // dataflow edge carrying it to `capture`, and (because the edge is an
+      // all-ports edge whose value the runner copies onto the consumer) the
+      // `capture` task's own input port. Only the local is still needed. The
+      // rest are cleared solely by the next run of this graph, which never
+      // comes: the workflow is built fresh per filing and run once, so without
+      // this the body stays reachable for the whole sweep — once per filing,
+      // unbounded.
+      //
+      // Deliberately not `resetGraph()`: that also flips every node's status
+      // back to PENDING, which makes the CLI progress rows flicker.
+      for (const dataflow of wf.graph.getDataflows()) {
+        dataflow.reset();
+      }
+      for (const task of wf.graph.getTasks()) {
+        task.resetInputData();
+        task.runOutputData = {};
+        task.error = undefined;
+      }
+      // `own` is add-only, and a task's subgraph is cleared only between runs
+      // of that task — so a caller that processes many filings under one
+      // running task accumulates one wrapper per filing. Releasing it detaches
+      // this branch regardless of what the caller does, and this task is also
+      // driven by callers that never disown (`FetchAndStoreFormsTask`,
+      // `sec fetch form`). In the `finally` because a failed fetch — a 404, a
+      // network error, an abort — is the common case in an unbounded sweep,
+      // and it retains the wrapper just the same.
+      context.disown(wf);
+    }
     if (!text) {
       throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
     }

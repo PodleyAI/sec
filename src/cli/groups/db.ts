@@ -63,16 +63,28 @@ export function addDbCommands(program: Command): void {
     });
 
   db.command("reset")
-    .description("Drop and recreate all tables")
+    .description("Drop and recreate the tables sec owns")
     .option("--confirm", "Required flag to confirm destructive operation")
+    .option("--cascade", "Also drop objects that depend on sec's tables (e.g. custom views)")
+    .option(
+      "--drop-schema",
+      "Postgres only: drop and recreate the entire schema, including objects sec does not own"
+    )
     .action(async (options) => {
       if (!options.confirm) {
-        console.error("Pass --confirm to drop and recreate all tables.");
+        console.error("Pass --confirm to drop and recreate the tables sec owns.");
         process.exitCode = 1;
         return;
       }
       await runCommand(async () => {
-        await runWorkflowCli([new DbResetTask()]);
+        await runWorkflowCli([
+          new DbResetTask({
+            defaults: {
+              cascade: options.cascade === true,
+              dropSchema: options.dropSchema === true,
+            },
+          }),
+        ]);
         console.log("Database reset complete.");
       });
     });

@@ -155,7 +155,15 @@ export class BackfillExtractorTask extends Task<
       processFiling: async (accessionNumber) => {
         const wf = context.own(new Workflow(), { title: `Backfill ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
-        await wf.run({ accessionNumber });
+        try {
+          await wf.run({ accessionNumber });
+        } finally {
+          // `own` is add-only and the subgraph is cleared only between runs of
+          // THIS task, which does not return until the whole sweep is done —
+          // so without releasing each filing's wrapper the sweep retains one
+          // per filing, with whatever each one accumulated.
+          context.disown(wf);
+        }
       },
     });
   }

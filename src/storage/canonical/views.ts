@@ -80,3 +80,20 @@ export const CURRENT_CANONICAL_VIEW_DDL: ReadonlyArray<string> = [
       AND cv.slot = 'current'
       AND cv.semver = j.resolver_version`,
 ];
+
+/**
+ * Names of the views created by {@link CURRENT_CANONICAL_VIEW_DDL}, in the same
+ * order. `db reset` drops these by name so it never has to parse DDL; a drift
+ * test keeps the two arrays in sync.
+ */
+export const CURRENT_CANONICAL_VIEW_NAMES: ReadonlyArray<string> = [
+  "current_canonical_person",
+  "current_canonical_company",
+  "current_person_identity_link",
+  "current_company_identity_link",
+  "current_canonical_person_address",
+  "current_canonical_person_phone",
+  "current_person_role",
+  "current_canonical_company_address",
+  "current_canonical_company_phone",
+];

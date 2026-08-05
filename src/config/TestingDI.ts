@@ -5,6 +5,7 @@
  */
 
 import { InMemoryTabularStorage, globalServiceRegistry } from "workglow";
+import { clearRegisteredTablesForTesting } from "./tableRegistry";
 import { ENV_DERIVED_TOKENS } from "./tokens";
 import {
   ADDRESS_HISTORY_JUNCTION_REPOSITORY_TOKEN,
@@ -408,6 +409,10 @@ export function resetDependencyInjectionsForTesting() {
   // Strip env-derived tokens first so a value registered by a previous test
   // file does not survive into the current file's repo re-registration.
   clearEnvDerivedTokensForTesting();
+  // The table-ownership registry is populated by createStorage, which the
+  // in-memory test repos below bypass. Clear it so a table registered by a
+  // previous test file's DefaultDI wiring cannot leak into this one.
+  clearRegisteredTablesForTesting();
   // Initialize Address repositories
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,

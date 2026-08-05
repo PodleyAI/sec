@@ -80,7 +80,17 @@ export class RetryDeadLettersTask extends Task<
       try {
         const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
-        await wf.run({ accessionNumber });
+        try {
+          await wf.run({ accessionNumber });
+        } finally {
+          // `own` is add-only and the subgraph is cleared only between runs of
+          // THIS task, which does not return until the whole worklist is done —
+          // so without releasing each accession's wrapper the sweep retains one
+          // per accession, with whatever each one accumulated. Nested rather
+          // than hoisted out of the outer try so a throw from `own` itself
+          // still counts as one failure instead of abandoning the sweep.
+          context.disown(wf);
+        }
         reprocessed++;
       } catch (e) {
         if (e instanceof TaskAbortedError) throw e;
