@@ -1,5 +1,127 @@
 # Changelog
 
+## 0.0.21
+
+### Features
+
+- export the canonical person identity tier from the barrel
+
+#### config
+
+- add a table ownership registry and a Postgres column-alignment pass
+
+#### spac
+
+- implement SPAC candidate identification and backfill name history
+
+#### fixtures
+
+- pin golden fixture provenance + `sec fetch golden-fixtures`
+
+#### forms
+
+- add new forms for application withdrawal, broker-dealer, correspondence submission types, development bank, exchange registration, exempt offerings, foreign registration statements, investment companies, and miscellaneous filings
+
+### Bug Fixes
+
+#### html
+
+- drop repeated heading furniture in the de-paginator
+
+#### address
+
+- merge the resume copy instead of failing on a live row
+- make the SQLite addresses rebuild crash-safe
+
+#### cli
+
+- validate spac candidates options and widen the name columns
+
+#### submissions
+
+- keep the name timeline single-valued
+
+#### spac
+
+- dispatch the candidate scan through resolveSqlBackend
+- consult the current name before the closed-interval date
+
+#### db
+
+- truncate the spac_candidate repo in the in-memory reset
+- make the Postgres reset atomic; drop the unused createStorage parameter
+- scope `db reset` to the tables sec owns
+- restore the schema migrations `db setup` runs on an existing database
+
+#### db,forms
+
+- address review findings on the migration and reset work
+
+#### forms
+
+- release each filing's owned fetch workflow in the unbounded sweeps
+
+#### storage
+
+- scope the dry-run guard to writes; require the repo argument
+- stop raw-SQL paths writing under --dry-run; harden the title bulk read
+
+#### s1
+
+- address review findings and decouple from unreleased workglow API
+- stop retaining every section's prompt for the life of a sweep
+
+#### bootstrap
+
+- reject path-traversal in filer-controlled primary_doc
+
+### Refactors
+
+#### observation
+
+- use the storage `in` operator instead of hand-written SQL
+
+#### schema
+
+- route every CIK through TypeSecCik, bound every SIC
+
+### Performance
+
+#### observation
+
+- read observation titles in one IN-list, not one query per id
+
+#### storage
+
+- index the per-issuer reads on the link and observation tables
+
+#### fixtures
+
+- trim quarterly master.idx fixtures 49 MB -> 1.2 MB
+
+### Tests
+
+#### spac
+
+- pin buildScanSql against its repository twin on real SQLite
+
+#### forms
+
+- update the DRSLTR assertion for its new catalog entry
+
+### Documentation
+
+- track the reset's shared-object caveats as issues, not as a caveat block
+
+#### spac
+
+- align the confidence ladder with the classifier
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.37
+- `workglow`: 0.3.37
+
 ## Unreleased
 
 ### Bug Fixes
