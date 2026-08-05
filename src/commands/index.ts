@@ -31,13 +31,28 @@ import { registerSecResolvers } from "../config/registerResolvers";
 import { SEC_DRY_RUN, SEC_JSON_OUTPUT } from "../config/tokens";
 import { getSecJobQueue } from "../task/fetch/SecJobQueue";
 
+/**
+ * Commands that touch neither the database nor the job queue, so requiring a
+ * configured CLI (`init`) would be pure friction. `golden-fixtures` audits
+ * committed files against EDGAR over a plain fetch — needing a SQLite path to
+ * run it would block the CI use case it exists for.
+ */
+const DI_EXEMPT_COMMANDS = new Set(["init", "golden-fixtures"]);
+
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
 
   program.hook("preAction", async (_thisCommand, actionCommand) => {
     const commandName = actionCommand.name();
-    if (commandName === "init") return;
     if (diInitialized) return;
+
+    // Global flags are registered even for exempt commands so `--json` /
+    // `--dry-run` behave uniformly; only the DB/queue/provider setup is skipped.
+    const globalOpts = parseGlobalOptions(program);
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
+    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
+
+    if (DI_EXEMPT_COMMANDS.has(commandName)) return;
     diInitialized = true;
 
     // Load the SQLite native binding only for commands that may open the DB,
@@ -46,10 +61,6 @@ export const AddCommands = (program: Command): void => {
     if (secDbType === "sqlite" && typeof Sqlite.init === "function") {
       await Sqlite.init();
     }
-
-    const globalOpts = parseGlobalOptions(program);
-    globalServiceRegistry.registerInstance(SEC_DRY_RUN, globalOpts.dryRun);
-    globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, globalOpts.json);
 
     EnvToDI();
     DefaultDI();

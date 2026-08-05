@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
+import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
@@ -127,15 +128,9 @@ export interface ResetAllDatabasesOptions {
  * so they are not in the table registry but are still ours to drop.
  *
  * `_storage_migrations` is workglow's tabular-migration ledger; leaving it
- * behind would make a recreated table look already-migrated. The two
- * `rate_limit_*` tables are created by `setupSecFetchRateLimiter()` on the
- * Postgres path.
+ * behind would make a recreated table look already-migrated.
  */
-const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = [
-  "_storage_migrations",
-  "rate_limit_executions",
-  "rate_limit_next_available",
-];
+const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = ["_storage_migrations"];
 
 /**
  * Drops the tables sec owns so `setupAllDatabases()` can recreate them at the
@@ -199,9 +194,22 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
   await truncateAllRepositories();
 }
 
-/** Every table name this reset owns: the registry plus the few created outside it. */
-function ownedTableNames(): ReadonlyArray<string> {
-  return [...listRegisteredTables().map((t) => t.table), ...NON_REGISTRY_OWNED_TABLES];
+/**
+ * Every table name this reset owns: the registry plus the few created outside it.
+ *
+ * The rate-limiter tables are derived from the configuration
+ * `setupSecFetchRateLimiter()` builds its storage with, not named literally:
+ * `PostgresRateLimiterStorage` renames them when it is given prefix columns,
+ * and a reset that kept dropping the unprefixed names would silently leave the
+ * real ones — and their execution rows — behind, so a recreated database would
+ * inherit a rate-limit budget from before the reset.
+ */
+export function ownedTableNames(): ReadonlyArray<string> {
+  return [
+    ...listRegisteredTables().map((t) => t.table),
+    ...NON_REGISTRY_OWNED_TABLES,
+    ...secFetchRateLimiterTableNames(),
+  ];
 }
 
 /** The schema sec's tables live in, i.e. the one `CREATE TABLE` writes to. */

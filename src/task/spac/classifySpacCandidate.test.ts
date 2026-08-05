@@ -293,4 +293,45 @@ describe("classifySpacCandidate", () => {
     );
     expect(row).toMatchObject({ confidence: "high", reg_while_spac_named: true });
   });
+
+  it("keeps a still-blank-check-named SPAC high when an EARLIER interval closed before the registration", () => {
+    // The company still calls itself "Ajax Acquisition Corp" today, so it never
+    // renamed away from the blank-check name — an earlier closed interval is a
+    // cosmetic variant or a pre-IPO sponsor rebrand, not a de-SPAC.
+    const row = classifySpacCandidate(
+      facts({
+        cik: 9001,
+        name: "Ajax Acquisition Corp",
+        current_sic: 7389,
+        first_reg_form: "S-1",
+        first_reg_date: "2021-06-01",
+        renamed_from: "Ajax Capital Acquisitions Corp",
+        spac_name_ended: "2021-01-15T00:00:00.000Z",
+      }),
+      AT
+    );
+    expect(row).toMatchObject({
+      confidence: "high",
+      signal_name_match: true,
+      reg_while_spac_named: true,
+    });
+  });
+
+  it("does not let the current-name check promote a weak-class name past medium", () => {
+    // Same shape, but both names only match the weak class. The current name
+    // must still count as "never renamed away", yet stay capped at medium.
+    const row = classifySpacCandidate(
+      facts({
+        cik: 9001,
+        name: "Ajax Capital Corp",
+        current_sic: 7389,
+        first_reg_form: "S-1",
+        first_reg_date: "2021-06-01",
+        renamed_from: "Ajax Capital Investment Corp",
+        spac_name_ended: "2021-01-15T00:00:00.000Z",
+      }),
+      AT
+    );
+    expect(row).toMatchObject({ confidence: "medium", reg_while_spac_named: true });
+  });
 });
