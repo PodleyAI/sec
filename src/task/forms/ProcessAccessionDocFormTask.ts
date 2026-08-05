@@ -14,6 +14,7 @@ import {
   Workflow,
 } from "workglow";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
+import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
@@ -437,8 +438,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // throws below remain hard errors: they run on parsed data, so a throw
     // there is a code bug that should surface loudly.
     await context.updateProgress(60, `${label} · parsing`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Form.parse returns any; each switch arm narrows it
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = await formCls.parse(form!, text);
     } catch (err) {
@@ -455,6 +455,12 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: false };
     }
 
+    // The registry is keyed by form name and holds every form class, so the
+    // parse result it hands back is `unknown`. Re-pairing the name with the
+    // value recovers the discriminated union each arm below narrows, which is
+    // what type-checks the handler arguments.
+    const parsedDocument = { form: form!, parsed } as ParsedFormDocument;
+
     await context.updateProgress(80, `${label} · storing`);
     let parseError: unknown = undefined;
     try {
@@ -470,10 +476,10 @@ export class ProcessAccessionDocFormTask extends Task<
         context,
       };
 
-      switch (form) {
+      switch (parsedDocument.form) {
         case "D":
         case "D/A":
-          await processFormD({ ...storageArgs, formD: parsed });
+          await processFormD({ ...storageArgs, formD: parsedDocument.parsed });
           break;
         case "C":
         case "C/A":
@@ -487,25 +493,25 @@ export class ProcessAccessionDocFormTask extends Task<
         case "C-AR/A-W":
         case "C-TR":
         case "C-TR-W":
-          await processFormC({ ...storageArgs, formC: parsed });
+          await processFormC({ ...storageArgs, formC: parsedDocument.parsed });
           break;
         case "CFPORTAL":
         case "CFPORTAL/A":
         case "CFPORTAL-W":
-          await processFormCFPORTAL({ ...storageArgs, formCfportal: parsed });
+          await processFormCFPORTAL({ ...storageArgs, formCfportal: parsedDocument.parsed });
           break;
         case "1-A":
         case "1-A/A":
         case "1-A POS":
-          await processForm1A({ ...storageArgs, form1A: parsed });
+          await processForm1A({ ...storageArgs, form1A: parsedDocument.parsed });
           break;
         case "1-K":
         case "1-K/A":
-          await processForm1K({ ...storageArgs, form1K: parsed });
+          await processForm1K({ ...storageArgs, form1K: parsedDocument.parsed });
           break;
         case "1-Z":
         case "1-Z/A":
-          await processForm1Z({ ...storageArgs, form1Z: parsed });
+          await processForm1Z({ ...storageArgs, form1Z: parsedDocument.parsed });
           break;
         case "3":
         case "3/A":
@@ -513,11 +519,11 @@ export class ProcessAccessionDocFormTask extends Task<
         case "4/A":
         case "5":
         case "5/A":
-          await processOwnershipForm({ ...storageArgs, form: form!, doc: parsed });
+          await processOwnershipForm({ ...storageArgs, form: form!, doc: parsedDocument.parsed });
           break;
         case "144":
         case "144/A":
-          await processForm144({ ...storageArgs, form: form!, doc: parsed });
+          await processForm144({ ...storageArgs, form: form!, doc: parsedDocument.parsed });
           break;
         case "S-1":
         case "S-1/A":
@@ -527,7 +533,7 @@ export class ProcessAccessionDocFormTask extends Task<
         case "F-1":
         case "F-1/A":
         case "F-1MEF":
-          await processFormS1({ ...storageArgs, form: form!, formS1: parsed });
+          await processFormS1({ ...storageArgs, form: form!, formS1: parsedDocument.parsed });
           break;
         case "424A":
         case "424B1":
@@ -536,7 +542,7 @@ export class ProcessAccessionDocFormTask extends Task<
         case "424B4":
         case "424B5":
         case "424B7":
-          await processForm424({ ...storageArgs, form: form!, form424: parsed });
+          await processForm424({ ...storageArgs, form: form!, form424: parsedDocument.parsed });
           break;
         case "8-K":
         case "8-K/A":
@@ -545,7 +551,7 @@ export class ProcessAccessionDocFormTask extends Task<
             form: form!,
             items,
             report_date,
-            form8K: parsed,
+            form8K: parsedDocument.parsed,
             extractor_id: extractorId,
             extractor_version: extractorVersion,
             fullSubmissionText: spacNarrativeFullSubmission ? text : undefined,
@@ -557,7 +563,11 @@ export class ProcessAccessionDocFormTask extends Task<
         case "PREM14C":
         case "DEFR14A":
         case "PRER14A":
-          await processMergerProxy({ ...storageArgs, form: form!, formMergerProxy: parsed });
+          await processMergerProxy({
+            ...storageArgs,
+            form: form!,
+            formMergerProxy: parsedDocument.parsed,
+          });
           break;
         default:
           throw new TaskError(`Form '${form}' has no storage handler`);
