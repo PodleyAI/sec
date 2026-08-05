@@ -50,26 +50,54 @@ const table = (headerRows: TableCell[][], rows: TableCell[][]): EdgarBlock => ({
 });
 
 describe("depaginate", () => {
-  it("drops a running header repeated >= 5 times", () => {
+  it("drops the repeats of a running header, keeping its first occurrence", () => {
     const blocks: EdgarBlock[] = [];
     for (let i = 0; i < 6; i++) {
       blocks.push(para("ACME CORPORATION"), para(`Real content ${i}`));
     }
     const out = depaginate(blocks);
-    expect(out.some((b) => b.type === "paragraph" && b.node.text === "ACME CORPORATION")).toBe(
-      false
-    );
-    expect(out.filter((b) => b.type === "paragraph").length).toBe(6);
+    const acme = out.filter((b) => b.type === "paragraph" && b.node.text === "ACME CORPORATION");
+    expect(acme).toHaveLength(1);
+    expect(out[0]).toBe(acme[0]);
+    expect(out.filter((b) => b.type === "paragraph").length).toBe(7);
   });
 
-  it("drops a running header repeated >= 5 times when it is styled as a heading", () => {
+  it("drops the repeats of a running header styled as a heading, keeping the first", () => {
     const blocks: EdgarBlock[] = [];
     for (let i = 0; i < 6; i++) {
       blocks.push(heading("Table of Contents"), para(`Real content ${i}`));
     }
     const out = depaginate(blocks);
-    expect(out.some((b) => b.type === "heading")).toBe(false);
+    expect(out.filter((b) => b.type === "heading")).toHaveLength(1);
+    expect(out[0]).toEqual(expect.objectContaining({ type: "heading", text: "Table of Contents" }));
     expect(out.filter((b) => b.type === "paragraph").length).toBe(6);
+  });
+
+  it("keeps every occurrence of a target section heading, however often it repeats", () => {
+    const blocks: EdgarBlock[] = [];
+    for (let i = 0; i < 6; i++) {
+      blocks.push(heading("MANAGEMENT"), para(`Management page ${i}`));
+    }
+    const out = depaginate(blocks);
+    // The segmenter picks the occurrence with the most body, so the de-paginator
+    // must not decide for it by thinning them down to the first.
+    expect(out.filter((b) => b.type === "heading")).toHaveLength(6);
+  });
+
+  it("keeps a repeated section heading whose page furniture is dropped around it", () => {
+    const blocks: EdgarBlock[] = [];
+    for (let i = 0; i < 6; i++) {
+      blocks.push(
+        heading("THE OFFERING"),
+        para("ACME CORPORATION"),
+        para(`Offering page ${i} body text`)
+      );
+    }
+    const out = depaginate(blocks);
+    expect(out.filter((b) => b.type === "heading")).toHaveLength(6);
+    expect(
+      out.filter((b) => b.type === "paragraph" && b.node.text === "ACME CORPORATION")
+    ).toHaveLength(1);
   });
 
   it("keeps a heading that repeats only a few times (table of contents + body)", () => {
@@ -83,9 +111,11 @@ describe("depaginate", () => {
     for (let i = 0; i < 6; i++) blocks.push(para("Prospectus Summary"), para(`page ${i} body`));
     const out = depaginate(blocks);
     expect(out.filter((b) => b.type === "heading")).toHaveLength(1);
-    expect(out.some((b) => b.type === "paragraph" && b.node.text === "Prospectus Summary")).toBe(
-      false
-    );
+    // The prose repeats are furniture and thin down to one; the heading is
+    // tallied separately, so they never vote it away.
+    expect(
+      out.filter((b) => b.type === "paragraph" && b.node.text === "Prospectus Summary")
+    ).toHaveLength(1);
   });
 
   it("keeps a heading that starts a page, unlike an adjacent short paragraph", () => {
