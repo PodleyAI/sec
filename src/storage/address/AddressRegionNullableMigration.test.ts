@@ -32,12 +32,10 @@ const LEGACY_DDL = `
     PRIMARY KEY (address_hash_id)
   )`;
 
-function insertLegacyRow(
-  table: string,
-  hashId: string,
-  city: string,
-  region: string | null
-): void {
+/** The post-migration shape: `state_or_country` nullable. */
+const REBUILT_DDL = LEGACY_DDL.replace("state_or_country TEXT NOT NULL", "state_or_country TEXT");
+
+function insertLegacyRow(table: string, hashId: string, city: string, region: string | null): void {
   getDb()
     .prepare(
       `INSERT INTO ${table}
@@ -58,9 +56,10 @@ function addressHashIds(): string[] {
 
 function tableExists(name: string): boolean {
   const row = getDb()
-    .prepare<[], { name: string }>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
-    )
+    .prepare<
+      [],
+      { name: string }
+    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
     .get();
   return Boolean(row);
 }
@@ -194,18 +193,7 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
     insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
     insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
     db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
-    db.exec(`
-      CREATE TABLE addresses (
-        address_hash_id TEXT NOT NULL,
-        street1 TEXT NOT NULL,
-        street2 TEXT NULL,
-        street3 TEXT NULL,
-        city TEXT NOT NULL,
-        state_or_country TEXT NULL,
-        country_code TEXT NOT NULL,
-        zip TEXT NULL,
-        PRIMARY KEY (address_hash_id)
-      )`);
+    db.exec(REBUILT_DDL);
 
     DefaultDI();
     await setupAllDatabases();
@@ -213,6 +201,74 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
     expect(regionColumnIsNullable()).toBe(true);
     expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
     expect(tableExists("addresses__legacy_region")).toBe(false);
+  });
+
+  it("resumes when the copy finished but the legacy DROP did not", async () => {
+    const db = getDb();
+    // The old build's LAST statement was `DROP TABLE addresses__legacy_region`,
+    // so a crash immediately before it left the rows in BOTH tables. The old
+    // code then reported success forever after (it probed a nullable column and
+    // returned early), so this state can have been serving traffic for months.
+    // A blind copy back would fail the primary key and roll back, making
+    // `db setup` fail on every run from here on.
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
+    db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
+    db.exec(REBUILT_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(regionColumnIsNullable()).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+  });
+
+  it("keeps rows written after an older build reported success", async () => {
+    const db = getDb();
+    // Same stranded state, but the database went on being written to: the live
+    // table holds rows the legacy snapshot has never seen. Dropping the live
+    // table to make room for the copy would discard exactly those.
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
+    db.exec(REBUILT_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-9", "SEATTLE", null);
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(regionColumnIsNullable()).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-9"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+    // The live row won its primary-key collision — it is the current state,
+    // while the legacy table is a pre-rebuild snapshot.
+    const kept = db
+      .prepare<[], { city: string }>(`SELECT city FROM addresses WHERE address_hash_id = 'hash-9'`)
+      .get();
+    expect(kept?.city).toBe("SEATTLE");
+  });
+
+  it("refuses rather than dropping a populated legacy-shaped live table", async () => {
+    const db = getDb();
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
+    // A second NOT NULL table, populated: two copies and no way to tell which
+    // rows are current. Tidying up the shape by dropping rows is the failure
+    // this whole rebuild exists to prevent.
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-7", "AUSTIN", "TX");
+
+    DefaultDI();
+    await expect(setupAllDatabases()).rejects.toThrow(/two populated copies/);
+
+    expect(addressHashIds()).toEqual(["hash-7"]);
+    expect(tableExists("addresses__legacy_region")).toBe(true);
   });
 
   it("refuses to destroy a stranded legacy table when the live table is unusable", async () => {

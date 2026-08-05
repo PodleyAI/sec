@@ -9,11 +9,13 @@ import { isDryRun } from "../../cli/isDryRun";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
-import { ADDRESS_REPOSITORY_TOKEN, AddressSchema } from "./AddressSchema";
+import { ADDRESS_REPOSITORY_TOKEN, AddressPrimaryKeyNames, AddressSchema } from "./AddressSchema";
 
 const TABLE = "addresses";
 const LEGACY_TABLE = "addresses__legacy_region";
 const COLUMN = "state_or_country";
+/** Single-column PK, so the resume-path merge can anti-join on it. */
+const PRIMARY_KEY = AddressPrimaryKeyNames[0];
 
 /**
  * Relaxes `addresses.state_or_country` from NOT NULL to nullable.
@@ -81,9 +83,10 @@ type SqliteDb = ReturnType<typeof getDb>;
 
 function tableExists(db: SqliteDb, name: string): boolean {
   const row = db
-    .prepare<[], { name: string }>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
-    )
+    .prepare<
+      [],
+      { name: string }
+    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
     .get();
   return Boolean(row);
 }
@@ -123,27 +126,79 @@ function dropCarriedOverIndexes(db: SqliteDb): void {
 }
 
 /**
- * Copies every row out of the legacy table into the rebuilt one and drops the
- * legacy table. Must be called inside the caller's transaction.
+ * Refuses unless `table` carries every column the current schema declares.
+ *
+ * The copy selects the CURRENT schema's column list out of the table being
+ * copied FROM, so a column added to `AddressSchema` after this database was
+ * created would make it fail. The rebuild transaction rolls that back cleanly,
+ * but the operator would just hit the same failure on every subsequent run with
+ * no explanation. Refuse before touching anything instead, and say exactly what
+ * is missing — on the resume path too, where the source is the legacy table and
+ * a bare "no such column" would be the only clue.
+ */
+function assertCopyableColumns(db: SqliteDb, table: string): void {
+  const existing = new Set(columnsOf(db, table).map((c) => c.name));
+  const missing = Object.keys(AddressSchema.properties).filter((c) => !existing.has(c));
+  if (missing.length > 0) {
+    throw new Error(
+      `db setup: cannot rebuild \`${TABLE}\` to relax \`${COLUMN}\` — \`${table}\` is ` +
+        `missing column(s) ${missing.join(", ")} that the current schema declares. ` +
+        `Add them (or drop and re-ingest \`${TABLE}\`) before re-running \`sec db setup\`.`
+    );
+  }
+}
+
+/**
+ * Copies the legacy table's rows into the rebuilt one and drops the legacy
+ * table. Must be called inside the caller's transaction.
+ *
+ * Only rows the live table does not already hold are copied. On the normal
+ * rebuild path the live table was just recreated and is empty, so that is every
+ * legacy row and the count check below is exactly as strict as a blind copy.
+ * The distinction matters on the resume path, where the live table can already
+ * be populated: the older, non-transactional build's LAST step was
+ * `DROP TABLE addresses__legacy_region`, so a crash immediately before it —
+ * SIGINT, OOM, power loss — left the rows in BOTH tables. That state is not
+ * hypothetical: the old code then reported success on every subsequent run (it
+ * probed a nullable column and returned early), so a database can have been
+ * serving traffic in it for months, accumulating live rows the legacy snapshot
+ * has never seen. A blind copy would fail the primary key and roll back,
+ * turning a database the old build tolerated into one where `db setup` fails
+ * forever; dropping the live table instead would discard everything written
+ * since. Merging keeps both.
+ *
+ * The live row wins a primary-key collision: it is the current state, while the
+ * legacy table is a pre-rebuild snapshot. Legacy's own primary key is unique,
+ * so no row inserted here can change the verdict for another — the anti-join
+ * holds however SQLite chooses to evaluate it.
  *
  * The row-count check is the safety net that makes the transaction meaningful:
- * a copy that silently moved fewer rows (a unique-index violation swallowed by
- * a future `INSERT OR IGNORE`, a partially applied statement) throws here, so
- * the whole rebuild rolls back rather than committing a short table.
+ * a copy that silently moved fewer rows (a partially applied statement) throws
+ * here, so the whole rebuild rolls back rather than committing a short table.
  */
 function copyBackAndDropLegacy(db: SqliteDb): number {
   const cols = schemaColumnList();
-  const expected = rowCount(db, LEGACY_TABLE);
-  db.exec(`INSERT INTO ${TABLE} (${cols}) SELECT ${cols} FROM ${LEGACY_TABLE}`);
-  const copied = rowCount(db, TABLE);
-  if (copied !== expected) {
+  const notAlreadyPresent = `WHERE \`${PRIMARY_KEY}\` NOT IN (SELECT \`${PRIMARY_KEY}\` FROM ${TABLE})`;
+  const liveBefore = rowCount(db, TABLE);
+  const incoming = Number(
+    db
+      .prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${LEGACY_TABLE} ${notAlreadyPresent}`)
+      .get()?.n ?? 0
+  );
+  const expected = liveBefore + incoming;
+  db.exec(
+    `INSERT INTO ${TABLE} (${cols}) SELECT ${cols} FROM ${LEGACY_TABLE} ${notAlreadyPresent}`
+  );
+  const total = rowCount(db, TABLE);
+  if (total !== expected) {
     throw new Error(
-      `db setup: rebuilding \`${TABLE}\` copied ${copied} of ${expected} rows — ` +
+      `db setup: rebuilding \`${TABLE}\` ended with ${total} rows, expected ${expected} ` +
+        `(${liveBefore} already live + ${incoming} from \`${LEGACY_TABLE}\`) — ` +
         `rolling back, no rows were lost.`
     );
   }
   db.exec(`DROP TABLE ${LEGACY_TABLE}`);
-  return copied;
+  return total;
 }
 
 async function migrateSqlite(): Promise<void> {
@@ -187,17 +242,33 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
       `db setup: resuming an interrupted \`${TABLE}\` rebuild from ` +
         `\`${LEGACY_TABLE}\` (${stranded} rows)`
     );
+    assertCopyableColumns(db, LEGACY_TABLE);
     db.exec(`BEGIN IMMEDIATE`);
     try {
       // The live table may be absent, or present but still legacy-shaped (the
-      // rename never happened for it). Either way, replace it with a fresh
-      // table at the current schema before copying back.
-      const liveRegion = tableExists(db, TABLE)
-        ? columnsOf(db, TABLE).find((c) => c.name === COLUMN)
-        : undefined;
-      if (!tableExists(db, TABLE) || (liveRegion && liveRegion.notnull !== 0)) {
-        db.exec(`DROP TABLE IF EXISTS ${TABLE}`);
+      // rename never happened for it). Either way it has to be replaced with a
+      // fresh table at the current schema before copying back — but only an
+      // EMPTY one may be dropped to get there. A populated legacy-shaped table
+      // beside a stranded legacy table is a state no build in this file
+      // produces (`setupDatabase()` only ever creates the current, nullable
+      // schema), and dropping rows to tidy up a shape is the very failure this
+      // rebuild exists to prevent, so refuse and let an operator reconcile.
+      const live = tableExists(db, TABLE) ? columnsOf(db, TABLE) : undefined;
+      const liveRegion = live?.find((c) => c.name === COLUMN);
+      if (live !== undefined && liveRegion !== undefined && liveRegion.notnull !== 0) {
+        const liveRows = rowCount(db, TABLE);
+        if (liveRows > 0) {
+          throw new Error(
+            `\`${TABLE}\` still declares \`${COLUMN}\` NOT NULL and holds ${liveRows} row(s) ` +
+              `while \`${LEGACY_TABLE}\` holds ${stranded} — two populated copies, and no way ` +
+              `to tell which rows are current. Reconcile them by hand, then re-run ` +
+              `\`sec db setup\`.`
+          );
+        }
+        db.exec(`DROP TABLE ${TABLE}`);
       }
+      // A live table at the current schema is KEPT, populated or not:
+      // `copyBackAndDropLegacy` merges the legacy rows into it.
       dropCarriedOverIndexes(db);
       // Safe to call inside the transaction: `createStorage` passes no
       // `tabularMigrations`, so setupDatabase() is only CREATE TABLE IF NOT
@@ -223,21 +294,7 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
   // nullable → nothing to do.
   if (!region || region.notnull === 0) return;
 
-  // The copy below selects the CURRENT schema's column list out of the renamed
-  // table, so a column added to `AddressSchema` after this database was created
-  // would make it fail. The rebuild transaction would roll that back cleanly,
-  // but the operator would just hit the same failure on every subsequent run
-  // with no explanation. Refuse before touching anything instead, and say
-  // exactly what is missing.
-  const existing = new Set(columns.map((c) => c.name));
-  const missing = Object.keys(AddressSchema.properties).filter((c) => !existing.has(c));
-  if (missing.length > 0) {
-    throw new Error(
-      `db setup: cannot rebuild \`${TABLE}\` to relax \`${COLUMN}\` — the existing table is ` +
-        `missing column(s) ${missing.join(", ")} that the current schema declares. ` +
-        `Add them (or drop and re-ingest \`${TABLE}\`) before re-running \`sec db setup\`.`
-    );
-  }
+  assertCopyableColumns(db, TABLE);
 
   // BEGIN IMMEDIATE, not plain BEGIN: a deferred transaction takes a read lock
   // and then fails the write upgrade with SQLITE_BUSY straight away, which
