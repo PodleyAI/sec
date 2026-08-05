@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
+import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
@@ -124,15 +125,6 @@ export interface ResetAllDatabasesOptions {
 }
 
 /**
- * Bookkeeping and infrastructure tables sec creates outside `createStorage`,
- * so they are not in the table registry but are still ours to drop.
- *
- * `_storage_migrations` is workglow's tabular-migration ledger; leaving it
- * behind would make a recreated table look already-migrated.
- */
-const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = ["_storage_migrations"];
-
-/**
  * Drops the tables sec owns so `setupAllDatabases()` can recreate them at the
  * current DDL. Used by `sec db reset --confirm`.
  *
@@ -148,7 +140,8 @@ const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = ["_storage_migrations"]
  * destroying an unrelated table or a colleague's reporting view is not
  * something a "reset sec's tables" command may do. Tables that are present but
  * unowned are reported rather than dropped, which still surfaces the orphan of
- * a removed repo without the blast radius.
+ * a removed repo without the blast radius. The shared migration ledger is
+ * scoped the same way — see {@link clearOwnedLedgerRows}.
  *
  * `dropSchema` restores the historical whole-schema drop for anyone who wants
  * it; `cascade` drops dependent objects along with the owned tables.
@@ -205,11 +198,7 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
  * inherit a rate-limit budget from before the reset.
  */
 export function ownedTableNames(): ReadonlyArray<string> {
-  return [
-    ...listRegisteredTables().map((t) => t.table),
-    ...NON_REGISTRY_OWNED_TABLES,
-    ...secFetchRateLimiterTableNames(),
-  ];
+  return [...listRegisteredTables().map((t) => t.table), ...secFetchRateLimiterTableNames()];
 }
 
 /** The schema sec's tables live in, i.e. the one `CREATE TABLE` writes to. */
@@ -281,6 +270,7 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
           throw dependentObjectError(err, table, sql);
         }
       }
+      await clearOwnedLedgerRows(client, qualify, presentNames);
       await client.query("COMMIT");
     } catch (err) {
       // Best-effort: the transaction is already aborted, so this only clears the
@@ -292,6 +282,39 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Removes the applied-version rows sec's own setup wrote for the tables this
+ * reset just dropped — and only those.
+ *
+ * `_storage_migrations` is `@workglow/storage`'s ledger, and every package built
+ * on it records there under one fixed table name: a row per applied
+ * `(component, version)`. Dropping the table would take a co-tenant's rows with
+ * it, and their next setup would then replay `addColumn` ops against tables that
+ * already carry those columns — exactly the destroy-what-you-do-not-own this
+ * reset exists to avoid. So the rows go by component and the table stays
+ * standing; `--drop-schema` still takes it along with everything else.
+ *
+ * Clearing sec's own rows is not optional, though: a runner skips a
+ * `(component, version)` it finds recorded, so a row outliving the table its
+ * migration created would stop `db setup` from ever recreating it. Today that is
+ * only the Postgres rate limiter — no sec table declares migrations, and
+ * `createStorage` does not even accept them.
+ */
+async function clearOwnedLedgerRows(
+  client: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+  qualify: (object: string) => string,
+  presentNames: ReadonlyArray<string>
+): Promise<void> {
+  const components = secFetchRateLimiterLedgerComponents();
+  // Nothing of ours recorded, or no ledger in this schema at all (nothing on
+  // this database ever declared a migration) — `DELETE FROM` a table that does
+  // not exist would abort the transaction the drops just ran in.
+  if (components.length === 0 || !presentNames.includes(MIGRATIONS_TABLE)) return;
+  await client.query(`DELETE FROM ${qualify(MIGRATIONS_TABLE)} WHERE component = ANY($1)`, [
+    components,
+  ]);
 }
 
 function resetSqlite(options: ResetAllDatabasesOptions): void {

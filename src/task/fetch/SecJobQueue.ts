@@ -61,6 +61,20 @@ export async function setupSecFetchRateLimiter(): Promise<void> {
   await createSecFetchRateLimiterStorage(getPgPool()).migrate();
 }
 
+/**
+ * The applied-version ledger components {@link setupSecFetchRateLimiter} records
+ * rows under, so a reset that drops the rate-limiter tables can clear exactly
+ * those rows and nothing else. Read back from the storage that writes them
+ * rather than spelled out here, so the two cannot drift apart.
+ *
+ * Empty off Postgres: the other backends use an in-memory limiter, which
+ * records nothing.
+ */
+export function secFetchRateLimiterLedgerComponents(): ReadonlyArray<string> {
+  if (!isPostgres()) return [];
+  return new PostgresRateLimiterStorage(getPgPool()).getMigrations().map((m) => m.component);
+}
+
 let handles: SecJobQueueHandles | undefined;
 
 /**
