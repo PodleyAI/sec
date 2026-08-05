@@ -147,6 +147,32 @@ once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
 
+#### Filing-level dead-letters (every form, not just the AI ones)
+
+The per-section entries above are the AI extractors' story. `ProcessAccessionDocFormTask`
+adds a **filing-level** entry (`section_name = ""`, rendered `(filing)` by
+`sec extractor dead-letters`) for each of the four stages it can fail at, and in
+every case records the failure, marks the extractor run failed, and returns
+`{ success: false }` rather than throwing — one bad filing never aborts a sweep,
+and the entry is recoverable through the same `retry-dead-letters` ceremony:
+
+| stage                   | reason code              |
+| ----------------------- | ------------------------ |
+| no primary document     | `PRIMARY_DOC_UNRESOLVED` |
+| body fetch threw        | `FETCH_ERROR`            |
+| parse threw / was empty | `PARSE_ERROR`            |
+| storage handler threw   | `STORE_ERROR`            |
+
+This is what makes the structured-XML extractors (Form D, the Form C family,
+1-A/1-K/1-Z, ownership 3/4/5, 144, CFPORTAL) recoverable: they have no sections,
+so the filing-level key is the whole story for them. `STORE_ERROR` is
+version-gated like `PARSE_ERROR` — the fix lives in the extractor's storage code.
+A transient backend blip does not need the worklist at all: the failed run row
+makes the ordinary forms sweep re-select the filing, and a clean run resolves the
+entry automatically. Cooperative cancellation (Ctrl-C) is re-thrown from the
+store stage rather than dead-lettered, so an interrupted sweep does not stamp
+version-gated failures on filings it merely stopped mid-flight.
+
 ### Download-before-use harness
 
 Local model weights must be on disk before generation, and providers differ on

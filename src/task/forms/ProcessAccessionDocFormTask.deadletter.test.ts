@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,12 +14,40 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { startDev } from "../../storage/versioning/ceremonies";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { VersionEventRepo } from "../../storage/versioning/VersionEventRepo";
+import { VERSION_EVENT_REPOSITORY_TOKEN } from "../../storage/versioning/VersionEventSchema";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
+import { RetryDeadLettersTask } from "./RetryDeadLettersTask";
 
 const CIK = 1018724;
 const ACCESSION = "0000000000-26-000150";
+
+/**
+ * XML that {@link Form_D.parse} accepts (fast-xml-parser is lenient) but whose
+ * parsed shape has no `primaryIssuer`, so `processFormD` throws while reading
+ * the issuer — a store-phase failure on a structured-XML form.
+ */
+const UNSTORABLE_FORM_D = "<edgarSubmission><unclosed>";
+
+/** A real committed Form D that parses AND stores end to end. */
+const GOOD_FORM_D = readFileSync(
+  path.join(
+    __dirname,
+    "../../sec/forms/exempt-offerings/mock_data/form-d/000192959422000001-primary_doc.xml"
+  ),
+  "utf-8"
+);
+
+class BadStoreTask extends ProcessAccessionDocFormTask {
+  protected override async runFetch(): Promise<string> {
+    return UNSTORABLE_FORM_D;
+  }
+}
 
 let rawRoot: string | undefined;
 
@@ -44,7 +72,7 @@ async function seedFiling(form: string, primaryDoc: string | null): Promise<void
   } as never);
 }
 
-describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
+describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
   beforeEach(async () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
@@ -100,28 +128,70 @@ describe("ProcessAccessionDocFormTask fetch-layer dead-lettering", () => {
     expect(run?.success).toBe(false);
   });
 
-  it("rethrows (does not dead-letter) when parse/store fails after a successful fetch", async () => {
+  it("dead-letters a store-phase throw as STORE_ERROR instead of rethrowing", async () => {
     await seedFiling("D", "primary_doc.xml");
 
-    class BadParseTask extends ProcessAccessionDocFormTask {
-      protected override async runFetch(): Promise<string> {
-        // fast-xml-parser leniently accepts this; the throw originates in the
-        // Domain 3 storage step (processFormD dereferencing issuer.entityName on
-        // undefined), exercising the parse/store-rethrow path — not the fetch path
-        // (runFetch is overridden to return successfully here).
-        return "<edgarSubmission><unclosed>";
-      }
-    }
+    const result = await new BadStoreTask().run({ accessionNumber: ACCESSION });
+    expect((result as { success: boolean }).success).toBe(false);
 
-    await expect(new BadParseTask().run({ accessionNumber: ACCESSION })).rejects.toBeDefined();
-
-    // No filing-level dead-letter is written on the parse path.
     const dl = await new ExtractionDeadLetterRepo().get("D", ACCESSION, "");
-    expect(dl).toBeUndefined();
+    expect(dl?.reason_code).toBe("STORE_ERROR");
+    expect(dl?.status).toBe("pending");
+    expect(dl?.section_name).toBe("");
+    expect(dl?.failed_extractor_version).toBe("1.0.0");
+    expect(dl?.detail).toContain("Store failed for form 'D'");
 
     const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const run = await runRepo.findRun(CIK, ACCESSION, "D", "1.0.0");
     expect(run?.success).toBe(false);
+    expect(run?.error).toContain("STORE_ERROR");
+  });
+
+  it("keeps a STORE_ERROR entry ineligible at the failing version and eligible after a bump", async () => {
+    await seedFiling("D", "primary_doc.xml");
+    await new BadStoreTask().run({ accessionNumber: ACCESSION });
+
+    const deadLetters = new ExtractionDeadLetterRepo();
+    // Version-gated: the fix for a store throw is in the extractor's storage
+    // code, so nothing is eligible until that code ships under a new version.
+    expect(await deadLetters.countEligible("D", "1.0.0")).toBe(0);
+
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+    await startDev({
+      reg,
+      events: new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)),
+      kind: "extractor",
+      id: "D",
+      semver: "1.0.1",
+      bump: "patch",
+      targetCount: null,
+      notes: null,
+    });
+
+    const eligible = await deadLetters.listEligible("D", "1.0.1");
+    expect(eligible.map((e) => e.accession_number)).toEqual([ACCESSION]);
+    expect(
+      await new RetryDeadLettersTask().run({
+        extractorId: "D",
+        dryRun: true,
+      } as never)
+    ).toMatchObject({ eligibleAccessions: [ACCESSION] });
+  });
+
+  it("resolves the STORE_ERROR entry once the filing stores cleanly", async () => {
+    await seedFiling("D", "primary_doc.xml");
+    await new BadStoreTask().run({ accessionNumber: ACCESSION });
+    expect((await new ExtractionDeadLetterRepo().get("D", ACCESSION, ""))?.status).toBe("pending");
+
+    class GoodStoreTask extends ProcessAccessionDocFormTask {
+      protected override async runFetch(): Promise<string> {
+        return GOOD_FORM_D;
+      }
+    }
+
+    const result = await new GoodStoreTask().run({ accessionNumber: ACCESSION });
+    expect((result as { success: boolean }).success).toBe(true);
+    expect((await new ExtractionDeadLetterRepo().get("D", ACCESSION, ""))?.status).toBe("resolved");
   });
 
   it("dead-letters a legacy non-XML ownership filing as PARSE_ERROR instead of throwing", async () => {

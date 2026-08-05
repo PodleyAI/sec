@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   globalServiceRegistry,
@@ -15,7 +17,10 @@ import {
 } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ComputeFormsWorklistTask } from "./ComputeFormsWorklistTask";
 import { formsSweepLoop, parseShardOption } from "./formsSweep";
 import {
@@ -273,5 +278,53 @@ describe("forms sweep wiring", () => {
     wf.pipe(new OutputTask() as ITask<DataPorts, DataPorts>);
 
     await expect(wf.run({})).resolves.toBeDefined();
+  });
+
+  it("survives a filing whose storage handler throws, dead-lettering it instead", async () => {
+    // The fan-out has no per-iteration guard, so a rethrown store failure used
+    // to reject the whole outer workflow and abandon every remaining filing.
+    // The bad filing must now be recorded as a STORE_ERROR and skipped while
+    // its siblings still store.
+    const acc = (n: number) => `000000000${n}-26-00000${n}`;
+    await seed({ cik: 111, accession_number: acc(1), form: "D", primary_doc: "a.xml" });
+    await seed({ cik: 222, accession_number: acc(2), form: "D", primary_doc: "b.xml" });
+    await seed({ cik: 333, accession_number: acc(3), form: "D", primary_doc: "c.xml" });
+
+    const goodFormD = readFileSync(
+      path.join(
+        __dirname,
+        "../../sec/forms/exempt-offerings/mock_data/form-d/000192959422000001-primary_doc.xml"
+      ),
+      "utf-8"
+    );
+
+    // formsSweepLoop constructs the production task itself, so the fetch seam is
+    // stubbed on the prototype rather than by subclassing — the graph under test
+    // stays the real one.
+    const proto = ProcessAccessionDocFormTask.prototype as unknown as {
+      runFetch: (cik: number, accessionNumber: string) => Promise<string>;
+    };
+    const realRunFetch = proto.runFetch;
+    proto.runFetch = async (_cik: number, accessionNumber: string) =>
+      accessionNumber === acc(2) ? "<edgarSubmission><unclosed>" : goodFormD;
+
+    try {
+      const wf = new Workflow();
+      formsSweepLoop(new ComputeFormsWorklistTask({ defaults: { form: ["D"] } }))(wf);
+      wf.pipe(new OutputTask() as ITask<DataPorts, DataPorts>);
+
+      await expect(wf.run({})).resolves.toBeDefined();
+    } finally {
+      proto.runFetch = realRunFetch;
+    }
+
+    const deadLetters = new ExtractionDeadLetterRepo();
+    expect((await deadLetters.get("D", acc(2), ""))?.reason_code).toBe("STORE_ERROR");
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    expect((await runRepo.findRun(111, acc(1), "D", "1.0.0"))?.success).toBe(true);
+    expect((await runRepo.findRun(222, acc(2), "D", "1.0.0"))?.success).toBe(false);
+    // The filing after the failure is the one a rethrow used to lose.
+    expect((await runRepo.findRun(333, acc(3), "D", "1.0.0"))?.success).toBe(true);
   });
 });
