@@ -401,8 +401,9 @@ function dependentObjectError(err: unknown, table: string, sql: string): unknown
 /**
  * Row-level fallback for backends without a droppable schema.
  *
- * NOTE: When adding a new repository token in DefaultDI.ts, add its
- * deleteAll() call here so reset doesn't leave orphan rows behind.
+ * NOTE: When adding a table to the storage registry, add its deleteAll() call
+ * here so reset doesn't leave orphan rows behind — `resetAllDatabases.test.ts`
+ * fails on the gap.
  */
 async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).deleteAll();

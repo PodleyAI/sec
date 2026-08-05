@@ -162,10 +162,13 @@ Each domain has:
 - **Repo** (`*Repo.ts`) — domain-specific class wrapping one or more repositories, providing save/query methods
 - **Normalization** (`*Normalization.ts`, optional) — functions to clean and standardize input data (e.g., address parsing, name splitting, hash generation)
 
-Repos get their underlying storage via dependency injection:
+Repos get their underlying storage via dependency injection. Each table is declared once
+in `src/config/storageRegistry.ts` (token, table name, schema, primary key, indexes,
+unique indexes); both bootstraps map over that list:
 
-- **Production:** `SqliteTabularRepository` registered in `src/config/DefaultDI.ts`
-- **Testing:** `InMemoryTabularRepository` registered in `src/config/TestingDI.ts`
+- **Production:** `src/config/DefaultDI.ts` builds each entry through `createStorage`
+  (`SqliteTabularStorage` or `PostgresTabularStorage`, per `SEC_DB_TYPE`)
+- **Testing:** `src/config/TestingDI.ts` builds each entry as an `InMemoryTabularStorage`
 
 ### Junction Tables
 
@@ -357,8 +360,8 @@ If the form contains data that doesn't fit into the existing `person/company/add
 
 1. **Schema** in `src/storage/<domain>/<Domain>Schema.ts` — TypeBox schema, primary key names, DI token
 2. **Repo** in `src/storage/<domain>/<Domain>Repo.ts` — save/query methods
-3. **Register** the repo in `src/config/DefaultDI.ts` (SQLite) and `src/config/TestingDI.ts` (in-memory)
-4. **Register** the DI token in `src/config/tokens.ts`
+3. **Register** the table with one `defineStorage({...})` entry in `src/config/storageRegistry.ts` — both bootstraps pick it up
+4. **Add** its `setupDatabase()` call to `src/config/setupAllDatabases.ts` and its `deleteAll()` call to `src/config/resetAllDatabases.ts` (their coverage tests fail otherwise)
 
 ### Step 7: Write Tests (`Form_X.test.ts`)
 
@@ -418,9 +421,9 @@ src/storage/<domain>/          — Only if new domain-specific data
 └── <Domain>Normalization.ts   — Optional
 
 src/config/
-├── tokens.ts                 — New DI token (if new storage domain)
-├── DefaultDI.ts              — SQLite repo registration (if new storage domain)
-└── TestingDI.ts              — In-memory repo registration (if new storage domain)
+├── storageRegistry.ts        — One defineStorage entry per table (if new storage domain)
+├── setupAllDatabases.ts      — Its setupDatabase() call
+└── resetAllDatabases.ts      — Its deleteAll() call (in-memory reset arm)
 
 src/sec/forms/all-forms.ts    — Only if new category (existing categories auto-include)
 ```

@@ -13,3 +13,11 @@ prospectuses into the S-1 management/section eval set. Filenames are
 | `424b4_2114227_000121390026048413.htm` | 2114227 | 0001213900-26-048413 | Churchill Capital Corp XII | 6770 | ✅ | The Offering, Underwriting, Use of Proceeds — **priced companion** to `../s1/s1_2114227_*` (final deal: 36,000,000 units @ $10.00, Citigroup underwriter). Fee-prepaid under Rule 456(a): **no** inline XBRL / fee exhibit (untagged-body path) |
 
 URL pattern: `https://www.sec.gov/Archives/edgar/data/<cik>/<accession-no-dashes>/<primary-doc>.htm`
+
+### Provenance is pinned in code
+
+See `src/task/fixtures/goldenFixtureManifest.ts` and the matching section in
+`../s1/SOURCES.md`. EDGAR serves this document still wrapped in its
+dissemination SGML, so it is the corpus's one `strip-sgml-wrapper` entry: the
+committed file is the inner body only, which is what `Form_424.parse()` hands
+the converter in production. Audit with `sec fetch golden-fixtures --verify`.

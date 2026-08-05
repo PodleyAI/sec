@@ -40,3 +40,17 @@ test("exports family-tier primitives for a downstream family resolver", () => {
   expect(typeof b.normalizeFamilyName).toBe("function");
   expect(typeof b.CanonicalFamilyAliasRepo).toBe("function");
 });
+
+test("exports the person identity tier a downstream role query joins through", () => {
+  const b = sec as Record<string, unknown>;
+  expect(typeof b.PersonIdentityLinkRepo).toBe("function");
+  expect(typeof b.CanonicalPersonAliasRepo).toBe("function");
+  expect(typeof b.PersonRoleRepo).toBe("function");
+  for (const name of [
+    "PERSON_IDENTITY_LINK_REPOSITORY_TOKEN",
+    "CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN",
+    "PERSON_ROLE_REPOSITORY_TOKEN",
+  ]) {
+    expect(sec[name as keyof typeof sec], `missing barrel export: ${name}`).toBeDefined();
+  }
+});
