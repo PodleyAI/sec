@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { stripXslPrefix } from "../../../../util/accessionDocPath";
+
 export interface PrimaryDocLike {
   readonly primary_doc: string | null | undefined;
 }
@@ -17,5 +19,5 @@ export interface PrimaryDocLike {
 export function resolveS1PrimaryDoc(filing: PrimaryDocLike): string | null {
   const raw = (filing.primary_doc ?? "").trim();
   if (raw === "") return null;
-  return raw.replace(/^xsl[^/]+\//, "");
+  return stripXslPrefix(raw);
 }
