@@ -36,8 +36,7 @@ export interface SecJobQueueHandles {
 
 function isPostgres(): boolean {
   return (
-    globalServiceRegistry.has(SEC_DB_TYPE) &&
-    globalServiceRegistry.get(SEC_DB_TYPE) === "postgres"
+    globalServiceRegistry.has(SEC_DB_TYPE) && globalServiceRegistry.get(SEC_DB_TYPE) === "postgres"
   );
 }
 
@@ -72,7 +71,14 @@ export async function setupSecFetchRateLimiter(): Promise<void> {
  */
 export function secFetchRateLimiterLedgerComponents(): ReadonlyArray<string> {
   if (!isPostgres()) return [];
-  return new PostgresRateLimiterStorage(getPgPool()).getMigrations().map((m) => m.component);
+  // Through the shared factory, not a bare `new`: the component names are
+  // derived from the storage's table names, which are themselves derived from
+  // the prefix columns in `SecFetchRateLimiterOptions`. Constructing without
+  // that configuration would report the unprefixed components while the reset
+  // dropped the prefixed tables — the exact drift the factory exists to close.
+  return createSecFetchRateLimiterStorage(getPgPool())
+    .getMigrations()
+    .map((m) => m.component);
 }
 
 let handles: SecJobQueueHandles | undefined;

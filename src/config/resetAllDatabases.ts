@@ -362,6 +362,11 @@ function quote(identifier: string): string {
  * Names tables that exist but are not sec's, so an operator can see what a
  * scoped reset deliberately left in place — including the orphan table of a
  * repository that was removed, which no per-repo list could ever reach.
+ *
+ * The list is NOT a drop list. `_storage_migrations` is always on it — the
+ * shared ledger is deliberately left standing (see {@link clearOwnedLedgerRows})
+ * and dropping it would destroy every co-tenant's applied-version rows — so the
+ * message asks for review rather than telling the operator to drop what it names.
  */
 function reportUnownedTables(present: ReadonlyArray<string>, owned: ReadonlyArray<string>): void {
   const ownedSet = new Set(owned);
@@ -369,7 +374,8 @@ function reportUnownedTables(present: ReadonlyArray<string>, owned: ReadonlyArra
   if (unowned.length > 0) {
     console.warn(
       `db reset: left ${unowned.length} table(s) in place that sec does not own: ` +
-        `${unowned.join(", ")}. Drop them by hand if they are orphans of a removed repository.`
+        `${unowned.join(", ")}. Review before dropping any by hand — ${MIGRATIONS_TABLE} is ` +
+        `shared infrastructure that must survive, not an orphan of a removed repository.`
     );
   }
 }
