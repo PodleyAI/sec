@@ -5,10 +5,19 @@
  */
 import { describe, expect, it } from "vitest";
 import { depaginate } from "./DePaginator";
-import type { EdgarBlock } from "./types";
+import type { EdgarBlock, ResolvedStyle } from "./types";
 import { NodeKind, uuid4 } from "workglow";
 import type { ParagraphNode, TableCell, TableNode } from "workglow";
 
+const style: ResolvedStyle = {
+  fontSizePt: 14,
+  bold: true,
+  italic: false,
+  underline: false,
+  centered: true,
+  upperRatio: 1,
+};
+const heading = (text: string): EdgarBlock => ({ type: "heading", text, style, level: 2 });
 const para = (text: string): EdgarBlock => ({
   type: "paragraph",
   node: {
@@ -51,6 +60,43 @@ describe("depaginate", () => {
       false
     );
     expect(out.filter((b) => b.type === "paragraph").length).toBe(6);
+  });
+
+  it("drops a running header repeated >= 5 times when it is styled as a heading", () => {
+    const blocks: EdgarBlock[] = [];
+    for (let i = 0; i < 6; i++) {
+      blocks.push(heading("Table of Contents"), para(`Real content ${i}`));
+    }
+    const out = depaginate(blocks);
+    expect(out.some((b) => b.type === "heading")).toBe(false);
+    expect(out.filter((b) => b.type === "paragraph").length).toBe(6);
+  });
+
+  it("keeps a heading that repeats only a few times (table of contents + body)", () => {
+    const blocks: EdgarBlock[] = [heading("MANAGEMENT"), para("body"), heading("MANAGEMENT")];
+    const out = depaginate(blocks);
+    expect(out.filter((b) => b.type === "heading")).toHaveLength(2);
+  });
+
+  it("keeps a heading whose words are also repeated as running prose", () => {
+    const blocks: EdgarBlock[] = [heading("PROSPECTUS SUMMARY")];
+    for (let i = 0; i < 6; i++) blocks.push(para("Prospectus Summary"), para(`page ${i} body`));
+    const out = depaginate(blocks);
+    expect(out.filter((b) => b.type === "heading")).toHaveLength(1);
+    expect(out.some((b) => b.type === "paragraph" && b.node.text === "Prospectus Summary")).toBe(
+      false
+    );
+  });
+
+  it("keeps a heading that starts a page, unlike an adjacent short paragraph", () => {
+    const blocks: EdgarBlock[] = [
+      para("tail of the previous page"),
+      { type: "page-break" },
+      heading("THE OFFERING"),
+      para("The offering body runs on from here."),
+    ];
+    const out = depaginate(blocks);
+    expect(out.some((b) => b.type === "heading" && b.text === "THE OFFERING")).toBe(true);
   });
 
   it("stitches a table split across a page break with a repeated header", () => {

@@ -20,15 +20,25 @@ function isPageNumber(text: string): boolean {
   return /^\W*page\s+\d+\W*$/i.test(t) || /^[-\s]*\d{1,4}[-\s]*$/.test(t);
 }
 
+/**
+ * Key a block votes under in the repetition tally, or undefined when it is not
+ * eligible (not short text). Headings and paragraphs are tallied separately: a
+ * phrase repeated as body text must not vote away the single heading that spells
+ * the same words, since dropping a heading also unparents that section's body.
+ */
+function furnitureKey(b: EdgarBlock): string | undefined {
+  const text = b.type === "paragraph" ? b.node.text : b.type === "heading" ? b.text : undefined;
+  if (text === undefined || text.length > SHORT_LEN) return undefined;
+  return `${b.type}:${normalize(text)}`;
+}
+
 /** Mark furniture (running headers/footers, page numbers) and drop it; then stitch. */
 export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
-  // --- Pass 1: frequency table of short prose ---
+  // --- Pass 1: frequency table of short prose and short heading text ---
   const freq = new Map<string, number>();
   for (const b of blocks) {
-    if (b.type === "paragraph") {
-      const t = b.node.text;
-      if (t.length <= SHORT_LEN) freq.set(normalize(t), (freq.get(normalize(t)) ?? 0) + 1);
-    }
+    const key = furnitureKey(b);
+    if (key !== undefined) freq.set(key, (freq.get(key) ?? 0) + 1);
   }
 
   const isAdjacentToBreak = (i: number): boolean =>
@@ -37,14 +47,15 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
   // --- Pass 2: classify + drop furniture (keep page-break markers for stitching) ---
   const kept: EdgarBlock[] = [];
   blocks.forEach((b, i) => {
+    const key = furnitureKey(b);
+    if (key !== undefined && (freq.get(key) ?? 0) >= FREQ_THRESHOLD) return;
     if (b.type === "paragraph") {
       const t = b.node.text;
       if (isPageNumber(t)) return;
-      if (t.length <= SHORT_LEN) {
-        const f = freq.get(normalize(t)) ?? 0;
-        if (f >= FREQ_THRESHOLD) return;
-        if (isAdjacentToBreak(i)) return;
-      }
+      // Page-break adjacency stays a paragraph-only signal. A genuine section
+      // heading normally starts a fresh page, so extending it to headings would
+      // strip the very titles the tree is built from.
+      if (t.length <= SHORT_LEN && isAdjacentToBreak(i)) return;
     }
     kept.push(b);
   });
