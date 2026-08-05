@@ -105,6 +105,7 @@ import { SPAC_HISTORY_REPOSITORY_TOKEN } from "../storage/spac/SpacHistorySchema
 import { SPAC_MERGER_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacMergerExtractionSchema";
 import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacRedemptionExtractionSchema";
 import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
+import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
@@ -428,6 +429,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
   // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.
   await globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_HISTORY_REPOSITORY_TOKEN).deleteAll();
