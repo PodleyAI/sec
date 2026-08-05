@@ -5,10 +5,13 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import {
+  FILING_REPOSITORY_TOKEN,
+  type FilingRepositoryStorage,
+} from "../../storage/filing/FilingSchema";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 
 /** One filing on a given day, with just the fields the feed cache writer needs. */
 export interface FeedFiling {
@@ -19,25 +22,16 @@ export interface FeedFiling {
 }
 
 /**
- * Picks the SQLite fast path only when the full production config is present —
- * mirroring `createCikNameBulkWriter`, since `getDb()` dereferences both
- * `SEC_DB_FOLDER` and `SEC_DB_NAME` unconditionally and throws when
- * `SEC_DB_TYPE !== "sqlite"`. Unit tests that register an in-memory filing repo
- * without standing up a real DB fall through to the repository scan.
+ * The registered filing repo, when there is one. Handed to `resolveSqlBackend`
+ * so a non-durable (in-memory) binding forces the repository scan even under a
+ * `SEC_DB_TYPE` that would otherwise select a raw-SQL path — the fast path
+ * would read a real database the caller never populated and report no filings.
+ * Also the destination of that scan, so it is resolved once per call.
  */
-function activeBackend(): "sqlite" | "postgres" | "repository" {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-  if (
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return "sqlite";
-  }
-  if (dbType === "postgres") return "postgres";
-  return "repository";
+function filingRepoIfRegistered(): FilingRepositoryStorage | undefined {
+  return globalServiceRegistry.has(FILING_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(FILING_REPOSITORY_TOKEN)
+    : undefined;
 }
 
 function inRange(date: string, from: string | undefined, to: string | undefined): boolean {
@@ -57,7 +51,8 @@ export async function listFilingDates(
   from: string | undefined,
   to: string | undefined
 ): Promise<string[]> {
-  const backend = activeBackend();
+  const filingRepo = filingRepoIfRegistered();
+  const backend = resolveSqlBackend("read", filingRepo);
 
   if (backend === "sqlite") {
     const db = getDb();
@@ -73,9 +68,10 @@ export async function listFilingDates(
     }
     const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
     const rows = db
-      .prepare<string[], { filing_date: string }>(
-        `SELECT DISTINCT \`filing_date\` FROM \`filings\`${where} ORDER BY \`filing_date\` ASC`
-      )
+      .prepare<
+        string[],
+        { filing_date: string }
+      >(`SELECT DISTINCT \`filing_date\` FROM \`filings\`${where} ORDER BY \`filing_date\` ASC`)
       .all(...params);
     return rows.map((r) => r.filing_date).filter((d) => d && inRange(d, from, to));
   }
@@ -102,7 +98,7 @@ export async function listFilingDates(
 
   // Repository fallback (tests / in-memory backend): stream every row and
   // collect distinct dates. Only exercised on small datasets.
-  const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const repo = filingRepo ?? globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const dates = new Set<string>();
   for await (const row of repo.records(5000)) {
     if (row.filing_date && inRange(row.filing_date, from, to)) dates.add(row.filing_date);
@@ -116,14 +112,16 @@ export async function listFilingDates(
  * by accession to route each Feed tarball member to its on-disk cache path.
  */
 export async function filingsForDate(date: string): Promise<FeedFiling[]> {
-  const backend = activeBackend();
+  const filingRepo = filingRepoIfRegistered();
+  const backend = resolveSqlBackend("read", filingRepo);
 
   if (backend === "sqlite") {
     const db = getDb();
     return db
-      .prepare<[string], FeedFiling>(
-        "SELECT `accession_number`, `cik`, `primary_doc`, `form` FROM `filings` WHERE `filing_date` = ?"
-      )
+      .prepare<
+        [string],
+        FeedFiling
+      >("SELECT `accession_number`, `cik`, `primary_doc`, `form` FROM `filings` WHERE `filing_date` = ?")
       .all(date);
   }
 
@@ -136,7 +134,7 @@ export async function filingsForDate(date: string): Promise<FeedFiling[]> {
     return res.rows;
   }
 
-  const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const repo = filingRepo ?? globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const rows = (await repo.query({ filing_date: date })) ?? [];
   return rows.map((r) => ({
     accession_number: r.accession_number,

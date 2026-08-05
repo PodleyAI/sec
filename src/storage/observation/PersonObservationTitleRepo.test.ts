@@ -74,4 +74,12 @@ describe("PersonObservationTitleRepo", () => {
     expect(await repo.listForObservation(1)).toEqual([]);
     expect(await repo.listForObservation(2)).toEqual(["Promoter"]);
   });
+
+  it("de-duplicates the requested ids and sorts each list", async () => {
+    const repo = makeRepo();
+    await repo.replaceForObservation(7, ["President", "Director", "Chief Financial Officer"]);
+    const byId = await repo.listForObservations([7, 7, 7]);
+    expect(byId.size).toBe(1);
+    expect(byId.get(7)).toEqual(["Chief Financial Officer", "Director", "President"]);
+  });
 });

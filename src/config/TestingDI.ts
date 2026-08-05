@@ -386,12 +386,23 @@ import {
  * `tokens.ts` — otherwise this reset will not remove it and the container
  * will carry the stale binding forward.
  */
-export function resetDependencyInjectionsForTesting() {
-  // Strip env-derived tokens first so a value registered by a previous test
-  // file does not survive into the current file's repo re-registration.
+/**
+ * Removes only the env-derived bindings ({@link ENV_DERIVED_TOKENS}) — the
+ * `SEC_DB_*` / `SEC_DRY_RUN` state that leaks between tests — without
+ * re-registering the ~100 in-memory repositories. Reach for this in a test
+ * that exercises registry-reading logic and needs no repositories at all;
+ * {@link resetDependencyInjectionsForTesting} is the full reset.
+ */
+export function clearEnvDerivedTokensForTesting(): void {
   for (const token of ENV_DERIVED_TOKENS) {
     globalServiceRegistry.container.remove(token.id);
   }
+}
+
+export function resetDependencyInjectionsForTesting() {
+  // Strip env-derived tokens first so a value registered by a previous test
+  // file does not survive into the current file's repo re-registration.
+  clearEnvDerivedTokensForTesting();
   // Initialize Address repositories
   globalServiceRegistry.registerInstance(
     ADDRESS_REPOSITORY_TOKEN,

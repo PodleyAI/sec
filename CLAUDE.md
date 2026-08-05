@@ -808,6 +808,7 @@ time** and a queryable **current state**:
   in `sec bootstrap` are `Download submissions` / `Download facts`, not two identical
   `BootstrapDownloadTask` rows. An owned graph or workflow is wrapped in a task the caller
   never sees, so name it through the second argument: `context.own(new Workflow(), { title })`.
+
 - **`src/sec/`** — SEC data parsing and schemas. `forms/` has subdirectories per form category (e.g., `exempt-offerings/`). Each form type has a parser (`.ts`), a TypeBox schema (`.schema.ts`), and optional storage logic (`.storage.ts`). `submissions/` and `indexes/` handle their respective data types.
 - **`src/storage/`** — Repository pattern persistence layer. Organized into sub-tiers:
   - **`entity/`, `filing/`, `address/`, `investment-offering/`, `portal/`** — core EDGAR-linked repos (by CIK). Uses junction tables for many-to-many relationships.
@@ -882,7 +883,18 @@ same as junctions). Query with `sec query person-roles <cik> [--current]`; the
 
 `src/sec.ts` invokes **`Sqlite.init()`** when the installed `workglow` package defines it (`typeof Sqlite.init === "function"`), so newer Workglow releases load the SQLite binding before `getDb()` opens a database. Older `workglow` versions without `init` skip this step.
 
-**`getDb()` is SQLite-only.** It throws `SecCliConfigurationError` when `SEC_DB_TYPE !== "sqlite"` to prevent the silent data divergence that occurred before (`getDb()` would open a stray SQLite file even under Postgres, and rows written through it never reached the configured backend). Tasks that need a raw SQL fast path beyond what `ITabularStorage` exposes must branch on `SEC_DB_TYPE` themselves — see `src/storage/entity/cikNameBulkWriter.ts` for the pattern (SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise → repository `putBulk` for tests).
+**`getDb()` is SQLite-only.** It throws `SecCliConfigurationError` when `SEC_DB_TYPE !== "sqlite"` to prevent the silent data divergence that occurred before (`getDb()` would open a stray SQLite file even under Postgres, and rows written through it never reached the configured backend).
+
+Code that needs a raw SQL fast path beyond what `ITabularStorage` exposes dispatches through **`resolveSqlBackend(access, repo)`** (`src/util/sqlBackend.ts`, also exported from the barrel): SQLite → `getDb()`, Postgres → `getPgPool()`, otherwise → the repository (tests / in-memory). `"sqlite"` requires the full production config, not just `SEC_DB_TYPE` — `getDb()` dereferences `SEC_DB_FOLDER` and `SEC_DB_NAME` unconditionally. Both parameters are required so each call site states its intent rather than inheriting a default that silently changes behavior.
+
+Two guards override the configured backend and force the repository path:
+
+- **Dry run — `access: "write"` only.** `--dry-run` is enforced by `createStorage` wrapping every storage in `ReadOnlyTabularStorage` (writes no-op, reads forward). A raw-SQL write goes around that wrapper and would commit for real, so `resolveSqlBackend` returns `"repository"` whenever `isDryRun()`; the wrapper forwards no `isDurable()`, so the durability guard cannot stand in for this one. A raw-SQL **read** commits nothing, and demoting it would be a silent pessimisation (`listFilingDates` streaming the whole `filings` table instead of one indexed `SELECT DISTINCT`, the observation-title `IN`-list collapsing back into an N+1), so `access: "read"` keeps the fast path under dry run.
+- **A non-durable repo** — **pass the repo whenever you have one.** An in-memory store is invisible to `getDb()`/`getPgPool()`, so a fast path would silently target a different store. This is reachable in one process, not merely across test files: `EnvToDI` defaults `SEC_DB_TYPE` to `"sqlite"` and `.env.test` supplies `SEC_DB_FOLDER`/`SEC_DB_NAME` to the vitest workers, so anything running `EnvToDI` (or a CLI preAction hook) while holding an in-memory repo satisfies every token check. Across test _files_ the registry is already clean — `resetDependencyInjectionsForTesting` strips these tokens (they are in `ENV_DERIVED_TOKENS`) and vitest runs `isolate: true` with `pool: "forks"` — so the guard is about in-process mixing, not leakage.
+
+Call sites: `cikNameBulkWriter.ts`, `Form8KEventReplace.ts`, `SpacDealReplace.ts` (writes); `feedFilings.ts` (reads). The raw **DDL** in `setupAllDatabases.ts` / `resetAllDatabases.ts` is not a fast path and keeps its own `isDryRun()` guard.
+
+Note that a bulk read is **not** a reason to reach for it. `ITabularStorage` now expresses set membership directly — `query({ col: { value: [...], operator: "in" } })`, added in `@workglow/storage` 0.3.37 — so "rows for these N ids" is one query through the abstraction, on every backend. `PersonObservationTitleRepo.listForObservations` is the worked example: it joins titles onto a page of person observations with one `in`-list query per chunk of ids instead of one query per person. Chunking is the caller's job only because SQLite (and DuckDB) bind one parameter per value and stay subject to `SQLITE_MAX_VARIABLE_NUMBER`; Postgres binds the whole list as one array parameter. It previously took ~90 lines of hand-written dual-dialect SQL to say that.
 
 ### Dependency Injection
 

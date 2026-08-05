@@ -5,10 +5,10 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
-import { CIK_NAME_REPOSITORY_TOKEN } from "./CikNameSchema";
+import { resolveSqlBackend } from "../../util/sqlBackend";
+import { CIK_NAME_REPOSITORY_TOKEN, type CikNameRepositoryStorage } from "./CikNameSchema";
 
 export interface CikNameRow {
   readonly cik: number;
@@ -34,27 +34,18 @@ export interface CikNameBulkWriter {
  * regression.
  */
 export function createCikNameBulkWriter(): CikNameBulkWriter {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-
-  // SQLite fast path needs BOTH SEC_DB_FOLDER and SEC_DB_NAME — getDb()
-  // dereferences both unconditionally. When the test harness leaves
-  // SEC_DB_TYPE=sqlite registered as the default but the rest of the
-  // production config is absent — e.g. in unit tests that exercise this
-  // task without standing up a real DB — fall through to the
-  // repository-backed writer instead of crashing in getDb().
-  if (
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return createSqliteWriter();
-  }
-  if (dbType === "postgres") {
-    return createPostgresWriter();
-  }
-  return createRepositoryWriter();
+  // Resolved once: the repo is both the durability signal for the dispatch (a
+  // non-durable in-memory binding forces the repository writer even under a
+  // `SEC_DB_TYPE` that would otherwise select a raw-SQL path) and the
+  // destination of that writer.
+  const repo = globalServiceRegistry.has(CIK_NAME_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN)
+    : undefined;
+  const backend = resolveSqlBackend("write", repo);
+  if (backend === "sqlite") return createSqliteWriter();
+  if (backend === "postgres") return createPostgresWriter();
+  // Unregistered token: let the registry raise its own error, as before.
+  return createRepositoryWriter(repo ?? globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN));
 }
 
 function createSqliteWriter(): CikNameBulkWriter {
@@ -141,8 +132,7 @@ function createPostgresWriter(): CikNameBulkWriter {
   };
 }
 
-function createRepositoryWriter(): CikNameBulkWriter {
-  const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
+function createRepositoryWriter(repo: CikNameRepositoryStorage): CikNameBulkWriter {
   return {
     async writeBatch(rows: ReadonlyArray<CikNameRow>): Promise<void> {
       if (rows.length === 0) return;

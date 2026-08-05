@@ -4,17 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, Sqlite } from "workglow";
+import { describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { DefaultDI } from "../../config/DefaultDI";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
-import { closeDb, getDb } from "../../util/db";
+import { withSqliteDb } from "../../config/testing/withSqliteDb";
+import { SEC_DRY_RUN } from "../../config/tokens";
+import { getDb } from "../../util/db";
 import { Form8KEventRepo } from "./Form8KEventRepo";
+import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "./Form8KEventSchema";
 
 const TEST_DB_NAME = "form8k_replace_sqlite_test";
 
@@ -26,27 +23,7 @@ const TEST_DB_NAME = "form8k_replace_sqlite_test";
  * transaction wrapper rolls everything back so the prior rows are intact.
  */
 describe("replaceEvents (sqlite) transactional rollback", () => {
-  let tmpDir: string;
-
-  beforeEach(async () => {
-    resetDependencyInjectionsForTesting();
-    closeDb();
-    if (typeof Sqlite.init === "function") {
-      await Sqlite.init();
-    }
-    tmpDir = mkdtempSync(join(tmpdir(), "sec-form8k-replace-"));
-    globalServiceRegistry.registerInstance(SEC_DB_TYPE, "sqlite");
-    globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
-    globalServiceRegistry.registerInstance(SEC_DB_NAME, TEST_DB_NAME);
-    DefaultDI();
-    await setupAllDatabases();
-  });
-
-  afterEach(() => {
-    closeDb();
-    rmSync(tmpDir, { recursive: true, force: true });
-    resetDependencyInjectionsForTesting();
-  });
+  withSqliteDb(TEST_DB_NAME, [FORM_8K_EVENT_REPOSITORY_TOKEN]);
 
   it("rolls back the DELETE when a later INSERT fails inside the transaction", async () => {
     const repo = new Form8KEventRepo();
@@ -113,5 +90,39 @@ describe("replaceEvents (sqlite) transactional rollback", () => {
       >(`SELECT item_code FROM form_8k_events WHERE cik = ? AND accession_number = ?`)
       .all(320193, "0001193125-24-000001");
     expect(all.map((r) => r.item_code).sort()).toEqual(["1.01"]);
+  });
+
+  it("writes nothing to the database under --dry-run", async () => {
+    // Dry run is enforced by wrapping each storage in ReadOnlyTabularStorage,
+    // whose writes no-op. The raw-SQL path bypasses that wrapper, so without a
+    // dry-run guard in the backend dispatch this INSERT commits for real.
+    //
+    // Order matters and mirrors the CLI: the preAction hook sets SEC_DRY_RUN
+    // before DefaultDI builds the storages, which is what makes createStorage
+    // wrap them. Re-run DefaultDI here for the same reason.
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    DefaultDI();
+
+    await new Form8KEventRepo().replaceEvents(320193, "0001193125-24-000002", "8-K", "1.0.0", [
+      {
+        cik: 320193,
+        accession_number: "0001193125-24-000002",
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
+        item_code: "5.07",
+        item_description: null,
+        filing_date: "2024-02-01",
+        report_date: null,
+        is_amendment: false,
+      },
+    ]);
+
+    const rows = getDb()
+      .prepare<
+        [string],
+        { item_code: string }
+      >(`SELECT item_code FROM form_8k_events WHERE accession_number = ?`)
+      .all("0001193125-24-000002");
+    expect(rows).toEqual([]);
   });
 });

@@ -59,6 +59,15 @@ export { closeDb, getDb } from "./util/db";
 export { closePgPool, getPgPool } from "./util/pg";
 export { terminateWorkers } from "./util/workers";
 
+// Companion to the two raw-SQL handles above: which of them (if either) a fast
+// path may use for the active config and repo. See `resolveSqlBackend`.
+export {
+  resolveSqlBackend,
+  type MaybeDurable,
+  type SqlAccess,
+  type SqlBackend,
+} from "./util/sqlBackend";
+
 // ── Re-exported workglow primitives a superset commonly needs ────────────────
 // Saves supersets from taking a direct `workglow` dependency. Routing DI +
 // schema access through the barrel is REQUIRED for correctness, not just
@@ -160,4 +169,7 @@ export {
 } from "workglow";
 
 // ── Test helpers a downstream feature package needs in its own test setup ────
-export { resetDependencyInjectionsForTesting } from "./config/TestingDI";
+export {
+  clearEnvDerivedTokensForTesting,
+  resetDependencyInjectionsForTesting,
+} from "./config/TestingDI";

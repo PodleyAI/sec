@@ -4,16 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, Sqlite } from "workglow";
-import { DefaultDI } from "../../config/DefaultDI";
-import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
-import { closeDb, getDb } from "../../util/db";
+import { describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
+import { withSqliteDb } from "../../config/testing/withSqliteDb";
+import { getDb } from "../../util/db";
 import { recomputeSpacDeals } from "./SpacDealReplace";
 import type { SpacDeal } from "./SpacDealSchema";
 import { SPAC_DEAL_REPOSITORY_TOKEN } from "./SpacDealSchema";
@@ -46,27 +40,7 @@ const deal = (cik: number, deal_index: number, overrides: Partial<SpacDeal> = {}
  * rolls everything back so the seeded rows are intact.
  */
 describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
-  let tmpDir: string;
-
-  beforeEach(async () => {
-    resetDependencyInjectionsForTesting();
-    closeDb();
-    if (typeof Sqlite.init === "function") {
-      await Sqlite.init();
-    }
-    tmpDir = mkdtempSync(join(tmpdir(), "sec-spac-deal-replace-"));
-    globalServiceRegistry.registerInstance(SEC_DB_TYPE, "sqlite");
-    globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
-    globalServiceRegistry.registerInstance(SEC_DB_NAME, TEST_DB_NAME);
-    DefaultDI();
-    await setupAllDatabases();
-  });
-
-  afterEach(() => {
-    closeDb();
-    rmSync(tmpDir, { recursive: true, force: true });
-    resetDependencyInjectionsForTesting();
-  });
+  withSqliteDb(TEST_DB_NAME, [SPAC_DEAL_REPOSITORY_TOKEN]);
 
   it("rolls back the DELETE when a later INSERT fails inside the transaction", async () => {
     const dealRepo = globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN);

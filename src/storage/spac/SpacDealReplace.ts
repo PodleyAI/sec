@@ -5,10 +5,9 @@
  */
 
 import type { PoolClient } from "pg";
-import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 import type { SpacDeal, SpacDealRepositoryStorage } from "./SpacDealSchema";
 
 export interface RecomputeSpacDealsArgs {
@@ -34,31 +33,13 @@ export interface RecomputeSpacDealsArgs {
 export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<void> {
   const { dealRepo, cik, toDelete, toUpsert } = args;
 
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
+  // Passing `dealRepo` matters: a stale `sqlite` token from an earlier test
+  // file cannot be unregistered, so dispatching on it alone would route writes
+  // for the test's in-memory repo into a real backend that was never set up.
+  const backend = resolveSqlBackend("write", dealRepo);
 
-  // SEC_DB_TYPE lives in the global ServiceRegistry, which has no unregister
-  // API — once any test (or production code path) registers it, it sticks
-  // for the lifetime of the process. Trust the actual repo: when it is
-  // non-durable (in-memory) take the repo path regardless of dbType, so a
-  // stale `sqlite` token from an earlier test cannot route writes for the
-  // test's in-memory repo into a real SQLite backend that was never set up.
-  const isInMemoryRepo =
-    typeof (dealRepo as { isDurable?: () => boolean }).isDurable === "function" &&
-    (dealRepo as { isDurable: () => boolean }).isDurable() === false;
-
-  if (
-    !isInMemoryRepo &&
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return replaceSqlite(cik, toDelete, toUpsert);
-  }
-  if (!isInMemoryRepo && dbType === "postgres") {
-    return replacePostgres(cik, toDelete, toUpsert);
-  }
+  if (backend === "sqlite") return replaceSqlite(cik, toDelete, toUpsert);
+  if (backend === "postgres") return replacePostgres(cik, toDelete, toUpsert);
   return replaceRepository(dealRepo, toDelete, toUpsert);
 }
 
