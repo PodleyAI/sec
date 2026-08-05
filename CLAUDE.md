@@ -886,11 +886,6 @@ sec exposes the general downstream seams embarc-data (and future features) build
   earlier ones back rather than leaving a half-dropped database that the failed
   command never recreates.
 
-  > Caveat: a scoped reset drops `_storage_migrations` (workglow's global
-  > migration ledger) while leaving unowned tables standing, so an unowned
-  > table's applied-migration rows go with it. Nothing in sec declares
-  > `tabularMigrations` today; revisit if another package shares the schema.
-
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).
 
