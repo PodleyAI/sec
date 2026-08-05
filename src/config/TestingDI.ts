@@ -12,7 +12,7 @@ import { ENV_DERIVED_TOKENS } from "./tokens";
 /**
  * Removes only the env-derived bindings ({@link ENV_DERIVED_TOKENS}) — the
  * `SEC_DB_*` / `SEC_DRY_RUN` state that leaks between tests — without
- * re-registering the ~100 in-memory repositories. Reach for this in a test
+ * re-registering the registry's in-memory storages. Reach for this in a test
  * that exercises registry-reading logic and needs no repositories at all;
  * {@link resetDependencyInjectionsForTesting} is the full reset.
  *
