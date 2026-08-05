@@ -7,7 +7,7 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, Sqlite } from "workglow";
 import { DefaultDI } from "../../config/DefaultDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
@@ -31,6 +31,39 @@ const LEGACY_DDL = `
     zip TEXT NULL,
     PRIMARY KEY (address_hash_id)
   )`;
+
+function insertLegacyRow(
+  table: string,
+  hashId: string,
+  city: string,
+  region: string | null
+): void {
+  getDb()
+    .prepare(
+      `INSERT INTO ${table}
+         (address_hash_id, street1, street2, street3, city, state_or_country, country_code, zip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(hashId, "123 Main St", null, null, city, region, "US", "10001");
+}
+
+function addressHashIds(): string[] {
+  return getDb()
+    .prepare<[], { address_hash_id: string }>(
+      `SELECT address_hash_id FROM addresses ORDER BY address_hash_id`
+    )
+    .all()
+    .map((r) => r.address_hash_id);
+}
+
+function tableExists(name: string): boolean {
+  const row = getDb()
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
+    )
+    .get();
+  return Boolean(row);
+}
 
 function regionColumnIsNullable(): boolean {
   const columns = getDb()
@@ -116,6 +149,88 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
       .get(ADDRESS_REPOSITORY_TOKEN)
       .get({ address_hash_id: "hash-2" });
     expect(stored?.state_or_country).toBeNull();
+  });
+
+  it("an interrupted copy leaves every row recoverable", async () => {
+    const db = getDb();
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
+
+    DefaultDI();
+
+    // Simulate the copy failing mid-rebuild (disk full / SIGINT / OOM). Every
+    // other statement runs for real, so the rest of the rebuild is genuine.
+    const realExec = db.exec.bind(db);
+    const spy = vi.spyOn(db, "exec").mockImplementation((sql: string, ...rest: unknown[]) => {
+      if (sql.trimStart().startsWith("INSERT INTO addresses")) {
+        throw new Error("database or disk is full");
+      }
+      return (realExec as (s: string, ...r: unknown[]) => unknown)(sql, ...rest);
+    });
+
+    await expect(setupAllDatabases()).rejects.toThrow(/database or disk is full/);
+
+    spy.mockRestore();
+
+    // The rollback must have put the table back exactly as it was: still the
+    // legacy NOT NULL shape, with both rows present.
+    expect(regionColumnIsNullable()).toBe(false);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+
+    // And a re-run completes the rebuild, still with both rows.
+    await setupAllDatabases();
+    expect(regionColumnIsNullable()).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+  });
+
+  it("resumes a rebuild stranded by an older build", async () => {
+    const db = getDb();
+    // Hand-construct the state an older, non-transactional build could leave:
+    // rows stranded in the legacy table beside an empty new-shape `addresses`.
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
+    db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
+    db.exec(`
+      CREATE TABLE addresses (
+        address_hash_id TEXT NOT NULL,
+        street1 TEXT NOT NULL,
+        street2 TEXT NULL,
+        street3 TEXT NULL,
+        city TEXT NOT NULL,
+        state_or_country TEXT NULL,
+        country_code TEXT NOT NULL,
+        zip TEXT NULL,
+        PRIMARY KEY (address_hash_id)
+      )`);
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(regionColumnIsNullable()).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+  });
+
+  it("refuses to destroy a stranded legacy table when the live table is unusable", async () => {
+    const db = getDb();
+    // Crash between the rename and the recreate: no `addresses` at all, rows
+    // only in the legacy table. The plain `!tableExists` early return would
+    // skip the migration and let the caller create an empty table over it.
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses", "hash-2", "BOSTON", "MA");
+    db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(regionColumnIsNullable()).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
   });
 
   it("is a no-op on a fresh database", async () => {
