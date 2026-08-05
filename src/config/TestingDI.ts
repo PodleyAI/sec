@@ -236,6 +236,11 @@ import {
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
 import {
+  RISK_FACTOR_REPOSITORY_TOKEN,
+  RiskFactorPrimaryKeyNames,
+  RiskFactorSchema,
+} from "../storage/risk-factor/RiskFactorSchema";
+import {
   USE_OF_PROCEEDS_REPOSITORY_TOKEN,
   UseOfProceedsPrimaryKeyNames,
   UseOfProceedsSchema,
@@ -958,6 +963,13 @@ export function resetDependencyInjectionsForTesting() {
     new InMemoryTabularStorage(UnderwriterLinkSchema, UnderwriterLinkPrimaryKeyNames, [
       ["accession_number"],
       ["underwriter_family_id"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    RISK_FACTOR_REPOSITORY_TOKEN,
+    new InMemoryTabularStorage(RiskFactorSchema, RiskFactorPrimaryKeyNames, [
+      ["accession_number"],
+      ["cik"],
     ])
   );
   globalServiceRegistry.registerInstance(

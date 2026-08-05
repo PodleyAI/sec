@@ -236,6 +236,11 @@ import {
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
 import {
+  RISK_FACTOR_REPOSITORY_TOKEN,
+  RiskFactorPrimaryKeyNames,
+  RiskFactorSchema,
+} from "../storage/risk-factor/RiskFactorSchema";
+import {
   USE_OF_PROCEEDS_REPOSITORY_TOKEN,
   UseOfProceedsPrimaryKeyNames,
   UseOfProceedsSchema,
@@ -1041,6 +1046,13 @@ export const DefaultDI = () => {
       // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
       // active resolver version does not scan the table.
       ["issuer_cik", "resolver_version"],
+    ])
+  );
+  globalServiceRegistry.registerInstance(
+    RISK_FACTOR_REPOSITORY_TOKEN,
+    createStorage("risk_factor", RiskFactorSchema, RiskFactorPrimaryKeyNames, [
+      ["accession_number"],
+      ["cik"],
     ])
   );
   globalServiceRegistry.registerInstance(
