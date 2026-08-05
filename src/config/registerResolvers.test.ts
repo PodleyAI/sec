@@ -22,12 +22,12 @@ test("registers the built-in sec resolver kinds", () => {
   }
 });
 
-test("families are family-tier with no coverage/dropPrevious", () => {
+test("families are family-tier and expose coverage + dropPrevious", () => {
   registerSecResolvers();
   for (const id of ["sponsor-family", "underwriter-family"]) {
     expect(isFamilyResolverId(id)).toBe(true);
-    expect(getResolverExtension(id)?.coverage).toBeUndefined();
-    expect(getResolverExtension(id)?.dropPrevious).toBeUndefined();
+    expect(typeof getResolverExtension(id)?.coverage).toBe("function");
+    expect(typeof getResolverExtension(id)?.dropPrevious).toBe("function");
   }
 });
 

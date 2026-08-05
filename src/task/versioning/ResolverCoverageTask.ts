@@ -20,8 +20,10 @@ export type ResolverCoverageTaskInput = {
 };
 
 /**
- * Reports identity-link coverage for a resolver at its active slot version
- * (next if a dev cycle is in flight, else current).
+ * Reports a resolver kind's coverage at its active slot version (next if a dev
+ * cycle is in flight, else current). What is counted is supplied by the kind's
+ * registered coverage closure — observations vs identity links for
+ * person/company, per-filing link rows for the family tiers.
  */
 export class ResolverCoverageTask extends Task<
   ResolverCoverageTaskInput,

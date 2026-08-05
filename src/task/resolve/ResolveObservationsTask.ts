@@ -17,8 +17,20 @@ import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLi
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
 
+/**
+ * The resolver kinds this batch pass implements. A kind qualifies only when its
+ * resolution input is fully persisted on the observation row, so the resolver
+ * can be re-run from storage alone.
+ */
+export const BATCH_RESOLVABLE_KINDS = ["person", "company"] as const;
+export type BatchResolvableKind = (typeof BATCH_RESOLVABLE_KINDS)[number];
+
+export function isBatchResolvableKind(kind: string): kind is BatchResolvableKind {
+  return (BATCH_RESOLVABLE_KINDS as readonly string[]).includes(kind);
+}
+
 export type ResolveObservationsTaskInput = {
-  readonly kind: "person" | "company";
+  readonly kind: BatchResolvableKind;
   readonly resolverVersion: string;
 };
 

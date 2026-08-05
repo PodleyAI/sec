@@ -86,7 +86,7 @@ sec canonical person alias-remove "<name>"
 sec canonical person alias-list
 sec canonical person alias-list --orphans     # names whose target no longer exists
 
-# Coverage and cleanup
+# Coverage and cleanup (resolver kinds: person | company | sponsor-family | underwriter-family)
 sec version coverage resolver person
 sec version coverage resolver company
 sec version drop-previous resolver person
@@ -510,11 +510,43 @@ shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
 S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
 `EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
 
-> Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
-> command are **not** supported for the family-tier resolver kinds
-> (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
-> operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
-> status doc's deferred cleanups).
+The family-tier resolver kinds (`sponsor-family`, `underwriter-family`) support the
+version ceremonies `coverage` and `drop-previous`, each scoped to its own tier's
+three resolver-versioned tables:
+
+| kind                 | canonical                      | membership                      | per-filing link     |
+| -------------------- | ------------------------------ | ------------------------------- | ------------------- |
+| `sponsor-family`     | `canonical_sponsor_family`     | `sponsor_family_membership`     | `spac_sponsor_link` |
+| `underwriter-family` | `canonical_underwriter_family` | `underwriter_family_membership` | `underwriter_link`  |
+
+There is no observation → identity-link table here: the per-filing **link row is**
+the family-tier fact, keyed `(accession_number, extractor_id, observation_index)`
+with `resolver_version` as a plain column. So exactly one row exists per fact,
+carrying whichever version last wrote it, and **coverage** is the share of link
+rows already attributed at the target version (`1.0` = every recorded family fact
+re-resolved). `drop-previous` purges link → membership → canonical at the previous
+semver and nothing else: the two kinds have independent version lines (a
+sponsor purge never touches underwriter rows at the same semver), the
+`canonical_company_id` the family sits above belongs to the `company` resolver's
+own ceremony, and family aliases / `family_description` blurbs are not
+version-scoped so they survive — same rule as person/company aliases. A filing
+whose link row still carries the dropped version loses its family attribution
+until it is re-extracted (`sec extractor backfill S-1`), exactly as an
+unresolved observation does on the person/company tier.
+
+```bash
+sec version coverage resolver sponsor-family
+sec version drop-previous resolver underwriter-family
+```
+
+> Batch `sec resolve` stays unsupported for the family kinds, and now refuses any
+> kind outside its `person|company` allow-list rather than falling through to the
+> company resolver. A family is keyed off the sponsor/underwriter **common** name
+> the AI extractor emitted; only the legal name reaches the observation row, and
+> the canonical family retains just one variant's display name — so a batch pass
+> cannot faithfully re-partition families (a normalizer change that splits a
+> family would reassign every member from that single stored name). Re-extraction
+> is the rebuild path.
 
 ### SPAC consolidated report
 
