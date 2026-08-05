@@ -5,13 +5,16 @@
  */
 
 import { globalServiceRegistry } from "workglow";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../../config/tokens";
 import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../../storage/entity/EntityHistorySchema";
-import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
+import {
+  ENTITY_REPOSITORY_TOKEN,
+  type EntityRepositoryStorage,
+} from "../../storage/entity/EntitySchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 import {
   BLANK_CHECK_NAME_EXCLUSIONS,
   BLANK_CHECK_NAME_PATTERNS,
@@ -23,25 +26,17 @@ import {
 } from "./classifySpacCandidate";
 
 /**
- * Mirrors `feedFilings.activeBackend`: the SQLite fast path is only safe when
- * the full production config is present, since `getDb()` dereferences both
- * `SEC_DB_FOLDER` and `SEC_DB_NAME` and throws for any other `SEC_DB_TYPE`.
- * Tests that register in-memory repositories fall through to the repository
- * scan.
+ * The registered entity repo, when there is one. Handed to `resolveSqlBackend`
+ * so a non-durable (in-memory) binding forces the repository scan even under a
+ * `SEC_DB_TYPE` that would otherwise select a raw-SQL path — the fast path
+ * would read a real database the caller never populated and report no
+ * candidates. Also the destination of that scan, so it is resolved once per
+ * call.
  */
-function activeBackend(): "sqlite" | "postgres" | "repository" {
-  const dbType = globalServiceRegistry.has(SEC_DB_TYPE)
-    ? globalServiceRegistry.get(SEC_DB_TYPE)
-    : null;
-  if (
-    dbType === "sqlite" &&
-    globalServiceRegistry.has(SEC_DB_FOLDER) &&
-    globalServiceRegistry.has(SEC_DB_NAME)
-  ) {
-    return "sqlite";
-  }
-  if (dbType === "postgres") return "postgres";
-  return "repository";
+function entityRepoIfRegistered(): EntityRepositoryStorage | undefined {
+  return globalServiceRegistry.has(ENTITY_REPOSITORY_TOKEN)
+    ? globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN)
+    : undefined;
 }
 
 export interface ScanOptions {
@@ -172,7 +167,10 @@ function rowToFacts(row: Record<string, unknown>): SpacCandidateFacts {
  * `filings(form, cik)` index.
  */
 export async function scanSpacCandidates(options: ScanOptions = {}): Promise<SpacCandidateFacts[]> {
-  const backend = activeBackend();
+  const entityRepo = entityRepoIfRegistered();
+  // `access: "read"` — a scan commits nothing, so it keeps its fast path under
+  // `--dry-run` rather than streaming every entity through the repository.
+  const backend = resolveSqlBackend("read", entityRepo);
 
   if (backend === "postgres") {
     const { sql, params } = buildScanSql(
@@ -196,16 +194,23 @@ export async function scanSpacCandidates(options: ScanOptions = {}): Promise<Spa
     return rows.map(rowToFacts);
   }
 
-  return scanRepository(options);
+  return scanRepository(options, entityRepo);
 }
 
 /**
  * Repository fallback (tests / in-memory backend): stream entities and resolve
  * each candidate through the repositories. Only ever runs on small datasets —
  * the production paths above push the whole scan into SQL.
+ *
+ * Also the JS twin that `spacCandidateScan.sqlite.test.ts` compares
+ * {@link buildScanSql} against: the two must agree row for row on the same
+ * seeded data, which is what keeps the hand-written SQL honest.
  */
-async function scanRepository(options: ScanOptions): Promise<SpacCandidateFacts[]> {
-  const entityRepo = globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
+export async function scanRepository(
+  options: ScanOptions,
+  repo?: EntityRepositoryStorage
+): Promise<SpacCandidateFacts[]> {
+  const entityRepo = repo ?? globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
   const historyRepo = globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN);
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   const processedRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
