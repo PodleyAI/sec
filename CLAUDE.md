@@ -910,7 +910,15 @@ sec exposes the general downstream seams embarc-data (and future features) build
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets
   included), the `current_canonical_*` views, `_storage_migrations`, and the
-  Postgres rate-limiter tables. Every Postgres drop is schema-qualified to
+  Postgres rate-limiter tables. The rate-limiter names are **derived**, not
+  literals: `PostgresRateLimiterStorage` names its tables after its prefix
+  columns, so `setupSecFetchRateLimiter` and the reset both read one
+  configuration (`SecFetchRateLimiterOptions` /
+  `secFetchRateLimiterTableNames`, `src/task/fetch/secFetchRateLimiterConfig.ts`)
+  — sharding the fetch budget by a prefix column renames the tables on both
+  sides at once instead of silently orphaning them (the derivation is pinned
+  against the installed storage's own migration DDL by
+  `resetAllDatabases.test.ts`). Every Postgres drop is schema-qualified to
   `current_schema()` — an unqualified name resolves through the search_path and
   would reach a same-named table in the *next* schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
