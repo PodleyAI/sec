@@ -46,7 +46,7 @@ import {
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { assertInsideDir, sanitizePrimaryDoc } from "../../util/accessionDocPath";
+import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "../../util/accessionDocPath";
 import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 /**
@@ -135,9 +135,19 @@ export class ProcessAccessionDocFormTask extends Task<
   protected async runFetch(
     cik: number,
     accessionNumber: string,
-    fileName: string,
+    rawFileName: string,
     context: IExecuteContext
   ): Promise<string> {
+    // Normalize ONCE, here, so the cache read below and the network fetch that
+    // populates it compose the same path. Ownership forms 3/4/5 arrive as
+    // `xslF345X03/wf-form4.xml` on the accession-only path (the caller supplied
+    // no filename, so this is the verbatim submissions-API `primary_doc`);
+    // callers that do supply a filename already hand over the bare name, so
+    // this is a no-op for them. Stripping only one half of the round trip means
+    // the write lands where the read never looks — a permanent cache miss —
+    // and the viewer URL serves rendered HTML where the parser wants raw XML.
+    const fileName = stripXslPrefix(rawFileName);
+
     // Fast path: serve an already-cached primary document straight from disk,
     // bypassing the rate-limited SEC fetch queue. A cache hit touches no
     // network, so throttling it against EDGAR's 10 req/sec budget is pure

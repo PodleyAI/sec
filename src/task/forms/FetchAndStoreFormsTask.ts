@@ -8,6 +8,7 @@ import { Static, Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } from "workglow";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { stripXslPrefix } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const FetchAndStoreFormsTaskInputSchema = () =>
@@ -91,7 +92,7 @@ export class FetchAndStoreFormsTask extends Task<
         cik: filings.map(() => cik),
         form: filings.map(() => form),
         accessionNumber: filings.map((f) => f.accession_number),
-        fileName: filings.map((f) => f.primary_doc.replaceAll(/^(xsl[^\/]+\/)/g, "")),
+        fileName: filings.map((f) => stripXslPrefix(f.primary_doc)),
       });
     }
     return { success: true };
