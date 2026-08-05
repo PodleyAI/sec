@@ -990,7 +990,7 @@ time** and a queryable **current state**:
   - **`canonical/`** — deduplicated canonical entities (`CanonicalPersonRepo`, `CanonicalCompanyRepo`) with UUID IDs, plus alias tables (`CanonicalPersonAliasRepo`, `CanonicalCompanyAliasRepo`) and identity-link tables (`PersonIdentityLinkRepo`, `CompanyIdentityLinkRepo`) that join observation rows to canonical rows at a specific `resolver_version`. Junction tables for address/phone co-occurrence also live here.
   - **`versioning/`** — `VersionRegistry`, slot ceremonies (`startDev`, `promote`, `rollback`, `dropNext`, `dropPrevious`), extractor run tracking, and semver helpers.
 - **`src/task/fetch/`** — SEC-specific fetch tasks with caching and job queue integration.
-- **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, `DefaultDI.ts` registers SQLite-backed repos, `TestingDI.ts` registers in-memory repos.
+- **`src/config/`** — Dependency injection setup. `tokens.ts` defines DI tokens, `EnvToDI.ts` reads env vars, and `storageRegistry.ts` declares every tabular storage sec owns as one `{ token, table, schema, primaryKeyNames, indexes, uniqueIndexes }` list. Both bootstraps map over that list rather than repeating it: `DefaultDI.ts` builds each entry through `createStorage` (SQLite/Postgres), `TestingDI.ts` builds each as an `InMemoryTabularStorage`. Add a table by adding one `defineStorage({...})` entry — plus its `setupDatabase()` / `deleteAll()` call in `setupAllDatabases.ts` / `resetAllDatabases.ts`, which their coverage tests enforce against the registry.
 - **`src/types/edgar/`** — TypeScript types for raw EDGAR API responses.
 - **`src/util/`** — Database helpers (`db.ts` manages SQLite connection and prepared statement caching).
 
