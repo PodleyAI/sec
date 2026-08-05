@@ -5,6 +5,7 @@
  */
 import { renderMarkdown } from "workglow";
 import type { TableCell, TableNode } from "workglow";
+import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
 import type { EdgarBlock } from "./types";
 
 const FREQ_THRESHOLD = 5;
@@ -32,6 +33,25 @@ function furnitureKey(b: EdgarBlock): string | undefined {
   return `${b.type}:${normalize(text)}`;
 }
 
+/**
+ * Whether a heading names a section the segmenter builds sections from. Such a
+ * heading is exempt from the repetition rule entirely: a prospectus that prints
+ * its section title as the running header of every page inside that section
+ * would otherwise vote the real heading away, and losing it unparents the whole
+ * section into its predecessor. Which occurrence is the real one is left to the
+ * segmenter, which already keeps the occurrence with the most body text.
+ *
+ * The exemption reads the segmenter's own pattern table, so a section added
+ * there is protected here without a second list to keep in sync.
+ */
+function isTargetSectionHeading(b: EdgarBlock): boolean {
+  if (b.type !== "heading") return false;
+  const line = b.text.replace(/\s+/g, " ").trim();
+  return Object.values(SECTION_HEADING_PATTERNS).some((patterns) =>
+    patterns.some((re) => re.test(line))
+  );
+}
+
 /** Mark furniture (running headers/footers, page numbers) and drop it; then stitch. */
 export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
   // --- Pass 1: frequency table of short prose and short heading text ---
@@ -45,10 +65,18 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
     blocks[i - 1]?.type === "page-break" || blocks[i + 1]?.type === "page-break";
 
   // --- Pass 2: classify + drop furniture (keep page-break markers for stitching) ---
+  // Repetition identifies furniture, but the text itself is still content that
+  // appeared in the filing: only the repeats are page furniture, so the first
+  // surviving occurrence is kept and every later one dropped.
   const kept: EdgarBlock[] = [];
+  const keptOnce = new Set<string>();
   blocks.forEach((b, i) => {
     const key = furnitureKey(b);
-    if (key !== undefined && (freq.get(key) ?? 0) >= FREQ_THRESHOLD) return;
+    const repeatKey =
+      key !== undefined && (freq.get(key) ?? 0) >= FREQ_THRESHOLD && !isTargetSectionHeading(b)
+        ? key
+        : undefined;
+    if (repeatKey !== undefined && keptOnce.has(repeatKey)) return;
     if (b.type === "paragraph") {
       const t = b.node.text;
       if (isPageNumber(t)) return;
@@ -57,6 +85,10 @@ export function depaginate(blocks: EdgarBlock[]): EdgarBlock[] {
       // strip the very titles the tree is built from.
       if (t.length <= SHORT_LEN && isAdjacentToBreak(i)) return;
     }
+    // Recorded only once the block survives the remaining rules, so a first
+    // occurrence dropped as a page number or page-break neighbour does not
+    // spend the one slot its later occurrences would otherwise have filled.
+    if (repeatKey !== undefined) keptOnce.add(repeatKey);
     kept.push(b);
   });
 

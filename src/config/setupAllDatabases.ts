@@ -117,8 +117,9 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEve
  * Calls setupDatabase() on all registered repository instances,
  * creating tables and indexes from their TypeBox schemas.
  *
- * NOTE: When adding a new repository token in DefaultDI.ts, you must also
- * add its setupDatabase() call here or the table will not be created.
+ * NOTE: When adding a table to the storage registry, you must also add its
+ * setupDatabase() call here or the table will not be created —
+ * `setupAllDatabases.test.ts` fails on the gap.
  */
 export async function setupAllDatabases(): Promise<void> {
   // Load the SQLite native binding before any repo opens a database. Guarded

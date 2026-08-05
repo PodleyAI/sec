@@ -14,16 +14,14 @@ import {
   ENTITY_HISTORY_REPOSITORY_TOKEN,
   type EntityHistory,
 } from "../../storage/entity/EntityHistorySchema";
-import { buildNameHistoryRows } from "./nameHistoryRows";
+import { buildNameHistoryRows, NAME_HISTORY_CHANGE_SOURCE } from "./nameHistoryRows";
 
 const CIK_FILE_PATTERN = /^CIK(\d+)\.json$/;
 
 /** Rows buffered before a bulk write. Bounds memory across ~1M source files. */
 const WRITE_BATCH = 5_000;
 
-export type BackfillNameHistoryTaskInput = {
-  readonly force?: boolean;
-};
+export type BackfillNameHistoryTaskInput = Record<string, never>;
 
 export type BackfillNameHistoryTaskOutput = {
   readonly success: boolean;
@@ -40,6 +38,17 @@ export type BackfillNameHistoryTaskOutput = {
  * rows, no network access required. Both paths share
  * {@link buildNameHistoryRows}, and the write is an upsert on
  * `(cik, valid_from)`, so re-running either is safe.
+ *
+ * Like the ingest writer, this reconciles: rows written under
+ * {@link NAME_HISTORY_CHANGE_SOURCE} that the current `formerNames` no longer
+ * produces are deleted, so a revised timeline cannot leave a second row with
+ * `valid_to: null`. That reconcile is what a `force` flag would have been for,
+ * so the task takes no options — every run rebuilds.
+ *
+ * The delete runs per renamed CIK inside the file loop while the writes stay
+ * batched. That is one extra point query per *renamed* CIK — a small minority
+ * of the ~1M files — against a loop that already pays a `readFile` plus a
+ * `JSON.parse` for every one of them, so it is not the pass's cost centre.
  */
 export class BackfillNameHistoryTask extends Task<
   BackfillNameHistoryTaskInput,
@@ -51,7 +60,7 @@ export class BackfillNameHistoryTask extends Task<
   static readonly cacheable = false;
 
   public static inputSchema() {
-    return Type.Object({ force: Type.Optional(Type.Boolean()) });
+    return Type.Object({});
   }
 
   public static outputSchema() {
@@ -109,8 +118,21 @@ export class BackfillNameHistoryTask extends Task<
         continue;
       }
 
-      const rows = buildNameHistoryRows(parseInt(match[1], 10), submission);
+      const cik = parseInt(match[1], 10);
+      const rows = buildNameHistoryRows(cik, submission);
       if (rows.length === 0) continue;
+
+      // Reconcile this CIK before buffering its rebuilt rows: drop any row a
+      // previous pass wrote that the current `formerNames` no longer produces.
+      // Scoped to this module's change source — `entities_history` is shared
+      // with `EntityTemporalRepo.saveEntityWithHistory`, whose rows must
+      // survive.
+      const keep = new Set(rows.map((r) => r.valid_from));
+      for (const existing of (await repo.query({ cik })) ?? []) {
+        if (existing.change_source !== NAME_HISTORY_CHANGE_SOURCE) continue;
+        if (keep.has(existing.valid_from)) continue;
+        await repo.delete({ cik, valid_from: existing.valid_from });
+      }
 
       ciksWithRenames++;
       pending.push(...rows);

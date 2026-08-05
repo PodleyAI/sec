@@ -15,6 +15,7 @@ import {
   type IRateLimiterStorage,
   JobQueueClient,
   JobQueueServer,
+  type Pool,
   PostgresRateLimiterStorage,
   RateLimiter,
   wrapQueueStorage,
@@ -24,6 +25,7 @@ import { SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
 import { SEC_DB_TYPE } from "../../config/tokens";
 import { getPgPool } from "../../util/pg";
 import { SecFetchJob } from "./SecFetchJob";
+import { SecFetchRateLimiterOptions } from "./secFetchRateLimiterConfig";
 import { setSecFetchLimiter } from "./secFetchThrottle";
 
 export interface SecJobQueueHandles {
@@ -40,13 +42,23 @@ function isPostgres(): boolean {
 }
 
 /**
+ * Builds the Postgres rate-limiter storage from {@link SecFetchRateLimiterOptions}.
+ *
+ * Every construction goes through here so the tables the limiter creates and
+ * the tables `db reset` drops are derived from the same configuration.
+ */
+export function createSecFetchRateLimiterStorage(pool: Pool): PostgresRateLimiterStorage {
+  return new PostgresRateLimiterStorage(pool, SecFetchRateLimiterOptions);
+}
+
+/**
  * Creates the shared rate-limiter's Postgres tables. Called once from
  * {@link setupAllDatabases} (i.e. `db setup`) — NOT per process — so a
  * multi-shard launch never races on the DDL. No-op on non-Postgres backends.
  */
 export async function setupSecFetchRateLimiter(): Promise<void> {
   if (!isPostgres()) return;
-  await new PostgresRateLimiterStorage(getPgPool()).migrate();
+  await createSecFetchRateLimiterStorage(getPgPool()).migrate();
 }
 
 let handles: SecJobQueueHandles | undefined;
@@ -82,7 +94,7 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
   if (handles) return handles;
 
   const rateLimiterStorage: IRateLimiterStorage = isPostgres()
-    ? new PostgresRateLimiterStorage(getPgPool())
+    ? createSecFetchRateLimiterStorage(getPgPool())
     : new InMemoryRateLimiterStorage();
 
   const limiter = new RateLimiter(rateLimiterStorage, SecJobQueueName, {

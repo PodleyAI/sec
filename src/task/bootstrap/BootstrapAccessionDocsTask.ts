@@ -11,7 +11,7 @@ import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { assertInsideDir, sanitizePrimaryDoc } from "../../util/accessionDocPath";
+import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "../../util/accessionDocPath";
 import { parseDate } from "../../util/parseDate";
 import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
 import { extractPrimaryDocFromSubmission, streamFeedTarball } from "./feedTarball";
@@ -45,12 +45,6 @@ type FeedStream =
 interface DayResult {
   readonly filingsMatched: number;
   readonly docsWritten: number;
-}
-
-/** Strips the EDGAR inline-XBRL viewer prefix so the fetch resolves the raw
- * primary document — mirrors ComputeFormsWorklistTask's `fileName` mapping. */
-function stripXslPrefix(fileName: string): string {
-  return fileName.replaceAll(/^(xsl[^/]+\/)/g, "");
 }
 
 /**
