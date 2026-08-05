@@ -34,7 +34,7 @@ export async function replaceForm8KEvents(
   // clear a `SEC_DB_TYPE` an earlier test file registered, so dispatching on
   // the token alone would route writes for the in-memory repo into a real
   // backend that was never set up.
-  const backend = resolveSqlBackend(repo);
+  const backend = resolveSqlBackend("write", repo);
 
   if (backend === "sqlite") return replaceSqlite(args);
   if (backend === "postgres") return replacePostgres(args);

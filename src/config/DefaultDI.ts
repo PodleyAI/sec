@@ -298,6 +298,7 @@ import {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
   PersonObservationTitlePrimaryKeyNames,
   PersonObservationTitleSchema,
+  PersonObservationTitleTable,
 } from "../storage/observation/PersonObservationTitleSchema";
 import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
@@ -744,7 +745,7 @@ export const DefaultDI = () => {
   globalServiceRegistry.registerInstance(
     PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
     createStorage(
-      "person_observation_titles",
+      PersonObservationTitleTable,
       PersonObservationTitleSchema,
       PersonObservationTitlePrimaryKeyNames,
       [["observation_id"]]

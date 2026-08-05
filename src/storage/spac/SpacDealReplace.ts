@@ -36,7 +36,7 @@ export async function recomputeSpacDeals(args: RecomputeSpacDealsArgs): Promise<
   // Passing `dealRepo` matters: a stale `sqlite` token from an earlier test
   // file cannot be unregistered, so dispatching on it alone would route writes
   // for the test's in-memory repo into a real backend that was never set up.
-  const backend = resolveSqlBackend(dealRepo);
+  const backend = resolveSqlBackend("write", dealRepo);
 
   if (backend === "sqlite") return replaceSqlite(cik, toDelete, toUpsert);
   if (backend === "postgres") return replacePostgres(cik, toDelete, toUpsert);

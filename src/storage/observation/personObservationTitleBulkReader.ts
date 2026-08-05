@@ -7,11 +7,11 @@
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import { resolveSqlBackend } from "../../util/sqlBackend";
-import type {
-  PersonObservationTitle,
-  PersonObservationTitleRepositoryStorage,
+import {
+  PersonObservationTitleTable,
+  type PersonObservationTitle,
+  type PersonObservationTitleRepositoryStorage,
 } from "./PersonObservationTitleSchema";
-import { PersonObservationTitleTable } from "./PersonObservationTitleSchema";
 
 /**
  * SQLite binds one parameter per id and caps a statement at
@@ -47,7 +47,7 @@ export async function readTitlesForObservations(
   // return it once per repeat — a backend-dependent result for the same input.
   const ids = [...new Set(observation_ids)];
   if (ids.length === 0) return [];
-  const backend = resolveSqlBackend(repo);
+  const backend = resolveSqlBackend("read", repo);
 
   if (backend === "sqlite") {
     const db = getDb();
@@ -69,7 +69,9 @@ export async function readTitlesForObservations(
         slice.length === SQLITE_MAX_IDS_PER_STATEMENT
           ? (fullChunk ??= selectForIdCount(SQLITE_MAX_IDS_PER_STATEMENT))
           : selectForIdCount(slice.length);
-      rows.push(...stmt.all(...slice));
+      // Appended one at a time: `push(...chunkRows)` passes every row as a
+      // call argument, which blows the argument limit on a wide result.
+      for (const row of stmt.all(...slice)) rows.push(row);
     }
     return rows;
   }

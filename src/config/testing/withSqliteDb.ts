@@ -8,8 +8,7 @@ import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, vi } from "vitest";
-import type { ServiceToken } from "workglow";
-import { globalServiceRegistry, Sqlite } from "workglow";
+import { globalServiceRegistry, Sqlite, type ServiceToken } from "workglow";
 import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "../tokens";
 import { closeDb } from "../../util/db";
 import { DefaultDI } from "../DefaultDI";
@@ -21,11 +20,6 @@ interface SetupDatabaseCapable {
   setupDatabase(): Promise<void>;
 }
 
-export interface SqliteTestDb {
-  /** Temp directory holding the database. Only valid inside a test body. */
-  readonly dir: string;
-}
-
 /**
  * Stands up a real SQLite database in a temp directory for one `describe`,
  * wiring the `beforeEach`/`afterEach` pair itself. Reach for it in a
@@ -34,14 +28,17 @@ export interface SqliteTestDb {
  * repository, because they bypass `ITabularStorage` entirely.
  *
  * `setupTokens` limits table creation to the repositories the test actually
- * touches. Omit it to create the full production schema via
- * {@link setupAllDatabases} — correct but ~100 `setupDatabase()` calls per
- * test, so prefer naming the tokens when a test needs one or two tables.
+ * touches. Pass `"all"` to run the full {@link setupAllDatabases} instead —
+ * that is ~100 `setupDatabase()` calls per test, and it additionally registers
+ * sec's resolver kinds and seeds component-version rows, which the token path
+ * does not. Name the tokens when a test needs one or two tables and none of
+ * that. Stated at every call site rather than defaulted, because the two modes
+ * differ in more than speed.
  */
 export function withSqliteDb(
   name: string,
-  setupTokens?: readonly ServiceToken<SetupDatabaseCapable>[]
-): SqliteTestDb {
+  setupTokens: readonly ServiceToken<SetupDatabaseCapable>[] | "all"
+): void {
   let tmpDir = "";
 
   beforeEach(async () => {
@@ -55,7 +52,7 @@ export function withSqliteDb(
     globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
     globalServiceRegistry.registerInstance(SEC_DB_NAME, name);
     DefaultDI();
-    if (setupTokens === undefined) {
+    if (setupTokens === "all") {
       await setupAllDatabases();
     } else {
       for (const token of setupTokens) {
@@ -70,10 +67,4 @@ export function withSqliteDb(
     rmSync(tmpDir, { recursive: true, force: true });
     resetDependencyInjectionsForTesting();
   });
-
-  return {
-    get dir(): string {
-      return tmpDir;
-    },
-  };
 }

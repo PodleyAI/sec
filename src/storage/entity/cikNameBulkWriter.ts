@@ -8,7 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
 import { resolveSqlBackend } from "../../util/sqlBackend";
-import { CIK_NAME_REPOSITORY_TOKEN } from "./CikNameSchema";
+import { CIK_NAME_REPOSITORY_TOKEN, type CikNameRepositoryStorage } from "./CikNameSchema";
 
 export interface CikNameRow {
   readonly cik: number;
@@ -34,21 +34,18 @@ export interface CikNameBulkWriter {
  * regression.
  */
 export function createCikNameBulkWriter(): CikNameBulkWriter {
-  const backend = resolveSqlBackend(cikNameRepoIfRegistered());
-  if (backend === "sqlite") return createSqliteWriter();
-  if (backend === "postgres") return createPostgresWriter();
-  return createRepositoryWriter();
-}
-
-/**
- * The registered repo, when there is one. Handed to `resolveSqlBackend` so a
- * non-durable (in-memory) binding forces the repository writer even under a
- * `SEC_DB_TYPE` that would otherwise select a raw-SQL path.
- */
-function cikNameRepoIfRegistered(): { isDurable?(): boolean } | undefined {
-  return globalServiceRegistry.has(CIK_NAME_REPOSITORY_TOKEN)
+  // Resolved once: the repo is both the durability signal for the dispatch (a
+  // non-durable in-memory binding forces the repository writer even under a
+  // `SEC_DB_TYPE` that would otherwise select a raw-SQL path) and the
+  // destination of that writer.
+  const repo = globalServiceRegistry.has(CIK_NAME_REPOSITORY_TOKEN)
     ? globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN)
     : undefined;
+  const backend = resolveSqlBackend("write", repo);
+  if (backend === "sqlite") return createSqliteWriter();
+  if (backend === "postgres") return createPostgresWriter();
+  // Unregistered token: let the registry raise its own error, as before.
+  return createRepositoryWriter(repo ?? globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN));
 }
 
 function createSqliteWriter(): CikNameBulkWriter {
@@ -135,8 +132,7 @@ function createPostgresWriter(): CikNameBulkWriter {
   };
 }
 
-function createRepositoryWriter(): CikNameBulkWriter {
-  const repo = globalServiceRegistry.get(CIK_NAME_REPOSITORY_TOKEN);
+function createRepositoryWriter(repo: CikNameRepositoryStorage): CikNameBulkWriter {
   return {
     async writeBatch(rows: ReadonlyArray<CikNameRow>): Promise<void> {
       if (rows.length === 0) return;
