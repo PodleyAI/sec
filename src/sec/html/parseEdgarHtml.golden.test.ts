@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { TableNode } from "workglow";
+import type { SectionNode, TableNode } from "workglow";
 import { NodeKind, traverseDepthFirst } from "workglow";
 import type { S1SectionName } from "../forms/registration-statements/s1/DocumentSegmenter";
 import { S1_SECTIONS } from "../forms/registration-statements/s1/DocumentSegmenter";
@@ -110,6 +110,91 @@ const SPAC_FIXTURES = [
   "s1_2114227_000121390026039320.htm",
 ];
 
+/**
+ * Minimum body size, in characters, of each resolved section. Section
+ * *presence* alone is not enough: a section whose body is cut short at the
+ * first page break still resolves, so a presence-only corpus stayed green while
+ * every section of a 12 MB prospectus had been truncated to a few thousand
+ * characters.
+ *
+ * Each floor is roughly half the size the section actually resolves to, so a
+ * routine parser adjustment has room to move a section a little without
+ * failing, while any halving of a section's body — the signature of silent
+ * truncation — is caught. Re-derive the same way (observed / 2, rounded down)
+ * when a deliberate change moves these.
+ *
+ * A section with no entry here is not size-checked, so adding a section to
+ * {@link EXPECTED} does not require adding a floor.
+ */
+const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, number>>>> = {
+  "s1_1848507_000119312521066104.htm": {
+    [PROSPECTUS_SUMMARY]: 60_000,
+    [MANAGEMENT]: 25_000,
+    [BENEFICIAL_OWNERSHIP]: 6_000,
+    [RELATED_PARTY]: 4_000,
+    [THE_OFFERING]: 35_000,
+    [UNDERWRITING]: 14_000,
+    [USE_OF_PROCEEDS]: 7_000,
+  },
+  "s1_1849470_000110465921035696.htm": {
+    [PROSPECTUS_SUMMARY]: 55_000,
+    [MANAGEMENT]: 21_000,
+    [BENEFICIAL_OWNERSHIP]: 5_000,
+    [RELATED_PARTY]: 6_000,
+    [THE_OFFERING]: 32_000,
+    [UNDERWRITING]: 18_000,
+    [USE_OF_PROCEEDS]: 8_000,
+  },
+  "s1_1822912_000121390021001475.htm": {
+    [PROSPECTUS_SUMMARY]: 59_000,
+    [MANAGEMENT]: 16_000,
+    [BENEFICIAL_OWNERSHIP]: 4_000,
+    [RELATED_PARTY]: 5_000,
+    [THE_OFFERING]: 30_000,
+    [UNDERWRITING]: 16_000,
+    [USE_OF_PROCEEDS]: 9_000,
+  },
+  "s1_2114227_000121390026039320.htm": {
+    [PROSPECTUS_SUMMARY]: 92_000,
+    [MANAGEMENT]: 28_000,
+    [BENEFICIAL_OWNERSHIP]: 6_000,
+    [RELATED_PARTY]: 7_000,
+    [THE_OFFERING]: 45_000,
+    [UNDERWRITING]: 14_000,
+    [USE_OF_PROCEEDS]: 9_000,
+  },
+  "s1_2030954_000149315226027129.htm": {
+    [PROSPECTUS_SUMMARY]: 3_000,
+    [BENEFICIAL_OWNERSHIP]: 2_000,
+    [THE_OFFERING]: 1_500,
+    [UNDERWRITING]: 12_000,
+    [USE_OF_PROCEEDS]: 1_000,
+  },
+  "s1_2087989_000143774926019444.htm": {
+    [PROSPECTUS_SUMMARY]: 9_000,
+    [THE_OFFERING]: 4_000,
+    [THE_SPONSOR]: 4_000,
+    [UNDERWRITING]: 2_000,
+    [USE_OF_PROCEEDS]: 200,
+  },
+  "s1_1817004_000149315226027137.htm": {
+    [PROSPECTUS_SUMMARY]: 7_000,
+    [THE_OFFERING]: 400,
+    [UNDERWRITING]: 2_000,
+    [USE_OF_PROCEEDS]: 100,
+  },
+};
+
+/**
+ * Page furniture (a per-page "Table of Contents" back-link, a running issuer
+ * header) recurs far more often than any real heading — three occurrences is
+ * the most any genuine heading reaches across this corpus. Furniture that
+ * survives into the tree becomes a section, and every such section closes the
+ * one it interrupts, so this bound guards the truncation mechanism directly and
+ * independently of the per-section sizes above.
+ */
+const MAX_REPEATED_SECTION_TITLE = 5;
+
 const fixtures = readdirSync(dir).filter((f) => f.endsWith(".htm"));
 
 describe("parseEdgarHtml golden fixtures (real EDGAR S-1 filings)", () => {
@@ -137,6 +222,31 @@ describe("parseEdgarHtml golden fixtures (real EDGAR S-1 filings)", () => {
       const doc = parseEdgarHtml(html, file);
       const resolved = new DocumentTreeSegmenter().segment(doc).map((s) => s.name);
       expect(new Set(resolved)).toEqual(new Set(expected));
+    });
+
+    it(`${file}: every resolved section carries a full body, not a truncated one`, () => {
+      const floors = MIN_SECTION_CHARS[file];
+      expect(floors, `add a MIN_SECTION_CHARS entry for ${file}`).toBeDefined();
+      const doc = parseEdgarHtml(html, file);
+      const sizes = new Map(
+        new DocumentTreeSegmenter().segment(doc).map((s) => [s.name, s.text.length])
+      );
+      for (const [name, min] of Object.entries(floors) as [S1SectionName, number][]) {
+        expect(sizes.get(name) ?? 0, `${file} ${name} body`).toBeGreaterThanOrEqual(min);
+      }
+    });
+
+    it(`${file}: no page furniture survives as a repeated section`, () => {
+      const doc = parseEdgarHtml(html, file);
+      const counts = new Map<string, number>();
+      for (const node of traverseDepthFirst(doc)) {
+        if (node.kind !== NodeKind.SECTION) continue;
+        const title = (node as SectionNode).title.replace(/\s+/g, " ").trim().toLowerCase();
+        counts.set(title, (counts.get(title) ?? 0) + 1);
+      }
+      for (const [title, n] of counts) {
+        expect(n, `${file} repeats section "${title}"`).toBeLessThan(MAX_REPEATED_SECTION_TITLE);
+      }
     });
 
     it(`${file}: no stitched table leaves a duplicated header row in its body`, () => {
