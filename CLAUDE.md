@@ -881,7 +881,10 @@ sec exposes the general downstream seams embarc-data (and future features) build
   own are left in place and named in a warning. `--cascade` drops dependent
   objects; `--drop-schema` restores the old whole-schema drop (Postgres only,
   destroys unowned objects too). A drop blocked by a dependent object raises an
-  error naming the table, Postgres's DETAIL, and both flags.
+  error naming the table, Postgres's DETAIL, and both flags. On Postgres the
+  whole set of drops runs in one transaction, so a blocked drop rolls the
+  earlier ones back rather than leaving a half-dropped database that the failed
+  command never recreates.
 
   > Caveat: a scoped reset drops `_storage_migrations` (workglow's global
   > migration ledger) while leaving unowned tables standing, so an unowned

@@ -7,7 +7,6 @@
 import type {
   DataPortSchemaObject,
   FromSchema,
-  ITabularMigration,
   ITabularStorage,
   TypedArraySchemaOptions,
 } from "workglow";
@@ -23,14 +22,14 @@ import { SEC_DB_TYPE } from "./tokens";
  * Builds the backend-appropriate tabular storage for one table and records it
  * in the {@link registerTable} ownership registry.
  *
- * `tabularMigrations` carries declarative schema-evolution steps down to the
- * storage layer. Note what it *cannot* express: the op set is
- * add/drop/rename column, add/drop index and backfill — there is no
- * `alterColumn`, so widening a `varchar(n)` or relaxing a `NOT NULL` is out of
- * reach. Emulating either as add + backfill + drop + rename is a full table
- * rewrite, and is outright impossible for a primary-key column. Those two
- * shapes are handled instead by `alignPostgresColumnTypes()` (Postgres) and
- * the per-table rebuild migrations (SQLite).
+ * No `tabularMigrations` argument: the storage layer's op set is add/drop/rename
+ * column, add/drop index and backfill, with no `alterColumn`, so it cannot
+ * express either shape sec actually needs — widening a `varchar(n)` or relaxing
+ * a `NOT NULL`. Emulating them as add + backfill + drop + rename is a full table
+ * rewrite and is impossible outright for a primary-key column. Both are handled
+ * instead by `alignPostgresColumnTypes()` (Postgres) and the per-table rebuild
+ * migrations (SQLite). Thread the argument through if a supported op is ever
+ * declared; until then it would only pass `undefined` from a different place.
  */
 export function createStorage<
   Schema extends DataPortSchemaObject,
@@ -41,8 +40,7 @@ export function createStorage<
   schema: Schema,
   primaryKeyNames: PrimaryKeyNames,
   indexes?: readonly (keyof Entity | readonly (keyof Entity)[])[],
-  uniqueIndexes?: readonly (readonly (keyof Entity)[])[],
-  tabularMigrations?: ReadonlyArray<ITabularMigration>
+  uniqueIndexes?: readonly (readonly (keyof Entity)[])[]
 ): ITabularStorage<Schema, PrimaryKeyNames, Entity> {
   registerTable({
     table,
@@ -59,7 +57,7 @@ export function createStorage<
       primaryKeyNames,
       indexes,
       undefined, // clientProvidedKeys (default)
-      tabularMigrations,
+      undefined, // tabularMigrations — see the note above
       uniqueIndexes
     );
   } else {
@@ -70,7 +68,7 @@ export function createStorage<
       primaryKeyNames,
       indexes,
       undefined, // clientProvidedKeys (default)
-      tabularMigrations,
+      undefined, // tabularMigrations — see the note above
       uniqueIndexes
     );
   }

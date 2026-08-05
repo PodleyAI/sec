@@ -249,20 +249,36 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     const presentNames = present.rows.map((r: { table_name: string }) => r.table_name);
     reportUnownedTables(presentNames, owned);
 
-    // Views first: they depend on the tables, so dropping them up front keeps
-    // the table drops from needing CASCADE for sec's own objects.
-    for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
-      await client.query(
-        `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
-      );
-    }
-    for (const table of owned) {
-      const sql = `DROP TABLE IF EXISTS ${qualify(table)}${options.cascade ? " CASCADE" : ""}`;
-      try {
-        await client.query(sql);
-      } catch (err) {
-        throw dependentObjectError(err, table, sql);
+    // One transaction for the whole set. Postgres has transactional DDL, so a
+    // drop blocked partway through — a reporting view on `filings`, say — rolls
+    // the earlier drops back instead of leaving the caller with half a database
+    // and no recreate: `DbResetTask` never reaches `setupAllDatabases()` once
+    // this throws. "Reset" has to mean all-or-nothing, or the failure mode is
+    // worse than not running it.
+    await client.query("BEGIN");
+    try {
+      // Views first: they depend on the tables, so dropping them up front keeps
+      // the table drops from needing CASCADE for sec's own objects.
+      for (const view of CURRENT_CANONICAL_VIEW_NAMES) {
+        await client.query(
+          `DROP VIEW IF EXISTS ${qualify(view)}${options.cascade ? " CASCADE" : ""}`
+        );
       }
+      for (const table of owned) {
+        const sql = `DROP TABLE IF EXISTS ${qualify(table)}${options.cascade ? " CASCADE" : ""}`;
+        try {
+          await client.query(sql);
+        } catch (err) {
+          throw dependentObjectError(err, table, sql);
+        }
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      // Best-effort: the transaction is already aborted, so this only clears the
+      // connection's state. Swallow its own failure so the original error is
+      // what surfaces.
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
     }
   } finally {
     client.release();
