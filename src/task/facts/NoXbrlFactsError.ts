@@ -33,14 +33,21 @@ export class NoXbrlFactsError extends TaskError {
  * the prototype identity can differ across module/realm boundaries.
  */
 export function isNoXbrlFactsError(error: unknown): boolean {
-  let current: unknown = error;
-  // Bounded walk: a wrapper chain is one or two links deep in practice, and a
-  // self-referential `cause` must not spin.
-  for (let depth = 0; depth < 5; depth++) {
-    if (current === null || typeof current !== "object") return false;
+  // Breadth-first over BOTH links rather than `cause ?? jobError`: the job layer
+  // wraps a task failure carrying a generic `cause` alongside the real
+  // `jobError`, and following only `cause` terminates before ever reaching the
+  // typed error — recording a companyfacts 404 as a retryable failure, which is
+  // the retry loop `NO_XBRL_FACTS` exists to break.
+  const queue: unknown[] = [error];
+  const seen = new Set<object>();
+  while (queue.length > 0 && seen.size < 32) {
+    const current = queue.shift();
+    if (current === null || typeof current !== "object") continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
     const e = current as { name?: unknown; cause?: unknown; jobError?: unknown };
     if (e.name === NoXbrlFactsError.type) return true;
-    current = e.cause ?? e.jobError;
+    queue.push(e.cause, e.jobError);
   }
   return false;
 }

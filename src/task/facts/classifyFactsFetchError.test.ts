@@ -111,6 +111,25 @@ describe("classifyFactsFetchError", () => {
     expect(classifyFactsFetchError({ httpStatus: 503 })).toBe("FETCH_ERROR");
   });
 
+  it("finds the typed error on jobError even when a generic cause is also present", () => {
+    // The job layer wraps the task failure with BOTH links populated. Following
+    // only `cause` terminates on the generic error and misclassifies the 404 as
+    // a retryable PARSE_ERROR, so the CIK is re-fetched forever.
+    expect(
+      classifyFactsFetchError({
+        name: "JobTaskFailedError",
+        cause: new Error("task failed"),
+        jobError: { name: "NoXbrlFactsError", message: "no 'facts' object" },
+      })
+    ).toBe("NO_XBRL_FACTS");
+  });
+
+  it("terminates on a self-referential wrapper chain", () => {
+    const cyclic: Record<string, unknown> = { name: "JobTaskFailedError" };
+    cyclic.cause = cyclic;
+    expect(classifyFactsFetchError(cyclic)).toBe("PARSE_ERROR");
+  });
+
   it("ignores message numbers outside the HTTP status range", () => {
     expect(classifyFactsFetchError(new Error("unexpected token at position: 999 in"))).toBe(
       "PARSE_ERROR"

@@ -52,7 +52,11 @@ export const SpacCandidateSchema = Type.Object({
   // and on Postgres an over-long value does not truncate, it aborts the whole
   // 1000-row putBulk the scan writes in.
   name: TypeNullable(Type.String({ maxLength: 512, description: "Entity name at scan time" })),
-  current_sic: TypeNullable(Type.Integer({ minimum: 0, description: "entities.sic at scan time" })),
+  current_sic: TypeNullable(
+    // Bounded like every other SIC column, so the DDL emits the same narrow
+    // integer type rather than the BIGINT an unbounded `minimum: 0` maps to.
+    Type.Integer({ minimum: 0, maximum: 9999, description: "entities.sic at scan time" })
+  ),
 
   /** `entities.sic` reads 6770 (Blank Checks) right now. */
   signal_sic_6770: Type.Boolean(),

@@ -50,7 +50,17 @@ export interface ScanOptions {
 /** `max(valid_to)` comes back as a Date from pg and as text from SQLite. */
 function toIsoOrNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value.toISOString();
+  // `entities_history.valid_to` is a Postgres TIMESTAMP without time zone, which
+  // node-postgres parses into a Date at LOCAL midnight. Reading it back through
+  // `toISOString()` would re-interpret that as UTC and shift the calendar day
+  // back on any host east of UTC, so a registration filed on the rename date
+  // would read as filed after it. Read the fields back in the frame pg wrote.
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   const text = String(value);
   return text === "" ? null : text;
 }
@@ -110,8 +120,12 @@ function buildScanSql(
   const firstRegForm = `(SELECT f.${q("form")} FROM ${q("filings")} f
         WHERE f.${q("cik")} = e.${q("cik")} AND f.${q("form")} IN (${regForms2})
         ORDER BY f.${q("filing_date")}, f.${q("form")} LIMIT 1)`;
+  // A *former* name, so the open (current) interval is excluded: `valid_to IS
+  // NULL` is the name the company carries today, and reporting it here would
+  // render the present name under the `Was` column of `sec spac candidates`.
   const renamedFrom = `(SELECT h2.${q("name")} FROM ${q("entities_history")} h2
         WHERE h2.${q("cik")} = e.${q("cik")} AND (${nameLike(`h2.${q("name")}`)})
+          AND h2.${q("valid_to")} IS NOT NULL
         ORDER BY h2.${q("valid_from")} LIMIT 1)`;
   // The LAST blank-check-named interval, not the first: EDGAR records cosmetic
   // variants ("Corp." -> "Corp") as separate intervals and the earliest one
@@ -239,9 +253,9 @@ export async function scanRepository(
           : a.filing_date.localeCompare(b.filing_date)
       );
 
-    const renamedFrom = [...blankCheckHistory].sort((a, b) =>
-      a.valid_from.localeCompare(b.valid_from)
-    )[0];
+    const renamedFrom = blankCheckHistory
+      .filter((h) => h.valid_to !== null && h.valid_to !== undefined)
+      .sort((a, b) => a.valid_from.localeCompare(b.valid_from))[0];
     const endings = blankCheckHistory
       .map((h) => h.valid_to)
       .filter((v): v is string => v !== null && v !== undefined)
