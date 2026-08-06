@@ -657,19 +657,36 @@ export async function extractExecutiveCompensation(
   );
   const rows = (obj.rows as ExecutiveCompensationRow[] | undefined) ?? [];
   // A blank name cannot be resolved into the canonical tier, and a position
-  // string would mint a canonical person named after a job title.
-  return rows
-    .filter(
-      (r) =>
-        typeof r?.person_name === "string" &&
-        r.person_name.trim() !== "" &&
-        !isCompensationPositionLabel(r.person_name)
-    )
-    .map((r) => ({
-      ...r,
-      fiscal_year: normalizeFiscalYear(r.fiscal_year),
-      principal_position: boundPrincipalPosition(r.principal_position),
-    }));
+  // string would mint a canonical person named after a job title. But a position
+  // row is not noise: in the stub-column layout the position sits on the grid
+  // row BELOW the name, and that row commonly carries a DIFFERENT fiscal year's
+  // figures. Dropping it outright loses that fiscal year silently, so it is
+  // folded onto the officer named above instead — its own year and money columns
+  // kept, its label becoming the position for that year. A position row with no
+  // officer above it has nothing to attach to and is dropped.
+  const out: ExecutiveCompensationRow[] = [];
+  let precedingOfficer: string | undefined;
+  for (const row of rows) {
+    if (typeof row?.person_name !== "string" || row.person_name.trim() === "") continue;
+    const name = row.person_name.trim();
+    if (isCompensationPositionLabel(name)) {
+      if (precedingOfficer === undefined) continue;
+      out.push({
+        ...row,
+        person_name: precedingOfficer,
+        fiscal_year: normalizeFiscalYear(row.fiscal_year),
+        principal_position: boundPrincipalPosition(row.principal_position ?? name),
+      });
+      continue;
+    }
+    precedingOfficer = name;
+    out.push({
+      ...row,
+      fiscal_year: normalizeFiscalYear(row.fiscal_year),
+      principal_position: boundPrincipalPosition(row.principal_position),
+    });
+  }
+  return out;
 }
 
 /**

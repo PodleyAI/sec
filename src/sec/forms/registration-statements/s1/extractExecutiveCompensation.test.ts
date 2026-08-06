@@ -56,20 +56,35 @@ describe("extractExecutiveCompensation", () => {
     expect(rows[2].person_name).toBe("Bertrand Osei");
   });
 
-  it("drops a row whose name is really the stub column's position line", async () => {
+  it("folds the stub column's position line onto the officer above it", async () => {
     // The position is printed on the grid row below the name, and real tables
-    // put a second fiscal year's figures on that row — a model that misreads the
-    // layout emits the position as a person, which would mint a canonical person
-    // named after a job title.
+    // put a second fiscal year's figures on that row. Emitting it as a person
+    // would mint a canonical person named after a job title; dropping it would
+    // silently lose that fiscal year. It belongs to the officer above.
     const { unregister } = registerFakeStructuredProvider([
       {
         rows: [
           row({}),
-          row({ person_name: "Chief Executive Officer", fiscal_year: 2024 }),
-          row({ person_name: "President and Chief Executive Officer" }),
+          row({ person_name: "Chief Executive Officer", fiscal_year: 2024, salary: 570000 }),
           row({ person_name: "  " }),
         ],
       },
+    ]);
+    cleanup = unregister;
+    const rows = await extractExecutiveCompensation("Summary Compensation Table", fakeS1Model());
+    // No canonical person is ever named after a job title …
+    expect(rows.map((r) => r.person_name)).toEqual(["Alina Kowalczyk", "Alina Kowalczyk"]);
+    // … and the fiscal year that lived on the position row survives with its
+    // figures, rather than being dropped along with the label.
+    expect(rows.map((r) => r.fiscal_year)).toEqual([2025, 2024]);
+    expect(rows[1].salary).toBe(570000);
+    expect(rows[1].principal_position).toBe("Chief Executive Officer");
+  });
+
+  it("drops a position line with no officer above it to attach to", async () => {
+    // Nothing to fold onto, and it must not become a person in its own right.
+    const { unregister } = registerFakeStructuredProvider([
+      { rows: [row({ person_name: "Chief Financial Officer" }), row({})] },
     ]);
     cleanup = unregister;
     const rows = await extractExecutiveCompensation("Summary Compensation Table", fakeS1Model());

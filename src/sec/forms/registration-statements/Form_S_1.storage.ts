@@ -647,15 +647,28 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   });
 
   // --- Executive compensation (the Item 402 Summary Compensation Table) ---
-  // Gated on a deterministic check for the table's mandated captions. Most
-  // registration statements have no compensation section at all, and a
-  // blank-check company's section is a single sentence stating that no officer
-  // or director has been paid — neither is a failure, so neither should cost an
-  // AI call or leave a permanent dead letter. Resolving on the skip keeps a
-  // filing that a previous version dead-lettered from lingering on the
-  // version-gated retry worklist (markResolved no-ops when none exists).
+  // Gated on a deterministic check for the table's mandated captions, which
+  // keeps the section cheap: a blank-check company's compensation section is a
+  // single sentence stating that no officer or director has been paid. That is
+  // not a failure, so it costs no AI call and leaves no permanent dead letter —
+  // and resolving on the skip keeps a filing that a previous version
+  // dead-lettered from lingering on the version-gated retry worklist
+  // (markResolved no-ops when none exists).
+  //
+  // No matched section at all is a different outcome, and is recorded as
+  // SECTION_NOT_FOUND like every other section: the heading patterns are the
+  // only thing standing between a real Item 402 disclosure and this extractor,
+  // so a filing whose compensation section is headed in a spelling they miss
+  // (e.g. "Compensation Discussion and Analysis") must show up as a coverage
+  // hole to be triaged, not as a clean run that found nothing.
   const compensationText = byName.get(S1_SECTIONS.EXECUTIVE_COMPENSATION);
-  if (!hasSummaryCompensationTable(compensationText)) {
+  if (compensationText === undefined || compensationText.trim() === "") {
+    await recordFail(
+      S1_SECTIONS.EXECUTIVE_COMPENSATION,
+      "SECTION_NOT_FOUND",
+      "no executive compensation section text"
+    );
+  } else if (!hasSummaryCompensationTable(compensationText)) {
     await recordOk(S1_SECTIONS.EXECUTIVE_COMPENSATION);
   } else {
     await runSection<ExecutiveCompensationRow>({
