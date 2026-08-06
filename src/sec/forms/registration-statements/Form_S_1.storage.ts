@@ -13,6 +13,7 @@ import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
+import { ExecutiveCompensationRepo } from "../../../storage/executive-compensation/ExecutiveCompensationRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
@@ -30,6 +31,7 @@ import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
 import { boundSourceSpan, verifyRowSpan } from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
+  extractExecutiveCompensation,
   extractManagement,
   extractRelatedParty,
   extractRiskFactors,
@@ -37,6 +39,8 @@ import {
   extractSpacProfile,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
+import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
+import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModel } from "./s1/riskFactorsModel";
@@ -134,6 +138,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const provenance = new ObservationProvenanceRepo();
   const ownershipRepo = new BeneficialOwnershipRepo();
   const relatedRepo = new RelatedPartyTransactionRepo();
+  const compensationRepo = new ExecutiveCompensationRepo();
   const riskFactorRepo = new RiskFactorRepo();
   const deadLetters = new ExtractionDeadLetterRepo();
 
@@ -147,6 +152,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
 
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
+  await compensationRepo.clear(accession_number);
   await riskFactorRepo.clear(accession_number);
   await linkRepo.clear(accession_number);
 
@@ -235,6 +241,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
+      // Recorded unconditionally: whether the filing even has a Summary
+      // Compensation Table is only knowable after segmentation, which these
+      // paths never reached. A retry that finds none resolves the entry.
+      S1_SECTIONS.EXECUTIVE_COMPENSATION,
       RISK_FACTORS_SECTION,
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
@@ -273,6 +283,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       S1_SECTIONS.MANAGEMENT,
       S1_SECTIONS.BENEFICIAL_OWNERSHIP,
       S1_SECTIONS.RELATED_PARTY,
+      // Recorded unconditionally: whether the filing even has a Summary
+      // Compensation Table is only knowable after segmentation, which these
+      // paths never reached. A retry that finds none resolves the entry.
+      S1_SECTIONS.EXECUTIVE_COMPENSATION,
       RISK_FACTORS_SECTION,
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
@@ -631,6 +645,104 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       return rows.length;
     },
   });
+
+  // --- Executive compensation (the Item 402 Summary Compensation Table) ---
+  // Gated on a deterministic check for the table's mandated captions, which
+  // keeps the section cheap: a blank-check company's compensation section is a
+  // single sentence stating that no officer or director has been paid. That is
+  // not a failure, so it costs no AI call and leaves no permanent dead letter —
+  // and resolving on the skip keeps a filing that a previous version
+  // dead-lettered from lingering on the version-gated retry worklist
+  // (markResolved no-ops when none exists).
+  //
+  // No matched section at all is a different outcome, and is recorded as
+  // SECTION_NOT_FOUND like every other section: the heading patterns are the
+  // only thing standing between a real Item 402 disclosure and this extractor,
+  // so a filing whose compensation section is headed in a spelling they miss
+  // (e.g. "Compensation Discussion and Analysis") must show up as a coverage
+  // hole to be triaged, not as a clean run that found nothing.
+  const compensationText = byName.get(S1_SECTIONS.EXECUTIVE_COMPENSATION);
+  if (compensationText === undefined || compensationText.trim() === "") {
+    await recordFail(
+      S1_SECTIONS.EXECUTIVE_COMPENSATION,
+      "SECTION_NOT_FOUND",
+      "no executive compensation section text"
+    );
+  } else if (!hasSummaryCompensationTable(compensationText)) {
+    await recordOk(S1_SECTIONS.EXECUTIVE_COMPENSATION);
+  } else {
+    await runSection<ExecutiveCompensationRow>({
+      sectionName: S1_SECTIONS.EXECUTIVE_COMPENSATION,
+      text: compensationText,
+      emptyDetail: "no compensation rows returned",
+      lowConfidenceDetail: "all rows below confidence floor",
+      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+      unverifiedAllDetail:
+        "all $T confident compensation rows had source_span not present in section text",
+      unverifiedPartialDetail:
+        "$N of $T confident compensation rows had source_span not present in section text",
+      extract: (text) => extractExecutiveCompensation(text, model, args.context),
+      persist: async (rows) => {
+        // An officer shown for two fiscal years is two table rows but ONE
+        // mention of that person, so the observation is minted once and reused;
+        // the row key is positional and independent of it.
+        const observed = new Map<string, number>();
+        let row_index = 0;
+        for (const r of rows) {
+          const personKey = r.person_name.trim().toLowerCase();
+          let observation_id = observed.get(personKey);
+          if (observation_id === undefined) {
+            const name = splitPersonName(r.person_name);
+            ({ observation_id } = await observer.observePerson({
+              ...base,
+              observation_index: idx++,
+              source_filing_issuer_cik: cik,
+              first_name: name.first,
+              middle_name: name.middle,
+              last_name: name.last,
+              suffix: name.suffix,
+              titles: r.principal_position === null ? [] : [r.principal_position],
+              relationship: "s1:named-executive-officer",
+              // No role_scope, so this claim records observation titles but mints
+              // no `person_role` tenure: the compensation table names only the
+              // named executive officers, a strict subset of the management
+              // roster that the `s1:management` population already dates.
+              source_context: JSON.stringify({ relation: "s1:executive-compensation" }),
+            }));
+            observed.set(personKey, observation_id);
+            await provenance.save({
+              kind: "person",
+              observation_id,
+              confidence: r.confidence,
+              source_span: boundSourceSpan(r.source_span),
+              section_name: S1_SECTIONS.EXECUTIVE_COMPENSATION,
+              model_id,
+              prompt_version: extractor_version,
+              extra: null,
+            });
+          }
+          await compensationRepo.save({
+            accession_number,
+            extractor_id: EXTRACTOR_ID,
+            row_index: row_index++,
+            observation_id,
+            principal_position: r.principal_position,
+            fiscal_year: r.fiscal_year,
+            salary: r.salary,
+            bonus: r.bonus,
+            stock_awards: r.stock_awards,
+            option_awards: r.option_awards,
+            non_equity_incentive: r.non_equity_incentive,
+            pension_and_nqdc: r.pension_and_nqdc,
+            all_other_compensation: r.all_other_compensation,
+            total: r.total,
+            footnote: r.footnote,
+          });
+        }
+        return rows.length;
+      },
+    });
+  }
 
   // --- Risk factors (the Item 105 list) ---
   // The largest section in a prospectus, and the only one whose row count runs

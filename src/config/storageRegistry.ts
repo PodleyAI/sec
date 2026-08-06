@@ -321,6 +321,11 @@ import {
   BeneficialOwnershipSchema,
 } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import {
+  EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+  ExecutiveCompensationPrimaryKeyNames,
+  ExecutiveCompensationSchema,
+} from "../storage/executive-compensation/ExecutiveCompensationSchema";
+import {
   RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN,
   RelatedPartyTransactionPrimaryKeyNames,
   RelatedPartyTransactionSchema,
@@ -830,6 +835,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "beneficial_ownership",
     schema: BeneficialOwnershipSchema,
     primaryKeyNames: BeneficialOwnershipPrimaryKeyNames,
+    indexes: [["accession_number"]],
+  }),
+  defineStorage({
+    token: EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN,
+    table: "executive_compensation",
+    schema: ExecutiveCompensationSchema,
+    primaryKeyNames: ExecutiveCompensationPrimaryKeyNames,
     indexes: [["accession_number"]],
   }),
   defineStorage({

@@ -24,6 +24,7 @@ const {
   USE_OF_PROCEEDS,
   THE_SPONSOR,
   PROSPECTUS_SUMMARY,
+  EXECUTIVE_COMPENSATION,
   RISK_FACTORS,
 } = S1_SECTIONS;
 const dir = join(importMetaDir, "mock_data", "s1");
@@ -40,6 +41,10 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // THE_OFFERING here is an ALIGN="center"-attribute bold box title at body
   // size — pinned since the StyleResolver learned the legacy align attribute
   // and heading levels rank by prominence tiers.
+  // The only SPAC fixture whose "Executive Officer and Director Compensation"
+  // heading is promoted to a section; its body is the blank-check company's
+  // one-sentence statement that no officer has been paid, which the Summary
+  // Compensation Table gate then declines to send to a model.
   "s1_1848507_000119312521066104.htm": [
     PROSPECTUS_SUMMARY,
     MANAGEMENT,
@@ -48,6 +53,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
     RISK_FACTORS,
   ],
   "s1_1849470_000110465921035696.htm": [
@@ -101,6 +107,20 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
     RISK_FACTORS,
   ],
+  // Operating-company IPO carrying a real Summary Compensation Table, under the
+  // "Compensation of Directors and Executive Officers" heading spelling and
+  // followed by a separate Director Compensation table.
+  "s1_1507957_000143774926010088.htm": [
+    PROSPECTUS_SUMMARY,
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
+    RISK_FACTORS,
+  ],
   // incorporation-by-reference S-1/A — offering mechanics present, entities by reference.
   "s1_1817004_000149315226027137.htm": [
     PROSPECTUS_SUMMARY,
@@ -135,6 +155,17 @@ const SPAC_FIXTURES = [
  * {@link EXPECTED} does not require adding a floor.
  */
 const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, number>>>> = {
+  // Operating-company S-1 with a real Item 402 table. `Use of Proceeds` here is a
+  // 110-char cross-reference stub rather than a body, so it carries no floor.
+  "s1_1507957_000143774926010088.htm": {
+    [PROSPECTUS_SUMMARY]: 6_000,
+    [MANAGEMENT]: 5_000,
+    [BENEFICIAL_OWNERSHIP]: 3_500,
+    [RELATED_PARTY]: 500,
+    [THE_OFFERING]: 800,
+    [UNDERWRITING]: 2_500,
+    [EXECUTIVE_COMPENSATION]: 9_000,
+  },
   "s1_1848507_000119312521066104.htm": {
     [PROSPECTUS_SUMMARY]: 60_000,
     [MANAGEMENT]: 25_000,

@@ -7,6 +7,7 @@
 import type { IExecuteContext, ModelConfig } from "workglow";
 import {
   extractBeneficialOwnership,
+  extractExecutiveCompensation,
   extractLoi,
   extractManagement,
   extractOfferingTerms,
@@ -124,6 +125,17 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     keyField: "entity_kind",
     compareFields: ["is_spac", "entity_kind"],
     instructionOverheadChars: 1300,
+  },
+  // Multi-row table extractor over the Item 402 Summary Compensation Table.
+  // Positionally aligned (no keyField): a table yields one row per officer PER
+  // FISCAL YEAR, so no single field identifies a row, and a compensation table
+  // is read top-to-bottom — the order-stable list case positional alignment is
+  // for. Scored on the cells every table has, whichever disclosure regime the
+  // registrant reports under.
+  "executive-compensation": {
+    run: (text, model, context) => extractExecutiveCompensation(text, model, context),
+    compareFields: ["person_name", "fiscal_year", "salary", "total"],
+    instructionOverheadChars: 1600,
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
   // a non-binding letter of intent yields one row; anything else (definitive
@@ -306,6 +318,59 @@ All directors and executive officers as a group (4 persons) | 1,708,500 | 15.7% 
 (2) Includes 200,000 shares held by the Delgado Family Trust.`;
 
 /**
+ * Summary Compensation Table sections in the layout real EDGAR markup converts
+ * to: caption cells stretched across the spacer columns that carry the `$` sign
+ * and footnote markers, and the officer's name and principal position on
+ * SEPARATE grid rows. In the first, those two rows carry DIFFERENT fiscal years,
+ * which is the layout a model can misread by emitting the position line as a
+ * second person.
+ */
+const COMPENSATION_TWO_YEAR_TABLE = `EXECUTIVE COMPENSATION
+
+Our named executive officers for fiscal year 2025, consisting of our principal executive officer and the next two most highly compensated executive officers, were:
+
+Alina Kowalczyk, Chief Executive Officer; Bertrand Osei, our Chief Operating Officer; and Chandra Villanueva, our Chief Financial Officer.
+
+Summary Compensation Table
+
+The following table presents all of the compensation awarded to, earned by, or paid to our named executive officers for the fiscal years ended December 31, 2025 and 2024.
+
+| Name and Principal Position | Year | Year | Salary ($) | Salary ($) | Bonus ($)(1) | Bonus ($)(1) | Option awards ($)(2) | Option awards ($)(2) | All other compensation ($)(3) | All other compensation ($)(3) | Total ($) | Total ($) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Alina Kowalczyk |  | 2025 |  | 612,500 |  | 425,000 |  | 3,180,400 |  | 12,300 |  | 4,230,200 |
+| Chief Executive Officer |  | 2024 |  | 570,000 |  | 285,000 |  | 1,940,000 |  | 11,800 |  | 2,806,800 |
+| Bertrand Osei |  | 2025 |  | 448,750 |  | 224,375 |  | 1,102,600 |  | 9,450 |  | 1,785,175 |
+| Chief Operating Officer |  | 2024 |  | 420,000 |  | 168,000 |  | 640,500 |  | 9,100 |  | 1,237,600 |
+| Chandra Villanueva |  | 2025 |  | 415,000 |  | 207,500 |  | 968,300 |  | 9,450 |  | 1,600,250 |
+| Chief Financial Officer |  | 2024 |  | 390,000 |  | 156,000 |  | 512,000 |  | 8,900 |  | 1,066,900 |
+
+(1) Amounts reported represent discretionary bonuses paid with respect to the fiscal year shown.
+(2) Amounts reported represent the aggregate grant date fair value computed in accordance with ASC Topic 718.
+(3) Amounts reported represent 401(k) matching contributions paid by the Company.`;
+
+const COMPENSATION_WITH_DIRECTOR_TABLE = `EXECUTIVE AND DIRECTOR COMPENSATION
+
+Summary Compensation Table
+
+| Name and Principal Position | Year | Salary ($) | Salary ($) | Bonus ($) | Bonus ($) | Stock awards ($)(1) | Stock awards ($)(1) | All other compensation ($) | All other compensation ($) | Total ($) | Total ($) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Halvard Nilsen(2) | 2025 |  | 325,000 |  | — |  | 748,000 |  | 14,200 |  | 1,087,200 |
+| President and Chief Executive Officer |  |  |  |  |  |  |  |  |  |  |  |
+| Renata Oyelaran | 2025 |  | 285,000 |  | 57,000 |  | 412,500 |  | 13,650 |  | 768,150 |
+| Chief Financial Officer |  |  |  |  |  |  |  |  |  |  |  |
+
+(1) Represents the aggregate grant date fair value of restricted stock unit awards.
+(2) Mr. Nilsen was appointed President and Chief Executive Officer in January 2025.
+
+Director Compensation
+
+The following table sets forth information concerning the compensation paid to our non-employee directors for the fiscal year ended December 31, 2025.
+
+| Name | Fees Earned or Paid in Cash ($) | Stock awards ($) | Total ($) |
+| --- | --- | --- | --- |
+| Tobias Brennan | 45,000 | 120,000 | 165,000 |
+| Yuki Tanabe | 42,500 | 120,000 | 162,500 |`;
+/**
  * Prospectus risk-factor prose for the `risk-factors` extractor: two category
  * headings, five captions with explanatory bodies underneath, plus the two
  * shapes the prompt forbids — the section's introductory paragraph and a
@@ -343,6 +408,34 @@ Our amended and restated memorandum and articles of association authorize the is
 For a discussion of the risks relating to our sponsor and its affiliates, see the section entitled "Risks Relating to our Sponsor and Management Team" in our most recent Annual Report on Form 10-K.`;
 
 export const EVAL_FIXTURES: readonly EvalFixture[] = [
+  {
+    name: "executive-compensation-two-year-table",
+    extractor: "executive-compensation",
+    text: COMPENSATION_TWO_YEAR_TABLE,
+    // One row per officer per fiscal year, in table order. A model that reads
+    // the position line as a person emits "Chief Executive Officer" here, which
+    // costs both the matched row and precision.
+    expected: [
+      { person_name: "Alina Kowalczyk", fiscal_year: 2025, salary: 612500, total: 4230200 },
+      { person_name: "Alina Kowalczyk", fiscal_year: 2024, salary: 570000, total: 2806800 },
+      { person_name: "Bertrand Osei", fiscal_year: 2025, salary: 448750, total: 1785175 },
+      { person_name: "Bertrand Osei", fiscal_year: 2024, salary: 420000, total: 1237600 },
+      { person_name: "Chandra Villanueva", fiscal_year: 2025, salary: 415000, total: 1600250 },
+      { person_name: "Chandra Villanueva", fiscal_year: 2024, salary: 390000, total: 1066900 },
+    ],
+  },
+  {
+    name: "executive-compensation-with-director-table",
+    extractor: "executive-compensation",
+    text: COMPENSATION_WITH_DIRECTOR_TABLE,
+    // The two non-employee directors are deliberately absent: they belong to
+    // the separate Item 402(r) table under the same heading, so emitting them
+    // costs precision — which is the behavior we want to measure.
+    expected: [
+      { person_name: "Halvard Nilsen", fiscal_year: 2025, salary: 325000, total: 1087200 },
+      { person_name: "Renata Oyelaran", fiscal_year: 2025, salary: 285000, total: 768150 },
+    ],
+  },
   {
     name: "beneficial-ownership-spac-founder-table",
     extractor: "beneficial-ownership",

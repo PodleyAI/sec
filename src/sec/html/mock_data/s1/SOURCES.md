@@ -26,6 +26,11 @@ without hitting the network. These are **NOT** real EDGAR captures.
 | `s1_2087989_000143774926019444.htm` | 2087989 | 0001437749-26-019444 | Texas Precious Metals Trust | — | — | (none — atypical trust structure; 3 stitched tables; cover-page-only iXBRL: 19 `ix:nonNumeric` dei facts) |
 | `s1_2114227_000121390026039320.htm` | 2114227 | 0001213900-26-039320 | Churchill Capital Corp XII | 6770 | ✅ | Management, Beneficial Ownership, Related Party, The Offering, Underwriting, Use of Proceeds — **full iXBRL tagging** (216 `ix:nonFraction` + 44 `ix:nonNumeric`, 141 contexts, `spac`/`dei` taxonomies, continuations, signed values); also exercised by `parseXbrl.golden.test.ts` |
 | `s1_1817004_000149315226027137.htm` | 1817004 | 0001493152-26-027137 | NEXTNRG, Inc. | — | — | (none — incorporation-by-reference S-1/A; exercises the `SECTION_NOT_FOUND` path) |
+| `s1_1507957_000143774926010088.htm` | 1507957 | 0001437749-26-010088 | Ideal Power Inc. | 3674 | — | Management, Beneficial Ownership, Related Party, The Offering, Underwriting, Use of Proceeds, **Executive Compensation** — a real Item 402 Summary Compensation Table (2 named executive officers x 2 fiscal years, scaled-disclosure column set) under the `Compensation of Directors and Executive Officers` heading spelling, followed by a separate Director Compensation table the extractor must ignore |
+
+No committed SPAC fixture carries a Summary Compensation Table — a blank-check
+company has no compensation history and says so in one sentence — so the
+operating-company IPO above is what pins the compensation section end to end.
 
 URL pattern: `https://www.sec.gov/Archives/edgar/data/<cik>/<accession-no-dashes>/<primary-doc>.htm`
 

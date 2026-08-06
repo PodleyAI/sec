@@ -72,6 +72,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/Compon
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
+import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
 import {
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
@@ -457,6 +458,7 @@ async function truncateAllRepositories(): Promise<void> {
   // Observation provenance + AI-extracted offering / ownership / related-party tiers.
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).deleteAll();

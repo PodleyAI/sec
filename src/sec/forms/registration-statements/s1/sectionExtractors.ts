@@ -16,6 +16,10 @@ import {
   type ManagementPersonRow,
   type RelatedPartyRow,
 } from "./sectionSchemas";
+import {
+  ExecutiveCompensationOutputSchema,
+  type ExecutiveCompensationRow,
+} from "./executiveCompensationSchema";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
 import {
   FOCUS_VOCABULARY,
@@ -560,6 +564,129 @@ export async function extractManagement(
     ...person,
     titles: normalizeManagementTitles(person.titles),
   }));
+}
+
+/**
+ * A Summary Compensation Table's stub column repeats the officer's principal
+ * position on the grid row BELOW their name, and real filings differ on which
+ * of the two rows carries which fiscal year's figures. A model that misreads
+ * that layout emits the position string as if it were a person, which would
+ * then be resolved into the canonical person tier. Names that are really a
+ * position are rejected here rather than trusted to the prompt.
+ */
+const POSITION_AS_NAME =
+  /^(chief|chairman|chair\b|president|vice president|executive vice|senior vice|principal (executive|financial|accounting)|general counsel|treasurer|secretary|director\b|managing (director|member)|head of|interim )/i;
+
+/** True when a Summary Compensation Table name cell is really a position label. */
+export function isCompensationPositionLabel(name: string | null | undefined): boolean {
+  return typeof name === "string" && POSITION_AS_NAME.test(name.trim());
+}
+
+/**
+ * Coerce a model-supplied fiscal year to the stored column's domain. A stray
+ * decimal or a two-digit year would be rejected on write and dead-letter the
+ * whole section, losing every other officer's row with it.
+ */
+export function normalizeFiscalYear(year: number | null | undefined): number | null {
+  if (year == null || !Number.isFinite(year)) return null;
+  const y = Math.trunc(year);
+  return y >= 1900 && y <= 2100 ? y : null;
+}
+
+/** Matches `executive_compensation.principal_position`'s declared width. */
+const MAX_POSITION_CHARS = 256;
+
+/**
+ * Bound a model-supplied principal position to the stored column's width. Real
+ * positions are far shorter; a runaway value would otherwise be rejected on
+ * write and take the whole section's rows down with it.
+ */
+export function boundPrincipalPosition(position: string | null | undefined): string | null {
+  if (position == null) return null;
+  const trimmed = position.trim();
+  return trimmed === "" ? null : trimmed.slice(0, MAX_POSITION_CHARS);
+}
+
+/**
+ * Extracts the Item 402 Summary Compensation Table: one row per named executive
+ * officer per fiscal year.
+ *
+ * This is an AI pass rather than a deterministic table parse even though the
+ * column set is prescribed by regulation. In real EDGAR markup the caption row
+ * is `<td>`, not `<th>`, so the converter never partitions it as a header;
+ * captions are colspan-stretched across spacer columns that carry the `$` sign
+ * and footnote markers; and the officer's name, position and per-year figures
+ * are distributed across grid rows differently by every filer agent. The stable
+ * part is the caption vocabulary, not the grid.
+ */
+export async function extractExecutiveCompensation(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<ExecutiveCompensationRow[]> {
+  const instructions =
+    "Extract the SUMMARY COMPENSATION TABLE from the executive-compensation section " +
+    "between the tags below. Emit ONE row per named executive officer PER FISCAL YEAR: " +
+    "an officer shown for two fiscal years produces two rows. " +
+    "Give person_name, principal_position, fiscal_year (the four-digit year), salary, " +
+    "bonus, stock_awards, option_awards, non_equity_incentive, pension_and_nqdc, " +
+    "all_other_compensation, total, footnote, a confidence in [0,1], and the verbatim " +
+    "source_span you drew the row from. " +
+    "person_name is the officer's NAME ONLY. The table prints the officer's name on one " +
+    "line and their principal position on the line below it, and the two lines often " +
+    "carry different fiscal years' figures — both lines belong to the SAME person. Never " +
+    "emit a position ('Chief Executive Officer', 'President and CEO') as person_name, and " +
+    "strip footnote markers from it: 'Jordan Ellery(4),(5)' is 'Jordan Ellery'. Put the position " +
+    "text in principal_position. " +
+    "Every money field is a plain number: drop '$', thousands separators and footnote " +
+    "markers, so '$ 1,107,622' is 1107622. Use null — never 0 — for a figure shown as " +
+    "'—', '-', '*' or blank, and null for a column this table does not have (many " +
+    "registrants report under the scaled disclosure rules and omit the non-equity " +
+    "incentive and pension/NQDC columns entirely). " +
+    "Extract ONLY the Summary Compensation Table. Ignore a separate Director Compensation " +
+    "table, outstanding-equity-awards tables, grants-of-plan-based-awards tables and the " +
+    "narrative that follows the table, even when they appear under the same heading. " +
+    "Return JSON matching the schema.";
+  const obj = await runGuardedExtraction(
+    "executive compensation",
+    model,
+    instructions,
+    sectionText,
+    ExecutiveCompensationOutputSchema,
+    context
+  );
+  const rows = (obj.rows as ExecutiveCompensationRow[] | undefined) ?? [];
+  // A blank name cannot be resolved into the canonical tier, and a position
+  // string would mint a canonical person named after a job title. But a position
+  // row is not noise: in the stub-column layout the position sits on the grid
+  // row BELOW the name, and that row commonly carries a DIFFERENT fiscal year's
+  // figures. Dropping it outright loses that fiscal year silently, so it is
+  // folded onto the officer named above instead — its own year and money columns
+  // kept, its label becoming the position for that year. A position row with no
+  // officer above it has nothing to attach to and is dropped.
+  const out: ExecutiveCompensationRow[] = [];
+  let precedingOfficer: string | undefined;
+  for (const row of rows) {
+    if (typeof row?.person_name !== "string" || row.person_name.trim() === "") continue;
+    const name = row.person_name.trim();
+    if (isCompensationPositionLabel(name)) {
+      if (precedingOfficer === undefined) continue;
+      out.push({
+        ...row,
+        person_name: precedingOfficer,
+        fiscal_year: normalizeFiscalYear(row.fiscal_year),
+        principal_position: boundPrincipalPosition(row.principal_position ?? name),
+      });
+      continue;
+    }
+    precedingOfficer = name;
+    out.push({
+      ...row,
+      fiscal_year: normalizeFiscalYear(row.fiscal_year),
+      principal_position: boundPrincipalPosition(row.principal_position),
+    });
+  }
+  return out;
 }
 
 /**
