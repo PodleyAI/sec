@@ -10,6 +10,7 @@ import {
   globalServiceRegistry,
   IExecuteContext,
   Task,
+  TaskAbortedError,
   TaskError,
   Workflow,
 } from "workglow";
@@ -111,6 +112,16 @@ const ProcessAccessionDocFormTaskOutputSchema = () =>
 type ProcessAccessionDocFormTaskOutput = Static<
   ReturnType<typeof ProcessAccessionDocFormTaskOutputSchema>
 >;
+
+/**
+ * A form reached the storage dispatch with no matching arm. That is a wiring
+ * error — a form added to `FORM_TO_EXTRACTOR_ID` without a handler — not a
+ * property of the filing, so it escapes the store containment instead of
+ * becoming a `STORE_ERROR`. No retry or version bump can fix it, and
+ * dead-lettering it would mark every filing of that form as an ordinary
+ * extraction failure rather than failing loudly on the first one.
+ */
+class MissingStorageHandlerError extends TaskError {}
 
 export class ProcessAccessionDocFormTask extends Task<
   ProcessAccessionDocFormTaskInput,
@@ -427,7 +438,7 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: false };
     }
 
-    // --- Domain 3: parse (contained) then store (hard error -> record + rethrow) ---
+    // --- Domain 3: parse (contained) then store (contained) ---
     // Captured before any observe so the post-run reap can tell rows this run
     // refreshed (created_at >= runStart) from stale orphans of a prior run.
     const runStart = new Date().toISOString();
@@ -444,9 +455,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // bug. Contain both as a filing-level PARSE_ERROR dead-letter
     // (version-gated retry) instead of crashing the whole sweep. Parsers that
     // legitimately handle non-XML bodies return an object (Form_8_K returns
-    // `{}`; Form_S_1 parses the text) and never hit either guard. Store
-    // throws below remain hard errors: they run on parsed data, so a throw
-    // there is a code bug that should surface loudly.
+    // `{}`; Form_S_1 parses the text) and never hit either guard.
     await context.updateProgress(60, `${label} · parsing`);
     let parsed: unknown;
     try {
@@ -471,8 +480,18 @@ export class ProcessAccessionDocFormTask extends Task<
     // what type-checks the handler arguments.
     const parsedDocument = { form: form!, parsed } as ParsedFormDocument;
 
+    // The storage handlers below are the single dispatch boundary for every
+    // form, so containment lives here rather than in each `.storage.ts`. A
+    // throw is a filing-level STORE_ERROR dead-letter plus a failed run, and
+    // the filing is abandoned — never rethrown. Rethrowing aborted the whole
+    // sweep on one bad filing: the `forEach` fan-out in `formsSweepLoop` has no
+    // per-iteration guard, so the rejection propagated out of the outer
+    // workflow and every filing after it went unprocessed. The failure is now
+    // visible to `sec extractor dead-letters` and recoverable by
+    // `retry-dead-letters` once the storage code is fixed and the version
+    // bumped, which is exactly the treatment fetch and parse already get.
     await context.updateProgress(80, `${label} · storing`);
-    let parseError: unknown = undefined;
+    let storeError: unknown = undefined;
     try {
       const storageArgs = {
         cik: cik!,
@@ -580,13 +599,13 @@ export class ProcessAccessionDocFormTask extends Task<
           });
           break;
         default:
-          throw new TaskError(`Form '${form}' has no storage handler`);
+          throw new MissingStorageHandlerError(`Form '${form}' has no storage handler`);
       }
     } catch (err) {
-      parseError = err;
+      storeError = err;
     }
 
-    if (parseError === undefined) {
+    if (storeError === undefined) {
       // A filing that previously failed at the fetch layer (a filing-level
       // dead-letter, section_name "") and now succeeds end to end should have
       // that pending entry cleared, so the version-gated retry sweep doesn't
@@ -690,8 +709,26 @@ export class ProcessAccessionDocFormTask extends Task<
       return { success: true };
     }
 
-    const message = parseError instanceof Error ? parseError.message : String(parseError);
-    await recordRunFailed(message);
-    throw parseError;
+    // Cooperative cancellation is not a filing failure. Ctrl-C aborts every
+    // in-flight filing at once, and swallowing that would both keep the sweep
+    // grinding and stamp a version-gated STORE_ERROR on filings that were
+    // merely interrupted.
+    if (storeError instanceof TaskAbortedError || context.signal?.aborted) {
+      throw storeError;
+    }
+
+    // A missing dispatch arm is a code defect, not bad input: containing it
+    // would dead-letter every filing of that form on every sweep, forever,
+    // wearing the same reason code as a genuine storage failure.
+    if (storeError instanceof MissingStorageHandlerError) {
+      throw storeError;
+    }
+
+    const message = storeError instanceof Error ? storeError.message : String(storeError);
+    const detail = `Store failed for form '${form}': ${message}`;
+    console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, storeError);
+    await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
+    await recordRunFailed(`STORE_ERROR: ${detail}`);
+    return { success: false };
   }
 }
