@@ -4,19 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, Sqlite } from "workglow";
-import { DefaultDI } from "./DefaultDI";
-import { setupAllDatabases } from "./setupAllDatabases";
+import { describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { LONG_FILE_NUMBER, LONG_PHONE_INTERNATIONAL } from "./schemaRoundTripFixtures";
-import { resetDependencyInjectionsForTesting } from "./TestingDI";
-import { SEC_DB_FOLDER, SEC_DB_NAME, SEC_DB_TYPE } from "./tokens";
+import { withSqliteDb } from "./testing/withSqliteDb";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
-import { closeDb } from "../util/db";
 
 /**
  * Round-trips the two values that overflowed their original column widths.
@@ -25,27 +18,9 @@ import { closeDb } from "../util/db";
  * identical input.
  */
 describe("schema round-trip (sqlite)", () => {
-  let tmpDir: string;
-
-  beforeEach(async () => {
-    resetDependencyInjectionsForTesting();
-    closeDb();
-    if (typeof Sqlite.init === "function") {
-      await Sqlite.init();
-    }
-    tmpDir = mkdtempSync(join(tmpdir(), "sec-schema-roundtrip-"));
-    globalServiceRegistry.registerInstance(SEC_DB_TYPE, "sqlite");
-    globalServiceRegistry.registerInstance(SEC_DB_FOLDER, tmpDir);
-    globalServiceRegistry.registerInstance(SEC_DB_NAME, "schema_roundtrip_test");
-    DefaultDI();
-    await setupAllDatabases();
-  });
-
-  afterEach(() => {
-    closeDb();
-    rmSync(tmpDir, { recursive: true, force: true });
-    resetDependencyInjectionsForTesting();
-  });
+  // "all": these two writes go through repos whose DDL the full setup emits,
+  // and the point of the suite is the shape `db setup` actually produces.
+  withSqliteDb("schema_roundtrip_test", "all");
 
   it("stores and reads back a 24-char normalized phone number (a primary key)", async () => {
     const repo = globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN);

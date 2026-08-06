@@ -19,6 +19,15 @@ import { scanSpacCandidates } from "./spacCandidateScan";
 /** Rows per bulk write. A full scan writes a few thousand rows in total. */
 const WRITE_BATCH = 1_000;
 
+/**
+ * Values one `in`-list query may bind, with headroom under SQLite's
+ * `SQLITE_MAX_VARIABLE_NUMBER` — 32766 since SQLite 3.32 (2020). The 999 of
+ * older builds is not a constraint here: bun ships 3.51 and `better-sqlite3`
+ * ^13 is comparably recent. Postgres binds the whole list as one array
+ * parameter and has no equivalent cap.
+ */
+const SQLITE_MAX_BOUND_PARAMS = 30_000;
+
 export type IdentifySpacsTaskInput = {
   /** Rescan every entity instead of only those whose submissions changed. */
   readonly full?: boolean;
@@ -167,21 +176,47 @@ export class IdentifySpacsTask extends Task<IdentifySpacsTaskInput, IdentifySpac
    */
   private async prune(matched: ReadonlySet<number>, since: string | null): Promise<number> {
     const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
-    const processed =
-      since === null ? null : globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
 
-    const stale: number[] = [];
+    const unmatched: number[] = [];
     for await (const row of repo.records(1000)) {
-      if (matched.has(row.cik)) continue;
-      if (processed === null) {
-        stale.push(row.cik);
-        continue;
-      }
-      const submission = await processed.get({ cik: row.cik });
-      if (submission !== undefined && submission.last_processed >= since!) stale.push(row.cik);
+      if (!matched.has(row.cik)) unmatched.push(row.cik);
     }
+
+    // A full scan considered every entity, so every unmatched row is stale.
+    const stale = since === null ? unmatched : await this.processedSince(unmatched, since);
     for (const cik of stale) await repo.delete({ cik });
     return stale.length;
+  }
+
+  /**
+   * Of `ciks`, those whose submissions were (re)processed on or after `since`.
+   *
+   * One `in`-list query rather than one `get` per CIK: the candidate table holds
+   * thousands of rows and an incremental run matches a handful, so the per-CIK
+   * form is an N+1 over almost the whole table on every daily run.
+   *
+   * Deliberately unchunked. SQLite binds one parameter per value and caps them
+   * at {@link SQLITE_MAX_BOUND_PARAMS}, but the input here is the *unmatched
+   * candidate rows of one incremental scan*, which is a few thousand at most —
+   * so a chunking loop would be a branch never taken, untestable in
+   * practice and unverified in production. It is a guard instead: if that
+   * assumption ever stops holding, this fails loudly and names the fix rather
+   * than silently truncating the delete set, which would leave stale candidate
+   * rows behind with no signal.
+   */
+  private async processedSince(ciks: ReadonlyArray<number>, since: string): Promise<number[]> {
+    if (ciks.length === 0) return [];
+    if (ciks.length > SQLITE_MAX_BOUND_PARAMS) {
+      throw new Error(
+        `IdentifySpacsTask: ${ciks.length} unmatched candidate CIKs exceeds the ` +
+          `${SQLITE_MAX_BOUND_PARAMS} values one 'in'-list query can bind on SQLite. ` +
+          `This path assumed an incremental scan leaves at most a few thousand ` +
+          `unmatched rows. Chunk the query in processedSince() to lift the bound.`
+      );
+    }
+    const processed = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+    const rows = (await processed.query({ cik: { value: [...ciks], operator: "in" } })) ?? [];
+    return rows.filter((row) => row.last_processed >= since).map((row) => row.cik);
   }
 
   /**
