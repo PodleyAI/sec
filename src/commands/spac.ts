@@ -6,6 +6,7 @@
 
 import { Command } from "commander";
 import { globalServiceRegistry } from "workglow";
+import { parseIntOption, parseOutputFormat, type OutputFormat } from "../cli/GlobalOptions";
 import { isDryRun } from "../cli/isDryRun";
 import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
 import { runWorkflowCli } from "../cli/runWorkflow";
@@ -148,11 +149,16 @@ export function registerSpacCommands(program: Command): void {
       "List SPAC candidates identified from submissions metadata (populated by `sec update spacs`)"
     )
     .option("--confidence <tier>", "Filter to one tier: high | medium | low")
-    .option("--limit <n>", "Rows to show (default 50)")
-    .option("--offset <n>", "Rows to skip")
-    .option("--format <format>", "output format: table | csv | json", "table")
+    .option("--limit <n>", "Rows to show", parseIntOption, 50)
+    .option("--offset <n>", "Rows to skip", parseIntOption, 0)
+    .option("--format <format>", "output format: table | csv | json", parseOutputFormat, "table")
     .action(
-      async (opts: { confidence?: string; limit?: string; offset?: string; format: string }) => {
+      async (opts: {
+        confidence?: string;
+        limit: number;
+        offset: number;
+        format: OutputFormat;
+      }) => {
         if (
           opts.confidence !== undefined &&
           !SPAC_CANDIDATE_CONFIDENCES.includes(opts.confidence as SpacCandidateConfidence)
@@ -163,24 +169,21 @@ export function registerSpacCommands(program: Command): void {
           process.exitCode = 1;
           return;
         }
-        const limit = opts.limit === undefined ? undefined : Number(opts.limit);
-        const offset = opts.offset === undefined ? undefined : Number(opts.offset);
         const { rows, total } = await runWorkflowCli<ListSpacCandidatesTaskOutput>([
           new ListSpacCandidatesTask({
             defaults: {
               confidence: opts.confidence as SpacCandidateConfidence | undefined,
-              limit,
-              offset,
+              limit: opts.limit,
+              offset: opts.offset,
             },
           }),
         ]);
-        const format = opts.format === "csv" || opts.format === "json" ? opts.format : "table";
         console.log(
           renderTable(rows as unknown as Record<string, unknown>[], SPAC_CANDIDATE_COLUMNS, {
-            format,
+            format: opts.format,
             total,
-            offset: offset ?? 0,
-            limit: limit ?? 50,
+            offset: opts.offset,
+            limit: opts.limit,
           })
         );
       }

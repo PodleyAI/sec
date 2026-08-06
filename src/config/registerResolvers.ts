@@ -15,10 +15,6 @@ import { CanonicalCompanyPhoneRepo } from "../storage/canonical/CanonicalCompany
 import { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import { PersonRoleRepo } from "../storage/canonical/PersonRoleRepo";
 import { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
-import { CanonicalSponsorFamilyRepo } from "../storage/canonical/CanonicalSponsorFamilyRepo";
-import { CanonicalUnderwriterFamilyRepo } from "../storage/canonical/CanonicalUnderwriterFamilyRepo";
-import { SponsorFamilyMembershipRepo } from "../storage/canonical/SponsorFamilyMembershipRepo";
-import { UnderwriterFamilyMembershipRepo } from "../storage/canonical/UnderwriterFamilyMembershipRepo";
 import { SpacSponsorLinkRepo } from "../storage/canonical/SpacSponsorLinkRepo";
 import { UnderwriterLinkRepo } from "../storage/canonical/UnderwriterLinkRepo";
 
@@ -67,13 +63,22 @@ export function registerSecResolvers(): void {
   // version last wrote it, and coverage is the share of those rows already
   // re-attributed at the target version.
   //
-  // The purge is deliberately confined to the three version-scoped family
-  // tables. It must never reach the company tier the family sits above:
-  // membership and link rows reference `canonical_company_id`, but those
-  // companies belong to the `company` resolver's own version line and are
-  // dropped only by its ceremony. Family aliases and family descriptions are
-  // not version-scoped either, so they survive — matching the person/company
-  // rule that operator-installed aliases outlive a resolver version.
+  // Coverage only. `dropPrevious` is deliberately left unregistered, so the
+  // ceremony keeps refusing these kinds.
+  //
+  // On the person/company tier a purge is safe because identity links are
+  // DERIVED: the observation rows survive it, so `sec resolve` rebuilds every
+  // link the purge removed. The family tier has no such backstop — the link row
+  // IS the attribution, not a projection of something that outlives it — and
+  // `sec resolve` refuses family kinds, so nothing can rebuild what a purge
+  // deletes. Recovery would mean re-extracting every affected S-1/424 and
+  // re-paying the AI cost for all of them.
+  //
+  // The ceremony is symmetric in shape across the four kinds but not in
+  // consequence, and the asymmetry is invisible at the call site: `drop-previous`
+  // reads like the same routine cleanup whichever kind it is handed. Shipping
+  // the read-only half now keeps that trap closed until a family `resolve`
+  // exists to restore the rebuild invariant the other kinds rely on.
   registerResolverExtension({
     id: "sponsor-family",
     isFamily: true,
@@ -82,11 +87,6 @@ export function registerSecResolvers(): void {
       const numerator = await links.count({ resolver_version: version });
       const denominator = await links.count();
       return { numerator, denominator };
-    },
-    dropPrevious: async (version) => {
-      await new SpacSponsorLinkRepo().deleteForResolverVersion(version);
-      await new SponsorFamilyMembershipRepo().deleteForResolverVersion(version);
-      await new CanonicalSponsorFamilyRepo().deleteForResolverVersion(version);
     },
   });
   registerResolverExtension({
@@ -97,11 +97,6 @@ export function registerSecResolvers(): void {
       const numerator = await links.count({ resolver_version: version });
       const denominator = await links.count();
       return { numerator, denominator };
-    },
-    dropPrevious: async (version) => {
-      await new UnderwriterLinkRepo().deleteForResolverVersion(version);
-      await new UnderwriterFamilyMembershipRepo().deleteForResolverVersion(version);
-      await new CanonicalUnderwriterFamilyRepo().deleteForResolverVersion(version);
     },
   });
 }

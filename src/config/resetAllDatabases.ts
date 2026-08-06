@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, MIGRATIONS_TABLE } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
+import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
+import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
@@ -70,6 +72,7 @@ import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../storage/versioning/Compon
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEventSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
+import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
 import {
   CANONICAL_SPONSOR_FAMILY_ALIAS_REPOSITORY_TOKEN,
   CANONICAL_UNDERWRITER_FAMILY_ALIAS_REPOSITORY_TOKEN,
@@ -107,6 +110,7 @@ import { SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/Spa
 import { SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN } from "../storage/spac/SpacLoiExtractionSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../storage/spac/SpacSchema";
+import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 
@@ -121,21 +125,6 @@ export interface ResetAllDatabasesOptions {
    */
   readonly dropSchema?: boolean;
 }
-
-/**
- * Bookkeeping and infrastructure tables sec creates outside `createStorage`,
- * so they are not in the table registry but are still ours to drop.
- *
- * `_storage_migrations` is workglow's tabular-migration ledger; leaving it
- * behind would make a recreated table look already-migrated. The two
- * `rate_limit_*` tables are created by `setupSecFetchRateLimiter()` on the
- * Postgres path.
- */
-const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = [
-  "_storage_migrations",
-  "rate_limit_executions",
-  "rate_limit_next_available",
-];
 
 /**
  * Drops the tables sec owns so `setupAllDatabases()` can recreate them at the
@@ -153,7 +142,8 @@ const NON_REGISTRY_OWNED_TABLES: ReadonlyArray<string> = [
  * destroying an unrelated table or a colleague's reporting view is not
  * something a "reset sec's tables" command may do. Tables that are present but
  * unowned are reported rather than dropped, which still surfaces the orphan of
- * a removed repo without the blast radius.
+ * a removed repo without the blast radius. The shared migration ledger is
+ * scoped the same way — see {@link clearOwnedLedgerRows}.
  *
  * `dropSchema` restores the historical whole-schema drop for anyone who wants
  * it; `cascade` drops dependent objects along with the owned tables.
@@ -199,9 +189,18 @@ export async function resetAllDatabases(options: ResetAllDatabasesOptions = {}):
   await truncateAllRepositories();
 }
 
-/** Every table name this reset owns: the registry plus the few created outside it. */
-function ownedTableNames(): ReadonlyArray<string> {
-  return [...listRegisteredTables().map((t) => t.table), ...NON_REGISTRY_OWNED_TABLES];
+/**
+ * Every table name this reset owns: the registry plus the few created outside it.
+ *
+ * The rate-limiter tables are derived from the configuration
+ * `setupSecFetchRateLimiter()` builds its storage with, not named literally:
+ * `PostgresRateLimiterStorage` renames them when it is given prefix columns,
+ * and a reset that kept dropping the unprefixed names would silently leave the
+ * real ones — and their execution rows — behind, so a recreated database would
+ * inherit a rate-limit budget from before the reset.
+ */
+export function ownedTableNames(): ReadonlyArray<string> {
+  return [...listRegisteredTables().map((t) => t.table), ...secFetchRateLimiterTableNames()];
 }
 
 /** The schema sec's tables live in, i.e. the one `CREATE TABLE` writes to. */
@@ -273,6 +272,7 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
           throw dependentObjectError(err, table, sql);
         }
       }
+      await clearOwnedLedgerRows(client, qualify, presentNames);
       await client.query("COMMIT");
     } catch (err) {
       // Best-effort: the transaction is already aborted, so this only clears the
@@ -284,6 +284,39 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Removes the applied-version rows sec's own setup wrote for the tables this
+ * reset just dropped — and only those.
+ *
+ * `_storage_migrations` is `@workglow/storage`'s ledger, and every package built
+ * on it records there under one fixed table name: a row per applied
+ * `(component, version)`. Dropping the table would take a co-tenant's rows with
+ * it, and their next setup would then replay `addColumn` ops against tables that
+ * already carry those columns — exactly the destroy-what-you-do-not-own this
+ * reset exists to avoid. So the rows go by component and the table stays
+ * standing; `--drop-schema` still takes it along with everything else.
+ *
+ * Clearing sec's own rows is not optional, though: a runner skips a
+ * `(component, version)` it finds recorded, so a row outliving the table its
+ * migration created would stop `db setup` from ever recreating it. Today that is
+ * only the Postgres rate limiter — no sec table declares migrations, and
+ * `createStorage` does not even accept them.
+ */
+async function clearOwnedLedgerRows(
+  client: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+  qualify: (object: string) => string,
+  presentNames: ReadonlyArray<string>
+): Promise<void> {
+  const components = secFetchRateLimiterLedgerComponents();
+  // Nothing of ours recorded, or no ledger in this schema at all (nothing on
+  // this database ever declared a migration) — `DELETE FROM` a table that does
+  // not exist would abort the transaction the drops just ran in.
+  if (components.length === 0 || !presentNames.includes(MIGRATIONS_TABLE)) return;
+  await client.query(`DELETE FROM ${qualify(MIGRATIONS_TABLE)} WHERE component = ANY($1)`, [
+    components,
+  ]);
 }
 
 function resetSqlite(options: ResetAllDatabasesOptions): void {
@@ -331,6 +364,11 @@ function quote(identifier: string): string {
  * Names tables that exist but are not sec's, so an operator can see what a
  * scoped reset deliberately left in place — including the orphan table of a
  * repository that was removed, which no per-repo list could ever reach.
+ *
+ * The list is NOT a drop list. `_storage_migrations` is always on it — the
+ * shared ledger is deliberately left standing (see {@link clearOwnedLedgerRows})
+ * and dropping it would destroy every co-tenant's applied-version rows — so the
+ * message asks for review rather than telling the operator to drop what it names.
  */
 function reportUnownedTables(present: ReadonlyArray<string>, owned: ReadonlyArray<string>): void {
   const ownedSet = new Set(owned);
@@ -338,7 +376,8 @@ function reportUnownedTables(present: ReadonlyArray<string>, owned: ReadonlyArra
   if (unowned.length > 0) {
     console.warn(
       `db reset: left ${unowned.length} table(s) in place that sec does not own: ` +
-        `${unowned.join(", ")}. Drop them by hand if they are orphans of a removed repository.`
+        `${unowned.join(", ")}. Review before dropping any by hand — ${MIGRATIONS_TABLE} is ` +
+        `shared infrastructure that must survive, not an orphan of a removed repository.`
     );
   }
 }
@@ -364,8 +403,9 @@ function dependentObjectError(err: unknown, table: string, sql: string): unknown
 /**
  * Row-level fallback for backends without a droppable schema.
  *
- * NOTE: When adding a new repository token in DefaultDI.ts, add its
- * deleteAll() call here so reset doesn't leave orphan rows behind.
+ * NOTE: When adding a table to the storage registry, add its deleteAll() call
+ * here so reset doesn't leave orphan rows behind — `resetAllDatabases.test.ts`
+ * fails on the gap.
  */
 async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).deleteAll();
@@ -418,6 +458,7 @@ async function truncateAllRepositories(): Promise<void> {
   // Observation provenance + AI-extracted offering / ownership / related-party tiers.
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).deleteAll();
@@ -425,6 +466,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();
   // SPAC lifecycle: derived `spac` row + append-only deal/event/extraction tables.

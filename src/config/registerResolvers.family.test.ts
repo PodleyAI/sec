@@ -213,27 +213,43 @@ describe("family-tier resolver version ceremonies", () => {
     clearResolverExtensionsForTesting();
   });
 
-  it("drop-previous(sponsor-family) purges only sponsor rows at the previous version", async () => {
+  it("drop-previous refuses sponsor-family and purges nothing", async () => {
     await openPreviousSlot("sponsor-family");
     const { reg, events } = buildDeps();
 
-    await dropPrevious({ reg, events, kind: "resolver", id: "sponsor-family", notes: null });
+    // No `dropPrevious` closure is registered for the family kinds. Unlike the
+    // person/company tier, whose identity links are derived and rebuildable by
+    // `sec resolve`, the family link row IS the attribution and `sec resolve`
+    // refuses family kinds — so a purge here has no rebuild path short of
+    // re-extracting every affected filing.
+    await expect(
+      dropPrevious({ reg, events, kind: "resolver", id: "sponsor-family", notes: null })
+    ).rejects.toThrow(/not supported for resolver kind 'sponsor-family'/i);
 
-    // Purged: the sponsor tier at 1.0.0.
-    expect(await new CanonicalSponsorFamilyRepo().listForResolverVersion(PREVIOUS)).toHaveLength(0);
+    // Every family row survives, at both versions and on both tiers.
+    expect(await new CanonicalSponsorFamilyRepo().listForResolverVersion(PREVIOUS)).toHaveLength(1);
     expect(
       await new SponsorFamilyMembershipRepo().listCompaniesForFamily(PREVIOUS, SPONSOR_FAMILY_PREV)
-    ).toHaveLength(0);
-    expect(await new SpacSponsorLinkRepo().count({ resolver_version: PREVIOUS })).toBe(0);
-
-    // Intact: the sponsor tier at the current version.
-    expect(await new CanonicalSponsorFamilyRepo().listForResolverVersion(CURRENT)).toHaveLength(1);
-    expect(
-      await new SponsorFamilyMembershipRepo().listCompaniesForFamily(CURRENT, SPONSOR_FAMILY_CUR)
     ).toEqual([COMPANY_ID]);
+    expect(await new SpacSponsorLinkRepo().count({ resolver_version: PREVIOUS })).toBe(1);
     expect(await new SpacSponsorLinkRepo().count({ resolver_version: CURRENT })).toBe(1);
+    expect(
+      await new CanonicalUnderwriterFamilyRepo().listForResolverVersion(PREVIOUS)
+    ).toHaveLength(1);
+    expect(await new UnderwriterLinkRepo().count({ resolver_version: PREVIOUS })).toBe(1);
 
-    // Intact: the underwriter tier, even though it carries the same version string.
+    // The slot is left in place too, so the refusal is not half-applied.
+    expect(await reg.getPrevious("resolver", "sponsor-family")).toBeDefined();
+  });
+
+  it("drop-previous refuses underwriter-family and purges nothing", async () => {
+    await openPreviousSlot("underwriter-family");
+    const { reg, events } = buildDeps();
+
+    await expect(
+      dropPrevious({ reg, events, kind: "resolver", id: "underwriter-family", notes: null })
+    ).rejects.toThrow(/not supported for resolver kind 'underwriter-family'/i);
+
     expect(
       await new CanonicalUnderwriterFamilyRepo().listForResolverVersion(PREVIOUS)
     ).toHaveLength(1);
@@ -244,57 +260,7 @@ describe("family-tier resolver version ceremonies", () => {
       )
     ).toEqual([COMPANY_ID]);
     expect(await new UnderwriterLinkRepo().count({ resolver_version: PREVIOUS })).toBe(1);
-
-    // Intact: the company and person tiers the family sits above.
-    expect(await new CanonicalCompanyRepo().getById(COMPANY_ID)).toBeDefined();
-    expect(await new CompanyIdentityLinkRepo().listForCanonical(COMPANY_ID, PREVIOUS)).toHaveLength(
-      1
-    );
-    expect(
-      await new CanonicalCompanyAddressRepo().listForCanonical(COMPANY_ID, PREVIOUS)
-    ).toHaveLength(1);
-    expect(await new CanonicalPersonRepo().getById(PERSON_ID)).toBeDefined();
-
-    // Intact: aliases and editorial descriptions are not version-scoped.
-    expect(await new CanonicalSponsorFamilyAliasRepo().list()).toHaveLength(1);
-    expect(
-      await new FamilyDescriptionRepo().getDescription("sponsor-family", "CHURCHILL CAPITAL")
-    ).toBe("Klein-family sponsor group.");
-
-    // The slot itself was cleared and the event logged.
-    expect(await reg.getPrevious("resolver", "sponsor-family")).toBeUndefined();
-    const evts = await events.listForComponent("resolver", "sponsor-family");
-    expect(evts.find((e) => e.event_type === "drop-previous")?.from_semver).toBe(PREVIOUS);
-  });
-
-  it("drop-previous(underwriter-family) purges only underwriter rows at the previous version", async () => {
-    await openPreviousSlot("underwriter-family");
-    const { reg, events } = buildDeps();
-
-    await dropPrevious({ reg, events, kind: "resolver", id: "underwriter-family", notes: null });
-
-    // Purged: the underwriter tier at 1.0.0.
-    expect(
-      await new CanonicalUnderwriterFamilyRepo().listForResolverVersion(PREVIOUS)
-    ).toHaveLength(0);
-    expect(
-      await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
-        PREVIOUS,
-        UNDERWRITER_FAMILY_PREV
-      )
-    ).toHaveLength(0);
-    expect(await new UnderwriterLinkRepo().count({ resolver_version: PREVIOUS })).toBe(0);
-
-    // Intact: the sponsor tier at the same version string.
-    expect(await new CanonicalSponsorFamilyRepo().listForResolverVersion(PREVIOUS)).toHaveLength(1);
-    expect(await new SpacSponsorLinkRepo().count({ resolver_version: PREVIOUS })).toBe(1);
-
-    // Intact: the company tier and the non-versioned editorial rows.
-    expect(await new CanonicalCompanyRepo().getById(COMPANY_ID)).toBeDefined();
-    expect(await new CanonicalUnderwriterFamilyAliasRepo().list()).toHaveLength(1);
-    expect(
-      await new FamilyDescriptionRepo().getDescription("underwriter-family", "GOLDMAN SACHS")
-    ).toBe("Bulge-bracket underwriter.");
+    expect(await reg.getPrevious("resolver", "underwriter-family")).toBeDefined();
   });
 
   it("drop-previous refuses when the family kind has no previous slot", async () => {

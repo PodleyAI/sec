@@ -21,6 +21,7 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchMaxPerSec } from "../../config/Constants";
+import { stripXslPrefix } from "../../util/accessionDocPath";
 
 export type ComputeFormsWorklistTaskInput = {
   /** Omit (or pass empty) to process every form with a registered extractor. */
@@ -329,9 +330,7 @@ export class ComputeFormsWorklistTask extends Task<
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);
         formOut.push(f.form!);
-        // Strip the EDGAR inline-XBRL viewer prefix ("xslF345X02/…") so the
-        // fetch resolves the raw primary document.
-        fileName.push(f.primary_doc.replaceAll(/^(xsl[^/]+\/)/g, ""));
+        fileName.push(stripXslPrefix(f.primary_doc));
       }
 
       if (lastExamined !== undefined) {

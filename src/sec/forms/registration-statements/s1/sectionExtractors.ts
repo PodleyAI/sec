@@ -16,6 +16,10 @@ import {
   type ManagementPersonRow,
   type RelatedPartyRow,
 } from "./sectionSchemas";
+import {
+  ExecutiveCompensationOutputSchema,
+  type ExecutiveCompensationRow,
+} from "./executiveCompensationSchema";
 import { SpacSponsorOutputSchema, type SpacSponsorRow } from "./spacSponsorSchema";
 import {
   FOCUS_VOCABULARY,
@@ -32,6 +36,8 @@ import {
 } from "./spacClassifierSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
+import { chunkRiskFactorText, isRiskCategoryHeading } from "./riskFactorChunks";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
@@ -561,6 +567,129 @@ export async function extractManagement(
 }
 
 /**
+ * A Summary Compensation Table's stub column repeats the officer's principal
+ * position on the grid row BELOW their name, and real filings differ on which
+ * of the two rows carries which fiscal year's figures. A model that misreads
+ * that layout emits the position string as if it were a person, which would
+ * then be resolved into the canonical person tier. Names that are really a
+ * position are rejected here rather than trusted to the prompt.
+ */
+const POSITION_AS_NAME =
+  /^(chief|chairman|chair\b|president|vice president|executive vice|senior vice|principal (executive|financial|accounting)|general counsel|treasurer|secretary|director\b|managing (director|member)|head of|interim )/i;
+
+/** True when a Summary Compensation Table name cell is really a position label. */
+export function isCompensationPositionLabel(name: string | null | undefined): boolean {
+  return typeof name === "string" && POSITION_AS_NAME.test(name.trim());
+}
+
+/**
+ * Coerce a model-supplied fiscal year to the stored column's domain. A stray
+ * decimal or a two-digit year would be rejected on write and dead-letter the
+ * whole section, losing every other officer's row with it.
+ */
+export function normalizeFiscalYear(year: number | null | undefined): number | null {
+  if (year == null || !Number.isFinite(year)) return null;
+  const y = Math.trunc(year);
+  return y >= 1900 && y <= 2100 ? y : null;
+}
+
+/** Matches `executive_compensation.principal_position`'s declared width. */
+const MAX_POSITION_CHARS = 256;
+
+/**
+ * Bound a model-supplied principal position to the stored column's width. Real
+ * positions are far shorter; a runaway value would otherwise be rejected on
+ * write and take the whole section's rows down with it.
+ */
+export function boundPrincipalPosition(position: string | null | undefined): string | null {
+  if (position == null) return null;
+  const trimmed = position.trim();
+  return trimmed === "" ? null : trimmed.slice(0, MAX_POSITION_CHARS);
+}
+
+/**
+ * Extracts the Item 402 Summary Compensation Table: one row per named executive
+ * officer per fiscal year.
+ *
+ * This is an AI pass rather than a deterministic table parse even though the
+ * column set is prescribed by regulation. In real EDGAR markup the caption row
+ * is `<td>`, not `<th>`, so the converter never partitions it as a header;
+ * captions are colspan-stretched across spacer columns that carry the `$` sign
+ * and footnote markers; and the officer's name, position and per-year figures
+ * are distributed across grid rows differently by every filer agent. The stable
+ * part is the caption vocabulary, not the grid.
+ */
+export async function extractExecutiveCompensation(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<ExecutiveCompensationRow[]> {
+  const instructions =
+    "Extract the SUMMARY COMPENSATION TABLE from the executive-compensation section " +
+    "between the tags below. Emit ONE row per named executive officer PER FISCAL YEAR: " +
+    "an officer shown for two fiscal years produces two rows. " +
+    "Give person_name, principal_position, fiscal_year (the four-digit year), salary, " +
+    "bonus, stock_awards, option_awards, non_equity_incentive, pension_and_nqdc, " +
+    "all_other_compensation, total, footnote, a confidence in [0,1], and the verbatim " +
+    "source_span you drew the row from. " +
+    "person_name is the officer's NAME ONLY. The table prints the officer's name on one " +
+    "line and their principal position on the line below it, and the two lines often " +
+    "carry different fiscal years' figures — both lines belong to the SAME person. Never " +
+    "emit a position ('Chief Executive Officer', 'President and CEO') as person_name, and " +
+    "strip footnote markers from it: 'Jordan Ellery(4),(5)' is 'Jordan Ellery'. Put the position " +
+    "text in principal_position. " +
+    "Every money field is a plain number: drop '$', thousands separators and footnote " +
+    "markers, so '$ 1,107,622' is 1107622. Use null — never 0 — for a figure shown as " +
+    "'—', '-', '*' or blank, and null for a column this table does not have (many " +
+    "registrants report under the scaled disclosure rules and omit the non-equity " +
+    "incentive and pension/NQDC columns entirely). " +
+    "Extract ONLY the Summary Compensation Table. Ignore a separate Director Compensation " +
+    "table, outstanding-equity-awards tables, grants-of-plan-based-awards tables and the " +
+    "narrative that follows the table, even when they appear under the same heading. " +
+    "Return JSON matching the schema.";
+  const obj = await runGuardedExtraction(
+    "executive compensation",
+    model,
+    instructions,
+    sectionText,
+    ExecutiveCompensationOutputSchema,
+    context
+  );
+  const rows = (obj.rows as ExecutiveCompensationRow[] | undefined) ?? [];
+  // A blank name cannot be resolved into the canonical tier, and a position
+  // string would mint a canonical person named after a job title. But a position
+  // row is not noise: in the stub-column layout the position sits on the grid
+  // row BELOW the name, and that row commonly carries a DIFFERENT fiscal year's
+  // figures. Dropping it outright loses that fiscal year silently, so it is
+  // folded onto the officer named above instead — its own year and money columns
+  // kept, its label becoming the position for that year. A position row with no
+  // officer above it has nothing to attach to and is dropped.
+  const out: ExecutiveCompensationRow[] = [];
+  let precedingOfficer: string | undefined;
+  for (const row of rows) {
+    if (typeof row?.person_name !== "string" || row.person_name.trim() === "") continue;
+    const name = row.person_name.trim();
+    if (isCompensationPositionLabel(name)) {
+      if (precedingOfficer === undefined) continue;
+      out.push({
+        ...row,
+        person_name: precedingOfficer,
+        fiscal_year: normalizeFiscalYear(row.fiscal_year),
+        principal_position: boundPrincipalPosition(row.principal_position ?? name),
+      });
+      continue;
+    }
+    precedingOfficer = name;
+    out.push({
+      ...row,
+      fiscal_year: normalizeFiscalYear(row.fiscal_year),
+      principal_position: boundPrincipalPosition(row.principal_position),
+    });
+  }
+  return out;
+}
+
+/**
  * An ownership table's trailing subtotal row — "All officers, directors and
  * director nominees as a group (9 individuals)". It is an aggregate of rows
  * already extracted, not a stockholder: it has no `owner_kind` the schema can
@@ -878,6 +1007,89 @@ export async function extractMergerDeal(
   );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
+}
+
+/**
+ * Normalized key for risk-caption de-duplication: a caption repeated across
+ * chunks (a category heading carried into the next chunk can invite one) is the
+ * same disclosure, not a second risk.
+ */
+function riskHeadlineKey(headline: string | null | undefined): string {
+  return (headline ?? "")
+    .normalize("NFKC")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Extracts the risk-factor list from a prospectus Item 105 section. The section
+ * is the largest in an S-1 and enumerates far more rows than one response can
+ * hold, so the text is split into paragraph-aligned chunks
+ * ({@link chunkRiskFactorText}) and each is enumerated by its own call; rows are
+ * concatenated in document order and de-duplicated on the caption.
+ *
+ * A chunk that fails propagates, failing the section as a whole: persisting the
+ * captions that happened to come back before the failure would record a
+ * silently partial list as if it were the filing's complete disclosure.
+ */
+export async function extractRiskFactors(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<RiskFactorRow[]> {
+  const instructions =
+    "Extract the list of RISK FACTORS from the prospectus text between the tags below. " +
+    "A risk factor is introduced by a caption — a single (usually bolded) sentence such as " +
+    "'We are a blank check company with no operating history and no revenues.' — followed by " +
+    "one or more explanatory paragraphs. Emit ONE row per risk factor caption, in the order " +
+    "they appear. Give headline: the caption copied VERBATIM from the text (never a " +
+    "paraphrase, summary, or merger of two captions; do not include the explanatory " +
+    "paragraphs). Give category: the risk-category heading the caption sits under, verbatim " +
+    "(e.g. 'Risks Relating to our Securities', 'General Risk Factors'), or null when the " +
+    "section states none. Do NOT emit the section's introductory paragraph ('An investment " +
+    "in our securities involves a high degree of risk…'), a category heading on its own, or " +
+    "a cross-reference to risks described in another document. Where the text is a bulleted " +
+    "summary list of risks, each bullet is one row. Give a confidence in [0,1] and the " +
+    "verbatim source_span you drew the caption from. Return JSON matching the schema.";
+  const chunks = chunkRiskFactorText(sectionText);
+  const out: RiskFactorRow[] = [];
+  const seen = new Set<string>();
+  for (const chunk of chunks) {
+    const obj = await runGuardedExtraction(
+      "risk factors",
+      model,
+      instructions,
+      chunk,
+      RiskFactorsOutputSchema,
+      context
+    );
+    const risks = (obj.risks as RiskFactorRow[] | undefined) ?? [];
+    for (const risk of risks) {
+      const key = riskHeadlineKey(risk?.headline);
+      if (key === "" || seen.has(key)) continue;
+      seen.add(key);
+      out.push(risk);
+    }
+  }
+
+  // Enforce the "a category heading is not a risk" rule rather than trusting the
+  // prompt: a heading verifies as verbatim section text, so nothing downstream
+  // would stop it becoming a row that reads like a disclosed risk. The heuristic
+  // keys on a heading having no sentence-ending punctuation.
+  //
+  // Applied only when the section also yielded at least one row that does not
+  // look like a heading. An Item 105(b) "Summary of Risk Factors" bullet list —
+  // which the segmenter accepts as this section, and which is all a filing
+  // carrying only the summary has — is written as bare unpunctuated phrases
+  // ("Risks related to our inability to complete an initial business
+  // combination"), indistinguishable in shape from a category heading. Dropping
+  // on shape alone would empty exactly those filings. When every row looks like
+  // a heading, the "headings" are the captions, so they are kept.
+  const captions = out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+  return captions.length > 0 ? captions : out;
 }
 
 export async function extractUseOfProceeds(

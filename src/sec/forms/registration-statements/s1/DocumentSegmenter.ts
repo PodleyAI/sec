@@ -15,6 +15,8 @@ export const S1_SECTIONS = {
   UNDERWRITING: "Underwriting",
   USE_OF_PROCEEDS: "Use of Proceeds",
   THE_SPONSOR: "The Sponsor",
+  EXECUTIVE_COMPENSATION: "Executive Compensation",
+  RISK_FACTORS: "Risk Factors",
   // SPAC business/summary prose feeding the profile extractor (focus, focus
   // location, description, website).
   PROSPECTUS_SUMMARY: "Prospectus Summary",
@@ -57,6 +59,32 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
   [S1_SECTIONS.THE_SPONSOR]: [
     /^\s*(the|our) sponsor\s*$/i,
     /^\s*the sponsor and its affiliates\s*$/i,
+  ],
+  // Item 402 compensation disclosure — the heading the Summary Compensation
+  // Table sits under. A standalone "Director Compensation" heading is
+  // deliberately NOT matched: that is the separate Item 402(r) director table,
+  // whose rows are directors rather than named executive officers. Filings that
+  // fold both into one heading ("Executive and Director Compensation") are
+  // matched, because the named-executive table is inside.
+  [S1_SECTIONS.EXECUTIVE_COMPENSATION]: [
+    /^\s*(our\s+)?executive compensation( and other information)?\s*$/i,
+    /^\s*(executive|officer)s?( officers?)? and directors? compensation\s*$/i,
+    /^\s*directors? and executive (officers? )?compensation\s*$/i,
+    /^\s*compensation of (our )?(directors and )?executive officers( and directors)?\s*$/i,
+    /^\s*(management|executive officer) compensation\s*$/i,
+    /^\s*summary compensation table\s*$/i,
+  ],
+  // The Item 105 risk-factor disclosure. The filer's own "Summary of Risk
+  // Factors" bullet list is accepted as a variant of the same canonical section:
+  // it enumerates the SAME risk captions in compressed form, and the segmenter
+  // keeps the longest body per name, so a filing carrying both still extracts
+  // from the full section and one carrying only the summary degrades to it
+  // rather than to nothing.
+  [S1_SECTIONS.RISK_FACTORS]: [
+    /^\s*risk factors\s*$/i,
+    /^\s*item\s*1a\.?\s*[-–—.]?\s*risk factors\s*$/i,
+    /^\s*certain risk factors\s*$/i,
+    /^\s*summary of risk factors\s*$/i,
   ],
   // Whole-line anchoring keeps these from matching "Summary Financial Data",
   // "Summary of the Offering", etc.; the segmenter keeps the longest-body

@@ -69,7 +69,6 @@ const O = (name: string): GoldenOwnerRow => ({ name });
 /**
  * Committed golden labels, keyed by {@link goldenLabelKey}. Only sections that
  * appear here are scored under `--reference golden`; everything else is skipped.
- * Currently the four committed `management` sections.
  */
 export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = {
   // Operating/SPAC IPO — 26 Capital Acquisition Corp.
@@ -118,6 +117,19 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     ]),
     G("Jay Taragin", ["Chief Financial Officer"]),
     G("William Sherman", ["Director Nominee"]),
+  ],
+
+  // Ideal Power Inc. — an operating-company IPO (the corpus's compensation-table
+  // fixture). Somo's and Burns' bios add roles their table cells compress into a
+  // parenthetical abbreviation; Turmelle's cell states only the chairmanship,
+  // which is how the other chairs in this set are labeled.
+  [goldenLabelKey("s1_1507957_000143774926010088", "management")]: [
+    G("David Somo", ["President", "Chief Executive Officer", "Director"]),
+    G("Timothy W. Burns", ["Chief Financial Officer", "Secretary", "Treasurer"]),
+    G("Drue Freeman", ["Director"]),
+    G("Gregory Knight", ["Director"]),
+    G("Ted Lesster", ["Director"]),
+    G("Michael C. Turmelle", ["Chairman of the Board of Directors"]),
   ],
 
   // ---------------------------------------------------------------------------
@@ -180,6 +192,20 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Gan Yong Sheng"),
     O("V-Cube, Inc."),
     O("Naoaki Mashita"),
+  ],
+  // Ideal Power Inc. — three 5% holders above the officer/director block. "AIGH"
+  // is the table's own printed name for the group footnote 2 defines; the label
+  // is the cell as printed, marker dropped.
+  [goldenLabelKey("s1_1507957_000143774926010088", "beneficial-ownership")]: [
+    O("AWM Investment Company, Inc."),
+    O("AIGH"),
+    O("Laurence W. Lytton"),
+    O("David Somo"),
+    O("Timothy Burns"),
+    O("Drue Freeman"),
+    O("Gregory Knight"),
+    O("Ted Lesster"),
+    O("Michael C. Turmelle"),
   ],
   // Churchill Capital Corp XII. The sponsor cell prints as
   // "Churchill Sponsor XII LLC(our sponsor)(3)" — annotation and marker dropped.

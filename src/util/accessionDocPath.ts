@@ -7,6 +7,25 @@
 import path from "node:path";
 
 /**
+ * Strips the EDGAR inline-XBRL viewer prefix from a primary-document filename,
+ * so the raw document is what gets fetched and cached. Ownership forms 3/4/5
+ * carry it (`xslF345X03/wf-form4.xml` renders `wf-form4.xml` through the
+ * viewer), and every path that composes a fetch URL or a cache location must
+ * agree on the bare name or the two halves of the round trip disagree.
+ *
+ * Deliberately separate from {@link sanitizePrimaryDoc}: a sanitizer that
+ * silently rewrites its input is harder to reason about than one that only
+ * accepts or rejects. Compose them — strip, then sanitize — so whatever
+ * survives the strip still faces the traversal guard.
+ *
+ * Does not trim: the prefix is anchored at the start, so a caller that trims
+ * has to decide for itself whether that happens before or after.
+ */
+export function stripXslPrefix(fileName: string): string {
+  return fileName.replace(/^xsl[^/]+\//, "");
+}
+
+/**
  * Validates a filer-authored primary-document filename before it is used to
  * compose an on-disk cache path. Rejects anything that could escape the
  * accession-doc directory (path separators, parent-directory refs, absolute
@@ -38,10 +57,7 @@ export function sanitizePrimaryDoc(name: string): string {
 export function assertInsideDir(fullPath: string, dir: string): void {
   const resolvedDir = path.resolve(dir);
   const resolvedPath = path.resolve(fullPath);
-  if (
-    resolvedPath !== resolvedDir &&
-    !resolvedPath.startsWith(resolvedDir + path.sep)
-  ) {
+  if (resolvedPath !== resolvedDir && !resolvedPath.startsWith(resolvedDir + path.sep)) {
     throw new Error(
       `Path escapes accession-doc directory: ${JSON.stringify(fullPath)} resolved to ${JSON.stringify(resolvedPath)} (base ${JSON.stringify(resolvedDir)})`
     );

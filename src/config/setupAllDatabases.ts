@@ -76,6 +76,7 @@ import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTicker
 import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import { UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterFamilyMembershipSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
+import { RISK_FACTOR_REPOSITORY_TOKEN } from "../storage/risk-factor/RiskFactorSchema";
 import { USE_OF_PROCEEDS_REPOSITORY_TOKEN } from "../storage/use-of-proceeds/UseOfProceedsSchema";
 import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
@@ -99,6 +100,7 @@ import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observatio
 import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
+import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
@@ -116,8 +118,9 @@ import { VERSION_EVENT_REPOSITORY_TOKEN } from "../storage/versioning/VersionEve
  * Calls setupDatabase() on all registered repository instances,
  * creating tables and indexes from their TypeBox schemas.
  *
- * NOTE: When adding a new repository token in DefaultDI.ts, you must also
- * add its setupDatabase() call here or the table will not be created.
+ * NOTE: When adding a table to the storage registry, you must also add its
+ * setupDatabase() call here or the table will not be created —
+ * `setupAllDatabases.test.ts` fails on the gap.
  */
 export async function setupAllDatabases(): Promise<void> {
   // Load the SQLite native binding before any repo opens a database. Guarded
@@ -186,6 +189,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).setupDatabase();
@@ -215,6 +219,7 @@ export async function setupAllDatabases(): Promise<void> {
     .setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_FAMILY_MEMBERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(UNDERWRITER_LINK_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).setupDatabase();
   // Drop the legacy form_8k_events shape (no event_id / extractor_id /

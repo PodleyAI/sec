@@ -11,7 +11,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { stripXslPrefix } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
+import { SecFetchAccessionDocTask } from "./SecFetchAccessionDocTask";
 
 // Exposes the protected runFetch so we can prove the cache fast-path is taken.
 class ExposedTask extends ProcessAccessionDocFormTask {
@@ -74,5 +76,59 @@ describe("runFetch on-disk cache fast-path", () => {
     await expect(
       new ExposedTask().runFetchPublic(5678, "0001999999-25-000002", "x.htm", {} as IExecuteContext)
     ).rejects.toBeDefined();
+  });
+
+  it("hits the cache for an xsl-prefixed primary_doc (ownership forms 3/4/5)", async () => {
+    // Forms 3/4/5 carry the EDGAR inline-XBRL viewer prefix in `primary_doc`
+    // ("xslF345X03/wf-form4.xml"). Every path that composes a cache location
+    // strips it first, so the cached document lives under the bare filename —
+    // the read must strip too or these filings never hit cache and re-fetch
+    // through the rate-limited queue on every run.
+    const cik = 1234;
+    const accession = "0001999999-25-000003";
+    const rawPrimaryDoc = "xslF345X03/wf-form4.xml";
+
+    // Prime the cache at exactly the location the write path composes, using
+    // the write path's own filename mapper rather than a hand-built string.
+    const relative = new SecFetchAccessionDocTask({
+      cik,
+      accessionNumber: accession,
+      fileName: stripXslPrefix(rawPrimaryDoc),
+    }).inputToFileName({
+      cik,
+      accessionNumber: accession,
+      fileName: stripXslPrefix(rawPrimaryDoc),
+    });
+    const fullPath = path.join(root!, relative);
+    mkdirSync(path.dirname(fullPath), { recursive: true });
+    writeFileSync(fullPath, "FORM 4 XML BODY");
+
+    const text = await new ExposedTask().runFetchPublic(
+      cik,
+      accession,
+      rawPrimaryDoc,
+      {} as IExecuteContext
+    );
+    expect(text).toBe("FORM 4 XML BODY");
+  });
+
+  it("still treats a traversal-shaped primary_doc as a silent cache miss", async () => {
+    // Stripping a known-safe prefix must not open a hole: whatever survives the
+    // strip still goes through the traversal guard, and a rejection stays a
+    // silent miss (fall through to the network) rather than reading outside the
+    // accession-doc directory.
+    writeFileSync(path.join(root!, "outside-secret.txt"), "SECRET");
+    const dir = path.join(root!, "accessiondocs", "0000009999");
+    mkdirSync(dir, { recursive: true });
+
+    for (const evil of [
+      "../../outside-secret.txt",
+      "xslF345X03/../../outside-secret.txt",
+      "/etc/passwd",
+    ]) {
+      await expect(
+        new ExposedTask().runFetchPublic(9999, "0001999999-25-000004", evil, {} as IExecuteContext)
+      ).rejects.toBeDefined();
+    }
   });
 });
