@@ -943,18 +943,26 @@ export async function extractRiskFactors(
     for (const risk of risks) {
       const key = riskHeadlineKey(risk?.headline);
       if (key === "" || seen.has(key)) continue;
-      // Enforce the "a category heading is not a risk" rule rather than trusting
-      // the prompt: a heading verifies as verbatim section text, so nothing
-      // downstream would stop it becoming a row that reads like a disclosed
-      // risk. The heuristic keys on a heading having no sentence-ending
-      // punctuation, so it errs toward dropping a caption written as a bare
-      // phrase rather than admitting a heading.
-      if (isRiskCategoryHeading(risk.headline)) continue;
       seen.add(key);
       out.push(risk);
     }
   }
-  return out;
+
+  // Enforce the "a category heading is not a risk" rule rather than trusting the
+  // prompt: a heading verifies as verbatim section text, so nothing downstream
+  // would stop it becoming a row that reads like a disclosed risk. The heuristic
+  // keys on a heading having no sentence-ending punctuation.
+  //
+  // Applied only when the section also yielded at least one row that does not
+  // look like a heading. An Item 105(b) "Summary of Risk Factors" bullet list —
+  // which the segmenter accepts as this section, and which is all a filing
+  // carrying only the summary has — is written as bare unpunctuated phrases
+  // ("Risks related to our inability to complete an initial business
+  // combination"), indistinguishable in shape from a category heading. Dropping
+  // on shape alone would empty exactly those filings. When every row looks like
+  // a heading, the "headings" are the captions, so they are kept.
+  const captions = out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+  return captions.length > 0 ? captions : out;
 }
 
 export async function extractUseOfProceeds(

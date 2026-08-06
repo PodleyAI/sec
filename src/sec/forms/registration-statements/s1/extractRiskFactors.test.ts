@@ -88,6 +88,28 @@ describe("extractRiskFactors", () => {
     expect(rows.map((r) => r.headline)).toEqual(["Our securities may be delisted."]);
   });
 
+  it("keeps bare-phrase captions when the whole section is a summary bullet list", async () => {
+    // An Item 105(b) "Summary of Risk Factors" list — which the segmenter accepts
+    // as this section, and which is all a filing carrying only the summary has.
+    // Every bullet is a bare unpunctuated phrase mentioning "Risks", the same
+    // shape as a category heading, so dropping on shape alone empties it.
+    const bullets = [
+      "Risks related to our inability to complete an initial business combination",
+      "Risks related to our sponsor and management team",
+      "Risks related to our securities and the trust account",
+    ];
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: bullets.map((bullet) => risk(bullet, null)) },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors(
+      `Summary of Risk Factors\n\n${bullets.join("\n\n")}`,
+      fakeS1Model()
+    );
+    expect(rows.map((r) => r.headline)).toEqual(bullets);
+  });
+
   it("drops a row with a blank caption", async () => {
     const { unregister } = registerFakeStructuredProvider([
       { risks: [risk("  "), risk("A real risk.")] },
