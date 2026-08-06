@@ -16,6 +16,7 @@ import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/B
 import { ExecutiveCompensationRepo } from "../../../storage/executive-compensation/ExecutiveCompensationRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
 import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/CanonicalSponsorFamilyAliasRepo";
@@ -33,12 +34,16 @@ import {
   extractExecutiveCompensation,
   extractManagement,
   extractRelatedParty,
+  extractRiskFactors,
   extractSpacClassification,
   extractSpacProfile,
   extractSpacSponsors,
 } from "./s1/sectionExtractors";
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
+import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
+import type { RiskFactorRow } from "./s1/riskFactorSchema";
+import { getRiskFactorsConfidenceFloor, getRiskFactorsModel } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
 import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
 import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
@@ -51,6 +56,8 @@ import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
 const EXTRACTOR_ID = "S-1";
+/** Dead-letter section name for the risk-factor list. */
+const RISK_FACTORS_SECTION = "risk-factors";
 // Stays 1.0.0: there is no persisted data to re-extract, so the version-bump
 // ceremony — which exists only to make old dead-letters retry-eligible after a
 // prompt/schema change — is moot (and the runtime version is bootstrap-seeded
@@ -132,6 +139,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const ownershipRepo = new BeneficialOwnershipRepo();
   const relatedRepo = new RelatedPartyTransactionRepo();
   const compensationRepo = new ExecutiveCompensationRepo();
+  const riskFactorRepo = new RiskFactorRepo();
   const deadLetters = new ExtractionDeadLetterRepo();
 
   const sponsorFamilyResolver = new SponsorFamilyResolver({
@@ -145,6 +153,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
   await compensationRepo.clear(accession_number);
+  await riskFactorRepo.clear(accession_number);
   await linkRepo.clear(accession_number);
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
@@ -236,6 +245,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // Compensation Table is only knowable after segmentation, which these
       // paths never reached. A retry that finds none resolves the entry.
       S1_SECTIONS.EXECUTIVE_COMPENSATION,
+      RISK_FACTORS_SECTION,
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       // A SIC-miscoded, blank-check-looking non-SPAC filing gets a
@@ -277,6 +287,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // Compensation Table is only knowable after segmentation, which these
       // paths never reached. A retry that finds none resolves the entry.
       S1_SECTIONS.EXECUTIVE_COMPENSATION,
+      RISK_FACTORS_SECTION,
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
@@ -720,6 +731,88 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     });
   }
 
+  // --- Risk factors (the Item 105 list) ---
+  // The largest section in a prospectus, and the only one whose row count runs
+  // to dozens, so extraction is chunked (see `chunkRiskFactorText`) and carries
+  // its own model / floor knobs; the rest of the ceremony is the standard one.
+  const riskText = byName.get(S1_SECTIONS.RISK_FACTORS);
+  if (riskText === undefined || riskText.trim() === "") {
+    await recordFail(RISK_FACTORS_SECTION, "SECTION_NOT_FOUND", "no risk factors section text");
+  } else if (riskText.length > MAX_RISK_FACTORS_CHARS) {
+    // A section this large means the prospectus body collapsed under one
+    // heading rather than that the filer disclosed that many risks; extracting
+    // it would fan out into dozens of calls over prose that is mostly not risk
+    // disclosure. Record it for triage instead of paying for it.
+    await recordFail(
+      RISK_FACTORS_SECTION,
+      "OVERSIZED_INPUT",
+      `risk factors section of ${riskText.length} chars exceeds the ` +
+        `${MAX_RISK_FACTORS_CHARS} char cap`
+    );
+  } else {
+    let riskModel: ModelConfig | null = null;
+    let riskModelError: string | null = null;
+    try {
+      riskModel = args.model ?? (await getRiskFactorsModel());
+    } catch (err) {
+      riskModelError = err instanceof Error ? err.message : String(err);
+    }
+    if (riskModel === null) {
+      await recordFail(RISK_FACTORS_SECTION, "MODEL_RESOLUTION_ERROR", riskModelError);
+    } else {
+      const riskModelResolved = riskModel;
+      const riskRunSection = makeRunSection({
+        deadLetters,
+        extractor_id: EXTRACTOR_ID,
+        extractor_version,
+        accession_number,
+        confidenceFloor: getRiskFactorsConfidenceFloor(),
+      });
+      await riskRunSection<RiskFactorRow>({
+        sectionName: RISK_FACTORS_SECTION,
+        text: riskText,
+        emptyDetail: "no risk factors returned",
+        lowConfidenceDetail: "all rows below confidence floor",
+        invalidWriteDetail: "no risk factor rows carried a usable headline",
+        // Prompt-injection backstop, applied to the headline as well as the
+        // span: the caption IS the row's payload, so a paraphrased or invented
+        // risk is worthless even when the span it cites verifies. Verifying it
+        // also bounds the stored headline (the verifier rejects anything over
+        // 1000 raw chars) well inside the column's declared width.
+        verifyRow: (text, r) =>
+          verifyRowSpan(text, r.source_span) && verifyRowSpan(text, r.headline),
+        unverifiedAllDetail:
+          "all $T confident risk factor rows had headline/source_span not present in section text",
+        unverifiedPartialDetail:
+          "$N of $T confident risk factor rows had headline/source_span not present in section text",
+        extract: (text) => extractRiskFactors(text, riskModelResolved, args.context),
+        persist: async (rows) => {
+          const now = new Date().toISOString();
+          let riskIndex = 0;
+          for (const r of rows) {
+            const headline = r.headline?.trim() ?? "";
+            if (headline === "") continue;
+            const category = r.category?.trim() ?? "";
+            await riskFactorRepo.save({
+              extractor_id: EXTRACTOR_ID,
+              accession_number,
+              risk_index: riskIndex++,
+              cik,
+              // An over-long category is an annotation, not the row's identity:
+              // null it rather than fail the write (and the whole section).
+              category: category === "" || category.length > 512 ? null : category,
+              headline,
+              confidence: r.confidence,
+              source_span: boundSourceSpan(r.source_span),
+              created_at: now,
+            });
+          }
+          return riskIndex;
+        },
+      });
+    }
+  }
+
   await runOfferingSections({
     runSection,
     observer,
@@ -750,7 +843,15 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   await runSection<SpacSponsorRow>({
     sectionName: "spac-sponsors",
     skip: !isSpac,
-    text: byName.get(S1_SECTIONS.THE_SPONSOR) ?? [...byName.values()].join("\n\n"),
+    // The fallback concatenation excludes the risk-factor section: it is the
+    // largest section in the filing and names no sponsors, so folding it in
+    // would multiply this prompt for prose the extractor has to ignore.
+    text:
+      byName.get(S1_SECTIONS.THE_SPONSOR) ??
+      [...byName.entries()]
+        .filter(([name]) => name !== S1_SECTIONS.RISK_FACTORS)
+        .map(([, sectionText]) => sectionText)
+        .join("\n\n"),
     notFoundDetail: "no section text available for sponsor extraction",
     emptyDetail: "no sponsors returned",
     lowConfidenceDetail: "all rows below confidence floor",

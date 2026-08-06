@@ -21,6 +21,14 @@ export const DEAD_LETTER_REASON_CODES = [
   "PRIMARY_DOC_UNRESOLVED",
   "FETCH_ERROR",
   "PARSE_ERROR",
+  // A storage handler threw on already-parsed data: a shape the persist path
+  // does not handle, a constraint the row violates, or a backend error. Version
+  // gated like PARSE_ERROR — the fix is in the extractor's storage code, so the
+  // retry belongs after a version bump. A genuinely transient backend blip does
+  // not need the worklist: the run is recorded as a failure, so the ordinary
+  // forms sweep re-selects the filing on its next pass and a clean run resolves
+  // the entry.
+  "STORE_ERROR",
   "OVERSIZED_INPUT",
   // A structured-generation response that failed to echo back the
   // verification nonce planted in the trusted preamble (see NonceMismatchError)

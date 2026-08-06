@@ -241,6 +241,11 @@ import {
   UnderwriterLinkSchema,
 } from "../storage/canonical/UnderwriterLinkSchema";
 import {
+  RISK_FACTOR_REPOSITORY_TOKEN,
+  RiskFactorPrimaryKeyNames,
+  RiskFactorSchema,
+} from "../storage/risk-factor/RiskFactorSchema";
+import {
   USE_OF_PROCEEDS_REPOSITORY_TOKEN,
   UseOfProceedsPrimaryKeyNames,
   UseOfProceedsSchema,
@@ -1060,6 +1065,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // Mirrors spac_sponsor_link: issuer-led so the per-issuer read at the
     // active resolver version does not scan the table.
     indexes: [["accession_number"], ["underwriter_family_id"], ["issuer_cik", "resolver_version"]],
+  }),
+  defineStorage({
+    token: RISK_FACTOR_REPOSITORY_TOKEN,
+    table: "risk_factor",
+    schema: RiskFactorSchema,
+    primaryKeyNames: RiskFactorPrimaryKeyNames,
+    indexes: [["accession_number"], ["cik"]],
   }),
   defineStorage({
     token: USE_OF_PROCEEDS_REPOSITORY_TOKEN,

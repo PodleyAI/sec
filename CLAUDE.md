@@ -147,6 +147,32 @@ once the model/provider is registered, no version bump required
 (`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
 code stays version-gated (fix the extractor, bump the version, then retry).
 
+#### Filing-level dead-letters (every form, not just the AI ones)
+
+The per-section entries above are the AI extractors' story. `ProcessAccessionDocFormTask`
+adds a **filing-level** entry (`section_name = ""`, rendered `(filing)` by
+`sec extractor dead-letters`) for each of the four stages it can fail at, and in
+every case records the failure, marks the extractor run failed, and returns
+`{ success: false }` rather than throwing — one bad filing never aborts a sweep,
+and the entry is recoverable through the same `retry-dead-letters` ceremony:
+
+| stage                   | reason code              |
+| ----------------------- | ------------------------ |
+| no primary document     | `PRIMARY_DOC_UNRESOLVED` |
+| body fetch threw        | `FETCH_ERROR`            |
+| parse threw / was empty | `PARSE_ERROR`            |
+| storage handler threw   | `STORE_ERROR`            |
+
+This is what makes the structured-XML extractors (Form D, the Form C family,
+1-A/1-K/1-Z, ownership 3/4/5, 144, CFPORTAL) recoverable: they have no sections,
+so the filing-level key is the whole story for them. `STORE_ERROR` is
+version-gated like `PARSE_ERROR` — the fix lives in the extractor's storage code.
+A transient backend blip does not need the worklist at all: the failed run row
+makes the ordinary forms sweep re-select the filing, and a clean run resolves the
+entry automatically. Cooperative cancellation (Ctrl-C) is re-thrown from the
+store stage rather than dead-lettered, so an interrupted sweep does not stamp
+version-gated failures on filings it merely stopped mid-flight.
+
 ### Download-before-use harness
 
 Local model weights must be on disk before generation, and providers differ on
@@ -590,6 +616,66 @@ shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
 S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
 `EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
 
+#### Risk factors (Item 105 list)
+
+The prospectus risk-factor section yields one `risk_factor` row per disclosed
+risk, keyed `(extractor_id, accession_number, risk_index)` in document order:
+the filer's **caption** verbatim (the bolded lead-in sentence that introduces
+each risk) plus the **category heading** it sits under, as printed. The
+multi-paragraph body under each caption is deliberately not stored — the caption
+is the enumerable unit of the disclosure and the filing stays the body of
+record — and neither field is mapped to a taxonomy, so the rows stay faithful to
+the filing and any classification can be derived on top later. `verifyRow`
+checks the **headline as well as** the `source_span` against the section text: a
+paraphrased or invented caption is worthless even when the span it cites
+verifies, so it is dropped (and, when every row is, dead-lettered
+`UNVERIFIED_SOURCE_SPAN`). A category heading returned as if it were a risk is
+dropped by the same "enforce it, don't trust the prompt" guard the ownership
+subtotal gets — a heading is verbatim section text, so nothing downstream would
+otherwise stop it becoming a row that reads like a disclosed risk.
+
+Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
+the committed fixtures, against 40–57k for the sections that already dominate
+wall-clock — and the only one enumerating dozens of rows, which is what forces
+chunking: one response cannot hold ~90 captions without overrunning the
+extractors' output-token ceiling and truncating the JSON. `chunkRiskFactorText`
+(`s1/riskFactorChunks.ts`) splits the section on paragraph boundaries into
+40k-char chunks (~15–25 captions each, at the ~1.5–2.8k chars per risk the
+fixtures measure) and prefixes every chunk after the first with the last
+category heading seen before it — a verbatim line from the section, so spans
+still verify — and `extractRiskFactors` runs one call per chunk, concatenating
+in document order and de-duplicating on the caption. A
+chunk that fails propagates and fails the whole section: persisting the captions
+that happened to arrive first would record a silently partial list as if it were
+the filing's complete disclosure. A section over 400k chars is a segmentation
+failure (the prospectus body collapsed under one heading), not a real
+disclosure, and dead-letters `OVERSIZED_INPUT` instead of fanning out into dozens
+of calls — mirroring the redemption/LOI 8-K input caps.
+
+The segmenter's `Risk Factors` section also accepts the filer's own Item 105(b)
+"Summary of Risk Factors" bullet list as a heading variant: it enumerates the
+same captions in compressed form, and since the segmenter keeps the longest body
+per section name, a filing carrying both extracts from the full section while
+one carrying only the summary degrades to it rather than to nothing.
+
+Configure the model via `SEC_S1_RISK_FACTORS_MODEL` (default `SecModelDefault`)
+and an optional floor via `SEC_S1_RISK_FACTORS_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`). It gets its own knob because the chunked section
+dominates per-filing extraction cost — pointing just this section at a cheaper
+model is the reason to separate it. The `risk-factors` entry in
+`EVAL_EXTRACTORS` (with a golden two-category fixture) ranks the prompt, and
+`sec eval s1 --extractors risk-factors` sweeps the real committed sections.
+
+```bash
+sec eval extract --extractor risk-factors
+sec extractor dead-letters S-1            # includes the risk-factors section
+```
+
+Scoped to the S-1/F-1/DRS pipeline: the 424 processor shares the segmenter but
+does not re-extract risk factors (a priced prospectus restates the registration
+statement's risks), and no CLI query renders the table yet — same as the other
+AI-extracted prospectus tables (`use_of_proceeds`, `offering_terms`).
+
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
 > command are **not** supported for the family-tier resolver kinds
 > (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
@@ -962,16 +1048,16 @@ sec exposes the general downstream seams embarc-data (and future features) build
 
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets
-  included), the `current_canonical_*` views, `_storage_migrations`, and the
-  Postgres rate-limiter tables. The rate-limiter names are **derived**, not
-  literals: `PostgresRateLimiterStorage` names its tables after its prefix
-  columns, so `setupSecFetchRateLimiter` and the reset both read one
-  configuration (`SecFetchRateLimiterOptions` /
-  `secFetchRateLimiterTableNames`, `src/task/fetch/secFetchRateLimiterConfig.ts`)
-  — sharding the fetch budget by a prefix column renames the tables on both
-  sides at once instead of silently orphaning them (the derivation is pinned
-  against the installed storage's own migration DDL by
-  `resetAllDatabases.test.ts`). Every Postgres drop is schema-qualified to
+  included), the `current_canonical_*` views, and the Postgres rate-limiter
+  tables. The rate-limiter names are **derived**, not literals:
+  `PostgresRateLimiterStorage` names its tables after its prefix columns, so
+  `setupSecFetchRateLimiter` and the reset both read one configuration
+  (`SecFetchRateLimiterOptions` / `secFetchRateLimiterTableNames`,
+  `src/task/fetch/secFetchRateLimiterConfig.ts`) — sharding the fetch budget by
+  a prefix column renames the tables on both sides at once instead of silently
+  orphaning them (the derivation is pinned against the installed storage's own
+  migration DDL by `resetAllDatabases.test.ts`). Every Postgres drop is
+  schema-qualified to
   `current_schema()` — an unqualified name resolves through the search_path and
   would reach a same-named table in the *next* schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
@@ -981,6 +1067,21 @@ sec exposes the general downstream seams embarc-data (and future features) build
   whole set of drops runs in one transaction, so a blocked drop rolls the
   earlier ones back rather than leaving a half-dropped database that the failed
   command never recreates.
+
+  `_storage_migrations` is **not** dropped. It is `@workglow/storage`'s
+  applied-version ledger — one fixed-name table that every package built on the
+  library records into, a row per `(component, version)` — so dropping it would
+  take a co-tenant's rows with it and make their next setup replay `addColumn`
+  ops against tables that already carry those columns. It is left standing and
+  reported like any other unowned table. Its rows are still scoped, though:
+  the reset issues a `DELETE ... WHERE component = ANY(...)` over the components
+  sec's own setup records under, read back from the storage that writes them
+  (`secFetchRateLimiterLedgerComponents`). That delete is mandatory, not tidy —
+  a runner skips a `(component, version)` it finds recorded, so a row outliving
+  the table its migration created would stop `db setup` from ever recreating it.
+  Today the set is exactly the Postgres rate limiter's: no sec table declares
+  tabular migrations, and `createStorage` does not accept them. `--drop-schema`
+  still takes the ledger, along with everything else in the schema.
 
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).

@@ -12,6 +12,7 @@ import {
   extractManagement,
   extractOfferingTerms,
   extractRelatedParty,
+  extractRiskFactors,
   extractSpacClassification,
   extractSponsorPromote,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
@@ -65,6 +66,16 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
     instructionOverheadChars: 1000,
+  },
+  // List extractor over a prospectus Item 105 section: one row per risk-factor
+  // caption. Scored on the caption (verbatim) and the category heading it sits
+  // under — the section's introductory prose and category headings themselves
+  // must NOT produce rows, so emitting one costs precision.
+  "risk-factors": {
+    run: (text, model, context) => extractRiskFactors(text, model, context),
+    keyField: "headline",
+    compareFields: ["headline", "category"],
+    instructionOverheadChars: 1300,
   },
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
@@ -359,6 +370,42 @@ The following table sets forth information concerning the compensation paid to o
 | --- | --- | --- | --- |
 | Tobias Brennan | 45,000 | 120,000 | 165,000 |
 | Yuki Tanabe | 42,500 | 120,000 | 162,500 |`;
+/**
+ * Prospectus risk-factor prose for the `risk-factors` extractor: two category
+ * headings, five captions with explanatory bodies underneath, plus the two
+ * shapes the prompt forbids — the section's introductory paragraph and a
+ * cross-reference to risks disclosed elsewhere — so emitting either costs
+ * precision.
+ */
+const RISK_FACTORS_SPAC = `RISK FACTORS
+
+An investment in our securities involves a high degree of risk. You should consider carefully all of the risks described below, together with the other information contained in this prospectus, before making a decision to invest in our units.
+
+Risks Relating to our Search for, and Consummation of, a Business Combination
+
+We are a blank check company with no operating history and no revenues, and you have no basis on which to evaluate our ability to achieve our business objective.
+
+We are a recently incorporated company with no operating results, and we will not commence operations until obtaining funding through this offering. Because we lack an operating history, you have no basis upon which to evaluate our ability to achieve our business objective of completing our initial business combination.
+
+Our public shareholders may not be afforded an opportunity to vote on our proposed initial business combination.
+
+We may choose not to hold a shareholder vote before we complete our initial business combination if the business combination would not require shareholder approval under applicable law or stock exchange listing requirements.
+
+If we are unable to consummate an initial business combination within 24 months of the closing of this offering, our public shareholders may receive only approximately $10.00 per share on the liquidation of our trust account.
+
+We may not be able to find a suitable target business and complete our initial business combination within the prescribed time frame. Our sponsor, officers and directors have agreed that we must complete our initial business combination within 24 months of the closing of this offering.
+
+Risks Relating to our Securities
+
+There is currently no market for our securities and a market may never develop, which could adversely affect the liquidity and price of our securities.
+
+There is currently no market for our securities. Shareholders therefore have no access to information about prior market history on which to base their investment decision.
+
+We may issue additional shares or other equity securities without shareholder approval, which would dilute the ownership interests of our shareholders.
+
+Our amended and restated memorandum and articles of association authorize the issuance of additional Class A ordinary shares and preference shares. We may issue such shares to complete our initial business combination.
+
+For a discussion of the risks relating to our sponsor and its affiliates, see the section entitled "Risks Relating to our Sponsor and Management Team" in our most recent Annual Report on Form 10-K.`;
 
 export const EVAL_FIXTURES: readonly EvalFixture[] = [
   {
@@ -432,6 +479,38 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     extractor: "spac-classification",
     text: CLASSIFY_OPERATING,
     expected: [],
+  },
+  {
+    name: "risk-factors-spac-two-categories",
+    extractor: "risk-factors",
+    text: RISK_FACTORS_SPAC,
+    expected: [
+      {
+        headline:
+          "We are a blank check company with no operating history and no revenues, and you have no basis on which to evaluate our ability to achieve our business objective.",
+        category: "Risks Relating to our Search for, and Consummation of, a Business Combination",
+      },
+      {
+        headline:
+          "Our public shareholders may not be afforded an opportunity to vote on our proposed initial business combination.",
+        category: "Risks Relating to our Search for, and Consummation of, a Business Combination",
+      },
+      {
+        headline:
+          "If we are unable to consummate an initial business combination within 24 months of the closing of this offering, our public shareholders may receive only approximately $10.00 per share on the liquidation of our trust account.",
+        category: "Risks Relating to our Search for, and Consummation of, a Business Combination",
+      },
+      {
+        headline:
+          "There is currently no market for our securities and a market may never develop, which could adversely affect the liquidity and price of our securities.",
+        category: "Risks Relating to our Securities",
+      },
+      {
+        headline:
+          "We may issue additional shares or other equity securities without shareholder approval, which would dilute the ownership interests of our shareholders.",
+        category: "Risks Relating to our Securities",
+      },
+    ],
   },
   {
     name: "s1-management-operating-company",

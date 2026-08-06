@@ -74,9 +74,11 @@ export class RetryDeadLettersTask extends Task<
     let failed = 0;
     for (const accessionNumber of accessions) {
       if (context.signal?.aborted) throw new TaskAbortedError();
-      // Isolate each accession: ProcessAccessionDocFormTask rethrows hard
-      // parse/store errors, and a recovery sweep must grind through the whole
-      // worklist rather than abandon every later accession on one bad filing.
+      // Isolate each accession: ProcessAccessionDocFormTask still throws for
+      // failures it cannot attribute to a filing (unknown accession, no form
+      // type, no registered extractor or active slot), and a recovery sweep
+      // must grind through the whole worklist rather than abandon every later
+      // accession on one bad filing.
       try {
         const wf = context.own(new Workflow(), { title: `Reprocess ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
