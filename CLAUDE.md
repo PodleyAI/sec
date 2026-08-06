@@ -86,9 +86,13 @@ sec canonical person alias-remove "<name>"
 sec canonical person alias-list
 sec canonical person alias-list --orphans     # names whose target no longer exists
 
-# Coverage and cleanup
+# Coverage — person | company | sponsor-family | underwriter-family
 sec version coverage resolver person
 sec version coverage resolver company
+sec version coverage resolver sponsor-family
+
+# Cleanup — drop-previous is person/company only; the family kinds error
+# (no rebuild path — see the family-tier note further down)
 sec version drop-previous resolver person
 sec version drop-previous resolver company
 sec version drop-previous extractor <extractor-id>
@@ -676,11 +680,46 @@ does not re-extract risk factors (a priced prospectus restates the registration
 statement's risks), and no CLI query renders the table yet — same as the other
 AI-extracted prospectus tables (`use_of_proceeds`, `offering_terms`).
 
-> Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
-> command are **not** supported for the family-tier resolver kinds
-> (`underwriter-family`, `sponsor-family`) — they intentionally error rather than
-> operate on the company tier. Family-tier coverage/purge wiring is deferred (see the
-> status doc's deferred cleanups).
+The family-tier resolver kinds (`sponsor-family`, `underwriter-family`) support the
+`coverage` ceremony, scoped to each tier's own version-scoped tables:
+
+| kind                 | canonical                      | membership                      | per-filing link     |
+| -------------------- | ------------------------------ | ------------------------------- | ------------------- |
+| `sponsor-family`     | `canonical_sponsor_family`     | `sponsor_family_membership`     | `spac_sponsor_link` |
+| `underwriter-family` | `canonical_underwriter_family` | `underwriter_family_membership` | `underwriter_link`  |
+
+There is no observation -> identity-link table here: the per-filing **link row is**
+the family-tier fact, keyed `(accession_number, extractor_id, observation_index)`
+with `resolver_version` as a plain column. So exactly one row exists per fact,
+carrying whichever version last wrote it, and **coverage** is the share of link
+rows already attributed at the target version (`1.0` = every recorded family fact
+re-resolved).
+
+```bash
+sec version coverage resolver sponsor-family
+sec version coverage resolver underwriter-family
+```
+
+> **`drop-previous` is deliberately NOT supported for the family kinds** and still
+> errors. On the person/company tier a purge is safe because identity links are
+> _derived_: the observation rows survive it, so `sec resolve` rebuilds every link
+> it removed. The family tier has no such backstop — the link row **is** the
+> attribution, not a projection of something that outlives it — and batch
+> `sec resolve` refuses family kinds, so nothing can rebuild what a purge deletes.
+> Recovery would mean re-extracting every affected S-1/424 and re-paying the AI
+> cost for all of them. The ceremony is symmetric in shape across the four kinds
+> but not in consequence, and the asymmetry is invisible at the call site, so the
+> destructive half stays unregistered until a family `resolve` exists to restore
+> the rebuild invariant the other kinds rely on.
+
+> Batch `sec resolve` refuses any kind outside its `person|company` allow-list
+> rather than falling through to the company resolver. A family is keyed off the
+> sponsor/underwriter **common** name the AI extractor emitted; only the legal name
+> reaches the observation row, and the canonical family retains just one variant's
+> display name — so a batch pass cannot faithfully re-partition families (a
+> normalizer change that splits a family would reassign every member from that
+> single stored name). Re-extraction (`sec extractor backfill S-1`) is the rebuild
+> path today.
 
 ### SPAC consolidated report
 
@@ -1059,7 +1098,7 @@ sec exposes the general downstream seams embarc-data (and future features) build
   migration DDL by `resetAllDatabases.test.ts`). Every Postgres drop is
   schema-qualified to
   `current_schema()` — an unqualified name resolves through the search_path and
-  would reach a same-named table in the *next* schema on it. Tables it does not
+  would reach a same-named table in the _next_ schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
   objects; `--drop-schema` restores the old whole-schema drop (Postgres only,
   destroys unowned objects too). A drop blocked by a dependent object raises an

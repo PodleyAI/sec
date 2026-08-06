@@ -273,6 +273,23 @@ describe("sec version CLI", () => {
     }
   });
 
+  it("coverage resolver sponsor-family / underwriter-family report instead of erroring", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      for (const kind of ["sponsor-family", "underwriter-family"]) {
+        const result = await runCli(["version", "coverage", "resolver", kind], dir);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(`resolver:${kind}@`);
+        expect(result.stdout).toContain("0/0");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("rejects start-dev for an unknown extractor id", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-version-test-"));
     try {

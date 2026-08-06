@@ -22,11 +22,13 @@ test("registers the built-in sec resolver kinds", () => {
   }
 });
 
-test("families are family-tier with no coverage/dropPrevious", () => {
+test("families are family-tier, expose coverage, and register no purge", () => {
   registerSecResolvers();
   for (const id of ["sponsor-family", "underwriter-family"]) {
     expect(isFamilyResolverId(id)).toBe(true);
-    expect(getResolverExtension(id)?.coverage).toBeUndefined();
+    expect(typeof getResolverExtension(id)?.coverage).toBe("function");
+    // Deliberately absent: a family purge has no rebuild path, since the link
+    // row is the attribution itself and `sec resolve` refuses family kinds.
     expect(getResolverExtension(id)?.dropPrevious).toBeUndefined();
   }
 });

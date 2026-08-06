@@ -8,6 +8,8 @@ import type { Command } from "commander";
 import { resolverIds, isFamilyResolverId } from "../../resolver/resolverIds";
 import { isValidSemver } from "../../storage/versioning/VersionRegistry";
 import {
+  BATCH_RESOLVABLE_KINDS,
+  isBatchResolvableKind,
   ResolveObservationsTask,
   type ResolveObservationsTaskOutput,
 } from "../../task/resolve/ResolveObservationsTask";
@@ -25,17 +27,27 @@ export function addResolveCommands(program: Command): void {
       // runCommand: a validation throw renders a clean error + sets exit code
       // 1 without bypassing the top-level queue/DB teardown (process.exit would).
       await runCommand(async () => {
-        if (!resolverIds().includes(opts.kind)) {
+        const kind = opts.kind;
+        if (!resolverIds().includes(kind)) {
           throw new Error(`--kind must be one of ${resolverIds().join("|")}`);
         }
-        // Family-tier resolvers run inline during S-1 extraction (keyed off the
-        // sponsor/underwriter common name), not as a batch pass over
-        // observations. Refuse here rather than silently running the company
-        // resolver and writing mislabeled company identity-link rows.
-        if (isFamilyResolverId(opts.kind)) {
+        // Only kinds whose resolution input is persisted on the observation row
+        // can be re-resolved from storage. A registered kind outside that set is
+        // refused rather than run under a kind it was not written for.
+        if (!isBatchResolvableKind(kind)) {
+          // A family is keyed off the sponsor/underwriter *common* name the AI
+          // extractor emitted; only the legal name reaches the observation row,
+          // and the canonical family keeps just one variant's display name. A
+          // batch pass therefore cannot re-partition families faithfully — a
+          // normalizer change that splits one family would reassign every member
+          // from that single stored name. Re-extraction is the rebuild path.
+          const why = isFamilyResolverId(kind)
+            ? `; family resolution runs inline during extraction, off the extracted ` +
+              `common name that is never persisted — re-extract to rebuild it`
+            : "";
           throw new Error(
-            `'sec resolve' does not support family resolver kind '${opts.kind}'; ` +
-              `family resolution happens inline during S-1 extraction`
+            `'sec resolve' does not support resolver kind '${kind}' ` +
+              `(batch-resolvable kinds: ${BATCH_RESOLVABLE_KINDS.join("|")})${why}`
           );
         }
         if (!opts.all) {
@@ -47,7 +59,6 @@ export function addResolveCommands(program: Command): void {
           );
         }
 
-        const kind = opts.kind as "person" | "company";
         const { count } = await runWorkflowCli<ResolveObservationsTaskOutput>([
           new ResolveObservationsTask({
             defaults: { kind, resolverVersion: opts.resolverVersion },

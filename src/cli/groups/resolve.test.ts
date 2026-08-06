@@ -152,6 +152,24 @@ describe("sec resolve CLI", () => {
     }
   });
 
+  it("resolve --kind sponsor-family is refused rather than run as company", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "sponsor-family", "--resolver-version", "1.0.0", "--all"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr + result.stdout).toMatch(/does not support resolver kind/);
+      expect(result.stderr + result.stdout).toMatch(/person\|company/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("resolve without --all exits with error", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
     try {
