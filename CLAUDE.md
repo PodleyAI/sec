@@ -909,16 +909,16 @@ sec exposes the general downstream seams embarc-data (and future features) build
 
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets
-  included), the `current_canonical_*` views, `_storage_migrations`, and the
-  Postgres rate-limiter tables. The rate-limiter names are **derived**, not
-  literals: `PostgresRateLimiterStorage` names its tables after its prefix
-  columns, so `setupSecFetchRateLimiter` and the reset both read one
-  configuration (`SecFetchRateLimiterOptions` /
-  `secFetchRateLimiterTableNames`, `src/task/fetch/secFetchRateLimiterConfig.ts`)
-  — sharding the fetch budget by a prefix column renames the tables on both
-  sides at once instead of silently orphaning them (the derivation is pinned
-  against the installed storage's own migration DDL by
-  `resetAllDatabases.test.ts`). Every Postgres drop is schema-qualified to
+  included), the `current_canonical_*` views, and the Postgres rate-limiter
+  tables. The rate-limiter names are **derived**, not literals:
+  `PostgresRateLimiterStorage` names its tables after its prefix columns, so
+  `setupSecFetchRateLimiter` and the reset both read one configuration
+  (`SecFetchRateLimiterOptions` / `secFetchRateLimiterTableNames`,
+  `src/task/fetch/secFetchRateLimiterConfig.ts`) — sharding the fetch budget by
+  a prefix column renames the tables on both sides at once instead of silently
+  orphaning them (the derivation is pinned against the installed storage's own
+  migration DDL by `resetAllDatabases.test.ts`). Every Postgres drop is
+  schema-qualified to
   `current_schema()` — an unqualified name resolves through the search_path and
   would reach a same-named table in the *next* schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
@@ -928,6 +928,21 @@ sec exposes the general downstream seams embarc-data (and future features) build
   whole set of drops runs in one transaction, so a blocked drop rolls the
   earlier ones back rather than leaving a half-dropped database that the failed
   command never recreates.
+
+  `_storage_migrations` is **not** dropped. It is `@workglow/storage`'s
+  applied-version ledger — one fixed-name table that every package built on the
+  library records into, a row per `(component, version)` — so dropping it would
+  take a co-tenant's rows with it and make their next setup replay `addColumn`
+  ops against tables that already carry those columns. It is left standing and
+  reported like any other unowned table. Its rows are still scoped, though:
+  the reset issues a `DELETE ... WHERE component = ANY(...)` over the components
+  sec's own setup records under, read back from the storage that writes them
+  (`secFetchRateLimiterLedgerComponents`). That delete is mandatory, not tidy —
+  a runner skips a `(component, version)` it finds recorded, so a row outliving
+  the table its migration created would stop `db setup` from ever recreating it.
+  Today the set is exactly the Postgres rate limiter's: no sec table declares
+  tabular migrations, and `createStorage` does not accept them. `--drop-schema`
+  still takes the ledger, along with everything else in the schema.
 
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).
