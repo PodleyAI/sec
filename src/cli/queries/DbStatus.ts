@@ -1,5 +1,7 @@
 import type { ServiceToken } from "workglow";
 import { globalServiceRegistry } from "workglow";
+import { getPgPool } from "../../util/pg";
+import { resolveSqlBackend } from "../../util/sqlBackend";
 import { ADDRESS_REPOSITORY_TOKEN } from "../../storage/address/AddressSchema";
 import { CIK_NAME_REPOSITORY_TOKEN } from "../../storage/entity/CikNameSchema";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
@@ -45,47 +47,90 @@ export interface TableStat {
   readonly rows: number;
 }
 
+/** A repository whose row count is included in the `db stats` command. */
+export interface DbStatsTable {
+  readonly table: string;
+  readonly token: ServiceToken<{ size(): Promise<number> }>;
+}
+
+/** Controls whether database counts may use Postgres catalog estimates. */
+export interface DbCountOptions {
+  /** Force exact storage-level counts, including on Postgres. */
+  readonly exact?: boolean;
+}
+
 /**
  * Counts rows in a repository via the storage `size()` method rather than
  * loading every entity with `getAll()`. `cik_names` in particular has ~1M rows,
  * so `getAll()` would be both slow and memory-hungry.
  */
-async function countRows(token: ServiceToken<{ size(): Promise<number> }>): Promise<number> {
+interface CountableRepository {
+  size(): Promise<number>;
+  isDurable?(): boolean;
+}
+
+/**
+ * Counts rows through the storage interface. This exact path is used for
+ * status metrics and every non-Postgres backend.
+ */
+async function countRows(
+  token: ServiceToken<CountableRepository>
+): Promise<number> {
   const repo = globalServiceRegistry.get(token);
   return await repo.size();
 }
 
-export async function getDbStatus(): Promise<DbStatusResult> {
-  const [
-    entityCount,
-    filingCount,
-    factsCount,
-    processedSubmissions,
-    processedFacts,
-    extractorRuns,
-  ] = await Promise.all([
-    countRows(ENTITY_REPOSITORY_TOKEN as any),
-    countRows(FILING_REPOSITORY_TOKEN as any),
-    countRows(COMPANY_FACTS_REPOSITORY_TOKEN as any),
-    countRows(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any),
-    countRows(PROCESSED_FACTS_REPOSITORY_TOKEN as any),
-    countRows(EXTRACTOR_RUN_REPOSITORY_TOKEN as any),
-  ]);
-
-  return {
-    entityCount,
-    filingCount,
-    factsCount,
-    processedSubmissions,
-    processedFacts,
-    extractorRuns,
-  };
+/**
+ * Uses Postgres' live-tuple statistic for a fast, approximate count. SQLite
+ * and non-durable test repositories use the exact storage-level count.
+ * PostgreSQL updates this statistic through ANALYZE/autovacuum, so it can lag
+ * recent writes and must not be used where an exact cardinality is required.
+ */
+async function countTableRows(
+  table: string,
+  token: ServiceToken<CountableRepository>,
+  exact = false
+): Promise<number> {
+  const repo = globalServiceRegistry.get(token);
+  if (!exact && resolveSqlBackend("read", repo) === "postgres") {
+    const result = await getPgPool().query<{ estimated_count: string | number }>(
+      `SELECT n_live_tup::bigint AS estimated_count
+       FROM pg_stat_user_tables
+       WHERE relid = to_regclass($1)`,
+      [table]
+    );
+    const estimated = result.rows[0]?.estimated_count;
+    if (estimated !== undefined) return Number(estimated);
+  }
+  return await countRows(token);
 }
 
-const TABLE_TOKENS: ReadonlyArray<{
+const STATUS_TABLES: readonly {
+  readonly key: keyof DbStatusResult;
   readonly table: string;
-  readonly token: ServiceToken<{ size(): Promise<number> }>;
-}> = [
+  readonly token: ServiceToken<CountableRepository>;
+}[] = [
+  { key: "entityCount", table: "entity", token: ENTITY_REPOSITORY_TOKEN as any },
+  { key: "filingCount", table: "filing", token: FILING_REPOSITORY_TOKEN as any },
+  { key: "factsCount", table: "company_facts", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },
+  {
+    key: "processedSubmissions",
+    table: "processed_submissions",
+    token: PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any,
+  },
+  { key: "processedFacts", table: "processed_facts", token: PROCESSED_FACTS_REPOSITORY_TOKEN as any },
+  { key: "extractorRuns", table: "extractor_runs", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
+];
+
+export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatusResult> {
+  const result = {} as Record<keyof DbStatusResult, number>;
+  for (const { key, table, token } of STATUS_TABLES) {
+    result[key] = await countTableRows(table, token, options.exact === true);
+  }
+  return result;
+}
+
+const TABLE_TOKENS: readonly DbStatsTable[] = [
   { table: "cik_names", token: CIK_NAME_REPOSITORY_TOKEN as any },
   { table: "entity", token: ENTITY_REPOSITORY_TOKEN as any },
   { table: "filing", token: FILING_REPOSITORY_TOKEN as any },
@@ -112,12 +157,42 @@ const TABLE_TOKENS: ReadonlyArray<{
   { table: "form144_recent_sales", token: FORM144_RECENT_SALE_REPOSITORY_TOKEN as any },
 ];
 
-export async function getDbStats(): Promise<TableStat[]> {
-  const results = await Promise.all(
-    TABLE_TOKENS.map(async ({ table, token }) => {
-      const rows = await countRows(token);
-      return { table, rows };
-    })
-  );
+const extensionTableTokens = new Map<string, DbStatsTable>();
+
+/**
+ * Adds a downstream package's tables to the standard `db stats` report.
+ * Tables are keyed by name so repeated CLI construction remains idempotent.
+ */
+export function registerDbStatsTables(tables: readonly DbStatsTable[]): void {
+  for (const table of tables) {
+    if (TABLE_TOKENS.some((builtIn) => builtIn.table === table.table)) {
+      throw new Error(`db stats table is already owned by sec: ${table.table}`);
+    }
+    extensionTableTokens.set(table.table, table);
+  }
+}
+
+/**
+ * Counts each table in order so the task runner can render useful progress
+ * while a database with many extension tables is being inspected.
+ */
+export async function getDbStats(
+  onProgress?: (progress: number, message: string) => void | Promise<void>,
+  options: DbCountOptions = {}
+): Promise<TableStat[]> {
+  const tables = [...TABLE_TOKENS, ...extensionTableTokens.values()];
+  const results: TableStat[] = [];
+  for (const [index, { table, token }] of tables.entries()) {
+    const current = index + 1;
+    await onProgress?.(
+      Math.round((index / tables.length) * 100),
+      `counting ${table} (${current}/${tables.length})`
+    );
+    results.push({ table, rows: await countTableRows(table, token, options.exact === true) });
+    await onProgress?.(
+      Math.round((current / tables.length) * 100),
+      `counted ${table} (${current}/${tables.length})`
+    );
+  }
   return results;
 }

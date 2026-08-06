@@ -31,6 +31,7 @@ export { isJsonOutput } from "./cli/isJsonOutput";
 export * from "./cli/output";
 export { runCommand } from "./cli/runCommand";
 export { runWorkflowCli } from "./cli/runWorkflow";
+export { getDbStats, registerDbStatsTables, type DbStatsTable } from "./cli/queries/DbStatus";
 export { AddCommands } from "./commands";
 
 // ── Config / dependency injection ───────────────────────────────────────────

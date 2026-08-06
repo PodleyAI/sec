@@ -4,17 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Type } from "typebox";
+import { Static, Type } from "typebox";
 import { Task } from "workglow";
 import { getDbStatus, type DbStatusResult } from "../../cli/queries/DbStatus";
 import type { TaskPorts } from "../taskPorts";
 
+const InputSchema = () => Type.Object({ exact: Type.Optional(Type.Boolean({ default: false })) });
+type DbStatusTaskInput = Static<ReturnType<typeof InputSchema>>;
+
 /** Reads headline row counts for the database status view. */
-export class DbStatusTask extends Task<Record<string, never>, TaskPorts<DbStatusResult>> {
+export class DbStatusTask extends Task<DbStatusTaskInput, TaskPorts<DbStatusResult>> {
   static readonly type = "DbStatusTask";
   static readonly category = "SEC";
   static readonly title = "Database status";
   static readonly cacheable = false;
+
+  public static inputSchema() {
+    return InputSchema();
+  }
 
   public static outputSchema() {
     return Type.Object({
@@ -27,7 +34,7 @@ export class DbStatusTask extends Task<Record<string, never>, TaskPorts<DbStatus
     });
   }
 
-  async execute(): Promise<TaskPorts<DbStatusResult>> {
-    return getDbStatus();
+  async execute(input: DbStatusTaskInput): Promise<TaskPorts<DbStatusResult>> {
+    return getDbStatus({ exact: input.exact === true });
   }
 }

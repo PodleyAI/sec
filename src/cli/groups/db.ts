@@ -22,9 +22,12 @@ export function addDbCommands(program: Command): void {
   db.command("status")
     .description("Show database connection status")
     .option("--format <format>", "Output format (table, json)", "table")
-    .action(async (options: Record<string, string>) => {
+    .option("--exact", "Use exact counts instead of fast Postgres estimates")
+    .action(async (options: { format?: string; exact?: boolean }) => {
       await runCommand(async () => {
-        const status = await runWorkflowCli<DbStatusResult>([new DbStatusTask()]);
+        const status = await runWorkflowCli<DbStatusResult>([
+          new DbStatusTask({ defaults: { exact: options.exact === true } }),
+        ]);
 
         if (options.format === "json") {
           console.log(JSON.stringify(status, null, 2));
@@ -45,9 +48,12 @@ export function addDbCommands(program: Command): void {
   db.command("stats")
     .description("Show row counts and database size")
     .option("--format <format>", "Output format (table, json)", "table")
-    .action(async (options: Record<string, string>) => {
+    .option("--exact", "Use exact counts instead of fast Postgres estimates")
+    .action(async (options: { format?: string; exact?: boolean }) => {
       await runCommand(async () => {
-        const { tables } = await runWorkflowCli<DbStatsTaskOutput>([new DbStatsTask()]);
+        const { tables } = await runWorkflowCli<DbStatsTaskOutput>([
+          new DbStatsTask({ defaults: { exact: options.exact === true } }),
+        ]);
 
         const columns = [
           { key: "table", header: "Table", width: 25 },
