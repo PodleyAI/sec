@@ -21,10 +21,15 @@ const WRITE_BATCH = 1_000;
 
 /**
  * CIKs per `in`-list query. SQLite binds one parameter per value and stays
- * subject to SQLITE_MAX_VARIABLE_NUMBER (999 on builds predating SQLite 3.32),
- * so the list is chunked below it; Postgres binds the whole list as one array.
+ * subject to SQLITE_MAX_VARIABLE_NUMBER, so the list is chunked below it;
+ * Postgres binds the whole list as one array parameter and needs no chunking.
+ *
+ * The limit has defaulted to 32766 since SQLite 3.32 (2020) — the 999 of older
+ * builds is not a constraint here, since bun ships 3.51 and `better-sqlite3`
+ * ^13 is comparably recent. Chunking at 30k keeps headroom under that while
+ * putting a realistic candidate scan (thousands of CIKs) in a single query.
  */
-const MAX_IDS_PER_QUERY = 900;
+const MAX_IDS_PER_QUERY = 30_000;
 
 export type IdentifySpacsTaskInput = {
   /** Rescan every entity instead of only those whose submissions changed. */
