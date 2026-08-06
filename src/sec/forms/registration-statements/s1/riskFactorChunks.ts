@@ -1,0 +1,104 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Characters of section prose handed to one structured-generation call. The
+ * limit exists for the RESPONSE, not the prompt: a prospectus risk-factor
+ * section enumerates 50–120 captions, and asking for all of them in one
+ * response overruns the extractors' shared output-token ceiling, which
+ * truncates the JSON and fails the whole section. Real sections run ~1.5–2.8k
+ * chars per risk, so a chunk this size carries roughly 15–25 captions — well
+ * inside that ceiling — and a long section becomes a handful of independent,
+ * individually-bounded enumerations.
+ */
+export const RISK_FACTOR_CHUNK_CHARS = 40_000;
+
+/**
+ * Hard ceiling on the whole section. A risk-factor section this large is a
+ * segmentation failure (the prospectus body collapsed under one heading), not a
+ * real disclosure — the largest real section measured across the committed
+ * fixtures is ~246k chars. Extracting it anyway would fan out into dozens of
+ * model calls per filing, so the caller records `OVERSIZED_INPUT` instead.
+ */
+export const MAX_RISK_FACTORS_CHARS = 400_000;
+
+/** Upper bound on a category heading's length; real ones run well under it. */
+const CATEGORY_MAX_CHARS = 200;
+
+function stripHeadingMarkers(paragraph: string): string {
+  return paragraph.replace(/^#{1,6}\s*/, "").trim();
+}
+
+/**
+ * A category heading inside the risk-factor section ("Risks Relating to our
+ * Securities", "General Risk Factors", "RISKS RELATED TO GOLD"). Detected
+ * structurally rather than by matching a fixed vocabulary: short, mentions
+ * risk, and — unlike a risk caption, which is a full sentence — does not end in
+ * sentence punctuation.
+ *
+ * Two callers: {@link chunkRiskFactorText} carries the last heading into the
+ * next chunk, where a false positive costs only a redundant context line; and
+ * the extractor drops a returned row whose caption looks like a heading, where a
+ * false positive drops a caption written as a bare phrase. The terminal-
+ * punctuation rule is what keeps that second case rare, and erring that way is
+ * deliberate — a heading persisted as a row reads like a disclosed risk.
+ */
+export function isRiskCategoryHeading(paragraph: string): boolean {
+  const line = stripHeadingMarkers(paragraph);
+  if (line.length === 0 || line.length > CATEGORY_MAX_CHARS) return false;
+  if (line.includes("\n")) return false;
+  if (/[.?!;:]$/.test(line)) return false;
+  return /\brisks?\b/i.test(line);
+}
+
+/**
+ * Splits risk-factor section prose into chunks of at most `maxChars`, never
+ * cutting a paragraph. Each chunk after the first is prefixed with the most
+ * recent category heading seen before it, so a chunk that starts mid-category
+ * can still attribute its captions. That prefix is a verbatim line from the
+ * section, so a caption or span quoting it still verifies against the full
+ * section text.
+ *
+ * A single paragraph longer than `maxChars` becomes its own oversized chunk:
+ * splitting inside it would hand the model half a caption and produce a row
+ * that cannot verify.
+ */
+export function chunkRiskFactorText(
+  text: string,
+  maxChars: number = RISK_FACTOR_CHUNK_CHARS
+): string[] {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (paragraphs.length === 0) return [];
+
+  const chunks: string[] = [];
+  let current: string[] = [];
+  let currentChars = 0;
+  let carriedCategory: string | null = null;
+  let lastCategory: string | null = null;
+
+  const flush = (): void => {
+    if (current.length === 0) return;
+    // A chunk that already opens on a category heading needs no carried one.
+    const prefix =
+      carriedCategory !== null && !isRiskCategoryHeading(current[0]) ? [carriedCategory] : [];
+    chunks.push([...prefix, ...current].join("\n\n"));
+    carriedCategory = lastCategory;
+    current = [];
+    currentChars = 0;
+  };
+
+  for (const paragraph of paragraphs) {
+    if (currentChars > 0 && currentChars + paragraph.length > maxChars) flush();
+    current.push(paragraph);
+    currentChars += paragraph.length + 2;
+    if (isRiskCategoryHeading(paragraph)) lastCategory = paragraph;
+  }
+  flush();
+  return chunks;
+}

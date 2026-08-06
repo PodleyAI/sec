@@ -32,6 +32,8 @@ import {
 } from "./spacClassifierSchema";
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
+import { chunkRiskFactorText, isRiskCategoryHeading } from "./riskFactorChunks";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
@@ -878,6 +880,89 @@ export async function extractMergerDeal(
   );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as MergerDealRow;
+}
+
+/**
+ * Normalized key for risk-caption de-duplication: a caption repeated across
+ * chunks (a category heading carried into the next chunk can invite one) is the
+ * same disclosure, not a second risk.
+ */
+function riskHeadlineKey(headline: string | null | undefined): string {
+  return (headline ?? "")
+    .normalize("NFKC")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Extracts the risk-factor list from a prospectus Item 105 section. The section
+ * is the largest in an S-1 and enumerates far more rows than one response can
+ * hold, so the text is split into paragraph-aligned chunks
+ * ({@link chunkRiskFactorText}) and each is enumerated by its own call; rows are
+ * concatenated in document order and de-duplicated on the caption.
+ *
+ * A chunk that fails propagates, failing the section as a whole: persisting the
+ * captions that happened to come back before the failure would record a
+ * silently partial list as if it were the filing's complete disclosure.
+ */
+export async function extractRiskFactors(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<RiskFactorRow[]> {
+  const instructions =
+    "Extract the list of RISK FACTORS from the prospectus text between the tags below. " +
+    "A risk factor is introduced by a caption — a single (usually bolded) sentence such as " +
+    "'We are a blank check company with no operating history and no revenues.' — followed by " +
+    "one or more explanatory paragraphs. Emit ONE row per risk factor caption, in the order " +
+    "they appear. Give headline: the caption copied VERBATIM from the text (never a " +
+    "paraphrase, summary, or merger of two captions; do not include the explanatory " +
+    "paragraphs). Give category: the risk-category heading the caption sits under, verbatim " +
+    "(e.g. 'Risks Relating to our Securities', 'General Risk Factors'), or null when the " +
+    "section states none. Do NOT emit the section's introductory paragraph ('An investment " +
+    "in our securities involves a high degree of risk…'), a category heading on its own, or " +
+    "a cross-reference to risks described in another document. Where the text is a bulleted " +
+    "summary list of risks, each bullet is one row. Give a confidence in [0,1] and the " +
+    "verbatim source_span you drew the caption from. Return JSON matching the schema.";
+  const chunks = chunkRiskFactorText(sectionText);
+  const out: RiskFactorRow[] = [];
+  const seen = new Set<string>();
+  for (const chunk of chunks) {
+    const obj = await runGuardedExtraction(
+      "risk factors",
+      model,
+      instructions,
+      chunk,
+      RiskFactorsOutputSchema,
+      context
+    );
+    const risks = (obj.risks as RiskFactorRow[] | undefined) ?? [];
+    for (const risk of risks) {
+      const key = riskHeadlineKey(risk?.headline);
+      if (key === "" || seen.has(key)) continue;
+      seen.add(key);
+      out.push(risk);
+    }
+  }
+
+  // Enforce the "a category heading is not a risk" rule rather than trusting the
+  // prompt: a heading verifies as verbatim section text, so nothing downstream
+  // would stop it becoming a row that reads like a disclosed risk. The heuristic
+  // keys on a heading having no sentence-ending punctuation.
+  //
+  // Applied only when the section also yielded at least one row that does not
+  // look like a heading. An Item 105(b) "Summary of Risk Factors" bullet list —
+  // which the segmenter accepts as this section, and which is all a filing
+  // carrying only the summary has — is written as bare unpunctuated phrases
+  // ("Risks related to our inability to complete an initial business
+  // combination"), indistinguishable in shape from a category heading. Dropping
+  // on shape alone would empty exactly those filings. When every row looks like
+  // a heading, the "headings" are the captions, so they are kept.
+  const captions = out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+  return captions.length > 0 ? captions : out;
 }
 
 export async function extractUseOfProceeds(

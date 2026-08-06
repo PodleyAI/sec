@@ -563,6 +563,66 @@ shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
 S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
 `EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
 
+#### Risk factors (Item 105 list)
+
+The prospectus risk-factor section yields one `risk_factor` row per disclosed
+risk, keyed `(extractor_id, accession_number, risk_index)` in document order:
+the filer's **caption** verbatim (the bolded lead-in sentence that introduces
+each risk) plus the **category heading** it sits under, as printed. The
+multi-paragraph body under each caption is deliberately not stored — the caption
+is the enumerable unit of the disclosure and the filing stays the body of
+record — and neither field is mapped to a taxonomy, so the rows stay faithful to
+the filing and any classification can be derived on top later. `verifyRow`
+checks the **headline as well as** the `source_span` against the section text: a
+paraphrased or invented caption is worthless even when the span it cites
+verifies, so it is dropped (and, when every row is, dead-lettered
+`UNVERIFIED_SOURCE_SPAN`). A category heading returned as if it were a risk is
+dropped by the same "enforce it, don't trust the prompt" guard the ownership
+subtotal gets — a heading is verbatim section text, so nothing downstream would
+otherwise stop it becoming a row that reads like a disclosed risk.
+
+Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
+the committed fixtures, against 40–57k for the sections that already dominate
+wall-clock — and the only one enumerating dozens of rows, which is what forces
+chunking: one response cannot hold ~90 captions without overrunning the
+extractors' output-token ceiling and truncating the JSON. `chunkRiskFactorText`
+(`s1/riskFactorChunks.ts`) splits the section on paragraph boundaries into
+40k-char chunks (~15–25 captions each, at the ~1.5–2.8k chars per risk the
+fixtures measure) and prefixes every chunk after the first with the last
+category heading seen before it — a verbatim line from the section, so spans
+still verify — and `extractRiskFactors` runs one call per chunk, concatenating
+in document order and de-duplicating on the caption. A
+chunk that fails propagates and fails the whole section: persisting the captions
+that happened to arrive first would record a silently partial list as if it were
+the filing's complete disclosure. A section over 400k chars is a segmentation
+failure (the prospectus body collapsed under one heading), not a real
+disclosure, and dead-letters `OVERSIZED_INPUT` instead of fanning out into dozens
+of calls — mirroring the redemption/LOI 8-K input caps.
+
+The segmenter's `Risk Factors` section also accepts the filer's own Item 105(b)
+"Summary of Risk Factors" bullet list as a heading variant: it enumerates the
+same captions in compressed form, and since the segmenter keeps the longest body
+per section name, a filing carrying both extracts from the full section while
+one carrying only the summary degrades to it rather than to nothing.
+
+Configure the model via `SEC_S1_RISK_FACTORS_MODEL` (default `SecModelDefault`)
+and an optional floor via `SEC_S1_RISK_FACTORS_CONFIDENCE_FLOOR` (falls back to
+`SEC_S1_CONFIDENCE_FLOOR`). It gets its own knob because the chunked section
+dominates per-filing extraction cost — pointing just this section at a cheaper
+model is the reason to separate it. The `risk-factors` entry in
+`EVAL_EXTRACTORS` (with a golden two-category fixture) ranks the prompt, and
+`sec eval s1 --extractors risk-factors` sweeps the real committed sections.
+
+```bash
+sec eval extract --extractor risk-factors
+sec extractor dead-letters S-1            # includes the risk-factors section
+```
+
+Scoped to the S-1/F-1/DRS pipeline: the 424 processor shares the segmenter but
+does not re-extract risk factors (a priced prospectus restates the registration
+statement's risks), and no CLI query renders the table yet — same as the other
+AI-extracted prospectus tables (`use_of_proceeds`, `offering_terms`).
+
 > Note: the version ceremonies `coverage` / `drop-previous` and the batch `resolve`
 > command are **not** supported for the family-tier resolver kinds
 > (`underwriter-family`, `sponsor-family`) — they intentionally error rather than

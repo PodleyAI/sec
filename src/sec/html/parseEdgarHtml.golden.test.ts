@@ -24,6 +24,7 @@ const {
   USE_OF_PROCEEDS,
   THE_SPONSOR,
   PROSPECTUS_SUMMARY,
+  RISK_FACTORS,
 } = S1_SECTIONS;
 const dir = join(importMetaDir, "mock_data", "s1");
 
@@ -47,6 +48,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   "s1_1849470_000110465921035696.htm": [
     PROSPECTUS_SUMMARY,
@@ -56,6 +58,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   "s1_1822912_000121390021001475.htm": [
     PROSPECTUS_SUMMARY,
@@ -65,6 +68,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   // 2026 SPAC with full iXBRL tagging (spac/dei taxonomies) — also exercised
   // by parseXbrl.golden.test.ts.
@@ -76,6 +80,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   // Operating companies — varied coverage / edge cases.
   "s1_2030954_000149315226027129.htm": [
@@ -84,6 +89,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   // atypical trust (3 stitched tables) — no mgmt/ownership/related-party headings,
   // but carries the offering sections incl. a focused "The Sponsor".
@@ -93,6 +99,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_SPONSOR,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
   // incorporation-by-reference S-1/A — offering mechanics present, entities by reference.
   "s1_1817004_000149315226027137.htm": [
@@ -100,6 +107,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    RISK_FACTORS,
   ],
 };
 
