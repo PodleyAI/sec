@@ -12,8 +12,10 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
 import { startDev } from "../../storage/versioning/ceremonies";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -145,6 +147,46 @@ describe("ProcessAccessionDocFormTask filing-level dead-lettering", () => {
     const run = await runRepo.findRun(CIK, ACCESSION, "D", "1.0.0");
     expect(run?.success).toBe(false);
     expect(run?.error).toContain("STORE_ERROR");
+  });
+
+  it("re-throws a missing storage handler rather than dead-lettering it", async () => {
+    // Simulate the wiring mistake the default arm exists to catch: a form that
+    // is routed and parseable but has no dispatch case. It cannot occur in the
+    // committed source (form-wiring.test.ts pins the two maps together), so the
+    // test injects it and restores both maps afterwards.
+    const UNWIRED_FORM = "ZZ-UNWIRED";
+    class UnwiredForm {
+      static async parse(): Promise<unknown> {
+        return { unwired: true };
+      }
+    }
+    const formMap = ALL_FORMS_MAP as Map<string, unknown>;
+    const extractorMap = FORM_TO_EXTRACTOR_ID as Record<string, string>;
+    formMap.set(UNWIRED_FORM, UnwiredForm);
+    extractorMap[UNWIRED_FORM] = "D";
+
+    try {
+      await seedFiling(UNWIRED_FORM, "primary_doc.xml");
+
+      class UnwiredFetchTask extends ProcessAccessionDocFormTask {
+        protected override async runFetch(): Promise<string> {
+          return "<edgarSubmission/>";
+        }
+      }
+
+      // A code defect must fail loudly on the very first filing …
+      await expect(new UnwiredFetchTask().run({ accessionNumber: ACCESSION })).rejects.toThrowError(
+        /has no storage handler/
+      );
+
+      // … and must not leave a version-gated entry that reads like a genuine
+      // storage failure and that retry-dead-letters would chase forever.
+      const dl = await new ExtractionDeadLetterRepo().get("D", ACCESSION, "");
+      expect(dl).toBeFalsy();
+    } finally {
+      formMap.delete(UNWIRED_FORM);
+      delete extractorMap[UNWIRED_FORM];
+    }
   });
 
   it("keeps a STORE_ERROR entry ineligible at the failing version and eligible after a bump", async () => {

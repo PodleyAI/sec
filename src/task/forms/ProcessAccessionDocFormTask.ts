@@ -113,6 +113,16 @@ type ProcessAccessionDocFormTaskOutput = Static<
   ReturnType<typeof ProcessAccessionDocFormTaskOutputSchema>
 >;
 
+/**
+ * A form reached the storage dispatch with no matching arm. That is a wiring
+ * error — a form added to `FORM_TO_EXTRACTOR_ID` without a handler — not a
+ * property of the filing, so it escapes the store containment instead of
+ * becoming a `STORE_ERROR`. No retry or version bump can fix it, and
+ * dead-lettering it would mark every filing of that form as an ordinary
+ * extraction failure rather than failing loudly on the first one.
+ */
+class MissingStorageHandlerError extends TaskError {}
+
 export class ProcessAccessionDocFormTask extends Task<
   ProcessAccessionDocFormTaskInput,
   ProcessAccessionDocFormTaskOutput
@@ -589,7 +599,7 @@ export class ProcessAccessionDocFormTask extends Task<
           });
           break;
         default:
-          throw new TaskError(`Form '${form}' has no storage handler`);
+          throw new MissingStorageHandlerError(`Form '${form}' has no storage handler`);
       }
     } catch (err) {
       storeError = err;
@@ -704,6 +714,13 @@ export class ProcessAccessionDocFormTask extends Task<
     // grinding and stamp a version-gated STORE_ERROR on filings that were
     // merely interrupted.
     if (storeError instanceof TaskAbortedError || context.signal?.aborted) {
+      throw storeError;
+    }
+
+    // A missing dispatch arm is a code defect, not bad input: containing it
+    // would dead-letter every filing of that form on every sweep, forever,
+    // wearing the same reason code as a genuine storage failure.
+    if (storeError instanceof MissingStorageHandlerError) {
       throw storeError;
     }
 
