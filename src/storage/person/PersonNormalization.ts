@@ -49,14 +49,13 @@ function emptyToNull(value: string | undefined): string | null {
  * Generates a hash ID for a person based on normalized name components
  */
 function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
-  const hashString = [
-    person.first,
-    person.middle,
-    person.nick,
-    person.last,
-    person.suffix,
-    person.notes,
-  ]
+  // `nick` is deliberately absent: `normalizePerson` folds a nickname into
+  // `middle` when there is no middle name, so including it here would spell
+  // "Yong (David) Yan" as `yong-david-david-yan`. Listing exactly the parts the
+  // resolver's match tuple uses also keeps this hash and `personKey` from
+  // disagreeing about who is the same person — they did before, in both
+  // directions.
+  const hashString = [person.first, person.middle, person.last, person.suffix, person.notes]
     .filter((v) => v !== null && v !== undefined)
     .join("-")
     .toLowerCase()
@@ -118,14 +117,33 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
   // reach neither the hash nor the resolver's match tuple, or the same director
   // splits in two the moment one filing writes "Isaac Manke, Ph.D." and the
   // next "Isaac Manke".
+  // A parenthesized nickname is folded into `middle` when there is no middle
+  // name, which is what puts it in the resolver's match tuple
+  // (first|middle|last|suffix) — `nick` has no column there and so was being
+  // dropped from identity entirely.
+  //
+  // It is treated as identity-bearing, not as an annotation like a credential,
+  // because it frequently IS the only distinguishing signal. Across the very
+  // common Chinese/Korean/Vietnamese given-name + surname pairs a filing roster
+  // holds, "Yong Yan" is genuinely ambiguous while the adopted Western name is
+  // not; discarding "(David)" merges people that the filing itself distinguishes.
+  //
+  // The cost is the mirror image, and it is real: a filing that prints the
+  // nickname and an amendment that omits it now resolve to two canonical people
+  // — the same over-splitting that keeping credentials off the key was meant to
+  // avoid. That is bounded by `personKey` scoping the tuple to one issuer CIK,
+  // so the merge this prevents and the split it risks both live inside a single
+  // filer, where a roster's spelling is usually consistent.
+  const parsedNick = emptyToNull(results.nick);
+  const parsedMiddle = stripNamePartPunctuation(results.middle);
   const person: Omit<Person, "person_hash_id"> = {
     first: stripNamePartPunctuation(results.first) ?? results.first,
-    middle: stripNamePartPunctuation(results.middle),
+    middle: parsedMiddle ?? stripNamePartPunctuation(parsedNick),
     last: stripNamePartPunctuation(results.last) ?? results.last,
     suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
     credentials: emptyToNull(results.credential),
     title: results.title,
-    nick: results.nick,
+    nick: parsedNick,
     dob: null,
     notes: null,
     cik,

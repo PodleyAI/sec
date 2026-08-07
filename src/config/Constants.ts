@@ -35,7 +35,7 @@ export const SecFetchMaxPerSec = ((): number => {
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
  */
-const DEFAULT_SEC_MODEL = "claude-sonnet-5";
+const DEFAULT_SEC_MODEL = "deepseek-v4-flash";
 export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;
 
 /**

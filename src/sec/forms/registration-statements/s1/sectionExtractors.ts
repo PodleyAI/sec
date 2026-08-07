@@ -1019,7 +1019,10 @@ export async function extractBeneficialOwnership(
     "with null figures rather than skipping the name. Give the name as printed but " +
     "WITHOUT footnote markers or parenthetical " +
     "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
-    "XII LLC'. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
+    "XII LLC'. A parenthesized NICKNAME is part of the name, not an annotation: keep " +
+    "it, so 'Yong (David) Yan' stays 'Yong (David) Yan'. It is often the only thing " +
+    "separating two people who share a common given name and surname, and it is used " +
+    "downstream to tell them apart. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
     "'V-Cube, Inc. and Naoaki Mashita'), emit one row per owner and attribute each " +
     "one's shares from the footnote where it states them — never a combined 'X and Y' " +
     "name. Do NOT emit the aggregate subtotal row that totals the officers and " +

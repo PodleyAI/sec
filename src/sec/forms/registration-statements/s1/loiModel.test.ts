@@ -5,6 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { SecModelDefault } from "../../../../config/Constants";
 import { getLoiConfidenceFloor, getLoiModelId } from "./loiModel";
 import { CONFIDENCE_FLOOR } from "./sectionRunner";
 
@@ -25,9 +26,10 @@ afterEach(() => {
 });
 
 describe("getLoiModelId", () => {
-  it("defaults to claude-sonnet-5 when unset", () => {
+  // The shared default, not a literal id — see the note in s1Model.test.ts.
+  it("defaults to the shared default model id when unset", () => {
     delete process.env[MODEL_ENV];
-    expect(getLoiModelId()).toBe("claude-sonnet-5");
+    expect(getLoiModelId()).toBe(SecModelDefault);
   });
   it("honors SEC_LOI_MODEL when set", () => {
     process.env[MODEL_ENV] = "claude-opus-5";

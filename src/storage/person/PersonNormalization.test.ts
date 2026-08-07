@@ -248,4 +248,40 @@ describe("PersonNormalization", () => {
     });
   });
 
+  describe("a parenthesized nickname is identity-bearing", () => {
+    // Unlike a credential, a nickname is treated as part of who someone is: for
+    // the very common given-name + surname pairs an SEC roster holds, it is
+    // routinely the only token separating two people.
+    it("folds the nickname into `middle`, which is what the resolver keys on", () => {
+      const p = normalizePerson({ name: "Yong (David) Yan" })!;
+      expect(p.middle).toBe("David");
+      // Still exposed separately for display.
+      expect(p.nick).toBe("David");
+    });
+
+    it("agrees with the same name written without parentheses", () => {
+      // These disagreed before: the nickname went to `nick`, which has no column
+      // in the resolver's match tuple, so the parenthesized spelling resolved
+      // with middle=null and the plain one with middle="David".
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).toBe(
+        normalizePerson({ name: "Yong David Yan" })!.person_hash_id
+      );
+    });
+
+    it("separates a nicknamed person from the bare name", () => {
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).not.toBe(
+        normalizePerson({ name: "Yong Yan" })!.person_hash_id
+      );
+    });
+
+    it("does not overwrite a real middle name", () => {
+      const p = normalizePerson({ name: "Robert James (Bob) Smith" })!;
+      expect(p.middle).toBe("James");
+      expect(p.nick).toBe("Bob");
+    });
+
+    it("counts the nickname once — the hash is not 'david-david'", () => {
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).toBe("yong-david-yan");
+    });
+  });
 });

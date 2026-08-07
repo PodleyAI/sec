@@ -40,7 +40,7 @@ export {
   type DbStatsTable,
   type TableStat,
 } from "./cli/queries/DbStatus";
-export { AddCommands } from "./commands";
+export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
 // ── Config / dependency injection ───────────────────────────────────────────
 export * from "./config/Constants";

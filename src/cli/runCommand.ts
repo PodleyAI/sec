@@ -16,6 +16,9 @@ export async function runCommand(
       console.log(statusMessage("info", `Dry run${suffix} — no data will be written`));
     }
     await action();
+    // Unconditional, so an exit code the action assigned to `process.exitCode`
+    // itself is discarded here. To fail a command, THROW — that is the only
+    // signal this function forwards (see `fetch golden-fixtures --verify`).
     process.exitCode = 0;
     return 0;
   } catch (error: unknown) {

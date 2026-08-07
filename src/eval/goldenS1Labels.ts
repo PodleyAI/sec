@@ -46,7 +46,24 @@ export interface GoldenOwnerRow {
   readonly name: string;
 }
 
-export type GoldenRow = GoldenManagementRow | GoldenOwnerRow;
+/**
+ * Any other extractor's row, as a bag of scored fields.
+ *
+ * The scorer never sees these declared shapes: `EvalS1Task` passes golden rows
+ * straight through as `Record<string, unknown>` and compares only the
+ * `compareFields` its {@link EVAL_EXTRACTORS} entry names. So a per-extractor
+ * interface would buy no additional safety at the point that matters — what
+ * actually protects a label is the guard in goldenS1Labels.test.ts asserting
+ * every row carries exactly that extractor's compareFields, which catches a
+ * misspelled or missing key that a structural type could not (`compareFields`
+ * is data, not a type).
+ *
+ * Management and ownership keep named interfaces because they are written by
+ * hand constantly and their helpers (`G`, `O`) are worth the types.
+ */
+export type GoldenFieldRow = Readonly<Record<string, unknown>>;
+
+export type GoldenRow = GoldenManagementRow | GoldenOwnerRow | GoldenFieldRow;
 
 /** Narrow a golden row to the management shape (the only one carrying titles). */
 export function isGoldenManagementRow(row: GoldenRow): row is GoldenManagementRow {
@@ -65,6 +82,14 @@ const G = (full_name: string, titles: readonly string[]): GoldenManagementRow =>
 
 /** A beneficial-ownership row: the owner's name as the table prints it. */
 const O = (name: string): GoldenOwnerRow => ({ name });
+
+/**
+ * The one and only positive `spac-classification` row. The extractor narrows
+ * `entity_kind` to the literal "spac" before returning, so a positive verdict
+ * has exactly one shape and every SPAC's label is identical — writing it once
+ * keeps twenty labels from drifting apart character by character.
+ */
+const SPAC: GoldenFieldRow = { is_spac: true, entity_kind: "spac" };
 
 /**
  * Committed golden labels, keyed by {@link goldenLabelKey}. Only sections that
@@ -121,6 +146,41 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Jacob Seid", ["Director Nominee"]),
     G("Suzanne Klahr", ["Director Nominee"]),
     G("Richard J Boyle, Jr.", ["Director Nominee"]),
+  ],
+  // Gold Mountain Acquisition Corp. Its table prints "Independent Director
+  // Nominee", labelled here as "Director Nominee" to match the rest of the
+  // corpus: independence is a separate determination about a director, not a
+  // distinct board role, and 1848507 prints "Independent Director Nominees" as a
+  // category label while its rows are labelled "Director Nominee". The roster
+  // heading is "Officers, Directors and Director Nominees", not "Management".
+  [goldenLabelKey("s1_2105318_000149315226031978", "management")]: [
+    G("Sanxin Yan", ["Chairman of the Board of Directors"]),
+    G("Yong (David) Yan", ["Chief Executive Officer", "Chief Financial Officer", "Director"]),
+    G("Brian Hartzband", ["Director Nominee"]),
+    G("Joel Mayersohn", ["Director Nominee"]),
+    G("Qiang Zhang", ["Director Nominee"]),
+  ],
+  // Southern Cross Acquisition II Corp. — self-filed SPAC.
+  [goldenLabelKey("s1_2133239_000192998026000317", "management")]: [
+    // "Chairwoman, Director and Chief Executive Officer" as printed; the bare
+    // "Director" is absorbed by the board-seat role during normalization.
+    G("Ally Tong Zhang", ["Chairwoman of the Board of Directors", "Chief Executive Officer"]),
+    G("Xin Wang", ["Chief Financial Officer"]),
+    G("Hongmei Zhao", ["Director"]),
+    G("Wenhua Qian", ["Director"]),
+    G("Zhiqiang Du", ["Director"]),
+  ],
+  // Albatross Acquisition Corp — one seated officer holding four roles at once,
+  // plus three independent director nominees.
+  [goldenLabelKey("s1_2135163_000182912626006553", "management")]: [
+    G("Zihan Chen", [
+      "Chairman of the Board of Directors",
+      "Chief Executive Officer",
+      "Chief Financial Officer",
+    ]),
+    G("Ping Zhang", ["Director Nominee"]),
+    G("Becky Fallon", ["Director Nominee"]),
+    G("Daniel M. McCabe", ["Director Nominee"]),
   ],
   // Churchill Capital Corp XII (large SPAC).
   [goldenLabelKey("s1_2114227_000121390026039320", "management")]: [
@@ -268,6 +328,299 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Ted Lesster"),
     O("Michael C. Turmelle"),
   ],
+  // Gold Mountain. Excludes the "All executive officers, directors and director
+  // nominees as a group (6 individuals)" subtotal. Four individuals hold nothing
+  // (all-dash) and Qiang Zhang's cells are blank entirely — both still get rows,
+  // since an officer is listed precisely to disclose that they hold none.
+  [goldenLabelKey("s1_2105318_000149315226031978", "beneficial-ownership")]: [
+    O("Gaea Holding Group Limited"),
+    O("Gold Mountain Holding LP"),
+    O("Sanxin Yan"),
+    // Kept as the table prints it. The parenthesized nickname is part of the
+    // name, not an annotation like "(our sponsor)(3)": it is folded into
+    // `middle` downstream and so is identity-bearing, which is what separates
+    // two people sharing a common given name and surname.
+    O("Yong (David) Yan"),
+    O("Brian Hartzband"),
+    O("Joel Mayersohn"),
+    O("Qiang Zhang"),
+    O("EarlyBirdCapital, Inc."),
+  ],
+  // Southern Cross II. This table carries TWO printed category labels —
+  // "Principal Shareholders (5% or more)" and "Directors and Executive
+  // Officers" — neither of which is an owner, plus the usual group subtotal.
+  [goldenLabelKey("s1_2133239_000192998026000317", "beneficial-ownership")]: [
+    O("Southern Cross Acquisition II Sponsor Corp."),
+    O("Peizhong Yu"),
+    O("Ally Tong Zhang"),
+    O("Xin Wang"),
+    O("Hongmei Zhao"),
+    O("Zhiqiang Du"),
+    O("Wenhua Qian"),
+  ],
+  // Albatross. Two cells carry inline role annotations — "Albatross Peak Limited
+  // (our Sponsor)" and "Zihan Chen (CEO)" — dropped like any parenthetical.
+  [goldenLabelKey("s1_2135163_000182912626006553", "beneficial-ownership")]: [
+    O("Albatross Peak Limited"),
+    O("Zihan Chen"),
+    O("Becky Fallon"),
+    O("Daniel M. McCabe"),
+    O("Ping Zhang"),
+  ],
+  // Material Resource. The only fixture whose MANAGEMENT section the segmenter
+  // fails to resolve at all, so this ownership table is the sole place its five
+  // officers/nominees are labelled — see the KNOWN DEFECT note in
+  // parseEdgarHtml.golden.test.ts.
+  [goldenLabelKey("s1_2136360_000213636026000003", "beneficial-ownership")]: [
+    O("Material Resource Acquisition Sponsor LLC"),
+    O("Rick Bloom"),
+    O("Brian Kaufman"),
+    O("Jim Berklas"),
+    O("Brian Klemsz"),
+    O("David Linsley"),
+  ],
+  // ── Operating companies: management + ownership ────────────────────────────
+  // Virtuix Holdings — two roster tables ("Executive Officers", then
+  // "Non-Employee Directors"); both are the roster.
+  [goldenLabelKey("s1_1606242_000121390026054471", "management")]: [
+    G("Jan Goetgeluk", ["Chief Executive Officer", "Chairman of the Board of Directors"]),
+    G("Thomas McGinnis", ["Chief Financial Officer"]),
+    G("David Allan", ["Chief Operating Officer", "President", "Director"]),
+    G("Lauren Premo", ["Chief Marketing Officer"]),
+    G("Cameron Slayter", ["Chief Product Officer"]),
+    G("Ugo de Charette", ["Director"]),
+    G("John Cunningham", ["Director"]),
+    G("Parthkumar Jani", ["Director"]),
+    G("Brett Moyer", ["Director"]),
+    G("Randolph Read", ["Director"]),
+  ],
+  // Goetgeluk and de Charette are each printed TWICE — once under "Executive
+  // Officers and Directors" and again under "5% Stockholders", same figures.
+  // Labelled once: `name` is the extractor's dedupe key, so a second row would
+  // be scored as a duplicate the model is right not to produce.
+  [goldenLabelKey("s1_1606242_000121390026054471", "beneficial-ownership")]: [
+    O("Jan Goetgeluk"),
+    O("David Allan"),
+    O("Parthkumar Jani"),
+    O("Ugo de Charette"),
+    O("Randolph Read"),
+    O("John Cunningham"),
+    O("Thomas McGinnis"),
+    O("Lauren Premo"),
+    O("Brett Moyer"),
+    O("Cameron Slayter"),
+    O("Streeterville Capital, LLC"),
+  ],
+  // Kodiak AI. KNOWN CONVERTER DEFECT: this roster's colspan cells collapse, so
+  // the rendered table is the name repeated nine times with NO age or position
+  // column — every title here is read from the bios instead. James Reed is
+  // chair per "Our Board consists of seven members, with James Reed serving as
+  // Chair" — "Chair of the Board of Directors", NOT "Chairman": the normalizer
+  // expands the board phrase but keeps the registrant's own word, and writing
+  // "Chairman" here invented a gendered form the filing never uses. The bare
+  // chair title absorbs his bare "Director" on normalization.
+  [goldenLabelKey("s1_1853138_000162828026039200", "management")]: [
+    G("Don Burnette", ["Chief Executive Officer", "Director"]),
+    G("Surajit Datta", ["Chief Financial Officer"]),
+    G("Jordan Coleman", ["Chief Legal and Policy Officer"]),
+    G("Zsuzsanna Major", ["Chief People Officer"]),
+    G("Andreas Wendel", ["Chief Technology Officer"]),
+    G("Michael Wiesinger", ["Chief Operating Officer"]),
+    G("Mohamed Elshenawy", ["Director"]),
+    G("Kenneth Goldman", ["Director"]),
+    G("James Reed", ["Chair of the Board of Directors"]),
+    G("Allyson Satin", ["Director"]),
+    G("Kristin Sverchek", ["Director"]),
+    G("Scott Tobin", ["Director"]),
+  ],
+  // Direct Digital Holdings. Same collapsed-colspan roster as Kodiak, so titles
+  // come from the bios.
+  //
+  // Keith W. Smith is "President" only. This filing's OWNERSHIP table prints
+  // "Keith Smith, President and Director", and an earlier draft of this label
+  // used that to add "Director" — but the management extractor is handed the
+  // management section alone and cannot see that table. A golden label has to be
+  // derivable from the section it scores, or it marks a faithful reader wrong
+  // for not knowing something it was never shown.
+  [goldenLabelKey("s1_1880613_000162828026005423", "management")]: [
+    G("Mark D. Walker", ["Chairman of the Board of Directors", "Chief Executive Officer"]),
+    G("Keith W. Smith", ["President"]),
+    G("Diana P. Diaz", ["Chief Financial Officer"]),
+    G("Anu Pillai", ["Chief Technology Officer"]),
+    G("Maria Vilchez Lowrey", ["Chief Growth Officer"]),
+    G("Richard Cohen", ["Director"]),
+    G("Antoinette R. Leatherberry", ["Director"]),
+    G("Mistelle Locke", ["Director"]),
+  ],
+  [goldenLabelKey("s1_1880613_000162828026005423", "beneficial-ownership")]: [
+    O("Direct Digital Management, LLC"),
+    O("Mark Walker"),
+    O("Keith Smith"),
+    O("Diana P. Diaz"),
+    O("Richard Cohen"),
+    O("Antoinette R. Leatherberry"),
+    O("Mistelle Locke"),
+  ],
+  // Deep Fission. "Chair of the Board" canonicalizes to "Chair of the Board of
+  // Directors" — the normalizer expands the board phrase without rewriting the
+  // registrant's chosen gender-neutral form. Class designations ("(Class III)")
+  // are term-stagger labels, not roles, and are dropped.
+  [goldenLabelKey("s1_1918102_000110465926016226", "management")]: [
+    G("Elizabeth Muller", [
+      "Chair of the Board of Directors",
+      "President",
+      "Chief Executive Officer",
+    ]),
+    G("Richard A. Muller", ["Chief Technology Officer"]),
+    G("William (Mark) Schmitz", ["Chief Financial Officer"]),
+    G("Michael Brasel", ["Chief Operating Officer"]),
+    G("Jon Gordon", ["General Counsel", "Secretary"]),
+    G("Blake Janover", ["Director"]),
+    G("Leslie Goldman Tepper", ["Director"]),
+    G("Jonathon Angell", ["Director"]),
+    G("Thomas Glanville", ["Director"]),
+  ],
+  // Names are transcribed as EACH table prints them, which is why several
+  // disagree with the roster above ("Jonathan"/"Jonathon" Angell, "Richard
+  // Muller"/"Richard A. Muller"). The filing is inconsistent with itself; the
+  // label follows the section the extractor is actually reading.
+  [goldenLabelKey("s1_1918102_000110465926016226", "beneficial-ownership")]: [
+    O("Entities affiliated with 8VC"),
+    O("Mark Tompkins"),
+    O("EE Holdings Limited"),
+    O("Jonathan Angell"),
+    O("Michael Brasel"),
+    O("Thomas S. Glanville"),
+    O("Blake Janover"),
+    O("Elizabeth Muller"),
+    O("Richard Muller"),
+    O("Leslie Goldman Tepper"),
+  ],
+  // Factorial Energy. "Executive Chairperson" is NOT expanded: the normalizer
+  // only expands a BARE chair title, and the modifier is part of the role the
+  // filing gave him. "Co-founder" canonicalizes to "Co-Founder".
+  [goldenLabelKey("s1_2049662_000110465926079324", "management")]: [
+    G("Siyu Huang, Ph.D.", ["Co-Founder", "Chief Executive Officer", "Director"]),
+    G("Alex Yu, Ph.D.", ["Co-Founder", "Chief Technology Officer", "Director"]),
+    G("Richard Wei", ["Chief Financial Officer"]),
+    G("Jason Duva", ["General Counsel", "Secretary", "Head of Government Affairs"]),
+    G("Joseph M. Taylor", ["Executive Chairperson"]),
+    G("Uwe Keller", ["Director"]),
+    G("Liad Meidar", ["Director"]),
+    G("Dieter Zetsche", ["Director"]),
+    G("Jon Nelson", ["Director"]),
+  ],
+  // The final data row prints "Sponsor, DirectorCo and Pangaea Three-B, LP" —
+  // three owners in one cell, so three rows. "Sponsor" and "DirectorCo" are the
+  // filing's own defined shorthands; it never prints the Sponsor's legal name
+  // in this section, so the shorthand is what the table actually shows.
+  [goldenLabelKey("s1_2049662_000110465926079324", "beneficial-ownership")]: [
+    O("Siyu Huang"),
+    O("Alex Yu"),
+    O("Jason Duva"),
+    O("Joseph Taylor"),
+    O("Uwe Keller"),
+    O("Liad Meidar"),
+    O("Dieter Zetsche"),
+    O("Jon Nelson"),
+    O("WAVE Equity Fund, L.P."),
+    O("Mercedes-Benz Corporate Investments LLC"),
+    O("Stellantis Europe S.p.A"),
+    O("Sponsor"),
+    O("DirectorCo"),
+    O("Pangaea Three-B, LP"),
+  ],
+  [goldenLabelKey("s1_2075109_000121390026073335", "management")]: [
+    G("Andreas Raptopoulos", ["Director", "Chief Executive Officer"]),
+    G("Jason Secore", ["Chief Financial Officer"]),
+    G("Alexander Norman-Elvenich", ["Chief Operating Officer"]),
+    G("Chris Dawson", ["Director"]),
+    G("Sanjay Kotte", ["Director"]),
+    G("Laurence J. Marton, M.D.", ["Director"]),
+    G("Saurabh Ranjan", ["Director"]),
+  ],
+  // "Sanjay Kottee" here vs "Sanjay Kotte" in the roster above — a typo in the
+  // filing, kept because the label must match the section being scored.
+  [goldenLabelKey("s1_2075109_000121390026073335", "beneficial-ownership")]: [
+    O("Andreas Raptopoulos"),
+    O("Mark Tompkins"),
+    O("5G Ventures S.A."),
+    O("Entities affiliated with CerraCap"),
+    O("Alexander Norman-Elvenich"),
+    O("Jason Secore"),
+    O("Ian Jacobs"),
+    O("Chris Dawson"),
+    O("Sanjay Kottee"),
+    O("Laurence J. Marton, M.D."),
+    O("Saurabh Ranjan"),
+  ],
+  // Karman Line. The sponsor is "Samara Acquisition Sponsor VI Ltd." — this
+  // shell was drafted from a Samara template and mentions "Samara" more often
+  // than "Karman"; the registrant on the cover is Karman Line Acquisition Corp.
+  [goldenLabelKey("s1_2134856_000182912626007847", "beneficial-ownership")]: [
+    O("Samara Acquisition Sponsor VI Ltd."),
+    O("Richard Davis"),
+    O("Graeme Shaw"),
+    O("Vikas Mittal"),
+    O("Michael Leitner"),
+    O("Keith Masback"),
+    O("Beth Michelson"),
+  ],
+
+  // ── spac-classification ────────────────────────────────────────────────────
+  // The only extractor whose truth needs no transcription: it is decided by who
+  // the issuer is. `extractSpacClassification` returns null unless
+  // `is_spac === true` AND `entity_kind === "spac"`, so a non-SPAC's correct
+  // answer is NO ROW — and an empty label is what makes a false positive cost
+  // precision. That is the whole point of balancing the corpus 10/11: a
+  // detector that has never been scored against a real operating company has
+  // not been shown to reject one.
+  // 26 Capital Acquisition Corp.
+  [goldenLabelKey("s1_1822912_000121390021001475", "spac-classification")]: [SPAC],
+  // 1.12 Acquisition Corp
+  [goldenLabelKey("s1_1848507_000119312521066104", "spac-classification")]: [SPAC],
+  // 1Sharpe Acquisition Corp.
+  [goldenLabelKey("s1_1849470_000110465921035696", "spac-classification")]: [SPAC],
+  // Gold Mountain Acquisition Corp.
+  [goldenLabelKey("s1_2105318_000149315226031978", "spac-classification")]: [SPAC],
+  // Churchill Capital Corp XII
+  [goldenLabelKey("s1_2114227_000121390026039320", "spac-classification")]: [SPAC],
+  // Southern Cross Acquisition II Corp.
+  [goldenLabelKey("s1_2133239_000192998026000317", "spac-classification")]: [SPAC],
+  // Karman Line Acquisition Corp.
+  [goldenLabelKey("s1_2134856_000182912626007847", "spac-classification")]: [SPAC],
+  // Albatross Acquisition Corp
+  [goldenLabelKey("s1_2135163_000182912626006553", "spac-classification")]: [SPAC],
+  // Material Resource Acquisition Corp.
+  [goldenLabelKey("s1_2136360_000213636026000003", "spac-classification")]: [SPAC],
+  // Rainier Acquisition Corp
+  [goldenLabelKey("s1_2147219_000110465926092088", "spac-classification")]: [SPAC],
+
+  // Operating companies — the negative cases. `[]` is the assertion: emitting
+  // any row here is a false positive.
+  // Ideal Power Inc. — power semiconductors (SIC 3674)
+  [goldenLabelKey("s1_1507957_000143774926010088", "spac-classification")]: [],
+  // Virtuix Holdings Inc. — VR hardware (SIC 3577)
+  [goldenLabelKey("s1_1606242_000121390026054471", "spac-classification")]: [],
+  // NEXTNRG, INC. — mobile fuel delivery (SIC 5500)
+  [goldenLabelKey("s1_1817004_000149315226027137", "spac-classification")]: [],
+  // Kodiak AI, Inc. — autonomous trucking (SIC 7373)
+  [goldenLabelKey("s1_1853138_000162828026039200", "spac-classification")]: [],
+  // Direct Digital Holdings, Inc. — advertising (SIC 7310)
+  [goldenLabelKey("s1_1880613_000162828026005423", "spac-classification")]: [],
+  // Deep Fission, Inc. — modular reactors (SIC 4911)
+  [goldenLabelKey("s1_1918102_000110465926016226", "spac-classification")]: [],
+  // TEN Holdings, Inc. — services (SIC 7389)
+  [goldenLabelKey("s1_2030954_000149315226027129", "spac-classification")]: [],
+  // Factorial Energy Inc. — batteries (SIC 3690)
+  [goldenLabelKey("s1_2049662_000110465926079324", "spac-classification")]: [],
+  // Matternet, Inc. — drone logistics (SIC 3721)
+  [goldenLabelKey("s1_2075109_000121390026073335", "spac-classification")]: [],
+  // Texas Precious Metals Trust — commodity trust (SIC 6221)
+  [goldenLabelKey("s1_2087989_000143774926019444", "spac-classification")]: [],
+  // KiNRG, Inc. — mining (SIC 1040)
+  [goldenLabelKey("s1_95572_000121390026086369", "spac-classification")]: [],
+
   // Churchill Capital Corp XII. The sponsor cell prints as
   // "Churchill Sponsor XII LLC(our sponsor)(3)" — annotation and marker dropped.
   [goldenLabelKey("s1_2114227_000121390026039320", "beneficial-ownership")]: [

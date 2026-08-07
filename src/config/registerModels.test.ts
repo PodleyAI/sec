@@ -11,7 +11,7 @@ import {
   setGlobalModelRepository,
 } from "workglow";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SecHftModelDefault } from "./Constants";
+import { SecHftModelDefault, SecModelDefault } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import {
   anthropicModelRecord,
@@ -132,7 +132,14 @@ describe("registerSecModels", () => {
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {
     await registerSecModels();
     const repo = getGlobalModelRepository();
-    expect((await repo.findByName("claude-sonnet-5"))?.provider).toBe("ANTHROPIC");
+    // Assert against the configured default, not a literal id: what this test
+    // is for is that whatever `SecModelDefault` names gets registered and
+    // resolves — pinning "claude-sonnet-5" here made changing the default fail
+    // a test whose own name says "the cloud default". The provider comes from
+    // `secModelRecord`'s id-shape dispatch, so it is derived for the same reason.
+    expect((await repo.findByName(SecModelDefault))?.provider).toBe(
+      secModelRecord(SecModelDefault).provider
+    );
     expect((await repo.findByName(SecHftModelDefault))?.provider).toBe("HF_TRANSFORMERS_ONNX");
   });
 

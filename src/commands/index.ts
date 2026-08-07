@@ -36,8 +36,16 @@ import { getSecJobQueue } from "../task/fetch/SecJobQueue";
  * configured CLI (`init`) would be pure friction. `golden-fixtures` audits
  * committed files against EDGAR over a plain fetch — needing a SQLite path to
  * run it would block the CI use case it exists for.
+ *
+ * Exported because a superset CLI (embarc-data) installs its OWN preAction hook
+ * to register private-data repos, and that registration calls `createStorage()`,
+ * which reads `sec.db.type` — a token only the bootstrap below registers. A
+ * superset that exempts a different set therefore crashes on exactly the
+ * commands sec deliberately runs without a database. Consume this set rather
+ * than restating it, so adding an exempt command here can't leave the superset
+ * broken.
  */
-const DI_EXEMPT_COMMANDS = new Set(["init", "golden-fixtures"]);
+export const DI_EXEMPT_COMMANDS: ReadonlySet<string> = new Set(["init", "golden-fixtures"]);
 
 export const AddCommands = (program: Command): void => {
   let diInitialized = false;
