@@ -541,8 +541,8 @@ describe("isCollectivePartyName", () => {
       "Citigroup Global Markets Inc.",
       "Churchill Sponsor XII LLC",
       "M. Klein and Company, LLC",
-      "Directors Guild Inc.",   // a company whose name starts with a role word
-      "Sherman Officers",       // surname + role word is still a person-ish name
+      "Directors Guild Inc.", // a company whose name starts with a role word
+      "Sherman Officers", // surname + role word is still a person-ish name
     ]) {
       expect(isCollectivePartyName(name), name).toBe(false);
     }
