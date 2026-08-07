@@ -48,26 +48,31 @@ export interface TableStat {
   readonly rows: number;
 }
 
+/**
+ * Counts rows in a repository via the storage `size()` method rather than
+ * loading every entity with `getAll()`. `cik_names` in particular has ~1M rows,
+ * so `getAll()` would be both slow and memory-hungry.
+ *
+ * Every `*_REPOSITORY_TOKEN` satisfies this structurally — `ITabularStorage`
+ * declares both members — and `ServiceToken` holds its service type in a
+ * readonly position, so a concrete repository token is assignable here with no
+ * cast.
+ */
+export interface CountableRepository {
+  size(): Promise<number>;
+  isDurable?(): boolean;
+}
+
 /** A repository whose row count is included in the `db stats` command. */
 export interface DbStatsTable {
   readonly table: string;
-  readonly token: ServiceToken<{ size(): Promise<number> }>;
+  readonly token: ServiceToken<CountableRepository>;
 }
 
 /** Controls whether database counts may use Postgres catalog estimates. */
 export interface DbCountOptions {
   /** Force exact storage-level counts, including on Postgres. */
   readonly exact?: boolean;
-}
-
-/**
- * Counts rows in a repository via the storage `size()` method rather than
- * loading every entity with `getAll()`. `cik_names` in particular has ~1M rows,
- * so `getAll()` would be both slow and memory-hungry.
- */
-interface CountableRepository {
-  size(): Promise<number>;
-  isDurable?(): boolean;
 }
 
 /**
@@ -134,12 +139,12 @@ const STATUS_TABLES: readonly {
   readonly key: keyof DbStatusResult;
   readonly token: ServiceToken<CountableRepository>;
 }[] = [
-  { key: "entityCount", token: ENTITY_REPOSITORY_TOKEN as any },
-  { key: "filingCount", token: FILING_REPOSITORY_TOKEN as any },
-  { key: "factsCount", token: COMPANY_FACTS_REPOSITORY_TOKEN as any },
-  { key: "processedSubmissions", token: PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN as any },
-  { key: "processedFacts", token: PROCESSED_FACTS_REPOSITORY_TOKEN as any },
-  { key: "extractorRuns", token: EXTRACTOR_RUN_REPOSITORY_TOKEN as any },
+  { key: "entityCount", token: ENTITY_REPOSITORY_TOKEN },
+  { key: "filingCount", token: FILING_REPOSITORY_TOKEN },
+  { key: "factsCount", token: COMPANY_FACTS_REPOSITORY_TOKEN },
+  { key: "processedSubmissions", token: PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN },
+  { key: "processedFacts", token: PROCESSED_FACTS_REPOSITORY_TOKEN },
+  { key: "extractorRuns", token: EXTRACTOR_RUN_REPOSITORY_TOKEN },
 ];
 
 export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatusResult> {
@@ -156,35 +161,35 @@ export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatu
  * names the relation a `psql \dt` would show and the estimate query can find it.
  */
 const BUILT_IN_TABLE_TOKENS: readonly ServiceToken<CountableRepository>[] = [
-  CIK_NAME_REPOSITORY_TOKEN as any,
-  ENTITY_REPOSITORY_TOKEN as any,
-  FILING_REPOSITORY_TOKEN as any,
-  COMPANY_FACTS_REPOSITORY_TOKEN as any,
-  INVESTMENT_OFFERING_REPOSITORY_TOKEN as any,
-  CROWDFUNDING_REPOSITORY_TOKEN as any,
-  ADDRESS_REPOSITORY_TOKEN as any,
-  PHONE_REPOSITORY_TOKEN as any,
-  PORTAL_REPOSITORY_TOKEN as any,
-  EXTRACTOR_RUN_REPOSITORY_TOKEN as any,
-  PERSON_OBSERVATION_REPOSITORY_TOKEN as any,
-  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN as any,
-  PERSON_ROLE_REPOSITORY_TOKEN as any,
-  COMPANY_OBSERVATION_REPOSITORY_TOKEN as any,
-  CANONICAL_PERSON_REPOSITORY_TOKEN as any,
-  CANONICAL_COMPANY_REPOSITORY_TOKEN as any,
-  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN as any,
-  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN as any,
-  SECTION16_FILING_REPOSITORY_TOKEN as any,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN as any,
-  SECTION16_HOLDING_REPOSITORY_TOKEN as any,
-  FORM144_FILING_REPOSITORY_TOKEN as any,
-  FORM144_ACQUISITION_REPOSITORY_TOKEN as any,
-  FORM144_RECENT_SALE_REPOSITORY_TOKEN as any,
+  CIK_NAME_REPOSITORY_TOKEN,
+  ENTITY_REPOSITORY_TOKEN,
+  FILING_REPOSITORY_TOKEN,
+  COMPANY_FACTS_REPOSITORY_TOKEN,
+  INVESTMENT_OFFERING_REPOSITORY_TOKEN,
+  CROWDFUNDING_REPOSITORY_TOKEN,
+  ADDRESS_REPOSITORY_TOKEN,
+  PHONE_REPOSITORY_TOKEN,
+  PORTAL_REPOSITORY_TOKEN,
+  EXTRACTOR_RUN_REPOSITORY_TOKEN,
+  PERSON_OBSERVATION_REPOSITORY_TOKEN,
+  PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
+  PERSON_ROLE_REPOSITORY_TOKEN,
+  COMPANY_OBSERVATION_REPOSITORY_TOKEN,
+  CANONICAL_PERSON_REPOSITORY_TOKEN,
+  CANONICAL_COMPANY_REPOSITORY_TOKEN,
+  PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
+  COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN,
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  FORM144_FILING_REPOSITORY_TOKEN,
+  FORM144_ACQUISITION_REPOSITORY_TOKEN,
+  FORM144_RECENT_SALE_REPOSITORY_TOKEN,
 ];
 
 const TABLE_TOKENS: readonly DbStatsTable[] = BUILT_IN_TABLE_TOKENS.map((token) => ({
   table: secTableName(token),
-  token: token as DbStatsTable["token"],
+  token,
 }));
 
 const extensionTableTokens = new Map<string, DbStatsTable>();
