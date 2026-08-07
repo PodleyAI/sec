@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
+import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { getDbStats, getDbStatus } from "./DbStatus";
@@ -58,6 +59,18 @@ describe("getDbStats", () => {
       expect(typeof stat.table).toBe("string");
       expect(typeof stat.rows).toBe("number");
     }
+  });
+
+  it("names the physical relation for every built-in table", async () => {
+    // The Postgres estimate path filters on `relid = to_regclass($1)`, which
+    // matches nothing when the name is a display label rather than the real
+    // relation (`entity` for `entities`, `filing` for `filings`) — the count
+    // then silently degrades to the exact scan the estimate exists to avoid.
+    const registered = new Set(SEC_STORAGE_REGISTRY.map((storage) => storage.table));
+    const reported = (await getDbStats()).map((stat) => stat.table);
+
+    expect(reported.length).toBeGreaterThan(0);
+    expect(reported.filter((table) => !registered.has(table))).toEqual([]);
   });
 
   it("reports progress through every counted table", async () => {
