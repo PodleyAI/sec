@@ -1082,6 +1082,12 @@ sec exposes the general downstream seams embarc-data (and future features) build
   also calls `registerSecResolvers()` so resolver component-version rows seed even
   on the `init` path that skips the CLI preAction hook.
 
+  `registerDbStatsTables` (`src/cli/queries/DbStatus.ts`) is the reporting half
+  of that seam — a superset's tables are counted by `db stats` alongside sec's
+  own — and a registered table the database has not created reports `n/a`
+  (`rows: null`, with a "run `db setup`?" hint) rather than failing the whole
+  report; only a missing relation degrades, every other error still throws.
+
   `db setup` finishes with a **column-alignment pass**
   (`alignPostgresColumnTypes`, run after the extension loop so a superset's
   tables are registered first). `CREATE TABLE IF NOT EXISTS` never alters an

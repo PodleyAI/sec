@@ -33,9 +33,12 @@ export { runCommand } from "./cli/runCommand";
 export { runWorkflowCli } from "./cli/runWorkflow";
 export {
   getDbStats,
+  isMissingRelationError,
   registerDbStatsTables,
+  resetDbStatsTablesForTesting,
   type CountableRepository,
   type DbStatsTable,
+  type TableStat,
 } from "./cli/queries/DbStatus";
 export { AddCommands } from "./commands";
 

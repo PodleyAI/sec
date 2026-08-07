@@ -60,11 +60,21 @@ export function addDbCommands(program: Command): void {
           { key: "rows", header: "Rows", width: 12 },
         ];
 
-        console.log(
-          renderTable(tables as unknown as Record<string, unknown>[], columns, {
-            format: (options.format as "table" | "json") ?? "table",
-          })
-        );
+        const format = (options.format as "table" | "json") ?? "table";
+        // A null count means the relation does not exist yet. JSON keeps the
+        // null (a consumer must be able to tell "not counted" from zero); the
+        // text table would render it as an empty cell, so label it.
+        const rendered =
+          format === "json"
+            ? (tables as unknown as Record<string, unknown>[])
+            : tables.map((stat) => ({ table: stat.table, rows: stat.rows ?? "n/a" }));
+
+        console.log(renderTable(rendered, columns, { format }));
+
+        const missing = tables.filter((stat) => stat.rows === null).length;
+        if (missing > 0 && format !== "json") {
+          console.log(`\n${missing} table(s) not counted (n/a) — run \`db setup\`?`);
+        }
       });
     });
 

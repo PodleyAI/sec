@@ -45,7 +45,12 @@ export interface DbStatusResult {
 
 export interface TableStat {
   readonly table: string;
-  readonly rows: number;
+  /**
+   * Row count, or `null` when the relation does not exist yet — a registered
+   * table the database has not been `db setup` for. Every other failure still
+   * throws.
+   */
+  readonly rows: number | null;
 }
 
 /**
@@ -101,6 +106,28 @@ function secTableName(token: ServiceToken<CountableRepository>): string {
   return table;
 }
 
+/** Postgres SQLSTATE for `undefined_table`. */
+const POSTGRES_UNDEFINED_TABLE = "42P01";
+/** `SQLITE_ERROR: no such table: adv_landing_replacement` */
+const SQLITE_MISSING_TABLE = /no such table:/i;
+/** `error: relation "adv_landing_replacement" does not exist` */
+const POSTGRES_MISSING_RELATION = /relation\s+"[^"]*"\s+does not exist/i;
+
+/**
+ * True only for "this relation has not been created", the one failure `db
+ * stats` degrades on — a table registered through {@link registerDbStatsTables}
+ * (or a sec built-in) in a database that has not been `db setup` since it was
+ * added. Deliberately narrow: a connection failure, a permissions error or a
+ * corrupt file must still surface loudly rather than be reported as `n/a`.
+ */
+export function isMissingRelationError(err: unknown): boolean {
+  if (err === null || typeof err !== "object") return false;
+  if ((err as { code?: unknown }).code === POSTGRES_UNDEFINED_TABLE) return true;
+  const message = (err as { message?: unknown }).message;
+  if (typeof message !== "string") return false;
+  return SQLITE_MISSING_TABLE.test(message) || POSTGRES_MISSING_RELATION.test(message);
+}
+
 /**
  * Counts rows through the storage interface. This exact path is used for
  * status metrics and every non-Postgres backend.
@@ -133,6 +160,30 @@ async function countTableRows(
     if (estimated !== undefined) return Number(estimated);
   }
   return await countRows(token);
+}
+
+/**
+ * {@link countTableRows}, degrading to `null` when the relation does not exist.
+ * `db stats` counts tables a downstream package registered as well as sec's
+ * own, and a database set up before one of them was added has no such
+ * relation — counting it must not cost the operator every other row count in
+ * the report. Only a missing relation degrades; every other error rethrows.
+ *
+ * Both backends funnel through here: on Postgres a name no relation has makes
+ * `to_regclass` NULL, the estimate matches no row, and the exact
+ * {@link countRows} call below it raises `42P01`.
+ */
+async function countTableRowsOrNull(
+  table: string,
+  token: ServiceToken<CountableRepository>,
+  exact: boolean
+): Promise<number | null> {
+  try {
+    return await countTableRows(table, token, exact);
+  } catch (err) {
+    if (isMissingRelationError(err)) return null;
+    throw err;
+  }
 }
 
 const STATUS_TABLES: readonly {
@@ -208,8 +259,20 @@ export function registerDbStatsTables(tables: readonly DbStatsTable[]): void {
 }
 
 /**
+ * Clears the extension tables {@link registerDbStatsTables} collected.
+ * Registration is process-global, so a test that registers a table would
+ * otherwise change what every later `db stats` assertion in the same process
+ * sees (the report order, its length, and which table is counted last).
+ */
+export function resetDbStatsTablesForTesting(): void {
+  extensionTableTokens.clear();
+}
+
+/**
  * Counts each table in order so the task runner can render useful progress
- * while a database with many extension tables is being inspected.
+ * while a database with many extension tables is being inspected. A table the
+ * database has not created reports `rows: null` (rendered `n/a`) instead of
+ * failing the whole report — see {@link countTableRowsOrNull}.
  */
 export async function getDbStats(
   onProgress?: (progress: number, message: string) => void | Promise<void>,
@@ -223,7 +286,7 @@ export async function getDbStats(
       Math.round((index / tables.length) * 100),
       `counting ${table} (${current}/${tables.length})`
     );
-    results.push({ table, rows: await countTableRows(table, token, options.exact === true) });
+    results.push({ table, rows: await countTableRowsOrNull(table, token, options.exact === true) });
     await onProgress?.(
       Math.round((current / tables.length) * 100),
       `counted ${table} (${current}/${tables.length})`
