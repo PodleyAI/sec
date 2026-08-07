@@ -15,6 +15,7 @@ import {
 } from "./embarcUnitTermsReference";
 import { sweepStepContext } from "./evalProgressContext";
 import { EVAL_EXTRACTORS } from "./fixtures";
+import { fingerprintRows } from "./fingerprintRows";
 import { estimateCost } from "./modelPricing";
 import { loadRealS1Sections, type RealSection } from "./realSections";
 import { scoreExtraction } from "./scoreExtraction";
@@ -157,6 +158,9 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           rows: rows.length,
           score: scoreExtraction(rows, [expected], {}),
           cost: estimateCost(modelId, promptChars, JSON.stringify(rows).length),
+          run: 1,
+          fingerprint: fingerprintRows(rows, true),
+          contentFingerprint: fingerprintRows(rows, false),
         };
       } catch (err) {
         result = {
@@ -169,6 +173,9 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           rows: 0,
           score: scoreExtraction([], [expected], {}),
           cost: estimateCost(modelId, promptChars, 0),
+          run: 1,
+          fingerprint: `error:1`,
+          contentFingerprint: `error:1`,
         };
       }
       results.push(result);

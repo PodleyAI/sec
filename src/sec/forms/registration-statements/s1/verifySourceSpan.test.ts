@@ -12,6 +12,7 @@ import {
   MAX_SPAN_SECTION_FRACTION,
   boundSourceSpan,
   classifySpan,
+  contiguousSpanHead,
   normalizeForSpanMatch,
   spanAppearsIn,
   spanCapFor,
@@ -211,5 +212,80 @@ describe("verifyRowSpan", () => {
   it("returns false when the raw span is at MAX_STORED_SPAN_CHARS + 1", () => {
     const overCap = "X".repeat(MAX_STORED_SPAN_CHARS + 1);
     expect(verifyRowSpan(sectionHolding(overCap), overCap)).toBe(false);
+  });
+});
+
+describe("markdown table separators", () => {
+  // The exact live failure: the offering table renders a row boundary as
+  // "… |\n|  | …", and the model quoting across two rows wrote "| |" where the
+  // render had "| | |". Every word matched; the section was dropped anyway,
+  // taking the issuer's whole ticker series with it.
+  const rendered =
+    "Securities offered | 30,000,000 units, at $10.00 per unit, each unit consisting of: |\n" +
+    "|  | • one Class A ordinary share; and |\n" +
+    "|  | • one-tenth of one warrant. |";
+  const quoted =
+    "Securities offered | 30,000,000 units, at $10.00 per unit, each unit consisting of: " +
+    "|  | • one Class A ordinary share; and |  | • one-tenth of one warrant.";
+
+  it("accepts a span that crosses a table row boundary", () => {
+    expect(classifySpan(rendered, quoted)).toBe("ok");
+  });
+
+  it("still requires the words themselves to match", () => {
+    const wrong = quoted.replace("30,000,000", "40,000,000");
+    expect(classifySpan(rendered, wrong)).toBe("not-found");
+  });
+
+  it("does not let pipe-fuzzing bridge genuinely different text", () => {
+    expect(classifySpan(rendered, "one Class A ordinary share; and one-tenth of one bicycle")).toBe(
+      "not-found"
+    );
+  });
+
+  it("keeps a single-row table cell quote working", () => {
+    expect(classifySpan("| ACME Fund | 1,000,000 | 12.5% |", "| ACME Fund | 1,000,000 | 12.5% |")).toBe(
+      "ok"
+    );
+  });
+});
+
+describe("elided spans", () => {
+  // The live case: sponsor-promote returns ONE span for seven figures scattered
+  // across a long table, so the model stitched rows together with "..." — and
+  // kept doing it after the prompt explicitly forbade it. Rejecting outright
+  // cost all seven correct figures on every run.
+  const section =
+    "| Securities offered | 30,000,000 units, at $10.00 per unit |\n" +
+    "| Number outstanding before this offering | 11,500,000 Class B ordinary shares |\n" +
+    "| Founder shares | 25% of post-IPO shares |";
+
+  it("keeps the verbatim head and accepts the row", () => {
+    const elided =
+      "| Securities offered | 30,000,000 units, at $10.00 per unit |\n...\n" +
+      "| Founder shares | 25% of post-IPO shares |";
+    expect(classifySpan(section, elided)).toBe("ok");
+  });
+
+  it("stores the head only — never the stitched construction", () => {
+    const elided = "| Securities offered | 30,000,000 units, at $10.00 per unit |\n...\nmore";
+    const stored = boundSourceSpan(elided);
+    expect(stored).not.toContain("...");
+    expect(section).toContain(stored!.trim());
+  });
+
+  it("rejects an elision whose head proves nothing", () => {
+    // A token head followed by "..." is not evidence the model read anything.
+    expect(classifySpan(section, "| Sec...everything else invented")).toBe("not-found");
+  });
+
+  it("still rejects an elided span whose head is not in the document", () => {
+    expect(
+      classifySpan(section, "| Securities offered | 99,999,999 units, at $99.00 per unit |\n...\nx")
+    ).toBe("not-found");
+  });
+
+  it("leaves an ordinary span untouched", () => {
+    expect(contiguousSpanHead("no markers here")).toBe("no markers here");
   });
 });

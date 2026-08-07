@@ -84,7 +84,7 @@ export function extractVerifyNonce(prompt: string): string | null {
  * is the escape hatch.
  */
 export function registerFakeStructuredProvider(
-  attempts: ReadonlyArray<Record<string, unknown>>,
+  attempts: ReadonlyArray<Record<string, unknown> | Error>,
   options?: { readonly provider?: string }
 ): {
   calls: ReadonlyArray<string>;
@@ -98,6 +98,10 @@ export function registerFakeStructuredProvider(
     calls.push(prompt);
     const canned = attempts[Math.min(index, attempts.length - 1)];
     index++;
+    // A canned Error is thrown rather than returned, so tests can drive the
+    // provider-failure paths (throttling, transport errors) as well as the
+    // bad-payload ones.
+    if (canned instanceof Error) throw canned;
     const nonce = extractVerifyNonce(prompt);
     const payload: Record<string, unknown> =
       nonce !== null && !("nonce_seen" in canned) ? { ...canned, nonce_seen: nonce } : { ...canned };

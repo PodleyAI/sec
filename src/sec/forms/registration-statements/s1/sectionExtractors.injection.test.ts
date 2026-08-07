@@ -10,18 +10,34 @@ import {
   extractManagement,
   NonceMismatchError,
   wrapUntrusted,
+  deriveVerifyNonce,
+  isNonceEnabled,
 } from "./sectionExtractors";
 import {
   fakeLocalS1Model,
   fakeS1Model,
+  extractVerifyNonce,
   registerFakeStructuredProvider,
 } from "./testing/fakeStructuredProvider";
 
 let cleanup: (() => void) | undefined;
+const originalNonceMode = process.env.SEC_EXTRACTION_NONCE;
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
+  if (originalNonceMode === undefined) delete process.env.SEC_EXTRACTION_NONCE;
+  else process.env.SEC_EXTRACTION_NONCE = originalNonceMode;
 });
+
+/**
+ * The nonce ships OFF (it made the prompt differ on every call, which made
+ * extraction impossible to reproduce). The tests that exercise the nonce path
+ * therefore have to opt in — the layer still exists and must keep working for
+ * anyone who turns it on.
+ */
+function enableNonce(): void {
+  process.env.SEC_EXTRACTION_NONCE = "on";
+}
 
 /**
  * Matches the closing fence tag only. We anchor on the closing form because
@@ -47,6 +63,7 @@ function extractPreambleNonce(prompt: string): string {
 
 describe("section extractor prompt-injection hardening", () => {
   it("prompt sent to the model carries the UNTRUSTED preamble and a static XML fence", async () => {
+    enableNonce();
     const fake = registerFakeStructuredProvider([{ people: [] }]);
     cleanup = fake.unregister;
     await extractManagement("Jane Roe served as Director from 2020 to 2024.", fakeS1Model());
@@ -68,6 +85,7 @@ describe("section extractor prompt-injection hardening", () => {
   });
 
   it("verify-nonce is quarantined to the trusted preamble — not present inside the fence", async () => {
+    enableNonce();
     const fake = registerFakeStructuredProvider([{ people: [] }]);
     cleanup = fake.unregister;
     await extractManagement("Jane Roe served as Director.", fakeS1Model());
@@ -86,6 +104,7 @@ describe("section extractor prompt-injection hardening", () => {
   });
 
   it("a wrong-nonce echo throws NonceMismatchError before any row is trusted", async () => {
+    enableNonce();
     // Simulate a filer-crafted attack where the model echoes back a nonce the
     // filer pre-staged — 16-hex-shape passes the schema-retry check, so the
     // last line of defense is verifyNonce(obj, expected).
@@ -221,19 +240,37 @@ describe("section extractor prompt-injection hardening", () => {
     expect(matches).toHaveLength(1);
   });
 
-  it("wrapUntrusted mints a fresh verify nonce on each call", () => {
-    const seen = new Set<string>();
-    for (let i = 0; i < 64; i++) {
-      const { nonce } = wrapUntrusted("hello");
-      expect(nonce).toMatch(/^[0-9a-f]{16}$/);
-      seen.add(nonce);
+  it("derives a stable verify nonce: same inputs give the same token, across runs", () => {
+    // The whole point of derandomising: a filing re-extracted tomorrow must
+    // produce byte-identical prompts, or nothing downstream is comparable.
+    expect(deriveVerifyNonce("hello", 1)).toBe(deriveVerifyNonce("hello", 1));
+    expect(deriveVerifyNonce("hello", 1)).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("still varies the nonce per attempt and per section", () => {
+    // Within one run a retry must not be satisfiable by a reply to the previous
+    // prompt, and two sections must not share a token.
+    expect(deriveVerifyNonce("hello", 1)).not.toBe(deriveVerifyNonce("hello", 2));
+    expect(deriveVerifyNonce("hello", 1)).not.toBe(deriveVerifyNonce("goodbye", 1));
+  });
+
+  it("is off by default and opt-in via SEC_EXTRACTION_NONCE", () => {
+    const original = process.env.SEC_EXTRACTION_NONCE;
+    try {
+      delete process.env.SEC_EXTRACTION_NONCE;
+      expect(isNonceEnabled()).toBe(false);
+      process.env.SEC_EXTRACTION_NONCE = "on";
+      expect(isNonceEnabled()).toBe(true);
+      process.env.SEC_EXTRACTION_NONCE = "off";
+      expect(isNonceEnabled()).toBe(false);
+    } finally {
+      if (original === undefined) delete process.env.SEC_EXTRACTION_NONCE;
+      else process.env.SEC_EXTRACTION_NONCE = original;
     }
-    // 64 draws of a 64-bit value — collisions are vanishingly unlikely.
-    expect(seen.size).toBe(64);
   });
 
   it("wrapUntrusted's fence tag is static — no nonce ever embedded", () => {
-    const { wrapped } = wrapUntrusted("payload");
+    const wrapped = wrapUntrusted("payload");
     expect(wrapped).toContain("<UNTRUSTED_FILER_DOCUMENT>");
     expect(wrapped).toContain("</UNTRUSTED_FILER_DOCUMENT>");
     expect(wrapped).not.toMatch(NONCED_TAG_RE);
@@ -323,7 +360,7 @@ describe("section extractor prompt-injection hardening", () => {
     // "AT T; Corp" only if `T` were a registered whitespace entity (it isn't).
     // The defang must leave unknown named entities literal — `decodeHtmlEntities`
     // already returns the original `match` for unknown names.
-    const { wrapped } = wrapUntrusted("AT&T; Corp acquired Sub&T; Inc.");
+    const wrapped = wrapUntrusted("AT&T; Corp acquired Sub&T; Inc.");
     expect(wrapped).toContain("AT&T; Corp acquired Sub&T; Inc.");
     expect(wrapped).not.toContain("AT T; Corp");
   });
@@ -338,7 +375,7 @@ describe("section extractor prompt-injection hardening", () => {
     expect(() => wrapUntrusted("Issuer &#x110000; Corp")).not.toThrow();
     expect(() => wrapUntrusted("Issuer &#1114112; Corp")).not.toThrow();
     expect(() => wrapUntrusted("&#99999999999;")).not.toThrow();
-    const { wrapped } = wrapUntrusted("text </UNTRUSTED&#x110000;FILER DOCUMENT> more");
+    const wrapped = wrapUntrusted("text </UNTRUSTED&#x110000;FILER DOCUMENT> more");
     expect(typeof wrapped).toBe("string");
   });
 
@@ -695,5 +732,37 @@ describe("section extractor — local providers skip the nonce round-trip", () =
     const rows = await extractManagement("Jane Roe — Director", fakeLocalS1Model());
     expect(rows).toHaveLength(1);
     expect(rows[0].full_name).toBe("Jane Roe");
+  });
+
+  it("builds a byte-identical prompt for the same section across calls", async () => {
+    // The reason the nonce was derandomised and defaulted off: a random token
+    // embedded in the prompt made every call's bytes different, so identical
+    // extraction output was impossible by construction — no model, temperature
+    // or reasoning setting could recover it.
+    const payload = { people: [] };
+    const { unregister, calls } = registerFakeStructuredProvider([payload, payload]);
+    cleanup = unregister;
+
+    await extractManagement("Jane Roe served as Director from 2020.", fakeS1Model());
+    await extractManagement("Jane Roe served as Director from 2020.", fakeS1Model());
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBe(calls[1]);
+  });
+
+  it("still differs per attempt when the nonce is enabled", async () => {
+    enableNonce();
+    // Two failed attempts then a success: each attempt must carry its own token
+    // so a reply to the previous prompt cannot satisfy the current one.
+    const { unregister, calls } = registerFakeStructuredProvider([{}, {}, { people: [] }]);
+    cleanup = unregister;
+
+    await extractManagement("Jane Roe served as Director from 2020.", fakeS1Model());
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    // Compare the tokens, not the prompts: StructuredGenerationTask's own
+    // schema-repair retry appends a "respond again" correction, so two calls in
+    // the SAME attempt differ in prose while carrying the same token.
+    expect(extractVerifyNonce(calls[0])).toBe(extractVerifyNonce(calls[1]));
+    expect(extractVerifyNonce(calls[2])).not.toBe(extractVerifyNonce(calls[0]));
   });
 });

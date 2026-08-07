@@ -36,6 +36,7 @@ import {
   extractExecutiveCompensation,
   extractManagement,
   extractRelatedParty,
+  isCollectivePartyName,
   extractRiskFactors,
   extractSpacClassification,
   extractSpacProfile,
@@ -611,46 +612,62 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       );
       let txIndex = 0;
       for (const r of rows) {
-        const observation_index = idx++;
-        let observation_id: number;
-        if (r.party_kind === "person") {
-          const name = splitPersonName(r.name);
-          ({ observation_id } = await observer.observePerson({
-            ...base,
-            observation_index,
-            source_filing_issuer_cik: cik,
-            first_name: name.first,
-            middle_name: name.middle,
-            last_name: name.last,
-            suffix: name.suffix,
-            relationship: "s1:related-party",
-            source_context: JSON.stringify({ relation: "s1:related-party" }),
-          }));
-        } else {
-          ({ observation_id } = await observer.observeCompany({
-            ...base,
-            observation_index,
-            name: r.name,
-            source_context: JSON.stringify({ relation: "s1:related-party" }),
-          }));
+        // Item 404 disclosures are routinely made against the officer/director
+        // group as a class ("our officers and directors may receive a finder's
+        // fee"), and the model returns the group's label as a person. The
+        // disclosure is real and is kept; the person is not. Such a row is
+        // stored as `party_kind: "group"` with the filing's wording in
+        // `party_label` and no observation — recording the money without the
+        // subject would be worse than either. The model is never asked for
+        // "group": it classifies person/company, and this derives the third
+        // kind, so a model that has never heard of the distinction cannot get
+        // it wrong. On one live filing this was every single related-party
+        // person: four rows, no actual individuals.
+        const isCollective = r.party_kind === "person" && isCollectivePartyName(r.name);
+        const partyKind = isCollective ? ("group" as const) : r.party_kind;
+        let observation_id: number | null = null;
+        if (!isCollective) {
+          const observation_index = idx++;
+          if (r.party_kind === "person") {
+            const name = splitPersonName(r.name);
+            ({ observation_id } = await observer.observePerson({
+              ...base,
+              observation_index,
+              source_filing_issuer_cik: cik,
+              first_name: name.first,
+              middle_name: name.middle,
+              last_name: name.last,
+              suffix: name.suffix,
+              relationship: "s1:related-party",
+              source_context: JSON.stringify({ relation: "s1:related-party" }),
+            }));
+          } else {
+            ({ observation_id } = await observer.observeCompany({
+              ...base,
+              observation_index,
+              name: r.name,
+              source_context: JSON.stringify({ relation: "s1:related-party" }),
+            }));
+          }
+          await provenance.save({
+            kind: r.party_kind,
+            observation_id,
+            confidence: r.confidence,
+            source_span: boundSourceSpan(r.source_span),
+            section_name: S1_SECTIONS.RELATED_PARTY,
+            model_id,
+            prompt_version: extractor_version,
+            extra: null,
+          });
         }
-        await provenance.save({
-          kind: r.party_kind,
-          observation_id,
-          confidence: r.confidence,
-          source_span: boundSourceSpan(r.source_span),
-          section_name: S1_SECTIONS.RELATED_PARTY,
-          model_id,
-          prompt_version: extractor_version,
-          extra: null,
-        });
         for (const t of r.transactions) {
           await relatedRepo.save({
             accession_number,
             extractor_id: EXTRACTOR_ID,
             transaction_index: txIndex++,
-            party_kind: r.party_kind,
+            party_kind: partyKind,
             observation_id,
+            party_label: isCollective ? r.name : null,
             counterparty: t.counterparty,
             nature: t.nature,
             amount: t.amount,

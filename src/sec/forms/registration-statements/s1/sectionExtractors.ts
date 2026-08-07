@@ -6,6 +6,7 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
+import { createHash } from "node:crypto";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
@@ -141,6 +142,46 @@ export const SPAN_PROMPT_LIMIT = MIN_SPAN_CAP_CHARS;
 export const EXTRACTION_ATTEMPTS = 3;
 
 /**
+ * How many times one call may wait out a provider rate limit. Throttling is not
+ * a quality failure, so these waits do NOT consume the {@link
+ * EXTRACTION_ATTEMPTS} budget — a section that is merely queued behind the TPM
+ * window should not spend its retries and dead-letter as if the model had
+ * produced something unusable.
+ *
+ * This mattered in practice: a live batch lost whole sections to
+ * `Rate limit reached … tokens per min (TPM): Limit 200000, Used 178126`, and
+ * because the retries fired immediately all three landed inside the same
+ * one-minute window. Any measurement taken through that — comparing models,
+ * say — is measuring the TPM quota rather than the models.
+ */
+export const MAX_RATE_LIMIT_WAITS = 5;
+
+/** Whether a provider error is a throttle rather than a bad response. */
+export function isRateLimitError(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e);
+  return /rate limit|rate_limit|429|too many requests/i.test(message);
+}
+
+/**
+ * How long to wait before retrying a throttled call.
+ *
+ * Providers usually say — OpenAI returns "Please try again in 4.082s" — so the
+ * stated delay is honoured when present rather than guessed at. Otherwise back
+ * off exponentially from one second. Either way a little jitter is added so
+ * several sections throttled by the same window do not all wake together and
+ * re-collide.
+ */
+export function rateLimitWaitMs(e: unknown, waitNumber: number, jitter = Math.random()): number {
+  const message = e instanceof Error ? e.message : String(e);
+  const stated = message.match(/try again in ([\d.]+)\s*s/i);
+  const base =
+    stated !== null && Number.isFinite(Number(stated[1]))
+      ? Math.ceil(Number(stated[1]) * 1000) + 250
+      : Math.min(1000 * 2 ** (waitNumber - 1), 30_000);
+  return base + Math.floor(jitter * 500);
+}
+
+/**
  * Prompt-injection hardening preamble. The filer's prospectus text is
  * verbatim HTML they control; treating it as instructions lets a filer
  * coerce the model into emitting hand-crafted rows (e.g. "Ignore prior
@@ -183,7 +224,10 @@ export function buildUntrustedPreamble(verifyNonce?: string): string {
     "document between the tags; do not paraphrase. A source_span must be ONE " +
     "CONTIGUOUS run of characters copied exactly as it appears: do not join " +
     "passages from different places, do not skip over intervening words, and " +
-    "do not omit words like 'also'. Quote only the shortest passage that " +
+    "do not omit words like 'also'. NEVER write '...' or '…' to skip over " +
+    "material — a span containing an elision marker is rejected outright. When " +
+    "a row's values come from several places, cite the ONE passage that best " +
+    "supports it rather than stitching them together. Quote only the shortest passage that " +
     `supports the row, and keep every source_span under ${SPAN_PROMPT_LIMIT} ` +
     "characters — a longer span is rejected even when it is verbatim.";
   if (verifyNonce === undefined) return base;
@@ -302,14 +346,46 @@ function stripFormatChars(s: string): string {
  * has no way to know which 16-hex value we minted this call, so the value they
  * planted cannot match the preamble-side token.
  */
-function generateVerifyNonce(): string {
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  let hex = "";
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, "0");
-  }
-  return hex;
+/**
+ * Whether the per-call verification token is planted at all.
+ *
+ * Off by default. The nonce is defense-in-depth — the source-span gate is the
+ * load-bearing integrity check and is unaffected — and it carried a real cost:
+ * a random token embedded in the prompt made the prompt bytes different on
+ * every call, so identical extraction output was impossible by construction, no
+ * matter the model, temperature or reasoning setting. Set
+ * `SEC_EXTRACTION_NONCE=on` to re-enable it; the token is then derived rather
+ * than random (see {@link deriveVerifyNonce}), so the prompt stays byte-stable
+ * across runs either way.
+ */
+export function isNonceEnabled(): boolean {
+  const raw = (process.env.SEC_EXTRACTION_NONCE ?? "").trim().toLowerCase();
+  return raw === "on" || raw === "1" || raw === "true";
+}
+
+/**
+ * The verification token for one call, derived from the call's own inputs
+ * instead of `crypto.getRandomValues`.
+ *
+ * Determinism is the point: the same filing re-extracted tomorrow must produce
+ * the same prompt, or nothing downstream can be compared run to run. Including
+ * `attempt` keeps the token fresh across retries within a run — a reply to the
+ * previous prompt must not satisfy the current one — while attempt N of every
+ * run agrees.
+ *
+ * The security property is now conditional and worth stating plainly: the token
+ * is unpredictable to a filer only insofar as `SEC_EXTRACTION_NONCE_SECRET` is.
+ * Left unset, the derivation is public and a filer who knows the scheme could
+ * compute the token and echo it from inside the fenced body. That is why the
+ * secret exists, and why the span gate — which no secret protects and no filer
+ * can forge — remains the check that actually matters.
+ */
+export function deriveVerifyNonce(sectionText: string, attempt: number): string {
+  const secret = process.env.SEC_EXTRACTION_NONCE_SECRET ?? "";
+  return createHash("sha256")
+    .update(`${secret}\u0000${attempt}\u0000${sectionText}`)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 /**
@@ -334,7 +410,7 @@ const TAG_SHAPED = /<\s*\/?\s*[_A-Z][\w\s-]*\s*>/gi;
  * quarantined to the trusted preamble — it never appears inside the fenced
  * body — so a filer-planted `nonce_seen` value cannot match ours.
  */
-export function wrapUntrusted(sectionText: string): { wrapped: string; nonce: string } {
+export function wrapUntrusted(sectionText: string): string {
   const decoded = decodeHtmlEntities(sectionText).normalize("NFKC");
   const stripped = stripFormatChars(decoded);
   // Defense-in-depth: collapse any numeric whitespace entity that survived the
@@ -352,9 +428,8 @@ export function wrapUntrusted(sectionText: string): { wrapped: string; nonce: st
     const squashed = match.replace(/[^A-Za-z]/g, "").toUpperCase();
     return squashed.startsWith("UNTRUSTEDFILERDOCUMENT") ? "[redacted-fence-tag]" : match;
   });
-  const nonce = generateVerifyNonce();
   const tag = "UNTRUSTED_FILER_DOCUMENT";
-  return { wrapped: `<${tag}>\n${defanged}\n</${tag}>`, nonce };
+  return `<${tag}>\n${defanged}\n</${tag}>`;
 }
 
 /**
@@ -599,22 +674,25 @@ async function runGuardedExtraction(
 ): Promise<Record<string, unknown>> {
   const local = isLocalProvider(model);
   let lastError: unknown;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; attempt++) {
-    // A fresh nonce per attempt: reusing one across retries would let a reply
-    // to the previous prompt satisfy the current one.
-    const { wrapped, nonce } = wrapUntrusted(sectionText);
-    const preamble = local ? buildUntrustedPreamble() : buildUntrustedPreamble(nonce);
+  let rateLimitWaits = 0;
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
+    // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
+    // nonce is off by default besides; either way the schema must drop
+    // `nonce_seen` or the model is asked to echo something it was never given.
+    const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
+    const wrapped = wrapUntrusted(sectionText);
+    const preamble = buildUntrustedPreamble(nonce);
     const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
     try {
       const obj = await runStructured(
         label,
         model,
         prompt,
-        local ? stripNonceSeen(outputSchema) : outputSchema,
+        nonce === undefined ? stripNonceSeen(outputSchema) : outputSchema,
         context,
         maxTokens
       );
-      if (!local) verifyNonce(obj, nonce);
+      if (nonce !== undefined) verifyNonce(obj, nonce);
       return obj;
     } catch (e) {
       // A nonce mismatch is retried like any other failure, and deliberately so.
@@ -627,6 +705,16 @@ async function runGuardedExtraction(
       // zero, and another return it one hex character short. Neither is an
       // attack, and neither should cost a section.
       lastError = e;
+      // A throttle is not the model's fault: wait it out and retry WITHOUT
+      // spending an attempt, so the section is not dead-lettered for being
+      // queued. Bounded by MAX_RATE_LIMIT_WAITS so a permanently exhausted
+      // quota still fails rather than hanging.
+      if (isRateLimitError(e) && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
+        rateLimitWaits++;
+        await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs(e, rateLimitWaits)));
+        continue;
+      }
+      attempt++;
     }
   }
   throw lastError;
@@ -684,11 +772,16 @@ export async function extractManagement(
   const people = (obj.people as ManagementPersonRow[] | undefined) ?? [];
   // Post-model canonicalization: split compound titles and canonicalize each
   // role, so the stored roles are consistent regardless of which model produced
-  // the row (the prompt only nudges toward this form).
-  return people.map((person) => ({
-    ...person,
-    titles: normalizeManagementTitles(person.titles),
-  }));
+  // the row (the prompt only nudges toward this form). A collective label
+  // ("Our Officers and Directors") is dropped first — it names a group, not a
+  // director, and enforcing that here rather than trusting the prompt mirrors
+  // the ownership-subtotal guard.
+  return people
+    .filter((person) => !isCollectivePartyName(person?.full_name))
+    .map((person) => ({
+      ...person,
+      titles: normalizeManagementTitles(person.titles),
+    }));
 }
 
 /**
@@ -828,6 +921,85 @@ const OWNERSHIP_GROUP_SUBTOTAL = /^all\b[\s\S]*\bas a group\b/i;
 /** True for an aggregate subtotal row rather than an individual stockholder. */
 export function isOwnershipGroupSubtotal(name: string | null | undefined): boolean {
   return typeof name === "string" && OWNERSHIP_GROUP_SUBTOTAL.test(name.trim());
+}
+
+/**
+ * A collective label standing in for a group of people rather than naming one:
+ * "Our Directors", "Our Officers and Directors", "Members of Our Team".
+ *
+ * Prospectuses disclose plenty of Item 404 arrangements against the officer and
+ * director group as a class ("our officers and directors may receive a finder's
+ * fee", "our directors will be reimbursed for out-of-pocket expenses"), and a
+ * model asked for the party dutifully returns the group's label with
+ * `party_kind: "person"`. Name-splitting that produces a canonical person called
+ * "Our Directors" — and on one live filing every single related-party person was
+ * one of these, four rows, no real individuals at all, including a mangled
+ * "Members Of Our Us" and case-variant duplicates.
+ *
+ * Anchored on a leading determiner so it cannot swallow a real name: a person
+ * called "Alan Officer" does not start with our/the/all/certain.
+ */
+const COLLECTIVE_PARTY_LABEL =
+  /^(?:(?:our|the|all|certain|each|any|several)\b[\s\S]{0,40}?\b(?:team|directors?|officers?|management|employees?|insiders?|affiliates?|shareholders?|stockholders?|founders?|sponsors?|members?|executives?|principals?|nominees?|personnel)\b|members?\s+of\b)/i;
+
+/**
+ * Words naming a role or class of people rather than a person.
+ */
+const ROLE_WORDS = new Set([
+  "advisers", "advisors", "affiliates", "consultants", "directors", "employees",
+  "executives", "founders", "insiders", "management", "members", "nominees",
+  "officers", "personnel", "principals", "shareholders", "sponsors",
+  "stockholders", "team",
+]);
+
+/**
+ * Words that qualify or join a role without naming anybody — "independent",
+ * "and", "our". A name built only from these plus {@link ROLE_WORDS} describes a
+ * class, not a person.
+ */
+const COLLECTIVE_QUALIFIERS = new Set([
+  "all", "and", "any", "certain", "current", "each", "executive", "existing",
+  "former", "independent", "initial", "key", "non-employee", "of", "other",
+  "otherwise",
+  "our", "outside", "senior", "several", "the",
+]);
+
+/**
+ * True when every word in the name is a role or a qualifier — "Independent
+ * Directors", "Executive Officers and Directors".
+ *
+ * Complements {@link COLLECTIVE_PARTY_LABEL}, which anchors on a leading
+ * determiner and so cannot see a bare role plural. A live run surfaced exactly
+ * that gap: "Independent Directors" slipped through and became a person.
+ *
+ * Safe against real names because a personal or corporate name always
+ * contributes at least one word outside both vocabularies — "Alan Officer" has
+ * "alan", "Citigroup Global Markets Inc." has "citigroup". Requiring at least
+ * one actual role word stops a bare qualifier ("The Other") matching.
+ */
+function isAllRoleWords(name: string): boolean {
+  const words = name
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  if (words.length === 0) return false;
+  let sawRole = false;
+  for (const word of words) {
+    if (ROLE_WORDS.has(word)) {
+      sawRole = true;
+      continue;
+    }
+    if (!COLLECTIVE_QUALIFIERS.has(word)) return false;
+  }
+  return sawRole;
+}
+
+/** True when a person-shaped name is really a label for a group of people. */
+export function isCollectivePartyName(name: string | null | undefined): boolean {
+  if (typeof name !== "string") return false;
+  const trimmed = name.trim();
+  return COLLECTIVE_PARTY_LABEL.test(trimmed) || isAllRoleWords(trimmed);
 }
 
 export async function extractBeneficialOwnership(

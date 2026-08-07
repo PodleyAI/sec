@@ -4,13 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * Collapses a run of markdown table pipes (and the whitespace around them) to a
+ * single separator.
+ *
+ * The pipes are OUR artifact, not the filer's: the HTML→GFM converter emits
+ * them, and a row boundary becomes `… |\n|  | …` — three pipes once newlines
+ * collapse. A model quoting across two rows of the offering table reproduced
+ * every word correctly but wrote `| |` where the render had `| | |`, and the
+ * span was rejected as absent from a document it had copied faithfully. That
+ * cost the whole offering-terms section — and with it the issuer's entire
+ * ticker series — on every single run.
+ *
+ * Fuzzing only the separators keeps the check meaningful: the words, numbers
+ * and their order must still match exactly, so an injected payload still cannot
+ * manufacture a passing span. It just stops us demanding the model reproduce
+ * our own table scaffolding character-for-character.
+ */
+function collapseTablePipes(s: string): string {
+  return s.replace(/\s*\|(?:\s*\|)*\s*/g, " | ");
+}
+
 export function normalizeForSpanMatch(s: string | null | undefined): string {
   if (s == null) return "";
-  return s
-    .normalize("NFKC")
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/\s+/g, " ")
+  return collapseTablePipes(
+    s
+      .normalize("NFKC")
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/\s+/g, " ")
+  )
     .trim()
     .toLowerCase();
 }
@@ -74,11 +97,52 @@ export function spanCapFor(text: string): number {
  * The raw (pre-normalization) length is checked first, so a span padded with
  * whitespace that would collapse under cap is still rejected as `too-long`.
  */
+/**
+ * An elision marker a model writes to skip material it does not want to quote
+ * in full — literally "..." or "…" inside a span.
+ */
+const ELISION_MARKER = /(?:\.\.\.|…)/;
+
+/**
+ * Minimum length of the surviving head before an elided span is accepted, in
+ * normalized characters. A model must have quoted something substantial for the
+ * citation to be worth keeping; a few characters followed by "..." proves
+ * nothing about document contact.
+ */
+const MIN_ELIDED_HEAD_CHARS = 40;
+
+/**
+ * The contiguous portion of a span, cut at the first elision marker.
+ *
+ * Some extractors return ONE `source_span` for an object with many fields — the
+ * sponsor promote carries seven, scattered across a long table — and asking for
+ * a single contiguous quote covering all of them is not satisfiable. Models
+ * resolve that by stitching rows together with "..." separators, and they keep
+ * doing it when told not to.
+ *
+ * Rejecting those outright cost the entire section on every run: seven correct
+ * figures thrown away because the citation was over-ambitious. Keeping the head
+ * keeps a citation that IS verbatim and DOES prove the model read the document,
+ * which is what the span is for. The fabricated join is discarded rather than
+ * stored, so what lands on disk is a real quote and not a construction.
+ *
+ * Verification and storage both go through here, so the span written to the
+ * database is exactly the span that was checked.
+ */
+export function contiguousSpanHead(span: string): string {
+  const cut = span.search(ELISION_MARKER);
+  return cut === -1 ? span : span.slice(0, cut);
+}
+
 export function classifySpan(text: string, span: string | null | undefined): SpanVerdict {
   if (span == null) return "not-found";
   if (span.length > spanCapFor(text)) return "too-long";
-  const n = normalizeForSpanMatch(span);
-  if (n.length < 3) return "not-found";
+  const elided = ELISION_MARKER.test(span);
+  const candidate = contiguousSpanHead(span);
+  const n = normalizeForSpanMatch(candidate);
+  // An elided span must leave a substantial verbatim head behind; an ordinary
+  // span only has to clear the trivial-match floor.
+  if (n.length < (elided ? MIN_ELIDED_HEAD_CHARS : 3)) return "not-found";
   return normalizeForSpanMatch(text).includes(n) ? "ok" : "not-found";
 }
 
@@ -107,7 +171,10 @@ export function spanAppearsIn(haystack: string, span: string | null | undefined)
  */
 export function boundSourceSpan(span: string | null | undefined): string | null {
   if (span == null) return null;
-  return span.length > MAX_STORED_SPAN_CHARS ? null : span;
+  // Store the same contiguous head that was verified, never the elided
+  // construction — a stored span has to be a quote you can find in the filing.
+  const head = contiguousSpanHead(span);
+  return head.length > MAX_STORED_SPAN_CHARS ? null : head;
 }
 
 /**

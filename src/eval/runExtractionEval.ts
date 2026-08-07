@@ -9,6 +9,7 @@ import { getGlobalModelRepository } from "workglow";
 import { registerModelIds } from "../config/registerModels";
 import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { sweepStepContext } from "./evalProgressContext";
+import { fingerprintRows } from "./fingerprintRows";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
@@ -24,6 +25,30 @@ export interface FixtureRunResult {
   readonly rows: number;
   readonly score: ExtractionScore;
   readonly cost: CostEstimate;
+  /** 1-based repetition index; always 1 unless `runs` was raised. */
+  readonly run: number;
+  /** Digest of the rows including citations (`source_span`, `confidence`). */
+  readonly fingerprint: string;
+  /** Digest of the extracted facts only — citations excluded. */
+  readonly contentFingerprint: string;
+}
+
+/**
+ * How reproducible one model's extractions were across repeated runs of the
+ * same fixture. Reported only when `runs > 1`.
+ *
+ * The two counts answer different questions. `stableContent` is whether the
+ * model found the same facts; `stableExact` additionally requires it to have
+ * cited them the same way. On real filings the first has been much higher than
+ * the second — the same risks cut at different points — so collapsing them into
+ * one number would hide where the variance actually lives.
+ */
+export interface StabilitySummary {
+  readonly model: string;
+  readonly fixtures: number;
+  readonly stableExact: number;
+  readonly stableContent: number;
+  readonly runs: number;
 }
 
 export interface ModelSummary {
@@ -42,12 +67,20 @@ export interface ModelSummary {
 export interface EvalReport {
   readonly results: readonly FixtureRunResult[];
   readonly summaries: readonly ModelSummary[];
+  /** Present only when the sweep repeated fixtures (`runs > 1`). */
+  readonly stability?: readonly StabilitySummary[];
 }
 
 export interface RunEvalOptions {
   readonly models: readonly string[];
   /** Restrict to one extractor (e.g. `management`); default runs every fixture. */
   readonly extractor?: string;
+  /**
+   * Repeat every fixture this many times per model to measure reproducibility.
+   * Defaults to 1 (no repetition), which keeps the existing correctness sweep
+   * unchanged in both cost and output.
+   */
+  readonly runs?: number;
   /**
    * Optional progress sink, invoked once per (model, fixture) as the sweep runs
    * (`done` of `total`). The CLI wires this to the task-graph progress UI so a
@@ -95,7 +128,8 @@ async function runOne(
   modelId: string,
   model: ModelConfig,
   fixture: EvalFixture,
-  context: IExecuteContext | undefined
+  context: IExecuteContext | undefined,
+  run: number
 ): Promise<FixtureRunResult> {
   const extractor = EVAL_EXTRACTORS[fixture.extractor];
   const promptChars = fixture.text.length + extractor.instructionOverheadChars;
@@ -115,6 +149,9 @@ async function runOne(
       rows: rows.length,
       score,
       cost,
+      run,
+      fingerprint: fingerprintRows(rows, true),
+      contentFingerprint: fingerprintRows(rows, false),
     };
   } catch (err) {
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
@@ -128,8 +165,43 @@ async function runOne(
       rows: 0,
       score: scoreExtraction([], fixture.expected, { keyField: extractor.keyField }),
       cost: estimateCost(modelId, promptChars, 0),
+      run,
+      // A failed run has no rows to fingerprint. Give it a distinct sentinel
+      // rather than the empty-set digest, so two failures are not mistaken for
+      // two runs that reproducibly agreed on extracting nothing.
+      fingerprint: `error:${run}`,
+      contentFingerprint: `error:${run}`,
     };
   }
+}
+
+/**
+ * Per-model reproducibility: for each fixture, whether every repetition agreed.
+ * A fixture whose runs disagree counts once, regardless of how many differed —
+ * the question is "is this fixture reproducible on this model", not "how many
+ * ways did it vary".
+ */
+export function summarizeStability(
+  results: readonly FixtureRunResult[],
+  runs: number
+): StabilitySummary[] {
+  const byModel = new Map<string, Map<string, FixtureRunResult[]>>();
+  for (const r of results) {
+    const fixtures = byModel.get(r.model) ?? new Map<string, FixtureRunResult[]>();
+    fixtures.set(r.fixture, [...(fixtures.get(r.fixture) ?? []), r]);
+    byModel.set(r.model, fixtures);
+  }
+  const out: StabilitySummary[] = [];
+  for (const [model, fixtures] of byModel) {
+    let stableExact = 0;
+    let stableContent = 0;
+    for (const group of fixtures.values()) {
+      if (new Set(group.map((g) => g.fingerprint)).size === 1) stableExact += 1;
+      if (new Set(group.map((g) => g.contentFingerprint)).size === 1) stableContent += 1;
+    }
+    out.push({ model, fixtures: fixtures.size, stableExact, stableContent, runs });
+  }
+  return out;
 }
 
 /** Aggregate one model's per-run results into the ranked summary row (shared with `sec eval unit-terms`). */
@@ -173,7 +245,8 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
   const results: FixtureRunResult[] = [];
   const summaries: ModelSummary[] = [];
   const progress = opts.onProgress ?? ((): void => {});
-  const total = opts.models.length * fixtures.length;
+  const runs = Math.max(1, Math.trunc(opts.runs ?? 1));
+  const total = opts.models.length * fixtures.length * runs;
   let done = 0;
 
   for (const modelId of opts.models) {
@@ -188,14 +261,17 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     const modelRows: FixtureRunResult[] = [];
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;
-      const label = `${modelId} — ${fixture.name}`;
+      for (let run = 1; run <= runs; run++) {
+      if (opts.signal?.aborted) break;
+      const label = runs > 1 ? `${modelId} — ${fixture.name} (run ${run}/${runs})` : `${modelId} — ${fixture.name}`;
       progress(done, total, label);
       const result = model
         ? await runOne(
             modelId,
             model,
             fixture,
-            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label)
+            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label),
+            run
           )
         : ({
             model: modelId,
@@ -209,6 +285,9 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
             }),
             cost: estimateCost(modelId, 0, 0),
+            run,
+            fingerprint: `unregistered:${run}`,
+            contentFingerprint: `unregistered:${run}`,
           } satisfies FixtureRunResult);
       results.push(result);
       modelRows.push(result);
@@ -218,6 +297,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
         total,
         `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`
       );
+      }
     }
     summaries.push(summarizeModelRuns(modelId, provider, modelRows));
     // Free a local model's memory before the next candidate loads, so a sweep
@@ -232,5 +312,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
       a.avgLatencyMs - b.avgLatencyMs
   );
 
-  return { results, summaries };
+  return runs > 1
+    ? { results, summaries, stability: summarizeStability(results, runs) }
+    : { results, summaries };
 }

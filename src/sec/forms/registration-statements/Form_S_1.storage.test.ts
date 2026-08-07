@@ -256,4 +256,80 @@ describe("processFormS1", () => {
     expect(c?.is_spac).toBe(false);
     expect(c?.classifier_source).toBe("sic-unknown");
   });
+
+  it("keeps a group-level related-party disclosure but mints no person for it", async () => {
+    // Real Item 404 arrangements are disclosed against the officer/director
+    // group as a class. The disclosure is worth keeping; "Our Officers And
+    // Directors" as a canonical person is not.
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      {
+        parties: [
+          {
+            name: "Our Officers And Directors",
+            party_kind: "person",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: null,
+                nature: "Potential loans to fund working capital deficiencies",
+                amount: 1500000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+          {
+            name: "Michael Klein",
+            party_kind: "person",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: null,
+                nature: "Purchase of Class B ordinary shares",
+                amount: 25000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    const accession = "0000000000-26-collective";
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: accession,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    // Both disclosures survive — nothing real is thrown away.
+    const tx = await new RelatedPartyTransactionRepo().queryByAccession(accession);
+    expect(tx.map((t) => t.amount).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([25000, 1500000]);
+    // The group's row keeps the filing's own wording and names no entity, so a
+    // person query (which must filter party_kind anyway — observation_id is
+    // polymorphic across two id sequences) structurally cannot see it.
+    const groupRow = tx.find((t) => t.amount === 1500000);
+    expect(groupRow?.party_kind).toBe("group");
+    expect(groupRow?.party_label).toBe("Our Officers And Directors");
+    expect(groupRow?.observation_id).toBeNull();
+    // The named officer is unaffected: still a person, still attributed.
+    const personRow = tx.find((t) => t.amount === 25000);
+    expect(personRow?.party_kind).toBe("person");
+    expect(personRow?.party_label).toBeNull();
+    expect(personRow?.observation_id).not.toBeNull();
+    // Only the real person reaches the observation tier.
+    const people = await new PersonObservationRepo().listByAccession(accession);
+    expect(people.map((p) => `${p.first_name} ${p.last_name}`)).toEqual(["Michael Klein"]);
+  });
 });

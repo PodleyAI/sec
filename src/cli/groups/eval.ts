@@ -12,6 +12,7 @@ import {
   extractorsWithFixtures,
   type EvalReport,
   type ModelSummary,
+  type StabilitySummary,
 } from "../../eval/runExtractionEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
@@ -20,12 +21,24 @@ import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
 /**
- * Default comparison set: a cheap cloud model vs a strong one — the comparison
- * that decides production extraction. A local HFT model is deliberately NOT in
- * the default sweep: it costs minutes per section and is not a production
- * candidate. Pass one explicitly (`--models "$SEC_HFT_MODEL"`) to rank it.
+ * Default comparison set: a cheap and a strong model from each of the three
+ * cloud providers we hold keys for. Cross-provider is the point — extraction
+ * quality and reproducibility have both turned out to be provider-specific
+ * (OpenAI's reasoning family rejects `temperature` outright; only Gemini offers
+ * a sampling `seed`), so ranking within one vendor answers the wrong question.
+ *
+ * A local HFT model is deliberately NOT in the default sweep: it costs minutes
+ * per section and is not a production candidate. Pass one explicitly
+ * (`--models "$SEC_HFT_MODEL"`) to rank it — and note the local providers are
+ * the only ones that can pin a seed, so they are where genuine reproducibility
+ * is achievable.
  */
-const DEFAULT_MODELS = ["claude-haiku-4-5", "claude-sonnet-5"];
+const DEFAULT_MODELS = [
+  "claude-haiku-4-5",
+  "claude-sonnet-5",
+  "deepseek-v4-flash",
+  "gemini-3.6-flash",
+];
 
 /**
  * Default candidate for `sec eval s1`: score the cheap cloud model against the
@@ -141,6 +154,36 @@ const DEFAULT_SCORE_LEGEND =
   "est.cost is an estimate (no usage from the task); local models are $0. " +
   "Best-first: correctness, then cost, then latency.";
 
+/**
+ * Reproducibility table, shown only when the sweep repeated fixtures.
+ *
+ * `same` is how many fixtures produced byte-identical output on every run;
+ * `same facts` relaxes that to ignore `source_span`/`confidence`. The gap
+ * between the two columns is the interesting part: on real filings the model
+ * has repeatedly found the SAME risks while cutting their captions at different
+ * points, which is a prompt problem, not a "the model is unreliable" problem.
+ * One number could not tell those apart.
+ */
+function printStability(report: EvalReport): void {
+  const stability = report.stability;
+  if (!stability || stability.length === 0) return;
+  const runs = stability[0].runs;
+  console.log(`\nreproducibility over ${runs} runs per fixture:`);
+  const cols: Array<[string, number, (s: StabilitySummary) => string]> = [
+    ["model", 34, (m) => m.model],
+    ["same", 12, (m) => `${m.stableExact}/${m.fixtures}`],
+    ["same facts", 12, (m) => `${m.stableContent}/${m.fixtures}`],
+  ];
+  console.log(cols.map(([h, w]) => pad(h, w)).join(" "));
+  console.log(cols.map(([, w]) => "-".repeat(w)).join(" "));
+  for (const m of [...stability].sort((a, b) => b.stableContent - a.stableContent)) {
+    console.log(cols.map(([, w, get]) => pad(get(m), w)).join(" "));
+  }
+  console.log(
+    "\n  same = byte-identical rows incl. citations; same facts = ignoring source_span/confidence"
+  );
+}
+
 function printTable(
   report: EvalReport,
   details: boolean,
@@ -168,6 +211,8 @@ function printTable(
     console.log(`${rank} ${rest}`);
   });
   console.log(`\n${scoreLegend}`);
+
+  printStability(report);
 
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
@@ -262,16 +307,34 @@ export function addEvalCommands(program: Command): void {
     )
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
+    .option(
+      "--runs <n>",
+      "repeat each fixture N times per model and report reproducibility (default 1)",
+      (v) => Number(v)
+    )
     .action(
-      async (opts: { models?: string; extractor?: string; format: string; details: boolean }) => {
+      async (opts: {
+        models?: string;
+        extractor?: string;
+        format: string;
+        details: boolean;
+        runs?: number;
+      }) => {
         await runCommand(async () => {
           const models = parseModels(opts.models);
+          if (opts.runs !== undefined && (!Number.isFinite(opts.runs) || opts.runs < 1)) {
+            throw new Error(`--runs must be a positive integer; got "${opts.runs}"`);
+          }
           if (opts.extractor && !EVAL_EXTRACTORS[opts.extractor]) {
             throw new Error(
               `unknown extractor "${opts.extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
             );
           }
-          const input = opts.extractor ? { models, extractor: opts.extractor } : { models };
+          const input = {
+            models,
+            ...(opts.extractor ? { extractor: opts.extractor } : {}),
+            ...(opts.runs !== undefined ? { runs: Math.trunc(opts.runs) } : {}),
+          };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.
           const report = await runWorkflowCli<EvalReport>([

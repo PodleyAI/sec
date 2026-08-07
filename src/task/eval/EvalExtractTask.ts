@@ -18,6 +18,14 @@ const InputSchema = () =>
     extractor: Type.Optional(
       Type.String({ title: "Extractor", description: "Limit to one extractor (e.g. 'management')" })
     ),
+    runs: Type.Optional(
+      Type.Number({
+        title: "Runs per fixture",
+        description:
+          "Repeat each fixture this many times per model to measure reproducibility (default 1)",
+        minimum: 1,
+      })
+    ),
   });
 export type EvalExtractTaskInput = Static<ReturnType<typeof InputSchema>>;
 
@@ -43,6 +51,7 @@ const OutputSchema = () =>
         totalUsd: Type.Union([Type.Number(), Type.Null()]),
       })
     ),
+    stability: Type.Optional(Type.Array(Type.Unknown())),
   });
 export type EvalExtractTaskOutput = Static<ReturnType<typeof OutputSchema>>;
 
@@ -72,6 +81,7 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
     const report = await runExtractionEval({
       models: input.models,
       extractor: input.extractor,
+      runs: input.runs,
       signal: context.signal,
       context,
       onProgress: (done, total, message) => {

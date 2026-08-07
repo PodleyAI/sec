@@ -16,6 +16,7 @@ import {
   extractUnderwriters,
   extractUseOfProceeds,
   extractMergerDeal,
+  isCollectivePartyName,
   requireNonEmptyGrammarArrays,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
@@ -502,5 +503,54 @@ describe("generation node reuse", () => {
     } finally {
       unregister();
     }
+  });
+});
+
+describe("isCollectivePartyName", () => {
+  it("catches the labels seen on a real filing", () => {
+    for (const name of [
+      "Our Directors",
+      "Our directors",
+      "Our Officers And Directors",
+      "Our officers and directors",
+      "Members Of Our Team",
+      "Members Of Our Us", // the mangled one a live run produced
+      "our management team",
+      "All of our officers",
+      "Certain of our affiliates",
+      "The Sponsor and its members",
+      // Bare role plurals: no leading determiner, so only the all-role-words
+      // rule catches them. A live run let this one through and minted a person.
+      "Independent Directors",
+      "Executive Officers and Directors",
+      "Officers",
+      "Non-Employee Directors",
+      "Our Initial Shareholders",
+    ]) {
+      expect(isCollectivePartyName(name), name).toBe(true);
+    }
+  });
+
+  it("does not swallow a real person or company name", () => {
+    for (const name of [
+      "Michael Klein",
+      "Jay Taragin",
+      "William Sherman",
+      "Alan Officer", // a surname that is also a role word
+      "Theodore Director", // leading "The" only as part of a given name
+      "Citigroup Global Markets Inc.",
+      "Churchill Sponsor XII LLC",
+      "M. Klein and Company, LLC",
+      "Directors Guild Inc.",   // a company whose name starts with a role word
+      "Sherman Officers",       // surname + role word is still a person-ish name
+    ]) {
+      expect(isCollectivePartyName(name), name).toBe(false);
+    }
+  });
+
+  it("is null-safe", () => {
+    expect(isCollectivePartyName(null)).toBe(false);
+    expect(isCollectivePartyName(undefined)).toBe(false);
+    expect(isCollectivePartyName("")).toBe(false);
   });
 });

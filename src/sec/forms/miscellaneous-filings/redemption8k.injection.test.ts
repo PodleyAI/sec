@@ -90,39 +90,49 @@ describe("processRedemption8K prompt-injection seal", () => {
   });
 
   it("a wrong nonce_seen dead-letters NONCE_MISMATCH and persists nothing", async () => {
-    await seedSpacWithDeal(802);
-    // The canned payload sets `nonce_seen` to a valid-shaped but WRONG value,
-    // bypassing the fake provider's preamble-token auto-echo. `verifyNonce`
-    // inside extractRedemption throws NonceMismatchError, which
-    // `sectionRunner` records under the dedicated `NONCE_MISMATCH` reason.
-    const { unregister } = registerFakeStructuredProvider([
-      {
-        redemption_shares: 1234567,
-        redemption_amount: 12400000,
-        price_per_share: 10.05,
-        confidence: 0.99,
-        source_span: "1,234,567 shares elected to redeem for $12,400,000",
-        nonce_seen: "deadbeefdeadbeef",
-      },
-    ]);
-    cleanup = unregister;
+    // The nonce ships OFF (a random token in the prompt made extraction
+    // impossible to reproduce), so this path has to opt in — the layer still
+    // exists and must keep working for anyone who enables it.
+    const priorNonceMode = process.env.SEC_EXTRACTION_NONCE;
+    process.env.SEC_EXTRACTION_NONCE = "on";
+    try {
+      await seedSpacWithDeal(802);
+      // The canned payload sets `nonce_seen` to a valid-shaped but WRONG value,
+      // bypassing the fake provider's preamble-token auto-echo. `verifyNonce`
+      // inside extractRedemption throws NonceMismatchError, which
+      // `sectionRunner` records under the dedicated `NONCE_MISMATCH` reason.
+      const { unregister } = registerFakeStructuredProvider([
+        {
+          redemption_shares: 1234567,
+          redemption_amount: 12400000,
+          price_per_share: 10.05,
+          confidence: 0.99,
+          source_span: "1,234,567 shares elected to redeem for $12,400,000",
+          nonce_seen: "deadbeefdeadbeef",
+        },
+      ]);
+      cleanup = unregister;
 
-    await processRedemption8K({
-      cik: 802,
-      accession_number: "0000000000-26-injection-3",
-      filing_date: "2026-03-20",
-      form: "8-K",
-      itemCodes: ["5.07"],
-      fullSubmissionText: FULL_TXT,
-      model: fakeS1Model(),
-    });
+      await processRedemption8K({
+        cik: 802,
+        accession_number: "0000000000-26-injection-3",
+        filing_date: "2026-03-20",
+        form: "8-K",
+        itemCodes: ["5.07"],
+        fullSubmissionText: FULL_TXT,
+        model: fakeS1Model(),
+      });
 
-    expect(
-      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-injection-3")
-    ).toBeUndefined();
-    const dl = await new ExtractionDeadLetterRepo().listPending("redemption");
-    const red = dl.find((d) => d.section_name === "redemption");
-    expect(red?.reason_code).toBe("NONCE_MISMATCH");
+      expect(
+        await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-injection-3")
+      ).toBeUndefined();
+      const dl = await new ExtractionDeadLetterRepo().listPending("redemption");
+      const red = dl.find((d) => d.section_name === "redemption");
+      expect(red?.reason_code).toBe("NONCE_MISMATCH");
+    } finally {
+      if (priorNonceMode === undefined) delete process.env.SEC_EXTRACTION_NONCE;
+      else process.env.SEC_EXTRACTION_NONCE = priorNonceMode;
+    }
   });
 
   it("persist site caps the stored source_span via boundSourceSpan at MAX_STORED_SPAN_CHARS", async () => {
