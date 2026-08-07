@@ -24,6 +24,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { findSourceStubs } from "./sourceStubs";
 
 const MAX_UNPACKED_BYTES = 5_000_000; // 5 MB
 const FORBIDDEN_SUFFIXES = [".test.ts"] as const;
@@ -173,9 +174,20 @@ function findForbidden(files: readonly string[]): string[] {
   return hits;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const report = collectReport();
   const violations: string[] = [];
+
+  // Source mode leaves re-export stubs in dist that point at src/, which is not
+  // shipped. The size ceiling below cannot catch this — a stubbed tarball is
+  // small, not large.
+  const stubs = await findSourceStubs(process.cwd());
+  if (stubs.length > 0) {
+    violations.push(
+      `${stubs.length} source-mode stub(s) in dist — run \`bun run use-dist\` and rebuild:\n  ` +
+        stubs.slice(0, 5).join("\n  ")
+    );
+  }
 
   const forbidden = findForbidden(report.files);
   if (forbidden.length > 0) {
@@ -197,10 +209,14 @@ function main(): void {
   if (violations.length > 0) {
     console.error("prepack-check FAILED:");
     for (const v of violations) console.error(`  - ${v}`);
-    console.error(
-      "\nCheck the `files` array in package.json — likely 'src' or a similar " +
-        "path was re-added. Only 'dist' should ship."
-    );
+    // Only relevant to what the tarball contains; a stub violation is about
+    // dist itself and has its own remedy in the message above.
+    if (violations.length > (stubs.length > 0 ? 1 : 0)) {
+      console.error(
+        "\nCheck the `files` array in package.json — likely 'src' or a similar " +
+          "path was re-added. Only 'dist' should ship."
+      );
+    }
     process.exit(1);
   }
 
@@ -210,4 +226,4 @@ function main(): void {
   );
 }
 
-main();
+await main();

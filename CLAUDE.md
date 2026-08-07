@@ -22,6 +22,8 @@ The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./
 
 Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
+`use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. `prepack-check` fails if any stub is still present.
+
 Local Workglow deps: from a libs checkout run `bun run link-all` (and usually `bun run use-source`), then in sec run `bun run link-workglow`. Register this package for consumers with `bun run link`. For the full libs → sec → embarc-data chain, run `bun ./dev-link.ts` from the parent `workglow/` folder (or `bun run dev-link` in libs). Re-run `link-workglow` after any `bun install`.
 
 ### Accession-document bulk cache (Feed tarballs)

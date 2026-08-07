@@ -1,60 +1,80 @@
 #!/usr/bin/env bun
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Flip this package's `exports` between source (./src/*.ts) and built
-// (./dist/*.js) files. Handy while bun-linked into a consumer (e.g. embarc-data):
-// point exports at source so edits are picked up live without a rebuild/publish,
-// then flip back to dist before committing / publishing.
-//
-// Adapted from the libs monorepo's scripts/bunsrc-workspace.ts, scoped to this
-// single package instead of iterating workspaces.
-//
-//   bun run bunsrc-source   # use ./src/*.ts   (development, bun link)
-//   bun run bunsrc-dist     # use ./dist/*.js  (committed / published state)
+/**
+ * Switch this package between source and built code while bun-linked into a
+ * consumer (e.g. embarc-data), so edits are picked up without a rebuild.
+ *
+ *   bun run use-source            # dist/* re-exports src/*, incl. the `sec` bin
+ *   bun run use-dist              # remove stubs and rebuild
+ *   bun run use-dist --no-build   # remove stubs only
+ *
+ * `package.json` is never modified: source mode only writes into the gitignored
+ * `dist` folder, so `git status` stays clean in either mode.
+ *
+ * Adapted from the libs monorepo's scripts/bunsrc-workspace.ts, scoped to this
+ * single package instead of iterating workspaces.
+ */
 
 import { $ } from "bun";
+import {
+  readPackageManifest,
+  removeSourceStubs,
+  stubSpecsFor,
+  writeSourceStubs,
+} from "./sourceStubs";
 
-function toSource(exports: string): string {
-  return exports
-    .replace(/("types":\s*")\.\/dist\/([^"]+)\.d\.ts"/g, `$1./src/$2.ts"`)
-    .replace(
-      /("(?:import|bun|node|browser|module|react-native|default)":\s*")\.\/dist\/([^"]+)\.js"/g,
-      `$1./src/$2.ts"`
-    );
-}
+const packageDir = process.cwd();
 
-function toDist(exports: string): string {
-  return exports
-    .replace(/("types":\s*")\.\/src\/([^"]+)\.ts"/g, `$1./dist/$2.d.ts"`)
-    .replace(
-      /("(?:import|bun|node|browser|module|react-native|default)":\s*")\.\/src\/([^"]+)\.ts"/g,
-      `$1./dist/$2.js"`
-    );
-}
-
-async function updateExports(mode: "source" | "dist"): Promise<void> {
-  const exports = (await $`bun pm pkg get exports`.quiet()).text().trim();
-  if (exports === "{}" || exports === "") {
-    console.log("No exports field to update.");
+async function useSource(): Promise<void> {
+  const manifest = await readPackageManifest(packageDir);
+  const specs = stubSpecsFor(manifest);
+  if (specs.length === 0) {
+    console.log("No dist entry points to stub.");
     return;
   }
-  const newExports = mode === "source" ? toSource(exports) : toDist(exports);
-  if (newExports === exports) {
-    console.log(`Exports already in ${mode} mode.`);
+  const written = await writeSourceStubs(packageDir, specs);
+  for (const target of written) console.log(`  ${target}`);
+  console.log(`\nWrote ${written.length} stub(s). Imports and the sec bin now hit src/.`);
+}
+
+async function useDist(build: boolean): Promise<void> {
+  const removed = await removeSourceStubs(packageDir);
+  if (removed.length === 0) {
+    console.log("No stubs found — already in dist mode.");
     return;
   }
-  await $`bun pm pkg set exports=${newExports} --json`;
-  console.log(`Exports switched to ${mode} mode.`);
+  console.log(`Removed ${removed.length} stub(s).`);
+
+  if (!build) {
+    console.log("Skipping rebuild (--no-build): dist is missing its entry files until you build.");
+    return;
+  }
+  console.log("Rebuilding...\n");
+  await $`bun run build`;
 }
 
 async function main(): Promise<void> {
-  const mode = process.argv[2];
+  const args = process.argv.slice(2);
+  const build = !args.includes("--no-build");
+  const mode = args.find((arg) => !arg.startsWith("--"));
+
   if (mode !== "source" && mode !== "dist") {
-    console.error("Usage: bun run scripts/bunsrc.ts <source|dist>");
-    console.error("  source: use source files (./src/*.ts) — development / bun link");
-    console.error("  dist:   use built files (./dist/*.js) — committed / published");
+    console.error("Usage: bun run scripts/bunsrc.ts <source|dist> [--no-build]");
+    console.error("  source: dist/* re-exports src/* — development / bun link");
+    console.error("  dist:   remove stubs and rebuild — committed / published state");
     process.exit(1);
   }
-  await updateExports(mode);
+
+  if (mode === "source") {
+    await useSource();
+  } else {
+    await useDist(build);
+  }
 }
 
 main().catch((error) => {
