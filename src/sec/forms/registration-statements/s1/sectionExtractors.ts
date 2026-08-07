@@ -184,10 +184,52 @@ export const EXTRACTION_ATTEMPTS = 3;
  */
 export const MAX_RATE_LIMIT_WAITS = 5;
 
+/**
+ * Ceiling on a single throttle wait. It bounds the provider-STATED delay as
+ * well as the exponential fallback: a daily/RPD quota answers with a delay
+ * measured in hours, and honouring that verbatim would park one section on a
+ * `setTimeout` for the rest of the afternoon — the opposite of what
+ * {@link MAX_RATE_LIMIT_WAITS} promises. Waiting the ceiling and then failing
+ * surfaces an exhausted quota as a dead letter, which is triageable.
+ */
+export const MAX_RATE_LIMIT_WAIT_MS = 30_000;
+
+/** Phrases every provider we call uses for a throttle. */
+const RATE_LIMIT_PHRASES = /rate[ _-]?limit|too many requests/i;
+
+/**
+ * A bare HTTP 429 as its own token. Deliberately not a plain `429` substring:
+ * provider errors quote the model's own output back at us, so a share count
+ * (`1,429,000`) or a dollar figure (`$429.50`) would otherwise be read as a
+ * throttle — and a throttle is retried WITHOUT spending an attempt, so a
+ * misread turns one bad payload into several extra billed calls and minutes of
+ * sleeping. The lookarounds exclude any 429 that is part of a longer number or
+ * word.
+ */
+const HTTP_429 = /(?<![\w.,])429(?![\w.,])/;
+
+/**
+ * Sleeps, waking early when `signal` aborts. A plain `setTimeout` would hold a
+ * Ctrl-C for up to {@link MAX_RATE_LIMIT_WAITS} full waits, since the sweep can
+ * only notice the abort between calls.
+ */
+async function sleepUnlessAborted(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  if (ms <= 0 || signal?.aborted === true) return;
+  await new Promise<void>((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
 /** Whether a provider error is a throttle rather than a bad response. */
 export function isRateLimitError(e: unknown): boolean {
   const message = e instanceof Error ? e.message : String(e);
-  return /rate limit|rate_limit|429|too many requests/i.test(message);
+  return RATE_LIMIT_PHRASES.test(message) || HTTP_429.test(message);
 }
 
 /**
@@ -195,18 +237,19 @@ export function isRateLimitError(e: unknown): boolean {
  *
  * Providers usually say — OpenAI returns "Please try again in 4.082s" — so the
  * stated delay is honoured when present rather than guessed at. Otherwise back
- * off exponentially from one second. Either way a little jitter is added so
- * several sections throttled by the same window do not all wake together and
- * re-collide.
+ * off exponentially from one second. Both are clamped to
+ * {@link MAX_RATE_LIMIT_WAIT_MS}, so a provider that states an hour cannot
+ * suspend the sweep for one. Either way a little jitter is added so several
+ * sections throttled by the same window do not all wake together and re-collide.
  */
 export function rateLimitWaitMs(e: unknown, waitNumber: number, jitter = Math.random()): number {
   const message = e instanceof Error ? e.message : String(e);
   const stated = message.match(/try again in ([\d.]+)\s*s/i);
-  const base =
+  const uncapped =
     stated !== null && Number.isFinite(Number(stated[1]))
       ? Math.ceil(Number(stated[1]) * 1000) + 250
-      : Math.min(1000 * 2 ** (waitNumber - 1), 30_000);
-  return base + Math.floor(jitter * 500);
+      : 1000 * 2 ** (waitNumber - 1);
+  return Math.min(uncapped, MAX_RATE_LIMIT_WAIT_MS) + Math.floor(jitter * 500);
 }
 
 /**
@@ -366,14 +409,6 @@ function stripFormatChars(s: string): string {
   return s.replace(/[\p{Cf}︀-️\u{E0100}-\u{E01EF}]/gu, "");
 }
 
-/**
- * Generates a 16-hex-char (64-bit) verification token for a single call. The
- * token is planted in the trusted preamble only ({@link buildUntrustedPreamble})
- * and echoed back by the model as `nonce_seen`. Unguessable inside one
- * extraction call: a filer who pre-stages `nonce_seen: "..."` in the prospectus
- * has no way to know which 16-hex value we minted this call, so the value they
- * planted cannot match the preamble-side token.
- */
 /**
  * Whether the per-call verification token is planted at all.
  *
@@ -685,11 +720,12 @@ function stripNonceSeen(schema: object): object {
  * Runs one guarded structured-generation round-trip: wraps the filer text in
  * the untrusted fence, builds the injection-hardening preamble, and validates
  * the result. For cloud providers this plants and verifies the per-call nonce;
- * for local providers ({@link isLocalProvider}) the nonce is omitted from both
- * the preamble and the schema (they can't reliably echo it), while every other
- * defense — the fence, the defang pass, and the downstream source-span gate —
- * still applies. Centralizing the nonce lifecycle here keeps every extractor's
- * call site identical and provider-agnostic.
+ * the nonce is omitted from both the preamble and the schema whenever it is not
+ * in play — for local providers ({@link isLocalProvider}, which can't reliably
+ * echo it) and, by default, for everyone ({@link isNonceEnabled}) — while every
+ * other defense — the fence, the defang pass, and the downstream source-span
+ * gate — still applies. Centralizing the nonce lifecycle here keeps every
+ * extractor's call site identical and provider-agnostic.
  */
 async function runGuardedExtraction(
   label: string,
@@ -703,12 +739,14 @@ async function runGuardedExtraction(
   const local = isLocalProvider(model);
   let lastError: unknown;
   let rateLimitWaits = 0;
+  // The fence is attempt-independent now that no nonce is embedded in it, so it
+  // is built once instead of re-normalizing the whole section on every retry.
+  const wrapped = wrapUntrusted(sectionText);
   for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
     const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
-    const wrapped = wrapUntrusted(sectionText);
     const preamble = buildUntrustedPreamble(nonce);
     const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
     try {
@@ -724,14 +762,15 @@ async function runGuardedExtraction(
       return obj;
     } catch (e) {
       // A nonce mismatch is retried like any other failure, and deliberately so.
-      // Retrying cannot weaken the check: every attempt plants a FRESH nonce,
-      // and an injected payload cannot echo a token it was never shown, so a
-      // genuine attack still fails all attempts and still dead-letters as
-      // NONCE_MISMATCH (the last error is what propagates, preserving the
-      // reason code). What it does fix is transcription noise — a real run saw
-      // the model return the expected token shifted one place with a leading
-      // zero, and another return it one hex character short. Neither is an
-      // attack, and neither should cost a section.
+      // Retrying cannot weaken the check: each attempt derives its own nonce
+      // (see {@link deriveVerifyNonce}), so a reply to the previous prompt does
+      // not satisfy the current one and a genuine attack still fails every
+      // attempt and still dead-letters as NONCE_MISMATCH (the last error is
+      // what propagates, preserving the reason code). What it does fix is
+      // transcription noise — a real run saw the model return the expected
+      // token shifted one place with a leading zero, and another return it one
+      // hex character short. Neither is an attack, and neither should cost a
+      // section.
       lastError = e;
       // A throttle is not the model's fault: wait it out and retry WITHOUT
       // spending an attempt, so the section is not dead-lettered for being
@@ -739,7 +778,9 @@ async function runGuardedExtraction(
       // quota still fails rather than hanging.
       if (isRateLimitError(e) && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
         rateLimitWaits++;
-        await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs(e, rateLimitWaits)));
+        await sleepUnlessAborted(rateLimitWaitMs(e, rateLimitWaits), context?.signal);
+        // Ctrl-C during the wait must not buy the throttle another round trip.
+        if (context?.signal?.aborted === true) throw lastError;
         continue;
       }
       attempt++;
@@ -997,6 +1038,7 @@ const COLLECTIVE_PARTY_LABEL =
 /**
  * Words naming a role or class of people rather than a person.
  */
+// prettier-ignore
 const ROLE_WORDS = new Set([
   "advisers", "advisors", "affiliates", "consultants", "directors", "employees",
   "executives", "founders", "insiders", "management", "members", "nominees",
@@ -1009,11 +1051,11 @@ const ROLE_WORDS = new Set([
  * "and", "our". A name built only from these plus {@link ROLE_WORDS} describes a
  * class, not a person.
  */
+// prettier-ignore
 const COLLECTIVE_QUALIFIERS = new Set([
   "all", "and", "any", "certain", "current", "each", "executive", "existing",
   "former", "independent", "initial", "key", "non-employee", "of", "other",
-  "otherwise",
-  "our", "outside", "senior", "several", "the",
+  "otherwise", "our", "outside", "senior", "several", "the",
 ]);
 
 /**

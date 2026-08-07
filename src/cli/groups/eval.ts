@@ -23,11 +23,14 @@ import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
 /**
- * Default comparison set: a cheap and a strong model from each of the three
- * cloud providers we hold keys for. Cross-provider is the point — extraction
- * quality and reproducibility have both turned out to be provider-specific
- * (OpenAI's reasoning family rejects `temperature` outright; only Gemini offers
- * a sampling `seed`), so ranking within one vendor answers the wrong question.
+ * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
+ * tier of two other cloud providers we hold keys for. Cross-provider is the
+ * point — extraction quality and reproducibility have both turned out to be
+ * provider-specific (OpenAI's reasoning family rejects `temperature` outright;
+ * only Gemini offers a sampling `seed`), so ranking within one vendor answers
+ * the wrong question. The sweep needs `DEEPSEEK_API_KEY` and `GEMINI_API_KEY`
+ * as well as `ANTHROPIC_API_KEY`; a missing key is recorded as a failed run per
+ * fixture rather than aborting the sweep.
  *
  * A local HFT model is deliberately NOT in the default sweep: it costs minutes
  * per section and is not a production candidate. Pass one explicitly

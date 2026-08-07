@@ -31,7 +31,12 @@ import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
-import { boundSourceSpan, classifySpan, worstVerdict } from "./s1/verifySourceSpan";
+import {
+  boundSourceSpan,
+  classifySpan,
+  contiguousSpanHead,
+  worstVerdict,
+} from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
   extractExecutiveCompensation,
@@ -837,7 +842,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           const now = new Date().toISOString();
           let riskIndex = 0;
           for (const r of rows) {
-            const headline = r.headline?.trim() ?? "";
+            // Store the same contiguous head `classifySpan` verified, never the
+            // elided construction: verification stops at the first "...", so a
+            // model that quotes a real 40-char lead-in and then invents the rest
+            // of the caption would otherwise have the invention stored verbatim
+            // as the filer's own words — and the caption IS this row's payload.
+            const headline = contiguousSpanHead(r.headline ?? "").trim();
             if (headline === "") continue;
             const category = r.category?.trim() ?? "";
             await riskFactorRepo.save({
