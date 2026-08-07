@@ -11,7 +11,7 @@ import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
 import { sweepStepContext } from "../../eval/evalProgressContext";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
-import { getGoldenLabels } from "../../eval/goldenS1Labels";
+import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
 import { estimateCost, type CostEstimate } from "../../eval/modelPricing";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
 import { scoreExtraction, type ExtractionScore } from "../../eval/scoreExtraction";
@@ -158,6 +158,12 @@ const InputSchema = () =>
     dir: Type.Optional(
       Type.String({ title: "S-1 dir", description: "Directory of real S-1 HTML to segment" })
     ),
+    ciks: Type.Optional(
+      Type.Array(Type.String(), {
+        title: "CIKs",
+        description: "Limit the sweep to fixtures filed by these CIKs",
+      })
+    ),
   });
 export type EvalS1TaskInput = Static<ReturnType<typeof InputSchema>>;
 
@@ -222,7 +228,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
       useGolden ? [...input.candidates] : [input.reference, ...input.candidates]
     );
     const repo = getGlobalModelRepository();
-    const loaded = loadRealS1Sections(extractorNames, input.dir);
+    const loaded = loadRealS1Sections(extractorNames, input.dir, input.ciks);
     const skipped = [...loaded.skipped];
     // Under golden truth, score only sections we have hand-verified labels for.
     let sections = loaded.sections;
@@ -233,6 +239,24 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
         else skipped.push(`${s.filing} / ${s.extractor}: no golden label`);
       }
       sections = labeled;
+      // The reverse check: a committed label whose fixture never arrived. A
+      // downstream package vendors its own copy of the corpus, and when that
+      // copy drifts the labelled filing simply produces no section — so the
+      // sweep scored fewer filings than the labels cover and said nothing,
+      // which reads exactly like a clean run. Report the gap; a `--cik` filter
+      // is a deliberate narrowing, so it suppresses this.
+      if (!input.ciks || input.ciks.length === 0) {
+        const present = new Set(labeled.map((s) => goldenLabelKey(s.filing, s.extractor)));
+        for (const extractor of extractorNames) {
+          for (const key of Object.keys(GOLDEN_S1_LABELS)) {
+            if (!key.endsWith(`::${extractor}`) || present.has(key)) continue;
+            skipped.push(
+              `${key.replace("::", " / ")}: golden label committed but no section found — ` +
+                `is the fixture missing from the S-1 corpus in use?`
+            );
+          }
+        }
+      }
     }
 
     const refModel = useGolden

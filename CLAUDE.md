@@ -277,7 +277,7 @@ sec eval extract --extractor management --format json
 # models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
 # api.x.ai, .../v1beta/models on generativelanguage.googleapis.com,
 # /models on api.deepseek.com).
-sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
+sec eval extract --models "claude-opus-5,claude-sonnet-5,claude-haiku-4-5,\
 gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5,\
 deepseek-v4-flash,deepseek-v4-pro"
 ```
@@ -349,11 +349,18 @@ _rows_, not inventing distinct hallucinations, so precision is computed over
 
 #### Oracle over real S-1s (`sec eval s1`)
 
-Golden fixtures are synthetic; `sec eval s1` instead runs a `--reference` model
-as the "truth" over **real committed S-1 sections**, then scores each
-`--candidate` on agreement/recall/precision against it. The reference defaults to
-**`claude-opus-4-8`** — a model oracle caps every candidate at its own accuracy,
-so it should be the strongest model available, not the one you are evaluating.
+`sec eval s1` scores candidates over **real committed S-1 sections**. The
+reference defaults to **`golden`** — the committed human-verified labels in
+`goldenS1Labels.ts` — because a fixed yardstick is worth more than a strong one:
+a model oracle caps every candidate at its own accuracy, costs a call per
+section, and disagrees with ITSELF between runs, so the bar moves under you.
+Golden labels are free, instant and stable.
+
+They cover `management` and `beneficial-ownership` only. A golden run scores
+those and reports every other section as skipped rather than quietly passing it.
+Pass `--reference <model-id>` (use the strongest available, currently
+`claude-opus-5` — never the model you are evaluating) to fall back to an oracle
+for the unlabelled extractors, accepting that its verdict is an opinion.
 `realSections.ts` segments the HTML into management / beneficial-ownership /
 related-party prose. The reference retries a few times per section (strong models
 intermittently emit a nested array as a JSON _string_ the strict schema rejects);
@@ -364,12 +371,29 @@ truth — even the strongest model drops or invents the odd role, capping
 achievable agreement and penalizing a correct candidate. `--reference golden`
 scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
 instead of a model run — no reference API call, `$0`, deterministic. Only sections
-with a golden entry are scored (the rest are reported as skipped); currently the
-four committed `management` sections and all five `beneficial-ownership` sections.
+with a golden entry are scored (the rest are reported as skipped); currently
+seven committed `management` sections and seven `beneficial-ownership` sections.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
 hand-labeled.
+
+The reverse gap is reported too: a committed label whose **fixture** never
+arrives is listed in `skipped` rather than silently dropped. That is not
+hypothetical — embarc-data vendors its own copy of the S-1 corpus
+(`SEC_S1_MOCK_DIR`, defaulted in its `eval` command), and when that copy drifted
+behind sec's the labelled filing produced no section at all, so the sweep scored
+fewer filings than the labels covered and still printed a clean table. Re-copy
+the corpus into the vendoring package when you add a fixture.
+
+`--cik <csv>` narrows a sweep to one filer (leading zeros optional), which is how
+you check a newly added fixture or label without paying for the whole corpus. A
+CIK matching no fixture is an error listing the available ones — an empty sweep
+would otherwise read as a pass.
+
+```bash
+sec eval s1 --cik 2147219 --models "deepseek-v4-flash"
+```
 
 > **Why golden truth matters — a worked example.** The `beneficial-ownership`
 > oracle numbers were long depressed by an _unstated convention_, not by model
@@ -385,12 +409,25 @@ hand-labeled.
 > lower cost. A model-reference oracle could never have surfaced this: the
 > reference _was_ the model making the mistake.
 
-```bash
-# Score candidates against human-verified truth (deterministic, no ref call)
-sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
+> **The same shape, found again — zero-holding rows.** An ownership table lists
+> officers and directors who hold nothing, printing `-` in both the share and
+> percentage columns; the disclosure IS that they hold none. The prompt said to
+> use null "for figures shown as '\*', '—', or blank" but never said the ROW
+> still had to be emitted, so `deepseek-v4-flash` dropped four such owners from
+> the TEN Holdings table and scored 95% recall for it. The golden labels were
+> right and the model was wrong — the opposite of the Haldeman title case found
+> in the same run, where the label was wrong and the model right. Both were only
+> resolvable by re-reading the filing, which is the actual discipline: a
+> disagreement says one of the two is wrong, not which. With the row rule pinned
+> in the prompt, recall went to 100% and the fix generalized to a filing the
+> model had never seen (Rainier, four all-dash rows, 100%).
 
-# Model oracle (defaults to --reference claude-opus-4-8) over unlabeled sections
-sec eval s1 --models "claude-haiku-4-5" \
+```bash
+# Default: human-verified truth (deterministic, no reference call, no cost)
+sec eval s1 --models "deepseek-v4-flash"
+
+# Model oracle for sections golden labels do not cover
+sec eval s1 --reference claude-opus-5 --models "claude-haiku-4-5" \
   --extractors "management,beneficial-ownership,related-party"
 
 # Run over a larger fetched sample (gitignored cache) instead of the committed set:

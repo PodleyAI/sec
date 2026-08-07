@@ -134,6 +134,31 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
     RISK_FACTORS,
   ],
+  // Modern Cayman SPAC — full section coverage, no focused "The Sponsor" heading.
+  "s1_2147219_000110465926092088.htm": [
+    PROSPECTUS_SUMMARY,
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
+    RISK_FACTORS,
+  ],
+  // Small operating-company IPO — same full coverage as the SPACs above, which is
+  // what makes it a useful non-SPAC control for the golden-labelled extractors.
+  "s1_95572_000121390026086369.htm": [
+    PROSPECTUS_SUMMARY,
+    MANAGEMENT,
+    BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
+    THE_OFFERING,
+    UNDERWRITING,
+    USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
+    RISK_FACTORS,
+  ],
 };
 
 const SPAC_FIXTURES = [
@@ -141,6 +166,7 @@ const SPAC_FIXTURES = [
   "s1_1849470_000110465921035696.htm",
   "s1_1822912_000121390021001475.htm",
   "s1_2114227_000121390026039320.htm",
+  "s1_2147219_000110465926092088.htm",
 ];
 
 /**
@@ -206,6 +232,24 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [THE_OFFERING]: 45_000,
     [UNDERWRITING]: 14_000,
     [USE_OF_PROCEEDS]: 9_000,
+  },
+  "s1_2147219_000110465926092088.htm": {
+    [PROSPECTUS_SUMMARY]: 68_000,
+    [MANAGEMENT]: 21_000,
+    [BENEFICIAL_OWNERSHIP]: 4_000,
+    [RELATED_PARTY]: 5_000,
+    [THE_OFFERING]: 40_000,
+    [UNDERWRITING]: 22_000,
+    [USE_OF_PROCEEDS]: 7_000,
+  },
+  "s1_95572_000121390026086369.htm": {
+    [PROSPECTUS_SUMMARY]: 19_000,
+    [MANAGEMENT]: 12_000,
+    [BENEFICIAL_OWNERSHIP]: 1_700,
+    [RELATED_PARTY]: 6_000,
+    [THE_OFFERING]: 3_000,
+    [UNDERWRITING]: 9_000,
+    [USE_OF_PROCEEDS]: 1_600,
   },
   "s1_2030954_000149315226027129.htm": {
     [PROSPECTUS_SUMMARY]: 3_000,

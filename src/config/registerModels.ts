@@ -46,7 +46,7 @@ function isLlamaCppModelId(modelId: string): boolean {
   return modelId.startsWith(GGUF_ID_PREFIX);
 }
 
-/** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-4-8`, …). */
+/** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-5`, …). */
 function isAnthropicModelId(modelId: string): boolean {
   return /^claude-/i.test(modelId);
 }

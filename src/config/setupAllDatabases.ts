@@ -98,6 +98,7 @@ import { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/Com
 import { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationSchema";
 import { PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN } from "../storage/observation/PersonObservationTitleSchema";
 import { PERSON_ROLE_REPOSITORY_TOKEN } from "../storage/canonical/PersonRoleSchema";
+import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN } from "../storage/beneficial-ownership/BeneficialOwnershipSchema";
 import { EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN } from "../storage/executive-compensation/ExecutiveCompensationSchema";
@@ -188,6 +189,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).setupDatabase();

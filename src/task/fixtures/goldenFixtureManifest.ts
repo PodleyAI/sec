@@ -148,6 +148,34 @@ export const GOLDEN_FIXTURES: readonly GoldenFixtureEntry[] = [
     bytes: 4041400,
   },
   {
+    // Rainier Acquisition Corp — 2026 Cayman SPAC. Its ownership table is four
+    // all-dash rows (officers/nominees holding nothing) plus an unnamed "[·]"
+    // placeholder nominee in the roster, which is what earns it a place here.
+    file: "s1_2147219_000110465926092088.htm",
+    dir: "s1",
+    cik: "2147219",
+    accession: "000110465926092088",
+    primaryDoc: "tmb-20260806xs1.htm",
+    transform: "verbatim",
+    remoteSha256: "461d9644ca906eff6538188a823f0a140e1e35efb91904ae4e92e17ec9652a36",
+    sha256: "461d9644ca906eff6538188a823f0a140e1e35efb91904ae4e92e17ec9652a36",
+    bytes: 2946182,
+  },
+  {
+    // KiNRG, Inc. — a small operating-company IPO with no director nominees and
+    // an ownership table whose rows sit under a printed category label rather
+    // than starting straight in. The non-SPAC counterweight to the corpus.
+    file: "s1_95572_000121390026086369.htm",
+    dir: "s1",
+    cik: "95572",
+    accession: "000121390026086369",
+    primaryDoc: "ea0300773-s1_kinrg.htm",
+    transform: "verbatim",
+    remoteSha256: "abf51f32faf72a4f257eae3a2d989619389745821c3bcb1c935d1c5dcda4d17d",
+    sha256: "abf51f32faf72a4f257eae3a2d989619389745821c3bcb1c935d1c5dcda4d17d",
+    bytes: 3331697,
+  },
+  {
     file: "424b4_2114227_000121390026048413.htm",
     dir: "424",
     cik: "2114227",

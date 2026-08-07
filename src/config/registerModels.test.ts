@@ -94,7 +94,7 @@ describe("registerSecModels", () => {
   });
 
   it("dispatches secModelRecord by id shape across all providers", () => {
-    expect(secModelRecord("claude-opus-4-8").provider).toBe("ANTHROPIC");
+    expect(secModelRecord("claude-opus-5").provider).toBe("ANTHROPIC");
     expect(secModelRecord("gpt-5.5").provider).toBe("OPENAI");
     expect(secModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(secModelRecord("gemini-3.1-pro-preview").provider).toBe("GOOGLE_GEMINI");

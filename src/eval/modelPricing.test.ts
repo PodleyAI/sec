@@ -65,3 +65,25 @@ describe("priceFor dispatch", () => {
     expect(perMillion("grok-4.5")).toEqual({ input: 2, output: 6 });
   });
 });
+
+describe("Gemini pricing", () => {
+  it("prices the flash models in the default sweep", () => {
+    // https://ai.google.dev/gemini-api/docs/pricing (paid tier, per 1M tokens)
+    expect(estimateCost("gemini-3.6-flash", 4_000_000, 4_000_000).usd).toBeCloseTo(1.5 + 7.5, 5);
+  });
+
+  it("does not price a -flash-lite id as -flash", () => {
+    // The lookup is a substring match in array order, so "gemini-3.5-flash-lite"
+    // must be listed before "gemini-3.5-flash" or it inherits the wrong price.
+    const lite = estimateCost("gemini-3.5-flash-lite", 4_000_000, 4_000_000).usd;
+    const full = estimateCost("gemini-3.5-flash", 4_000_000, 4_000_000).usd;
+    expect(lite).toBeCloseTo(0.3 + 2.5, 5);
+    expect(full).toBeCloseTo(1.5 + 9, 5);
+    expect(lite).toBeLessThan(full!);
+  });
+
+  it("prices the 2.5 family", () => {
+    expect(estimateCost("gemini-2.5-flash-lite", 4_000_000, 4_000_000).usd).toBeCloseTo(0.1 + 0.4, 5);
+    expect(estimateCost("gemini-2.5-pro", 4_000_000, 4_000_000).usd).toBeCloseTo(1.25 + 10, 5);
+  });
+});

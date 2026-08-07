@@ -311,6 +311,11 @@ import {
   PersonObservationTitleTable,
 } from "../storage/observation/PersonObservationTitleSchema";
 import {
+  FIELD_PROVENANCE_REPOSITORY_TOKEN,
+  FieldProvenancePrimaryKeyNames,
+  FieldProvenanceSchema,
+} from "../storage/provenance/FieldProvenanceSchema";
+import {
   OBSERVATION_PROVENANCE_REPOSITORY_TOKEN,
   ObservationProvenancePrimaryKeyNames,
   ObservationProvenanceSchema,
@@ -829,6 +834,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "observation_provenance",
     schema: ObservationProvenanceSchema,
     primaryKeyNames: ObservationProvenancePrimaryKeyNames,
+  }),
+  defineStorage({
+    token: FIELD_PROVENANCE_REPOSITORY_TOKEN,
+    table: "field_provenance",
+    schema: FieldProvenanceSchema,
+    primaryKeyNames: FieldProvenancePrimaryKeyNames,
+    indexes: [["accession_number"]],
   }),
   defineStorage({
     token: BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN,

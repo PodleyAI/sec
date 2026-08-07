@@ -96,12 +96,26 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_1849470_000110465921035696", "management")]: [
     G("Gregor Watson", ["Chief Executive Officer", "Director"]),
     G("Rob Bloemker", ["Chief Financial Officer", "Secretary", "Director"]),
-    // Cell: "Director and Chairman of the Board nominee" — a seated Director who
-    // is a Chairman nominee. The filing labels the pure nominees distinctly
-    // ("Director nominee"), and sonnet, gpt-5.4-mini, and gemini all independently
-    // read the "Director" here as seated, so we take that (not "Director Nominee").
+    // Corrected from "Director" to "Director Nominee".
+    //
+    // The table cell — "Director and Chairman of the Board nominee" — is
+    // genuinely ambiguous about whether "nominee" reaches back to "Director",
+    // and this label previously resolved it by model consensus: sonnet,
+    // gpt-5.4-mini and gemini all read the Director as seated. That is the one
+    // way ground truth must NOT be decided; the labels are the yardstick every
+    // model is measured against, so deriving them from model agreement scores
+    // future candidates against whatever those models happened to share.
+    //
+    // The prose settles it. Four parallel sentences, identical construction:
+    //   Haldeman "will serve as the chairman of our Board of Directors upon the
+    //             effective date of the registration statement"
+    //   Seid     "will serve as a member of our Board of Directors upon the
+    //             effective date ..."   (likewise Klahr, Boyle)
+    // He differs from the three acknowledged nominees only in serving as
+    // chairman rather than as a member — he is not seated either. Found when
+    // deepseek-v4-flash returned "Director Nominee" and was scored wrong for it.
     G("Charles E. Haldeman Jr.", [
-      "Director",
+      "Director Nominee",
       "Chairman of the Board of Directors (Nominee)",
     ]),
     G("Jacob Seid", ["Director Nominee"]),
@@ -130,6 +144,53 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Gregory Knight", ["Director"]),
     G("Ted Lesster", ["Director"]),
     G("Michael C. Turmelle", ["Chairman of the Board of Directors"]),
+  ],
+
+  // Rainier Acquisition Corp — 2026 Cayman SPAC (Chardan-sponsored).
+  //
+  // The roster table's last row is a literal "[·]" in every column: an unnamed
+  // second director nominee the filer has not yet chosen. It is a typesetting
+  // placeholder, not a person, so it is NOT a roster entry — a model that emits
+  // it has invented a director, which is exactly the kind of thing this label
+  // exists to catch.
+  //
+  // Amusa and Manke are SEATED, not nominees: both bios say "has served as ...
+  // since March 2026", against Lam's "will serve ... upon the effectiveness of
+  // this registration statement". That is the same construction that settles
+  // Haldeman above, read the other way.
+  //
+  // Titles drop the Exchange Act designations the cells carry in parentheses
+  // ("(Principal Executive Officer)", "(Principal Financial and Accounting
+  // Officer)") — those qualify a title, they are not a second one. Manke's
+  // "Chairman of the Board, Director" is one canonical title, not two: the
+  // normalizer folds the board seat into the chairmanship.
+  [goldenLabelKey("s1_2147219_000110465926092088", "management")]: [
+    G("Gbola Amusa, M.D., CFA", ["Chief Executive Officer", "Director"]),
+    G("Guy Barudin", ["Chief Financial Officer"]),
+    G("Isaac Manke, Ph.D.", ["Chairman of the Board of Directors"]),
+    G("Jonas Grossman", ["Director"]),
+    G("Andrew Lam, PharmD", ["Director Nominee"]),
+  ],
+
+  // KiNRG, Inc. — a small operating-company IPO. Every director is seated for a
+  // one-year term, so unlike the SPACs there is not a nominee in the set.
+  // Pickett's cell packs three roles into one string ("Chief Executive Officer,
+  // Chairman and Principal Accounting Officer"); the normalizer splits it and
+  // expands the bare chairmanship, and here "Principal Accounting Officer" IS a
+  // held office rather than a parenthetical designation of another title.
+  [goldenLabelKey("s1_95572_000121390026086369", "management")]: [
+    G("Ronald W. Pickett", [
+      "Chief Executive Officer",
+      "Chairman of the Board of Directors",
+      "Principal Accounting Officer",
+    ]),
+    G("Flip Wallen", ["President"]),
+    G("Stephen Sadle", ["Chief Operating Officer", "Director"]),
+    G("Robert P. Crabb", ["Secretary"]),
+    G("H. James Magnuson", ["Director"]),
+    G("Mossadaq Chughtai", ["Director"]),
+    G("Troy A. Hering CPA", ["Director"]),
+    G("Livian L. Jones", ["Director"]),
   ],
 
   // ---------------------------------------------------------------------------
@@ -215,9 +276,61 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     O("Jay Taragin"),
     O("William Sherman"),
   ],
+  // Rainier Acquisition Corp. Four of the six rows show "—" in BOTH the share
+  // and percentage columns: officers and nominees who hold nothing. They are
+  // still rows the table prints — the disclosure IS that they hold none — so
+  // they are owners here, and a model that skips them has under-reported the
+  // table. That failure was real: deepseek-v4-flash dropped exactly this shape
+  // on the 2030954 table until the prompt was told to emit them.
+  //
+  // The sponsor cell prints "Ravenna 7 LLC (our sponsor)"; the annotation is
+  // dropped like Churchill's. The trailing "All officers, directors and
+  // director nominees as a group (5 individuals)" is the subtotal, excluded.
+  [goldenLabelKey("s1_2147219_000110465926092088", "beneficial-ownership")]: [
+    O("Ravenna 7 LLC"),
+    O("Gbola Amusa, M.D., CFA"),
+    O("Guy Barudin"),
+    O("Isaac Manke, Ph.D."),
+    O("Jonas Grossman"),
+    O("Andrew Lam, PharmD"),
+  ],
+  // KiNRG, Inc. The table opens with a printed category label —
+  // "Names Executive Officers, Executive Officers and Directors:" — occupying a
+  // name cell with every figure column blank. It is a heading for the rows
+  // beneath it, not an owner, and it is NOT the group subtotal either, so
+  // `isOwnershipGroupSubtotal` does not reach it: dropping it is the model's
+  // job. The real subtotal ("All executive officers and directors as a group
+  // (8 persons)") is excluded by the usual convention.
+  [goldenLabelKey("s1_95572_000121390026086369", "beneficial-ownership")]: [
+    O("Ronald W. Pickett"),
+    O("Flip Wallen"),
+    O("Stephen Sadle"),
+    O("Robert P. Crabb"),
+    O("H. James Magnuson"),
+    O("Mossadaq Chughtai"),
+    O("Troy A. Hering CPA"),
+    O("Livian L. Jones"),
+  ],
 };
 
 /** Golden rows for one section, or undefined when the section is unlabeled. */
+/**
+ * Extractors that have at least one committed golden label.
+ *
+ * Derived from the labels rather than hardcoded, so adding a label set for a new
+ * extractor automatically brings it into the default `--reference golden` sweep
+ * — the alternative is a constant that silently drifts out of date and quietly
+ * stops scoring sections somebody took the trouble to label.
+ */
+export function extractorsWithGoldenLabels(): string[] {
+  const seen = new Set<string>();
+  for (const key of Object.keys(GOLDEN_S1_LABELS)) {
+    const extractor = key.split("::")[1];
+    if (extractor) seen.add(extractor);
+  }
+  return [...seen].sort();
+}
+
 export function getGoldenLabels(
   filing: string,
   extractor: string

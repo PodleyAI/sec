@@ -30,8 +30,8 @@ describe("getLoiModelId", () => {
     expect(getLoiModelId()).toBe("claude-sonnet-5");
   });
   it("honors SEC_LOI_MODEL when set", () => {
-    process.env[MODEL_ENV] = "claude-opus-4-8";
-    expect(getLoiModelId()).toBe("claude-opus-4-8");
+    process.env[MODEL_ENV] = "claude-opus-5";
+    expect(getLoiModelId()).toBe("claude-opus-5");
   });
 });
 

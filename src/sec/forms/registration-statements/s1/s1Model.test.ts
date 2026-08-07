@@ -15,8 +15,8 @@ afterEach(() => {
 
 describe("getS1ModelId", () => {
   it("returns the configured model id from SEC_S1_MODEL", () => {
-    process.env.SEC_S1_MODEL = "claude-opus-4-8";
-    expect(getS1ModelId()).toBe("claude-opus-4-8");
+    process.env.SEC_S1_MODEL = "claude-opus-5";
+    expect(getS1ModelId()).toBe("claude-opus-5");
   });
   it("falls back to a default model id when unset", () => {
     delete process.env.SEC_S1_MODEL;

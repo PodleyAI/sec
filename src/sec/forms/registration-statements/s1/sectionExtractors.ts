@@ -1012,8 +1012,12 @@ export async function extractBeneficialOwnership(
     "table between the tags below. For each row give name, owner_kind ('person' or " +
     "'company'), security_class, shares_owned, percent_owned, shares_offered, " +
     "shares_after, percent_after, is_selling_stockholder, footnote, a confidence in " +
-    "[0,1], and the verbatim source_span. Use null for figures shown as '*', '—', or " +
-    "blank. Give the name as printed but WITHOUT footnote markers or parenthetical " +
+    "[0,1], and the verbatim source_span. Use null for figures shown as '*', '-', '—', " +
+    "or blank. Emit a row for EVERY name the table prints, INCLUDING one whose share " +
+    "and percentage cells are all dashes or blank: an officer or director holding no " +
+    "shares is listed precisely to disclose that they hold none, so give them a row " +
+    "with null figures rather than skipping the name. Give the name as printed but " +
+    "WITHOUT footnote markers or parenthetical " +
     "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
     "XII LLC'. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
     "'V-Cube, Inc. and Naoaki Mashita'), emit one row per owner and attribute each " +

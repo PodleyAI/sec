@@ -14,7 +14,11 @@ import {
   extractRelatedParty,
   extractRiskFactors,
   extractSpacClassification,
+  extractSpacProfile,
+  extractSpacSponsors,
   extractSponsorPromote,
+  extractUnderwriters,
+  extractUseOfProceeds,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 /**
@@ -136,6 +140,40 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     run: (text, model, context) => extractExecutiveCompensation(text, model, context),
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
     instructionOverheadChars: 1600,
+  },
+  // Multi-row extractor over the Underwriting / Plan of Distribution section.
+  // Keyed on the bank's legal name — the field the persist path dedupes on, so
+  // a model that repeats a syndicate member should not be rewarded for it.
+  underwriters: {
+    run: (text, model, context) => extractUnderwriters(text, model, context),
+    keyField: "legal_name",
+    compareFields: ["legal_name", "common_name", "role"],
+    instructionOverheadChars: 1100,
+  },
+  // Multi-row extractor over the Use of Proceeds section: one row per line item.
+  "use-of-proceeds": {
+    run: (text, model, context) => extractUseOfProceeds(text, model, context),
+    keyField: "purpose",
+    compareFields: ["purpose", "amount"],
+    instructionOverheadChars: 1000,
+  },
+  // Single-object profile over a SPAC's prospectus-summary prose. Scored on the
+  // controlled-vocabulary focus rather than the free-text description, which no
+  // two models phrase alike.
+  "spac-profile": {
+    run: async (text, model, context) => {
+      const row = await extractSpacProfile(text, model, context);
+      return row === null ? [] : [row];
+    },
+    compareFields: ["focus", "focus_location"],
+    instructionOverheadChars: 1400,
+  },
+  // Multi-row extractor naming the sponsor entities behind a blank-check issuer.
+  "spac-sponsors": {
+    run: (text, model, context) => extractSpacSponsors(text, model, context),
+    keyField: "legal_name",
+    compareFields: ["legal_name", "common_name"],
+    instructionOverheadChars: 900,
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
   // a non-binding letter of intent yields one row; anything else (definitive

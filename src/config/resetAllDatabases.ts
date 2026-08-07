@@ -95,6 +95,7 @@ import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTicker
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
+import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
 import {
@@ -457,6 +458,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(FORM_8K_EVENT_REPOSITORY_TOKEN).deleteAll();
   // Observation provenance + AI-extracted offering / ownership / related-party tiers.
   await globalServiceRegistry.get(OBSERVATION_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(FIELD_PROVENANCE_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(BENEFICIAL_OWNERSHIP_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(EXECUTIVE_COMPENSATION_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN).deleteAll();

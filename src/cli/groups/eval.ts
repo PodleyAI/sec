@@ -8,6 +8,7 @@ import type { Command } from "commander";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
+import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
   extractorsWithFixtures,
   type EvalReport,
@@ -16,7 +17,7 @@ import {
 } from "../../eval/runExtractionEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
-import { EvalS1Task, type OracleReport } from "../../task/eval/EvalS1Task";
+import { EvalS1Task, GOLDEN_REFERENCE, type OracleReport } from "../../task/eval/EvalS1Task";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
@@ -48,12 +49,20 @@ const DEFAULT_MODELS = [
 const ORACLE_DEFAULT_CANDIDATE = "claude-haiku-4-5";
 
 /**
- * Default oracle for `sec eval s1` — the strongest available model, since a
- * model reference is only as good as its own reads and every candidate's score
- * is capped by the reference's mistakes. Still not ground truth: prefer
- * `--reference golden` where committed labels exist.
+ * Default reference for `sec eval s1`: the committed human-verified labels.
+ *
+ * A model reference is only as good as its own reads — every candidate's score
+ * is capped by the reference's mistakes, and two runs of it disagree with each
+ * other anyway, so the yardstick moves between evaluations. Golden labels are
+ * fixed, free, and instant. They are the right default wherever they exist.
+ *
+ * The cost is coverage: labels exist for `management` and
+ * `beneficial-ownership` only, so a golden run scores those and reports every
+ * other section as skipped rather than silently passing. Pass
+ * `--reference <model-id>` to fall back to an oracle for the unlabelled
+ * extractors — accepting that its verdict is an opinion, not truth.
  */
-const ORACLE_DEFAULT_REFERENCE = "claude-opus-4-8";
+const ORACLE_DEFAULT_REFERENCE = GOLDEN_REFERENCE;
 
 function parseModels(csv: string | undefined): string[] {
   const ids = (csv ?? DEFAULT_MODELS.join(","))
@@ -187,7 +196,8 @@ function printStability(report: EvalReport): void {
 function printTable(
   report: EvalReport,
   details: boolean,
-  scoreLegend: string = DEFAULT_SCORE_LEGEND
+  scoreLegend: string = DEFAULT_SCORE_LEGEND,
+  unscored = false
 ): void {
   const cols: Array<[string, number, (m: ModelSummary) => string]> = [
     ["#", 2, () => ""],
@@ -210,7 +220,13 @@ function printTable(
       .join(" ");
     console.log(`${rank} ${rest}`);
   });
-  console.log(`\n${scoreLegend}`);
+  console.log(
+    unscored
+      ? "\nscore/found/prec are NOT meaningful here: the real sections carry no golden labels " +
+          "(that is what `sec eval s1` uses a reference model for). Read the reproducibility " +
+          "table, latency and cost."
+      : `\n${scoreLegend}`
+  );
 
   printStability(report);
 
@@ -312,6 +328,10 @@ export function addEvalCommands(program: Command): void {
       "repeat each fixture N times per model and report reproducibility (default 1)",
       (v) => Number(v)
     )
+    .option(
+      "--real",
+      "sweep the REAL committed S-1 sections (12k-275k chars) instead of the curated miniatures; correctness is not scored (no golden labels at that size), reproducibility/latency/cost are"
+    )
     .action(
       async (opts: {
         models?: string;
@@ -319,6 +339,7 @@ export function addEvalCommands(program: Command): void {
         format: string;
         details: boolean;
         runs?: number;
+        real?: boolean;
       }) => {
         await runCommand(async () => {
           const models = parseModels(opts.models);
@@ -334,6 +355,7 @@ export function addEvalCommands(program: Command): void {
             models,
             ...(opts.extractor ? { extractor: opts.extractor } : {}),
             ...(opts.runs !== undefined ? { runs: Math.trunc(opts.runs) } : {}),
+            ...(opts.real ? { real: true } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.
@@ -344,7 +366,7 @@ export function addEvalCommands(program: Command): void {
             console.log(JSON.stringify(report, null, 2));
             return;
           }
-          printTable(report, opts.details);
+          printTable(report, opts.details, DEFAULT_SCORE_LEGEND, opts.real === true);
         });
       }
     );
@@ -363,12 +385,17 @@ export function addEvalCommands(program: Command): void {
     )
     .option(
       "--extractors <csv>",
-      `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: management`
+      `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: every extractor with golden labels (${extractorsWithGoldenLabels().join(", ")}), or management against a model reference`
     )
     .option(
       "--dir <path>",
       "directory of real S-1 HTML to segment (default: committed mock_data; " +
         "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
+    )
+    .option(
+      "--cik <csv>",
+      "limit the sweep to these filer CIKs (leading zeros optional) — isolates one " +
+        "filing when checking a newly added fixture or label"
     )
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
@@ -378,6 +405,7 @@ export function addEvalCommands(program: Command): void {
         models?: string;
         extractors?: string;
         dir?: string;
+        cik?: string;
         format: string;
         details: boolean;
       }) => {
@@ -388,12 +416,19 @@ export function addEvalCommands(program: Command): void {
                 .map((s) => s.trim())
                 .filter(Boolean)
             : [ORACLE_DEFAULT_CANDIDATE];
+          // Under golden truth, default to every extractor that HAS labels —
+          // scoring only `management` while committed beneficial-ownership
+          // labels sat unused made the default look narrower than the evidence
+          // actually available. Against a model oracle there is no such
+          // coverage signal, so that path keeps its single cheap default.
+          const defaultExtractors =
+            opts.reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
           const extractors = opts.extractors
             ? opts.extractors
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean)
-            : ["management"];
+            : defaultExtractors;
           for (const name of extractors) {
             if (!EVAL_EXTRACTORS[name]) {
               throw new Error(
@@ -401,11 +436,18 @@ export function addEvalCommands(program: Command): void {
               );
             }
           }
+          const ciks = opts.cik
+            ? opts.cik
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : undefined;
           const input = {
             reference: opts.reference,
             candidates,
             extractors,
             ...(opts.dir ? { dir: opts.dir } : {}),
+            ...(ciks && ciks.length > 0 ? { ciks } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.

@@ -44,7 +44,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@sroussey/parse-address": "^3.2.0",
-    "@sroussey/parse-full-name": "^2.0.0",
+    "@sroussey/parse-full-name": "^3.0.0",
     "@workglow/cli": "0.3.38",
     "awesome-phonenumber": "^7.8.0",
     "cheerio": "^1.2.0",

@@ -205,4 +205,47 @@ describe("PersonNormalization", () => {
       expect(result!.crd).toBe(null);
     });
   });
+
+  describe("credentials vs generational suffixes", () => {
+    // A credential says how ONE filing annotated a person; a generational
+    // suffix says WHICH person. Only the latter may reach the identity key.
+    it("keeps a credential out of the hash so the same person does not split", () => {
+      const bare = normalizePerson({ name: "Troy A. Hering" })!;
+      const credentialed = normalizePerson({ name: "Troy A. Hering CPA" })!;
+      expect(credentialed.person_hash_id).toBe(bare.person_hash_id);
+      expect(credentialed.suffix).toBeNull();
+      expect(credentialed.credentials).toBe("Cpa"); // fixCase:1 title-cases the display form
+      expect(credentialed.last).toBe("Hering");
+    });
+
+    it("collapses comma-written credentials onto the bare name", () => {
+      for (const [bare, annotated] of [
+        ["Isaac Manke", "Isaac Manke, Ph.D."],
+        ["Gbola Amusa", "Gbola Amusa, M.D., CFA"],
+        ["Andrew Lam", "Andrew Lam, PharmD"],
+      ]) {
+        expect(normalizePerson({ name: annotated })!.person_hash_id).toBe(
+          normalizePerson({ name: bare })!.person_hash_id
+        );
+      }
+    });
+
+    it("STILL separates a generational suffix — father and son are two people", () => {
+      const father = normalizePerson({ name: "John Smith" })!;
+      const son = normalizePerson({ name: "John Smith Jr." })!;
+      expect(son.person_hash_id).not.toBe(father.person_hash_id);
+      expect(son.suffix).toBe("Jr");
+    });
+
+    it("splits a name carrying both kinds at once", () => {
+      const both = normalizePerson({ name: "John Smith Jr., CPA" })!;
+      expect(both.suffix).toBe("Jr");
+      expect(both.credentials).toBe("Cpa");
+      // The credential is invisible to identity, so it matches the plain junior
+      // and not the plain senior.
+      expect(both.person_hash_id).toBe(normalizePerson({ name: "John Smith Jr." })!.person_hash_id);
+      expect(both.person_hash_id).not.toBe(normalizePerson({ name: "John Smith" })!.person_hash_id);
+    });
+  });
+
 });

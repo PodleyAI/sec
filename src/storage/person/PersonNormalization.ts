@@ -18,7 +18,20 @@ export type Person = {
   first: string;
   middle: string | null;
   last: string;
+  /**
+   * Generational suffix ONLY — "Jr.", "Sr.", "III". This is identity-bearing:
+   * a junior and a senior sharing a name are different people, so the suffix
+   * belongs in {@link generatePersonHash} and in the resolver's match tuple.
+   */
   suffix: string | null;
+  /**
+   * Professional credentials as written ("CPA", "Ph.D.", "M.D., CFA"), kept off
+   * the identity key. A credential describes how ONE filing annotated a person,
+   * not who they are — the same director is "Isaac Manke" in one filing and
+   * "Isaac Manke, Ph.D." in the next — so folding it into the key split every
+   * such person into two canonical rows.
+   */
+  credentials: string | null;
   title: string | null;
   nick: string | null;
   dob?: string | null;
@@ -26,6 +39,11 @@ export type Person = {
   cik?: number | null;
   crd?: string | null;
 };
+
+/** Empty string is how `parseFullName` reports an absent part; we store null. */
+function emptyToNull(value: string | undefined): string | null {
+  return value === undefined || value.trim() === "" ? null : value;
+}
 
 /**
  * Generates a hash ID for a person based on normalized name components
@@ -94,11 +112,18 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
 
   // Strip identity-neutral punctuation (initial/suffix periods) so the resolver
   // key ("first|middle|last|suffix") is stable across spelling variants.
+  // `parseFullName` classifies the trailing parts itself — it owns the suffix
+  // vocabulary, so it is the only place that can do this without the two lists
+  // drifting apart. A credential is an annotation, not an identity, and must
+  // reach neither the hash nor the resolver's match tuple, or the same director
+  // splits in two the moment one filing writes "Isaac Manke, Ph.D." and the
+  // next "Isaac Manke".
   const person: Omit<Person, "person_hash_id"> = {
     first: stripNamePartPunctuation(results.first) ?? results.first,
     middle: stripNamePartPunctuation(results.middle),
     last: stripNamePartPunctuation(results.last) ?? results.last,
-    suffix: stripNamePartPunctuation(results.suffix),
+    suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
+    credentials: emptyToNull(results.credential),
     title: results.title,
     nick: results.nick,
     dob: null,

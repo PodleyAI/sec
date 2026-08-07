@@ -18,6 +18,12 @@ const InputSchema = () =>
     extractor: Type.Optional(
       Type.String({ title: "Extractor", description: "Limit to one extractor (e.g. 'management')" })
     ),
+    real: Type.Optional(
+      Type.Boolean({
+        title: "Real sections",
+        description: "Sweep the real committed S-1 sections instead of the curated fixtures",
+      })
+    ),
     runs: Type.Optional(
       Type.Number({
         title: "Runs per fixture",
@@ -82,6 +88,7 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
       models: input.models,
       extractor: input.extractor,
       runs: input.runs,
+      real: input.real,
       signal: context.signal,
       context,
       onProgress: (done, total, message) => {
