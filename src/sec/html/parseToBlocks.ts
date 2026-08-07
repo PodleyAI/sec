@@ -52,6 +52,21 @@ function isPageBreak($: CheerioAPI, el: unknown): boolean {
   return false;
 }
 
+/** Every comment node in the subtree, in document order. */
+function collectComments(root: unknown): unknown[] {
+  const found: unknown[] = [];
+  const visit = (node: unknown): void => {
+    const children = (node as { children?: unknown[] }).children;
+    if (children === undefined) return;
+    for (const child of children) {
+      if ((child as { type?: string }).type === "comment") found.push(child);
+      else visit(child);
+    }
+  };
+  visit(root);
+  return found;
+}
+
 function emitProse(buffer: string[], out: EdgarBlock[]): void {
   const text = buffer
     .join("\n\n")
@@ -86,10 +101,13 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // `type === "comment"`, and while the walker only reads element/text
   // children, any consumer that later calls `.text()` on a raw parent would
   // otherwise see their contents.
-  $("*")
-    .contents()
-    .filter((_i, el) => (el as { type?: string }).type === "comment")
-    .remove();
+  //
+  // Collected with one linear DOM walk rather than `$("*").contents()`, whose
+  // cost grows superlinearly with element count: on a 7 MB S-1 (63k elements)
+  // that single call took ~14s of a ~16s parse, and found no comments at all.
+  for (const comment of collectComments($.root().get(0))) {
+    $(comment as never).remove();
+  }
 
   const out: EdgarBlock[] = [];
   const prose: string[] = [];

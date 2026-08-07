@@ -58,6 +58,38 @@ const EXTRACTOR_TO_SECTION: Record<string, string> = {
   "spac-classification": S1_SECTIONS.PROSPECTUS_SUMMARY,
 };
 
+interface SegmentedFixture {
+  /** Section name -> prose, or undefined when the fixture failed to parse. */
+  readonly byName: Map<string, string> | undefined;
+  readonly error: string | undefined;
+}
+
+/**
+ * Parsed + segmented fixtures, keyed by absolute path. The corpus is committed
+ * HTML that never changes under a running process, and a sweep asking for one
+ * extractor at a time would otherwise re-segment tens of MB per call.
+ */
+const segmentedFixtures = new Map<string, SegmentedFixture>();
+
+function segmentFixture(path: string, title: string): SegmentedFixture {
+  const cached = segmentedFixtures.get(path);
+  if (cached !== undefined) return cached;
+  let result: SegmentedFixture;
+  try {
+    const html = readFileSync(path, "utf8");
+    const doc = parseEdgarHtml(html, title);
+    const segmented = new DocumentTreeSegmenter().segment(doc);
+    result = {
+      byName: new Map(segmented.map((s) => [s.name as string, s.text])),
+      error: undefined,
+    };
+  } catch (err) {
+    result = { byName: undefined, error: err instanceof Error ? err.message : String(err) };
+  }
+  segmentedFixtures.set(path, result);
+  return result;
+}
+
 export interface RealSection {
   /** Source filename (accession-derived). */
   readonly filing: string;
@@ -141,16 +173,14 @@ export function loadRealS1Sections(
     }
     return true;
   });
+  // Nothing to look for — don't pay to segment the corpus (tens of MB of HTML)
+  // only to filter every section back out.
+  if (mapped.length === 0) return { sections, skipped };
 
   for (const file of files.sort()) {
-    let byName: Map<string, string>;
-    try {
-      const html = readFileSync(join(resolvedDir, file), "utf8");
-      const doc = parseEdgarHtml(html, file);
-      const segmented = new DocumentTreeSegmenter().segment(doc);
-      byName = new Map(segmented.map((s) => [s.name as string, s.text]));
-    } catch (err) {
-      skipped.push(`${file}: parse failed (${err instanceof Error ? err.message : String(err)})`);
+    const { byName, error } = segmentFixture(join(resolvedDir, file), file);
+    if (byName === undefined) {
+      skipped.push(`${file}: parse failed (${error})`);
       continue;
     }
     for (const extractor of mapped) {
