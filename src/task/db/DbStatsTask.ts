@@ -28,7 +28,12 @@ export class DbStatsTask extends Task<DbStatsTaskInput, DbStatsTaskOutput> {
 
   public static outputSchema() {
     return Type.Object({
-      tables: Type.Array(Type.Object({ table: Type.String(), rows: Type.Number() })),
+      // `rows` is null for a registered table the database has not created.
+      // The port schema is the declared contract downstream wiring reads, so
+      // the union belongs here rather than only in `TableStat`.
+      tables: Type.Array(
+        Type.Object({ table: Type.String(), rows: Type.Union([Type.Number(), Type.Null()]) })
+      ),
     });
   }
 

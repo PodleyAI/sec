@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.22
+
+### Bug Fixes
+
+#### db
+
+- report `n/a` for a table the database has not created instead of failing the whole `db stats` report; `TableStat.rows` widens to `number | null`
+
 ## 0.0.21
 
 ### Features
