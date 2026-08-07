@@ -44,11 +44,15 @@ async function useSource(): Promise<void> {
 
 async function useDist(build: boolean): Promise<void> {
   const removed = await removeSourceStubs(packageDir);
+  // No stubs is not a reason to skip the rebuild. `dist/` is gitignored, so the
+  // common way to reach this state is having deleted it — and returning early
+  // left the developer with the message "already in dist mode" and no dist at
+  // all, with nothing saying why the build never ran.
   if (removed.length === 0) {
     console.log("No stubs found — already in dist mode.");
-    return;
+  } else {
+    console.log(`Removed ${removed.length} stub(s).`);
   }
-  console.log(`Removed ${removed.length} stub(s).`);
 
   if (!build) {
     console.log("Skipping rebuild (--no-build): dist is missing its entry files until you build.");

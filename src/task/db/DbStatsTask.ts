@@ -28,11 +28,17 @@ export class DbStatsTask extends Task<DbStatsTaskInput, DbStatsTaskOutput> {
 
   public static outputSchema() {
     return Type.Object({
-      // `rows` is null for a registered table the database has not created.
-      // The port schema is the declared contract downstream wiring reads, so
-      // the union belongs here rather than only in `TableStat`.
+      // `rows` is null for a registered table the database has not created, and
+      // `estimated` says whether the count is a Postgres `n_live_tup` estimate
+      // rather than an exact count. The port schema is the declared contract
+      // downstream wiring reads, so both belong here rather than only in
+      // `TableStat`.
       tables: Type.Array(
-        Type.Object({ table: Type.String(), rows: Type.Union([Type.Number(), Type.Null()]) })
+        Type.Object({
+          table: Type.String(),
+          rows: Type.Union([Type.Number(), Type.Null()]),
+          estimated: Type.Boolean(),
+        })
       ),
     });
   }

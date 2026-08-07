@@ -19,15 +19,6 @@ import { scanSpacCandidates } from "./spacCandidateScan";
 /** Rows per bulk write. A full scan writes a few thousand rows in total. */
 const WRITE_BATCH = 1_000;
 
-/**
- * Values one `in`-list query may bind, with headroom under SQLite's
- * `SQLITE_MAX_VARIABLE_NUMBER` — 32766 since SQLite 3.32 (2020). The 999 of
- * older builds is not a constraint here: bun ships 3.51 and `better-sqlite3`
- * ^13 is comparably recent. Postgres binds the whole list as one array
- * parameter and has no equivalent cap.
- */
-const SQLITE_MAX_BOUND_PARAMS = 30_000;
-
 export type IdentifySpacsTaskInput = {
   /** Rescan every entity instead of only those whose submissions changed. */
   readonly full?: boolean;
@@ -183,40 +174,41 @@ export class IdentifySpacsTask extends Task<IdentifySpacsTaskInput, IdentifySpac
     }
 
     // A full scan considered every entity, so every unmatched row is stale.
-    const stale = since === null ? unmatched : await this.processedSince(unmatched, since);
+    if (since === null) {
+      for (const cik of unmatched) await repo.delete({ cik });
+      return unmatched.length;
+    }
+
+    const reprocessed = await this.processedSince(since);
+    const stale = unmatched.filter((cik) => reprocessed.has(cik));
     for (const cik of stale) await repo.delete({ cik });
     return stale.length;
   }
 
   /**
-   * Of `ciks`, those whose submissions were (re)processed on or after `since`.
+   * The CIKs whose submissions were (re)processed on or after `since`.
    *
-   * One `in`-list query rather than one `get` per CIK: the candidate table holds
-   * thousands of rows and an incremental run matches a handful, so the per-CIK
-   * form is an N+1 over almost the whole table on every daily run.
+   * Asked in that direction on purpose. The obvious form — take the unmatched
+   * candidate CIKs and ask which of them were reprocessed — makes the query's
+   * `in`-list as large as {@link prune}'s input, and that input is the WHOLE
+   * `spac_candidate` table (`prune` streams every row and keeps the ones this
+   * scan did not match), which grows monotonically with EDGAR history. Once it
+   * passed SQLite's bindable-parameter ceiling the run would throw *after* the
+   * `putBulk` above had already advanced `identified_at`: the watermark moves
+   * forward, the unmatched set never shrinks, and every later daily run throws
+   * again — permanently. Raising a bound only postpones that.
    *
-   * Deliberately unchunked. SQLite binds one parameter per value and caps them
-   * at {@link SQLITE_MAX_BOUND_PARAMS}, but the input here is the *unmatched
-   * candidate rows of one incremental scan*, which is a few thousand at most —
-   * so a chunking loop would be a branch never taken, untestable in
-   * practice and unverified in production. It is a guard instead: if that
-   * assumption ever stops holding, this fails loudly and names the fix rather
-   * than silently truncating the delete set, which would leave stale candidate
-   * rows behind with no signal.
+   * `last_processed` is a plain `YYYY-MM-DD` string column and `since` is the
+   * same shape, so a `>=` range query returns exactly the CIKs the daily run
+   * reprocessed — the same order of magnitude as the scan's own result set,
+   * which the caller already holds in memory — and the intersection happens
+   * here rather than in the database. No in-list, no chunk loop, no cap.
    */
-  private async processedSince(ciks: ReadonlyArray<number>, since: string): Promise<number[]> {
-    if (ciks.length === 0) return [];
-    if (ciks.length > SQLITE_MAX_BOUND_PARAMS) {
-      throw new Error(
-        `IdentifySpacsTask: ${ciks.length} unmatched candidate CIKs exceeds the ` +
-          `${SQLITE_MAX_BOUND_PARAMS} values one 'in'-list query can bind on SQLite. ` +
-          `This path assumed an incremental scan leaves at most a few thousand ` +
-          `unmatched rows. Chunk the query in processedSince() to lift the bound.`
-      );
-    }
+  private async processedSince(since: string): Promise<Set<number>> {
     const processed = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
-    const rows = (await processed.query({ cik: { value: [...ciks], operator: "in" } })) ?? [];
-    return rows.filter((row) => row.last_processed >= since).map((row) => row.cik);
+    const rows =
+      (await processed.query({ last_processed: { value: since, operator: ">=" } })) ?? [];
+    return new Set(rows.map((row) => row.cik));
   }
 
   /**

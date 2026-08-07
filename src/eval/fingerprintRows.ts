@@ -25,7 +25,11 @@ function canonicalize(value: unknown, includeCitations: boolean): unknown {
   if (value === null || typeof value !== "object") return value;
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([k]) => includeCitations || !CITATION_FIELDS.has(k))
-    .sort(([a], [b]) => a.localeCompare(b))
+    // Code-unit order, not `localeCompare`: the latter sorts by the runtime's
+    // ICU collation, so the same rows would digest differently on two
+    // differently-configured machines and a stability report compared across
+    // them would show disagreement that is not there.
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, v]) => [k, canonicalize(v, includeCitations)] as const);
   return Object.fromEntries(entries);
 }

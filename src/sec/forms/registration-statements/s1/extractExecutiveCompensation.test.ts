@@ -81,6 +81,60 @@ describe("extractExecutiveCompensation", () => {
     expect(rows[1].principal_position).toBe("Chief Executive Officer");
   });
 
+  it("drops a position line carrying no year and no money instead of folding it", async () => {
+    // The COMMON layout: every figure sits on the name row and the position row
+    // below it holds nothing but the label. Folding it unconditionally emitted a
+    // second row per officer — same observation, null fiscal year, all-null
+    // money columns — a phantom in a table whose contract is one row per officer
+    // per fiscal year.
+    const empty = {
+      fiscal_year: null,
+      salary: null,
+      bonus: null,
+      stock_awards: null,
+      option_awards: null,
+      non_equity_incentive: null,
+      pension_and_nqdc: null,
+      all_other_compensation: null,
+      total: null,
+    };
+    const { unregister } = registerFakeStructuredProvider([
+      { rows: [row({}), row({ person_name: "Chief Executive Officer", ...empty })] },
+    ]);
+    cleanup = unregister;
+    const rows = await extractExecutiveCompensation("Summary Compensation Table", fakeS1Model());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ person_name: "Alina Kowalczyk", fiscal_year: 2025 });
+  });
+
+  it("still folds a position line whose only datum is a money column", async () => {
+    // The guard keys on "carries nothing", not on "has a year" — a position row
+    // with a figure but no year is real disclosure and must survive.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        rows: [
+          row({}),
+          row({
+            person_name: "Chief Executive Officer",
+            fiscal_year: null,
+            salary: 570000,
+            bonus: null,
+            stock_awards: null,
+            option_awards: null,
+            non_equity_incentive: null,
+            pension_and_nqdc: null,
+            all_other_compensation: null,
+            total: null,
+          }),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+    const rows = await extractExecutiveCompensation("Summary Compensation Table", fakeS1Model());
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ person_name: "Alina Kowalczyk", salary: 570000 });
+  });
+
   it("drops a position line with no officer above it to attach to", async () => {
     // Nothing to fold onto, and it must not become a person in its own right.
     const { unregister } = registerFakeStructuredProvider([

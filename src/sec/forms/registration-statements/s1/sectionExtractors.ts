@@ -7,6 +7,7 @@
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
 import { createHash } from "node:crypto";
+import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
@@ -79,6 +80,36 @@ export class NonceMismatchError extends Error {
 }
 
 /**
+ * Thrown when a risk-factors response mixes rows shaped like captions with rows
+ * shaped like category headings, so the shape heuristic cannot tell which kind
+ * the section is made of.
+ *
+ * The two populations are individually recognizable but not separable: a real
+ * Item 105 caption is a sentence, and an Item 105(b) summary bullet is a bare
+ * phrase indistinguishable in shape from a category heading. Dropping the
+ * heading-shaped rows would silently reduce a 30-bullet summary list to the one
+ * bullet that happened to end in a period — a partial disclosure persisted as
+ * if it were complete, which is precisely what the chunked-section contract
+ * exists to prevent. Failing the section instead puts it on the retry worklist
+ * where a human can look at it.
+ *
+ * {@link makeRunSection} records it under the `MIXED_CAPTION_SHAPE` reason code.
+ */
+export class MixedRiskCaptionShapeError extends Error {
+  constructor(
+    readonly headingLike: number,
+    readonly total: number
+  ) {
+    super(
+      `Risk-factor rows mix caption and category-heading shapes: ${headingLike} of ${total} rows ` +
+        `have no sentence-ending punctuation. The section cannot be separated on shape alone ` +
+        `without silently dropping either real captions or real risks.`
+    );
+    this.name = "MixedRiskCaptionShapeError";
+  }
+}
+
+/**
  * Sampling temperature for every extraction call. Defaults to 0 (greedy).
  *
  * Extraction is a transcription task, not a generative one — the answer is
@@ -91,13 +122,31 @@ export class NonceMismatchError extends Error {
  *
  * `SEC_EXTRACTION_TEMPERATURE` overrides it; an empty value omits the parameter
  * altogether.
+ *
+ * A malformed or out-of-range value throws rather than degrading. Coercing
+ * `"0,5"` to `0` reads back as "greedy sampling is on" — the operator sees
+ * exactly the behavior they asked for the opposite of, with nothing anywhere
+ * saying the setting was ignored. The whole point of the variable is to control
+ * determinism, so silently discarding it is the one failure mode it must not
+ * have.
  */
 export function getExtractionTemperature(): number | undefined {
   const raw = process.env.SEC_EXTRACTION_TEMPERATURE;
   if (raw === undefined) return 0;
   if (raw.trim() === "") return undefined;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+  if (!Number.isFinite(n)) {
+    throw new SecCliConfigurationError(
+      `SEC_EXTRACTION_TEMPERATURE is not a number: ${JSON.stringify(raw)}. ` +
+        `Set a value in [0, 2], or set it empty to omit the parameter entirely.`
+    );
+  }
+  if (n < 0 || n > 2) {
+    throw new SecCliConfigurationError(
+      `SEC_EXTRACTION_TEMPERATURE is out of range: ${n}. Sampling temperature must be in [0, 2].`
+    );
+  }
+  return n;
 }
 
 /**
@@ -811,6 +860,22 @@ export function normalizeFiscalYear(year: number | null | undefined): number | n
   return y >= 1900 && y <= 2100 ? y : null;
 }
 
+/**
+ * The Summary Compensation Table's money columns. A stub-column position row
+ * that carries none of them (and no fiscal year) is a label, not a second
+ * disclosed year — see the fold in {@link extractExecutiveCompensation}.
+ */
+const COMP_MONEY_FIELDS = [
+  "salary",
+  "bonus",
+  "stock_awards",
+  "option_awards",
+  "non_equity_incentive",
+  "pension_and_nqdc",
+  "all_other_compensation",
+  "total",
+] as const satisfies readonly (keyof ExecutiveCompensationRow)[];
+
 /** Matches `executive_compensation.principal_position`'s declared width. */
 const MAX_POSITION_CHARS = 256;
 
@@ -882,6 +947,12 @@ export async function extractExecutiveCompensation(
   // folded onto the officer named above instead — its own year and money columns
   // kept, its label becoming the position for that year. A position row with no
   // officer above it has nothing to attach to and is dropped.
+  //
+  // Folded only when it actually carries data. The common layout puts every
+  // figure on the NAME row and leaves the position row holding nothing but the
+  // label, so folding unconditionally would emit a second row per officer with
+  // the same observation, a null fiscal year and all-null money columns — a
+  // phantom in a table whose contract is one row per officer per fiscal year.
   const out: ExecutiveCompensationRow[] = [];
   let precedingOfficer: string | undefined;
   for (const row of rows) {
@@ -889,10 +960,12 @@ export async function extractExecutiveCompensation(
     const name = row.person_name.trim();
     if (isCompensationPositionLabel(name)) {
       if (precedingOfficer === undefined) continue;
+      const fiscal_year = normalizeFiscalYear(row.fiscal_year);
+      if (fiscal_year === null && !COMP_MONEY_FIELDS.some((field) => row[field] != null)) continue;
       out.push({
         ...row,
         person_name: precedingOfficer,
-        fiscal_year: normalizeFiscalYear(row.fiscal_year),
+        fiscal_year,
         principal_position: boundPrincipalPosition(row.principal_position ?? name),
       });
       continue;
@@ -1385,16 +1458,26 @@ export async function extractRiskFactors(
   // would stop it becoming a row that reads like a disclosed risk. The heuristic
   // keys on a heading having no sentence-ending punctuation.
   //
-  // Applied only when the section also yielded at least one row that does not
-  // look like a heading. An Item 105(b) "Summary of Risk Factors" bullet list —
-  // which the segmenter accepts as this section, and which is all a filing
-  // carrying only the summary has — is written as bare unpunctuated phrases
-  // ("Risks related to our inability to complete an initial business
-  // combination"), indistinguishable in shape from a category heading. Dropping
-  // on shape alone would empty exactly those filings. When every row looks like
-  // a heading, the "headings" are the captions, so they are kept.
-  const captions = out.filter((risk) => !isRiskCategoryHeading(risk.headline));
-  return captions.length > 0 ? captions : out;
+  // The rule is about the section's SHAPE, and it only has an answer when the
+  // section is homogeneous:
+  //
+  // - every row heading-shaped — an Item 105(b) "Summary of Risk Factors"
+  //   bullet list, which the segmenter accepts as this section and which is all
+  //   a filing carrying only the summary has. Its bullets are bare unpunctuated
+  //   phrases ("Risks related to our inability to complete an initial business
+  //   combination"), so the "headings" ARE the captions. Kept.
+  // - no row heading-shaped — an ordinary Item 105 list of sentence captions,
+  //   with nothing to drop. Kept.
+  // - mixed — unanswerable. Filers are inconsistent about terminal punctuation,
+  //   so one summary bullet ending in a period is enough to make 29 bare-phrase
+  //   bullets look droppable; an all-or-nothing filter would keep the single
+  //   punctuated row and persist it as the filing's complete disclosure. Fail
+  //   the section instead of guessing.
+  const headingLike = out.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
+  if (headingLike > 0 && headingLike < out.length) {
+    throw new MixedRiskCaptionShapeError(headingLike, out.length);
+  }
+  return out;
 }
 
 export async function extractUseOfProceeds(

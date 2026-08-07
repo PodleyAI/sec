@@ -43,6 +43,27 @@ describe("fingerprintRows", () => {
     expect(fingerprintRows(a, false)).not.toBe(fingerprintRows(b, false));
   });
 
+  it("produces the same digest under a different collation", () => {
+    // `localeCompare` sorts by the runtime's ICU collation, so the same rows
+    // would digest differently on two differently-configured machines and a
+    // stability report compared across them would show disagreement that is not
+    // there. Standing in a different collation must not move the digest.
+    const rows = [row("Jane Roe", "Jane"), { Alpha: 1, alpha: 2, beta: 3, Beta: 4 }];
+    const expected = fingerprintRows(rows);
+
+    const original = String.prototype.localeCompare;
+    // eslint-disable-next-line no-extend-native
+    String.prototype.localeCompare = function reversed(this: string, that: string): number {
+      return original.call(that, this);
+    };
+    try {
+      expect(fingerprintRows(rows)).toBe(expected);
+    } finally {
+      // eslint-disable-next-line no-extend-native
+      String.prototype.localeCompare = original;
+    }
+  });
+
   it("does not collapse a confidence drift into the content digest", () => {
     const a = [row("Jane Roe", "Jane", 0.9)];
     const b = [row("Jane Roe", "Jane", 0.7)];

@@ -34,13 +34,24 @@ import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../../storage/canonical/Cano
 import { PERSON_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/PersonIdentityLinkSchema";
 import { COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN } from "../../storage/canonical/CompanyIdentityLinkSchema";
 
-export interface DbStatusResult {
+/** The headline counts, without the reporting metadata beside them. */
+export interface DbStatusCounts {
   readonly entityCount: number;
   readonly filingCount: number;
   readonly factsCount: number;
   readonly processedSubmissions: number;
   readonly processedFacts: number;
   readonly extractorRuns: number;
+}
+
+export interface DbStatusResult extends DbStatusCounts {
+  /**
+   * True when ANY of the counts above is a Postgres `n_live_tup` estimate
+   * rather than an exact count. The estimate lags recent writes, so a report
+   * that does not say which number it is showing invites an operator to read a
+   * stale statistic as a real count.
+   */
+  readonly estimated: boolean;
 }
 
 export interface TableStat {
@@ -51,6 +62,14 @@ export interface TableStat {
    * throws.
    */
   readonly rows: number | null;
+  /** True when `rows` is a Postgres `n_live_tup` estimate, not an exact count. */
+  readonly estimated: boolean;
+}
+
+/** A count paired with whether it came from the Postgres catalog estimate. */
+interface CountedRows {
+  readonly rows: number;
+  readonly estimated: boolean;
 }
 
 /**
@@ -142,24 +161,42 @@ async function countRows(token: ServiceToken<CountableRepository>): Promise<numb
  * and non-durable test repositories use the exact storage-level count.
  * PostgreSQL updates this statistic through ANALYZE/autovacuum, so it can lag
  * recent writes and must not be used where an exact cardinality is required.
+ *
+ * Two things the naive form of this query gets wrong:
+ *
+ * - **An unqualified name resolves through `search_path`.** `to_regclass
+ *   ('filings')` binds whichever schema comes first on the session's
+ *   `search_path`, so a deployment whose path lists a staging schema ahead of
+ *   sec's would report the OTHER schema's row count under sec's table name.
+ *   The name is qualified to `current_schema()` for the same reason
+ *   `resetAllDatabases` qualifies its drops. `quote_ident` keeps it
+ *   parameterized — the table name stays a bind value, never interpolated SQL.
+ * - **A zero estimate is almost never a real zero.** `n_live_tup` is 0 until
+ *   the first ANALYZE, so right after `sec bootstrap` bulk-loads ~1M
+ *   `cik_names` and before autovacuum catches up, the estimate reports 0 for a
+ *   table with a million rows. Zero therefore means "no statistics yet" and
+ *   falls back to the exact count; a genuinely empty table pays one cheap
+ *   `COUNT(*)` for that.
  */
 async function countTableRows(
   table: string,
   token: ServiceToken<CountableRepository>,
   exact = false
-): Promise<number> {
+): Promise<CountedRows> {
   const repo = globalServiceRegistry.get(token);
   if (!exact && resolveSqlBackend("read", repo) === "postgres") {
     const result = await getPgPool().query<{ estimated_count: string | number }>(
       `SELECT n_live_tup::bigint AS estimated_count
        FROM pg_stat_user_tables
-       WHERE relid = to_regclass($1)`,
+       WHERE relid = to_regclass(quote_ident(current_schema()) || '.' || quote_ident($1))`,
       [table]
     );
     const estimated = result.rows[0]?.estimated_count;
-    if (estimated !== undefined) return Number(estimated);
+    if (estimated !== undefined && Number(estimated) > 0) {
+      return { rows: Number(estimated), estimated: true };
+    }
   }
-  return await countRows(token);
+  return { rows: await countRows(token), estimated: false };
 }
 
 /**
@@ -177,7 +214,7 @@ async function countTableRowsOrNull(
   table: string,
   token: ServiceToken<CountableRepository>,
   exact: boolean
-): Promise<number | null> {
+): Promise<CountedRows | null> {
   try {
     return await countTableRows(table, token, exact);
   } catch (err) {
@@ -187,7 +224,7 @@ async function countTableRowsOrNull(
 }
 
 const STATUS_TABLES: readonly {
-  readonly key: keyof DbStatusResult;
+  readonly key: keyof DbStatusCounts;
   readonly token: ServiceToken<CountableRepository>;
 }[] = [
   { key: "entityCount", token: ENTITY_REPOSITORY_TOKEN },
@@ -199,11 +236,14 @@ const STATUS_TABLES: readonly {
 ];
 
 export async function getDbStatus(options: DbCountOptions = {}): Promise<DbStatusResult> {
-  const result = {} as Record<keyof DbStatusResult, number>;
+  const counts = {} as Record<keyof DbStatusCounts, number>;
+  let estimated = false;
   for (const { key, token } of STATUS_TABLES) {
-    result[key] = await countTableRows(secTableName(token), token, options.exact === true);
+    const counted = await countTableRows(secTableName(token), token, options.exact === true);
+    counts[key] = counted.rows;
+    estimated ||= counted.estimated;
   }
-  return result;
+  return { ...counts, estimated };
 }
 
 /**
@@ -286,7 +326,12 @@ export async function getDbStats(
       Math.round((index / tables.length) * 100),
       `counting ${table} (${current}/${tables.length})`
     );
-    results.push({ table, rows: await countTableRowsOrNull(table, token, options.exact === true) });
+    const counted = await countTableRowsOrNull(table, token, options.exact === true);
+    results.push({
+      table,
+      rows: counted?.rows ?? null,
+      estimated: counted?.estimated ?? false,
+    });
     await onProgress?.(
       Math.round((current / tables.length) * 100),
       `counted ${table} (${current}/${tables.length})`

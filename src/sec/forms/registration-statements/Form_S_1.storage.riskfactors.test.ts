@@ -134,6 +134,29 @@ describe("processFormS1 risk factors", () => {
     expect(entry?.status).toBe("pending");
   });
 
+  it("records MIXED_CAPTION_SHAPE and persists no rows for a mixed section", async () => {
+    // One caption ends in a period and one does not. Neither shape can be
+    // trusted as the discriminator, so the old all-or-nothing filter would have
+    // kept the punctuated row alone and written it as the filing's complete
+    // risk disclosure. Nothing is persisted and the section dead-letters.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          { headline: CATEGORY, category: null, confidence: 0.9, source_span: CATEGORY },
+          { headline: FIRST, category: CATEGORY, confidence: 0.9, source_span: FIRST },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await runS1();
+
+    expect(await new RiskFactorRepo().queryByAccession(ACCESSION)).toHaveLength(0);
+    const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
+    expect(entry?.reason_code).toBe("MIXED_CAPTION_SHAPE");
+    expect(entry?.status).toBe("pending");
+  });
+
   it("dead-letters SECTION_NOT_FOUND when the filing has no risk factors section", async () => {
     const { unregister } = registerFakeStructuredProvider([{ risks: [] }]);
     cleanup = unregister;
