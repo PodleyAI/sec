@@ -10,8 +10,10 @@ import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
+import { VERIFICATION_ATTEMPTS } from "./s1/sectionRunner";
 
 const HTML = [
   "<h1>MANAGEMENT</h1>",
@@ -49,18 +51,22 @@ describe("processFormS1 prompt-injection backstop", () => {
     // the source_span "Fake Person Inc." is NOT a substring of the
     // management section we sent. verifyRow drops the row; runSection
     // dead-letters UNVERIFIED_SOURCE_SPAN.
+    const fabricated = {
+      people: [
+        {
+          full_name: "Fake Person",
+          titles: ["Director"],
+          relationship: null,
+          confidence: 0.95,
+          source_span: "Fake Person Inc.",
+        },
+      ],
+    };
+    // A total verification wipeout is re-asked (VERIFICATION_ATTEMPTS), so the
+    // model must keep fabricating for the section to stay unverified — which is
+    // exactly the persistent-attacker case this asserts.
     const { unregister } = registerFakeStructuredProvider([
-      {
-        people: [
-          {
-            full_name: "Fake Person",
-            titles: ["Director"],
-            relationship: null,
-            confidence: 0.95,
-            source_span: "Fake Person Inc.",
-          },
-        ],
-      },
+      ...Array.from({ length: VERIFICATION_ATTEMPTS }, () => fabricated),
       { owners: [] },
       { parties: [] },
     ]);
@@ -166,18 +172,19 @@ describe("processFormS1 prompt-injection backstop", () => {
     // bytes through a verifier-passing row.
     const paddedSpan = "Jane Roe — Director" + " ".repeat(1500);
     expect(paddedSpan.length).toBeGreaterThan(1000);
+    const padded = {
+      people: [
+        {
+          full_name: "Jane Roe",
+          titles: ["Director"],
+          relationship: null,
+          confidence: 0.9,
+          source_span: paddedSpan,
+        },
+      ],
+    };
     const { unregister } = registerFakeStructuredProvider([
-      {
-        people: [
-          {
-            full_name: "Jane Roe",
-            titles: ["Director"],
-            relationship: null,
-            confidence: 0.9,
-            source_span: paddedSpan,
-          },
-        ],
-      },
+      ...Array.from({ length: VERIFICATION_ATTEMPTS }, () => padded),
       { owners: [] },
       { parties: [] },
     ]);
@@ -195,8 +202,12 @@ describe("processFormS1 prompt-injection backstop", () => {
       model: fakeS1Model(),
     });
 
+    // The security property: the row is dropped, nothing persists.
+    expect(await new PersonObservationRepo().listByAccession(accession)).toEqual([]);
+    // The diagnostic: an over-cap span reports as over-cap, not as absent from
+    // the section text — the span here IS a real fragment of it.
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
     const mgmt = dl.find((d) => d.section_name === "Management");
-    expect(mgmt?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+    expect(mgmt?.reason_code).toBe("SOURCE_SPAN_TOO_LONG");
   });
 });

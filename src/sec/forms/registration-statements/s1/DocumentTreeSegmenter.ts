@@ -7,6 +7,7 @@ import { NodeKind, renderMarkdown, traverseDepthFirst } from "workglow";
 import type { DocumentRootNode, SectionNode } from "workglow";
 import {
   type DocumentSegmenter,
+  S1_SECTIONS,
   type S1SectionName,
   type Section,
   SECTION_HEADING_PATTERNS,
@@ -18,6 +19,49 @@ function matchTarget(title: string): S1SectionName | null {
     if (SECTION_HEADING_PATTERNS[name].some((re) => re.test(line))) return name;
   }
   return null;
+}
+
+/**
+ * Targets a filing may nest as a plain bolded line inside a larger section
+ * instead of giving them their own structural heading, with the section they
+ * are nested in.
+ *
+ * Churchill Capital Corp XII is the case in point: its Item 402 disclosure
+ * ("Officer and Director Compensation — None of our executive officers or
+ * directors have received any cash compensation…") sits inside MANAGEMENT, so
+ * the tree walk finds no SectionNode for it and the caller records
+ * SECTION_NOT_FOUND — which is meant to flag a heading-pattern coverage hole,
+ * and here fires on a filing whose heading the patterns already match. The
+ * heading never reaches them because it is not a section in the tree.
+ */
+const NESTED_SECTION_FALLBACKS: ReadonlyArray<{
+  readonly target: S1SectionName;
+  readonly container: S1SectionName;
+}> = [{ target: S1_SECTIONS.EXECUTIVE_COMPENSATION, container: S1_SECTIONS.MANAGEMENT }];
+
+/**
+ * Recovers `target` from the rendered body of `container` by scanning its lines
+ * with the same heading patterns the tree walk uses. The slice runs from the
+ * matched heading to the next line that is itself a known section heading (else
+ * to the end of the container), which errs toward including trailing prose:
+ * over-wide input costs nothing downstream — the compensation gate and the
+ * source-span verifier both key off the text actually passed in — while a slice
+ * cut short could drop the very table the extractor exists to read.
+ */
+export function findNestedSection(containerText: string, target: S1SectionName): string | null {
+  const lines = containerText.split("\n");
+  const start = lines.findIndex((line) => matchTarget(line) === target);
+  if (start === -1) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    const name = matchTarget(lines[i] as string);
+    if (name !== null && name !== target) {
+      end = i;
+      break;
+    }
+  }
+  const body = lines.slice(start + 1, end).join("\n").trim();
+  return body.length > 0 ? body : null;
 }
 
 /**
@@ -53,6 +97,22 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       };
       const prev = best.get(name);
       if (!prev || candidate.text.length > prev.text.length) best.set(name, candidate);
+    }
+
+    // Only after the tree walk: a real SectionNode always wins over a slice of
+    // another section's body.
+    for (const { target, container } of NESTED_SECTION_FALLBACKS) {
+      if (best.has(target)) continue;
+      const parent = best.get(container);
+      if (!parent) continue;
+      const text = findNestedSection(parent.text, target);
+      if (text === null) continue;
+      best.set(target, {
+        name: target,
+        text,
+        startOffset: parent.startOffset,
+        endOffset: parent.endOffset,
+      });
     }
 
     return [...best.values()];

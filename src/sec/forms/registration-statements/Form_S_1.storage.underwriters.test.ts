@@ -117,4 +117,92 @@ describe("processFormS1 underwriters", () => {
     );
     expect(ciks).toEqual([1018724]);
   });
+
+  it("records one link row when the model repeats the same underwriter", async () => {
+    // Observed live: a sole-underwriter filing came back with the same bank
+    // once, twice, and three times across three consecutive runs. Every
+    // duplicate used to mint its own observation, family membership and link
+    // row, so `sec underwriter by-family` counted the model's stutter.
+    const citi = (span: string) => ({
+      legal_name: "Citigroup Global Markets Inc.",
+      common_name: "Citigroup",
+      role: "underwriter",
+      shares_allocated: null,
+      over_allotment_shares: 4500000,
+      confidence: 0.98,
+      source_span: span,
+    });
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: null,
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: null,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        par_value: null,
+        confidence: 0.5,
+        source_span: "Citigroup",
+        tickers: [],
+      },
+      {
+        underwriters: [
+          citi("Citigroup"),
+          // Same entity, cited differently and punctuated differently.
+          { ...citi("Citigroup Global Markets"), legal_name: "citigroup global markets inc" },
+          citi("Citigroup"),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000002",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: "<h1>UNDERWRITING</h1><p>Citigroup Global Markets Inc. is the underwriter.</p>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new UnderwriterLinkRepo().count({ accession_number: "0000000000-26-000002" })
+    ).toBe(1);
+    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
+      "1.0.0",
+      "CITIGROUP"
+    );
+    expect(family).toBeDefined();
+    const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
+      "1.0.0",
+      family!.canonical_underwriter_family_id
+    );
+    expect(members).toHaveLength(1);
+    // Only the first spelling reaches the observation tier (the issuer's own
+    // observation is also on this accession, hence filtering by name).
+    const companies = await new CompanyObservationRepo().listAll();
+    expect(
+      companies.filter(
+        (c) =>
+          c.accession_number === "0000000000-26-000002" && /citigroup/i.test(c.name ?? "")
+      )
+    ).toHaveLength(1);
+  });
 });

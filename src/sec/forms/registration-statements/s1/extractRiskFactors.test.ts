@@ -131,4 +131,42 @@ describe("extractRiskFactors", () => {
     cleanup = unregister;
     await expect(extractRiskFactors(text, fakeS1Model())).rejects.toThrow(/nonce/i);
   });
+
+  it("retries a chunk whose response fails validation, rather than losing the section", async () => {
+    // The real regression: one of seven chunks came back missing `nonce_seen`,
+    // and the all-or-nothing rule discarded all 112 captions the other six had
+    // already produced. StructuredGenerationTask burns two provider calls per
+    // attempt, so the first two responses model one failed attempt.
+    const { unregister, calls } = registerFakeStructuredProvider([
+      {}, // missing required `risks`
+      {}, // ... and its internal retry
+      { risks: [risk("A real risk.")] },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(rows.map((r) => r.headline)).toEqual(["A real risk."]);
+    expect(calls).toHaveLength(3);
+  });
+
+  it("gives up after EXTRACTION_ATTEMPTS so a persistent failure still fails the section", async () => {
+    const { unregister } = registerFakeStructuredProvider([{}]); // always invalid
+    cleanup = unregister;
+    await expect(extractRiskFactors("Some risk prose.", fakeS1Model())).rejects.toThrow();
+  });
+
+  it("recovers from a one-off nonce mismatch without losing the section", async () => {
+    // A real run returned the expected token shifted one place with a leading
+    // zero ("2074bb2368142557" -> "02074bb236814255"). That is a transcription
+    // slip, not an injection: the retry plants a fresh nonce, which an injected
+    // payload could never echo, so recovering here costs no security.
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [risk("A real risk.")], nonce_seen: "0000000000000000" },
+      { risks: [risk("A real risk.")] },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(rows.map((r) => r.headline)).toEqual(["A real risk."]);
+  });
 });

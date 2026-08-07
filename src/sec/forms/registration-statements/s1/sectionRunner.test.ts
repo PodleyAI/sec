@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { makeRunSection, parseConfidenceFloor } from "./sectionRunner";
+import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
 interface RecordedLetter {
   section_name: string;
@@ -188,5 +188,93 @@ describe("makeRunSection confidenceFloor", () => {
     // a previously-pending -partial cannot linger forever on the worklist.
     expect(letters).toEqual([]);
     expect(resolved).toEqual(["merger", "merger-partial"]);
+  });
+
+  it("re-asks when every confident row fails span verification, and keeps the retry's rows", async () => {
+    // Live behavior this guards: the same correct underwriter came back with a
+    // malformed citation on one run and a verbatim one on the next.
+    const { repo, letters, resolved } = stubDeadLetters();
+    let call = 0;
+    const persisted: string[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-retry",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        call++;
+        return call === 1
+          ? [{ confidence: 0.9, span: "a span welded across a gap" }]
+          : [{ confidence: 0.9, span: "Citigroup Global Markets Inc." }];
+      },
+      persist: async (rows) => {
+        persisted.push(...rows.map((r) => r.span));
+        return rows.length;
+      },
+    });
+
+    expect(call).toBe(2);
+    expect(persisted).toEqual(["Citigroup Global Markets Inc."]);
+    expect(letters).toEqual([]);
+    expect(resolved).toContain("underwriters");
+  });
+
+  it("stops re-asking after VERIFICATION_ATTEMPTS and dead-letters", async () => {
+    const { repo, letters } = stubDeadLetters();
+    let call = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-give-up",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        call++;
+        return [{ confidence: 0.9, span: "never present" }];
+      },
+      persist: async () => 0,
+    });
+
+    expect(call).toBe(VERIFICATION_ATTEMPTS);
+    expect(letters[0]?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+  });
+
+  it("does not re-ask an empty response", async () => {
+    const { repo } = stubDeadLetters();
+    let call = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-empty",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Some text.",
+      emptyDetail: "none returned",
+      lowConfidenceDetail: "low",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        call++;
+        return [];
+      },
+      persist: async () => 0,
+    });
+    expect(call).toBe(1);
   });
 });

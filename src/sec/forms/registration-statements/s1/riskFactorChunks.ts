@@ -10,9 +10,13 @@
  * section enumerates 50–120 captions, and asking for all of them in one
  * response overruns the extractors' shared output-token ceiling, which
  * truncates the JSON and fails the whole section. Real sections run ~1.5–2.8k
- * chars per risk, so a chunk this size carries roughly 15–25 captions — well
- * inside that ceiling — and a long section becomes a handful of independent,
- * individually-bounded enumerations.
+ * chars per risk, so a chunk this size carries roughly 15–25 captions, and a
+ * long section becomes a handful of independent, individually-bounded
+ * enumerations. The chunk size alone was not enough: a live chunk returned 26
+ * captions and truncated mid-object against the extractors' shared 4096-token
+ * ceiling, so this section also generates under its own raised ceiling
+ * (`RISK_FACTORS_MAX_TOKENS`). Both bounds matter — the chunk keeps the ask
+ * enumerable, the ceiling keeps the answer expressible.
  */
 export const RISK_FACTOR_CHUNK_CHARS = 40_000;
 

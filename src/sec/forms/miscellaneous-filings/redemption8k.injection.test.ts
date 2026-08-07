@@ -57,10 +57,9 @@ describe("processRedemption8K prompt-injection seal", () => {
     cleanup = undefined;
   });
 
-  it("verifyRowSpan rejects a 1001-char source_span at the gate and dead-letters UNVERIFIED_SOURCE_SPAN", async () => {
+  it("rejects an over-cap source_span at the gate and dead-letters SOURCE_SPAN_TOO_LONG", async () => {
     await seedSpacWithDeal(800);
     const oversizedSpan = "X".repeat(MAX_STORED_SPAN_CHARS + 1);
-    expect(oversizedSpan.length).toBe(1001);
     const { unregister } = registerFakeStructuredProvider([
       {
         redemption_shares: 999,
@@ -87,7 +86,7 @@ describe("processRedemption8K prompt-injection seal", () => {
     ).toBeUndefined();
     const dl = await new ExtractionDeadLetterRepo().listPending("redemption");
     const red = dl.find((d) => d.section_name === "redemption");
-    expect(red?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+    expect(red?.reason_code).toBe("SOURCE_SPAN_TOO_LONG");
   });
 
   it("a wrong nonce_seen dead-letters NONCE_MISMATCH and persists nothing", async () => {

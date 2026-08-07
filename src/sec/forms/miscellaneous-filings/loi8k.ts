@@ -9,7 +9,7 @@ import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { parseEightKSubmission } from "../registration-statements/s1/parseSubmission";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
-import { boundSourceSpan, verifyRowSpan } from "../registration-statements/s1/verifySourceSpan";
+import { boundSourceSpan, classifySpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractLoi } from "../registration-statements/s1/sectionExtractors";
 import type { LoiRow } from "../registration-statements/s1/loiSchema";
 import {
@@ -212,7 +212,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
       // with the other section extractors.
       emptyDetail: "no letter of intent reported",
       lowConfidenceDetail: "below confidence floor",
-      verifyRow: (t, r) => verifyRowSpan(t, r.source_span),
+      verifyRow: (t, r) => classifySpan(t, r.source_span),
       unverifiedAllDetail: "LOI source_span not present in narrative text",
       extract: async (t) => {
         const row = await extractLoi(t, model, args.context);

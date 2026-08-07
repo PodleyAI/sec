@@ -6,6 +6,7 @@
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { NonceMismatchError } from "./sectionExtractors";
+import type { SpanVerdict } from "./verifySourceSpan";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -21,6 +22,13 @@ export function parseConfidenceFloor(raw: string | undefined, fallback: number):
 
 /** Shared default floor (S-1 / 424); merger-proxy overrides via makeRunSection. */
 export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDENCE_FLOOR, 0);
+
+/**
+ * Times a section is re-asked when every confident row fails span verification.
+ * Distinct from the extractor's own transport/schema retry: this one answers a
+ * well-formed response whose citations do not hold up.
+ */
+export const VERIFICATION_ATTEMPTS = 3;
 
 export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly sectionName: string;
@@ -38,15 +46,20 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   /**
    * Optional row-level verification applied AFTER the confidence floor. When
    * every confident row is dropped, the section dead-letters as
-   * UNVERIFIED_SOURCE_SPAN (using `unverifiedAllDetail`); when some are
+   * UNVERIFIED_SOURCE_SPAN — or SOURCE_SPAN_TOO_LONG when every drop was an
+   * over-cap span (using `unverifiedAllDetail`); when some are
    * dropped, the surviving rows persist normally AND a "<sectionName>-partial"
    * dead-letter is recorded for triage (using `unverifiedPartialDetail`).
    * Detail strings may use `$N` (dropped count) and `$T` (confident total).
+   *
+   * Returning a {@link SpanVerdict} rather than a boolean is what lets the
+   * dead letter name the actual cause; `true`/`false` remain accepted for
+   * callbacks that verify something other than a span.
    * `NoInfer<TRow>` keeps TRow inferred solely from `extract` — without it,
    * contextual typing of the verifyRow callback's parameter would pin TRow
    * to the constraint and break the persist callback's row typing.
    */
-  readonly verifyRow?: (text: string, row: NoInfer<TRow>) => boolean;
+  readonly verifyRow?: (text: string, row: NoInfer<TRow>) => boolean | SpanVerdict;
   readonly unverifiedAllDetail?: string;
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
@@ -107,31 +120,67 @@ export function makeRunSection(opts: {
     }
 
     try {
-      const raw = await sargs.extract(sargs.text);
-      const confident = raw.filter((r) => r.confidence >= floor);
       const text = sargs.text;
       const verifyRow = sargs.verifyRow;
-      let rows: TRow[];
+      let raw: TRow[] = [];
+      let confident: TRow[] = [];
+      let rows: TRow[] = [];
       let droppedUnverified = 0;
-      if (verifyRow !== undefined && confident.length > 0) {
-        rows = confident.filter((r) => verifyRow(text, r));
-        droppedUnverified = confident.length - rows.length;
-      } else {
-        rows = confident;
+      // Over-cap drops are tracked separately so an all-dropped section can say
+      // which of the two failure modes it hit — they need opposite fixes.
+      let droppedTooLong = 0;
+
+      // Re-ask when EVERY confident row failed span verification. The rows are
+      // usually right and only the citation is malformed, and the malformation
+      // is not stable: three consecutive live runs of the Churchill XII
+      // underwriting section produced a 99-char verbatim span (accepted), a
+      // 317-char span stitched across a gap, and a 2563-char span over the cap
+      // — the same correct underwriter each time. Without a re-ask the section
+      // is lost about two runs in three; the rest of the pipeline already
+      // retries transport-level failures for the same reason.
+      for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
+        raw = await sargs.extract(text);
+        confident = raw.filter((r) => r.confidence >= floor);
+        droppedUnverified = 0;
+        droppedTooLong = 0;
+        if (verifyRow !== undefined && confident.length > 0) {
+          rows = confident.filter((r) => {
+            const verdict = verifyRow(text, r);
+            if (verdict === true || verdict === "ok") return true;
+            if (verdict === "too-long") droppedTooLong++;
+            return false;
+          });
+          droppedUnverified = confident.length - rows.length;
+        } else {
+          rows = confident;
+        }
+        // Only a total verification wipeout is worth re-asking. An empty or
+        // all-low-confidence response is a judgement about the text rather
+        // than a malformed citation, and re-rolling it just burns calls.
+        if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
+          break;
+        }
       }
       if (rows.length === 0) {
         const allDroppedUnverified =
           droppedUnverified > 0 && droppedUnverified === confident.length;
+        // Only when EVERY drop was over-cap: a mixed section still reports
+        // UNVERIFIED_SOURCE_SPAN, since some rows really were not in the text.
+        const allTooLong = allDroppedUnverified && droppedTooLong === droppedUnverified;
         const reason = allDroppedUnverified
-          ? "UNVERIFIED_SOURCE_SPAN"
+          ? allTooLong
+            ? "SOURCE_SPAN_TOO_LONG"
+            : "UNVERIFIED_SOURCE_SPAN"
           : raw.length === 0
             ? "MODEL_EMPTY"
             : "LOW_CONFIDENCE_ALL";
         const detail = allDroppedUnverified
-          ? (sargs.unverifiedAllDetail ?? sargs.lowConfidenceDetail).replace(
-              /\$T/g,
-              String(confident.length)
-            )
+          ? allTooLong
+            ? `all ${confident.length} confident rows had source_span over the section's length cap (the spans verify verbatim; the model quoted more than the cap allows)`
+            : (sargs.unverifiedAllDetail ?? sargs.lowConfidenceDetail).replace(
+                /\$T/g,
+                String(confident.length)
+              )
           : raw.length === 0
             ? sargs.emptyDetail
             : sargs.lowConfidenceDetail;
@@ -156,10 +205,14 @@ export function makeRunSection(opts: {
             extractor_id,
             accession_number,
             section_name: partialSection,
-            reason_code: "UNVERIFIED_SOURCE_SPAN",
-            detail: sargs.unverifiedPartialDetail
-              .replace(/\$N/g, String(droppedUnverified))
-              .replace(/\$T/g, String(confident.length)),
+            reason_code: droppedTooLong === droppedUnverified
+              ? "SOURCE_SPAN_TOO_LONG"
+              : "UNVERIFIED_SOURCE_SPAN",
+            detail:
+              sargs.unverifiedPartialDetail
+                .replace(/\$N/g, String(droppedUnverified))
+                .replace(/\$T/g, String(confident.length)) +
+              (droppedTooLong > 0 ? ` (${droppedTooLong} over the length cap)` : ""),
             failed_extractor_version: extractor_version,
             source_run_id: null,
           });

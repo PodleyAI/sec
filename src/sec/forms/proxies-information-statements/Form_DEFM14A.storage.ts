@@ -22,7 +22,7 @@ import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../registration-statements/s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "../registration-statements/s1/DocumentSegmenter";
 import { makeRunSection } from "../registration-statements/s1/sectionRunner";
-import { boundSourceSpan, verifyRowSpan } from "../registration-statements/s1/verifySourceSpan";
+import { boundSourceSpan, classifySpan } from "../registration-statements/s1/verifySourceSpan";
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";
 import type { MergerDealRow } from "../registration-statements/s1/mergerDealSchema";
 import {
@@ -183,7 +183,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
         notFoundDetail: "no merger / business-combination / PIPE section text",
         emptyDetail: "no merger deal returned",
         lowConfidenceDetail: "below confidence floor",
-        verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+        verifyRow: (text, r) => classifySpan(text, r.source_span),
         unverifiedAllDetail: "merger deal source_span not present in section text",
         extract: async (text) => {
           const deal = await extractMergerDeal(text, model, args.context);

@@ -156,6 +156,20 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
 ];
 
 /**
+ * Milliseconds for a history timestamp, used by the snapshot monotonicity math.
+ *
+ * The schema declares these columns `type: "string"`, but a backend can still
+ * hand back a `Date` (Postgres maps `format: "date-time"` to TIMESTAMP). That
+ * matters here specifically: `Date.parse(aDate)` does not fail — it coerces via
+ * `toString()`, whose format carries no milliseconds, so it silently truncates
+ * exactly the precision this chain advances by (+1 ms per snapshot). Reading a
+ * Date directly keeps the ordering intact.
+ */
+export function historyMs(value: string | Date): number {
+  return value instanceof Date ? value.getTime() : Date.parse(value);
+}
+
+/**
  * Orchestrates SPAC row writes: append the event, rebuild the row from the
  * append-only deals/events under the `as_of` guard, and snapshot history +
  * ChangeLog when tracked fields change.
@@ -502,14 +516,23 @@ export class SpacReportWriter {
     // rollback; comparing only the open row lets a same-instant stale replay
     // back-date past a closed snapshot.
     const history = await this.repo.getHistory(next.cik);
-    const open = history.find((h) => h.valid_to == null);
+    // Close EVERY open row, not just the first. One open row per CIK is the
+    // table's invariant, but `find` silently tolerates a violation and closes
+    // only the earliest — so a table that ever grew a second open row keeps one
+    // open forever instead of healing. Closing all of them makes the next write
+    // repair the table.
+    const openRows = history.filter((h) => h.valid_to == null);
     const closedTimes = history
       .filter((h) => h.valid_to != null)
-      .flatMap((h) => [Date.parse(h.valid_from), Date.parse(h.valid_to as string)])
+      .flatMap((h) => [historyMs(h.valid_from), historyMs(h.valid_to as string)])
       .filter((n) => Number.isFinite(n));
     const maxClosedTo =
       closedTimes.length > 0 ? Math.max(...closedTimes) : Number.NEGATIVE_INFINITY;
-    const openValidFromMs = open ? Date.parse(open.valid_from) : Number.NEGATIVE_INFINITY;
+    const openFromTimes = openRows
+      .map((h) => historyMs(h.valid_from))
+      .filter((n) => Number.isFinite(n));
+    const openValidFromMs =
+      openFromTimes.length > 0 ? Math.max(...openFromTimes) : Number.NEGATIVE_INFINITY;
 
     const filingDateMs = filingDate === "" ? 0 : Date.parse(`${filingDate}T00:00:00.000Z`);
     const isStale =
@@ -528,7 +551,7 @@ export class SpacReportWriter {
     );
     const validFrom = new Date(validFromMs).toISOString();
 
-    if (open) {
+    for (const open of openRows) {
       await this.repo.saveHistory({ ...open, valid_to: validFrom });
     }
     await this.repo.saveHistory(this.toHistory(next, validFrom, changeSource));

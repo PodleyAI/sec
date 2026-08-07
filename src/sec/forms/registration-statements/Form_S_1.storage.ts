@@ -15,6 +15,8 @@ import { ObservationProvenanceRepo } from "../../../storage/provenance/Observati
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { ExecutiveCompensationRepo } from "../../../storage/executive-compensation/ExecutiveCompensationRepo";
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
+import { RelatedPartyTransactionSchema } from "../../../storage/related-party/RelatedPartyTransactionSchema";
+import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
@@ -28,7 +30,7 @@ import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
-import { boundSourceSpan, verifyRowSpan } from "./s1/verifySourceSpan";
+import { boundSourceSpan, classifySpan, worstVerdict } from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
   extractExecutiveCompensation,
@@ -357,7 +359,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           text: classifyText,
           emptyDetail: "not classified as a SPAC",
           lowConfidenceDetail: "SPAC classification below confidence floor",
-          verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+          verifyRow: (text, r) => classifySpan(text, r.source_span),
           unverifiedAllDetail:
             "the confident SPAC classification had source_span not present in section text",
           extract: async (text) => {
@@ -417,7 +419,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       notFoundDetail: "no prospectus summary / business section text",
       emptyDetail: "no SPAC profile returned",
       lowConfidenceDetail: "profile below confidence floor",
-      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+      verifyRow: (text, r) => classifySpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
       extract: async (text) => {
         const p = await extractSpacProfile(text, model, args.context);
@@ -455,7 +457,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // Prompt-injection backstop: a filer can plant adversarial prose in the
     // section body; this gate refuses to persist any row whose source_span
     // is not a verbatim substring of the text we actually sent the model.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -518,7 +520,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     text: byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP),
     emptyDetail: "no owners returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -585,13 +587,28 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     text: byName.get(S1_SECTIONS.RELATED_PARTY),
     emptyDetail: "no parties returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
     extract: (text) => extractRelatedParty(text, model, args.context),
     persist: async (rows) => {
+      // Check every row against the storage schema's own declared bounds BEFORE
+      // writing any of them. This persist spans three storages (observations,
+      // provenance, transactions) and `withTransaction` is scoped to a single
+      // one, so a write that throws part-way through the loop cannot be rolled
+      // back: the section ends up both partly persisted and dead-lettered,
+      // which reads downstream as a complete disclosure that is actually
+      // truncated. A real filing hit exactly this — an over-long `period` threw
+      // on row 6 and left 5 rows behind. Failing up front turns that into
+      // "nothing written, dead letter recorded", which is what the
+      // all-or-nothing section contract already promises.
+      assertWithinDeclaredBounds(
+        rows.flatMap((r) => r.transactions),
+        RelatedPartyTransactionSchema,
+        "related-party transaction"
+      );
       let txIndex = 0;
       for (const r of rows) {
         const observation_index = idx++;
@@ -676,7 +693,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       text: compensationText,
       emptyDetail: "no compensation rows returned",
       lowConfidenceDetail: "all rows below confidence floor",
-      verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+      verifyRow: (text, r) => classifySpan(text, r.source_span),
       unverifiedAllDetail:
         "all $T confident compensation rows had source_span not present in section text",
       unverifiedPartialDetail:
@@ -791,9 +808,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // span: the caption IS the row's payload, so a paraphrased or invented
         // risk is worthless even when the span it cites verifies. Verifying it
         // also bounds the stored headline (the verifier rejects anything over
-        // 1000 raw chars) well inside the column's declared width.
+        // MAX_SPAN_CHARS raw chars) inside the column's declared width.
         verifyRow: (text, r) =>
-          verifyRowSpan(text, r.source_span) && verifyRowSpan(text, r.headline),
+          worstVerdict(classifySpan(text, r.source_span), classifySpan(text, r.headline)),
         unverifiedAllDetail:
           "all $T confident risk factor rows had headline/source_span not present in section text",
         unverifiedPartialDetail:
@@ -875,7 +892,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // is absent), so an LLM can hallucinate company names from director bios;
     // this gate stops unverified rows from being written as fact-claims keyed
     // to the issuer CIK.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:

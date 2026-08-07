@@ -180,14 +180,40 @@ const OPENAI_CAPABILITIES: readonly string[] = [
  * the Anthropic record so the two cloud providers are interchangeable in the
  * `sec eval` harness.
  */
+/**
+ * Reasoning effort for OpenAI calls, from `SEC_OPENAI_REASONING_EFFORT`.
+ *
+ * Unset by default — deliberately expressing NO preference, which lets the
+ * provider decide. That matters because the two knobs are coupled on the
+ * reasoning families: `gpt-5.6-luna` rejects `temperature` outright while
+ * reasoning is on, so the provider turns reasoning off for any request that
+ * pins a temperature (see `finalizeResponsesRequest`). Extraction pins
+ * temperature 0, so it gets reasoning-off and reproducible sampling without
+ * naming either here.
+ *
+ * Set to `low` / `medium` / `high` to state a preference explicitly, which the
+ * provider then honours over its own default. The enum is per-model —
+ * `minimal` is valid on some ids and rejected by `gpt-5.6-luna` — so an
+ * unsupported value fails loudly rather than degrading.
+ */
+export function getOpenAiReasoningEffort(): string | undefined {
+  const raw = process.env.SEC_OPENAI_REASONING_EFFORT;
+  return raw === undefined || raw.trim() === "" ? undefined : raw.trim();
+}
+
 export function openAiModelRecord(modelId: string): ModelRecord {
+  const effort = getOpenAiReasoningEffort();
   return {
     model_id: modelId,
     provider: OPENAI_PROVIDER,
     title: modelId,
     description: `OpenAI ${modelId}`,
     capabilities: [...OPENAI_CAPABILITIES],
-    provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
+    provider_config: {
+      model_name: modelId,
+      max_tokens: DEFAULT_MAX_TOKENS,
+      ...(effort === undefined ? {} : { reasoning: { effort } }),
+    },
     metadata: {},
   };
 }

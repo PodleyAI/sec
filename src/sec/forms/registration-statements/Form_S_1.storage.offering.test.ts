@@ -11,6 +11,7 @@ import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
@@ -236,5 +237,58 @@ describe("processFormS1 offering terms", () => {
     });
 
     expect(await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000004")).toBeUndefined();
+  });
+
+  it("says so in the dead letter when a failed offering-terms span also costs the tickers", async () => {
+    // The section returns ONE object carrying the unit terms AND the whole
+    // ticker array under a single source_span, so a failed span drops all of
+    // them. A live run dead-lettered here and silently recorded no tickers at
+    // all — the detail has to name what went with it.
+    const bad = {
+      security_type: "Units",
+      shares_offered: null,
+      price: null,
+      price_low: null,
+      price_high: null,
+      gross_proceeds: null,
+      net_proceeds: null,
+      over_allotment_shares: null,
+      units_offered: 20000000,
+      price_per_unit: 10,
+      unit_composition: null,
+      warrant_fraction_per_unit: null,
+      right_fraction_per_unit: null,
+      trust_per_unit: null,
+      over_allotment_units: null,
+      exchange: "NASDAQ",
+      par_value: null,
+      confidence: 0.9,
+      source_span: "a span that is nowhere in the section text",
+      tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+    };
+    const { unregister } = registerFakeStructuredProvider([bad, bad, bad, { underwriters: [] }]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848599,
+      file_number: "333-9",
+      accession_number: "0000000000-26-000009",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(await new SpacUnitTermsRepo().get("S-1", "0000000000-26-000009")).toBeUndefined();
+    expect(await new IssuerTickerRepo().history(1848599)).toEqual([]);
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    const offering = dl.find((d) => d.section_name === "offering-terms");
+    expect(offering?.detail).toMatch(/NO issuer ticker rows/);
   });
 });

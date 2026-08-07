@@ -24,7 +24,12 @@ export const RelatedPartyTransactionSchema = Type.Object({
     Type.String({ description: "e.g. loan, consulting agreement, registration rights" })
   ),
   amount: TypeNullable(Type.Number()),
-  period: TypeNullable(Type.String({ maxLength: 64 })),
+  // Free-form prose the filer chose, not a code: real values run to full
+  // clauses ("In connection with an intended initial business combination" is
+  // already 59 chars). The old maxLength of 64 was not a property of the data,
+  // and overflowing it threw mid-persist and dead-lettered the whole section.
+  // Unbounded matches the sibling free-text fields (`nature`, `footnote`).
+  period: TypeNullable(Type.String()),
   footnote: TypeNullable(Type.String()),
 });
 

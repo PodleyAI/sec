@@ -565,4 +565,50 @@ describe("SpacReportWriter", () => {
     }
     expect(sorted[sorted.length - 1].valid_to).toBeNull();
   });
+
+  it("closes EVERY open history row, healing a table that already has more than one", async () => {
+    // The invariant is one open row per CIK, but nothing enforced it: the
+    // snapshot used `history.find(h => h.valid_to == null)`, which closes only
+    // the earliest and leaves any others open forever. A live table reached
+    // this state (two open rows, overlapping intervals) after the Postgres
+    // date-string regression truncated the millisecond chain the ordering math
+    // runs on. The next write must repair it rather than perpetuate it.
+    await writer.recordRegistration({
+      cik: 77,
+      accession_number: "0000-reg",
+      filing_date: "2020-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Healed SPAC",
+      spac_sic: 6770,
+    });
+
+    // Forge the corruption directly: a second open row alongside the real one.
+    const [existing] = await repo.getHistory(77);
+    await repo.saveHistory({
+      ...(existing as SpacHistory),
+      valid_from: "2020-12-01T00:00:00.500Z",
+      valid_to: null,
+    });
+    expect((await repo.getHistory(77)).filter((h) => h.valid_to == null).length).toBe(2);
+
+    await writer.recordIpo({
+      cik: 77,
+      accession_number: "0000-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["HEAL.U"],
+    });
+
+    const history = await repo.getHistory(77);
+    expect(history.filter((h) => h.valid_to == null).length).toBe(1);
+    // The surviving open row is the newest, and every closed row hands off to it.
+    const open = history.find((h) => h.valid_to == null)!;
+    for (const closed of history.filter((h) => h.valid_to != null)) {
+      expect(closed.valid_from < open.valid_from).toBe(true);
+    }
+  });
 });

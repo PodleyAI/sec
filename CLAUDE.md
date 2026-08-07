@@ -116,7 +116,21 @@ sec extractor retry-dead-letters S-1       # re-run filings eligible under the c
 
 `sec version promote extractor S-1` announces how many dead-letter entries became
 eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-5`)
-and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`. All extractors
+and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
+
+Extraction samples greedily: every call sends `temperature: 0`
+(`SEC_EXTRACTION_TEMPERATURE`, empty value to send no temperature at all).
+Extraction is transcription — the answer is already in the filing — and unpinned
+sampling made re-processing ONE filing yield 138/138/109 risk factors whose
+contents differed in all three cases; the two 138-row runs disagreed on *which*
+captions they found. On OpenAI's reasoning families the two knobs are coupled:
+`gpt-5.6-luna` answers `temperature` alone with `400 Unsupported parameter`, but
+accepts `{reasoning: {effort: "none"}, temperature: 0}`. The provider therefore
+turns reasoning off for any request that pins a temperature
+(`finalizeResponsesRequest`), so no caller has to know that. State an effort
+explicitly with `SEC_OPENAI_REASONING_EFFORT` (`low`/`medium`/`high`) to
+override the inference — the enum is per-model, so an unsupported value like
+`minimal` on `gpt-5.6-luna` fails loudly rather than degrading. All extractors
 share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
 set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
 env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these

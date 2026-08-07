@@ -8,11 +8,22 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SPAN_CHARS,
   MAX_STORED_SPAN_CHARS,
+  MIN_SPAN_CAP_CHARS,
+  MAX_SPAN_SECTION_FRACTION,
   boundSourceSpan,
+  classifySpan,
   normalizeForSpanMatch,
   spanAppearsIn,
+  spanCapFor,
   verifyRowSpan,
+  worstVerdict,
 } from "./verifySourceSpan";
+
+/** A section long enough that `spanCapFor` returns the absolute ceiling. */
+function sectionHolding(span: string): string {
+  const needed = Math.ceil(MAX_SPAN_CHARS / MAX_SPAN_SECTION_FRACTION);
+  return `before... ${span} ...after`.padEnd(needed + span.length, " filler");
+}
 
 describe("normalizeForSpanMatch", () => {
   it("returns empty string for null / undefined", () => {
@@ -78,17 +89,74 @@ describe("spanAppearsIn", () => {
   });
 
   it("rejects spans longer than MAX_SPAN_CHARS even when verbatim-present", () => {
-    // A 1001-char span that appears verbatim in the haystack still fails the
+    // A span over the absolute ceiling that appears verbatim still fails the
     // gate — under prompt-injection a model coerced into echoing the whole
     // filer-controlled body would pass span verification trivially otherwise.
     const long = "X".repeat(MAX_SPAN_CHARS + 1);
-    expect(long.length).toBe(1001);
-    const haystackLong = `before... ${long} ...after`;
-    expect(spanAppearsIn(haystackLong, long)).toBe(false);
-    // Right at the cap still passes (the cap is inclusive of MAX_SPAN_CHARS).
+    expect(spanAppearsIn(sectionHolding(long), long)).toBe(false);
+    // Right at the ceiling passes, given a section big enough to earn it.
     const atCap = "X".repeat(MAX_SPAN_CHARS);
-    const haystackAtCap = `before... ${atCap} ...after`;
-    expect(spanAppearsIn(haystackAtCap, atCap)).toBe(true);
+    expect(spanAppearsIn(sectionHolding(atCap), atCap)).toBe(true);
+  });
+
+  it("rejects a span that is too large a fraction of a small section", () => {
+    // The same span that passes in a large section fails in a small one: the
+    // injection risk is a span that covers the section, not its raw length.
+    const span = "X".repeat(MIN_SPAN_CAP_CHARS + 1);
+    expect(spanAppearsIn(sectionHolding(span), span)).toBe(true);
+    expect(spanAppearsIn(`before... ${span} ...after`, span)).toBe(false);
+  });
+});
+
+describe("spanCapFor", () => {
+  it("never returns less than the historical flat cap", () => {
+    expect(spanCapFor("")).toBe(MIN_SPAN_CAP_CHARS);
+    expect(spanCapFor("x".repeat(100))).toBe(MIN_SPAN_CAP_CHARS);
+    // A quarter of 2000 is 500, below the floor.
+    expect(spanCapFor("x".repeat(2000))).toBe(MIN_SPAN_CAP_CHARS);
+  });
+
+  it("scales with the section and clamps at the absolute ceiling", () => {
+    expect(spanCapFor("x".repeat(24_000))).toBe(6000 > MAX_SPAN_CHARS ? MAX_SPAN_CHARS : 6000);
+    // The real Churchill XII Underwriting section (28,919 chars) earns the ceiling.
+    expect(spanCapFor("x".repeat(28_919))).toBe(MAX_SPAN_CHARS);
+  });
+});
+
+describe("classifySpan", () => {
+  const haystack = "Our sponsor, Acme Sponsor LLC, is a Delaware limited liability company.";
+
+  it("returns ok for a verbatim in-bounds span", () => {
+    expect(classifySpan(haystack, "Acme Sponsor LLC")).toBe("ok");
+  });
+
+  it("returns not-found for null, too-short, and absent spans", () => {
+    expect(classifySpan(haystack, null)).toBe("not-found");
+    expect(classifySpan(haystack, "ab")).toBe("not-found");
+    expect(classifySpan(haystack, "Hallucinated Holdings Inc.")).toBe("not-found");
+  });
+
+  it("distinguishes an over-cap span from an absent one", () => {
+    // This is the whole point of the verdict: a span that IS in the text but
+    // exceeds the cap must not be reported as missing from the text.
+    const long = "X".repeat(MAX_SPAN_CHARS + 1);
+    expect(classifySpan(sectionHolding(long), long)).toBe("too-long");
+  });
+
+  it("returns too-long for a whitespace-padded span before normalization", () => {
+    const padded = "Acme Sponsor LLC" + " ".repeat(MAX_SPAN_CHARS + 1);
+    expect(classifySpan(haystack, padded)).toBe("too-long");
+  });
+});
+
+describe("worstVerdict", () => {
+  it("is ok only when every part is ok", () => {
+    expect(worstVerdict("ok", "ok")).toBe("ok");
+    expect(worstVerdict("ok", "not-found")).toBe("not-found");
+  });
+
+  it("prefers too-long over not-found so the dead letter names the fixable cause", () => {
+    expect(worstVerdict("not-found", "too-long")).toBe("too-long");
   });
 });
 
@@ -137,13 +205,11 @@ describe("verifyRowSpan", () => {
 
   it("returns true when the raw span is at exactly MAX_STORED_SPAN_CHARS and verbatim-present", () => {
     const atCap = "X".repeat(MAX_STORED_SPAN_CHARS);
-    const haystackAtCap = `before... ${atCap} ...after`;
-    expect(verifyRowSpan(haystackAtCap, atCap)).toBe(true);
+    expect(verifyRowSpan(sectionHolding(atCap), atCap)).toBe(true);
   });
 
   it("returns false when the raw span is at MAX_STORED_SPAN_CHARS + 1", () => {
     const overCap = "X".repeat(MAX_STORED_SPAN_CHARS + 1);
-    const haystackOverCap = `before... ${overCap} ...after`;
-    expect(verifyRowSpan(haystackOverCap, overCap)).toBe(false);
+    expect(verifyRowSpan(sectionHolding(overCap), overCap)).toBe(false);
   });
 });

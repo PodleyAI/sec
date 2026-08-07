@@ -29,7 +29,7 @@ import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
-import { boundSourceSpan, verifyRowSpan } from "./verifySourceSpan";
+import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
 
 /**
  * Section names used by the offering-related dead letters. `sponsor-promote` is
@@ -55,6 +55,31 @@ export function offeringSectionNames(isSpac: boolean): readonly string[] {
  */
 export function toIntCount(n: number | null | undefined): number | null {
   return n == null || !Number.isFinite(n) ? null : Math.round(n);
+}
+
+/**
+ * Appended to every offering-terms failure detail. The section returns ONE
+ * object carrying the unit/offering terms AND the issuer's whole ticker array
+ * under a single `source_span`, so any failure drops all three tables at once —
+ * `spac_unit_terms`/`offering_terms` and every `issuer_ticker` row. A real run
+ * dead-lettered here and came back with no tickers at all, with nothing in the
+ * dead letter to say the ticker series had gone with them.
+ */
+const OFFERING_TERMS_LOSS =
+  " — no offering/unit terms and NO issuer ticker rows were recorded for this filing (one span covers all of them)";
+
+/**
+ * Comparison key for an entity name: case- and whitespace-insensitive, ignoring
+ * trailing punctuation. Only for detecting that two model rows name the same
+ * entity — the stored name stays exactly as the filing wrote it.
+ */
+export function normalizeEntityName(name: string): string {
+  return name
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .replace(/[.,;:]+$/, "")
+    .trim()
+    .toLowerCase();
 }
 
 export interface OfferingSectionsArgs {
@@ -132,14 +157,13 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   await runSection<OfferingTermsRow>({
     sectionName: "offering-terms",
     text: offeringText,
-    notFoundDetail: "no The Offering / Underwriting section text",
-    emptyDetail: "no offering terms returned",
-    lowConfidenceDetail: "below confidence floor",
+    notFoundDetail: `no The Offering / Underwriting section text${OFFERING_TERMS_LOSS}`,
+    emptyDetail: `no offering terms returned${OFFERING_TERMS_LOSS}`,
+    lowConfidenceDetail: `below confidence floor${OFFERING_TERMS_LOSS}`,
     // Prompt-injection backstop: refuse to persist a model-emitted offering-terms
     // row whose source_span is not a verbatim substring of the section text.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
-    unverifiedAllDetail:
-      "all $T confident offering-terms rows had source_span not present in section text",
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    unverifiedAllDetail: `all $T confident offering-terms rows had source_span not present in section text${OFFERING_TERMS_LOSS}`,
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
     extract: async (text) => {
@@ -232,7 +256,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: "below confidence floor",
     // Prompt-injection backstop: refuse to persist a promote row whose
     // source_span is not a verbatim substring of the section text.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
     extract: async (text) => {
@@ -269,7 +293,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     invalidWriteDetail: "no underwriter rows had usable legal and common names",
     // Prompt-injection backstop: refuse to persist any underwriter row whose
     // source_span is not a verbatim substring of the Underwriting section text.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
@@ -277,10 +301,23 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     extract: (text) => extractUnderwriters(text, model, context),
     persist: async (rows) => {
       let wrote = 0;
+      // One underwriter, one link row. The model repeats an underwriter across
+      // rows more often than not — a sole-underwriter filing came back with the
+      // same bank once, twice, and three times on three consecutive runs — and
+      // every duplicate previously minted its own observation, family
+      // membership and link row, inflating `sec underwriter by-family` counts by
+      // however many times the model stuttered. Deduped on the LEGAL name, not
+      // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
+      // Markets Limited" are two entities that share one family, and collapsing
+      // on the family would silently drop the second.
+      const seenLegalNames = new Set<string>();
       for (const r of rows) {
         const legalName = r.legal_name?.trim() ?? "";
         const commonName = r.common_name?.trim() ?? "";
         if (legalName === "" || commonName === "") continue;
+        const dedupeKey = normalizeEntityName(legalName);
+        if (seenLegalNames.has(dedupeKey)) continue;
+        seenLegalNames.add(dedupeKey);
         const observation_index = nextIndex();
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
@@ -331,7 +368,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: "all rows below confidence floor",
     // Prompt-injection backstop: refuse to persist any use-of-proceeds row whose
     // source_span is not a verbatim substring of the Use of Proceeds section text.
-    verifyRow: (text, r) => verifyRowSpan(text, r.source_span),
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:

@@ -225,3 +225,36 @@ describe("registerSecModels", () => {
     expect(await repo.size()).toBe(3);
   });
 });
+
+describe("OpenAI reasoning effort", () => {
+  const KEY = "SEC_OPENAI_REASONING_EFFORT";
+  const original = process.env[KEY];
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+  });
+
+  it("expresses no preference by default, leaving the provider to decide", () => {
+    // The provider forces reasoning off for any request that pins a
+    // temperature — gpt-5.6-luna 400s on `temperature` while reasoning is on,
+    // but accepts {reasoning:{effort:"none"}, temperature:0}. Naming an effort
+    // here would override that inference.
+    delete process.env[KEY];
+    const record = openAiModelRecord("gpt-5.6-luna");
+    expect((record.provider_config as Record<string, unknown>).reasoning).toBeUndefined();
+  });
+
+  it("honours an explicit effort", () => {
+    process.env[KEY] = "high";
+    expect(
+      (openAiModelRecord("gpt-5.6-luna").provider_config as Record<string, unknown>).reasoning
+    ).toEqual({ effort: "high" });
+  });
+
+  it("omits the reasoning field entirely when set empty", () => {
+    process.env[KEY] = "";
+    expect(
+      (openAiModelRecord("gpt-5.6-luna").provider_config as Record<string, unknown>).reasoning
+    ).toBeUndefined();
+  });
+});

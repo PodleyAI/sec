@@ -72,13 +72,12 @@ describe("processMergerProxy prompt-injection seal", () => {
     cleanup = undefined;
   });
 
-  it("verifyRowSpan rejects a 1001-char source_span at the gate, dead-letters UNVERIFIED_SOURCE_SPAN, persists nothing", async () => {
+  it("rejects an over-cap source_span at the gate, dead-letters SOURCE_SPAN_TOO_LONG, persists nothing", async () => {
     await seedSpac(700);
     // The raw source_span exceeds the storage cap. Even though it would
-    // appear verbatim in a synthetically-large section text, verifyRowSpan
+    // appear verbatim in a synthetically-large section text, the gate
     // rejects it BEFORE normalization, mirroring the S-1 storage-side cap.
     const oversizedSpan = "X".repeat(MAX_STORED_SPAN_CHARS + 1);
-    expect(oversizedSpan.length).toBe(1001);
     const { unregister } = registerFakeStructuredProvider([
       {
         target_name: "Mallory Inc.",
@@ -95,7 +94,7 @@ describe("processMergerProxy prompt-injection seal", () => {
     expect(await new SpacMergerExtractionRepo().getByAccession("700-defm")).toBeUndefined();
     const dl = await new ExtractionDeadLetterRepo().listPending("merger-proxy");
     const merger = dl.find((d) => d.section_name === "merger");
-    expect(merger?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+    expect(merger?.reason_code).toBe("SOURCE_SPAN_TOO_LONG");
   });
 
   it("persist site caps the stored source_span via boundSourceSpan at MAX_STORED_SPAN_CHARS", async () => {

@@ -41,10 +41,12 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // THE_OFFERING here is an ALIGN="center"-attribute bold box title at body
   // size — pinned since the StyleResolver learned the legacy align attribute
   // and heading levels rank by prominence tiers.
-  // The only SPAC fixture whose "Executive Officer and Director Compensation"
-  // heading is promoted to a section; its body is the blank-check company's
-  // one-sentence statement that no officer has been paid, which the Summary
-  // Compensation Table gate then declines to send to a model.
+  // Every SPAC fixture resolves EXECUTIVE_COMPENSATION. Only this one has the
+  // heading promoted to a section by the tree; in the other three it is a plain
+  // bolded line inside MANAGEMENT, recovered by the segmenter's nested-section
+  // fallback. In all four the body is the blank-check company's statement that
+  // no officer has been paid, which the Summary Compensation Table gate then
+  // declines to send to a model.
   "s1_1848507_000119312521066104.htm": [
     PROSPECTUS_SUMMARY,
     MANAGEMENT,
@@ -64,6 +66,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
     RISK_FACTORS,
   ],
   "s1_1822912_000121390021001475.htm": [
@@ -74,6 +77,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
     RISK_FACTORS,
   ],
   // 2026 SPAC with full iXBRL tagging (spac/dei taxonomies) — also exercised
@@ -86,6 +90,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     UNDERWRITING,
     USE_OF_PROCEEDS,
+    EXECUTIVE_COMPENSATION,
     RISK_FACTORS,
   ],
   // Operating companies — varied coverage / edge cases.
