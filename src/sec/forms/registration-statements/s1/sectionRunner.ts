@@ -5,7 +5,8 @@
  */
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { NonceMismatchError } from "./sectionExtractors";
+import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { MixedRiskCaptionShapeError, NonceMismatchError } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 
 /**
@@ -27,6 +28,15 @@ export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDEN
  * Times a section is re-asked when every confident row fails span verification.
  * Distinct from the extractor's own transport/schema retry: this one answers a
  * well-formed response whose citations do not hold up.
+ *
+ * These retries COMPOSE with the ones inside the extractor, and the product is
+ * not obvious from either site alone. This loop wraps `sargs.extract`, which for
+ * risk factors is `extractRiskFactors` — itself one call per chunk, each
+ * internally retried up to `EXTRACTION_ATTEMPTS` (3) times. The worst case is
+ * therefore `VERIFICATION_ATTEMPTS x EXTRACTION_ATTEMPTS x chunks`: a 246k-char
+ * risk-factors section (7 chunks) whose citations verify badly can cost ~63
+ * model calls before the section dead-letters. Raising either constant
+ * multiplies, it does not add.
  */
 export const VERIFICATION_ATTEMPTS = 3;
 
@@ -103,7 +113,7 @@ export function makeRunSection(opts: {
   ): Promise<void> {
     if (sargs.skip) return;
 
-    const record = (reason: string, detail: string | null) =>
+    const record = (reason: DeadLetterReasonCode, detail: string | null) =>
       deadLetters.record({
         extractor_id,
         accession_number,
@@ -225,7 +235,14 @@ export function makeRunSection(opts: {
       // structured response did not echo back the per-call verification token;
       // record it under a dedicated reason code so an operator can triage
       // nonce-check failures separately from generic invalid-output cases.
-      const reason = e instanceof NonceMismatchError ? "NONCE_MISMATCH" : "MODEL_INVALID_OUTPUT";
+      // A MixedRiskCaptionShapeError is likewise its own triage class: the
+      // response was well-formed, and what failed is the section's shape.
+      const reason: DeadLetterReasonCode =
+        e instanceof NonceMismatchError
+          ? "NONCE_MISMATCH"
+          : e instanceof MixedRiskCaptionShapeError
+            ? "MIXED_CAPTION_SHAPE"
+            : "MODEL_INVALID_OUTPUT";
       await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
     }
   };

@@ -8,6 +8,7 @@ import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "w
 import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
@@ -113,7 +114,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   const isSpac = form424.header?.sic === 6770;
 
   const deadLetters = new ExtractionDeadLetterRepo();
-  const recordFail = (section: string, reason: string, detail: string | null) =>
+  const recordFail = (section: string, reason: DeadLetterReasonCode, detail: string | null) =>
     deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,

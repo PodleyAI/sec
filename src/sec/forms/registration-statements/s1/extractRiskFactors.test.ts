@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { extractRiskFactors } from "./sectionExtractors";
+import { extractRiskFactors, MixedRiskCaptionShapeError } from "./sectionExtractors";
 import { RISK_FACTOR_CHUNK_CHARS } from "./riskFactorChunks";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -79,13 +79,60 @@ describe("extractRiskFactors", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("drops a category heading the model returned as if it were a risk", async () => {
+  it("fails the section when the model mixes a category heading in with real captions", async () => {
+    // The heading is not a risk, but nothing in its SHAPE separates it from a
+    // summary bullet — so dropping it is only safe when the whole section is
+    // sentence captions. A mixed response is unanswerable and dead-letters.
     const { unregister } = registerFakeStructuredProvider([
       { risks: [risk(CATEGORY, null), risk("Our securities may be delisted.")] },
     ]);
     cleanup = unregister;
-    const rows = await extractRiskFactors(`${CATEGORY}\n\nBody.`, fakeS1Model());
-    expect(rows.map((r) => r.headline)).toEqual(["Our securities may be delisted."]);
+    await expect(extractRiskFactors(`${CATEGORY}\n\nBody.`, fakeS1Model())).rejects.toThrow(
+      MixedRiskCaptionShapeError
+    );
+  });
+
+  it("dead-letters a mixed section rather than persisting the one punctuated caption", async () => {
+    // The regression the shape rule exists for. A real Item 105(b) summary list
+    // whose filer punctuated exactly ONE of 30 bullets: the old all-or-nothing
+    // filter kept that single row and dropped the other 29, persisting one
+    // caption as if it were the filing's complete risk disclosure.
+    const bare = Array.from(
+      { length: 29 },
+      (_, i) => `Risks related to our business and operations number ${i + 1}`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          ...bare.map((bullet) => risk(bullet, null)),
+          risk("Risks related to our securities and the trust account.", null),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await expect(
+      extractRiskFactors(`Summary of Risk Factors\n\n${bare.join("\n\n")}`, fakeS1Model())
+    ).rejects.toThrow(MixedRiskCaptionShapeError);
+  });
+
+  it("keeps every bullet of an all-bare-phrase summary list", async () => {
+    // The preserved case, pinned beside the mixed one: 30 in, 30 out. Nothing
+    // about the new rule may narrow a homogeneous summary list.
+    const bullets = Array.from(
+      { length: 30 },
+      (_, i) => `Risks related to our business and operations number ${i + 1}`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: bullets.map((bullet) => risk(bullet, null)) },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors(
+      `Summary of Risk Factors\n\n${bullets.join("\n\n")}`,
+      fakeS1Model()
+    );
+    expect(rows.map((r) => r.headline)).toEqual(bullets);
   });
 
   it("keeps bare-phrase captions when the whole section is a summary bullet list", async () => {

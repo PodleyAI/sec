@@ -34,6 +34,7 @@ import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kL
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -399,7 +400,10 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     };
 
-    const recordDeadLetterSafe = async (reason_code: string, detail: string): Promise<void> => {
+    const recordDeadLetterSafe = async (
+      reason_code: DeadLetterReasonCode,
+      detail: string
+    ): Promise<void> => {
       try {
         await deadLetters.record({
           extractor_id: extractorId,

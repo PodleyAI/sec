@@ -170,6 +170,118 @@ describe("IdentifySpacsTask", () => {
     expect((await candidates()).map((r) => r.cik).sort()).toEqual([1, 2]);
   });
 
+  it("an untouched candidate row survives an incremental run", async () => {
+    // The pruning intersection is the load-bearing part: a row whose CIK was
+    // never reprocessed is unexamined, not stale, and deleting it would empty
+    // the table one daily run at a time.
+    const processed = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+    await addEntity(1, "Old Acquisition Corp", 6770);
+    await addRegistration(1, "S-1", "2020-01-01");
+    await processed.put({ cik: 1, last_processed: "2020-01-02", success: true });
+    await new IdentifySpacsTask().execute({ full: true }, ctx);
+    expect(await candidates()).toHaveLength(1);
+
+    // CIK 1 stops matching, but its submissions were last processed long before
+    // the watermark — so this run never looked at it and must not prune it.
+    await addEntity(1, "Some Operating Co", 3711);
+    const out = await new IdentifySpacsTask().execute({}, ctx);
+
+    expect(out.pruned).toBe(0);
+    expect((await candidates()).map((r) => r.cik)).toEqual([1]);
+  });
+
+  it("prunes a rescanned CIK that stopped matching", async () => {
+    const processed = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+    await addEntity(1, "Old Acquisition Corp", 6770);
+    await addRegistration(1, "S-1", "2020-01-01");
+    await processed.put({ cik: 1, last_processed: "2020-01-02", success: true });
+    await new IdentifySpacsTask().execute({ full: true }, ctx);
+
+    // Same rename, but this time the CIK's submissions were reprocessed today,
+    // so the incremental scan DID consider it and its absence is evidence.
+    await addEntity(1, "Some Operating Co", 3711);
+    await processed.put({
+      cik: 1,
+      last_processed: new Date().toISOString().slice(0, 10),
+      success: true,
+    });
+    const out = await new IdentifySpacsTask().execute({}, ctx);
+
+    expect(out.pruned).toBe(1);
+    expect(await candidates()).toHaveLength(0);
+  });
+
+  it("treats the watermark date itself as reprocessed", async () => {
+    // The `>=` range query must be inclusive at the boundary and must mean the
+    // same thing on the in-memory repository as on SQLite (pinned in
+    // IdentifySpacsTask.sqlite.test.ts) — a stricter comparison here would leave
+    // stale rows behind, a looser one would delete unexamined ones.
+    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    await repo.put({
+      cik: 42,
+      name: "Gone Acquisition Corp",
+      current_sic: 6770,
+      signal_sic_6770: true,
+      signal_name_match: true,
+      signal_renamed_from: null,
+      first_reg_form: null,
+      first_reg_date: null,
+      reg_while_spac_named: null,
+      confidence: "low",
+      identified_at: "2026-08-01T00:00:00.000Z",
+    });
+    // The watermark is the newest identified_at minus one day.
+    await globalServiceRegistry
+      .get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN)
+      .put({ cik: 42, last_processed: "2026-07-31", success: true });
+
+    const out = await new IdentifySpacsTask().execute({}, ctx);
+
+    expect(out.since).toBe("2026-07-31");
+    expect(out.pruned).toBe(1);
+    expect(await candidates()).toHaveLength(0);
+  });
+
+  it("prunes with 40k candidate rows without throwing", async () => {
+    // `prune` streams the WHOLE candidate table, so the set it intersects grows
+    // monotonically with EDGAR history. The old implementation fed that set to
+    // an `in`-list query and threw above 30k bound parameters — after `putBulk`
+    // had already advanced `identified_at`, so the watermark moved forward, the
+    // unmatched set never shrank, and every later daily run threw again
+    // permanently.
+    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    const identified_at = "2026-08-01T00:00:00.000Z";
+    const stale = Array.from({ length: 40_000 }, (_, i) => ({
+      cik: 100_000 + i,
+      name: `Filler Acquisition Corp ${i}`,
+      current_sic: 6770,
+      signal_sic_6770: true,
+      signal_name_match: true,
+      signal_renamed_from: null,
+      first_reg_form: null,
+      first_reg_date: null,
+      reg_while_spac_named: null,
+      confidence: "low",
+      identified_at,
+    }));
+    for (let i = 0; i < stale.length; i += 5_000) {
+      await repo.putBulk(stale.slice(i, i + 5_000));
+    }
+    expect(await repo.size()).toBe(40_000);
+
+    // One CIK actually reprocessed today: the only row the run may delete.
+    const today = new Date().toISOString().slice(0, 10);
+    await globalServiceRegistry
+      .get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN)
+      .put({ cik: 100_000, last_processed: today, success: true });
+
+    const out = await new IdentifySpacsTask().execute({}, ctx);
+
+    expect(out.since).not.toBeNull();
+    expect(out.pruned).toBe(1);
+    expect(await repo.size()).toBe(39_999);
+  });
+
   it("falls back to a full scan when the table is empty", async () => {
     await addEntity(1, "Yuanxiang Acquisition Corp.", 6770);
     const out = await new IdentifySpacsTask().execute({}, ctx);

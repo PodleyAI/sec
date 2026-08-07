@@ -32,8 +32,27 @@ describe("getExtractionTemperature", () => {
     expect(getExtractionTemperature()).toBeUndefined();
   });
 
-  it("falls back to greedy on a non-numeric value rather than sending NaN", () => {
+  it("throws on a malformed value rather than silently reading it as greedy", () => {
+    // Coercing to 0 would report exactly the setting the operator did NOT ask
+    // for — "greedy sampling is on" — with nothing saying the value was
+    // discarded. A decimal comma is the realistic typo.
+    process.env[KEY] = "0,5";
+    expect(() => getExtractionTemperature()).toThrow(/SEC_EXTRACTION_TEMPERATURE/);
     process.env[KEY] = "warm";
+    expect(() => getExtractionTemperature()).toThrow(/SEC_EXTRACTION_TEMPERATURE/);
+  });
+
+  it("rejects a temperature outside the [0, 2] sampling range", () => {
+    process.env[KEY] = "5";
+    expect(() => getExtractionTemperature()).toThrow(/out of range/);
+    process.env[KEY] = "-1";
+    expect(() => getExtractionTemperature()).toThrow(/out of range/);
+  });
+
+  it("accepts the range bounds", () => {
+    process.env[KEY] = "2";
+    expect(getExtractionTemperature()).toBe(2);
+    process.env[KEY] = "0";
     expect(getExtractionTemperature()).toBe(0);
   });
 });

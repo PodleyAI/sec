@@ -111,7 +111,7 @@ describe("getDbStats", () => {
     const stats = await getDbStats();
     const missing = stats.find((stat) => stat.table === "ext_missing");
 
-    expect(missing).toEqual({ table: "ext_missing", rows: null });
+    expect(missing).toEqual({ table: "ext_missing", rows: null, estimated: false });
     const builtIns = stats.filter((stat) => stat.table !== "ext_missing");
     expect(builtIns.length).toBeGreaterThan(0);
     expect(builtIns.every((stat) => typeof stat.rows === "number")).toBe(true);

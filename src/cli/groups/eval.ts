@@ -7,6 +7,7 @@
 import type { Command } from "commander";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
+import { modelApiKeyEnvVar } from "../../config/registerModels";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
@@ -42,6 +43,39 @@ const DEFAULT_MODELS = [
 ];
 
 /**
+ * The default set restricted to providers this shell actually holds a key for.
+ *
+ * The defaults span three providers, so a bare `sec eval extract` on a machine
+ * with only `ANTHROPIC_API_KEY` set would spend the sweep producing failed runs
+ * for half the table and report them beside the real results as if the models
+ * had been ranked and lost. Dropping them (with a warning that names the ids and
+ * the variables that would bring them back) keeps the documented default list
+ * while making the bare command work wherever it is run.
+ *
+ * Explicit `--models` is never filtered: naming an id is a request to run it,
+ * and a failed run is the honest answer to "why doesn't this work?".
+ */
+function availableDefaultModels(): string[] {
+  const missing = new Map<string, string[]>();
+  const available = DEFAULT_MODELS.filter((id) => {
+    const envVar = modelApiKeyEnvVar(id);
+    if (envVar === undefined || (process.env[envVar] ?? "").trim() !== "") return true;
+    missing.set(envVar, [...(missing.get(envVar) ?? []), id]);
+    return false;
+  });
+  if (missing.size > 0) {
+    const detail = [...missing]
+      .map(([envVar, ids]) => `${ids.join(", ")} (needs ${envVar})`)
+      .join("; ");
+    console.warn(`Skipping default model(s) with no API key configured: ${detail}`);
+  }
+  // Every provider unconfigured is a configuration problem, not a reason to run
+  // an empty sweep and report a vacuous pass: hand back the full list so the
+  // failures name themselves.
+  return available.length > 0 ? available : [...DEFAULT_MODELS];
+}
+
+/**
  * Default candidate for `sec eval s1`: score the cheap cloud model against the
  * reference, the comparison that decides production extraction. Same reasoning
  * as {@link DEFAULT_MODELS} — a local model is opt-in.
@@ -65,7 +99,7 @@ const ORACLE_DEFAULT_CANDIDATE = "claude-haiku-4-5";
 const ORACLE_DEFAULT_REFERENCE = GOLDEN_REFERENCE;
 
 function parseModels(csv: string | undefined): string[] {
-  const ids = (csv ?? DEFAULT_MODELS.join(","))
+  const ids = (csv ?? availableDefaultModels().join(","))
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
