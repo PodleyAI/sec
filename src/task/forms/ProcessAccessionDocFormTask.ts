@@ -14,6 +14,7 @@ import {
   TaskError,
   Workflow,
 } from "workglow";
+import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
@@ -725,6 +726,15 @@ export class ProcessAccessionDocFormTask extends Task<
     // would dead-letter every filing of that form on every sweep, forever,
     // wearing the same reason code as a genuine storage failure.
     if (storeError instanceof MissingStorageHandlerError) {
+      throw storeError;
+    }
+
+    // A misconfigured environment is not this filing's fault either. The
+    // per-section handler already re-throws these rather than dead-lettering;
+    // without the matching escape here that re-throw would merely convert a
+    // per-section MODEL_INVALID_OUTPUT storm into a filing-level STORE_ERROR
+    // storm, equally version-gated and equally wrong.
+    if (storeError instanceof SecCliConfigurationError) {
       throw storeError;
     }
 
