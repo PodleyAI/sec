@@ -312,7 +312,12 @@ _rank_ it, not to adopt it: score it against golden truth
 (`sec eval s1 --reference golden`) before trusting it for production extraction.
 Its cost line uses DeepSeek's **cache-miss** input price, since each section is a
 distinct prompt that never hits the context cache; DeepSeek has also announced
-(not yet enabled) 2x peak-hour pricing, which the table does not model.
+(not yet enabled) 2x peak-hour pricing, which the table does not model. Adopting
+it is a per-deployment env-var opt-in, never a change to the built-in default
+(`DEFAULT_SEC_MODEL`, which stays on a schema-enforced Anthropic id): set
+`SEC_MODEL_DEFAULT=deepseek-v4-flash` to switch every extractor at once, or
+`SEC_S1_RISK_FACTORS_MODEL=deepseek-v4-flash` to switch only the chunked
+risk-factors section that dominates per-filing cost.
 
 > ⚠️ **DeepSeek's `json-mode` is not schema-enforced.** The API supports only
 > `response_format: {type: "json_object"}` — it rejects the OpenAI `json_schema`
