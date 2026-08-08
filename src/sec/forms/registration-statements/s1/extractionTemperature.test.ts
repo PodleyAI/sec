@@ -5,6 +5,8 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { SecCliConfigurationError } from "../../../../config/EnvToDI";
+import { getExtractionTemperature as getExtractionTemperatureFromConfig } from "../../../../config/extractionTemperature";
 import { getExtractionTemperature, isTemperatureUnsupportedError } from "./sectionExtractors";
 
 const KEY = "SEC_EXTRACTION_TEMPERATURE";
@@ -32,8 +34,45 @@ describe("getExtractionTemperature", () => {
     expect(getExtractionTemperature()).toBeUndefined();
   });
 
-  it("falls back to greedy on a non-numeric value rather than sending NaN", () => {
+  it("throws on a malformed value rather than silently reading it as greedy", () => {
+    // Coercing to 0 would report exactly the setting the operator did NOT ask
+    // for — "greedy sampling is on" — with nothing saying the value was
+    // discarded. A decimal comma is the realistic typo.
+    process.env[KEY] = "0,5";
+    expect(() => getExtractionTemperature()).toThrow(/SEC_EXTRACTION_TEMPERATURE/);
     process.env[KEY] = "warm";
+    expect(() => getExtractionTemperature()).toThrow(/SEC_EXTRACTION_TEMPERATURE/);
+  });
+
+  it("rejects a temperature outside the [0, 2] sampling range", () => {
+    process.env[KEY] = "5";
+    expect(() => getExtractionTemperature()).toThrow(/out of range/);
+    process.env[KEY] = "3";
+    expect(() => getExtractionTemperature()).toThrow(/out of range/);
+    process.env[KEY] = "-1";
+    expect(() => getExtractionTemperature()).toThrow(/out of range/);
+  });
+
+  it("throws a configuration error, the class the pipeline exempts from dead-lettering", () => {
+    // The type is what carries the fix: a bad env value is wrong for every
+    // section of every filing, so the section runner and the form task both
+    // re-throw this class instead of recording a version-gated dead letter.
+    process.env[KEY] = "0,5";
+    expect(() => getExtractionTemperature()).toThrow(SecCliConfigurationError);
+    process.env[KEY] = "3";
+    expect(() => getExtractionTemperature()).toThrow(SecCliConfigurationError);
+  });
+
+  it("is the same function whether reached through config or the extractors module", () => {
+    // It moved to `config/` so the CLI can validate it at startup; the
+    // extractors module re-exports it so call sites did not have to move.
+    expect(getExtractionTemperature).toBe(getExtractionTemperatureFromConfig);
+  });
+
+  it("accepts the range bounds", () => {
+    process.env[KEY] = "2";
+    expect(getExtractionTemperature()).toBe(2);
+    process.env[KEY] = "0";
     expect(getExtractionTemperature()).toBe(0);
   });
 });

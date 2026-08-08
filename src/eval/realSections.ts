@@ -46,7 +46,49 @@ const EXTRACTOR_TO_SECTION: Record<string, string> = {
   "related-party": S1_SECTIONS.RELATED_PARTY,
   "offering-terms": S1_SECTIONS.THE_OFFERING,
   "risk-factors": S1_SECTIONS.RISK_FACTORS,
+  underwriters: S1_SECTIONS.UNDERWRITING,
+  "use-of-proceeds": S1_SECTIONS.USE_OF_PROCEEDS,
+  "sponsor-promote": S1_SECTIONS.THE_OFFERING,
+  "spac-profile": S1_SECTIONS.PROSPECTUS_SUMMARY,
+  "spac-sponsors": S1_SECTIONS.THE_SPONSOR,
+  // Only resolvable since the segmenter learned to rescue a compensation
+  // heading nested inside MANAGEMENT — three of the four SPAC fixtures carry it
+  // that way and previously yielded no section at all.
+  "executive-compensation": S1_SECTIONS.EXECUTIVE_COMPENSATION,
+  "spac-classification": S1_SECTIONS.PROSPECTUS_SUMMARY,
 };
+
+interface SegmentedFixture {
+  /** Section name -> prose, or undefined when the fixture failed to parse. */
+  readonly byName: Map<string, string> | undefined;
+  readonly error: string | undefined;
+}
+
+/**
+ * Parsed + segmented fixtures, keyed by absolute path. The corpus is committed
+ * HTML that never changes under a running process, and a sweep asking for one
+ * extractor at a time would otherwise re-segment tens of MB per call.
+ */
+const segmentedFixtures = new Map<string, SegmentedFixture>();
+
+function segmentFixture(path: string, title: string): SegmentedFixture {
+  const cached = segmentedFixtures.get(path);
+  if (cached !== undefined) return cached;
+  let result: SegmentedFixture;
+  try {
+    const html = readFileSync(path, "utf8");
+    const doc = parseEdgarHtml(html, title);
+    const segmented = new DocumentTreeSegmenter().segment(doc);
+    result = {
+      byName: new Map(segmented.map((s) => [s.name as string, s.text])),
+      error: undefined,
+    };
+  } catch (err) {
+    result = { byName: undefined, error: err instanceof Error ? err.message : String(err) };
+  }
+  segmentedFixtures.set(path, result);
+  return result;
+}
 
 export interface RealSection {
   /** Source filename (accession-derived). */
@@ -54,6 +96,19 @@ export interface RealSection {
   /** Eval extractor name (key into EVAL_EXTRACTORS). */
   readonly extractor: string;
   readonly text: string;
+}
+
+/**
+ * The CIK a fixture filename encodes, or null when it is not of the
+ * `<form>_<cik>_<accession>` shape the fetchers write.
+ *
+ * Leading zeros are stripped so `--cik 0001507957` and `--cik 1507957` select
+ * the same filing — EDGAR itself uses both spellings, and a filter that
+ * silently matched neither would look like "this CIK has no sections".
+ */
+export function fixtureCik(filing: string): string | null {
+  const m = /^[A-Za-z0-9]+_(\d+)_/.exec(filing);
+  return m?.[1] ? String(Number(m[1])) : null;
 }
 
 /**
@@ -68,20 +123,41 @@ export interface RealSection {
  */
 export function loadRealS1Sections(
   extractorNames: readonly string[],
-  dir?: string
+  dir?: string,
+  ciks?: readonly string[]
 ): {
   readonly sections: RealSection[];
   readonly skipped: string[];
 } {
   const candidates = s1MockDirCandidates(dir);
   const resolvedDir = candidates.find(existsSync);
-  const files = resolvedDir
+  const allFiles = resolvedDir
     ? readdirSync(resolvedDir).filter((f) => f.endsWith(".htm"))
     : [];
-  if (resolvedDir === undefined || files.length === 0) {
+  if (resolvedDir === undefined || allFiles.length === 0) {
     throw new Error(
       `No S-1 fixtures found. Searched:\n  - ${candidates.join("\n  - ")}`
     );
+  }
+  // A CIK filter that matches nothing is an error, not an empty sweep: the whole
+  // point of `--cik` is isolating ONE filing, so "scored 0 sections" would read
+  // as a passing run of a typo'd CIK.
+  let files = allFiles;
+  if (ciks && ciks.length > 0) {
+    const wanted = new Set(ciks.map((c) => String(Number(c))));
+    files = allFiles.filter((f) => {
+      const cik = fixtureCik(f.replace(/\.htm$/, ""));
+      return cik !== null && wanted.has(cik);
+    });
+    if (files.length === 0) {
+      const known = [...new Set(allFiles.map((f) => fixtureCik(f.replace(/\.htm$/, ""))))]
+        .filter((c): c is string => c !== null)
+        .sort();
+      throw new Error(
+        `No S-1 fixture matches CIK ${[...wanted].join(", ")} in ${resolvedDir}. ` +
+          `Available CIKs: ${known.join(", ")}`
+      );
+    }
   }
   const sections: RealSection[] = [];
   const skipped: string[] = [];
@@ -97,16 +173,14 @@ export function loadRealS1Sections(
     }
     return true;
   });
+  // Nothing to look for — don't pay to segment the corpus (tens of MB of HTML)
+  // only to filter every section back out.
+  if (mapped.length === 0) return { sections, skipped };
 
   for (const file of files.sort()) {
-    let byName: Map<string, string>;
-    try {
-      const html = readFileSync(join(resolvedDir, file), "utf8");
-      const doc = parseEdgarHtml(html, file);
-      const segmented = new DocumentTreeSegmenter().segment(doc);
-      byName = new Map(segmented.map((s) => [s.name as string, s.text]));
-    } catch (err) {
-      skipped.push(`${file}: parse failed (${err instanceof Error ? err.message : String(err)})`);
+    const { byName, error } = segmentFixture(join(resolvedDir, file), file);
+    if (byName === undefined) {
+      skipped.push(`${file}: parse failed (${error})`);
       continue;
     }
     for (const extractor of mapped) {

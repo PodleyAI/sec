@@ -205,4 +205,83 @@ describe("PersonNormalization", () => {
       expect(result!.crd).toBe(null);
     });
   });
+
+  describe("credentials vs generational suffixes", () => {
+    // A credential says how ONE filing annotated a person; a generational
+    // suffix says WHICH person. Only the latter may reach the identity key.
+    it("keeps a credential out of the hash so the same person does not split", () => {
+      const bare = normalizePerson({ name: "Troy A. Hering" })!;
+      const credentialed = normalizePerson({ name: "Troy A. Hering CPA" })!;
+      expect(credentialed.person_hash_id).toBe(bare.person_hash_id);
+      expect(credentialed.suffix).toBeNull();
+      expect(credentialed.credentials).toBe("Cpa"); // fixCase:1 title-cases the display form
+      expect(credentialed.last).toBe("Hering");
+    });
+
+    it("collapses comma-written credentials onto the bare name", () => {
+      for (const [bare, annotated] of [
+        ["Isaac Manke", "Isaac Manke, Ph.D."],
+        ["Gbola Amusa", "Gbola Amusa, M.D., CFA"],
+        ["Andrew Lam", "Andrew Lam, PharmD"],
+      ]) {
+        expect(normalizePerson({ name: annotated })!.person_hash_id).toBe(
+          normalizePerson({ name: bare })!.person_hash_id
+        );
+      }
+    });
+
+    it("STILL separates a generational suffix — father and son are two people", () => {
+      const father = normalizePerson({ name: "John Smith" })!;
+      const son = normalizePerson({ name: "John Smith Jr." })!;
+      expect(son.person_hash_id).not.toBe(father.person_hash_id);
+      expect(son.suffix).toBe("Jr");
+    });
+
+    it("splits a name carrying both kinds at once", () => {
+      const both = normalizePerson({ name: "John Smith Jr., CPA" })!;
+      expect(both.suffix).toBe("Jr");
+      expect(both.credentials).toBe("Cpa");
+      // The credential is invisible to identity, so it matches the plain junior
+      // and not the plain senior.
+      expect(both.person_hash_id).toBe(normalizePerson({ name: "John Smith Jr." })!.person_hash_id);
+      expect(both.person_hash_id).not.toBe(normalizePerson({ name: "John Smith" })!.person_hash_id);
+    });
+  });
+
+  describe("a parenthesized nickname is identity-bearing", () => {
+    // Unlike a credential, a nickname is treated as part of who someone is: for
+    // the very common given-name + surname pairs an SEC roster holds, it is
+    // routinely the only token separating two people.
+    it("folds the nickname into `middle`, which is what the resolver keys on", () => {
+      const p = normalizePerson({ name: "Yong (David) Yan" })!;
+      expect(p.middle).toBe("David");
+      // Still exposed separately for display.
+      expect(p.nick).toBe("David");
+    });
+
+    it("agrees with the same name written without parentheses", () => {
+      // These disagreed before: the nickname went to `nick`, which has no column
+      // in the resolver's match tuple, so the parenthesized spelling resolved
+      // with middle=null and the plain one with middle="David".
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).toBe(
+        normalizePerson({ name: "Yong David Yan" })!.person_hash_id
+      );
+    });
+
+    it("separates a nicknamed person from the bare name", () => {
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).not.toBe(
+        normalizePerson({ name: "Yong Yan" })!.person_hash_id
+      );
+    });
+
+    it("does not overwrite a real middle name", () => {
+      const p = normalizePerson({ name: "Robert James (Bob) Smith" })!;
+      expect(p.middle).toBe("James");
+      expect(p.nick).toBe("Bob");
+    });
+
+    it("counts the nickname once — the hash is not 'david-david'", () => {
+      expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).toBe("yong-david-yan");
+    });
+  });
 });

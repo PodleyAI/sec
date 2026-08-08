@@ -120,16 +120,25 @@ const ACRONYMS: ReadonlySet<string> = new Set([
   "llc",
 ]);
 
-/** Title-case one whitespace-delimited word, hyphen segments handled individually. */
+/**
+ * Title-case one whitespace-delimited word. Hyphen AND ampersand segments are
+ * cased individually: without the ampersand, "M&A" title-cased to "M&a" and
+ * "R&D" to "R&d", because only the first character of the whole word was
+ * raised. Both joiners bind two independently-cased parts, so both split.
+ */
 function titleCaseWord(word: string, isFirst: boolean): string {
   if (word.length === 0) return word;
   const lower = word.toLowerCase();
   if (ACRONYMS.has(lower)) return lower.toUpperCase();
   if (!isFirst && SMALL_WORDS.has(lower)) return lower;
   return lower
-    .split("-")
-    .map((seg) => (seg.length === 0 ? seg : seg.charAt(0).toUpperCase() + seg.slice(1)))
-    .join("-");
+    .split(/([-&])/)
+    .map((seg) =>
+      seg.length === 0 || seg === "-" || seg === "&"
+        ? seg
+        : seg.charAt(0).toUpperCase() + seg.slice(1)
+    )
+    .join("");
 }
 
 /**

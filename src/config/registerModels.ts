@@ -46,7 +46,7 @@ function isLlamaCppModelId(modelId: string): boolean {
   return modelId.startsWith(GGUF_ID_PREFIX);
 }
 
-/** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-4-8`, …). */
+/** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-5`, …). */
 function isAnthropicModelId(modelId: string): boolean {
   return /^claude-/i.test(modelId);
 }
@@ -470,6 +470,25 @@ export function trySecModelRecord(modelId: string): ModelRecord | undefined {
   if (isGeminiModelId(modelId)) return geminiModelRecord(modelId);
   if (isXaiModelId(modelId)) return xaiModelRecord(modelId);
   if (isDeepSeekModelId(modelId)) return deepSeekModelRecord(modelId);
+  return undefined;
+}
+
+/**
+ * The API-key environment variable a model id's provider needs, or `undefined`
+ * for a local provider (GGUF / HFT ONNX) and for an id whose shape matches no
+ * known provider.
+ *
+ * Dispatches on the same id shapes as {@link trySecModelRecord} — a caller that
+ * wants to know "can this id actually run here?" before spending a sweep on it
+ * would otherwise have to duplicate that table and let the two drift.
+ */
+export function modelApiKeyEnvVar(modelId: string): string | undefined {
+  if (isLlamaCppModelId(modelId) || isHftModelId(modelId)) return undefined;
+  if (isAnthropicModelId(modelId)) return "ANTHROPIC_API_KEY";
+  if (isOpenAiModelId(modelId)) return "OPENAI_API_KEY";
+  if (isGeminiModelId(modelId)) return "GEMINI_API_KEY";
+  if (isXaiModelId(modelId)) return "XAI_API_KEY";
+  if (isDeepSeekModelId(modelId)) return "DEEPSEEK_API_KEY";
   return undefined;
 }
 

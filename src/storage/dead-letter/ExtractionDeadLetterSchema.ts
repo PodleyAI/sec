@@ -30,6 +30,20 @@ export const DEAD_LETTER_REASON_CODES = [
   // the entry.
   "STORE_ERROR",
   "OVERSIZED_INPUT",
+  // Every confident row cited a source_span that is not present verbatim in the
+  // section text, so none of them can be trusted. Version-gated: the fix is in
+  // the extractor's prompt or its span handling.
+  "UNVERIFIED_SOURCE_SPAN",
+  // The narrower form of the above: every confident row's source_span verified
+  // verbatim but ran past the section's length cap. The rows are probably right
+  // and only quoted too much, so it is distinguished from a genuine
+  // verification failure — the two need opposite fixes.
+  "SOURCE_SPAN_TOO_LONG",
+  // A risk-factors response mixed rows shaped like captions with rows shaped
+  // like category headings (see MixedRiskCaptionShapeError). The shape
+  // heuristic cannot separate them, and persisting the punctuated subset would
+  // record a partial risk list as the filing's complete disclosure.
+  "MIXED_CAPTION_SHAPE",
   // A structured-generation response that failed to echo back the
   // verification nonce planted in the trusted preamble (see NonceMismatchError)
   // — a real extraction failure (the response cannot be trusted), not a

@@ -22,7 +22,7 @@ The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./
 
 Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
-`use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. `prepack-check` fails if any stub is still present.
+`use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. Finding no stubs is reported but does **not** skip the rebuild: `dist/` is gitignored, so "no stubs" most often means it was deleted, and returning early left the developer with "already in dist mode", no dist at all, and nothing saying why the build never ran. `prepack-check` fails if any stub is still present.
 
 Local Workglow deps: from a libs checkout run `bun run link-all` (and usually `bun run use-source`), then in sec run `bun run link-workglow`. Register this package for consumers with `bun run link`. For the full libs → sec → embarc-data chain, run `bun ./dev-link.ts` from the parent `workglow/` folder (or `bun run dev-link` in libs). Re-run `link-workglow` after any `bun install`.
 
@@ -121,7 +121,10 @@ eligible. Configure the model via `SEC_S1_MODEL` (default `claude-sonnet-5`)
 and an optional confidence floor via `SEC_S1_CONFIDENCE_FLOOR`.
 
 Extraction samples greedily: every call sends `temperature: 0`
-(`SEC_EXTRACTION_TEMPERATURE`, empty value to send no temperature at all).
+(`SEC_EXTRACTION_TEMPERATURE`, empty value to send no temperature at all; a
+malformed or out-of-`[0, 2]` value throws naming the variable rather than
+coercing to `0`, which would read back as "greedy sampling is on" — the opposite
+of what a typo like `0,5` was asking for).
 Extraction is transcription — the answer is already in the filing — and unpinned
 sampling made re-processing ONE filing yield 138/138/109 risk factors whose
 contents differed in all three cases; the two 138-row runs disagreed on *which*
@@ -174,9 +177,19 @@ The two are deliberately **not** the same code even though their retry semantics
 are identical: `MODEL_RESOLUTION_ERROR` means the configured model id is not
 registered, and its operator action is to add a key or register a provider;
 `RATE_LIMITED` means wait, then retry. Merging them makes the worklist counts
-unreadable during exactly the outage an operator would be triaging. The
-reason-code vocabulary lives in `DEAD_LETTER_REASON_CODES`
-(`ExtractionDeadLetterSchema.ts`).
+unreadable during exactly the outage an operator would be triaging.
+
+The vocabulary is `DEAD_LETTER_REASON_CODES` in
+`ExtractionDeadLetterSchema.ts`: `SECTION_NOT_FOUND`, `MODEL_INVALID_OUTPUT`,
+`MODEL_EMPTY`, `MODEL_RESOLUTION_ERROR`, `LOW_CONFIDENCE_ALL`,
+`PRIMARY_DOC_UNRESOLVED`, `FETCH_ERROR`, `PARSE_ERROR`, `STORE_ERROR`,
+`OVERSIZED_INPUT`, `UNVERIFIED_SOURCE_SPAN`, `SOURCE_SPAN_TOO_LONG`,
+`MIXED_CAPTION_SHAPE`, `NONCE_MISMATCH`, `RATE_LIMITED`. The stored column is a
+plain string, so `DeadLetterInput.reason_code` is typed to that union — a code
+written but never declared used to persist silently (which is how
+`UNVERIFIED_SOURCE_SPAN` and `SOURCE_SPAN_TOO_LONG` were both written for some
+time without appearing in the list an operator reads); adding one is now a
+compile error until it is declared.
 
 #### Filing-level dead-letters (every form, not just the AI ones)
 
@@ -275,8 +288,17 @@ reporting a vacuous pass), and its help lists only the scorable ones.
 `related-party` and `offering-terms` still have no fixture — `offering-terms` is
 covered instead by `sec eval unit-terms` against the embarc truth set.
 
+The documented default set is cross-provider — `claude-haiku-4-5`,
+`claude-sonnet-5`, `deepseek-v4-flash`, `gemini-3.6-flash` — so a full bare run
+wants **three** keys: `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` and
+`GEMINI_API_KEY`. A default whose key is absent is **skipped with a warning**
+naming the ids and the missing variables, rather than sweeping into a table half
+full of failed runs presented as if the models had been ranked and lost. An
+explicit `--models` is never filtered: naming an id is a request to run it, and
+a failed run is the honest answer.
+
 ```bash
-sec eval extract                              # default: haiku vs sonnet
+sec eval extract                              # default: haiku, sonnet, deepseek-flash, gemini-flash
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 
@@ -288,7 +310,7 @@ sec eval extract --extractor management --format json
 # models endpoint (e.g. GET https://api.openai.com/v1/models, /v1/models on
 # api.x.ai, .../v1beta/models on generativelanguage.googleapis.com,
 # /models on api.deepseek.com).
-sec eval extract --models "claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,\
+sec eval extract --models "claude-opus-5,claude-sonnet-5,claude-haiku-4-5,\
 gpt-5.5,gpt-5.4-mini,gemini-3.1-pro-preview,gemini-3-flash-preview,grok-4.5,\
 deepseek-v4-flash,deepseek-v4-pro"
 ```
@@ -300,7 +322,12 @@ _rank_ it, not to adopt it: score it against golden truth
 (`sec eval s1 --reference golden`) before trusting it for production extraction.
 Its cost line uses DeepSeek's **cache-miss** input price, since each section is a
 distinct prompt that never hits the context cache; DeepSeek has also announced
-(not yet enabled) 2x peak-hour pricing, which the table does not model.
+(not yet enabled) 2x peak-hour pricing, which the table does not model. Adopting
+it is a per-deployment env-var opt-in, never a change to the built-in default
+(`DEFAULT_SEC_MODEL`, which stays on a schema-enforced Anthropic id): set
+`SEC_MODEL_DEFAULT=deepseek-v4-flash` to switch every extractor at once, or
+`SEC_S1_RISK_FACTORS_MODEL=deepseek-v4-flash` to switch only the chunked
+risk-factors section that dominates per-filing cost.
 
 > ⚠️ **DeepSeek's `json-mode` is not schema-enforced.** The API supports only
 > `response_format: {type: "json_object"}` — it rejects the OpenAI `json_schema`
@@ -360,11 +387,18 @@ _rows_, not inventing distinct hallucinations, so precision is computed over
 
 #### Oracle over real S-1s (`sec eval s1`)
 
-Golden fixtures are synthetic; `sec eval s1` instead runs a `--reference` model
-as the "truth" over **real committed S-1 sections**, then scores each
-`--candidate` on agreement/recall/precision against it. The reference defaults to
-**`claude-opus-4-8`** — a model oracle caps every candidate at its own accuracy,
-so it should be the strongest model available, not the one you are evaluating.
+`sec eval s1` scores candidates over **real committed S-1 sections**. The
+reference defaults to **`golden`** — the committed human-verified labels in
+`goldenS1Labels.ts` — because a fixed yardstick is worth more than a strong one:
+a model oracle caps every candidate at its own accuracy, costs a call per
+section, and disagrees with ITSELF between runs, so the bar moves under you.
+Golden labels are free, instant and stable.
+
+They cover `management` and `beneficial-ownership` only. A golden run scores
+those and reports every other section as skipped rather than quietly passing it.
+Pass `--reference <model-id>` (use the strongest available, currently
+`claude-opus-5` — never the model you are evaluating) to fall back to an oracle
+for the unlabelled extractors, accepting that its verdict is an opinion.
 `realSections.ts` segments the HTML into management / beneficial-ownership /
 related-party prose. The reference retries a few times per section (strong models
 intermittently emit a nested array as a JSON _string_ the strict schema rejects);
@@ -375,12 +409,29 @@ truth — even the strongest model drops or invents the odd role, capping
 achievable agreement and penalizing a correct candidate. `--reference golden`
 scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
 instead of a model run — no reference API call, `$0`, deterministic. Only sections
-with a golden entry are scored (the rest are reported as skipped); currently the
-four committed `management` sections and all five `beneficial-ownership` sections.
+with a golden entry are scored (the rest are reported as skipped); currently
+seven committed `management` sections and seven `beneficial-ownership` sections.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
 hand-labeled.
+
+The reverse gap is reported too: a committed label whose **fixture** never
+arrives is listed in `skipped` rather than silently dropped. That is not
+hypothetical — embarc-data vendors its own copy of the S-1 corpus
+(`SEC_S1_MOCK_DIR`, defaulted in its `eval` command), and when that copy drifted
+behind sec's the labelled filing produced no section at all, so the sweep scored
+fewer filings than the labels covered and still printed a clean table. Re-copy
+the corpus into the vendoring package when you add a fixture.
+
+`--cik <csv>` narrows a sweep to one filer (leading zeros optional), which is how
+you check a newly added fixture or label without paying for the whole corpus. A
+CIK matching no fixture is an error listing the available ones — an empty sweep
+would otherwise read as a pass.
+
+```bash
+sec eval s1 --cik 2147219 --models "deepseek-v4-flash"
+```
 
 > **Why golden truth matters — a worked example.** The `beneficial-ownership`
 > oracle numbers were long depressed by an _unstated convention_, not by model
@@ -396,12 +447,25 @@ hand-labeled.
 > lower cost. A model-reference oracle could never have surfaced this: the
 > reference _was_ the model making the mistake.
 
-```bash
-# Score candidates against human-verified truth (deterministic, no ref call)
-sec eval s1 --reference golden --models "gpt-5.4-mini,gemini-3-flash-preview"
+> **The same shape, found again — zero-holding rows.** An ownership table lists
+> officers and directors who hold nothing, printing `-` in both the share and
+> percentage columns; the disclosure IS that they hold none. The prompt said to
+> use null "for figures shown as '\*', '—', or blank" but never said the ROW
+> still had to be emitted, so `deepseek-v4-flash` dropped four such owners from
+> the TEN Holdings table and scored 95% recall for it. The golden labels were
+> right and the model was wrong — the opposite of the Haldeman title case found
+> in the same run, where the label was wrong and the model right. Both were only
+> resolvable by re-reading the filing, which is the actual discipline: a
+> disagreement says one of the two is wrong, not which. With the row rule pinned
+> in the prompt, recall went to 100% and the fix generalized to a filing the
+> model had never seen (Rainier, four all-dash rows, 100%).
 
-# Model oracle (defaults to --reference claude-opus-4-8) over unlabeled sections
-sec eval s1 --models "claude-haiku-4-5" \
+```bash
+# Default: human-verified truth (deterministic, no reference call, no cost)
+sec eval s1 --models "deepseek-v4-flash"
+
+# Model oracle for sections golden labels do not cover
+sec eval s1 --reference claude-opus-5 --models "claude-haiku-4-5" \
   --extractors "management,beneficial-ownership,related-party"
 
 # Run over a larger fetched sample (gitignored cache) instead of the committed set:
@@ -587,11 +651,25 @@ is the caption vocabulary, not the grid — which is exactly what the
 That gate runs first and is what keeps the section cheap: a blank-check
 company's compensation section is one sentence stating that no officer has been
 paid, and most registration statements have no compensation section at all.
-Neither is a failure, so neither costs an AI call — and the skip path resolves
-any dead letter a previous version left, so a correctly-behaving filing never
-lingers on the retry worklist. Dead letters are recorded under the `S-1`
-extractor id with section name `Executive Compensation`
+**Neither is a failure**, so neither costs an AI call and **both resolve rather
+than dead-letter** — explicitly: "no section matched" (nothing in `byName` under
+`Executive Compensation`) and "section matched but carries no Summary
+Compensation Table" take the same `markResolved` path, which also clears an
+entry a previous version left, so a correctly-behaving filing never lingers on
+the retry worklist. Recording the no-section case would put an
+`Executive Compensation` entry on the worklist for the majority of all S-1s,
+permanently (only a version bump clears one), burying every genuinely
+triageable entry; the heading-coverage question it would answer is a counting
+question and belongs on a counting surface. Real failures are still recorded
+under the `S-1` extractor id with section name `Executive Compensation`
 (`sec extractor dead-letters S-1`).
+
+The stub-column **position line** is folded onto the officer named above it
+(that row commonly carries a different fiscal year's figures), but only when it
+carries something: a position row with no fiscal year and no money column is
+just the label, and folding it unconditionally emitted a second row per officer
+— same `observation_id`, null year, all-null money — in a table whose contract
+is one row per officer per fiscal year.
 
 The `executive-compensation` entry in `EVAL_EXTRACTORS` ranks the prompt through
 `sec eval extract`, against two golden fixtures: a two-year, three-officer table
@@ -661,9 +739,21 @@ checks the **headline as well as** the `source_span` against the section text: a
 paraphrased or invented caption is worthless even when the span it cites
 verifies, so it is dropped (and, when every row is, dead-lettered
 `UNVERIFIED_SOURCE_SPAN`). A category heading returned as if it were a risk is
-dropped by the same "enforce it, don't trust the prompt" guard the ownership
+caught by the same "enforce it, don't trust the prompt" guard the ownership
 subtotal gets — a heading is verbatim section text, so nothing downstream would
 otherwise stop it becoming a row that reads like a disclosed risk.
+
+That guard is applied to the section's **shape as a whole**, not row by row,
+because the shape heuristic (no sentence-ending punctuation) cannot tell a
+category heading from an Item 105(b) summary bullet. A **homogeneous** section
+is kept intact either way — all bare phrases is a summary list whose "headings"
+ARE the captions; no bare phrases is an ordinary sentence-caption list with
+nothing to drop. A **mixed** section is unanswerable and dead-letters
+`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting
+a subset: filers are inconsistent about terminal punctuation, so one summary
+bullet ending in a period was enough to make an all-or-nothing filter keep that
+single row and silently drop the other 29 — a partial disclosure recorded as
+complete, exactly what the chunked-section contract exists to prevent.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate
@@ -1092,6 +1182,34 @@ sec exposes the general downstream seams embarc-data (and future features) build
   tables, so a superset's tables are managed by the same commands. `db setup`
   also calls `registerSecResolvers()` so resolver component-version rows seed even
   on the `init` path that skips the CLI preAction hook.
+
+  `registerDbStatsTables` (`src/cli/queries/DbStatus.ts`) is the reporting half
+  of that seam — a superset's tables are counted by `db stats` alongside sec's
+  own — and a registered table the database has not created reports `n/a`
+  (`rows: null`, with a "run `db setup`?" hint) rather than failing the whole
+  report; only a missing relation degrades, every other error still throws.
+
+  **Row counts on Postgres are estimates by default.** `db status` / `db stats`
+  read `pg_stat_user_tables.n_live_tup` rather than scanning, and that statistic
+  is refreshed by ANALYZE/autovacuum, so it lags recent writes. The report says
+  so: `db stats` heads the column `Rows (est.)` and marks each estimated row
+  `(est.)`, `db status` appends `  (estimated)`, both print a footer pointing at
+  `--exact`, and `--format json` carries `estimated` per row (`db stats`) and per
+  result (`db status`). Two things the query gets right that the naive form does
+  not:
+
+  - The relation name is **schema-qualified to `current_schema()`**
+    (`to_regclass(quote_ident(current_schema()) || '.' || quote_ident($1))`,
+    still fully parameterized). Unqualified, `to_regclass('filings')` resolves
+    through `search_path` and on a deployment whose path lists a staging schema
+    first would report the OTHER schema's count under sec's table name — the
+    hazard `resetAllDatabases` already qualifies its drops against.
+  - **A zero estimate falls back to the exact count.** `n_live_tup` is 0 until
+    the first ANALYZE, so right after `sec bootstrap` bulk-loads ~1M `cik_names`
+    the estimate reads 0 — `db status` printed `Entities: 0 / Filings: 0` under a
+    column labelled "Rows", inviting an operator to read a stale statistic as a
+    real count. Zero now means "no statistics yet"; a genuinely empty table pays
+    one cheap `COUNT(*)` for that.
 
   `db setup` finishes with a **column-alignment pass**
   (`alignPostgresColumnTypes`, run after the extension loop so a superset's

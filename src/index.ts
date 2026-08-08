@@ -31,8 +31,16 @@ export { isJsonOutput } from "./cli/isJsonOutput";
 export * from "./cli/output";
 export { runCommand } from "./cli/runCommand";
 export { runWorkflowCli } from "./cli/runWorkflow";
-export { getDbStats, registerDbStatsTables, type DbStatsTable } from "./cli/queries/DbStatus";
-export { AddCommands } from "./commands";
+export {
+  getDbStats,
+  isMissingRelationError,
+  registerDbStatsTables,
+  resetDbStatsTablesForTesting,
+  type CountableRepository,
+  type DbStatsTable,
+  type TableStat,
+} from "./cli/queries/DbStatus";
+export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
 // ── Config / dependency injection ───────────────────────────────────────────
 export * from "./config/Constants";

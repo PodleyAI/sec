@@ -8,6 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import {
   EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
   MODEL_ERROR_REASON_CODES,
+  type DeadLetterReasonCode,
   type ExtractionDeadLetter,
   type ExtractionDeadLetterRepositoryStorage,
 } from "./ExtractionDeadLetterSchema";
@@ -18,7 +19,15 @@ export interface DeadLetterInput {
   readonly extractor_id: string;
   readonly accession_number: string;
   readonly section_name: string;
-  readonly reason_code: string;
+  /**
+   * Constrained to the declared vocabulary rather than left as `string`. The
+   * stored column is a plain string, so a code written here but missing from
+   * {@link DEAD_LETTER_REASON_CODES} used to persist silently — which is how
+   * `UNVERIFIED_SOURCE_SPAN` and `SOURCE_SPAN_TOO_LONG` were both written for
+   * some time without ever appearing in the list an operator reads. Typing the
+   * input makes that drift a compile error.
+   */
+  readonly reason_code: DeadLetterReasonCode;
   readonly detail: string | null;
   readonly failed_extractor_version: string;
   readonly source_run_id: string | null;

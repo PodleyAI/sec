@@ -30,6 +30,8 @@ import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
+import { anchorFieldSpan } from "./anchorFieldSpan";
+import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 
 /**
  * Section names used by the offering-related dead letters. `sponsor-promote` is
@@ -38,6 +40,58 @@ import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
  * that name could never drain off the retry worklist. Callers must pass the same
  * `isSpac` they pass to runOfferingSections.
  */
+/**
+ * Records one citation per field for an object-shaped extraction.
+ *
+ * Prefers a citation anchored on the field's OWN value — located in the section
+ * text — and falls back to the model's object-level span when the value cannot
+ * be found. The distinction is recorded in `method`, because the two mean very
+ * different things: an anchored citation proves this value came from this text,
+ * while the model span only proves the model read the document.
+ *
+ * A field whose value is absent from its own section gets NO anchored citation,
+ * and that absence is the point. A live run reported a trust total of
+ * $300,000,000 and 4,500,000 over-allotment units for the sponsor promote; the
+ * first is derived (30,000,000 x $10) and the second appears only in the
+ * Underwriting section, which that extractor is never given. Both are
+ * defensible arithmetic and neither is an extraction — nothing in the
+ * object-level span check could tell.
+ */
+async function citeFields(args: {
+  readonly repo: FieldProvenanceRepo;
+  readonly extractor_id: string;
+  readonly accession_number: string;
+  readonly table_name: string;
+  readonly row_key?: string;
+  readonly text: string;
+  readonly confidence: number | null;
+  readonly modelSpan: string | null;
+  readonly model_id: string | null;
+  readonly prompt_version: string;
+  readonly fields: ReadonlyArray<readonly [name: string, value: unknown, label?: string]>;
+}): Promise<void> {
+  const citations = args.fields
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(([field_name, value, label]) => {
+      const anchored = anchorFieldSpan(args.text, value, label ?? field_name.replace(/_/g, " "));
+      return {
+        field_name,
+        confidence: args.confidence,
+        source_span: anchored ?? args.modelSpan,
+        method: (anchored !== null ? "anchored" : "model") as "anchored" | "model",
+      };
+    });
+  await args.repo.saveForRow({
+    extractor_id: args.extractor_id,
+    accession_number: args.accession_number,
+    table_name: args.table_name,
+    row_key: args.row_key,
+    model_id: args.model_id,
+    prompt_version: args.prompt_version,
+    citations,
+  });
+}
+
 export function offeringSectionNames(isSpac: boolean): readonly string[] {
   return [
     "offering-terms",
@@ -136,6 +190,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   const spacPromoteTermsRepo = new SpacPromoteTermsRepo();
   const issuerTickerRepo = new IssuerTickerRepo();
   const useOfProceedsRepo = new UseOfProceedsRepo();
+  const fieldProvenanceRepo = new FieldProvenanceRepo();
   const underwriterFamilyResolver = new UnderwriterFamilyResolver({
     canonicalUnderwriterFamilyRepo: new CanonicalUnderwriterFamilyRepo(),
     canonicalUnderwriterFamilyAliasRepo: new CanonicalUnderwriterFamilyAliasRepo(),
@@ -144,6 +199,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   const underwriterMembershipRepo = new UnderwriterFamilyMembershipRepo();
   const underwriterLinkRepo = new UnderwriterLinkRepo();
 
+  await fieldProvenanceRepo.clear(accession_number);
   await issuerTickerRepo.clear(accession_number);
   await underwriterLinkRepo.clear(accession_number);
   await useOfProceedsRepo.clear(accession_number);
@@ -214,9 +270,57 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           created_at: now,
         });
       }
+      await citeFields({
+        repo: fieldProvenanceRepo,
+        extractor_id,
+        accession_number,
+        table_name: isSpac ? "spac_unit_terms" : "offering_terms",
+        text: offeringText,
+        confidence: terms.confidence,
+        modelSpan: boundSourceSpan(terms.source_span),
+        model_id,
+        prompt_version: extractor_version,
+        fields: isSpac
+          ? [
+              ["units_offered", toIntCount(terms.units_offered), "securities offered"],
+              ["price_per_unit", terms.price_per_unit, "securities offered"],
+              ["trust_per_unit", terms.trust_per_unit, "trust account"],
+              ["over_allotment_units", toIntCount(terms.over_allotment_units), "over-allotment"],
+              ["gross_proceeds", terms.gross_proceeds, "proceeds"],
+              ["net_proceeds", terms.net_proceeds, "proceeds"],
+              ["exchange", terms.exchange, "listed on"],
+            ]
+          : [
+              ["shares_offered", toIntCount(terms.shares_offered), "shares offered"],
+              ["price", terms.price, "price"],
+              ["price_low", terms.price_low, "price"],
+              ["price_high", terms.price_high, "price"],
+              ["gross_proceeds", terms.gross_proceeds, "proceeds"],
+              ["net_proceeds", terms.net_proceeds, "proceeds"],
+              ["over_allotment_shares", toIntCount(terms.over_allotment_shares), "over-allotment"],
+              ["exchange", terms.exchange, "listed on"],
+              ["par_value", terms.par_value, "par value"],
+            ],
+      });
       for (const t of terms.tickers) {
         const ticker = t.ticker?.trim() ?? "";
         if (ticker === "") continue;
+        // Each ticker cites the passage naming THAT symbol. Previously every
+        // ticker row stored the parent object's span, which mentions none of
+        // them — a populated provenance column that pointed at nothing.
+        await citeFields({
+          repo: fieldProvenanceRepo,
+          extractor_id,
+          accession_number,
+          table_name: "issuer_ticker",
+          row_key: ticker,
+          text: offeringText,
+          confidence: terms.confidence,
+          modelSpan: boundSourceSpan(terms.source_span),
+          model_id,
+          prompt_version: extractor_version,
+          fields: [["ticker", ticker, ticker]],
+        });
         await issuerTickerRepo.save({
           extractor_id,
           accession_number,
@@ -279,6 +383,34 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
         confidence: promote.confidence,
         source_span: boundSourceSpan(promote.source_span),
         created_at: new Date().toISOString(),
+      });
+      await citeFields({
+        repo: fieldProvenanceRepo,
+        extractor_id,
+        accession_number,
+        table_name: "spac_promote_terms",
+        text: promoteText,
+        confidence: promote.confidence,
+        modelSpan: boundSourceSpan(promote.source_span),
+        model_id,
+        prompt_version: extractor_version,
+        fields: [
+          ["founder_shares", toIntCount(promote.founder_shares), "founder shares"],
+          ["founder_percent", promote.founder_percent, "founder shares"],
+          [
+            "private_placement_warrants",
+            toIntCount(promote.private_placement_warrants),
+            "private placement warrants",
+          ],
+          [
+            "private_placement_warrant_price",
+            promote.private_placement_warrant_price,
+            "private placement warrants",
+          ],
+          ["public_warrant_coverage", promote.public_warrant_coverage, "warrant"],
+          ["trust_per_public_share", promote.trust_per_public_share, "trust account"],
+          ["trust_total", promote.trust_total, "trust account"],
+        ],
       });
       return 1;
     },

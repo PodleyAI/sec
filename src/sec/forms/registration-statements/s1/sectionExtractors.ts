@@ -7,6 +7,7 @@
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask, TaskAbortedError } from "workglow";
 import { createHash } from "node:crypto";
+import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
@@ -45,6 +46,11 @@ import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
 
+// Re-exported so the extraction knob still reads as part of this module's
+// surface; it lives in `config/` because a malformed value must abort the CLI
+// rather than be caught by a per-section handler and dead-lettered.
+export { getExtractionTemperature } from "../../../../config/extractionTemperature";
+
 const MAX_TOKENS = 4096;
 
 /**
@@ -59,6 +65,20 @@ const MAX_TOKENS = 4096;
  * a target.
  */
 const RISK_FACTORS_MAX_TOKENS = 16_384;
+
+/**
+ * Share of heading-shaped rows at or above which a mixed-shape risk-factor
+ * section is unanswerable and fails, rather than having its heading-shaped rows
+ * dropped.
+ *
+ * A minority below this is the chunking artifact, not an ambiguous section:
+ * {@link chunkRiskFactorText} prefixes every chunk after the first with the last
+ * category heading, so the model is handed roughly one heading per chunk and
+ * echoes some back. A 246k-char section is ~7 chunks against ~90 captions —
+ * well under the ratio — and failing it would discard all ~90 for the sake of
+ * ~6 strays.
+ */
+export const MIXED_SHAPE_FAIL_RATIO = 0.25;
 
 /**
  * Thrown when a model's structured response fails to echo back the per-call
@@ -79,25 +99,33 @@ export class NonceMismatchError extends Error {
 }
 
 /**
- * Sampling temperature for every extraction call. Defaults to 0 (greedy).
+ * Thrown when a risk-factors response mixes rows shaped like captions with rows
+ * shaped like category headings, so the shape heuristic cannot tell which kind
+ * the section is made of.
  *
- * Extraction is a transcription task, not a generative one — the answer is
- * already in the filing — but nothing pinned the temperature, so calls ran at
- * the provider default of 1.0. Measured on one filing across three clean runs,
- * that produced 138/138/109 risk factors whose contents differed in ALL THREE
- * cases: the two 138-row runs disagreed on which captions they found, not just
- * how many. Re-processing a filing therefore rewrote its disclosures with a
- * different list each time.
+ * The two populations are individually recognizable but not separable: a real
+ * Item 105 caption is a sentence, and an Item 105(b) summary bullet is a bare
+ * phrase indistinguishable in shape from a category heading. Dropping the
+ * heading-shaped rows would silently reduce a 30-bullet summary list to the one
+ * bullet that happened to end in a period — a partial disclosure persisted as
+ * if it were complete, which is precisely what the chunked-section contract
+ * exists to prevent. Failing the section instead puts it on the retry worklist
+ * where a human can look at it.
  *
- * `SEC_EXTRACTION_TEMPERATURE` overrides it; an empty value omits the parameter
- * altogether.
+ * {@link makeRunSection} records it under the `MIXED_CAPTION_SHAPE` reason code.
  */
-export function getExtractionTemperature(): number | undefined {
-  const raw = process.env.SEC_EXTRACTION_TEMPERATURE;
-  if (raw === undefined) return 0;
-  if (raw.trim() === "") return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+export class MixedRiskCaptionShapeError extends Error {
+  constructor(
+    readonly headingLike: number,
+    readonly total: number
+  ) {
+    super(
+      `Risk-factor rows mix caption and category-heading shapes: ${headingLike} of ${total} rows ` +
+        `have no sentence-ending punctuation. The section cannot be separated on shape alone ` +
+        `without silently dropping either real captions or real risks.`
+    );
+    this.name = "MixedRiskCaptionShapeError";
+  }
 }
 
 /**
@@ -945,6 +973,22 @@ export function normalizeFiscalYear(year: number | null | undefined): number | n
   return y >= 1900 && y <= 2100 ? y : null;
 }
 
+/**
+ * The Summary Compensation Table's money columns. A stub-column position row
+ * that carries none of them (and no fiscal year) is a label, not a second
+ * disclosed year — see the fold in {@link extractExecutiveCompensation}.
+ */
+const COMP_MONEY_FIELDS = [
+  "salary",
+  "bonus",
+  "stock_awards",
+  "option_awards",
+  "non_equity_incentive",
+  "pension_and_nqdc",
+  "all_other_compensation",
+  "total",
+] as const satisfies readonly (keyof ExecutiveCompensationRow)[];
+
 /** Matches `executive_compensation.principal_position`'s declared width. */
 const MAX_POSITION_CHARS = 256;
 
@@ -1016,6 +1060,12 @@ export async function extractExecutiveCompensation(
   // folded onto the officer named above instead — its own year and money columns
   // kept, its label becoming the position for that year. A position row with no
   // officer above it has nothing to attach to and is dropped.
+  //
+  // Folded only when it actually carries data. The common layout puts every
+  // figure on the NAME row and leaves the position row holding nothing but the
+  // label, so folding unconditionally would emit a second row per officer with
+  // the same observation, a null fiscal year and all-null money columns — a
+  // phantom in a table whose contract is one row per officer per fiscal year.
   const out: ExecutiveCompensationRow[] = [];
   let precedingOfficer: string | undefined;
   for (const row of rows) {
@@ -1023,10 +1073,12 @@ export async function extractExecutiveCompensation(
     const name = row.person_name.trim();
     if (isCompensationPositionLabel(name)) {
       if (precedingOfficer === undefined) continue;
+      const fiscal_year = normalizeFiscalYear(row.fiscal_year);
+      if (fiscal_year === null && !COMP_MONEY_FIELDS.some((field) => row[field] != null)) continue;
       out.push({
         ...row,
         person_name: precedingOfficer,
-        fiscal_year: normalizeFiscalYear(row.fiscal_year),
+        fiscal_year,
         principal_position: boundPrincipalPosition(row.principal_position ?? name),
       });
       continue;
@@ -1147,10 +1199,17 @@ export async function extractBeneficialOwnership(
     "table between the tags below. For each row give name, owner_kind ('person' or " +
     "'company'), security_class, shares_owned, percent_owned, shares_offered, " +
     "shares_after, percent_after, is_selling_stockholder, footnote, a confidence in " +
-    "[0,1], and the verbatim source_span. Use null for figures shown as '*', '—', or " +
-    "blank. Give the name as printed but WITHOUT footnote markers or parenthetical " +
+    "[0,1], and the verbatim source_span. Use null for figures shown as '*', '-', '—', " +
+    "or blank. Emit a row for EVERY name the table prints, INCLUDING one whose share " +
+    "and percentage cells are all dashes or blank: an officer or director holding no " +
+    "shares is listed precisely to disclose that they hold none, so give them a row " +
+    "with null figures rather than skipping the name. Give the name as printed but " +
+    "WITHOUT footnote markers or parenthetical " +
     "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
-    "XII LLC'. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
+    "XII LLC'. A parenthesized NICKNAME is part of the name, not an annotation: keep " +
+    "it, so 'Yong (David) Yan' stays 'Yong (David) Yan'. It is often the only thing " +
+    "separating two people who share a common given name and surname, and it is used " +
+    "downstream to tell them apart. `name` must hold EXACTLY ONE owner: when a cell names several (e.g. " +
     "'V-Cube, Inc. and Naoaki Mashita'), emit one row per owner and attribute each " +
     "one's shares from the footnote where it states them — never a combined 'X and Y' " +
     "name. Do NOT emit the aggregate subtotal row that totals the officers and " +
@@ -1180,7 +1239,20 @@ export async function extractRelatedParty(
     "and Related Transactions section between the tags below. For each party give name, " +
     "party_kind ('person' or 'company'), a confidence in [0,1], the verbatim source_span, " +
     "and a transactions array (counterparty, nature, amount, period, footnote — any may " +
-    "be null). Return JSON matching the schema.";
+    "be null). " +
+    "`name` must be an actual PROPER NAME the text prints — a person's name or an " +
+    "entity's name. A ROLE PHRASE is not a name: 'our sponsor', 'our officers and " +
+    "directors', 'our independent director nominees', 'an advisor to the company', " +
+    "'members of our management team', 'our initial shareholders' and 'our insiders' " +
+    "are descriptions of unnamed people, and each must produce NO row. Many SPAC " +
+    "sections are written entirely in these terms and name nobody at all; when that is " +
+    "true the correct answer is an EMPTY list. Do not turn a role into a party to avoid " +
+    "returning nothing. " +
+    "`name` must hold EXACTLY ONE party. When a sentence names two ('Stellantis " +
+    "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
+    "of Phaistos Investment Fund'), emit one row per party — never a combined " +
+    "'X / Y' or 'X and Y' name. " +
+    "Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "related party",
     model,
@@ -1203,7 +1275,13 @@ export async function extractOfferingTerms(
     "(or price_low/price_high), gross_proceeds, net_proceeds, over_allotment_shares, " +
     "exchange, par_value. For a SPAC (units) fill units_offered, price_per_unit, " +
     "unit_composition (verbatim), warrant_fraction_per_unit, right_fraction_per_unit, " +
-    "trust_per_unit, over_allotment_units. List every distinct ticker symbol in 'tickers' " +
+    "trust_per_unit, over_allotment_units. " +
+    "warrant_fraction_per_unit and right_fraction_per_unit count how many warrants or " +
+    "rights are IN ONE UNIT — not what a right converts into. A unit containing 'one " +
+    "right to receive one-fourth of one ordinary share' has right_fraction_per_unit 1, " +
+    "not 0.25; the one-fourth describes the share conversion, which is not this field. " +
+    "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
+    "List every distinct ticker symbol in 'tickers' " +
     "(exact symbol, is_primary true for the common-equity/units symbol, false for " +
     "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
     "and a verbatim source_span. Return JSON matching the schema.";
@@ -1244,7 +1322,16 @@ export async function extractSponsorPromote(
     "(the amount deposited into the trust account per public share in dollars, e.g. 10.00 " +
     "or 10.20, or null), and trust_total (the total dollar amount held in trust, or null). " +
     "Report only figures explicitly stated; do NOT compute a percentage or a total the " +
-    "text does not state. Give a confidence in [0,1] and the verbatim source_span you drew " +
+    "text does not state. " +
+    "founder_shares is the GROSS number the sponsor ACQUIRED, before any shares subject " +
+    "to forfeiture are deducted: '5,366,667 founder shares, of which 700,000 are subject " +
+    "to forfeiture' is 5366667, not the 4,666,667 the post-offering table shows. The " +
+    "forfeiture is a contingency on the promote, not a smaller promote. " +
+    "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
+    "A post-de-SPAC RESALE registration is not a promote: when the founder shares, " +
+    "sponsor and private warrants named belong to a PREDECESSOR shell rather than to an " +
+    "offering being made here, every field is null. " +
+    "Give a confidence in [0,1] and the verbatim source_span you drew " +
     "the figures from. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "sponsor promote",
@@ -1513,16 +1600,41 @@ export async function extractRiskFactors(
   // would stop it becoming a row that reads like a disclosed risk. The heuristic
   // keys on a heading having no sentence-ending punctuation.
   //
-  // Applied only when the section also yielded at least one row that does not
-  // look like a heading. An Item 105(b) "Summary of Risk Factors" bullet list —
-  // which the segmenter accepts as this section, and which is all a filing
-  // carrying only the summary has — is written as bare unpunctuated phrases
-  // ("Risks related to our inability to complete an initial business
-  // combination"), indistinguishable in shape from a category heading. Dropping
-  // on shape alone would empty exactly those filings. When every row looks like
-  // a heading, the "headings" are the captions, so they are kept.
-  const captions = out.filter((risk) => !isRiskCategoryHeading(risk.headline));
-  return captions.length > 0 ? captions : out;
+  // The rule is about the section's SHAPE, and it only has an answer when the
+  // section is homogeneous:
+  //
+  // - every row heading-shaped — an Item 105(b) "Summary of Risk Factors"
+  //   bullet list, which the segmenter accepts as this section and which is all
+  //   a filing carrying only the summary has. Its bullets are bare unpunctuated
+  //   phrases ("Risks related to our inability to complete an initial business
+  //   combination"), so the "headings" ARE the captions. Kept.
+  // - no row heading-shaped — an ordinary Item 105 list of sentence captions,
+  //   with nothing to drop. Kept.
+  // - mixed — answered by how large the heading-shaped minority is
+  //   (MIXED_SHAPE_FAIL_RATIO). Filers are inconsistent about terminal
+  //   punctuation, so one summary bullet ending in a period is enough to make
+  //   29 bare-phrase bullets look droppable; an all-or-nothing filter would
+  //   keep the single punctuated row and persist it as the filing's complete
+  //   disclosure. At or above the ratio the section is unanswerable and fails
+  //   rather than guessing; below it, the minority is the chunk-prefix echo
+  //   described at the drop below.
+  const headingLike = out.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
+  if (headingLike > 0 && headingLike < out.length) {
+    if (headingLike / out.length >= MIXED_SHAPE_FAIL_RATIO) {
+      throw new MixedRiskCaptionShapeError(headingLike, out.length);
+    }
+    // A small minority of heading-shaped rows is the expected artifact of
+    // chunking, not an ambiguous section: every chunk after the first is
+    // prefixed with the last category heading seen before it, so a ~7-chunk
+    // section hands the model ~6 headings and invites it to echo them back as
+    // rows. Failing the section on those discards every real caption it found,
+    // so drop the handful and keep the disclosure. Only when heading-shaped
+    // rows are a large enough share is the section's shape genuinely
+    // unanswerable (a summary-bullet list whose bullets ARE the captions).
+    console.warn(`risk factors: dropped ${headingLike} heading-shaped row(s) of ${out.length}`);
+    return out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+  }
+  return out;
 }
 
 export async function extractUseOfProceeds(
@@ -1534,7 +1646,20 @@ export async function extractUseOfProceeds(
     "Extract the use-of-proceeds line items from the S-1/F-1 Use of Proceeds section " +
     "between the tags below. For each stated purpose give purpose, amount (dollars, or " +
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
-    "and the verbatim source_span. Return JSON matching the schema.";
+    "and the verbatim source_span. " +
+    "`purpose` is the row label copied WHOLE, including any parenthetical the cell " +
+    "carries: 'Underwriting commissions (2% of gross proceeds from units offered to " +
+    "public, excluding deferred portion)' is one purpose, not 'Underwriting commissions'. " +
+    "Emit a row for a line item ONLY if the section prints it. Do not add a customary " +
+    "SPAC line the table omits. " +
+    "Do NOT emit a SOURCE of proceeds ('Gross proceeds', 'Proceeds from sale of shares by " +
+    "selling stockholders'), a TOTAL or subtotal ('Total', 'Total offering expenses'), or " +
+    "a per-share metric ('Amount held in trust per share') — none is a use. " +
+    "A SPAC prospectus prints TWO tables: offering expenses, then a second that " +
+    "decomposes the 'Not held in trust account' line. Emit the line items of BOTH, " +
+    "including the parent line — they are stated at different granularities and both " +
+    "are stated uses. " +
+    "Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "use of proceeds",
     model,

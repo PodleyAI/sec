@@ -11,7 +11,7 @@ import {
   setGlobalModelRepository,
 } from "workglow";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SecHftModelDefault } from "./Constants";
+import { DEFAULT_SEC_MODEL, SecHftModelDefault, SecModelDefault } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import {
   anthropicModelRecord,
@@ -94,7 +94,7 @@ describe("registerSecModels", () => {
   });
 
   it("dispatches secModelRecord by id shape across all providers", () => {
-    expect(secModelRecord("claude-opus-4-8").provider).toBe("ANTHROPIC");
+    expect(secModelRecord("claude-opus-5").provider).toBe("ANTHROPIC");
     expect(secModelRecord("gpt-5.5").provider).toBe("OPENAI");
     expect(secModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(secModelRecord("gemini-3.1-pro-preview").provider).toBe("GOOGLE_GEMINI");
@@ -132,8 +132,30 @@ describe("registerSecModels", () => {
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {
     await registerSecModels();
     const repo = getGlobalModelRepository();
-    expect((await repo.findByName("claude-sonnet-5"))?.provider).toBe("ANTHROPIC");
+    // Assert against the configured default, not a literal id: what this test
+    // is for is that whatever `SecModelDefault` names gets registered and
+    // resolves — pinning "claude-sonnet-5" here made changing the default fail
+    // a test whose own name says "the cloud default". The provider comes from
+    // `secModelRecord`'s id-shape dispatch, so it is derived for the same reason.
+    expect((await repo.findByName(SecModelDefault))?.provider).toBe(
+      secModelRecord(SecModelDefault).provider
+    );
     expect((await repo.findByName(SecHftModelDefault))?.provider).toBe("HF_TRANSFORMERS_ONNX");
+  });
+
+  it("pins the built-in default to a schema-enforced cloud model", () => {
+    // Deliberately NOT derived from SecModelDefault: the derived test above
+    // asserts the wiring, so nothing failed when the built-in value itself was
+    // changed. A default whose provider a deployment has no key for
+    // dead-letters every AI section with MODEL_RESOLUTION_ERROR, and a default
+    // whose json-mode is not schema-enforced raises the schema-failure rate on
+    // every extractor at once. Adopting another tier is an env-var opt-in
+    // (SEC_MODEL_DEFAULT / a per-extractor variable), not a change here.
+    expect(DEFAULT_SEC_MODEL).toBe("claude-sonnet-5");
+    expect(secModelRecord(DEFAULT_SEC_MODEL).provider).toBe("ANTHROPIC");
+    // `.env.test` sets no SEC_MODEL_DEFAULT, and beforeEach deletes it, so the
+    // exported default is what the extractors actually resolve to here.
+    expect(SecModelDefault).toBe(DEFAULT_SEC_MODEL);
   });
 
   it("is idempotent — a second run does not duplicate or throw", async () => {

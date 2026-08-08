@@ -18,7 +18,20 @@ export type Person = {
   first: string;
   middle: string | null;
   last: string;
+  /**
+   * Generational suffix ONLY — "Jr.", "Sr.", "III". This is identity-bearing:
+   * a junior and a senior sharing a name are different people, so the suffix
+   * belongs in {@link generatePersonHash} and in the resolver's match tuple.
+   */
   suffix: string | null;
+  /**
+   * Professional credentials as written ("CPA", "Ph.D.", "M.D., CFA"), kept off
+   * the identity key. A credential describes how ONE filing annotated a person,
+   * not who they are — the same director is "Isaac Manke" in one filing and
+   * "Isaac Manke, Ph.D." in the next — so folding it into the key split every
+   * such person into two canonical rows.
+   */
+  credentials: string | null;
   title: string | null;
   nick: string | null;
   dob?: string | null;
@@ -27,18 +40,22 @@ export type Person = {
   crd?: string | null;
 };
 
+/** Empty string is how `parseFullName` reports an absent part; we store null. */
+function emptyToNull(value: string | undefined): string | null {
+  return value === undefined || value.trim() === "" ? null : value;
+}
+
 /**
  * Generates a hash ID for a person based on normalized name components
  */
 function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
-  const hashString = [
-    person.first,
-    person.middle,
-    person.nick,
-    person.last,
-    person.suffix,
-    person.notes,
-  ]
+  // `nick` is deliberately absent: `normalizePerson` folds a nickname into
+  // `middle` when there is no middle name, so including it here would spell
+  // "Yong (David) Yan" as `yong-david-david-yan`. Listing exactly the parts the
+  // resolver's match tuple uses also keeps this hash and `personKey` from
+  // disagreeing about who is the same person — they did before, in both
+  // directions.
+  const hashString = [person.first, person.middle, person.last, person.suffix, person.notes]
     .filter((v) => v !== null && v !== undefined)
     .join("-")
     .toLowerCase()
@@ -94,13 +111,39 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
 
   // Strip identity-neutral punctuation (initial/suffix periods) so the resolver
   // key ("first|middle|last|suffix") is stable across spelling variants.
+  // `parseFullName` classifies the trailing parts itself — it owns the suffix
+  // vocabulary, so it is the only place that can do this without the two lists
+  // drifting apart. A credential is an annotation, not an identity, and must
+  // reach neither the hash nor the resolver's match tuple, or the same director
+  // splits in two the moment one filing writes "Isaac Manke, Ph.D." and the
+  // next "Isaac Manke".
+  // A parenthesized nickname is folded into `middle` when there is no middle
+  // name, which is what puts it in the resolver's match tuple
+  // (first|middle|last|suffix) — `nick` has no column there and so was being
+  // dropped from identity entirely.
+  //
+  // It is treated as identity-bearing, not as an annotation like a credential,
+  // because it frequently IS the only distinguishing signal. Across the very
+  // common Chinese/Korean/Vietnamese given-name + surname pairs a filing roster
+  // holds, "Yong Yan" is genuinely ambiguous while the adopted Western name is
+  // not; discarding "(David)" merges people that the filing itself distinguishes.
+  //
+  // The cost is the mirror image, and it is real: a filing that prints the
+  // nickname and an amendment that omits it now resolve to two canonical people
+  // — the same over-splitting that keeping credentials off the key was meant to
+  // avoid. That is bounded by `personKey` scoping the tuple to one issuer CIK,
+  // so the merge this prevents and the split it risks both live inside a single
+  // filer, where a roster's spelling is usually consistent.
+  const parsedNick = emptyToNull(results.nick);
+  const parsedMiddle = stripNamePartPunctuation(results.middle);
   const person: Omit<Person, "person_hash_id"> = {
     first: stripNamePartPunctuation(results.first) ?? results.first,
-    middle: stripNamePartPunctuation(results.middle),
+    middle: parsedMiddle ?? stripNamePartPunctuation(parsedNick),
     last: stripNamePartPunctuation(results.last) ?? results.last,
-    suffix: stripNamePartPunctuation(results.suffix),
+    suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
+    credentials: emptyToNull(results.credential),
     title: results.title,
-    nick: results.nick,
+    nick: parsedNick,
     dob: null,
     notes: null,
     cik,

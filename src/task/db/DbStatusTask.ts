@@ -31,6 +31,8 @@ export class DbStatusTask extends Task<DbStatusTaskInput, TaskPorts<DbStatusResu
       processedSubmissions: Type.Number(),
       processedFacts: Type.Number(),
       extractorRuns: Type.Number(),
+      // True when any count above is a Postgres `n_live_tup` estimate.
+      estimated: Type.Boolean(),
     });
   }
 

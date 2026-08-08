@@ -34,8 +34,15 @@ export const SecFetchMaxPerSec = ((): number => {
  * General default model id shared by every SEC AI extractor (S-1, merger-proxy,
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
+ *
+ * The default stays on a provider whose `json-mode` is schema-enforced
+ * server-side: a default that a deployment holding only ANTHROPIC_API_KEY
+ * cannot resolve turns every AI section into a MODEL_RESOLUTION_ERROR dead
+ * letter. A cheaper tier is adopted per deployment through SEC_MODEL_DEFAULT
+ * (all extractors) or a per-extractor variable such as
+ * SEC_S1_RISK_FACTORS_MODEL, after ranking it with `sec eval s1`.
  */
-const DEFAULT_SEC_MODEL = "claude-sonnet-5";
+export const DEFAULT_SEC_MODEL = "claude-sonnet-5";
 export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;
 
 /**

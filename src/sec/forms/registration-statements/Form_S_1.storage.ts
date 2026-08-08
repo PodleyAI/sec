@@ -18,6 +18,7 @@ import { RelatedPartyTransactionRepo } from "../../../storage/related-party/Rela
 import { RelatedPartyTransactionSchema } from "../../../storage/related-party/RelatedPartyTransactionSchema";
 import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { CanonicalSponsorFamilyRepo } from "../../../storage/canonical/CanonicalSponsorFamilyRepo";
@@ -223,7 +224,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     spac_sic: headerSic,
   };
 
-  const recordFail = (section: string, reason: string, detail: string | null) =>
+  const recordFail = (section: string, reason: DeadLetterReasonCode, detail: string | null) =>
     deadLetters.record({
       extractor_id: EXTRACTOR_ID,
       accession_number,
@@ -685,25 +686,24 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // --- Executive compensation (the Item 402 Summary Compensation Table) ---
   // Gated on a deterministic check for the table's mandated captions, which
   // keeps the section cheap: a blank-check company's compensation section is a
-  // single sentence stating that no officer or director has been paid. That is
-  // not a failure, so it costs no AI call and leaves no permanent dead letter —
-  // and resolving on the skip keeps a filing that a previous version
-  // dead-lettered from lingering on the version-gated retry worklist
-  // (markResolved no-ops when none exists).
+  // single sentence stating that no officer or director has been paid, and most
+  // registration statements carry no compensation section at all. NEITHER is a
+  // failure, so neither costs an AI call and neither leaves a dead letter —
+  // both resolve, which also clears an entry a previous version left behind so
+  // a correctly-behaving filing never lingers on the version-gated retry
+  // worklist (markResolved no-ops when none exists).
   //
-  // No matched section at all is a different outcome, and is recorded as
-  // SECTION_NOT_FOUND like every other section: the heading patterns are the
-  // only thing standing between a real Item 402 disclosure and this extractor,
-  // so a filing whose compensation section is headed in a spelling they miss
-  // (e.g. "Compensation Discussion and Analysis") must show up as a coverage
-  // hole to be triaged, not as a clean run that found nothing.
+  // "No section matched" therefore does not dead-letter, unlike the other
+  // sections. It would put an `Executive Compensation` entry on
+  // `sec extractor dead-letters S-1` for the MAJORITY of all S-1s, permanently
+  // (only a version bump clears one), burying every genuinely triageable entry.
+  // The heading-coverage question that motivates recording it — is a real Item
+  // 402 disclosure being missed by a spelling the patterns do not know? — is a
+  // counting question, and belongs on a counting surface rather than on the
+  // retry worklist.
   const compensationText = byName.get(S1_SECTIONS.EXECUTIVE_COMPENSATION);
   if (compensationText === undefined || compensationText.trim() === "") {
-    await recordFail(
-      S1_SECTIONS.EXECUTIVE_COMPENSATION,
-      "SECTION_NOT_FOUND",
-      "no executive compensation section text"
-    );
+    await recordOk(S1_SECTIONS.EXECUTIVE_COMPENSATION);
   } else if (!hasSummaryCompensationTable(compensationText)) {
     await recordOk(S1_SECTIONS.EXECUTIVE_COMPENSATION);
   } else {

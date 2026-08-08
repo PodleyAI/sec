@@ -8,7 +8,7 @@
         "@huggingface/transformers": "^4.2.0",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "@sroussey/parse-address": "^3.2.0",
-        "@sroussey/parse-full-name": "^2.0.0",
+        "@sroussey/parse-full-name": "^3.0.0",
         "@workglow/cli": "0.3.38",
         "awesome-phonenumber": "^7.8.0",
         "cheerio": "^1.2.0",
@@ -27,7 +27,7 @@
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
-        "@types/pg": "^8.20.4",
+        "@types/pg": "^8.21.0",
         "@types/xml2js": "^0.4.14",
         "better-sqlite3": "^13.0.3",
         "bunset": "1.0.13",
@@ -293,7 +293,7 @@
 
     "@sroussey/parse-address": ["@sroussey/parse-address@3.2.0", "", { "dependencies": { "xregexp": "^5.1.2" } }, "sha512-scg7fApncXYcDwfhBF9iOgiF/QJlrpwwy8vnjKouVqCtGRQDJZ3v2tUFNxkDTpaoRWxbYEKxvoZ+NLyxLb5l+g=="],
 
-    "@sroussey/parse-full-name": ["@sroussey/parse-full-name@2.0.0", "", {}, "sha512-JRfrQnwsQW5HZ8me9BStTc95A4NdgPTElmlHtEEcLlcp1GteExnWaFUIq+zUrEAz8HPT2DnRj8dF7eJGNYG0kw=="],
+    "@sroussey/parse-full-name": ["@sroussey/parse-full-name@3.0.0", "", {}, "sha512-QqLuGRd38BwF6cS26/BYcNCbPmOBrmvAUh9RzuG5xUpT5O0mnHAio7xkdLtB46OwBgPqtgh/f5ZpiOro//yEkw=="],
 
     "@sroussey/ts-algebra": ["@sroussey/ts-algebra@2.0.0", "", {}, "sha512-QdgxDA4skBPwEktX96HKxHfmGSlJyvFzp0xt/eR0PCpm/yCAYu5yIfuLeYhHFZeKviNnT5u8NGkLmD+dMCOHMw=="],
 
@@ -315,7 +315,7 @@
 
     "@types/node": ["@types/node@25.8.0", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-TCFSk8IZh+iLX1xtksoBVtdmgL+1IX0fC9BeU4QqFSuNdN/K+HUlhqOzEmSYYpZUVsLYcPqc9KX+60iDuninSQ=="],
 
-    "@types/pg": ["@types/pg@8.20.4", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-Jz7UDOlIiFJuacC0TlBoLyNtmwlA/wpIyPDd3tvUqlRM+HzkWy2xUgpFpaXtbfTAFF6sIGq5lsCDBdJnhky1Xg=="],
+    "@types/pg": ["@types/pg@8.21.0", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q=="],
 
     "@types/retry": ["@types/retry@0.12.0", "", {}, "sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA=="],
 

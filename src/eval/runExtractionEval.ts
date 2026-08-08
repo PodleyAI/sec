@@ -10,6 +10,7 @@ import { registerModelIds } from "../config/registerModels";
 import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
+import { loadRealS1Sections } from "./realSections";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
@@ -86,6 +87,12 @@ export interface RunEvalOptions {
   /** Restrict to one extractor (e.g. `management`); default runs every fixture. */
   readonly extractor?: string;
   /**
+   * Sweep the real committed S-1 sections instead of the curated miniatures.
+   * Correctness is not scored (no golden labels at that size); reproducibility,
+   * latency and cost are.
+   */
+  readonly real?: boolean;
+  /**
    * Repeat every fixture this many times per model to measure reproducibility.
    * Defaults to 1 (no repetition), which keeps the existing correctness sweep
    * unchanged in both cost and output.
@@ -114,6 +121,39 @@ export interface RunEvalOptions {
 /** Extractor ids that actually have at least one committed fixture. */
 export function extractorsWithFixtures(): string[] {
   return [...new Set(EVAL_FIXTURES.map((f) => f.extractor))];
+}
+
+/**
+ * Fixtures built from the REAL committed S-1 sections rather than the curated
+ * miniatures.
+ *
+ * The committed fixtures are 1–4k chars; the sections this pipeline actually
+ * runs on are 12k–275k, and every reproducibility problem found so far lives in
+ * the big ones — a 246k-char risk-factor list that varies by a few captions per
+ * run, a 275k-char promote input whose figures are not all present in it. A
+ * sweep over miniatures cannot see any of that.
+ *
+ * These carry no golden rows, so correctness is NOT scored here — there are no
+ * hand-verified labels for a 246k-char section, which is exactly why
+ * `sec eval s1` scores against a reference model instead. What they measure
+ * without labels is reproducibility, latency and cost, because comparing runs
+ * to each other needs no ground truth.
+ */
+function realSectionFixtures(extractor: string | undefined): EvalFixture[] {
+  const names = extractor ? [extractor] : Object.keys(EVAL_EXTRACTORS);
+  const { sections, skipped } = loadRealS1Sections(names);
+  if (sections.length === 0) {
+    throw new Error(
+      `no real S-1 sections available for ${extractor ?? "any extractor"}` +
+        (skipped.length ? ` — ${skipped.join("; ")}` : "")
+    );
+  }
+  return sections.map((s) => ({
+    name: `${s.filing} [${s.extractor}]`,
+    extractor: s.extractor,
+    text: s.text,
+    expected: [],
+  }));
 }
 
 function selectFixtures(extractor: string | undefined): EvalFixture[] {
@@ -263,7 +303,7 @@ export function summarizeModelRuns(
  */
 export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalReport> {
   // Select first: an unscorable extractor should fail before we register models.
-  const fixtures = selectFixtures(opts.extractor);
+  const fixtures = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
   await registerModelIds(opts.models);
   const repo = getGlobalModelRepository();
 

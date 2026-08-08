@@ -90,6 +90,15 @@ describe("isRateLimitError", () => {
     expect(isRateLimitError(new Error("The required property `risks` is missing"))).toBe(false);
     expect(isRateLimitError(new Error("Unsupported parameter: 'temperature'"))).toBe(false);
   });
+
+  it("does not read a 429 buried in a quoted figure as an HTTP status", () => {
+    // Provider errors quote the model's own output back, and a throttle is
+    // retried WITHOUT spending an attempt — so a misread turns one bad payload
+    // into several extra billed calls plus minutes of sleeping.
+    expect(isRateLimitError(new Error('Invalid value for "shares_owned": 1,429,000'))).toBe(false);
+    expect(isRateLimitError(new Error("expected a number, got $429.50"))).toBe(false);
+    expect(isRateLimitError(new Error("schema validation failed at row 4290"))).toBe(false);
+  });
 });
 
 describe("statedDelayMs", () => {
@@ -151,6 +160,13 @@ describe("rateLimitWaitMs", () => {
         MAX_RATE_LIMIT_WAIT_MS
       );
     }
+  });
+
+  it("caps a STATED delay too — a daily quota states hours", () => {
+    // An RPD/daily limit answers with a delay measured in hours. Honouring it
+    // verbatim would park the section on a setTimeout for the afternoon, which
+    // is exactly what MAX_RATE_LIMIT_WAITS is supposed to rule out.
+    expect(rateLimitWaitMs(new Error("Rate limit. Please try again in 3600s."), 1, 0)).toBe(30_000);
   });
 
   it("adds jitter so sections throttled together do not wake together", () => {

@@ -10,6 +10,12 @@ export interface SplitName {
   readonly first: string | null;
   readonly middle: string | null;
   readonly last: string | null;
+  /**
+   * Both trailing parts as the filing wrote them — "Jr.", "CPA", or
+   * "Jr., CPA". This lands in the observation's raw `suffix` column, which is
+   * display rather than identity, so the credential belongs here; only
+   * `normalized_suffix` (generational alone) reaches the resolver's match tuple.
+   */
   readonly suffix: string | null;
 }
 
@@ -30,6 +36,6 @@ export function splitPersonName(full: string): SplitName {
     first: blankToNull(parsed.first),
     middle: blankToNull(parsed.middle),
     last: blankToNull(parsed.last),
-    suffix: blankToNull(parsed.suffix),
+    suffix: blankToNull([parsed.generation, parsed.credential].filter(Boolean).join(", ")),
   };
 }

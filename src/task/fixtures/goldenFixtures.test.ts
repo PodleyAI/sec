@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,7 +15,12 @@ import {
   goldenFixtureUrl,
 } from "./goldenFixtureManifest";
 import type { GoldenFixtureDeps } from "./goldenFixtures";
-import { checkGoldenFixturesOnDisk, runGoldenFixtures, sha256Hex } from "./goldenFixtures";
+import {
+  checkGoldenFixturesOnDisk,
+  resolveGoldenFixtureRoot,
+  runGoldenFixtures,
+  sha256Hex,
+} from "./goldenFixtures";
 
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -263,5 +268,29 @@ describe("committed golden fixture corpus", () => {
   it("keeps digests distinct per entry", () => {
     const shas = GOLDEN_FIXTURES.map((e) => e.sha256);
     expect(new Set(shas).size).toBe(shas.length);
+  });
+
+  // The checks above all read manifest → disk, so an EDGAR capture that is on
+  // disk but absent from the manifest passes every one of them while being
+  // completely unguarded: no pinned digest means nothing detects it drifting or
+  // being hand-edited, even though the eval harness scores against it. That is
+  // not hypothetical — `s1_1507957` (Ideal Power) sat unpinned while carrying
+  // golden labels for two extractors. This is the disk → manifest direction.
+  it("pins every real capture that is on disk", () => {
+    const root = resolveGoldenFixtureRoot();
+    const pinned = new Set(GOLDEN_FIXTURES.map((e) => `${e.dir}/${e.file}`));
+    const unpinned: string[] = [];
+
+    for (const dir of new Set(GOLDEN_FIXTURES.map((e) => e.dir))) {
+      // Only `.htm` captures: the synthetic `.txt` full-submission fixtures are
+      // hand-authored SGML that exists nowhere on EDGAR, so they are
+      // deliberately unpinnable (see the GOLDEN_FIXTURES doc comment).
+      for (const file of readdirSync(join(root, dir))) {
+        if (!file.endsWith(".htm")) continue;
+        if (!pinned.has(`${dir}/${file}`)) unpinned.push(`${dir}/${file}`);
+      }
+    }
+
+    expect(unpinned).toEqual([]);
   });
 });

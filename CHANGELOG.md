@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.0.23
+
+### Features
+
+- enhance extraction evaluation with reproducibility metrics
+- enhance OpenAI reasoning effort configuration and improve extraction temperature handling
+- add fast database count estimates
+
+#### s1
+
+- extract the Item 402 Summary Compensation Table
+- extract the risk-factor list from prospectus sections
+
+#### resolver
+
+- version-scoped coverage and drop-previous for family tiers
+
+#### forms
+
+- dead-letter the storage-handler path instead of aborting the sweep
+
+### Bug Fixes
+
+- batch prune's candidate lookup, bound current_sic, share the sqlite harness (#244)
+
+#### db
+
+- report n/a for a missing table instead of failing `db stats` (#249)
+- count estimates against the real table names (#248)
+- build the rate-limiter ledger components from the shared factory
+- stop dropping the shared migration ledger in a scoped db reset
+- derive db reset's rate-limiter table names from the limiter config
+
+#### s1
+
+- keep the position row's fiscal year, and flag a missing comp section
+- keep bare-phrase risk captions when a section yields nothing else
+
+#### forms
+
+- fail loudly on a missing storage handler instead of dead-lettering it
+- strip the xsl viewer prefix before sanitizing the cache path
+
+#### html
+
+- keep a section heading, and the first instance of furniture
+
+### Refactors
+
+#### forms
+
+- type the parsed form document instead of passing any
+
+#### config
+
+- drive both DI bootstraps from one storage registry
+
+### Tests
+
+#### config
+
+- assert the testing bootstrap binds every registered storage
+- guard that db setup reaches every registered storage
+
+### Documentation
+
+- point the add-a-table workflow at the storage registry
+- describe the storage registry both DI bootstraps read
+
+### Build
+
+- enhance source mode handling and improve package management scripts
+
+### Chores
+
+- update dependencies and enhance extraction evaluation features
+- update workglow and deps
+- update GitHub Actions workflow to support manual dispatch and improve concurrency handling
+
+### Updated Dependencies
+
+- `@sroussey/parse-full-name`: ^3.0.0
+- `@workglow/cli`: 0.3.38
+- `csv-parse`: ^7.0.2
+- `typebox`: 1.3.11
+- `workglow`: 0.3.38
+- `@types/pg`: ^8.21.0
+- `better-sqlite3`: ^13.0.3
+
+## 0.0.22
+
+### Bug Fixes
+
+#### db
+
+- report `n/a` for a table the database has not created instead of failing the whole `db stats` report; `TableStat.rows` widens to `number | null`
+
 ## 0.0.21
 
 ### Features

@@ -208,4 +208,40 @@ describe("processFormS1 executive compensation", () => {
     const pending = await new ExtractionDeadLetterRepo().listPending("S-1");
     expect(pending.map((d) => d.section_name)).not.toContain("Executive Compensation");
   });
+
+  it("leaves no dead letter — and resolves a prior one — when there is no compensation section at all", async () => {
+    // Most registration statements have no compensation section. Dead-lettering
+    // that would put an `Executive Compensation` entry on the retry worklist for
+    // the majority of all S-1s, permanently, burying every triageable entry.
+    const deadLetters = new ExtractionDeadLetterRepo();
+    await deadLetters.record({
+      extractor_id: "S-1",
+      accession_number: "acc-comp-6",
+      section_name: "Executive Compensation",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "recorded by a previous extractor version",
+      failed_extractor_version: "0.9.0",
+      source_run_id: null,
+    });
+
+    const { calls, unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD]);
+    cleanup = unregister;
+
+    await run(
+      [
+        "<h1>MANAGEMENT</h1>",
+        "<p>Alina Kowalczyk — Chief Executive Officer</p>",
+        "<h1>LEGAL MATTERS</h1><p>x</p>",
+      ].join(""),
+      "acc-comp-6"
+    );
+
+    expect(await new ExecutiveCompensationRepo().queryByAccession("acc-comp-6")).toEqual([]);
+    expect(calls.some((p) => /SUMMARY COMPENSATION TABLE/.test(p))).toBe(false);
+    const pending = await deadLetters.listPending("S-1");
+    expect(pending.map((d) => d.section_name)).not.toContain("Executive Compensation");
+    expect((await deadLetters.get("S-1", "acc-comp-6", "Executive Compensation"))?.status).toBe(
+      "resolved"
+    );
+  });
 });

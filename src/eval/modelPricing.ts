@@ -43,9 +43,17 @@ const OPENAI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]>
  * under). Substring match, most specific first (`-flash-lite` before `-flash`).
  */
 const GEMINI_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice]> = [
+  // Order is load-bearing: the lookup is a substring `includes`, so a
+  // `-flash-lite` id would otherwise be priced as `-flash`.
+  ["gemini-3.6-flash", { inputPerM: 1.5, outputPerM: 7.5 }],
+  ["gemini-3.5-flash-lite", { inputPerM: 0.3, outputPerM: 2.5 }],
+  ["gemini-3.5-flash", { inputPerM: 1.5, outputPerM: 9 }],
   ["gemini-3.1-flash-lite", { inputPerM: 0.25, outputPerM: 1.5 }],
   ["gemini-3.1-pro", { inputPerM: 2, outputPerM: 12 }],
   ["gemini-3-flash", { inputPerM: 0.5, outputPerM: 3 }],
+  ["gemini-2.5-flash-lite", { inputPerM: 0.1, outputPerM: 0.4 }],
+  ["gemini-2.5-flash", { inputPerM: 0.3, outputPerM: 2.5 }],
+  ["gemini-2.5-pro", { inputPerM: 1.25, outputPerM: 10 }],
 ];
 
 /** xAI Grok list pricing (USD per 1M tokens). */

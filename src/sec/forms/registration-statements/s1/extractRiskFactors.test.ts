@@ -5,7 +5,11 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { extractRiskFactors } from "./sectionExtractors";
+import {
+  extractRiskFactors,
+  MIXED_SHAPE_FAIL_RATIO,
+  MixedRiskCaptionShapeError,
+} from "./sectionExtractors";
 import { RISK_FACTOR_CHUNK_CHARS } from "./riskFactorChunks";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -79,13 +83,120 @@ describe("extractRiskFactors", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("drops a category heading the model returned as if it were a risk", async () => {
+  it("fails the section when the model mixes a category heading in with real captions", async () => {
+    // The heading is not a risk, but nothing in its SHAPE separates it from a
+    // summary bullet — so dropping it is only safe when the whole section is
+    // sentence captions. A mixed response is unanswerable and dead-letters.
     const { unregister } = registerFakeStructuredProvider([
       { risks: [risk(CATEGORY, null), risk("Our securities may be delisted.")] },
     ]);
     cleanup = unregister;
-    const rows = await extractRiskFactors(`${CATEGORY}\n\nBody.`, fakeS1Model());
-    expect(rows.map((r) => r.headline)).toEqual(["Our securities may be delisted."]);
+    await expect(extractRiskFactors(`${CATEGORY}\n\nBody.`, fakeS1Model())).rejects.toThrow(
+      MixedRiskCaptionShapeError
+    );
+  });
+
+  it("dead-letters a mixed section rather than persisting the one punctuated caption", async () => {
+    // The regression the shape rule exists for. A real Item 105(b) summary list
+    // whose filer punctuated exactly ONE of 30 bullets: the old all-or-nothing
+    // filter kept that single row and dropped the other 29, persisting one
+    // caption as if it were the filing's complete risk disclosure.
+    const bare = Array.from(
+      { length: 29 },
+      (_, i) => `Risks related to our business and operations number ${i + 1}`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          ...bare.map((bullet) => risk(bullet, null)),
+          risk("Risks related to our securities and the trust account.", null),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await expect(
+      extractRiskFactors(`Summary of Risk Factors\n\n${bare.join("\n\n")}`, fakeS1Model())
+    ).rejects.toThrow(MixedRiskCaptionShapeError);
+  });
+
+  it("drops the chunk-prefix heading echoes instead of losing every real caption", async () => {
+    // The regression the ratio gate exists for. chunkRiskFactorText prefixes
+    // every chunk after the first with the last category heading, so a section
+    // large enough to chunk hands the model roughly one heading per chunk and
+    // invites it to echo them back. An all-or-nothing rule turned six such
+    // strays into a version-gated dead letter that discarded all 90 captions.
+    const captions = Array.from(
+      { length: 90 },
+      (_, i) => `We may be unable to complete our initial business combination number ${i + 1}.`
+    );
+    const echoes = Array.from({ length: 6 }, (_, i) => `Risks Relating to our Securities ${i + 1}`);
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [...captions.map((c) => risk(c)), ...echoes.map((e) => risk(e, null))] },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(rows.map((r) => r.headline)).toEqual(captions);
+    expect(6 / 96).toBeLessThan(MIXED_SHAPE_FAIL_RATIO);
+  });
+
+  it("fails at exactly MIXED_SHAPE_FAIL_RATIO, so the boundary is inclusive", async () => {
+    // 3 of 12 is exactly the ratio: a section this mixed is unanswerable, and
+    // the gate must not let the boundary case through on a `>` comparison.
+    const headingCount = 3;
+    const total = Math.round(headingCount / MIXED_SHAPE_FAIL_RATIO);
+    const captions = Array.from(
+      { length: total - headingCount },
+      (_, i) => `Our securities may be delisted for reason ${i + 1}.`
+    );
+    const headings = Array.from(
+      { length: headingCount },
+      (_, i) => `Risks Relating to our Business ${i + 1}`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [...captions.map((c) => risk(c)), ...headings.map((h) => risk(h, null))] },
+    ]);
+    cleanup = unregister;
+
+    await expect(extractRiskFactors("Some risk prose.", fakeS1Model())).rejects.toThrow(
+      MixedRiskCaptionShapeError
+    );
+  });
+
+  it("keeps every caption of an all-sentence list, with nothing heading-shaped to drop", async () => {
+    // The other homogeneous case, pinned beside the drop: no row is
+    // heading-shaped, so the gate is never entered and the list passes through.
+    const captions = Array.from(
+      { length: 12 },
+      (_, i) => `We may be unable to complete our initial business combination number ${i + 1}.`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: captions.map((c) => risk(c)) },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(rows.map((r) => r.headline)).toEqual(captions);
+  });
+
+  it("keeps every bullet of an all-bare-phrase summary list", async () => {
+    // The preserved case, pinned beside the mixed one: 30 in, 30 out. Nothing
+    // about the new rule may narrow a homogeneous summary list.
+    const bullets = Array.from(
+      { length: 30 },
+      (_, i) => `Risks related to our business and operations number ${i + 1}`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: bullets.map((bullet) => risk(bullet, null)) },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors(
+      `Summary of Risk Factors\n\n${bullets.join("\n\n")}`,
+      fakeS1Model()
+    );
+    expect(rows.map((r) => r.headline)).toEqual(bullets);
   });
 
   it("keeps bare-phrase captions when the whole section is a summary bullet list", async () => {

@@ -6,7 +6,13 @@
 
 import { TaskAbortedError } from "workglow";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { NonceMismatchError, RateLimitExhaustedError } from "./sectionExtractors";
+import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { SecCliConfigurationError } from "../../../../config/EnvToDI";
+import {
+  MixedRiskCaptionShapeError,
+  NonceMismatchError,
+  RateLimitExhaustedError,
+} from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 
 /**
@@ -28,6 +34,15 @@ export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDEN
  * Times a section is re-asked when every confident row fails span verification.
  * Distinct from the extractor's own transport/schema retry: this one answers a
  * well-formed response whose citations do not hold up.
+ *
+ * These retries COMPOSE with the ones inside the extractor, and the product is
+ * not obvious from either site alone. This loop wraps `sargs.extract`, which for
+ * risk factors is `extractRiskFactors` — itself one call per chunk, each
+ * internally retried up to `EXTRACTION_ATTEMPTS` (3) times. The worst case is
+ * therefore `VERIFICATION_ATTEMPTS x EXTRACTION_ATTEMPTS x chunks`: a 246k-char
+ * risk-factors section (7 chunks) whose citations verify badly can cost ~63
+ * model calls before the section dead-letters. Raising either constant
+ * multiplies, it does not add.
  */
 export const VERIFICATION_ATTEMPTS = 3;
 
@@ -117,7 +132,7 @@ export function makeRunSection(opts: {
   ): Promise<void> {
     if (sargs.skip) return;
 
-    const record = (reason: string, detail: string | null) =>
+    const record = (reason: DeadLetterReasonCode, detail: string | null) =>
       deadLetters.record({
         extractor_id,
         accession_number,
@@ -236,33 +251,55 @@ export function makeRunSection(opts: {
         }
       }
     } catch (e) {
+      // Three escapes run ahead of the reason-code mapping, in this order.
+      //
       // Cooperative cancellation is not an extraction failure and must reach
       // the filing pipeline, which abandons the filing rather than recording
-      // one. Both branches are ordered ahead of the reason-code mapping:
-      //   - the first keys on the error TYPE, so a genuine schema failure is
-      //     never rethrown by it;
+      // one:
+      //   - the first branch keys on the error TYPE, so a genuine schema
+      //     failure is never rethrown by it;
       //   - the second only fires when the signal is ALREADY aborted, where the
       //     pipeline abandons the filing regardless of what this section did,
       //     and it keeps the original error as `cause` so nothing is lost.
+      //
+      // Cancellation is checked BEFORE the configuration escape because the
+      // aborted-signal branch is deliberately type-blind: once Ctrl-C is in
+      // flight, whatever error a torn-down provider call happens to surface is
+      // an artifact of the teardown, not a verdict about the section. Both
+      // escapes rethrow, so neither can be swallowed into a dead letter either
+      // way — the ordering only decides which error the pipeline sees, and
+      // during an abort the honest answer is "the operator cancelled", with the
+      // original preserved as `cause`.
       if (e instanceof TaskAbortedError) throw e;
       if (opts.signal?.aborted === true) {
         const aborted = new TaskAbortedError();
         aborted.cause = e;
         throw aborted;
       }
+      // A configuration error is not an extraction failure: the value is wrong
+      // for every section of every filing, so recording it would stamp a
+      // version-gated dead letter across the whole corpus that no version bump
+      // can clear. Let it reach the operator instead. (The CLI validates the
+      // same knob at startup; this covers a library consumer that never runs
+      // that hook.)
+      if (e instanceof SecCliConfigurationError) throw e;
       // A NonceMismatchError is a defense-in-depth signal that the model's
       // structured response did not echo back the per-call verification token;
       // record it under a dedicated reason code so an operator can triage
       // nonce-check failures separately from generic invalid-output cases.
+      // A MixedRiskCaptionShapeError is likewise its own triage class: the
+      // response was well-formed, and what failed is the section's shape.
       // A RateLimitExhaustedError is not an extractor bug at all — the call
       // never ran — so it is recorded transiently and stays retry-eligible
       // under the same version.
-      const reason =
+      const reason: DeadLetterReasonCode =
         e instanceof NonceMismatchError
           ? "NONCE_MISMATCH"
-          : e instanceof RateLimitExhaustedError
-            ? "RATE_LIMITED"
-            : "MODEL_INVALID_OUTPUT";
+          : e instanceof MixedRiskCaptionShapeError
+            ? "MIXED_CAPTION_SHAPE"
+            : e instanceof RateLimitExhaustedError
+              ? "RATE_LIMITED"
+              : "MODEL_INVALID_OUTPUT";
       await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
     }
   };

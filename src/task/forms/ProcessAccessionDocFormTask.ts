@@ -14,6 +14,7 @@ import {
   TaskError,
   Workflow,
 } from "workglow";
+import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
@@ -34,6 +35,7 @@ import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kL
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -399,7 +401,10 @@ export class ProcessAccessionDocFormTask extends Task<
       }
     };
 
-    const recordDeadLetterSafe = async (reason_code: string, detail: string): Promise<void> => {
+    const recordDeadLetterSafe = async (
+      reason_code: DeadLetterReasonCode,
+      detail: string
+    ): Promise<void> => {
       try {
         await deadLetters.record({
           extractor_id: extractorId,
@@ -721,6 +726,15 @@ export class ProcessAccessionDocFormTask extends Task<
     // would dead-letter every filing of that form on every sweep, forever,
     // wearing the same reason code as a genuine storage failure.
     if (storeError instanceof MissingStorageHandlerError) {
+      throw storeError;
+    }
+
+    // A misconfigured environment is not this filing's fault either. The
+    // per-section handler already re-throws these rather than dead-lettering;
+    // without the matching escape here that re-throw would merely convert a
+    // per-section MODEL_INVALID_OUTPUT storm into a filing-level STORE_ERROR
+    // storm, equally version-gated and equally wrong.
+    if (storeError instanceof SecCliConfigurationError) {
       throw storeError;
     }
 
