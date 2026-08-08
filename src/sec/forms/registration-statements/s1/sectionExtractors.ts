@@ -7,7 +7,7 @@
 import type { IExecuteContext, ModelConfig } from "workglow";
 import { StructuredGenerationTask } from "workglow";
 import { createHash } from "node:crypto";
-import { SecCliConfigurationError } from "../../../../config/EnvToDI";
+import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
@@ -46,6 +46,11 @@ import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
 
+// Re-exported so the extraction knob still reads as part of this module's
+// surface; it lives in `config/` because a malformed value must abort the CLI
+// rather than be caught by a per-section handler and dead-lettered.
+export { getExtractionTemperature } from "../../../../config/extractionTemperature";
+
 const MAX_TOKENS = 4096;
 
 /**
@@ -60,6 +65,20 @@ const MAX_TOKENS = 4096;
  * a target.
  */
 const RISK_FACTORS_MAX_TOKENS = 16_384;
+
+/**
+ * Share of heading-shaped rows at or above which a mixed-shape risk-factor
+ * section is unanswerable and fails, rather than having its heading-shaped rows
+ * dropped.
+ *
+ * A minority below this is the chunking artifact, not an ambiguous section:
+ * {@link chunkRiskFactorText} prefixes every chunk after the first with the last
+ * category heading, so the model is handed roughly one heading per chunk and
+ * echoes some back. A 246k-char section is ~7 chunks against ~90 captions —
+ * well under the ratio — and failing it would discard all ~90 for the sake of
+ * ~6 strays.
+ */
+export const MIXED_SHAPE_FAIL_RATIO = 0.25;
 
 /**
  * Thrown when a model's structured response fails to echo back the per-call
@@ -107,46 +126,6 @@ export class MixedRiskCaptionShapeError extends Error {
     );
     this.name = "MixedRiskCaptionShapeError";
   }
-}
-
-/**
- * Sampling temperature for every extraction call. Defaults to 0 (greedy).
- *
- * Extraction is a transcription task, not a generative one — the answer is
- * already in the filing — but nothing pinned the temperature, so calls ran at
- * the provider default of 1.0. Measured on one filing across three clean runs,
- * that produced 138/138/109 risk factors whose contents differed in ALL THREE
- * cases: the two 138-row runs disagreed on which captions they found, not just
- * how many. Re-processing a filing therefore rewrote its disclosures with a
- * different list each time.
- *
- * `SEC_EXTRACTION_TEMPERATURE` overrides it; an empty value omits the parameter
- * altogether.
- *
- * A malformed or out-of-range value throws rather than degrading. Coercing
- * `"0,5"` to `0` reads back as "greedy sampling is on" — the operator sees
- * exactly the behavior they asked for the opposite of, with nothing anywhere
- * saying the setting was ignored. The whole point of the variable is to control
- * determinism, so silently discarding it is the one failure mode it must not
- * have.
- */
-export function getExtractionTemperature(): number | undefined {
-  const raw = process.env.SEC_EXTRACTION_TEMPERATURE;
-  if (raw === undefined) return 0;
-  if (raw.trim() === "") return undefined;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) {
-    throw new SecCliConfigurationError(
-      `SEC_EXTRACTION_TEMPERATURE is not a number: ${JSON.stringify(raw)}. ` +
-        `Set a value in [0, 2], or set it empty to omit the parameter entirely.`
-    );
-  }
-  if (n < 0 || n > 2) {
-    throw new SecCliConfigurationError(
-      `SEC_EXTRACTION_TEMPERATURE is out of range: ${n}. Sampling temperature must be in [0, 2].`
-    );
-  }
-  return n;
 }
 
 /**
@@ -1468,14 +1447,29 @@ export async function extractRiskFactors(
   //   combination"), so the "headings" ARE the captions. Kept.
   // - no row heading-shaped — an ordinary Item 105 list of sentence captions,
   //   with nothing to drop. Kept.
-  // - mixed — unanswerable. Filers are inconsistent about terminal punctuation,
-  //   so one summary bullet ending in a period is enough to make 29 bare-phrase
-  //   bullets look droppable; an all-or-nothing filter would keep the single
-  //   punctuated row and persist it as the filing's complete disclosure. Fail
-  //   the section instead of guessing.
+  // - mixed — answered by how large the heading-shaped minority is
+  //   (MIXED_SHAPE_FAIL_RATIO). Filers are inconsistent about terminal
+  //   punctuation, so one summary bullet ending in a period is enough to make
+  //   29 bare-phrase bullets look droppable; an all-or-nothing filter would
+  //   keep the single punctuated row and persist it as the filing's complete
+  //   disclosure. At or above the ratio the section is unanswerable and fails
+  //   rather than guessing; below it, the minority is the chunk-prefix echo
+  //   described at the drop below.
   const headingLike = out.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
   if (headingLike > 0 && headingLike < out.length) {
-    throw new MixedRiskCaptionShapeError(headingLike, out.length);
+    if (headingLike / out.length >= MIXED_SHAPE_FAIL_RATIO) {
+      throw new MixedRiskCaptionShapeError(headingLike, out.length);
+    }
+    // A small minority of heading-shaped rows is the expected artifact of
+    // chunking, not an ambiguous section: every chunk after the first is
+    // prefixed with the last category heading seen before it, so a ~7-chunk
+    // section hands the model ~6 headings and invites it to echo them back as
+    // rows. Failing the section on those discards every real caption it found,
+    // so drop the handful and keep the disclosure. Only when heading-shaped
+    // rows are a large enough share is the section's shape genuinely
+    // unanswerable (a summary-bullet list whose bullets ARE the captions).
+    console.warn(`risk factors: dropped ${headingLike} heading-shaped row(s) of ${out.length}`);
+    return out.filter((risk) => !isRiskCategoryHeading(risk.headline));
   }
   return out;
 }
