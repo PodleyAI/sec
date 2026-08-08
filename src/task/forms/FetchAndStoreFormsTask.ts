@@ -9,7 +9,9 @@ import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } fro
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { stripXslPrefix } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
@@ -134,22 +136,33 @@ export class FetchAndStoreFormsTask extends Task<
     // ProcessAccessionDocFormTask contains its own failures and returns rather
     // than throwing, so without reading these back a filing whose sections all
     // dead-lettered is indistinguishable from a clean run.
-    const runRepo = globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN);
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     const deadLetterRepo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+    // The outcome being counted is this form's own extractor. A filing writes a
+    // run row per extractor that touched it — a known-SPAC 8-K writes `8-K`,
+    // `loi` and `redemption` — so an unfiltered read mixes sub-extractor
+    // outcomes into the count for the form the operator asked for.
+    const extractorId = formToExtractorId(form);
+    if (extractorId === undefined) {
+      throw new TaskError(`No extractor is wired for form '${form}'`);
+    }
     let succeeded = 0;
     let partial = 0;
     let failed = 0;
     let triage = 0;
     for (const filing of filings) {
-      const runs =
-        (await runRepo.query({ cik, accession_number: filing.accession_number })) ?? [];
-      // Newest version wins: this task deliberately re-processes, and the PK
-      // includes extractor_version, so an older attempt's row can still be here.
-      const latest = runs.at(-1);
+      // Newest run wins by `ran_at`, not by row order: this task deliberately
+      // re-processes and the PK includes extractor_version, so an older
+      // attempt's row can still be here, and no backend guarantees the order a
+      // query returns rows in.
+      const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
       if (latest?.outcome === "success") succeeded++;
       else if (latest?.outcome === "partial") partial++;
       else failed++;
 
+      // Deliberately NOT filtered to `extractorId`: every pending entry on this
+      // accession is genuine triage produced by this fetch, including the ones
+      // the sub-extractors (`loi`, `redemption`) wrote while processing it.
       const pending =
         (await deadLetterRepo.query({
           accession_number: filing.accession_number,
