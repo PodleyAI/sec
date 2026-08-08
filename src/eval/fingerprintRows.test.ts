@@ -104,6 +104,25 @@ describe("summarizeStability", () => {
     expect(summaries.find((s) => s.model === "b")?.stableContent).toBe(0);
   });
 
+  it("counts an incomplete fixture as skipped, not as unreproducible", () => {
+    // `fixtures` is every fixture the sweep touched; `measured` is the ones it
+    // actually repeated. Reporting the stable count against the first read
+    // "1/2" — one fixture measured and found to vary — when the second was
+    // never measured twice at all.
+    const [summary] = summarizeStability(
+      [
+        result("m", "f1", 1, "a", "A"),
+        result("m", "f1", 2, "a", "A"),
+        result("m", "f2", 1, "b", "B"),
+      ],
+      2
+    );
+    expect(summary.fixtures).toBe(2);
+    expect(summary.measured).toBe(1);
+    expect(summary.stableExact).toBe(1);
+    expect(summary.stableContent).toBe(1);
+  });
+
   it("does not count two failed runs as reproducible agreement", () => {
     // Both runs failed; the sentinel fingerprints differ per run on purpose so
     // "we consistently produced nothing" is not reported as stability.

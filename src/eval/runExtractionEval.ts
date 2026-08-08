@@ -45,7 +45,17 @@ export interface FixtureRunResult {
  */
 export interface StabilitySummary {
   readonly model: string;
+  /** Fixtures the sweep touched at all, complete or not. */
   readonly fixtures: number;
+  /**
+   * Fixtures that completed all `runs` repetitions — the only ones the
+   * stability counts are computed over, and therefore the only honest
+   * denominator for them. Reporting `stableExact` against {@link fixtures}
+   * read an interrupted sweep as an unreproducible one: `same 3/5` says two
+   * fixtures were measured and disagreed with themselves, when in fact they
+   * were never measured twice.
+   */
+  readonly measured: number;
   readonly stableExact: number;
   readonly stableContent: number;
   readonly runs: number;
@@ -200,16 +210,21 @@ export function summarizeStability(
   for (const [model, fixtures] of byModel) {
     let stableExact = 0;
     let stableContent = 0;
+    let measured = 0;
     for (const group of fixtures.values()) {
       // A fixture that did not complete all `runs` repetitions (Ctrl-C mid
       // sweep) proves nothing about reproducibility: a lone recorded run
       // trivially agrees with itself, and counting it would report an aborted
-      // sweep as more reproducible than a finished one.
+      // sweep as more reproducible than a finished one. It is excluded from
+      // the denominator too, and reported separately as skipped — leaving it
+      // in read as "measured and found unreproducible", the opposite of what
+      // happened.
       if (group.length < runs) continue;
+      measured += 1;
       if (new Set(group.map((g) => g.fingerprint)).size === 1) stableExact += 1;
       if (new Set(group.map((g) => g.contentFingerprint)).size === 1) stableContent += 1;
     }
-    out.push({ model, fixtures: fixtures.size, stableExact, stableContent, runs });
+    out.push({ model, fixtures: fixtures.size, measured, stableExact, stableContent, runs });
   }
   return out;
 }
