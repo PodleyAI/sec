@@ -95,6 +95,19 @@ export function spanCapFor(text: string): number {
 const ELISION_MARKER = /(?:\.\.\.|…)/;
 
 /**
+ * Whether a model-emitted string skips material with an elision marker.
+ *
+ * Exported because the salvage {@link contiguousSpanHead} performs is a
+ * *citation* concession, not a licence to store an abridged value: a field
+ * whose contract is the filer's own words verbatim (a risk factor's caption)
+ * must reject an elided value outright rather than persist its head as if it
+ * were the whole thing.
+ */
+export function isElided(s: string | null | undefined): boolean {
+  return s != null && ELISION_MARKER.test(s);
+}
+
+/**
  * Minimum length of the surviving head before an elided span is accepted, in
  * normalized characters. A model must have quoted something substantial for the
  * citation to be worth keeping; a few characters followed by "..." proves

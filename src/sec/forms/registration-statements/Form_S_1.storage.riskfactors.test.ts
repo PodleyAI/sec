@@ -134,6 +134,48 @@ describe("processFormS1 risk factors", () => {
     expect(entry?.status).toBe("pending");
   });
 
+  it("refuses an elided caption rather than storing its head as the whole thing", async () => {
+    // The span verifies and the head is verbatim, so the only thing wrong is
+    // that the caption stops early. Salvaging the head — right for a citation —
+    // would persist a truncated sentence as the filer's complete disclosure,
+    // with no marker, no dead letter and a resolved section.
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          {
+            headline: `${FIRST.slice(0, 60)}\u2026 and other risks`,
+            category: CATEGORY,
+            confidence: 0.95,
+            source_span: FIRST,
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await runS1();
+
+    expect(await new RiskFactorRepo().queryByAccession(ACCESSION)).toHaveLength(0);
+    const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
+    expect(entry?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+    expect(entry?.status).toBe("pending");
+  });
+
+  it("stores a fully verbatim caption byte-for-byte", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [{ headline: FIRST, category: CATEGORY, confidence: 0.95, source_span: FIRST }],
+      },
+    ]);
+    cleanup = unregister;
+
+    await runS1();
+
+    const rows = await new RiskFactorRepo().queryByAccession(ACCESSION);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].headline).toBe(FIRST);
+  });
+
   it("dead-letters SECTION_NOT_FOUND when the filing has no risk factors section", async () => {
     const { unregister } = registerFakeStructuredProvider([{ risks: [] }]);
     cleanup = unregister;
