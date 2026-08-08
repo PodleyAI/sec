@@ -1104,7 +1104,20 @@ export async function extractRelatedParty(
     "and Related Transactions section between the tags below. For each party give name, " +
     "party_kind ('person' or 'company'), a confidence in [0,1], the verbatim source_span, " +
     "and a transactions array (counterparty, nature, amount, period, footnote — any may " +
-    "be null). Return JSON matching the schema.";
+    "be null). " +
+    "`name` must be an actual PROPER NAME the text prints — a person's name or an " +
+    "entity's name. A ROLE PHRASE is not a name: 'our sponsor', 'our officers and " +
+    "directors', 'our independent director nominees', 'an advisor to the company', " +
+    "'members of our management team', 'our initial shareholders' and 'our insiders' " +
+    "are descriptions of unnamed people, and each must produce NO row. Many SPAC " +
+    "sections are written entirely in these terms and name nobody at all; when that is " +
+    "true the correct answer is an EMPTY list. Do not turn a role into a party to avoid " +
+    "returning nothing. " +
+    "`name` must hold EXACTLY ONE party. When a sentence names two ('Stellantis " +
+    "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
+    "of Phaistos Investment Fund'), emit one row per party — never a combined " +
+    "'X / Y' or 'X and Y' name. " +
+    "Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "related party",
     model,
@@ -1127,7 +1140,13 @@ export async function extractOfferingTerms(
     "(or price_low/price_high), gross_proceeds, net_proceeds, over_allotment_shares, " +
     "exchange, par_value. For a SPAC (units) fill units_offered, price_per_unit, " +
     "unit_composition (verbatim), warrant_fraction_per_unit, right_fraction_per_unit, " +
-    "trust_per_unit, over_allotment_units. List every distinct ticker symbol in 'tickers' " +
+    "trust_per_unit, over_allotment_units. " +
+    "warrant_fraction_per_unit and right_fraction_per_unit count how many warrants or " +
+    "rights are IN ONE UNIT — not what a right converts into. A unit containing 'one " +
+    "right to receive one-fourth of one ordinary share' has right_fraction_per_unit 1, " +
+    "not 0.25; the one-fourth describes the share conversion, which is not this field. " +
+    "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
+    "List every distinct ticker symbol in 'tickers' " +
     "(exact symbol, is_primary true for the common-equity/units symbol, false for " +
     "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
     "and a verbatim source_span. Return JSON matching the schema.";
@@ -1168,7 +1187,16 @@ export async function extractSponsorPromote(
     "(the amount deposited into the trust account per public share in dollars, e.g. 10.00 " +
     "or 10.20, or null), and trust_total (the total dollar amount held in trust, or null). " +
     "Report only figures explicitly stated; do NOT compute a percentage or a total the " +
-    "text does not state. Give a confidence in [0,1] and the verbatim source_span you drew " +
+    "text does not state. " +
+    "founder_shares is the GROSS number the sponsor ACQUIRED, before any shares subject " +
+    "to forfeiture are deducted: '5,366,667 founder shares, of which 700,000 are subject " +
+    "to forfeiture' is 5366667, not the 4,666,667 the post-offering table shows. The " +
+    "forfeiture is a contingency on the promote, not a smaller promote. " +
+    "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
+    "A post-de-SPAC RESALE registration is not a promote: when the founder shares, " +
+    "sponsor and private warrants named belong to a PREDECESSOR shell rather than to an " +
+    "offering being made here, every field is null. " +
+    "Give a confidence in [0,1] and the verbatim source_span you drew " +
     "the figures from. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "sponsor promote",
@@ -1483,7 +1511,20 @@ export async function extractUseOfProceeds(
     "Extract the use-of-proceeds line items from the S-1/F-1 Use of Proceeds section " +
     "between the tags below. For each stated purpose give purpose, amount (dollars, or " +
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
-    "and the verbatim source_span. Return JSON matching the schema.";
+    "and the verbatim source_span. " +
+    "`purpose` is the row label copied WHOLE, including any parenthetical the cell " +
+    "carries: 'Underwriting commissions (2% of gross proceeds from units offered to " +
+    "public, excluding deferred portion)' is one purpose, not 'Underwriting commissions'. " +
+    "Emit a row for a line item ONLY if the section prints it. Do not add a customary " +
+    "SPAC line the table omits. " +
+    "Do NOT emit a SOURCE of proceeds ('Gross proceeds', 'Proceeds from sale of shares by " +
+    "selling stockholders'), a TOTAL or subtotal ('Total', 'Total offering expenses'), or " +
+    "a per-share metric ('Amount held in trust per share') — none is a use. " +
+    "A SPAC prospectus prints TWO tables: offering expenses, then a second that " +
+    "decomposes the 'Not held in trust account' line. Emit the line items of BOTH, " +
+    "including the parent line — they are stated at different granularities and both " +
+    "are stated uses. " +
+    "Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "use of proceeds",
     model,
