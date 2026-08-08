@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
@@ -276,5 +277,38 @@ describe("makeRunSection confidenceFloor", () => {
       persist: async () => 0,
     });
     expect(call).toBe(1);
+  });
+});
+
+describe("makeRunSection configuration errors", () => {
+  it("propagates a SecCliConfigurationError instead of dead-lettering it", async () => {
+    // A malformed SEC_EXTRACTION_TEMPERATURE is wrong for every section of
+    // every filing. Recorded as MODEL_INVALID_OUTPUT it would stamp a
+    // version-gated entry across the whole corpus that no version bump can
+    // clear, and the operator would never see the message naming the variable.
+    const { repo, letters, resolved } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-config",
+    });
+
+    await expect(
+      runSection<{ confidence: number; span: string }>({
+        sectionName: "management",
+        text: "Some text.",
+        emptyDetail: "none returned",
+        lowConfidenceDetail: "low",
+        verifyRow: (text, r) => text.includes(r.span),
+        extract: async () => {
+          throw new SecCliConfigurationError("SEC_EXTRACTION_TEMPERATURE is not a number");
+        },
+        persist: async () => 0,
+      })
+    ).rejects.toThrow(SecCliConfigurationError);
+
+    expect(letters).toEqual([]);
+    expect(resolved).toEqual([]);
   });
 });

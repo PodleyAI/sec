@@ -6,6 +6,7 @@
 
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
+import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import { MixedRiskCaptionShapeError, NonceMismatchError } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 
@@ -231,6 +232,13 @@ export function makeRunSection(opts: {
         }
       }
     } catch (e) {
+      // A configuration error is not an extraction failure: the value is wrong
+      // for every section of every filing, so recording it would stamp a
+      // version-gated dead letter across the whole corpus that no version bump
+      // can clear. Let it reach the operator instead. (The CLI validates the
+      // same knob at startup; this covers a library consumer that never runs
+      // that hook.)
+      if (e instanceof SecCliConfigurationError) throw e;
       // A NonceMismatchError is a defense-in-depth signal that the model's
       // structured response did not echo back the per-call verification token;
       // record it under a dedicated reason code so an operator can triage

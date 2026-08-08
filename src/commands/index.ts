@@ -25,6 +25,7 @@ import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
+import { getExtractionTemperature } from "../config/extractionTemperature";
 import { registerSecModels } from "../config/registerModels";
 import { registerSecProviders } from "../config/registerProviders";
 import { registerSecResolvers } from "../config/registerResolvers";
@@ -71,6 +72,13 @@ export const AddCommands = (program: Command): void => {
     }
 
     EnvToDI();
+    // Validate the extraction sampling knob at startup. Its only other caller
+    // is inside the per-section handler that turns any throw into a
+    // version-gated dead letter, so a malformed SEC_EXTRACTION_TEMPERATURE
+    // would otherwise be recorded once per section per filing as an extraction
+    // failure no version bump can fix, instead of aborting here naming the
+    // variable.
+    getExtractionTemperature();
     DefaultDI();
     registerSecResolvers();
     await registerSecModels();
