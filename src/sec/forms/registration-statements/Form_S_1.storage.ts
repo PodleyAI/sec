@@ -313,6 +313,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     extractor_id: EXTRACTOR_ID,
     extractor_version,
     accession_number,
+    signal: args.context?.signal,
   });
 
   // The entity sections feed a SECTION_NOT_FOUND with a `null` detail when the
@@ -359,6 +360,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           extractor_version,
           accession_number,
           confidenceFloor: getSpacClassifierConfidenceFloor(),
+          signal: args.context?.signal,
         });
         await classifierRunSection<SpacClassificationRow>({
           sectionName: "spac-classification",
@@ -819,6 +821,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         extractor_version,
         accession_number,
         confidenceFloor: getRiskFactorsConfidenceFloor(),
+        signal: args.context?.signal,
       });
       await riskRunSection<RiskFactorRow>({
         sectionName: RISK_FACTORS_SECTION,

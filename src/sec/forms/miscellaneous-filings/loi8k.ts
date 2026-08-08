@@ -198,6 +198,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
     extractor_version,
     accession_number,
     confidenceFloor: getLoiConfidenceFloor(),
+    signal: args.context?.signal,
   });
 
   let persistedRow: LoiRow | null = null;

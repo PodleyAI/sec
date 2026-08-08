@@ -36,6 +36,15 @@ export const DEAD_LETTER_REASON_CODES = [
   // model-availability issue, so it is version-gated for retry like
   // MODEL_INVALID_OUTPUT.
   "NONCE_MISMATCH",
+  // The provider throttled the call and the section spent its whole wait-out
+  // budget without the window clearing. Transient and NOT version-fixable: the
+  // extractor produced nothing wrong, it never got to run. Kept distinct from
+  // MODEL_RESOLUTION_ERROR even though both retry under the same version —
+  // that one means "the model id is not registered" and its operator action is
+  // to add a key or register a provider, while this one means "wait for the
+  // quota window, then retry". Merging them would make the worklist counts
+  // unreadable during exactly the outage an operator would be triaging.
+  "RATE_LIMITED",
 ] as const;
 export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 
@@ -43,12 +52,13 @@ export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
  * Reason codes that reflect a transient model/provider *availability* failure
  * rather than a version-fixable extractor bug. Entries with these codes stay
  * eligible for retry even under the **same** extractor version — re-running the
- * filing once the model/provider is registered is exactly what recovers them,
- * so a version bump is neither required nor meaningful. Every other reason code
- * (a genuine extraction/parse/output bug) remains version-gated: it retries only
- * after the extractor code is fixed and its version bumped.
+ * filing once the model/provider is registered (or once the quota window has
+ * moved on) is exactly what recovers them, so a version bump is neither
+ * required nor meaningful. Every other reason code (a genuine
+ * extraction/parse/output bug) remains version-gated: it retries only after the
+ * extractor code is fixed and its version bumped.
  */
-export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR"] as const;
+export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR", "RATE_LIMITED"] as const;
 
 export const DEAD_LETTER_STATUSES = ["pending", "resolved", "abandoned"] as const;
 export type DeadLetterStatus = (typeof DEAD_LETTER_STATUSES)[number];

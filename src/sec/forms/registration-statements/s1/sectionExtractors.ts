@@ -5,7 +5,7 @@
  */
 
 import type { IExecuteContext, ModelConfig } from "workglow";
-import { StructuredGenerationTask } from "workglow";
+import { StructuredGenerationTask, TaskAbortedError } from "workglow";
 import { createHash } from "node:crypto";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
@@ -166,19 +166,70 @@ export const MAX_RATE_LIMIT_WAITS = 5;
  */
 export const MAX_RATE_LIMIT_WAIT_MS = 30_000;
 
+/**
+ * Thrown when a call was throttled {@link MAX_RATE_LIMIT_WAITS} times and the
+ * provider's window still had not cleared.
+ *
+ * It gets its own type because the section runner has to tell it apart from a
+ * bad response: nothing was wrong with the extractor here, it never got to run.
+ * That makes the failure transient and recoverable by re-running as-is, whereas
+ * the generic invalid-output code is version-gated — which would ask an
+ * operator to ship a code change to recover from a quota window. The provider's
+ * own text is preserved (and the original error kept as `cause`) because it is
+ * what names which limit was hit — TPM, RPM or a daily RPD — and those want
+ * different responses.
+ */
+export class RateLimitExhaustedError extends Error {
+  constructor(
+    readonly waits: number,
+    cause: unknown
+  ) {
+    const providerText = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Provider throttle did not clear after ${waits} wait${waits === 1 ? "" : "s"}: ${providerText}`,
+      { cause }
+    );
+    this.name = "RateLimitExhaustedError";
+  }
+}
+
+/**
+ * The head of an error message — everything before the first newline.
+ *
+ * Both throttle matchers below are applied to this rather than to the whole
+ * string, because sec's own `classifyProviderError` / `withJobErrorDiagnostics`
+ * append the captured `.stack` to the message they re-throw. A stack frame
+ * reading `.../sectionExtractors.ts:429:15` is not an HTTP status, and a frame
+ * reading `at isRateLimitError` is not the phrase "rate limit" — matching only
+ * the head makes both structurally impossible instead of a matter of how clever
+ * the patterns are.
+ */
+function messageHead(message: string): string {
+  return message.split("\n", 1)[0];
+}
+
 /** Phrases every provider we call uses for a throttle. */
 const RATE_LIMIT_PHRASES = /rate[ _-]?limit|too many requests/i;
 
 /**
- * A bare HTTP 429 as its own token. Deliberately not a plain `429` substring:
- * provider errors quote the model's own output back at us, so a share count
- * (`1,429,000`) or a dollar figure (`$429.50`) would otherwise be read as a
- * throttle — and a throttle is retried WITHOUT spending an attempt, so a
- * misread turns one bad payload into several extra billed calls and minutes of
- * sleeping. The lookarounds exclude any 429 that is part of a longer number or
- * word.
+ * An HTTP 429 *in a context that says it is a status code*. A bare `429` token
+ * is wrong in both directions, and each misread costs real money:
+ *
+ * - False positive. Provider errors quote the model's own output back at us, so
+ *   `expected string, got 429` — or a share count, or a dollar figure — read as
+ *   a throttle. A throttle is retried WITHOUT spending an attempt, so one bad
+ *   payload turned into five extra billed calls and minutes of sleeping before
+ *   failing anyway.
+ * - False negative. Excluding a 429 followed by punctuation rejected
+ *   `…status code 429.` and `{"status":429,…}`, which really are throttles, so
+ *   the section burned its retry budget hammering a closed window.
+ *
+ * Requiring the surrounding word — `HTTP`, `status`, `code`, `error`, or `too
+ * many` — separates the two populations without depending on what follows the
+ * digits.
  */
-const HTTP_429 = /(?<![\w.,])429(?![\w.,])/;
+const HTTP_429 =
+  /(?:\bhttp\/?[\d.]*\s+429\b|\bstatus(?:\s*code)?"?\s*[:=]?\s*"?429\b|\b429\s+(?:too\s+many|error\b)|\berror\s*:?\s*429\b|\bcode"?\s*[:=]\s*"?429\b)/i;
 
 /**
  * Sleeps, waking early when `signal` aborts. A plain `setTimeout` would hold a
@@ -200,27 +251,57 @@ async function sleepUnlessAborted(ms: number, signal: AbortSignal | undefined): 
 
 /** Whether a provider error is a throttle rather than a bad response. */
 export function isRateLimitError(e: unknown): boolean {
-  const message = e instanceof Error ? e.message : String(e);
-  return RATE_LIMIT_PHRASES.test(message) || HTTP_429.test(message);
+  const head = messageHead(e instanceof Error ? e.message : String(e));
+  return RATE_LIMIT_PHRASES.test(head) || HTTP_429.test(head);
+}
+
+/** Introduces a stated retry delay; every provider phrases it one of these ways. */
+const STATED_DELAY =
+  /(?:try again in|retry after|retry-after:?)\s*((?:\d+(?:\.\d+)?\s*(?:ms|h|m|s)\s*)+)/i;
+
+/** One `<number><unit>` component of a stated delay. `ms` is matched before `m`. */
+const DELAY_COMPONENT = /(\d+(?:\.\d+)?)\s*(ms|h|m|s)/gi;
+
+const UNIT_MS: Readonly<Record<string, number>> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 };
+
+/**
+ * The delay a provider stated, in milliseconds, or `null` when it stated none.
+ *
+ * Composite because that is what providers actually emit: an OpenAI RPD limit
+ * answers `Please try again in 8m38.4s`, which a seconds-only reader silently
+ * parsed as "no delay stated" and fell back to a 1s exponential base — so five
+ * waits totalled 31 seconds against a limit measured in minutes, and the
+ * section failed as if the model had misbehaved.
+ */
+export function statedDelayMs(message: string): number | null {
+  const stated = message.match(STATED_DELAY);
+  if (stated === null) return null;
+  let total = 0;
+  let sawComponent = false;
+  for (const [, value, unit] of stated[1].matchAll(DELAY_COMPONENT)) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) continue;
+    total += n * UNIT_MS[unit.toLowerCase()];
+    sawComponent = true;
+  }
+  return sawComponent ? Math.ceil(total) : null;
 }
 
 /**
  * How long to wait before retrying a throttled call.
  *
- * Providers usually say — OpenAI returns "Please try again in 4.082s" — so the
- * stated delay is honoured when present rather than guessed at. Otherwise back
- * off exponentially from one second. Both are clamped to
- * {@link MAX_RATE_LIMIT_WAIT_MS}, so a provider that states an hour cannot
- * suspend the sweep for one. Either way a little jitter is added so several
- * sections throttled by the same window do not all wake together and re-collide.
+ * Providers usually say — OpenAI returns "Please try again in 4.082s", or
+ * "8m38.4s" against a daily limit — so the stated delay is honoured when
+ * present rather than guessed at. Otherwise back off exponentially from one
+ * second. Both are clamped to {@link MAX_RATE_LIMIT_WAIT_MS}, so a provider
+ * that states an hour cannot suspend the sweep for one. Either way a little
+ * jitter is added so several sections throttled by the same window do not all
+ * wake together and re-collide.
  */
 export function rateLimitWaitMs(e: unknown, waitNumber: number, jitter = Math.random()): number {
   const message = e instanceof Error ? e.message : String(e);
-  const stated = message.match(/try again in ([\d.]+)\s*s/i);
-  const uncapped =
-    stated !== null && Number.isFinite(Number(stated[1]))
-      ? Math.ceil(Number(stated[1]) * 1000) + 250
-      : 1000 * 2 ** (waitNumber - 1);
+  const stated = statedDelayMs(message);
+  const uncapped = stated !== null ? stated + 250 : 1000 * 2 ** (waitNumber - 1);
   return Math.min(uncapped, MAX_RATE_LIMIT_WAIT_MS) + Math.floor(jitter * 500);
 }
 
@@ -748,11 +829,23 @@ async function runGuardedExtraction(
       // spending an attempt, so the section is not dead-lettered for being
       // queued. Bounded by MAX_RATE_LIMIT_WAITS so a permanently exhausted
       // quota still fails rather than hanging.
-      if (isRateLimitError(e) && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
+      if (isRateLimitError(e)) {
+        // Budget spent. Fail as a throttle rather than falling through to
+        // attempt++, which would spend the retry budget on a closed window and
+        // then report an exhausted quota under the version-gated
+        // invalid-output code — a transient condition an operator could only
+        // clear by bumping the extractor version.
+        if (rateLimitWaits >= MAX_RATE_LIMIT_WAITS) {
+          throw new RateLimitExhaustedError(rateLimitWaits, e);
+        }
         rateLimitWaits++;
         await sleepUnlessAborted(rateLimitWaitMs(e, rateLimitWaits), context?.signal);
-        // Ctrl-C during the wait must not buy the throttle another round trip.
-        if (context?.signal?.aborted === true) throw lastError;
+        // Ctrl-C during the wait must not buy the throttle another round trip
+        // — and must surface AS a cancellation. Rethrowing the 429 instead made
+        // the section record a dead letter and return normally, so the sweep
+        // carried on stamping version-gated failures on every remaining section
+        // of a filing the operator had already interrupted.
+        if (context?.signal?.aborted === true) throw new TaskAbortedError();
         continue;
       }
       attempt++;

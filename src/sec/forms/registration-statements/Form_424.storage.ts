@@ -193,6 +193,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       extractor_id: EXTRACTOR_ID,
       extractor_version,
       accession_number,
+      signal: args.context?.signal,
     }),
     observer,
     provenance: new ObservationProvenanceRepo(),

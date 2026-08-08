@@ -161,11 +161,22 @@ HuggingFace Transformers ONNX
 load failure or missing key warns and is skipped). Absent a working provider /
 key, each AI section dead-letters instead of aborting the filing.
 
-A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
-retryable under the **same** extractor version — `retry-dead-letters` recovers it
-once the model/provider is registered, no version bump required
-(`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
-code stays version-gated (fix the extractor, bump the version, then retry).
+A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) or a
+`RATE_LIMITED` one (the provider throttled the call and the section spent its
+whole wait-out budget without the window clearing) is retryable under the
+**same** extractor version — `retry-dead-letters` recovers it once the
+model/provider is registered, or once the quota window has moved on, with no
+version bump required (`MODEL_ERROR_REASON_CODES` in
+`ExtractionDeadLetterSchema.ts`). Every other reason code stays version-gated
+(fix the extractor, bump the version, then retry).
+
+The two are deliberately **not** the same code even though their retry semantics
+are identical: `MODEL_RESOLUTION_ERROR` means the configured model id is not
+registered, and its operator action is to add a key or register a provider;
+`RATE_LIMITED` means wait, then retry. Merging them makes the worklist counts
+unreadable during exactly the outage an operator would be triaging. The
+reason-code vocabulary lives in `DEAD_LETTER_REASON_CODES`
+(`ExtractionDeadLetterSchema.ts`).
 
 #### Filing-level dead-letters (every form, not just the AI ones)
 
