@@ -23,11 +23,14 @@ import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
 /**
- * Default comparison set: a cheap and a strong model from each of the three
- * cloud providers we hold keys for. Cross-provider is the point — extraction
- * quality and reproducibility have both turned out to be provider-specific
- * (OpenAI's reasoning family rejects `temperature` outright; only Gemini offers
- * a sampling `seed`), so ranking within one vendor answers the wrong question.
+ * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
+ * tier of two other cloud providers we hold keys for. Cross-provider is the
+ * point — extraction quality and reproducibility have both turned out to be
+ * provider-specific (OpenAI's reasoning family rejects `temperature` outright;
+ * only Gemini offers a sampling `seed`), so ranking within one vendor answers
+ * the wrong question. The sweep needs `DEEPSEEK_API_KEY` and `GEMINI_API_KEY`
+ * as well as `ANTHROPIC_API_KEY`; a missing key is recorded as a failed run per
+ * fixture rather than aborting the sweep.
  *
  * A local HFT model is deliberately NOT in the default sweep: it costs minutes
  * per section and is not a production candidate. Pass one explicitly
@@ -212,10 +215,17 @@ function printStability(report: EvalReport): void {
   if (!stability || stability.length === 0) return;
   const runs = stability[0].runs;
   console.log(`\nreproducibility over ${runs} runs per fixture:`);
+  // Denominator is `measured`, not `fixtures`: a fixture that did not complete
+  // every repetition was never tested for reproducibility, and counting it
+  // against the stable total reads as a fixture that WAS tested and varied. The
+  // difference is named as skipped so the gap stays visible instead of being
+  // silently absorbed.
+  const skipped = (m: StabilitySummary): string =>
+    m.fixtures > m.measured ? ` (${m.fixtures - m.measured} skipped)` : "";
   const cols: Array<[string, number, (s: StabilitySummary) => string]> = [
     ["model", 34, (m) => m.model],
-    ["same", 12, (m) => `${m.stableExact}/${m.fixtures}`],
-    ["same facts", 12, (m) => `${m.stableContent}/${m.fixtures}`],
+    ["same", 12, (m) => `${m.stableExact}/${m.measured}${skipped(m)}`],
+    ["same facts", 12, (m) => `${m.stableContent}/${m.measured}`],
   ];
   console.log(cols.map(([h, w]) => pad(h, w)).join(" "));
   console.log(cols.map(([, w]) => "-".repeat(w)).join(" "));

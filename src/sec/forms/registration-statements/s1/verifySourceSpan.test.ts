@@ -244,9 +244,9 @@ describe("markdown table separators", () => {
   });
 
   it("keeps a single-row table cell quote working", () => {
-    expect(classifySpan("| ACME Fund | 1,000,000 | 12.5% |", "| ACME Fund | 1,000,000 | 12.5% |")).toBe(
-      "ok"
-    );
+    expect(
+      classifySpan("| ACME Fund | 1,000,000 | 12.5% |", "| ACME Fund | 1,000,000 | 12.5% |")
+    ).toBe("ok");
   });
 });
 
@@ -287,5 +287,17 @@ describe("elided spans", () => {
 
   it("leaves an ordinary span untouched", () => {
     expect(contiguousSpanHead("no markers here")).toBe("no markers here");
+  });
+
+  it("caps on the verified head, not the discarded tail", () => {
+    // The stitched citations the head exists to salvage are precisely the long
+    // ones, so measuring the cap against the raw span would reject every one of
+    // them as `too-long` — and the tail reaches neither the verifier nor the
+    // database, so there is nothing for the cap to protect there.
+    const elided = `${section}\n...\n${"X".repeat(MAX_SPAN_CHARS)}`;
+    expect(classifySpan(section, elided)).toBe("ok");
+    // A head that is itself over the cap is still rejected.
+    const longHead = `${"X".repeat(MAX_SPAN_CHARS + 1)}...tail`;
+    expect(classifySpan(sectionHolding(longHead), longHead)).toBe("too-long");
   });
 });

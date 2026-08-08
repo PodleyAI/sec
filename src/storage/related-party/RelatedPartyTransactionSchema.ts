@@ -13,15 +13,12 @@ export const RelatedPartyTransactionSchema = Type.Object({
   accession_number: Type.String({ maxLength: 25 }),
   extractor_id: Type.String({ maxLength: 16 }),
   transaction_index: Type.Integer({ minimum: 0 }),
-  party_kind: Type.Union(
-    [Type.Literal("person"), Type.Literal("company"), Type.Literal("group")],
-    {
-      description:
-        "person | company | group. `group` is a class of people the filing " +
-        "discloses against rather than a nameable party (see party_label); it " +
-        "carries no observation_id.",
-    }
-  ),
+  party_kind: Type.Union([Type.Literal("person"), Type.Literal("company"), Type.Literal("group")], {
+    description:
+      "person | company | group. `group` is a class of people the filing " +
+      "discloses against rather than a nameable party (see party_label); it " +
+      "carries no observation_id.",
+  }),
   observation_id: TypeNullable(
     Type.Integer({
       description:

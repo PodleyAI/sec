@@ -46,7 +46,17 @@ export interface FixtureRunResult {
  */
 export interface StabilitySummary {
   readonly model: string;
+  /** Fixtures the sweep touched at all, complete or not. */
   readonly fixtures: number;
+  /**
+   * Fixtures that completed all `runs` repetitions — the only ones the
+   * stability counts are computed over, and therefore the only honest
+   * denominator for them. Reporting `stableExact` against {@link fixtures}
+   * read an interrupted sweep as an unreproducible one: `same 3/5` says two
+   * fixtures were measured and disagreed with themselves, when in fact they
+   * were never measured twice.
+   */
+  readonly measured: number;
   readonly stableExact: number;
   readonly stableContent: number;
   readonly runs: number;
@@ -227,19 +237,34 @@ export function summarizeStability(
 ): StabilitySummary[] {
   const byModel = new Map<string, Map<string, FixtureRunResult[]>>();
   for (const r of results) {
-    const fixtures = byModel.get(r.model) ?? new Map<string, FixtureRunResult[]>();
-    fixtures.set(r.fixture, [...(fixtures.get(r.fixture) ?? []), r]);
-    byModel.set(r.model, fixtures);
+    let fixtures = byModel.get(r.model);
+    if (fixtures === undefined) {
+      fixtures = new Map<string, FixtureRunResult[]>();
+      byModel.set(r.model, fixtures);
+    }
+    const group = fixtures.get(r.fixture);
+    if (group === undefined) fixtures.set(r.fixture, [r]);
+    else group.push(r);
   }
   const out: StabilitySummary[] = [];
   for (const [model, fixtures] of byModel) {
     let stableExact = 0;
     let stableContent = 0;
+    let measured = 0;
     for (const group of fixtures.values()) {
+      // A fixture that did not complete all `runs` repetitions (Ctrl-C mid
+      // sweep) proves nothing about reproducibility: a lone recorded run
+      // trivially agrees with itself, and counting it would report an aborted
+      // sweep as more reproducible than a finished one. It is excluded from
+      // the denominator too, and reported separately as skipped — leaving it
+      // in read as "measured and found unreproducible", the opposite of what
+      // happened.
+      if (group.length < runs) continue;
+      measured += 1;
       if (new Set(group.map((g) => g.fingerprint)).size === 1) stableExact += 1;
       if (new Set(group.map((g) => g.contentFingerprint)).size === 1) stableContent += 1;
     }
-    out.push({ model, fixtures: fixtures.size, stableExact, stableContent, runs });
+    out.push({ model, fixtures: fixtures.size, measured, stableExact, stableContent, runs });
   }
   return out;
 }
@@ -302,41 +327,44 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
     for (const fixture of fixtures) {
       if (opts.signal?.aborted) break;
       for (let run = 1; run <= runs; run++) {
-      if (opts.signal?.aborted) break;
-      const label = runs > 1 ? `${modelId} — ${fixture.name} (run ${run}/${runs})` : `${modelId} — ${fixture.name}`;
-      progress(done, total, label);
-      const result = model
-        ? await runOne(
-            modelId,
-            model,
-            fixture,
-            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label),
-            run
-          )
-        : ({
-            model: modelId,
-            fixture: fixture.name,
-            extractor: fixture.extractor,
-            ok: false,
-            error: `model "${modelId}" not registered`,
-            latencyMs: 0,
-            rows: 0,
-            score: scoreExtraction([], fixture.expected, {
-              keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
-            }),
-            cost: estimateCost(modelId, 0, 0),
-            run,
-            fingerprint: `unregistered:${run}`,
-            contentFingerprint: `unregistered:${run}`,
-          } satisfies FixtureRunResult);
-      results.push(result);
-      modelRows.push(result);
-      done += 1;
-      progress(
-        done,
-        total,
-        `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`
-      );
+        if (opts.signal?.aborted) break;
+        const label =
+          runs > 1
+            ? `${modelId} — ${fixture.name} (run ${run}/${runs})`
+            : `${modelId} — ${fixture.name}`;
+        progress(done, total, label);
+        const result = model
+          ? await runOne(
+              modelId,
+              model,
+              fixture,
+              sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label),
+              run
+            )
+          : ({
+              model: modelId,
+              fixture: fixture.name,
+              extractor: fixture.extractor,
+              ok: false,
+              error: `model "${modelId}" not registered`,
+              latencyMs: 0,
+              rows: 0,
+              score: scoreExtraction([], fixture.expected, {
+                keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
+              }),
+              cost: estimateCost(modelId, 0, 0),
+              run,
+              fingerprint: `unregistered:${run}`,
+              contentFingerprint: `unregistered:${run}`,
+            } satisfies FixtureRunResult);
+        results.push(result);
+        modelRows.push(result);
+        done += 1;
+        progress(
+          done,
+          total,
+          `${modelId} — ${fixture.name} (score ${(result.score.score * 100).toFixed(0)}%)`
+        );
       }
     }
     summaries.push(summarizeModelRuns(modelId, provider, modelRows));

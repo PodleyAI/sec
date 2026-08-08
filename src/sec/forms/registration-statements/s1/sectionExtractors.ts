@@ -5,7 +5,7 @@
  */
 
 import type { IExecuteContext, ModelConfig } from "workglow";
-import { StructuredGenerationTask } from "workglow";
+import { StructuredGenerationTask, TaskAbortedError } from "workglow";
 import { createHash } from "node:crypto";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
@@ -184,29 +184,153 @@ export const EXTRACTION_ATTEMPTS = 3;
  */
 export const MAX_RATE_LIMIT_WAITS = 5;
 
+/**
+ * Ceiling on a single throttle wait. It bounds the provider-STATED delay as
+ * well as the exponential fallback: a daily/RPD quota answers with a delay
+ * measured in hours, and honouring that verbatim would park one section on a
+ * `setTimeout` for the rest of the afternoon — the opposite of what
+ * {@link MAX_RATE_LIMIT_WAITS} promises. Waiting the ceiling and then failing
+ * surfaces an exhausted quota as a dead letter, which is triageable.
+ */
+export const MAX_RATE_LIMIT_WAIT_MS = 30_000;
+
+/**
+ * Thrown when a call was throttled {@link MAX_RATE_LIMIT_WAITS} times and the
+ * provider's window still had not cleared.
+ *
+ * It gets its own type because the section runner has to tell it apart from a
+ * bad response: nothing was wrong with the extractor here, it never got to run.
+ * That makes the failure transient and recoverable by re-running as-is, whereas
+ * the generic invalid-output code is version-gated — which would ask an
+ * operator to ship a code change to recover from a quota window. The provider's
+ * own text is preserved (and the original error kept as `cause`) because it is
+ * what names which limit was hit — TPM, RPM or a daily RPD — and those want
+ * different responses.
+ */
+export class RateLimitExhaustedError extends Error {
+  constructor(
+    readonly waits: number,
+    cause: unknown
+  ) {
+    const providerText = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Provider throttle did not clear after ${waits} wait${waits === 1 ? "" : "s"}: ${providerText}`,
+      { cause }
+    );
+    this.name = "RateLimitExhaustedError";
+  }
+}
+
+/**
+ * The head of an error message — everything before the first newline.
+ *
+ * Both throttle matchers below are applied to this rather than to the whole
+ * string, because sec's own `classifyProviderError` / `withJobErrorDiagnostics`
+ * append the captured `.stack` to the message they re-throw. A stack frame
+ * reading `.../sectionExtractors.ts:429:15` is not an HTTP status, and a frame
+ * reading `at isRateLimitError` is not the phrase "rate limit" — matching only
+ * the head makes both structurally impossible instead of a matter of how clever
+ * the patterns are.
+ */
+function messageHead(message: string): string {
+  return message.split("\n", 1)[0];
+}
+
+/** Phrases every provider we call uses for a throttle. */
+const RATE_LIMIT_PHRASES = /rate[ _-]?limit|too many requests/i;
+
+/**
+ * An HTTP 429 *in a context that says it is a status code*. A bare `429` token
+ * is wrong in both directions, and each misread costs real money:
+ *
+ * - False positive. Provider errors quote the model's own output back at us, so
+ *   `expected string, got 429` — or a share count, or a dollar figure — read as
+ *   a throttle. A throttle is retried WITHOUT spending an attempt, so one bad
+ *   payload turned into five extra billed calls and minutes of sleeping before
+ *   failing anyway.
+ * - False negative. Excluding a 429 followed by punctuation rejected
+ *   `…status code 429.` and `{"status":429,…}`, which really are throttles, so
+ *   the section burned its retry budget hammering a closed window.
+ *
+ * Requiring the surrounding word — `HTTP`, `status`, `code`, `error`, or `too
+ * many` — separates the two populations without depending on what follows the
+ * digits.
+ */
+const HTTP_429 =
+  /(?:\bhttp\/?[\d.]*\s+429\b|\bstatus(?:\s*code)?"?\s*[:=]?\s*"?429\b|\b429\s+(?:too\s+many|error\b)|\berror\s*:?\s*429\b|\bcode"?\s*[:=]\s*"?429\b)/i;
+
+/**
+ * Sleeps, waking early when `signal` aborts. A plain `setTimeout` would hold a
+ * Ctrl-C for up to {@link MAX_RATE_LIMIT_WAITS} full waits, since the sweep can
+ * only notice the abort between calls.
+ */
+async function sleepUnlessAborted(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  if (ms <= 0 || signal?.aborted === true) return;
+  await new Promise<void>((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
 /** Whether a provider error is a throttle rather than a bad response. */
 export function isRateLimitError(e: unknown): boolean {
-  const message = e instanceof Error ? e.message : String(e);
-  return /rate limit|rate_limit|429|too many requests/i.test(message);
+  const head = messageHead(e instanceof Error ? e.message : String(e));
+  return RATE_LIMIT_PHRASES.test(head) || HTTP_429.test(head);
+}
+
+/** Introduces a stated retry delay; every provider phrases it one of these ways. */
+const STATED_DELAY =
+  /(?:try again in|retry after|retry-after:?)\s*((?:\d+(?:\.\d+)?\s*(?:ms|h|m|s)\s*)+)/i;
+
+/** One `<number><unit>` component of a stated delay. `ms` is matched before `m`. */
+const DELAY_COMPONENT = /(\d+(?:\.\d+)?)\s*(ms|h|m|s)/gi;
+
+const UNIT_MS: Readonly<Record<string, number>> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 };
+
+/**
+ * The delay a provider stated, in milliseconds, or `null` when it stated none.
+ *
+ * Composite because that is what providers actually emit: an OpenAI RPD limit
+ * answers `Please try again in 8m38.4s`, which a seconds-only reader silently
+ * parsed as "no delay stated" and fell back to a 1s exponential base — so five
+ * waits totalled 31 seconds against a limit measured in minutes, and the
+ * section failed as if the model had misbehaved.
+ */
+export function statedDelayMs(message: string): number | null {
+  const stated = message.match(STATED_DELAY);
+  if (stated === null) return null;
+  let total = 0;
+  let sawComponent = false;
+  for (const [, value, unit] of stated[1].matchAll(DELAY_COMPONENT)) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) continue;
+    total += n * UNIT_MS[unit.toLowerCase()];
+    sawComponent = true;
+  }
+  return sawComponent ? Math.ceil(total) : null;
 }
 
 /**
  * How long to wait before retrying a throttled call.
  *
- * Providers usually say — OpenAI returns "Please try again in 4.082s" — so the
- * stated delay is honoured when present rather than guessed at. Otherwise back
- * off exponentially from one second. Either way a little jitter is added so
- * several sections throttled by the same window do not all wake together and
- * re-collide.
+ * Providers usually say — OpenAI returns "Please try again in 4.082s", or
+ * "8m38.4s" against a daily limit — so the stated delay is honoured when
+ * present rather than guessed at. Otherwise back off exponentially from one
+ * second. Both are clamped to {@link MAX_RATE_LIMIT_WAIT_MS}, so a provider
+ * that states an hour cannot suspend the sweep for one. Either way a little
+ * jitter is added so several sections throttled by the same window do not all
+ * wake together and re-collide.
  */
 export function rateLimitWaitMs(e: unknown, waitNumber: number, jitter = Math.random()): number {
   const message = e instanceof Error ? e.message : String(e);
-  const stated = message.match(/try again in ([\d.]+)\s*s/i);
-  const base =
-    stated !== null && Number.isFinite(Number(stated[1]))
-      ? Math.ceil(Number(stated[1]) * 1000) + 250
-      : Math.min(1000 * 2 ** (waitNumber - 1), 30_000);
-  return base + Math.floor(jitter * 500);
+  const stated = statedDelayMs(message);
+  const uncapped = stated !== null ? stated + 250 : 1000 * 2 ** (waitNumber - 1);
+  return Math.min(uncapped, MAX_RATE_LIMIT_WAIT_MS) + Math.floor(jitter * 500);
 }
 
 /**
@@ -366,14 +490,6 @@ function stripFormatChars(s: string): string {
   return s.replace(/[\p{Cf}︀-️\u{E0100}-\u{E01EF}]/gu, "");
 }
 
-/**
- * Generates a 16-hex-char (64-bit) verification token for a single call. The
- * token is planted in the trusted preamble only ({@link buildUntrustedPreamble})
- * and echoed back by the model as `nonce_seen`. Unguessable inside one
- * extraction call: a filer who pre-stages `nonce_seen: "..."` in the prospectus
- * has no way to know which 16-hex value we minted this call, so the value they
- * planted cannot match the preamble-side token.
- */
 /**
  * Whether the per-call verification token is planted at all.
  *
@@ -685,11 +801,12 @@ function stripNonceSeen(schema: object): object {
  * Runs one guarded structured-generation round-trip: wraps the filer text in
  * the untrusted fence, builds the injection-hardening preamble, and validates
  * the result. For cloud providers this plants and verifies the per-call nonce;
- * for local providers ({@link isLocalProvider}) the nonce is omitted from both
- * the preamble and the schema (they can't reliably echo it), while every other
- * defense — the fence, the defang pass, and the downstream source-span gate —
- * still applies. Centralizing the nonce lifecycle here keeps every extractor's
- * call site identical and provider-agnostic.
+ * the nonce is omitted from both the preamble and the schema whenever it is not
+ * in play — for local providers ({@link isLocalProvider}, which can't reliably
+ * echo it) and, by default, for everyone ({@link isNonceEnabled}) — while every
+ * other defense — the fence, the defang pass, and the downstream source-span
+ * gate — still applies. Centralizing the nonce lifecycle here keeps every
+ * extractor's call site identical and provider-agnostic.
  */
 async function runGuardedExtraction(
   label: string,
@@ -703,12 +820,14 @@ async function runGuardedExtraction(
   const local = isLocalProvider(model);
   let lastError: unknown;
   let rateLimitWaits = 0;
+  // The fence is attempt-independent now that no nonce is embedded in it, so it
+  // is built once instead of re-normalizing the whole section on every retry.
+  const wrapped = wrapUntrusted(sectionText);
   for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
     const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
-    const wrapped = wrapUntrusted(sectionText);
     const preamble = buildUntrustedPreamble(nonce);
     const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
     try {
@@ -724,22 +843,37 @@ async function runGuardedExtraction(
       return obj;
     } catch (e) {
       // A nonce mismatch is retried like any other failure, and deliberately so.
-      // Retrying cannot weaken the check: every attempt plants a FRESH nonce,
-      // and an injected payload cannot echo a token it was never shown, so a
-      // genuine attack still fails all attempts and still dead-letters as
-      // NONCE_MISMATCH (the last error is what propagates, preserving the
-      // reason code). What it does fix is transcription noise — a real run saw
-      // the model return the expected token shifted one place with a leading
-      // zero, and another return it one hex character short. Neither is an
-      // attack, and neither should cost a section.
+      // Retrying cannot weaken the check: each attempt derives its own nonce
+      // (see {@link deriveVerifyNonce}), so a reply to the previous prompt does
+      // not satisfy the current one and a genuine attack still fails every
+      // attempt and still dead-letters as NONCE_MISMATCH (the last error is
+      // what propagates, preserving the reason code). What it does fix is
+      // transcription noise — a real run saw the model return the expected
+      // token shifted one place with a leading zero, and another return it one
+      // hex character short. Neither is an attack, and neither should cost a
+      // section.
       lastError = e;
       // A throttle is not the model's fault: wait it out and retry WITHOUT
       // spending an attempt, so the section is not dead-lettered for being
       // queued. Bounded by MAX_RATE_LIMIT_WAITS so a permanently exhausted
       // quota still fails rather than hanging.
-      if (isRateLimitError(e) && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
+      if (isRateLimitError(e)) {
+        // Budget spent. Fail as a throttle rather than falling through to
+        // attempt++, which would spend the retry budget on a closed window and
+        // then report an exhausted quota under the version-gated
+        // invalid-output code — a transient condition an operator could only
+        // clear by bumping the extractor version.
+        if (rateLimitWaits >= MAX_RATE_LIMIT_WAITS) {
+          throw new RateLimitExhaustedError(rateLimitWaits, e);
+        }
         rateLimitWaits++;
-        await new Promise((resolve) => setTimeout(resolve, rateLimitWaitMs(e, rateLimitWaits)));
+        await sleepUnlessAborted(rateLimitWaitMs(e, rateLimitWaits), context?.signal);
+        // Ctrl-C during the wait must not buy the throttle another round trip
+        // — and must surface AS a cancellation. Rethrowing the 429 instead made
+        // the section record a dead letter and return normally, so the sweep
+        // carried on stamping version-gated failures on every remaining section
+        // of a filing the operator had already interrupted.
+        if (context?.signal?.aborted === true) throw new TaskAbortedError();
         continue;
       }
       attempt++;
@@ -997,6 +1131,7 @@ const COLLECTIVE_PARTY_LABEL =
 /**
  * Words naming a role or class of people rather than a person.
  */
+// prettier-ignore
 const ROLE_WORDS = new Set([
   "advisers", "advisors", "affiliates", "consultants", "directors", "employees",
   "executives", "founders", "insiders", "management", "members", "nominees",
@@ -1009,11 +1144,11 @@ const ROLE_WORDS = new Set([
  * "and", "our". A name built only from these plus {@link ROLE_WORDS} describes a
  * class, not a person.
  */
+// prettier-ignore
 const COLLECTIVE_QUALIFIERS = new Set([
   "all", "and", "any", "certain", "current", "each", "executive", "existing",
   "former", "independent", "initial", "key", "non-employee", "of", "other",
-  "otherwise",
-  "our", "outside", "senior", "several", "the",
+  "otherwise", "our", "outside", "senior", "several", "the",
 ]);
 
 /**

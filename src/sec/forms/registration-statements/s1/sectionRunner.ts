@@ -4,10 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TaskAbortedError } from "workglow";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
-import { MixedRiskCaptionShapeError, NonceMismatchError } from "./sectionExtractors";
+import {
+  MixedRiskCaptionShapeError,
+  NonceMismatchError,
+  RateLimitExhaustedError,
+} from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 
 /**
@@ -98,6 +103,11 @@ export type RunSection = <TRow extends { confidence: number }>(
  * low-confidence / invalid-output dead letters. Every AI-extracted prospectus
  * section (S-1 and 424 alike) funnels through here so the policy lives in
  * exactly one place.
+ *
+ * The returned `runSection` contains every extraction failure as a dead letter
+ * with ONE exception: cooperative cancellation propagates. See the catch block
+ * for why, and note that callers wrapping it in their own try/catch must not
+ * swallow a {@link TaskAbortedError}.
  */
 export function makeRunSection(opts: {
   readonly deadLetters: ExtractionDeadLetterRepo;
@@ -105,6 +115,14 @@ export function makeRunSection(opts: {
   readonly extractor_version: string;
   readonly accession_number: string;
   readonly confidenceFloor?: number;
+  /**
+   * The filing pipeline's abort signal. Used only to classify a failure that
+   * arrives while cancellation is already in flight: a provider call torn down
+   * mid-abort reports whatever transport error it happened to hit, and
+   * recording that as an extraction failure stamps a version-gated dead letter
+   * on a section that was merely interrupted.
+   */
+  readonly signal?: AbortSignal;
 }): RunSection {
   const { deadLetters, extractor_id, extractor_version, accession_number } = opts;
   const floor = opts.confidenceFloor ?? CONFIDENCE_FLOOR;
@@ -216,9 +234,10 @@ export function makeRunSection(opts: {
             extractor_id,
             accession_number,
             section_name: partialSection,
-            reason_code: droppedTooLong === droppedUnverified
-              ? "SOURCE_SPAN_TOO_LONG"
-              : "UNVERIFIED_SOURCE_SPAN",
+            reason_code:
+              droppedTooLong === droppedUnverified
+                ? "SOURCE_SPAN_TOO_LONG"
+                : "UNVERIFIED_SOURCE_SPAN",
             detail:
               sargs.unverifiedPartialDetail
                 .replace(/\$N/g, String(droppedUnverified))
@@ -232,6 +251,31 @@ export function makeRunSection(opts: {
         }
       }
     } catch (e) {
+      // Three escapes run ahead of the reason-code mapping, in this order.
+      //
+      // Cooperative cancellation is not an extraction failure and must reach
+      // the filing pipeline, which abandons the filing rather than recording
+      // one:
+      //   - the first branch keys on the error TYPE, so a genuine schema
+      //     failure is never rethrown by it;
+      //   - the second only fires when the signal is ALREADY aborted, where the
+      //     pipeline abandons the filing regardless of what this section did,
+      //     and it keeps the original error as `cause` so nothing is lost.
+      //
+      // Cancellation is checked BEFORE the configuration escape because the
+      // aborted-signal branch is deliberately type-blind: once Ctrl-C is in
+      // flight, whatever error a torn-down provider call happens to surface is
+      // an artifact of the teardown, not a verdict about the section. Both
+      // escapes rethrow, so neither can be swallowed into a dead letter either
+      // way — the ordering only decides which error the pipeline sees, and
+      // during an abort the honest answer is "the operator cancelled", with the
+      // original preserved as `cause`.
+      if (e instanceof TaskAbortedError) throw e;
+      if (opts.signal?.aborted === true) {
+        const aborted = new TaskAbortedError();
+        aborted.cause = e;
+        throw aborted;
+      }
       // A configuration error is not an extraction failure: the value is wrong
       // for every section of every filing, so recording it would stamp a
       // version-gated dead letter across the whole corpus that no version bump
@@ -245,12 +289,17 @@ export function makeRunSection(opts: {
       // nonce-check failures separately from generic invalid-output cases.
       // A MixedRiskCaptionShapeError is likewise its own triage class: the
       // response was well-formed, and what failed is the section's shape.
+      // A RateLimitExhaustedError is not an extractor bug at all — the call
+      // never ran — so it is recorded transiently and stays retry-eligible
+      // under the same version.
       const reason: DeadLetterReasonCode =
         e instanceof NonceMismatchError
           ? "NONCE_MISMATCH"
           : e instanceof MixedRiskCaptionShapeError
             ? "MIXED_CAPTION_SHAPE"
-            : "MODEL_INVALID_OUTPUT";
+            : e instanceof RateLimitExhaustedError
+              ? "RATE_LIMITED"
+              : "MODEL_INVALID_OUTPUT";
       await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
     }
   };

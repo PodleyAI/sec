@@ -164,22 +164,32 @@ HuggingFace Transformers ONNX
 load failure or missing key warns and is skipped). Absent a working provider /
 key, each AI section dead-letters instead of aborting the filing.
 
-A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) is
-retryable under the **same** extractor version — `retry-dead-letters` recovers it
-once the model/provider is registered, no version bump required
-(`MODEL_ERROR_REASON_CODES` in `ExtractionDeadLetterSchema.ts`). Every other reason
-code stays version-gated (fix the extractor, bump the version, then retry).
+A `MODEL_RESOLUTION_ERROR` dead-letter (model/provider was unavailable) or a
+`RATE_LIMITED` one (the provider throttled the call and the section spent its
+whole wait-out budget without the window clearing) is retryable under the
+**same** extractor version — `retry-dead-letters` recovers it once the
+model/provider is registered, or once the quota window has moved on, with no
+version bump required (`MODEL_ERROR_REASON_CODES` in
+`ExtractionDeadLetterSchema.ts`). Every other reason code stays version-gated
+(fix the extractor, bump the version, then retry).
+
+The two are deliberately **not** the same code even though their retry semantics
+are identical: `MODEL_RESOLUTION_ERROR` means the configured model id is not
+registered, and its operator action is to add a key or register a provider;
+`RATE_LIMITED` means wait, then retry. Merging them makes the worklist counts
+unreadable during exactly the outage an operator would be triaging.
 
 The vocabulary is `DEAD_LETTER_REASON_CODES` in
 `ExtractionDeadLetterSchema.ts`: `SECTION_NOT_FOUND`, `MODEL_INVALID_OUTPUT`,
 `MODEL_EMPTY`, `MODEL_RESOLUTION_ERROR`, `LOW_CONFIDENCE_ALL`,
 `PRIMARY_DOC_UNRESOLVED`, `FETCH_ERROR`, `PARSE_ERROR`, `STORE_ERROR`,
 `OVERSIZED_INPUT`, `UNVERIFIED_SOURCE_SPAN`, `SOURCE_SPAN_TOO_LONG`,
-`MIXED_CAPTION_SHAPE`, `NONCE_MISMATCH`. The stored column is a plain string, so
-`DeadLetterInput.reason_code` is typed to that union — a code written but never
-declared used to persist silently (which is how `UNVERIFIED_SOURCE_SPAN` and
-`SOURCE_SPAN_TOO_LONG` were both written for some time without appearing in the
-list an operator reads); adding one is now a compile error until it is declared.
+`MIXED_CAPTION_SHAPE`, `NONCE_MISMATCH`, `RATE_LIMITED`. The stored column is a
+plain string, so `DeadLetterInput.reason_code` is typed to that union — a code
+written but never declared used to persist silently (which is how
+`UNVERIFIED_SOURCE_SPAN` and `SOURCE_SPAN_TOO_LONG` were both written for some
+time without appearing in the list an operator reads); adding one is now a
+compile error until it is declared.
 
 #### Filing-level dead-letters (every form, not just the AI ones)
 

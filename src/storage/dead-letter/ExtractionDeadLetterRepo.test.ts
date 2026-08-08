@@ -98,4 +98,33 @@ describe("ExtractionDeadLetterRepo", () => {
     expect(eligible.map((r) => r.accession_number)).toEqual(["model-err"]);
     expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
   });
+
+  it("keeps RATE_LIMITED entries eligible under the same version", async () => {
+    // The section never ran: the provider throttled it until its wait budget
+    // was spent. Nothing about the extractor needs fixing, so gating the retry
+    // on a version bump would ask for a code change to recover from a quota
+    // window that has since moved on.
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "throttled",
+      section_name: "Management",
+      reason_code: "RATE_LIMITED",
+      detail: "Provider throttle did not clear after 5 waits: HTTP 429",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "output-bug",
+      section_name: "Management",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const eligible = await repo.listEligible("S-1", "1.0.0");
+    expect(eligible.map((r) => r.accession_number)).toEqual(["throttled"]);
+    expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
+  });
 });

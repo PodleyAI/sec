@@ -175,6 +175,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
       extractor_version,
       accession_number,
       confidenceFloor: getMergerProxyConfidenceFloor(),
+      signal: args.context?.signal,
     });
     try {
       await runSection<MergerDealRow>({

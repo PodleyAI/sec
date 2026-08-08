@@ -216,6 +216,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     extractor_version,
     accession_number,
     confidenceFloor: getRedemptionConfidenceFloor(),
+    signal: args.context?.signal,
   });
 
   let persisted = 0;

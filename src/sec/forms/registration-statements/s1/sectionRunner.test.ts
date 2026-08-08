@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { TaskAbortedError } from "workglow";
+import { RateLimitExhaustedError } from "./sectionExtractors";
 import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
 interface RecordedLetter {
@@ -310,5 +312,71 @@ describe("makeRunSection configuration errors", () => {
 
     expect(letters).toEqual([]);
     expect(resolved).toEqual([]);
+  });
+});
+
+describe("makeRunSection failure classification", () => {
+  const run = (
+    opts: { readonly signal?: AbortSignal },
+    thrown: unknown
+  ): { promise: Promise<void>; letters: RecordedLetter[] } => {
+    const { repo, letters } = stubDeadLetters();
+    const promise = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-classify",
+      ...opts,
+    })<{ confidence: number }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      extract: async () => {
+        throw thrown;
+      },
+      persist: async () => 0,
+    });
+    return { promise, letters };
+  };
+
+  it("records an exhausted throttle as RATE_LIMITED, not a version-gated bug", async () => {
+    const { promise, letters } = run({}, new RateLimitExhaustedError(5, new Error("HTTP 429")));
+    await promise;
+    expect(letters).toEqual([{ section_name: "underwriters", reason_code: "RATE_LIMITED" }]);
+  });
+
+  it("propagates a TaskAbortedError instead of dead-lettering it", async () => {
+    // Ctrl-C must reach the filing pipeline, which abandons the filing. Turning
+    // it into a dead letter left the sweep grinding and stamped version-gated
+    // failures on sections that were merely interrupted.
+    const { promise, letters } = run({}, new TaskAbortedError());
+    await expect(promise).rejects.toBeInstanceOf(TaskAbortedError);
+    expect(letters).toEqual([]);
+  });
+
+  it("treats any failure raised under an already-aborted signal as cancellation", async () => {
+    // A provider call torn down mid-abort reports whatever transport error it
+    // happened to hit; the signal, not the error's shape, is what says the
+    // filing was interrupted.
+    const controller = new AbortController();
+    controller.abort();
+    const cause = new Error("socket hang up");
+    const { promise, letters } = run({ signal: controller.signal }, cause);
+    await expect(promise).rejects.toBeInstanceOf(TaskAbortedError);
+    await expect(promise).rejects.toMatchObject({ cause });
+    expect(letters).toEqual([]);
+  });
+
+  it("still dead-letters a real failure when nothing was aborted", async () => {
+    const controller = new AbortController();
+    const { promise, letters } = run(
+      { signal: controller.signal },
+      new Error("The required property `confidence` is missing")
+    );
+    await promise;
+    expect(letters).toEqual([
+      { section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" },
+    ]);
   });
 });

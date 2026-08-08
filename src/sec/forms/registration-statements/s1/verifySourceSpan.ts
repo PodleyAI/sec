@@ -28,11 +28,7 @@ function collapseTablePipes(s: string): string {
 export function normalizeForSpanMatch(s: string | null | undefined): string {
   if (s == null) return "";
   return collapseTablePipes(
-    s
-      .normalize("NFKC")
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'")
-      .replace(/\s+/g, " ")
+    s.normalize("NFKC").replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ")
   )
     .trim()
     .toLowerCase();
@@ -93,15 +89,23 @@ export function spanCapFor(text: string): number {
 }
 
 /**
- * Classifies a model-emitted span against the section text it claims to quote.
- * The raw (pre-normalization) length is checked first, so a span padded with
- * whitespace that would collapse under cap is still rejected as `too-long`.
- */
-/**
  * An elision marker a model writes to skip material it does not want to quote
  * in full — literally "..." or "…" inside a span.
  */
 const ELISION_MARKER = /(?:\.\.\.|…)/;
+
+/**
+ * Whether a model-emitted string skips material with an elision marker.
+ *
+ * Exported because the salvage {@link contiguousSpanHead} performs is a
+ * *citation* concession, not a licence to store an abridged value: a field
+ * whose contract is the filer's own words verbatim (a risk factor's caption)
+ * must reject an elided value outright rather than persist its head as if it
+ * were the whole thing.
+ */
+export function isElided(s: string | null | undefined): boolean {
+  return s != null && ELISION_MARKER.test(s);
+}
 
 /**
  * Minimum length of the surviving head before an elided span is accepted, in
@@ -134,16 +138,48 @@ export function contiguousSpanHead(span: string): string {
   return cut === -1 ? span : span.slice(0, cut);
 }
 
+/**
+ * `normalizeForSpanMatch` of the section text, memoized on the last text seen.
+ *
+ * Every row's verification re-normalizes the WHOLE section — risk factors do it
+ * twice per row (headline and span) across ~90 rows of a section that runs to
+ * a quarter of a megabyte, and the section runner repeats the pass up to
+ * VERIFICATION_ATTEMPTS times. A one-entry memo collapses that to one pass per
+ * section: the runner hands the same string instance to every call, so the
+ * identity check is free. It is a cache, so a miss only costs the work that
+ * would have happened anyway.
+ */
+let memoizedSectionText: string | undefined;
+let memoizedSectionNormalized = "";
+function normalizedSection(text: string): string {
+  if (text !== memoizedSectionText) {
+    memoizedSectionNormalized = normalizeForSpanMatch(text);
+    memoizedSectionText = text;
+  }
+  return memoizedSectionNormalized;
+}
+
+/**
+ * Classifies a model-emitted span against the section text it claims to quote.
+ * The raw (pre-normalization) length of the contiguous head is checked first, so
+ * a span padded with whitespace that would collapse under cap is still rejected
+ * as `too-long`.
+ */
 export function classifySpan(text: string, span: string | null | undefined): SpanVerdict {
   if (span == null) return "not-found";
-  if (span.length > spanCapFor(text)) return "too-long";
   const elided = ELISION_MARKER.test(span);
   const candidate = contiguousSpanHead(span);
+  // The cap applies to the head, which is the only part that is verified and
+  // the only part that is ever stored. Applying it to the raw span instead
+  // would reject exactly the over-ambitious stitched citations the head exists
+  // to salvage, since those are the long ones — and it would buy nothing: the
+  // elided tail reaches neither the verifier nor the database.
+  if (candidate.length > spanCapFor(text)) return "too-long";
   const n = normalizeForSpanMatch(candidate);
   // An elided span must leave a substantial verbatim head behind; an ordinary
   // span only has to clear the trivial-match floor.
   if (n.length < (elided ? MIN_ELIDED_HEAD_CHARS : 3)) return "not-found";
-  return normalizeForSpanMatch(text).includes(n) ? "ok" : "not-found";
+  return normalizedSection(text).includes(n) ? "ok" : "not-found";
 }
 
 /**

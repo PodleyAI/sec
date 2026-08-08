@@ -31,7 +31,7 @@ import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
-import { boundSourceSpan, classifySpan, worstVerdict } from "./s1/verifySourceSpan";
+import { boundSourceSpan, classifySpan, isElided, worstVerdict } from "./s1/verifySourceSpan";
 import {
   extractBeneficialOwnership,
   extractExecutiveCompensation,
@@ -309,6 +309,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     extractor_id: EXTRACTOR_ID,
     extractor_version,
     accession_number,
+    signal: args.context?.signal,
   });
 
   // The entity sections feed a SECTION_NOT_FOUND with a `null` detail when the
@@ -355,6 +356,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           extractor_version,
           accession_number,
           confidenceFloor: getSpacClassifierConfidenceFloor(),
+          signal: args.context?.signal,
         });
         await classifierRunSection<SpacClassificationRow>({
           sectionName: "spac-classification",
@@ -814,6 +816,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         extractor_version,
         accession_number,
         confidenceFloor: getRiskFactorsConfidenceFloor(),
+        signal: args.context?.signal,
       });
       await riskRunSection<RiskFactorRow>({
         sectionName: RISK_FACTORS_SECTION,
@@ -826,8 +829,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // risk is worthless even when the span it cites verifies. Verifying it
         // also bounds the stored headline (the verifier rejects anything over
         // MAX_SPAN_CHARS raw chars) inside the column's declared width.
+        //
+        // An elided headline fails outright rather than going through
+        // classifySpan, which would salvage the pre-"..." head. That salvage is
+        // right for a citation — a real quote you can find in the filing beats
+        // no citation — but wrong for this field: the caption's contract is the
+        // filer's sentence verbatim, and a truncated one is stored as a
+        // complete caption with no marker saying otherwise. Dropping the row
+        // routes it into the existing `-partial` / UNVERIFIED_SOURCE_SPAN
+        // machinery instead of quietly recording an abridged disclosure.
         verifyRow: (text, r) =>
-          worstVerdict(classifySpan(text, r.source_span), classifySpan(text, r.headline)),
+          worstVerdict(
+            classifySpan(text, r.source_span),
+            isElided(r.headline) ? "not-found" : classifySpan(text, r.headline)
+          ),
         unverifiedAllDetail:
           "all $T confident risk factor rows had headline/source_span not present in section text",
         unverifiedPartialDetail:
@@ -837,7 +852,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           const now = new Date().toISOString();
           let riskIndex = 0;
           for (const r of rows) {
-            const headline = r.headline?.trim() ?? "";
+            // Stored whole. Every row reaching persist has already had its
+            // headline verified verbatim against the section text and rejected
+            // if elided, so there is nothing left to salvage here — cutting at
+            // an elision marker would only be able to shorten a caption that
+            // is already the filer's complete sentence.
+            const headline = (r.headline ?? "").trim();
             if (headline === "") continue;
             const category = r.category?.trim() ?? "";
             await riskFactorRepo.save({
