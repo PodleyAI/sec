@@ -33,6 +33,25 @@ const entriesFor = (extractor: string): [string, readonly GoldenRow[]][] =>
 const extractorOf = (key: string): string => key.split("::")[1] ?? "";
 
 /**
+ * Extractors production runs ONLY for a SPAC issuer. `Form_S_1.storage` gates
+ * them behind `isSpac` (SIC 6770), so an operating company's summary is never
+ * fed to them. Requiring labels there would force ground truth for an input the
+ * pipeline cannot produce, and would score the extractor on work it never does.
+ */
+const SPAC_ONLY_EXTRACTORS = new Set(["spac-profile", "spac-sponsors"]);
+
+/**
+ * Whether a filing is a SPAC, derived from its own `spac-classification` label
+ * rather than a second hand-maintained list: that extractor's golden answer is
+ * exactly "is this issuer a SPAC" (one row for yes, none for no), so reusing it
+ * means the two can never disagree.
+ */
+function isSpacFiling(filing: string): boolean {
+  const rows = getGoldenLabels(filing, "spac-classification");
+  return rows !== undefined && rows.length > 0;
+}
+
+/**
  * A row's identity for duplicate detection. Uses the extractor's own `keyField`
  * so this works for every shape; the positional extractors (offering-terms,
  * sponsor-promote, executive-compensation) declare no keyField, and for those
@@ -113,7 +132,10 @@ describe("goldenS1Labels", () => {
     (extractor) => {
       const { sections } = loadRealS1Sections([extractor]);
       expect(sections.length).toBeGreaterThan(0);
-      for (const s of sections) {
+      const required = SPAC_ONLY_EXTRACTORS.has(extractor)
+        ? sections.filter((s) => isSpacFiling(s.filing))
+        : sections;
+      for (const s of required) {
         expect(getGoldenLabels(s.filing, s.extractor), `${s.filing} unlabeled`).toBeDefined();
       }
     }
