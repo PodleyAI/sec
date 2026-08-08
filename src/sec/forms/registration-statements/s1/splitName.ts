@@ -12,9 +12,9 @@ export interface SplitName {
   readonly last: string | null;
   /**
    * Both trailing parts as the filing wrote them — "Jr.", "CPA", or
-   * "Jr., CPA". This lands in the observation's raw `suffix` column, which is
-   * display rather than identity, so the credential belongs here; only
-   * `normalized_suffix` (generational alone) reaches the resolver's match tuple.
+   * "Jr., CPA". `parseFullName` reports them as separate `generation` and
+   * `credential` fields; they are rejoined here so this matches what
+   * `normalizePerson` derives `normalized_suffix` from.
    */
   readonly suffix: string | null;
 }

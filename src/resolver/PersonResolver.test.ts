@@ -19,6 +19,7 @@ import {
   type CanonicalPerson,
 } from "../storage/canonical/CanonicalPersonSchema";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
+import { normalizePerson } from "../storage/person/PersonNormalization";
 import { PersonResolver } from "./PersonResolver";
 
 function makeRepos() {
@@ -206,5 +207,82 @@ describe("PersonResolver.resolve", () => {
     expect(aliasCallCount).toBe(2);
     // Exactly one canonical row was minted — find-or-create remains serialised.
     expect(createCount).toBe(1);
+  });
+});
+
+/**
+ * `personKey` matches on the observation's STORED `normalized_*` columns, so a
+ * change to what `normalizePerson` writes into them re-partitions identity at
+ * whatever `resolver_version` happens to be active. These observations are
+ * therefore built the way `EntityObserver` builds them — from a display name
+ * through `normalizePerson` — rather than with hand-written normalized values,
+ * which would pin the resolver while leaving the hazard invisible.
+ */
+describe("PersonResolver identity is keyed off normalizePerson's output", () => {
+  let setup: ReturnType<typeof makeRepos>;
+  let resolver: PersonResolver;
+
+  beforeEach(() => {
+    setup = makeRepos();
+    resolver = new PersonResolver({
+      canonicalPersonRepo: setup.canonRepo,
+      canonicalPersonAliasRepo: setup.aliasRepo,
+      activeResolverVersion: "1.0.0",
+    });
+  });
+
+  function observed(name: string, observation_id: number): PersonObservation {
+    const n = normalizePerson({ name });
+    return obs({
+      observation_id,
+      cik: null,
+      source_filing_issuer_cik: 100,
+      first_name: n?.first ?? null,
+      middle_name: n?.middle ?? null,
+      last_name: n?.last ?? null,
+      suffix: n?.suffix ?? null,
+      normalized_first: n?.first ?? null,
+      normalized_middle: n?.middle ?? null,
+      normalized_last: n?.last ?? null,
+      normalized_suffix: n?.suffix ?? null,
+    });
+  }
+
+  it("resolves a parenthesized nickname and the bare name to ONE canonical person", async () => {
+    const withNickname = await resolver.resolve(observed("Yong (David) Yan", 1));
+    const bare = await resolver.resolve(observed("Yong Yan", 2));
+
+    const rows = await setup.canonStorage.getAll();
+    expect(
+      withNickname,
+      "A parenthesized nickname reached `normalized_middle`, so the same person " +
+        "no longer matches the canonical row written from the bare spelling. " +
+        "`normalized_middle` is a member of `PersonResolver.personKey`: moving a " +
+        "name part into it re-keys every `canonical_person` row already written " +
+        "at the active resolver_version, and the next filing naming that person " +
+        "mints a SECOND row at the SAME version. Bump the `person` resolver " +
+        "(sec version start-dev resolver person <next> --bump major), re-extract " +
+        "and re-resolve at the new version, then land the change."
+    ).toBe(bare);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("still splits people who differ in a real middle name", async () => {
+    const noMiddle = await resolver.resolve(observed("Yong Yan", 1));
+    const withMiddle = await resolver.resolve(observed("Yong David Yan", 2));
+    expect(withMiddle).not.toBe(noMiddle);
+    expect(await setup.canonStorage.getAll()).toHaveLength(2);
+  });
+
+  it("keeps a credential in the key — 'Jane Doe, CPA' is its own canonical row", async () => {
+    const credentialed = await resolver.resolve(observed("Jane Doe, CPA", 1));
+    const bare = await resolver.resolve(observed("Jane Doe", 2));
+
+    // The over-split the credential rule causes, pinned as-is. Narrowing
+    // `normalized_suffix` to the generational half alone fixes it and is worth
+    // doing — behind a `person` resolver version bump, because the canonical
+    // rows already carrying "Cpa" would otherwise stop matching silently.
+    expect(credentialed).not.toBe(bare);
+    expect(await setup.canonStorage.getAll()).toHaveLength(2);
   });
 });

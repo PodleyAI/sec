@@ -19,19 +19,12 @@ export type Person = {
   middle: string | null;
   last: string;
   /**
-   * Generational suffix ONLY — "Jr.", "Sr.", "III". This is identity-bearing:
-   * a junior and a senior sharing a name are different people, so the suffix
-   * belongs in {@link generatePersonHash} and in the resolver's match tuple.
+   * Every trailing name part as one comma-joined string — generational ("Jr.",
+   * "III") and professional ("CPA", "Ph.D.") alike. This reaches
+   * `normalized_suffix`, a member of the resolver's match tuple, so its spelling
+   * decides which canonical person an observation resolves to.
    */
   suffix: string | null;
-  /**
-   * Professional credentials as written ("CPA", "Ph.D.", "M.D., CFA"), kept off
-   * the identity key. A credential describes how ONE filing annotated a person,
-   * not who they are — the same director is "Isaac Manke" in one filing and
-   * "Isaac Manke, Ph.D." in the next — so folding it into the key split every
-   * such person into two canonical rows.
-   */
-  credentials: string | null;
   title: string | null;
   nick: string | null;
   dob?: string | null;
@@ -46,15 +39,37 @@ function emptyToNull(value: string | undefined): string | null {
 }
 
 /**
+ * Re-joins the two trailing-part fields `parseFullName` v3 reports separately —
+ * `generation` ("Jr.", "III") and `credential` ("CPA", "M.D., CFA") — into the
+ * single comma-joined suffix v2 returned, which is the spelling every
+ * `canonical_person.normalized_suffix` written so far was derived from.
+ *
+ * Keeping only the generational half is the better rule: a credential says how
+ * ONE filing annotated a person, not who they are. But `normalized_suffix` sits
+ * in the resolver's match tuple, so narrowing it changes which canonical row an
+ * observation matches. Rows already written under the combined spelling stop
+ * matching and the next filing naming the same person mints a SECOND canonical
+ * row at the same `resolver_version` — an identity split with nothing to
+ * distinguish it from a legitimate row. Splitting the two fields is therefore a
+ * resolver-version-gated change: bump the `person` resolver, re-resolve, then
+ * land it.
+ *
+ * Order is generational-first, which is how filings write it ("Jr., CPA"); v2
+ * preserved the filing's own order, so a name that wrote a credential ahead of a
+ * generational suffix joins back in the opposite order.
+ */
+function combineSuffixParts(generation: string, credential: string): string | null {
+  return emptyToNull([generation, credential].filter((part) => part.trim() !== "").join(", "));
+}
+
+/**
  * Generates a hash ID for a person based on normalized name components
  */
 function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
-  // `nick` is deliberately absent: `normalizePerson` folds a nickname into
-  // `middle` when there is no middle name, so including it here would spell
-  // "Yong (David) Yan" as `yong-david-david-yan`. Listing exactly the parts the
-  // resolver's match tuple uses also keeps this hash and `personKey` from
-  // disagreeing about who is the same person — they did before, in both
-  // directions.
+  // `nick` is deliberately absent: it has no `normalized_*` column, so it never
+  // reaches `PersonResolver.personKey`. Listing exactly the parts that tuple
+  // uses keeps this hash and the resolver from disagreeing about who is the
+  // same person — they did before, in both directions.
   const hashString = [person.first, person.middle, person.last, person.suffix, person.notes]
     .filter((v) => v !== null && v !== undefined)
     .join("-")
@@ -75,10 +90,7 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
  */
 function stripNamePartPunctuation(part: string | null): string | null {
   if (part === null || part === undefined) return part ?? null;
-  const cleaned = part
-    .replace(/[.,]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const cleaned = part.replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
   return cleaned === "" ? null : cleaned;
 }
 
@@ -111,39 +123,22 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
 
   // Strip identity-neutral punctuation (initial/suffix periods) so the resolver
   // key ("first|middle|last|suffix") is stable across spelling variants.
-  // `parseFullName` classifies the trailing parts itself — it owns the suffix
-  // vocabulary, so it is the only place that can do this without the two lists
-  // drifting apart. A credential is an annotation, not an identity, and must
-  // reach neither the hash nor the resolver's match tuple, or the same director
-  // splits in two the moment one filing writes "Isaac Manke, Ph.D." and the
-  // next "Isaac Manke".
-  // A parenthesized nickname is folded into `middle` when there is no middle
-  // name, which is what puts it in the resolver's match tuple
-  // (first|middle|last|suffix) — `nick` has no column there and so was being
-  // dropped from identity entirely.
   //
-  // It is treated as identity-bearing, not as an annotation like a credential,
-  // because it frequently IS the only distinguishing signal. Across the very
-  // common Chinese/Korean/Vietnamese given-name + surname pairs a filing roster
-  // holds, "Yong Yan" is genuinely ambiguous while the adopted Western name is
-  // not; discarding "(David)" merges people that the filing itself distinguishes.
-  //
-  // The cost is the mirror image, and it is real: a filing that prints the
-  // nickname and an amendment that omits it now resolve to two canonical people
-  // — the same over-splitting that keeping credentials off the key was meant to
-  // avoid. That is bounded by `personKey` scoping the tuple to one issuer CIK,
-  // so the merge this prevents and the split it risks both live inside a single
-  // filer, where a roster's spelling is usually consistent.
-  const parsedNick = emptyToNull(results.nick);
-  const parsedMiddle = stripNamePartPunctuation(results.middle);
+  // A parenthesized nickname stays in `nick` and out of `middle`. `nick` has no
+  // column in the observation row, so it reaches neither `normalized_middle` nor
+  // the resolver's match tuple: "Yong (David) Yan" and "Yong Yan" resolve to one
+  // canonical person. Folding it into `middle` is arguably the better rule — the
+  // adopted Western name is often the only token separating two people on a
+  // roster — but it moves the match tuple, so it belongs behind a `person`
+  // resolver version bump, not in a build that keeps writing at the version
+  // whose canonical rows were minted under this rule.
   const person: Omit<Person, "person_hash_id"> = {
     first: stripNamePartPunctuation(results.first) ?? results.first,
-    middle: parsedMiddle ?? stripNamePartPunctuation(parsedNick),
+    middle: stripNamePartPunctuation(results.middle),
     last: stripNamePartPunctuation(results.last) ?? results.last,
-    suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
-    credentials: emptyToNull(results.credential),
+    suffix: stripNamePartPunctuation(combineSuffixParts(results.generation, results.credential)),
     title: results.title,
-    nick: parsedNick,
+    nick: emptyToNull(results.nick),
     dob: null,
     notes: null,
     cik,

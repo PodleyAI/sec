@@ -173,12 +173,6 @@ export class EntityObserver {
       ? normalizePerson({ name: fullName, cik: claim.cik ?? undefined })
       : undefined;
 
-    // Empty string, not null, is what `join` yields for a name carrying neither
-    // kind of suffix — so it is normalized back to null rather than stored as a
-    // blank that reads like "the filing wrote an empty suffix".
-    const parsedSuffixParts = [normalized?.suffix, normalized?.credentials].filter(Boolean);
-    const parsedSuffixDisplay = parsedSuffixParts.length > 0 ? parsedSuffixParts.join(", ") : null;
-
     const now = new Date().toISOString();
 
     // Upsert observation row
@@ -192,18 +186,13 @@ export class EntityObserver {
       first_name: clamp(claim.first_name ?? null, 128),
       middle_name: clamp(claim.middle_name ?? null, 128),
       last_name: clamp(claim.last_name ?? null, 128),
-      // The RAW suffix keeps the filing's annotation whole — generational and
-      // credential alike — because this column is display, not identity (only
-      // `normalized_suffix` reaches the resolver's match tuple). Extractors that
-      // hand over one `full_name` string supply no `claim.suffix`, so without
-      // the fallback a parsed-out "CPA" would be dropped entirely now that it no
-      // longer rides along in `normalized_suffix`.
-      suffix: clamp(claim.suffix ?? parsedSuffixDisplay, 32),
+      suffix: clamp(claim.suffix ?? null, 32),
       normalized_first: clamp(normalized?.first ?? null, 128),
       normalized_middle: clamp(normalized?.middle ?? null, 128),
       normalized_last: clamp(normalized?.last ?? null, 128),
-      // Generational only — a credential annotates a person, it does not
-      // identify one. See `splitSuffixParts`.
+      // Generational AND credential suffixes alike — this column is a member of
+      // the resolver's match tuple, so narrowing it to the generational half
+      // re-keys every canonical person and needs a resolver version bump.
       normalized_suffix: clamp(normalized?.suffix ?? null, 32),
       relationship: clamp(claim.relationship ?? null, 64),
       birth_year: claim.birth_year ?? null,
