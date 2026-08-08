@@ -95,33 +95,93 @@ function upperRatio(text: string): number {
   return upper / letters.length;
 }
 
+/** Element traits gathered from a single descendant walk. */
+interface DescendantTraits {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  /** Largest `<font size="N">` among descendants, in points. */
+  maxFontSizePt: number | undefined;
+}
+
+/**
+ * Emphasis tags and legacy font sizes anywhere below `el`, in one pass.
+ *
+ * These were four separate `$el.find(...)` calls; each runs the selector engine
+ * over the whole subtree, and `resolveStyle` is called once per prose block, so
+ * on a large filing the four walks dominated style resolution.
+ */
+function scanDescendants(el: unknown): DescendantTraits {
+  const traits: DescendantTraits = {
+    bold: false,
+    italic: false,
+    underline: false,
+    maxFontSizePt: undefined,
+  };
+  const visit = (node: unknown): void => {
+    const children = (node as { children?: unknown[] }).children;
+    if (children === undefined) return;
+    for (const child of children) {
+      const c = child as { name?: string; attribs?: Record<string, string> };
+      // Text, comment and doctype nodes carry no tag name.
+      if (c.name === undefined) continue;
+      switch (c.name.toLowerCase()) {
+        case "b":
+        case "strong":
+          traits.bold = true;
+          break;
+        case "i":
+        case "em":
+          traits.italic = true;
+          break;
+        case "u":
+          traits.underline = true;
+          break;
+        case "font": {
+          const pt = fontSizeAttrToPt(c.attribs?.size);
+          if (pt !== undefined && (traits.maxFontSizePt === undefined || pt > traits.maxFontSizePt))
+            traits.maxFontSizePt = pt;
+          break;
+        }
+      }
+      visit(child);
+    }
+  };
+  visit(el);
+  return traits;
+}
+
 /** Resolve the effective style of `el` by merging ancestor inline styles (child wins). */
 export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
   const $el = $(el as never);
   const chain: RawStyle[] = [];
   const tagNames: string[] = [];
-  let cur = $(el as never);
-  while (cur && cur.length > 0 && cur.get(0)) {
-    const node = cur.get(0) as unknown as { tagName?: string; name?: string };
-    const tag = (node.tagName ?? node.name ?? "").toLowerCase();
+  // Raw domhandler traversal rather than `cur.parent()`: the cheerio wrapper
+  // allocated an object per ancestor, per block.
+  let cur = el as
+    | { name?: string; attribs?: Record<string, string>; parent?: unknown }
+    | null
+    | undefined;
+  while (cur) {
+    const tag = (cur.name ?? "").toLowerCase();
     tagNames.push(tag);
-    const raw = parseInlineStyle(cur.attr("style") ?? "");
+    const attribs = cur.attribs;
+    const raw = parseInlineStyle(attribs?.style ?? "");
     // Legacy EDGAR uses the HTML attribute <font size="N"> rather than a CSS
     // font-size; fold it in when no inline size is present.
     let merged =
       raw.fontSizePt === undefined && tag === "font"
-        ? { ...raw, fontSizePt: fontSizeAttrToPt(cur.attr("size")) }
+        ? { ...raw, fontSizePt: fontSizeAttrToPt(attribs?.size) }
         : raw;
     // Likewise ALIGN="center" rather than a CSS text-align — pre-CSS EDGAR
     // markup centers headings with the attribute (<P ALIGN="center"><B>The
     // Offering</B></P>), which heading detection must count as a trait.
     if (merged.centered === undefined) {
-      const alignAttr = (cur.attr("align") ?? "").trim().toLowerCase();
+      const alignAttr = (attribs?.align ?? "").trim().toLowerCase();
       if (alignAttr !== "") merged = { ...merged, centered: alignAttr === "center" };
     }
     chain.push(merged);
-    cur = cur.parent() as unknown as typeof cur;
-    if (!cur || cur.length === 0) break;
+    cur = cur.parent as typeof cur;
   }
 
   const pick = <K extends keyof RawStyle>(key: K): RawStyle[K] => {
@@ -133,22 +193,17 @@ export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
   // (CSS inheritance), or an inner emphasis tag that wraps the text — EDGAR
   // headings are commonly `<p><b>MANAGEMENT</b></p>`. A bare `<b>`/`<font>`
   // carries no inline style, so the cascade alone misses these.
-  const inChainOrDescendant = (...tags: string[]): boolean =>
-    tags.some((t) => tagNames.includes(t)) || $el.find(tags.join(",")).length > 0;
-  const tagBold = inChainOrDescendant("b", "strong");
-  const tagItalic = inChainOrDescendant("i", "em");
-  const tagUnderline = inChainOrDescendant("u");
+  const descendants = scanDescendants(el);
+  const inChainOrDescendant = (fromDescendant: boolean, ...tags: string[]): boolean =>
+    tags.some((t) => tagNames.includes(t)) || fromDescendant;
+  const tagBold = inChainOrDescendant(descendants.bold, "b", "strong");
+  const tagItalic = inChainOrDescendant(descendants.italic, "i", "em");
+  const tagUnderline = inChainOrDescendant(descendants.underline, "u");
 
   // A descendant <font size="N"> (e.g. <div><font size="5">RISK FACTORS</font></div>)
   // sets the effective size too; take the largest descendant size if the cascade
   // gave none.
-  let fontSizePt = pick("fontSizePt");
-  if (fontSizePt === undefined) {
-    $el.find("font[size]").each((_, f) => {
-      const pt = fontSizeAttrToPt($(f as never).attr("size"));
-      if (pt !== undefined && (fontSizePt === undefined || pt > fontSizePt)) fontSizePt = pt;
-    });
-  }
+  const fontSizePt = pick("fontSizePt") ?? descendants.maxFontSizePt;
 
   const text = $el.text();
   return {

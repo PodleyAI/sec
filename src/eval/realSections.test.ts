@@ -7,17 +7,28 @@
 import { describe, expect, it } from "vitest";
 import { fixtureCik, loadRealS1Sections } from "./realSections";
 
+/**
+ * Whichever test segments the corpus first pays for parsing every committed
+ * fixture — tens of MB of HTML, and growing with each one added. Later calls in
+ * the same process hit the parse cache, so only the first needs the headroom.
+ */
+const CORPUS_PARSE_TIMEOUT_MS = 120_000;
+
 describe("loadRealS1Sections", () => {
-  it("extracts non-empty management sections from committed real S-1 HTML", () => {
-    const { sections } = loadRealS1Sections(["management"]);
-    // The committed corpus has several S-1s with a management section.
-    expect(sections.length).toBeGreaterThanOrEqual(3);
-    for (const s of sections) {
-      expect(s.extractor).toBe("management");
-      expect(s.text.trim().length).toBeGreaterThan(0);
-      expect(s.filing).toMatch(/^s1_/);
-    }
-  });
+  it(
+    "extracts non-empty management sections from committed real S-1 HTML",
+    () => {
+      const { sections } = loadRealS1Sections(["management"]);
+      // The committed corpus has several S-1s with a management section.
+      expect(sections.length).toBeGreaterThanOrEqual(3);
+      for (const s of sections) {
+        expect(s.extractor).toBe("management");
+        expect(s.text.trim().length).toBeGreaterThan(0);
+        expect(s.filing).toMatch(/^s1_/);
+      }
+    },
+    CORPUS_PARSE_TIMEOUT_MS
+  );
 
   it("returns nothing for an extractor with no mapped section", () => {
     const { sections } = loadRealS1Sections(["not-a-real-extractor"]);

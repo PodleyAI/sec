@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import * as cheerio from "cheerio";
-import type { CheerioAPI } from "cheerio";
 import { NodeKind, uuid4 } from "workglow";
 import type { ImageNode, ListNode, ParagraphNode } from "workglow";
 import type { EdgarBlock, ResolvedStyle } from "./types";
@@ -33,13 +32,18 @@ const STRIP_BEFORE_WALK_SELECTOR =
   "script, style, noscript, textarea, template, xmp, plaintext, " +
   "iframe, noembed, noframes, title, svg, math";
 
+/** An element's raw attributes, or undefined for text/comment nodes. */
+function attribsOf(el: unknown): Record<string, string> | undefined {
+  return (el as { attribs?: Record<string, string> }).attribs;
+}
+
 /** True if `el` has a CSS/structural page-break signal (edgartools heuristics). */
-function isPageBreak($: CheerioAPI, el: unknown): boolean {
-  const $el = $(el as never);
+function isPageBreak(el: unknown): boolean {
   const node = el as { tagName?: string; name?: string };
   const tag = (node.tagName ?? node.name ?? "").toLowerCase();
-  const style = ($el.attr("style") ?? "").toLowerCase();
-  const cls = ($el.attr("class") ?? "").toLowerCase();
+  const attribs = attribsOf(el);
+  const style = (attribs?.style ?? "").toLowerCase();
+  const cls = (attribs?.class ?? "").toLowerCase();
   if (/page-break-(before|after)\s*:\s*always/.test(style)) return true;
   if (cls.includes("pagebreak") || cls.includes("brpfpagebreak")) return true;
   if (tag === "hr") {
@@ -50,6 +54,21 @@ function isPageBreak($: CheerioAPI, el: unknown): boolean {
     if (/height\s*:\s*(842\.4|792|1008)pt/.test(style)) return true;
   }
   return false;
+}
+
+/** Every comment node in the subtree, in document order. */
+function collectComments(root: unknown): unknown[] {
+  const found: unknown[] = [];
+  const visit = (node: unknown): void => {
+    const children = (node as { children?: unknown[] }).children;
+    if (children === undefined) return;
+    for (const child of children) {
+      if ((child as { type?: string }).type === "comment") found.push(child);
+      else visit(child);
+    }
+  };
+  visit(root);
+  return found;
 }
 
 function emitProse(buffer: string[], out: EdgarBlock[]): void {
@@ -86,10 +105,13 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // `type === "comment"`, and while the walker only reads element/text
   // children, any consumer that later calls `.text()` on a raw parent would
   // otherwise see their contents.
-  $("*")
-    .contents()
-    .filter((_i, el) => (el as { type?: string }).type === "comment")
-    .remove();
+  //
+  // Collected with one linear DOM walk rather than `$("*").contents()`, whose
+  // cost grows superlinearly with element count: on a 7 MB S-1 (63k elements)
+  // that single call took ~14s of a ~16s parse, and found no comments at all.
+  for (const comment of collectComments($.root().get(0))) {
+    $(comment as never).remove();
+  }
 
   const out: EdgarBlock[] = [];
   const prose: string[] = [];
@@ -100,7 +122,7 @@ export function parseToBlocks(html: string): EdgarBlock[] {
     const node = el as { tagName?: string; name?: string; type?: string };
     const tag = (node.tagName ?? node.name ?? "").toLowerCase();
 
-    if (isPageBreak($, el)) {
+    if (isPageBreak(el)) {
       emitProse(prose, out);
       out.push({ type: "page-break" });
       // EDGAR wraps each page's content in a page-sized container element (e.g.
@@ -119,7 +141,7 @@ export function parseToBlocks(html: string): EdgarBlock[] {
     // display:none subtrees are invisible to a reader and, in iXBRL filings,
     // hold the ix:header metadata block (contexts, units, hidden facts) whose
     // text must not leak into prose. The XBRL pass parses them separately.
-    if (/display\s*:\s*none/i.test($(el as never).attr("style") ?? "")) return;
+    if (/display\s*:\s*none/i.test(attribsOf(el)?.style ?? "")) return;
 
     if (tag === "table") {
       emitProse(prose, out);
@@ -212,9 +234,7 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   // Walk an element's children in document order: text nodes feed the prose
   // buffer, element nodes recurse through `walk`.
   function descend(el: unknown): void {
-    for (const child of $(el as never)
-      .contents()
-      .toArray()) {
+    for (const child of (el as { children?: unknown[] }).children ?? []) {
       const cn = child as { type?: string; data?: string };
       if (cn.type === "text") {
         const t = (cn.data ?? "").replace(/\s+/g, " ").trim();
