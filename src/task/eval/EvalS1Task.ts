@@ -9,6 +9,11 @@ import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository, IExecuteContext, Task } from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
+import {
+  captureEvalRawFromError,
+  captureEvalRawFromRows,
+  type EvalRawDump,
+} from "../../eval/captureEvalRaw";
 import { sweepStepContext } from "../../eval/evalProgressContext";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
@@ -30,6 +35,8 @@ export interface OracleRunResult {
   readonly cost: CostEstimate;
   /** Agreement with the reference; null for the reference model's own runs. */
   readonly score: ExtractionScore | null;
+  /** Present only when the sweep was run with `dumpRaw: true`. */
+  readonly raw: EvalRawDump | undefined;
 }
 
 export interface OracleModelSummary {
@@ -71,7 +78,8 @@ async function runSection(
   modelId: string,
   model: ModelConfig,
   section: RealSection,
-  context: IExecuteContext | undefined
+  context: IExecuteContext | undefined,
+  dumpRaw: boolean
 ): Promise<{ rows: unknown[]; result: Omit<OracleRunResult, "score"> }> {
   const extractor = EVAL_EXTRACTORS[section.extractor];
   const promptChars = section.text.length + extractor.instructionOverheadChars;
@@ -90,6 +98,7 @@ async function runSection(
         latencyMs,
         rows: rows.length,
         cost: estimateCost(modelId, promptChars, JSON.stringify(rows).length),
+        raw: captureEvalRawFromRows(dumpRaw, rows),
       },
     };
   } catch (err) {
@@ -105,6 +114,7 @@ async function runSection(
         latencyMs,
         rows: 0,
         cost: estimateCost(modelId, promptChars, 0),
+        raw: captureEvalRawFromError(dumpRaw, err),
       },
     };
   }
@@ -162,6 +172,12 @@ const InputSchema = () =>
       Type.Array(Type.String(), {
         title: "CIKs",
         description: "Limit the sweep to fixtures filed by these CIKs",
+      })
+    ),
+    dumpRaw: Type.Optional(
+      Type.Boolean({
+        title: "Dump raw",
+        description: "Retain model JSON payloads on each result for CLI --dump-raw",
       })
     ),
   });
@@ -223,6 +239,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
 
     const extractorNames = input.extractors.length ? input.extractors : ["management"];
     const useGolden = input.reference === GOLDEN_REFERENCE;
+    const dumpRaw = input.dumpRaw === true;
     // Golden mode runs no reference model — the truth is committed.
     await registerModelIds(
       useGolden ? [...input.candidates] : [input.reference, ...input.candidates]
@@ -315,6 +332,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
           rows: golden.length,
           cost: { inputTokens: 0, outputTokens: 0, usd: 0 },
           score: null,
+          raw: undefined,
         });
         done += 1;
         emitProgress(done, total, `${tag} golden: ${golden.length} rows`);
@@ -324,9 +342,9 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
           Math.floor((done / (total || 1)) * 100),
           `${tag} ref ${input.reference}`
         );
-        let outcome = await runSection(input.reference, refModel, section, refStep);
+        let outcome = await runSection(input.reference, refModel, section, refStep, dumpRaw);
         for (let attempt = 1; !outcome.result.ok && attempt < REFERENCE_MAX_ATTEMPTS; attempt++) {
-          outcome = await runSection(input.reference, refModel, section, refStep);
+          outcome = await runSection(input.reference, refModel, section, refStep, dumpRaw);
         }
         refRows = outcome.rows;
         refOk = outcome.result.ok;
@@ -353,6 +371,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
             rows: 0,
             cost: estimateCost(candidateId, 0, 0),
             score: null,
+            raw: dumpRaw ? { kind: "none" } : undefined,
           });
           done += 1;
           continue;
@@ -365,7 +384,8 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
             context,
             Math.floor((done / (total || 1)) * 100),
             `${tag} ${candidateId}`
-          )
+          ),
+          dumpRaw
         );
         // Only score when the reference produced a usable truth for this section.
         const score = refOk
