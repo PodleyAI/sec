@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
+import type { SectionExtraction } from "./sectionRunner";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
 import {
   BeneficialOwnershipOutputSchema,
@@ -1633,12 +1634,17 @@ export function riskFactorsInstructions(): string {
  * A chunk that fails propagates, failing the section as a whole: persisting the
  * captions that happened to come back before the failure would record a
  * silently partial list as if it were the filing's complete disclosure.
+ *
+ * Returns a {@link SectionExtraction} rather than a bare array so the
+ * heading-shape drop below is reported to the section runner instead of only
+ * being logged — a dropped caption is a piece of the disclosure gone missing,
+ * and the surviving rows persist as if they were the whole of it.
  */
 export async function extractRiskFactors(
   sectionText: string,
   model: ModelConfig,
   context?: IExecuteContext
-): Promise<RiskFactorRow[]> {
+): Promise<SectionExtraction<RiskFactorRow>> {
   const chunks = chunkRiskFactorText(sectionText);
   const out: RiskFactorRow[] = [];
   const seen = new Set<string>();
@@ -1698,9 +1704,15 @@ export async function extractRiskFactors(
     // rows are a large enough share is the section's shape genuinely
     // unanswerable (a summary-bullet list whose bullets ARE the captions).
     console.warn(`risk factors: dropped ${headingLike} heading-shaped row(s) of ${out.length}`);
-    return out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+    return {
+      rows: out.filter((risk) => !isRiskCategoryHeading(risk.headline)),
+      dropped: headingLike,
+      droppedReason: "MIXED_CAPTION_SHAPE",
+      droppedDetail:
+        "$N of $T risk factor rows were heading-shaped and dropped (below the mixed-shape fail ratio)",
+    };
   }
-  return out;
+  return { rows: out, dropped: 0, droppedReason: "MIXED_CAPTION_SHAPE", droppedDetail: "" };
 }
 
 export function useOfProceedsInstructions(): string {

@@ -765,12 +765,25 @@ because the shape heuristic (no sentence-ending punctuation) cannot tell a
 category heading from an Item 105(b) summary bullet. A **homogeneous** section
 is kept intact either way — all bare phrases is a summary list whose "headings"
 ARE the captions; no bare phrases is an ordinary sentence-caption list with
-nothing to drop. A **mixed** section is unanswerable and dead-letters
-`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting
-a subset: filers are inconsistent about terminal punctuation, so one summary
-bullet ending in a period was enough to make an all-or-nothing filter keep that
-single row and silently drop the other 29 — a partial disclosure recorded as
-complete, exactly what the chunked-section contract exists to prevent.
+nothing to drop. A **mixed** section is answered by how large the heading-shaped
+minority is. At or above `MIXED_SHAPE_FAIL_RATIO` (0.25) the section is
+unanswerable and the whole of it dead-letters `MIXED_CAPTION_SHAPE` (via
+`MixedRiskCaptionShapeError`) rather than persisting a subset: filers are
+inconsistent about terminal punctuation, so one summary bullet ending in a
+period was enough to make an all-or-nothing filter keep that single row and
+silently drop the other 29 — a partial disclosure recorded as complete, exactly
+what the chunked-section contract exists to prevent. **Below** the ratio the
+minority is the chunk-prefix echo (every chunk after the first carries the last
+category heading into the model, inviting it back as a row), so those rows are
+dropped and the remaining captions persist — and the drop is itself recorded, as
+a `risk-factors-partial` dead letter under `MIXED_CAPTION_SHAPE` naming the
+dropped and pre-drop counts. Persisted rows read downstream as the filing's
+complete Item 105 list, so no drop is allowed to be invisible on
+`sec extractor dead-letters S-1`; the entry resolves on its own once a re-run
+drops nothing. That reporting path is the `SectionExtraction` return shape in
+`s1/sectionRunner.ts` — an extractor that filters its own output returns
+`{rows, dropped, droppedReason, droppedDetail}` instead of a bare array, and
+`complete` in `SectionPersistMeta` is false whenever it dropped anything.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate

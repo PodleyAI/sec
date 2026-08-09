@@ -9,6 +9,7 @@ import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { TaskAbortedError } from "workglow";
 import { RateLimitExhaustedError } from "./sectionExtractors";
+import type { SectionExtraction } from "./sectionRunner";
 import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
 interface RecordedLetter {
@@ -378,5 +379,129 @@ describe("makeRunSection failure classification", () => {
     expect(letters).toEqual([
       { section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" },
     ]);
+  });
+});
+
+describe("makeRunSection extractor-side drops", () => {
+  interface DetailedLetter {
+    section_name: string;
+    reason_code: string;
+    detail: string | null;
+  }
+
+  /** Like the shared stub, but keeps `detail` so the counts can be asserted. */
+  function detailedDeadLetters(): {
+    repo: ExtractionDeadLetterRepo;
+    letters: DetailedLetter[];
+    resolved: string[];
+  } {
+    const letters: DetailedLetter[] = [];
+    const resolved: string[] = [];
+    const repo = {
+      record: async (args: {
+        section_name: string;
+        reason_code: string;
+        detail: string | null;
+      }) => {
+        letters.push({
+          section_name: args.section_name,
+          reason_code: args.reason_code,
+          detail: args.detail,
+        });
+      },
+      markResolved: async (_id: string, _acc: string, section: string) => {
+        resolved.push(section);
+      },
+    } as unknown as ExtractionDeadLetterRepo;
+    return { repo, letters, resolved };
+  }
+
+  const row = (span: string) => ({ confidence: 0.9, span });
+
+  function run(extraction: SectionExtraction<{ confidence: number; span: string }>) {
+    const { repo, letters, resolved } = detailedDeadLetters();
+    const meta: boolean[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-drop",
+    });
+    const promise = runSection({
+      sectionName: "Risk Factors",
+      text: "verbatim span here",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      // Mirrors the real risk-factors call site, which also verifies spans, so
+      // the two `-partial` sources are exercised as they actually coexist.
+      unverifiedPartialDetail: "$N of $T confident rows had source_span not in section text",
+      extract: async () => extraction,
+      persist: async (rows, m) => {
+        meta.push(m.complete);
+        return rows.length;
+      },
+    });
+    return { promise, letters, resolved, meta };
+  }
+
+  // An extractor that silently thins its own output leaves the survivors
+  // looking like the filing's complete disclosure. The drop has to appear on
+  // `sec extractor dead-letters`, under the extractor's own reason code.
+  it("records a -partial letter carrying the dropped and pre-drop totals", async () => {
+    const { promise, letters, resolved, meta } = run({
+      rows: [row("verbatim span"), row("verbatim span here")],
+      dropped: 3,
+      droppedReason: "MIXED_CAPTION_SHAPE",
+      droppedDetail: "$N of $T rows were heading-shaped and dropped",
+    });
+    await promise;
+
+    expect(letters).toEqual([
+      {
+        section_name: "Risk Factors-partial",
+        reason_code: "MIXED_CAPTION_SHAPE",
+        detail: "3 of 5 rows were heading-shaped and dropped",
+      },
+    ]);
+    // The section itself succeeded — the rows that survived are real.
+    expect(resolved).toContain("Risk Factors");
+    // ... but they are not the complete population.
+    expect(meta).toEqual([false]);
+  });
+
+  it("resolves the -partial entry when the extractor dropped nothing", async () => {
+    const { promise, letters, resolved, meta } = run({
+      rows: [row("verbatim span")],
+      dropped: 0,
+      droppedReason: "MIXED_CAPTION_SHAPE",
+      droppedDetail: "",
+    });
+    await promise;
+
+    expect(letters).toEqual([]);
+    expect(resolved).toEqual(["Risk Factors", "Risk Factors-partial"]);
+    expect(meta).toEqual([true]);
+  });
+
+  it("leaves a plain array extractor untouched", async () => {
+    const { repo, letters, resolved } = detailedDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-array",
+    });
+    await runSection({
+      sectionName: "Management",
+      text: "verbatim span here",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      extract: async () => [row("verbatim span")],
+      persist: async (rows) => rows.length,
+    });
+
+    expect(letters).toEqual([]);
+    // No `-partial` reconciliation for a section that cannot emit one.
+    expect(resolved).toEqual(["Management"]);
   });
 });

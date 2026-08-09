@@ -32,7 +32,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(
+    const { rows } = await extractRiskFactors(
       `${CATEGORY}\n\nWe are a blank check company.\n\nBody.`,
       fakeS1Model()
     );
@@ -60,7 +60,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(text, fakeS1Model());
+    const { rows } = await extractRiskFactors(text, fakeS1Model());
     expect(calls.length).toBeGreaterThan(1);
     // Rows accumulate across chunks, in chunk order.
     expect(rows.map((r) => r.headline).slice(0, 2)).toEqual(["First risk.", "Second risk."]);
@@ -79,7 +79,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(text, fakeS1Model());
+    const { rows } = await extractRiskFactors(text, fakeS1Model());
     expect(rows).toHaveLength(1);
   });
 
@@ -136,9 +136,45 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    const { rows } = await extractRiskFactors("Some risk prose.", fakeS1Model());
     expect(rows.map((r) => r.headline)).toEqual(captions);
     expect(6 / 96).toBeLessThan(MIXED_SHAPE_FAIL_RATIO);
+  });
+
+  it("reports the ratio-gate drop so it can reach the retry worklist", async () => {
+    // Same fixture as above, read from the reporting side: the surviving rows
+    // persist as the section's whole disclosure, so the six discarded rows have
+    // to be counted somewhere an operator looks. A console.warn is not that.
+    const captions = Array.from(
+      { length: 90 },
+      (_, i) => `We may be unable to complete our initial business combination number ${i + 1}.`
+    );
+    const echoes = Array.from({ length: 6 }, (_, i) => `Risks Relating to our Securities ${i + 1}`);
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [...captions.map((c) => risk(c)), ...echoes.map((e) => risk(e, null))] },
+    ]);
+    cleanup = unregister;
+
+    const extraction = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(extraction.dropped).toBe(6);
+    expect(extraction.droppedReason).toBe("MIXED_CAPTION_SHAPE");
+    expect(extraction.droppedDetail).toContain("$N");
+    expect(extraction.droppedDetail).toContain("$T");
+  });
+
+  it("reports no drop for a homogeneous section", async () => {
+    const captions = Array.from(
+      { length: 12 },
+      (_, i) => `We may be unable to complete our initial business combination number ${i + 1}.`
+    );
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: captions.map((c) => risk(c)) },
+    ]);
+    cleanup = unregister;
+
+    const extraction = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    expect(extraction.rows).toHaveLength(12);
+    expect(extraction.dropped).toBe(0);
   });
 
   it("fails at exactly MIXED_SHAPE_FAIL_RATIO, so the boundary is inclusive", async () => {
@@ -176,7 +212,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    const { rows } = await extractRiskFactors("Some risk prose.", fakeS1Model());
     expect(rows.map((r) => r.headline)).toEqual(captions);
   });
 
@@ -192,7 +228,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(
+    const { rows } = await extractRiskFactors(
       `Summary of Risk Factors\n\n${bullets.join("\n\n")}`,
       fakeS1Model()
     );
@@ -214,7 +250,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(
+    const { rows } = await extractRiskFactors(
       `Summary of Risk Factors\n\n${bullets.join("\n\n")}`,
       fakeS1Model()
     );
@@ -226,7 +262,7 @@ describe("extractRiskFactors", () => {
       { risks: [risk("  "), risk("A real risk.")] },
     ]);
     cleanup = unregister;
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    const { rows } = await extractRiskFactors("Some risk prose.", fakeS1Model());
     expect(rows.map((r) => r.headline)).toEqual(["A real risk."]);
   });
 
@@ -255,7 +291,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    const { rows } = await extractRiskFactors("Some risk prose.", fakeS1Model());
     expect(rows.map((r) => r.headline)).toEqual(["A real risk."]);
     expect(calls).toHaveLength(3);
   });
@@ -277,7 +313,7 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
+    const { rows } = await extractRiskFactors("Some risk prose.", fakeS1Model());
     expect(rows.map((r) => r.headline)).toEqual(["A real risk."]);
   });
 });

@@ -222,4 +222,65 @@ describe("processFormS1 risk factors", () => {
     const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
     expect(entry?.reason_code).toBe("SECTION_NOT_FOUND");
   });
+
+  it("puts a below-ratio heading drop on the retry worklist while keeping the captions", async () => {
+    // 6 heading-shaped rows out of 30 is under MIXED_SHAPE_FAIL_RATIO, so the
+    // 24 real captions are kept rather than failing the whole section. What
+    // must not happen is the drop vanishing into a console.warn: the persisted
+    // rows read downstream as the filing's complete Item 105 list, so the six
+    // discarded ones have to be visible on `sec extractor dead-letters S-1`.
+    const captions = Array.from(
+      { length: 24 },
+      (_, i) => `We may issue additional shares in transaction ${i + 1}, diluting our stockholders.`
+    );
+    const echoes = Array.from({ length: 6 }, (_, i) => `Risks Relating to our Securities ${i + 1}`);
+    const html =
+      "<h1>RISK FACTORS</h1>" +
+      `<h2>${CATEGORY}</h2>` +
+      captions.map((c) => `<p><b>${c}</b></p><p>Explanatory paragraph.</p>`).join("");
+
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          ...captions.map((c) => ({
+            headline: c,
+            category: CATEGORY,
+            confidence: 0.9,
+            source_span: c,
+          })),
+          ...echoes.map((e) => ({
+            headline: e,
+            category: null,
+            confidence: 0.9,
+            source_span: e,
+          })),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: ACCESSION,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const rows = await new RiskFactorRepo().queryByAccession(ACCESSION);
+    expect(rows.map((r) => r.headline)).toEqual(captions);
+
+    const deadLetters = new ExtractionDeadLetterRepo();
+    // The section itself succeeded — every surviving caption is real.
+    const section = await deadLetters.get("S-1", ACCESSION, "risk-factors");
+    expect(section?.status ?? "resolved").toBe("resolved");
+    // ... and the drop is recorded for triage.
+    const partial = await deadLetters.get("S-1", ACCESSION, "risk-factors-partial");
+    expect(partial?.status).toBe("pending");
+    expect(partial?.reason_code).toBe("MIXED_CAPTION_SHAPE");
+    expect(partial?.detail).toContain("6 of 30");
+  });
 });

@@ -46,6 +46,23 @@ export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDEN
  */
 export const VERIFICATION_ATTEMPTS = 3;
 
+/**
+ * What an extractor returns when it dropped rows of its own accord, before the
+ * runner's confidence floor and span verification ever saw them. An extractor
+ * that drops nothing may keep returning a bare array.
+ *
+ * The drop has to be reported, not just logged: the surviving rows persist as
+ * if they were the section's whole disclosure, so an operator needs the count
+ * on the retry worklist to know a heuristic threw part of it away.
+ */
+export interface SectionExtraction<TRow> {
+  readonly rows: TRow[];
+  readonly dropped: number;
+  readonly droppedReason: DeadLetterReasonCode;
+  /** Detail template; `$N` is the dropped count and `$T` the pre-drop total. */
+  readonly droppedDetail: string;
+}
+
 export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly sectionName: string;
   readonly text: string | undefined;
@@ -65,7 +82,9 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
    * UNVERIFIED_SOURCE_SPAN — or SOURCE_SPAN_TOO_LONG when every drop was an
    * over-cap span (using `unverifiedAllDetail`); when some are
    * dropped, the surviving rows persist normally AND a "<sectionName>-partial"
-   * dead-letter is recorded for triage (using `unverifiedPartialDetail`).
+   * dead-letter is recorded for triage (using `unverifiedPartialDetail`). An
+   * extractor-side drop reported through {@link SectionExtraction} reaches the
+   * same `-partial` entry under its own reason code.
    * Detail strings may use `$N` (dropped count) and `$T` (confident total).
    *
    * Returning a {@link SpanVerdict} rather than a boolean is what lets the
@@ -78,15 +97,16 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly verifyRow?: (text: string, row: NoInfer<TRow>) => boolean | SpanVerdict;
   readonly unverifiedAllDetail?: string;
   readonly unverifiedPartialDetail?: string;
-  readonly extract: (text: string) => Promise<TRow[]>;
+  readonly extract: (text: string) => Promise<TRow[] | SectionExtraction<TRow>>;
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
 /**
  * Facts about the filtering that happened between extraction and persist.
- * `complete` is true only when every extracted row survived the confidence
- * floor and span verification — the only state in which the persisted rows can
- * be treated as the section's complete population (e.g. for roster closure).
+ * `complete` is true only when every extracted row survived the extractor's own
+ * filtering, the confidence floor and span verification — the only state in
+ * which the persisted rows can be treated as the section's complete population
+ * (e.g. for roster closure).
  */
 export interface SectionPersistMeta {
   readonly complete: boolean;
@@ -158,6 +178,12 @@ export function makeRunSection(opts: {
       // Over-cap drops are tracked separately so an all-dropped section can say
       // which of the two failure modes it hit — they need opposite fixes.
       let droppedTooLong = 0;
+      // Rows the extractor itself discarded. `raw` is what it handed back, so
+      // these are invisible to every count below and have to be carried out of
+      // the loop separately.
+      let droppedByExtract = 0;
+      let droppedByExtractReason: DeadLetterReasonCode = "MODEL_INVALID_OUTPUT";
+      let droppedByExtractDetail = "";
 
       // Re-ask when EVERY confident row failed span verification. The rows are
       // usually right and only the citation is malformed, and the malformation
@@ -168,7 +194,17 @@ export function makeRunSection(opts: {
       // is lost about two runs in three; the rest of the pipeline already
       // retries transport-level failures for the same reason.
       for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
-        raw = await sargs.extract(text);
+        const produced = await sargs.extract(text);
+        // Normalize before anything reads `raw`: the empty / low-confidence
+        // classification below is driven by `raw.length`, so an unnormalized
+        // object would read as one truthy row.
+        const extraction: SectionExtraction<TRow> = Array.isArray(produced)
+          ? { rows: produced, dropped: 0, droppedReason: "MODEL_INVALID_OUTPUT", droppedDetail: "" }
+          : produced;
+        raw = extraction.rows;
+        droppedByExtract = extraction.dropped;
+        droppedByExtractReason = extraction.droppedReason;
+        droppedByExtractDetail = extraction.droppedDetail;
         confident = raw.filter((r) => r.confidence >= floor);
         droppedUnverified = 0;
         droppedTooLong = 0;
@@ -216,33 +252,54 @@ export function makeRunSection(opts: {
         await record(reason, detail);
         return;
       }
-      const wrote = await sargs.persist(rows, { complete: rows.length === raw.length });
+      // `raw` is post-drop, so `rows.length === raw.length` alone would call a
+      // section complete that the extractor had already thinned.
+      const wrote = await sargs.persist(rows, {
+        complete: rows.length === raw.length && droppedByExtract === 0,
+      });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
         return;
       }
       await deadLetters.markResolved(extractor_id, accession_number, sargs.sectionName);
-      // Reconcile the sibling `-partial` triage entry (only sections that can
-      // emit one carry unverifiedPartialDetail). Record it when THIS run dropped
-      // unverified rows; otherwise resolve any `-partial` left pending by a
-      // prior run, so a now-clean filing stops lingering forever on the
-      // version-gated retry worklist (markResolved no-ops when none exists).
-      if (sargs.unverifiedPartialDetail !== undefined) {
+      // Reconcile the sibling `-partial` triage entry (sections that can emit
+      // one either carry unverifiedPartialDetail or have an extractor that
+      // reports its own drops). Record it when THIS run dropped rows anywhere
+      // between extraction and persist; otherwise resolve any `-partial` left
+      // pending by a prior run, so a now-clean filing stops lingering forever
+      // on the version-gated retry worklist (markResolved no-ops when none
+      // exists).
+      if (sargs.unverifiedPartialDetail !== undefined || droppedByExtract > 0) {
         const partialSection = `${sargs.sectionName}-partial`;
-        if (droppedUnverified > 0) {
+        if (droppedUnverified > 0 || droppedByExtract > 0) {
+          // A span wipeout is the more specific verdict, so it names the entry
+          // when both happened; the details are concatenated either way so
+          // neither drop is lost.
+          const spanDetail =
+            droppedUnverified > 0 && sargs.unverifiedPartialDetail !== undefined
+              ? sargs.unverifiedPartialDetail
+                  .replace(/\$N/g, String(droppedUnverified))
+                  .replace(/\$T/g, String(confident.length)) +
+                (droppedTooLong > 0 ? ` (${droppedTooLong} over the length cap)` : "")
+              : undefined;
+          const extractDetail =
+            droppedByExtract > 0 && droppedByExtractDetail !== ""
+              ? droppedByExtractDetail
+                  .replace(/\$N/g, String(droppedByExtract))
+                  .replace(/\$T/g, String(raw.length + droppedByExtract))
+              : undefined;
+          const detail = [spanDetail, extractDetail].filter((d) => d !== undefined).join("; ");
           await deadLetters.record({
             extractor_id,
             accession_number,
             section_name: partialSection,
             reason_code:
-              droppedTooLong === droppedUnverified
-                ? "SOURCE_SPAN_TOO_LONG"
-                : "UNVERIFIED_SOURCE_SPAN",
-            detail:
-              sargs.unverifiedPartialDetail
-                .replace(/\$N/g, String(droppedUnverified))
-                .replace(/\$T/g, String(confident.length)) +
-              (droppedTooLong > 0 ? ` (${droppedTooLong} over the length cap)` : ""),
+              droppedUnverified > 0
+                ? droppedTooLong === droppedUnverified
+                  ? "SOURCE_SPAN_TOO_LONG"
+                  : "UNVERIFIED_SOURCE_SPAN"
+                : droppedByExtractReason,
+            detail: detail === "" ? null : detail,
             failed_extractor_version: extractor_version,
             source_run_id: null,
           });

@@ -92,7 +92,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // under — the section's introductory prose and category headings themselves
   // must NOT produce rows, so emitting one costs precision.
   "risk-factors": {
-    run: (text, model, context) => extractRiskFactors(text, model, context),
+    run: async (text, model, context) => (await extractRiskFactors(text, model, context)).rows,
     instructions: riskFactorsInstructions,
     keyField: "headline",
     compareFields: ["headline", "category"],
