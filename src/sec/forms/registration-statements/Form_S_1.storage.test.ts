@@ -333,4 +333,68 @@ describe("processFormS1", () => {
     const people = await new PersonObservationRepo().listByAccession(accession);
     expect(people.map((p) => `${p.first_name} ${p.last_name}`)).toEqual(["Michael Klein"]);
   });
+
+  it("keeps an entity-typed role phrase as a group row and mints no company", async () => {
+    // A SPAC's administrative-services fee is stated against "an affiliate of
+    // our sponsor" — a role phrase the model types `company`. The $10,000/month
+    // IS the disclosure, so the row must be kept; deriving `group` from either
+    // model kind is what stops the label becoming a canonical company.
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      {
+        parties: [
+          {
+            name: "an affiliate of our sponsor",
+            party_kind: "company",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: null,
+                nature: "Administrative services agreement — office space and support",
+                amount: 10000,
+                period: "monthly",
+                footnote: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    const accession = "0000000000-26-affiliate";
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: accession,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const tx = await new RelatedPartyTransactionRepo().queryByAccession(accession);
+    expect(tx).toHaveLength(1);
+    expect(tx[0]?.party_kind).toBe("group");
+    expect(tx[0]?.party_label).toBe("an affiliate of our sponsor");
+    expect(tx[0]?.observation_id).toBeNull();
+    expect(tx[0]?.amount).toBe(10000);
+
+    // No company observation is minted for the label — the only company
+    // observed by this filing is the issuer itself.
+    const companies = await new CompanyObservationRepo().listByAccession(accession);
+    expect(companies.map((c) => c.name)).not.toContain("an affiliate of our sponsor");
+
+    // The section extracted a real disclosure, so it resolves rather than
+    // dead-lettering MODEL_EMPTY.
+    const letter = await new ExtractionDeadLetterRepo().get(
+      "S-1",
+      accession,
+      "Certain Relationships and Related Transactions"
+    );
+    expect(letter?.status ?? "resolved").toBe("resolved");
+  });
 });

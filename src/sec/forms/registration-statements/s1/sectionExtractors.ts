@@ -1143,10 +1143,12 @@ export function isOwnershipGroupSubtotal(name: string | null | undefined): boole
  * "Members Of Our Us" and case-variant duplicates.
  *
  * Anchored on a leading determiner so it cannot swallow a real name: a person
- * called "Alan Officer" does not start with our/the/all/certain.
+ * called "Alan Officer" does not start with our/the/all/certain, and the
+ * indefinite article needs a word boundary, so "Alan"/"Anthony" cannot match it
+ * either — a role word must still appear within 40 characters.
  */
 const COLLECTIVE_PARTY_LABEL =
-  /^(?:(?:our|the|all|certain|each|any|several)\b[\s\S]{0,40}?\b(?:team|directors?|officers?|management|employees?|insiders?|affiliates?|shareholders?|stockholders?|founders?|sponsors?|members?|executives?|principals?|nominees?|personnel)\b|members?\s+of\b)/i;
+  /^(?:(?:our|the|all|certain|each|any|several|a|an)\b[\s\S]{0,40}?\b(?:team|directors?|officers?|management|employees?|insiders?|affiliates?|advisers?|advisors?|shareholders?|stockholders?|founders?|sponsors?|members?|executives?|principals?|nominees?|personnel)\b|members?\s+of\b)/i;
 
 /**
  * Words naming a role or class of people rather than a person.
@@ -1260,14 +1262,18 @@ export function relatedPartyInstructions(): string {
     "party_kind ('person' or 'company'), a confidence in [0,1], the verbatim source_span, " +
     "and a transactions array (counterparty, nature, amount, period, footnote — any may " +
     "be null). " +
-    "`name` must be an actual PROPER NAME the text prints — a person's name or an " +
-    "entity's name. A ROLE PHRASE is not a name: 'our sponsor', 'our officers and " +
+    "Give `name` as the text prints it. Usually that is a PROPER NAME — a person's name " +
+    "or an entity's name. When the filing states the arrangement against a ROLE PHRASE " +
+    "instead of a name ('our sponsor', 'an affiliate of our sponsor', 'our officers and " +
     "directors', 'our independent director nominees', 'an advisor to the company', " +
-    "'members of our management team', 'our initial shareholders' and 'our insiders' " +
-    "are descriptions of unnamed people, and each must produce NO row. Many SPAC " +
-    "sections are written entirely in these terms and name nobody at all; when that is " +
-    "true the correct answer is an EMPTY list. Do not turn a role into a party to avoid " +
-    "returning nothing. " +
+    "'members of our management team', 'our initial shareholders', 'our insiders'), that " +
+    "phrase IS the party for the transaction: emit it VERBATIM as `name`, with " +
+    "party_kind 'person' when the phrase describes people and 'company' when it " +
+    "describes an entity. Many SPAC sections are written entirely in these terms and " +
+    "name nobody at all; the amounts they state ('$10,000 per month for office space', " +
+    "'up to $1,500,000 of working capital loans') are the disclosure, and dropping the " +
+    "row loses them. NEVER invent or guess a proper name for a role phrase — copy the " +
+    "phrase the text uses. " +
     "`name` must hold EXACTLY ONE party. When a sentence names two ('Stellantis " +
     "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
     "of Phaistos Investment Fund'), emit one row per party — never a combined " +

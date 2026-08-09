@@ -17,6 +17,7 @@ import {
   extractUseOfProceeds,
   extractMergerDeal,
   isCollectivePartyName,
+  relatedPartyInstructions,
   requireNonEmptyGrammarArrays,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
@@ -526,6 +527,14 @@ describe("isCollectivePartyName", () => {
       "Officers",
       "Non-Employee Directors",
       "Our Initial Shareholders",
+      // Role phrases the related-party prompt now asks the model to emit
+      // verbatim. They must derive `group` rather than reach a resolver, and
+      // the indefinite-article ones only match with `a`/`an` in the leading
+      // determiner set (and `advisor` among the role words).
+      "our sponsor",
+      "an affiliate of our sponsor",
+      "an advisor to the company",
+      "The Sponsor",
     ]) {
       expect(isCollectivePartyName(name), name).toBe(true);
     }
@@ -543,6 +552,11 @@ describe("isCollectivePartyName", () => {
       "M. Klein and Company, LLC",
       "Directors Guild Inc.", // a company whose name starts with a role word
       "Sherman Officers", // surname + role word is still a person-ish name
+      // The indefinite article is word-boundary anchored, so a name merely
+      // BEGINNING with a/an is untouched even when a role word follows.
+      "A. Klein & Company, LLC",
+      "Alan Officer",
+      "Anthony Sponsor",
     ]) {
       expect(isCollectivePartyName(name), name).toBe(false);
     }
@@ -552,5 +566,31 @@ describe("isCollectivePartyName", () => {
     expect(isCollectivePartyName(null)).toBe(false);
     expect(isCollectivePartyName(undefined)).toBe(false);
     expect(isCollectivePartyName("")).toBe(false);
+  });
+});
+
+describe("relatedPartyInstructions", () => {
+  // The `group`/`party_label` tier exists precisely to carry a subject-less
+  // Item 404 disclosure, so the prompt must not tell the model to suppress the
+  // rows that feed it: a SPAC section written entirely in role phrases would
+  // otherwise return nothing, losing every stated amount AND leaving a
+  // permanently pending MODEL_EMPTY dead letter.
+  const instructions = relatedPartyInstructions();
+
+  it("does not ask the model to suppress role-phrase parties", () => {
+    expect(instructions).not.toContain("must produce NO row");
+    expect(instructions).not.toContain("EMPTY list");
+  });
+
+  it("asks for the role phrase verbatim as the party", () => {
+    expect(instructions).toContain("ROLE PHRASE");
+    expect(instructions).toContain("VERBATIM");
+    expect(instructions).toContain("an affiliate of our sponsor");
+    expect(instructions).toContain("NEVER invent or guess a proper name");
+  });
+
+  it("keeps the one-party-per-row and schema clauses", () => {
+    expect(instructions).toContain("`name` must hold EXACTLY ONE party");
+    expect(instructions).toContain("Return JSON matching the schema.");
   });
 });

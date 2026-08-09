@@ -615,18 +615,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       );
       let txIndex = 0;
       for (const r of rows) {
-        // Item 404 disclosures are routinely made against the officer/director
-        // group as a class ("our officers and directors may receive a finder's
-        // fee"), and the model returns the group's label as a person. The
-        // disclosure is real and is kept; the person is not. Such a row is
-        // stored as `party_kind: "group"` with the filing's wording in
+        // Item 404 disclosures are routinely made against a class rather than a
+        // named party ("our officers and directors may receive a finder's fee",
+        // "an affiliate of our sponsor is paid $10,000 per month"). The
+        // disclosure is real and is kept; the party is not an identity. Such a
+        // row is stored as `party_kind: "group"` with the filing's wording in
         // `party_label` and no observation — recording the money without the
         // subject would be worse than either. The model is never asked for
         // "group": it classifies person/company, and this derives the third
-        // kind, so a model that has never heard of the distinction cannot get
-        // it wrong. On one live filing this was every single related-party
-        // person: four rows, no actual individuals.
-        const isCollective = r.party_kind === "person" && isCollectivePartyName(r.name);
+        // kind from EITHER model kind, so a collective the model happened to
+        // type "company" cannot mint a canonical company named after the label.
+        // On one live filing this was every single related-party person: four
+        // rows, no actual individuals.
+        const isCollective = isCollectivePartyName(r.name);
         const partyKind = isCollective ? ("group" as const) : r.party_kind;
         let observation_id: number | null = null;
         if (!isCollective) {
