@@ -320,8 +320,7 @@ export function hftModelRecord(modelId: string): ModelRecord {
     provider_config: {
       model_path: modelId,
       pipeline: "text-generation",
-      device: "cpu",
-      dtype: "q4",
+      dtype: "f16q4",
     },
     metadata: {},
   };
