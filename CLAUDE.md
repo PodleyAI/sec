@@ -348,7 +348,13 @@ risk-factors section that dominates per-filing cost.
 
 A local HuggingFace model can be set via `SEC_HFT_MODEL` (e.g.
 `onnx-community/Qwen3-4B-Instruct-2507-ONNX`). Only **non-thinking** instruct
-models work for `json-mode` — a thinking model wraps the JSON in reasoning.
+models work for `json-mode` — a thinking model wraps the JSON in reasoning. The
+HFT model record pins `device: "cpu"` / `dtype: "q4"` (`hftModelRecord` in
+`src/config/registerModels.ts`, pinned by its test) because the CLI runs the
+model in a Node worker thread on the onnxruntime CPU execution provider, and
+`q4` is the ONNX artifact the committed local-eval numbers were measured
+against; the pair selects a different file on the hub, so changing it needs a
+measured `sec eval extract` comparison rather than a default flip.
 
 > **Verdict: use the cheap cloud tier, not a local model.** Measured against
 > golden truth on the committed `beneficial-ownership` sections, **haiku-4-5

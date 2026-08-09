@@ -309,6 +309,13 @@ const HFT_CAPABILITIES: readonly string[] = [
  * `provider_config.model_path` is the HuggingFace repo id (`org/name`), loaded on
  * first use into the worker; `pipeline: "text-generation"` selects the causal-LM
  * pipeline the structured-generation path drives.
+ *
+ * `device` / `dtype` are pinned together and deliberately: the CLI runs this
+ * model inside a Node worker thread, whose onnxruntime-node execution provider
+ * is the CPU one, and `q4` is the ONNX artifact every committed local-eval
+ * number was measured against. The pair selects a different file on the hub, so
+ * changing it is a measured change — rank the new pairing with
+ * `sec eval extract` before adopting it.
  */
 export function hftModelRecord(modelId: string): ModelRecord {
   return {
@@ -320,8 +327,8 @@ export function hftModelRecord(modelId: string): ModelRecord {
     provider_config: {
       model_path: modelId,
       pipeline: "text-generation",
-      device: "webgpu",
-      dtype: "q4f16",
+      device: "cpu",
+      dtype: "q4",
     },
     metadata: {},
   };

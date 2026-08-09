@@ -67,6 +67,12 @@ describe("registerSecModels", () => {
     expect(record.provider).toBe("HF_TRANSFORMERS_ONNX");
     expect(record.provider_config.model_path).toBe("onnx-community/Qwen2.5-0.5B-Instruct");
     expect(record.capabilities).toContain("json-mode");
+    // The CLI loads this model in a Node worker on the CPU execution provider,
+    // and `q4` is the artifact the committed local-eval numbers were measured
+    // against. A GPU/dtype change selects a different file on the hub, so it is
+    // a measured change rather than a default.
+    expect(record.provider_config.device).toBe("cpu");
+    expect(record.provider_config.dtype).toBe("q4");
   });
 
   it("builds routable OpenAI / Gemini / xAI / DeepSeek records", () => {
