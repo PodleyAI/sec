@@ -9,6 +9,13 @@ import { EVAL_EXTRACTORS, EVAL_FIXTURES } from "./fixtures";
 import { extractorsWithFixtures, runExtractionEval } from "./runExtractionEval";
 
 describe("extractorsWithFixtures", () => {
+  it("every EVAL_EXTRACTORS entry exposes a non-empty instructions() builder", () => {
+    for (const [name, ext] of Object.entries(EVAL_EXTRACTORS)) {
+      expect(typeof ext.instructions, name).toBe("function");
+      expect(ext.instructions().trim().length, name).toBeGreaterThan(20);
+    }
+  });
+
   it("lists exactly the extractors EVAL_FIXTURES covers", () => {
     const listed = [...extractorsWithFixtures()].sort();
     const actual = [...new Set(EVAL_FIXTURES.map((f) => f.extractor))].sort();
