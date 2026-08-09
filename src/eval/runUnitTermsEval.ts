@@ -20,6 +20,7 @@ import { estimateCost } from "./modelPricing";
 import { loadRealS1Sections, type RealSection } from "./realSections";
 import { scoreExtraction } from "./scoreExtraction";
 import { summarizeModelRuns, type EvalReport, type FixtureRunResult } from "./runExtractionEval";
+import { captureEvalRawFromError, captureEvalRawFromRows } from "./captureEvalRaw";
 import { unloadLocalModel } from "./unloadModel";
 
 /**
@@ -43,6 +44,8 @@ export interface RunUnitTermsOptions {
    * by direct callers (tests); `runStructured`'s safety-net then downloads.
    */
   readonly context?: IExecuteContext;
+  /** Retain model payloads on each result for CLI `--dump-raw`. */
+  readonly dumpRaw?: boolean;
 }
 
 export interface UnitTermsReport extends EvalReport {
@@ -161,6 +164,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           run: 1,
           fingerprint: fingerprintRows(rows, true),
           contentFingerprint: fingerprintRows(rows, false),
+          raw: captureEvalRawFromRows(opts.dumpRaw === true, rows),
         };
       } catch (err) {
         result = {
@@ -176,6 +180,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           run: 1,
           fingerprint: `error:1`,
           contentFingerprint: `error:1`,
+          raw: captureEvalRawFromError(opts.dumpRaw === true, err),
         };
       }
       results.push(result);
