@@ -218,6 +218,17 @@ function filterByName(fixtures: EvalFixture[], names: readonly string[]): EvalFi
   return selected;
 }
 
+export function resolveEvalFixtures(opts: {
+  readonly extractor?: string | undefined;
+  readonly fixtures?: readonly string[] | undefined;
+  readonly real?: boolean | undefined;
+}): EvalFixture[] {
+  const selected = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
+  return opts.fixtures && opts.fixtures.length > 0
+    ? filterByName(selected, opts.fixtures)
+    : selected;
+}
+
 async function runOne(
   modelId: string,
   model: ModelConfig,
@@ -347,9 +358,7 @@ export function summarizeModelRuns(
  */
 export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalReport> {
   // Select first: an unscorable extractor should fail before we register models.
-  const selected = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
-  const fixtures =
-    opts.fixtures && opts.fixtures.length > 0 ? filterByName(selected, opts.fixtures) : selected;
+  const fixtures = resolveEvalFixtures(opts);
   await registerModelIds(opts.models);
   const repo = getGlobalModelRepository();
 
