@@ -22,7 +22,6 @@ const InputSchema = () =>
       Type.Array(Type.String(), {
         title: "Fixture names",
         description: "Limit to these fixtures by name (e.g. 's1-management-operating-company')",
-        minItems: 1,
       })
     ),
     real: Type.Optional(
@@ -91,10 +90,11 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
     input: EvalExtractTaskInput,
     context: IExecuteContext
   ): Promise<EvalExtractTaskOutput> {
+    const fixtures = input.fixtures?.filter((n) => typeof n === "string" && n.length > 0);
     const report = await runExtractionEval({
       models: input.models,
       extractor: input.extractor,
-      fixtures: input.fixtures,
+      ...(fixtures && fixtures.length > 0 ? { fixtures } : {}),
       runs: input.runs,
       real: input.real,
       signal: context.signal,
