@@ -6,6 +6,8 @@
 
 import type { IExecuteContext, ModelConfig } from "workglow";
 import {
+  beneficialOwnershipInstructions,
+  executiveCompensationInstructions,
   extractBeneficialOwnership,
   extractExecutiveCompensation,
   extractLoi,
@@ -19,6 +21,17 @@ import {
   extractSponsorPromote,
   extractUnderwriters,
   extractUseOfProceeds,
+  loiInstructions,
+  managementInstructions,
+  offeringTermsInstructions,
+  relatedPartyInstructions,
+  riskFactorsInstructions,
+  spacClassificationInstructions,
+  spacProfileInstructions,
+  spacSponsorsInstructions,
+  sponsorPromoteInstructions,
+  underwritersInstructions,
+  useOfProceedsInstructions,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 /**
@@ -35,6 +48,7 @@ import {
  */
 export interface EvalExtractor {
   readonly run: (text: string, model: ModelConfig, context?: IExecuteContext) => Promise<unknown[]>;
+  readonly instructions: () => string;
   readonly keyField?: string;
   /**
    * Fields that count toward the score when comparing against a reference (used
@@ -59,12 +73,14 @@ export interface EvalExtractor {
 export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
     run: (text, model, context) => extractManagement(text, model, context),
+    instructions: managementInstructions,
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
     instructionOverheadChars: 900,
   },
   "beneficial-ownership": {
     run: (text, model, context) => extractBeneficialOwnership(text, model, context),
+    instructions: beneficialOwnershipInstructions,
     keyField: "name",
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
@@ -77,12 +93,14 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // must NOT produce rows, so emitting one costs precision.
   "risk-factors": {
     run: (text, model, context) => extractRiskFactors(text, model, context),
+    instructions: riskFactorsInstructions,
     keyField: "headline",
     compareFields: ["headline", "category"],
     instructionOverheadChars: 1300,
   },
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
+    instructions: relatedPartyInstructions,
     keyField: "name",
     compareFields: ["name"],
     instructionOverheadChars: 900,
@@ -94,6 +112,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       const row = await extractOfferingTerms(text, model, context);
       return row === null ? [] : [row];
     },
+    instructions: offeringTermsInstructions,
     compareFields: [
       "price_per_unit",
       "warrant_fraction_per_unit",
@@ -109,6 +128,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       const row = await extractSponsorPromote(text, model, context);
       return row === null ? [] : [row];
     },
+    instructions: sponsorPromoteInstructions,
     compareFields: [
       "founder_shares",
       "founder_percent",
@@ -126,6 +146,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       const row = await extractSpacClassification(text, model, context);
       return row === null ? [] : [row];
     },
+    instructions: spacClassificationInstructions,
     keyField: "entity_kind",
     compareFields: ["is_spac", "entity_kind"],
     instructionOverheadChars: 1300,
@@ -138,6 +159,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // registrant reports under.
   "executive-compensation": {
     run: (text, model, context) => extractExecutiveCompensation(text, model, context),
+    instructions: executiveCompensationInstructions,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
     instructionOverheadChars: 1600,
   },
@@ -146,6 +168,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // a model that repeats a syndicate member should not be rewarded for it.
   underwriters: {
     run: (text, model, context) => extractUnderwriters(text, model, context),
+    instructions: underwritersInstructions,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name", "role"],
     instructionOverheadChars: 1100,
@@ -153,6 +176,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Multi-row extractor over the Use of Proceeds section: one row per line item.
   "use-of-proceeds": {
     run: (text, model, context) => extractUseOfProceeds(text, model, context),
+    instructions: useOfProceedsInstructions,
     keyField: "purpose",
     compareFields: ["purpose", "amount"],
     instructionOverheadChars: 1000,
@@ -165,12 +189,14 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       const row = await extractSpacProfile(text, model, context);
       return row === null ? [] : [row];
     },
+    instructions: spacProfileInstructions,
     compareFields: ["focus", "focus_location"],
     instructionOverheadChars: 1400,
   },
   // Multi-row extractor naming the sponsor entities behind a blank-check issuer.
   "spac-sponsors": {
     run: (text, model, context) => extractSpacSponsors(text, model, context),
+    instructions: spacSponsorsInstructions,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name"],
     instructionOverheadChars: 900,
@@ -184,6 +210,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       const row = await extractLoi(text, model, context);
       return row === null ? [] : [row];
     },
+    instructions: loiInstructions,
     keyField: "target_name",
     compareFields: ["target_name", "loi_date"],
     instructionOverheadChars: 1200,

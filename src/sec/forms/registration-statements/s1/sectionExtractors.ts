@@ -576,6 +576,16 @@ export function wrapUntrusted(sectionText: string): string {
   return `<${tag}>\n${defanged}\n</${tag}>`;
 }
 
+export function buildExtractionPrompt(args: {
+  readonly instructions: string;
+  readonly sectionText: string;
+  readonly nonce?: string | undefined;
+}): string {
+  const preamble = buildUntrustedPreamble(args.nonce);
+  const wrapped = wrapUntrusted(args.sectionText);
+  return `${preamble}\n\n${args.instructions}\n\n${wrapped}`;
+}
+
 /**
  * Minimal execution context for driving a {@link StructuredGenerationTask}
  * outside a full task-graph run. The task only uses `signal`, `updateProgress`,
@@ -818,18 +828,20 @@ async function runGuardedExtraction(
   maxTokens?: number
 ): Promise<Record<string, unknown>> {
   const local = isLocalProvider(model);
+  const nonceEnabled = !local && isNonceEnabled();
+  // Without a nonce the prompt is attempt-invariant, so build and defang the
+  // filer text once rather than repeating that work for every retry.
+  const staticPrompt = nonceEnabled
+    ? undefined
+    : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  // The fence is attempt-independent now that no nonce is embedded in it, so it
-  // is built once instead of re-normalizing the whole section on every retry.
-  const wrapped = wrapUntrusted(sectionText);
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
-    const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
-    const preamble = buildUntrustedPreamble(nonce);
-    const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
+    const nonce = nonceEnabled ? deriveVerifyNonce(sectionText, attempt) : undefined;
+    const prompt = staticPrompt ?? buildExtractionPrompt({ instructions, sectionText, nonce });
     try {
       const obj = await runStructured(
         label,
@@ -882,12 +894,8 @@ async function runGuardedExtraction(
   throw lastError;
 }
 
-export async function extractManagement(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<ManagementPersonRow[]> {
-  const instructions =
+export function managementInstructions(): string {
+  return (
     "Extract every director and executive officer named in the S-1 MANAGEMENT section " +
     "between the tags below. For each, give full_name, titles, relationship " +
     "(or null), age (the person's stated age as an integer, or null if not stated), bio " +
@@ -922,11 +930,19 @@ export async function extractManagement(
     "member', etc.); drop articles before a role ('a director' -> 'Director'). " +
     "For example 'member of our board of directors' -> ['Director'] and 'Chairman of our " +
     "board of directors' -> ['Chairman of the Board of Directors']. " +
-    "Return JSON matching the schema.";
+    "Return JSON matching the schema."
+  );
+}
+
+export async function extractManagement(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<ManagementPersonRow[]> {
   const obj = await runGuardedExtraction(
     "management",
     model,
-    instructions,
+    managementInstructions(),
     sectionText,
     ManagementOutputSchema,
     context
@@ -1015,12 +1031,8 @@ export function boundPrincipalPosition(position: string | null | undefined): str
  * are distributed across grid rows differently by every filer agent. The stable
  * part is the caption vocabulary, not the grid.
  */
-export async function extractExecutiveCompensation(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<ExecutiveCompensationRow[]> {
-  const instructions =
+export function executiveCompensationInstructions(): string {
+  return (
     "Extract the SUMMARY COMPENSATION TABLE from the executive-compensation section " +
     "between the tags below. Emit ONE row per named executive officer PER FISCAL YEAR: " +
     "an officer shown for two fiscal years produces two rows. " +
@@ -1042,11 +1054,19 @@ export async function extractExecutiveCompensation(
     "Extract ONLY the Summary Compensation Table. Ignore a separate Director Compensation " +
     "table, outstanding-equity-awards tables, grants-of-plan-based-awards tables and the " +
     "narrative that follows the table, even when they appear under the same heading. " +
-    "Return JSON matching the schema.";
+    "Return JSON matching the schema."
+  );
+}
+
+export async function extractExecutiveCompensation(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<ExecutiveCompensationRow[]> {
   const obj = await runGuardedExtraction(
     "executive compensation",
     model,
-    instructions,
+    executiveCompensationInstructions(),
     sectionText,
     ExecutiveCompensationOutputSchema,
     context
@@ -1189,12 +1209,8 @@ export function isCollectivePartyName(name: string | null | undefined): boolean 
   return COLLECTIVE_PARTY_LABEL.test(trimmed) || isAllRoleWords(trimmed);
 }
 
-export async function extractBeneficialOwnership(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<BeneficialOwnerRow[]> {
-  const instructions =
+export function beneficialOwnershipInstructions(): string {
+  return (
     "Extract every beneficial owner from the S-1 Principal and Selling Stockholders " +
     "table between the tags below. For each row give name, owner_kind ('person' or " +
     "'company'), security_class, shares_owned, percent_owned, shares_offered, " +
@@ -1214,11 +1230,19 @@ export async function extractBeneficialOwnership(
     "one's shares from the footnote where it states them — never a combined 'X and Y' " +
     "name. Do NOT emit the aggregate subtotal row that totals the officers and " +
     "directors (e.g. 'All officers and directors as a group (9 individuals)'): it is a " +
-    "total of the rows above, not a stockholder. Return JSON matching the schema.";
+    "total of the rows above, not a stockholder. Return JSON matching the schema."
+  );
+}
+
+export async function extractBeneficialOwnership(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<BeneficialOwnerRow[]> {
   const obj = await runGuardedExtraction(
     "beneficial ownership",
     model,
-    instructions,
+    beneficialOwnershipInstructions(),
     sectionText,
     BeneficialOwnershipOutputSchema,
     context
@@ -1229,12 +1253,8 @@ export async function extractBeneficialOwnership(
   return owners.filter((o) => !isOwnershipGroupSubtotal(o?.name));
 }
 
-export async function extractRelatedParty(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<RelatedPartyRow[]> {
-  const instructions =
+export function relatedPartyInstructions(): string {
+  return (
     "Extract related parties and their transactions from the S-1 Certain Relationships " +
     "and Related Transactions section between the tags below. For each party give name, " +
     "party_kind ('person' or 'company'), a confidence in [0,1], the verbatim source_span, " +
@@ -1252,11 +1272,19 @@ export async function extractRelatedParty(
     "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
     "of Phaistos Investment Fund'), emit one row per party — never a combined " +
     "'X / Y' or 'X and Y' name. " +
-    "Return JSON matching the schema.";
+    "Return JSON matching the schema."
+  );
+}
+
+export async function extractRelatedParty(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<RelatedPartyRow[]> {
   const obj = await runGuardedExtraction(
     "related party",
     model,
-    instructions,
+    relatedPartyInstructions(),
     sectionText,
     RelatedPartyOutputSchema,
     context
@@ -1264,12 +1292,8 @@ export async function extractRelatedParty(
   return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
 }
 
-export async function extractOfferingTerms(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<OfferingTermsRow | null> {
-  const instructions =
+export function offeringTermsInstructions(): string {
+  return (
     "Extract the offering terms from the S-1/F-1 'The Offering' and 'Underwriting' text " +
     "between the tags below. For a normal IPO fill security_type, shares_offered, price " +
     "(or price_low/price_high), gross_proceeds, net_proceeds, over_allotment_shares, " +
@@ -1284,11 +1308,19 @@ export async function extractOfferingTerms(
     "List every distinct ticker symbol in 'tickers' " +
     "(exact symbol, is_primary true for the common-equity/units symbol, false for " +
     "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
-    "and a verbatim source_span. Return JSON matching the schema.";
+    "and a verbatim source_span. Return JSON matching the schema."
+  );
+}
+
+export async function extractOfferingTerms(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<OfferingTermsRow | null> {
   const obj = await runGuardedExtraction(
     "offering terms",
     model,
-    instructions,
+    offeringTermsInstructions(),
     sectionText,
     OfferingTermsOutputSchema,
     context
@@ -1297,19 +1329,8 @@ export async function extractOfferingTerms(
   return obj as unknown as OfferingTermsRow;
 }
 
-/**
- * Extracts SPAC sponsor promote economics from a prospectus's "The Offering" /
- * "The Sponsor" prose: founder (Class B) shares and their percentage, the
- * private-placement warrant count / price / public warrant coverage, and the
- * trust deposit per public share and in total. Returns null when the model is
- * not confident or cites no source span (mirrors {@link extractOfferingTerms}).
- */
-export async function extractSponsorPromote(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<SponsorPromoteRow | null> {
-  const instructions =
+export function sponsorPromoteInstructions(): string {
+  return (
     "The text between the tags below is from a SPAC (blank-check) prospectus. Extract the " +
     "SPONSOR PROMOTE ECONOMICS. Give founder_shares (the number of founder / Class B / " +
     "founders' shares held by the sponsor, or null), founder_percent (those founder shares " +
@@ -1332,11 +1353,26 @@ export async function extractSponsorPromote(
     "sponsor and private warrants named belong to a PREDECESSOR shell rather than to an " +
     "offering being made here, every field is null. " +
     "Give a confidence in [0,1] and the verbatim source_span you drew " +
-    "the figures from. Return JSON matching the schema.";
+    "the figures from. Return JSON matching the schema."
+  );
+}
+
+/**
+ * Extracts SPAC sponsor promote economics from a prospectus's "The Offering" /
+ * "The Sponsor" prose: founder (Class B) shares and their percentage, the
+ * private-placement warrant count / price / public warrant coverage, and the
+ * trust deposit per public share and in total. Returns null when the model is
+ * not confident or cites no source span (mirrors {@link extractOfferingTerms}).
+ */
+export async function extractSponsorPromote(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<SponsorPromoteRow | null> {
   const obj = await runGuardedExtraction(
     "sponsor promote",
     model,
-    instructions,
+    sponsorPromoteInstructions(),
     sectionText,
     SponsorPromoteOutputSchema,
     context
@@ -1355,12 +1391,8 @@ export async function extractSponsorPromote(
   };
 }
 
-export async function extractUnderwriters(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<UnderwriterRowOut[]> {
-  const instructions =
+export function underwritersInstructions(): string {
+  return (
     "Extract every underwriter named in the S-1/F-1 Underwriting (or Plan of " +
     "Distribution) section between the tags below. For each give legal_name (full " +
     "legal entity, e.g. 'Goldman Sachs & Co. LLC'), common_name (the bank brand " +
@@ -1368,11 +1400,19 @@ export async function extractUnderwriters(
     "representative/lead, 'bookrunner' for a book-running manager, 'co-manager', else " +
     "'underwriter'; null if unclear), shares_allocated (the number of shares " +
     "underwritten, or null), over_allotment_shares (or null), a confidence in [0,1], " +
-    "and the verbatim source_span. Return JSON matching the schema.";
+    "and the verbatim source_span. Return JSON matching the schema."
+  );
+}
+
+export async function extractUnderwriters(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<UnderwriterRowOut[]> {
   const obj = await runGuardedExtraction(
     "underwriters",
     model,
-    instructions,
+    underwritersInstructions(),
     sectionText,
     UnderwriterOutputSchema,
     context
@@ -1380,26 +1420,48 @@ export async function extractUnderwriters(
   return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
 }
 
+export function spacSponsorsInstructions(): string {
+  return (
+    "The text between the tags below is from a SPAC (blank-check) registration " +
+    "statement. Identify each sponsor entity. For each, give legal_name (the full " +
+    "legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name (the sponsor brand/family " +
+    "without the legal suffix or series number, e.g. 'Acme Sponsor'), a confidence in " +
+    "[0,1], and the verbatim source_span. Return JSON matching the schema."
+  );
+}
+
 export async function extractSpacSponsors(
   sectionText: string,
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacSponsorRow[]> {
-  const instructions =
-    "The text between the tags below is from a SPAC (blank-check) registration " +
-    "statement. Identify each sponsor entity. For each, give legal_name (the full " +
-    "legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name (the sponsor brand/family " +
-    "without the legal suffix or series number, e.g. 'Acme Sponsor'), a confidence in " +
-    "[0,1], and the verbatim source_span. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "SPAC sponsors",
     model,
-    instructions,
+    spacSponsorsInstructions(),
     sectionText,
     SpacSponsorOutputSchema,
     context
   );
   return (obj.sponsors as SpacSponsorRow[] | undefined) ?? [];
+}
+
+export function spacProfileInstructions(): string {
+  return (
+    "The text between the tags below is from a SPAC (blank-check) registration " +
+    "statement's summary / proposed-business prose. Extract the SPAC's acquisition " +
+    "profile. Give focus: an array of business SECTORS the SPAC intends to target, " +
+    "chosen ONLY from this controlled list (use the exact strings, pick the closest " +
+    `matches, and use an empty array if the SPAC is a generalist with no stated sector): ` +
+    `${FOCUS_VOCABULARY.join(", ")}. ` +
+    "Give focus_location: an array of geographic regions/countries the SPAC targets " +
+    "(e.g. 'North America', 'Latin America', 'Europe', 'Southeast Asia'); empty array " +
+    "if none stated. Give description: a concise 1-3 sentence description of the SPAC " +
+    "and its business purpose (or null). Give team: a short narrative describing the " +
+    "management/sponsor team's background and experience (or null). Give url_spac: the " +
+    "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
+    "source_span you drew the focus/description from. Return JSON matching the schema."
+  );
 }
 
 /**
@@ -1414,24 +1476,10 @@ export async function extractSpacProfile(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacProfileRow | null> {
-  const instructions =
-    "The text between the tags below is from a SPAC (blank-check) registration " +
-    "statement's summary / proposed-business prose. Extract the SPAC's acquisition " +
-    "profile. Give focus: an array of business SECTORS the SPAC intends to target, " +
-    "chosen ONLY from this controlled list (use the exact strings, pick the closest " +
-    `matches, and use an empty array if the SPAC is a generalist with no stated sector): ` +
-    `${FOCUS_VOCABULARY.join(", ")}. ` +
-    "Give focus_location: an array of geographic regions/countries the SPAC targets " +
-    "(e.g. 'North America', 'Latin America', 'Europe', 'Southeast Asia'); empty array " +
-    "if none stated. Give description: a concise 1-3 sentence description of the SPAC " +
-    "and its business purpose (or null). Give team: a short narrative describing the " +
-    "management/sponsor team's background and experience (or null). Give url_spac: the " +
-    "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
-    "source_span you drew the focus/description from. Return JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "SPAC profile",
     model,
-    instructions,
+    spacProfileInstructions(),
     sectionText,
     SpacProfileOutputSchema,
     context
@@ -1448,6 +1496,23 @@ export async function extractSpacProfile(
   };
 }
 
+export function spacClassificationInstructions(): string {
+  return (
+    "The text between the tags below is prose from a company's SEC registration " +
+    "statement (an S-1 / F-1 / DRS). Classify what KIND of issuer it is. Set entity_kind " +
+    "to 'spac' ONLY for a true special-purpose acquisition company / blank-check company: " +
+    "a newly formed entity with no operations that raised (or is raising) an IPO to hold " +
+    "the proceeds in a trust account and later acquire an unidentified operating business " +
+    "(an 'initial business combination'). Set entity_kind to 'shell' for a non-operating " +
+    "shell that is NOT a blank-check IPO vehicle (e.g. a dormant company, or a shell used " +
+    "for a reverse merger with an already-identified business). Set entity_kind to " +
+    "'operating' for a company with a real, existing line of business. Set is_spac true " +
+    "if and only if entity_kind is 'spac'. Give a confidence in [0,1] and the verbatim " +
+    "source_span you drew the determination from (null only if is_spac is false). Return " +
+    "JSON matching the schema."
+  );
+}
+
 /**
  * Content-classifies a registration filing whose SGML-header SIC was NOT the
  * deterministic blank-check code, to catch SIC-miscoded SPACs and distinguish a
@@ -1462,23 +1527,10 @@ export async function extractSpacClassification(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacClassificationRow | null> {
-  const instructions =
-    "The text between the tags below is prose from a company's SEC registration " +
-    "statement (an S-1 / F-1 / DRS). Classify what KIND of issuer it is. Set entity_kind " +
-    "to 'spac' ONLY for a true special-purpose acquisition company / blank-check company: " +
-    "a newly formed entity with no operations that raised (or is raising) an IPO to hold " +
-    "the proceeds in a trust account and later acquire an unidentified operating business " +
-    "(an 'initial business combination'). Set entity_kind to 'shell' for a non-operating " +
-    "shell that is NOT a blank-check IPO vehicle (e.g. a dormant company, or a shell used " +
-    "for a reverse merger with an already-identified business). Set entity_kind to " +
-    "'operating' for a company with a real, existing line of business. Set is_spac true " +
-    "if and only if entity_kind is 'spac'. Give a confidence in [0,1] and the verbatim " +
-    "source_span you drew the determination from (null only if is_spac is false). Return " +
-    "JSON matching the schema.";
   const obj = await runGuardedExtraction(
     "SPAC classification",
     model,
-    instructions,
+    spacClassificationInstructions(),
     sectionText,
     SpacClassificationOutputSchema,
     context
@@ -1502,12 +1554,8 @@ export async function extractSpacClassification(
   };
 }
 
-export async function extractMergerDeal(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<MergerDealRow | null> {
-  const instructions =
+export function mergerDealInstructions(): string {
+  return (
     "The text between the tags below is from a SPAC merger proxy (DEFM14A/PREM14A). " +
     "Identify the business-combination target and deal terms. Give target_name (the " +
     "operating company the SPAC will merge with), target_description (a concise 1-3 " +
@@ -1515,11 +1563,19 @@ export async function extractMergerDeal(
     "total PIPE investment in dollars, or null), merger_consideration (a short verbatim phrase " +
     "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
-    "Return JSON matching the schema.";
+    "Return JSON matching the schema."
+  );
+}
+
+export async function extractMergerDeal(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<MergerDealRow | null> {
   const obj = await runGuardedExtraction(
     "merger deal",
     model,
-    instructions,
+    mergerDealInstructions(),
     sectionText,
     MergerDealOutputSchema,
     context
@@ -1543,6 +1599,24 @@ function riskHeadlineKey(headline: string | null | undefined): string {
     .toLowerCase();
 }
 
+export function riskFactorsInstructions(): string {
+  return (
+    "Extract the list of RISK FACTORS from the prospectus text between the tags below. " +
+    "A risk factor is introduced by a caption — a single (usually bolded) sentence such as " +
+    "'We are a blank check company with no operating history and no revenues.' — followed by " +
+    "one or more explanatory paragraphs. Emit ONE row per risk factor caption, in the order " +
+    "they appear. Give headline: the caption copied VERBATIM from the text (never a " +
+    "paraphrase, summary, or merger of two captions; do not include the explanatory " +
+    "paragraphs). Give category: the risk-category heading the caption sits under, verbatim " +
+    "(e.g. 'Risks Relating to our Securities', 'General Risk Factors'), or null when the " +
+    "section states none. Do NOT emit the section's introductory paragraph ('An investment " +
+    "in our securities involves a high degree of risk…'), a category heading on its own, or " +
+    "a cross-reference to risks described in another document. Where the text is a bulleted " +
+    "summary list of risks, each bullet is one row. Give a confidence in [0,1] and the " +
+    "verbatim source_span you drew the caption from. Return JSON matching the schema."
+  );
+}
+
 /**
  * Extracts the risk-factor list from a prospectus Item 105 section. The section
  * is the largest in an S-1 and enumerates far more rows than one response can
@@ -1559,20 +1633,6 @@ export async function extractRiskFactors(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<RiskFactorRow[]> {
-  const instructions =
-    "Extract the list of RISK FACTORS from the prospectus text between the tags below. " +
-    "A risk factor is introduced by a caption — a single (usually bolded) sentence such as " +
-    "'We are a blank check company with no operating history and no revenues.' — followed by " +
-    "one or more explanatory paragraphs. Emit ONE row per risk factor caption, in the order " +
-    "they appear. Give headline: the caption copied VERBATIM from the text (never a " +
-    "paraphrase, summary, or merger of two captions; do not include the explanatory " +
-    "paragraphs). Give category: the risk-category heading the caption sits under, verbatim " +
-    "(e.g. 'Risks Relating to our Securities', 'General Risk Factors'), or null when the " +
-    "section states none. Do NOT emit the section's introductory paragraph ('An investment " +
-    "in our securities involves a high degree of risk…'), a category heading on its own, or " +
-    "a cross-reference to risks described in another document. Where the text is a bulleted " +
-    "summary list of risks, each bullet is one row. Give a confidence in [0,1] and the " +
-    "verbatim source_span you drew the caption from. Return JSON matching the schema.";
   const chunks = chunkRiskFactorText(sectionText);
   const out: RiskFactorRow[] = [];
   const seen = new Set<string>();
@@ -1580,7 +1640,7 @@ export async function extractRiskFactors(
     const obj = await runGuardedExtraction(
       "risk factors",
       model,
-      instructions,
+      riskFactorsInstructions(),
       chunk,
       RiskFactorsOutputSchema,
       context,
@@ -1637,12 +1697,8 @@ export async function extractRiskFactors(
   return out;
 }
 
-export async function extractUseOfProceeds(
-  sectionText: string,
-  model: ModelConfig,
-  context?: IExecuteContext
-): Promise<UseOfProceedsLineRow[]> {
-  const instructions =
+export function useOfProceedsInstructions(): string {
+  return (
     "Extract the use-of-proceeds line items from the S-1/F-1 Use of Proceeds section " +
     "between the tags below. For each stated purpose give purpose, amount (dollars, or " +
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
@@ -1659,16 +1715,34 @@ export async function extractUseOfProceeds(
     "decomposes the 'Not held in trust account' line. Emit the line items of BOTH, " +
     "including the parent line — they are stated at different granularities and both " +
     "are stated uses. " +
-    "Return JSON matching the schema.";
+    "Return JSON matching the schema."
+  );
+}
+
+export async function extractUseOfProceeds(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<UseOfProceedsLineRow[]> {
   const obj = await runGuardedExtraction(
     "use of proceeds",
     model,
-    instructions,
+    useOfProceedsInstructions(),
     sectionText,
     UseOfProceedsOutputSchema,
     context
   );
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
+}
+
+export function redemptionInstructions(): string {
+  return (
+    "From the SEC 8-K text below, extract the REALIZED redemption of public " +
+    "shares (e.g. reported after a shareholder vote or upon closing). Report " +
+    "only figures explicitly stated — do NOT multiply shares by price to " +
+    "synthesize an amount. If the text does not report realized redemptions, " +
+    "return confidence 0 and null fields."
+  );
 }
 
 /**
@@ -1681,16 +1755,10 @@ export async function extractRedemption(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<RedemptionRow | null> {
-  const instructions =
-    "From the SEC 8-K text below, extract the REALIZED redemption of public " +
-    "shares (e.g. reported after a shareholder vote or upon closing). Report " +
-    "only figures explicitly stated — do NOT multiply shares by price to " +
-    "synthesize an amount. If the text does not report realized redemptions, " +
-    "return confidence 0 and null fields.";
   const obj = await runGuardedExtraction(
     "redemption",
     model,
-    instructions,
+    redemptionInstructions(),
     sectionText,
     RedemptionOutputSchema,
     context
@@ -1699,6 +1767,22 @@ export async function extractRedemption(
   // A "no realized redemption" response carries neither figure — not a redemption.
   if (obj.redemption_shares == null && obj.redemption_amount == null) return null;
   return obj as unknown as RedemptionRow;
+}
+
+export function loiInstructions(): string {
+  return (
+    "From the SEC 8-K text below, determine whether it reports that the company " +
+    "ENTERED INTO a NON-BINDING letter of intent (LOI), agreement in principle, or " +
+    "memorandum of understanding for a business combination with a target company. " +
+    "Set is_loi true ONLY for a non-binding LOI-stage announcement — NOT for a " +
+    "definitive/merger agreement (those are binding), NOT for a completed combination, " +
+    "NOT for redemptions or vote results, and NOT for the mere termination of a prior " +
+    "LOI. Give target_name (the proposed target, if named, else null), loi_date (the " +
+    "LOI signing/announcement date stated in the text as YYYY-MM-DD, else null), a " +
+    "confidence in [0,1], and the verbatim source_span you drew the determination " +
+    "from. If the text reports no LOI, return is_loi false with confidence for that " +
+    "determination and a null source_span."
+  );
 }
 
 /**
@@ -1713,22 +1797,10 @@ export async function extractLoi(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<LoiRow | null> {
-  const instructions =
-    "From the SEC 8-K text below, determine whether it reports that the company " +
-    "ENTERED INTO a NON-BINDING letter of intent (LOI), agreement in principle, or " +
-    "memorandum of understanding for a business combination with a target company. " +
-    "Set is_loi true ONLY for a non-binding LOI-stage announcement — NOT for a " +
-    "definitive/merger agreement (those are binding), NOT for a completed combination, " +
-    "NOT for redemptions or vote results, and NOT for the mere termination of a prior " +
-    "LOI. Give target_name (the proposed target, if named, else null), loi_date (the " +
-    "LOI signing/announcement date stated in the text as YYYY-MM-DD, else null), a " +
-    "confidence in [0,1], and the verbatim source_span you drew the determination " +
-    "from. If the text reports no LOI, return is_loi false with confidence for that " +
-    "determination and a null source_span.";
   const obj = await runGuardedExtraction(
     "LOI",
     model,
-    instructions,
+    loiInstructions(),
     sectionText,
     LoiOutputSchema,
     context

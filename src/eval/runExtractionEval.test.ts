@@ -6,9 +6,20 @@
 
 import { describe, expect, it } from "vitest";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES } from "./fixtures";
-import { extractorsWithFixtures, runExtractionEval } from "./runExtractionEval";
+import {
+  extractorsWithFixtures,
+  resolveEvalFixtures,
+  runExtractionEval,
+} from "./runExtractionEval";
 
 describe("extractorsWithFixtures", () => {
+  it("every EVAL_EXTRACTORS entry exposes a non-empty instructions() builder", () => {
+    for (const [name, ext] of Object.entries(EVAL_EXTRACTORS)) {
+      expect(typeof ext.instructions, name).toBe("function");
+      expect(ext.instructions().trim().length, name).toBeGreaterThan(20);
+    }
+  });
+
   it("lists exactly the extractors EVAL_FIXTURES covers", () => {
     const listed = [...extractorsWithFixtures()].sort();
     const actual = [...new Set(EVAL_FIXTURES.map((f) => f.extractor))].sort();
@@ -23,6 +34,12 @@ describe("extractorsWithFixtures", () => {
 });
 
 describe("runExtractionEval fixture selection", () => {
+  it("resolveEvalFixtures returns text-bearing fixtures for management", () => {
+    const fixtures = resolveEvalFixtures({ extractor: "management" });
+    expect(fixtures.length).toBeGreaterThan(0);
+    expect(fixtures[0]!.text.length).toBeGreaterThan(0);
+  });
+
   // Registration in EVAL_EXTRACTORS does not imply a committed fixture, and the
   // CLI validates --extractor against that map. Selecting an unfixtured extractor
   // must fail loudly rather than sweep zero runs and report success.

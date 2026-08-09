@@ -305,6 +305,10 @@ sec eval extract --extractor management --format json
 # Re-run just the fixture a model failed on (name as printed in the failures list)
 sec eval extract --fixture s1-management-operating-company --models "claude-haiku-4-5"
 
+# Print prompt instructions, templates, or full fixture/section prompts and exit
+# without making model calls. Supported by eval extract, eval s1, and eval unit-terms.
+sec eval extract --print-prompts instructions --extractor management
+
 # Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI vs DeepSeek.
 # Each id routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini,
 # grok-*→xAI, deepseek-*→DeepSeek); needs the matching *_API_KEY per provider
