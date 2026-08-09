@@ -12,6 +12,11 @@ import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
 import { loadRealS1Sections } from "./realSections";
 import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
+import {
+  captureEvalRawFromError,
+  captureEvalRawFromRows,
+  type EvalRawDump,
+} from "./captureEvalRaw";
 import { estimateCost, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
 import { unloadLocalModel } from "./unloadModel";
@@ -32,6 +37,8 @@ export interface FixtureRunResult {
   readonly fingerprint: string;
   /** Digest of the extracted facts only — citations excluded. */
   readonly contentFingerprint: string;
+  /** Present only when the sweep was run with `dumpRaw: true`. */
+  readonly raw: EvalRawDump | undefined;
 }
 
 /**
@@ -122,6 +129,8 @@ export interface RunEvalOptions {
    * per-section safety-net in `runStructured`.
    */
   readonly context?: IExecuteContext;
+  /** Retain model payloads on each result for CLI `--dump-raw`. */
+  readonly dumpRaw?: boolean;
 }
 
 /** Extractor ids that actually have at least one committed fixture. */
@@ -234,7 +243,8 @@ async function runOne(
   model: ModelConfig,
   fixture: EvalFixture,
   context: IExecuteContext | undefined,
-  run: number
+  run: number,
+  dumpRaw: boolean
 ): Promise<FixtureRunResult> {
   const extractor = EVAL_EXTRACTORS[fixture.extractor];
   const promptChars = fixture.text.length + extractor.instructionOverheadChars;
@@ -257,6 +267,7 @@ async function runOne(
       run,
       fingerprint: fingerprintRows(rows, true),
       contentFingerprint: fingerprintRows(rows, false),
+      raw: captureEvalRawFromRows(dumpRaw, rows),
     };
   } catch (err) {
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
@@ -276,6 +287,7 @@ async function runOne(
       // two runs that reproducibly agreed on extracting nothing.
       fingerprint: `error:${run}`,
       contentFingerprint: `error:${run}`,
+      raw: captureEvalRawFromError(dumpRaw, err),
     };
   }
 }
@@ -394,7 +406,8 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               model,
               fixture,
               sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label),
-              run
+              run,
+              opts.dumpRaw === true
             )
           : ({
               model: modelId,
@@ -411,6 +424,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               run,
               fingerprint: `unregistered:${run}`,
               contentFingerprint: `unregistered:${run}`,
+              raw: captureEvalRawFromError(opts.dumpRaw === true, new Error(`model "${modelId}" not registered`)),
             } satisfies FixtureRunResult);
         results.push(result);
         modelRows.push(result);
