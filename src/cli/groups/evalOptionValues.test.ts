@@ -32,6 +32,12 @@ async function runEval(argv: readonly string[]): Promise<string> {
   return stderr;
 }
 
+async function runEvalOk(argv: readonly string[]): Promise<void> {
+  const stderr = await runEval(argv);
+  expect(stderr).toBe("");
+  expect(process.exitCode).not.toBe(1);
+}
+
 describe("eval value-less options", () => {
   afterEach(() => {
     process.exitCode = 0;
@@ -94,6 +100,41 @@ describe("eval value-less options", () => {
   it("covers eval unit-terms' value options", async () => {
     expect(await runEval(["unit-terms", "--models"])).toContain("claude-* (Anthropic)");
     expect(await runEval(["unit-terms", "--format"])).toContain("one of: table, json");
+  });
+
+  it("lists print-prompts modes for a bare --print-prompts on extract", async () => {
+    const err = await runEval(["extract", "--print-prompts"]);
+    expect(err).toContain("--print-prompts needs a value");
+    expect(err).toContain("instructions");
+    expect(err).toContain("template");
+    expect(err).toContain("full");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("rejects an unknown print-prompts mode", async () => {
+    const err = await runEval(["extract", "--print-prompts", "nope"]);
+    expect(err).toMatch(/print-prompts/i);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("accepts --print-prompts on s1 and unit-terms (bare lists modes)", async () => {
+    expect(await runEval(["s1", "--print-prompts"])).toContain("instructions");
+    expect(await runEval(["unit-terms", "--print-prompts"])).toContain("full");
+  });
+
+  it("extract --print-prompts instructions dumps management text and does not need models", async () => {
+    const lines: string[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...a) => {
+      lines.push(a.map(String).join(" "));
+    });
+    try {
+      await runEvalOk(["extract", "--print-prompts", "instructions", "--extractor", "management"]);
+    } finally {
+      log.mockRestore();
+    }
+    const out = lines.join("\n");
+    expect(out).toContain("=== management / instructions ===");
+    expect(out).toContain("Extract every director and executive officer");
   });
 
   /**

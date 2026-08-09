@@ -9,12 +9,18 @@ import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 import { csvOptionValue, optionValue } from "../optionValue";
 import { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "../../config/registerModels";
-import { availableFixtureCiks } from "../../eval/realSections";
+import { availableFixtureCiks, loadRealS1Sections } from "../../eval/realSections";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
+  printEvalPrompts,
+  type PrintPromptItem,
+  type PrintPromptsMode,
+} from "../../eval/printEvalPrompts";
+import {
   availableFixtures,
   extractorsWithFixtures,
+  resolveEvalFixtures,
   type EvalReport,
   type ModelSummary,
   type StabilitySummary,
@@ -123,6 +129,23 @@ function modelIdsHint(defaults: readonly string[]): string {
 /** `--format` is a closed two-value set on every eval subcommand. */
 function requireFormat(value: string | boolean): string {
   return optionValue("--format", value, () => "one of: table, json") ?? "table";
+}
+
+const PRINT_PROMPTS_MODES: readonly PrintPromptsMode[] = ["instructions", "template", "full"];
+
+function requirePrintPromptsMode(
+  value: string | boolean | undefined
+): PrintPromptsMode | undefined {
+  const raw = optionValue(
+    "--print-prompts",
+    value,
+    () => `one of: ${PRINT_PROMPTS_MODES.join(", ")}`
+  );
+  if (raw === undefined) return undefined;
+  if (!(PRINT_PROMPTS_MODES as readonly string[]).includes(raw)) {
+    throw new Error(`--print-prompts needs a value — one of: ${PRINT_PROMPTS_MODES.join(", ")}`);
+  }
+  return raw as PrintPromptsMode;
 }
 
 function pct(x: number): string {
@@ -412,6 +435,10 @@ export function addEvalCommands(program: Command): void {
         "(e.g. s1-management-operating-company) — re-run just the one a model failed on"
     )
     .option("--format [fmt]", "table | json (default: table)")
+    .option(
+      "--print-prompts [mode]",
+      `dump extraction prompts and exit (${PRINT_PROMPTS_MODES.join(" | ")}) — no model calls`
+    )
     .option("--no-details", "hide per-row/field disagreements after the table")
     .option(
       "--runs <n>",
@@ -431,18 +458,9 @@ export function addEvalCommands(program: Command): void {
         details: boolean;
         runs?: number;
         real?: boolean;
+        printPrompts?: string | boolean;
       }) => {
         await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const models = parseModels(
-            csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
-          );
-          // `--runs` keeps a required argument: a count has no list of legal
-          // values to print, so Commander's own message says everything ours would.
-          const runs = opts.runs;
-          if (runs !== undefined && (!Number.isFinite(runs) || runs < 1)) {
-            throw new Error(`--runs must be a positive integer; got "${runs}"`);
-          }
           const extractor = optionValue(
             "--extractor",
             opts.extractor,
@@ -460,6 +478,31 @@ export function addEvalCommands(program: Command): void {
               `one or more fixture names:\n` +
               formatFixtureList(availableFixtures({ extractor, real: opts.real }))
           );
+          const printMode = requirePrintPromptsMode(opts.printPrompts);
+          if (printMode !== undefined) {
+            const resolved = resolveEvalFixtures({
+              extractor,
+              fixtures,
+              real: opts.real === true,
+            });
+            const items: PrintPromptItem[] = resolved.map((f) => ({
+              extractor: f.extractor,
+              label: f.name,
+              sectionText: f.text,
+            }));
+            printEvalPrompts({ mode: printMode, items });
+            return;
+          }
+          const format = requireFormat(opts.format);
+          const models = parseModels(
+            csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
+          );
+          // `--runs` keeps a required argument: a count has no list of legal
+          // values to print, so Commander's own message says everything ours would.
+          const runs = opts.runs;
+          if (runs !== undefined && (!Number.isFinite(runs) || runs < 1)) {
+            throw new Error(`--runs must be a positive integer; got "${runs}"`);
+          }
           const input = {
             models,
             ...(extractor ? { extractor } : {}),
@@ -512,6 +555,10 @@ export function addEvalCommands(program: Command): void {
         "filing when checking a newly added fixture or label"
     )
     .option("--format [fmt]", "table | json (default: table)")
+    .option(
+      "--print-prompts [mode]",
+      `dump extraction prompts and exit (${PRINT_PROMPTS_MODES.join(" | ")}) — no model calls`
+    )
     .option("--no-details", "hide per-row/field disagreements after the table")
     .action(
       async (opts: {
@@ -522,8 +569,58 @@ export function addEvalCommands(program: Command): void {
         cik?: string | boolean;
         format: string | boolean;
         details: boolean;
+        printPrompts?: string | boolean;
       }) => {
         await runCommand(async () => {
+          const requestedExtractors = csvOptionValue(
+            "--extractors",
+            opts.extractors,
+            // Every EVAL_EXTRACTORS key is legal here (unlike `eval extract`,
+            // which needs a committed fixture); which ones have golden labels
+            // is in --help, and repeating it doubles the line.
+            () => `one or more of: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+          );
+          const extractors = requestedExtractors ?? extractorsWithGoldenLabels();
+          for (const name of extractors) {
+            if (!EVAL_EXTRACTORS[name]) {
+              throw new Error(
+                `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+              );
+            }
+          }
+          // The CIK list is the corpus `--dir` selects, so the hint reads the
+          // same directory the sweep will.
+          const ciks = csvOptionValue(
+            "--cik",
+            opts.cik,
+            () => `one or more filer CIKs: ${availableFixtureCiks(opts.dir).join(", ")}`
+          );
+          const printMode = requirePrintPromptsMode(opts.printPrompts);
+          if (printMode !== undefined) {
+            if (printMode === "full") {
+              const { sections, skipped } = loadRealS1Sections(extractors, opts.dir, ciks);
+              if (sections.length === 0) {
+                throw new Error(
+                  `nothing to print — no S-1 sections matched` +
+                    (skipped.length ? ` (${skipped.join("; ")})` : "")
+                );
+              }
+              printEvalPrompts({
+                mode: "full",
+                items: sections.map((s) => ({
+                  extractor: s.extractor,
+                  label: `${s.filing} [${s.extractor}]`,
+                  sectionText: s.text,
+                })),
+              });
+            } else {
+              printEvalPrompts({
+                mode: printMode,
+                items: extractors.map((extractor) => ({ extractor, label: extractor })),
+              });
+            }
+            return;
+          }
           const format = requireFormat(opts.format);
           const reference =
             optionValue(
@@ -544,33 +641,11 @@ export function addEvalCommands(program: Command): void {
           // coverage signal, so that path keeps its single cheap default.
           const defaultExtractors =
             reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
-          const extractors =
-            csvOptionValue(
-              "--extractors",
-              opts.extractors,
-              // Every EVAL_EXTRACTORS key is legal here (unlike `eval extract`,
-              // which needs a committed fixture); which ones have golden labels
-              // is in --help, and repeating it doubles the line.
-              () => `one or more of: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
-            ) ?? defaultExtractors;
-          for (const name of extractors) {
-            if (!EVAL_EXTRACTORS[name]) {
-              throw new Error(
-                `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
-              );
-            }
-          }
-          // The CIK list is the corpus `--dir` selects, so the hint reads the
-          // same directory the sweep will.
-          const ciks = csvOptionValue(
-            "--cik",
-            opts.cik,
-            () => `one or more filer CIKs: ${availableFixtureCiks(opts.dir).join(", ")}`
-          );
+          const selectedExtractors = requestedExtractors ?? defaultExtractors;
           const input = {
             reference,
             candidates,
-            extractors,
+            extractors: selectedExtractors,
             ...(opts.dir ? { dir: opts.dir } : {}),
             ...(ciks && ciks.length > 0 ? { ciks } : {}),
           };
@@ -598,6 +673,10 @@ export function addEvalCommands(program: Command): void {
         "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
     )
     .option("--format [fmt]", "table | json (default: table)")
+    .option(
+      "--print-prompts [mode]",
+      `dump extraction prompts and exit (${PRINT_PROMPTS_MODES.join(" | ")}) — no model calls`
+    )
     .option("--no-details", "hide per-row/field disagreements after the table")
     .action(
       async (opts: {
@@ -605,8 +684,35 @@ export function addEvalCommands(program: Command): void {
         dir?: string;
         format: string | boolean;
         details: boolean;
+        printPrompts?: string | boolean;
       }) => {
         await runCommand(async () => {
+          const printMode = requirePrintPromptsMode(opts.printPrompts);
+          if (printMode !== undefined) {
+            if (printMode === "full") {
+              const { sections, skipped } = loadRealS1Sections(["offering-terms"], opts.dir);
+              if (sections.length === 0) {
+                throw new Error(
+                  `nothing to print — no offering-terms sections` +
+                    (skipped.length ? ` (${skipped.join("; ")})` : "")
+                );
+              }
+              printEvalPrompts({
+                mode: "full",
+                items: sections.map((s) => ({
+                  extractor: "offering-terms",
+                  label: s.filing,
+                  sectionText: s.text,
+                })),
+              });
+            } else {
+              printEvalPrompts({
+                mode: printMode,
+                items: [{ extractor: "offering-terms", label: "offering-terms" }],
+              });
+            }
+            return;
+          }
           const format = requireFormat(opts.format);
           const models = parseModels(
             csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
