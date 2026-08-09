@@ -7,10 +7,13 @@
 import type { Command } from "commander";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
-import { modelApiKeyEnvVar } from "../../config/registerModels";
+import { csvOptionValue, optionValue } from "../optionValue";
+import { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "../../config/registerModels";
+import { availableFixtureCiks } from "../../eval/realSections";
 import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
+  availableFixtures,
   extractorsWithFixtures,
   type EvalReport,
   type ModelSummary,
@@ -101,12 +104,25 @@ const ORACLE_DEFAULT_CANDIDATE = "claude-haiku-4-5";
  */
 const ORACLE_DEFAULT_REFERENCE = GOLDEN_REFERENCE;
 
-function parseModels(csv: string | undefined): string[] {
-  const ids = (csv ?? availableDefaultModels().join(","))
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [...new Set(ids)];
+function parseModels(ids: readonly string[] | undefined): string[] {
+  return [...new Set(ids ?? availableDefaultModels())];
+}
+
+/**
+ * What `--models` / `--reference` accept. Model ids are not a closed set — any
+ * id whose shape a provider claims works — so the hint names the defaults and
+ * the shapes rather than pretending to enumerate.
+ */
+function modelIdsHint(defaults: readonly string[]): string {
+  return (
+    `comma-separated model ids (default: ${defaults.join(", ")}); ` +
+    `any id routes by shape: ${KNOWN_MODEL_ID_SHAPES}`
+  );
+}
+
+/** `--format` is a closed two-value set on every eval subcommand. */
+function requireFormat(value: string | boolean): string {
+  return optionValue("--format", value, () => "one of: table, json") ?? "table";
 }
 
 function pct(x: number): string {
@@ -350,6 +366,26 @@ function printOracleTable(report: OracleReport, details: boolean): void {
   }
 }
 
+/**
+ * Fixture names grouped under their extractor, one group per line.
+ *
+ * Flat, the list is ~20 hyphenated names in one paragraph; grouped, an operator
+ * who knows which extractor failed reads only that line.
+ */
+function formatFixtureList(
+  fixtures: ReadonlyArray<{ readonly name: string; readonly extractor: string }>
+): string {
+  const byExtractor = new Map<string, string[]>();
+  for (const f of fixtures) {
+    const names = byExtractor.get(f.extractor) ?? [];
+    names.push(f.name);
+    byExtractor.set(f.extractor, names);
+  }
+  return [...byExtractor]
+    .map(([extractor, names]) => `  ${extractor}: ${names.join(", ")}`)
+    .join("\n");
+}
+
 export function addEvalCommands(program: Command): void {
   const cmd = program
     .command("eval")
@@ -358,19 +394,24 @@ export function addEvalCommands(program: Command): void {
   cmd
     .command("extract")
     .description("Run golden extraction fixtures across models and rank them")
-    .option("--models <csv>", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
+    // Every value option here takes an OPTIONAL argument so that omitting the
+    // value is ours to answer, not Commander's: `--extractor` alone exits with
+    // "argument missing" and no hint of what the arguments are, which is exactly
+    // the moment an operator needs the list. With `[name]` Commander hands the
+    // action `true` instead, and `optionValue` throws with the values.
+    .option("--models [csv]", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
     .option(
-      "--extractor <name>",
+      "--extractor [name]",
       // Only offer what is actually scorable: an extractor registered in
       // EVAL_EXTRACTORS with no committed fixture has nothing to run.
       `limit to one extractor (${extractorsWithFixtures().join(", ")})`
     )
     .option(
-      "--fixture <csv>",
+      "--fixture [csv]",
       "limit to these fixtures by name, as printed in the failures list " +
         "(e.g. s1-management-operating-company) — re-run just the one a model failed on"
     )
-    .option("--format <fmt>", "table | json", "table")
+    .option("--format [fmt]", "table | json (default: table)")
     .option("--no-details", "hide per-row/field disagreements after the table")
     .option(
       "--runs <n>",
@@ -383,36 +424,47 @@ export function addEvalCommands(program: Command): void {
     )
     .action(
       async (opts: {
-        models?: string;
-        extractor?: string;
-        fixture?: string;
-        format: string;
+        models?: string | boolean;
+        extractor?: string | boolean;
+        fixture?: string | boolean;
+        format: string | boolean;
         details: boolean;
         runs?: number;
         real?: boolean;
       }) => {
         await runCommand(async () => {
-          const models = parseModels(opts.models);
-          if (opts.runs !== undefined && (!Number.isFinite(opts.runs) || opts.runs < 1)) {
-            throw new Error(`--runs must be a positive integer; got "${opts.runs}"`);
+          const format = requireFormat(opts.format);
+          const models = parseModels(
+            csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
+          );
+          // `--runs` keeps a required argument: a count has no list of legal
+          // values to print, so Commander's own message says everything ours would.
+          const runs = opts.runs;
+          if (runs !== undefined && (!Number.isFinite(runs) || runs < 1)) {
+            throw new Error(`--runs must be a positive integer; got "${runs}"`);
           }
-          if (opts.extractor && !EVAL_EXTRACTORS[opts.extractor]) {
+          const extractor = optionValue(
+            "--extractor",
+            opts.extractor,
+            () => `one of: ${extractorsWithFixtures().join(", ")}`
+          );
+          if (extractor && !EVAL_EXTRACTORS[extractor]) {
             throw new Error(
-              `unknown extractor "${opts.extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+              `unknown extractor "${extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
             );
           }
-          const fixtures = (opts.fixture ?? "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0);
-          if (opts.fixture !== undefined && fixtures.length === 0) {
-            throw new Error("--fixture was given but names no fixture");
-          }
+          const fixtures = csvOptionValue(
+            "--fixture",
+            opts.fixture,
+            () =>
+              `one or more fixture names:\n` +
+              formatFixtureList(availableFixtures({ extractor, real: opts.real }))
+          );
           const input = {
             models,
-            ...(opts.extractor ? { extractor: opts.extractor } : {}),
-            ...(fixtures.length > 0 ? { fixtures } : {}),
-            ...(opts.runs !== undefined ? { runs: Math.trunc(opts.runs) } : {}),
+            ...(extractor ? { extractor } : {}),
+            ...(fixtures ? { fixtures } : {}),
+            ...(runs !== undefined ? { runs: Math.trunc(runs) } : {}),
             ...(opts.real ? { real: true } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
@@ -420,7 +472,7 @@ export function addEvalCommands(program: Command): void {
           const report = await runWorkflowCli<EvalReport>([
             new EvalExtractTask({ defaults: input }),
           ]);
-          if (opts.format === "json") {
+          if (format === "json") {
             console.log(JSON.stringify(report, null, 2));
             return;
           }
@@ -432,17 +484,21 @@ export function addEvalCommands(program: Command): void {
   cmd
     .command("s1")
     .description("Compare candidate models against a reference on REAL committed S-1 sections")
+    // `[id]`/`[csv]` rather than `<…>`: see the note on `eval extract`.
+    // No Commander default on the value options below: with a default set,
+    // Commander resolves a value-less `--reference` to that default instead of
+    // handing us `true`, which would silently sweep the default where the old
+    // required form at least errored. The default is applied in the action.
     .option(
-      "--reference <id>",
-      "reference (oracle) model id, or 'golden' for committed human-verified labels",
-      ORACLE_DEFAULT_REFERENCE
+      "--reference [id]",
+      `reference (oracle) model id, or 'golden' for committed human-verified labels (default: ${ORACLE_DEFAULT_REFERENCE})`
     )
     .option(
-      "--models <csv>",
+      "--models [csv]",
       `model ids to score against the reference (default: ${ORACLE_DEFAULT_CANDIDATE})`
     )
     .option(
-      "--extractors <csv>",
+      "--extractors [csv]",
       `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: every extractor with golden labels (${extractorsWithGoldenLabels().join(", ")}), or management against a model reference`
     )
     .option(
@@ -451,42 +507,52 @@ export function addEvalCommands(program: Command): void {
         "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
     )
     .option(
-      "--cik <csv>",
+      "--cik [csv]",
       "limit the sweep to these filer CIKs (leading zeros optional) — isolates one " +
         "filing when checking a newly added fixture or label"
     )
-    .option("--format <fmt>", "table | json", "table")
+    .option("--format [fmt]", "table | json (default: table)")
     .option("--no-details", "hide per-row/field disagreements after the table")
     .action(
       async (opts: {
-        reference: string;
-        models?: string;
-        extractors?: string;
+        reference: string | boolean;
+        models?: string | boolean;
+        extractors?: string | boolean;
         dir?: string;
-        cik?: string;
-        format: string;
+        cik?: string | boolean;
+        format: string | boolean;
         details: boolean;
       }) => {
         await runCommand(async () => {
-          const candidates = opts.models
-            ? opts.models
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-            : [ORACLE_DEFAULT_CANDIDATE];
+          const format = requireFormat(opts.format);
+          const reference =
+            optionValue(
+              "--reference",
+              opts.reference,
+              () =>
+                `'${GOLDEN_REFERENCE}' for the committed human-verified labels ` +
+                `(the default), or a model id to use as an oracle; ` +
+                `any id routes by shape: ${KNOWN_MODEL_ID_SHAPES}`
+            ) ?? ORACLE_DEFAULT_REFERENCE;
+          const candidates = csvOptionValue("--models", opts.models, () =>
+            modelIdsHint([ORACLE_DEFAULT_CANDIDATE])
+          ) ?? [ORACLE_DEFAULT_CANDIDATE];
           // Under golden truth, default to every extractor that HAS labels —
           // scoring only `management` while committed beneficial-ownership
           // labels sat unused made the default look narrower than the evidence
           // actually available. Against a model oracle there is no such
           // coverage signal, so that path keeps its single cheap default.
           const defaultExtractors =
-            opts.reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
-          const extractors = opts.extractors
-            ? opts.extractors
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-            : defaultExtractors;
+            reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
+          const extractors =
+            csvOptionValue(
+              "--extractors",
+              opts.extractors,
+              // Every EVAL_EXTRACTORS key is legal here (unlike `eval extract`,
+              // which needs a committed fixture); which ones have golden labels
+              // is in --help, and repeating it doubles the line.
+              () => `one or more of: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+            ) ?? defaultExtractors;
           for (const name of extractors) {
             if (!EVAL_EXTRACTORS[name]) {
               throw new Error(
@@ -494,14 +560,15 @@ export function addEvalCommands(program: Command): void {
               );
             }
           }
-          const ciks = opts.cik
-            ? opts.cik
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-            : undefined;
+          // The CIK list is the corpus `--dir` selects, so the hint reads the
+          // same directory the sweep will.
+          const ciks = csvOptionValue(
+            "--cik",
+            opts.cik,
+            () => `one or more filer CIKs: ${availableFixtureCiks(opts.dir).join(", ")}`
+          );
           const input = {
-            reference: opts.reference,
+            reference,
             candidates,
             extractors,
             ...(opts.dir ? { dir: opts.dir } : {}),
@@ -510,7 +577,7 @@ export function addEvalCommands(program: Command): void {
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.
           const report = await runWorkflowCli<OracleReport>([new EvalS1Task({ defaults: input })]);
-          if (opts.format === "json") {
+          if (format === "json") {
             console.log(JSON.stringify(report, null, 2));
             return;
           }
@@ -524,42 +591,52 @@ export function addEvalCommands(program: Command): void {
     .description(
       "Score offering-terms extraction against embarc's hand-curated SPAC unit structure"
     )
-    .option("--models <csv>", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
+    .option("--models [csv]", `comma-separated model ids (default: ${DEFAULT_MODELS.join(", ")})`)
     .option(
       "--dir <path>",
       "directory of real S-1 HTML to segment (default: committed mock_data; " +
         "point at mock_data/s1/.cache after `sec fetch s1-fixtures`)"
     )
-    .option("--format <fmt>", "table | json", "table")
+    .option("--format [fmt]", "table | json (default: table)")
     .option("--no-details", "hide per-row/field disagreements after the table")
-    .action(async (opts: { models?: string; dir?: string; format: string; details: boolean }) => {
-      await runCommand(async () => {
-        const models = parseModels(opts.models);
-        const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
-        const report = await runWorkflowCli<UnitTermsReport>([
-          new EvalUnitTermsTask({ defaults: input }),
-        ]);
-        if (opts.format === "json") {
-          console.log(JSON.stringify(report, null, 2));
-          return;
-        }
-        console.log(
-          `Truth: embarc curated unit terms — over ${report.sections} real S-1 offering ` +
-            `section(s)${report.skipped.length ? ` (${report.skipped.length} filing(s) skipped)` : ""}\n`
-        );
-        printTable(
-          report,
-          opts.details,
-          "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
-            "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
-            "row; prec = 1 − spurious rows.\n" +
-            "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
-            "then latency."
-        );
-        if (report.skipped.length) {
-          console.log("\nskipped:");
-          for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
-        }
-      });
-    });
+    .action(
+      async (opts: {
+        models?: string | boolean;
+        dir?: string;
+        format: string | boolean;
+        details: boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const models = parseModels(
+            csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
+          );
+          const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
+          const report = await runWorkflowCli<UnitTermsReport>([
+            new EvalUnitTermsTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          console.log(
+            `Truth: embarc curated unit terms — over ${report.sections} real S-1 offering ` +
+              `section(s)${report.skipped.length ? ` (${report.skipped.length} filing(s) skipped)` : ""}\n`
+          );
+          printTable(
+            report,
+            opts.details,
+            "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
+              "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
+              "row; prec = 1 − spurious rows.\n" +
+              "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
+              "then latency."
+          );
+          if (report.skipped.length) {
+            console.log("\nskipped:");
+            for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
+          }
+        });
+      }
+    );
 }

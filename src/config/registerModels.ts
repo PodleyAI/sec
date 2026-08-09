@@ -320,7 +320,8 @@ export function hftModelRecord(modelId: string): ModelRecord {
     provider_config: {
       model_path: modelId,
       pipeline: "text-generation",
-      dtype: "f16q4",
+      device: "webgpu",
+      dtype: "q4f16",
     },
     metadata: {},
   };
@@ -448,7 +449,7 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
  * when an id matches none of them. Kept next to the dispatch below so the two
  * can't drift.
  */
-const KNOWN_MODEL_ID_SHAPES =
+export const KNOWN_MODEL_ID_SHAPES =
   "claude-* (Anthropic), gpt-*/chatgpt-*/o1-*/o3-*/o4-* (OpenAI), " +
   "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
   "org/name (local HuggingFace ONNX), gguf:… (local node-llama-cpp)";

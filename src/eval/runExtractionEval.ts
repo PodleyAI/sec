@@ -130,6 +130,23 @@ export function extractorsWithFixtures(): string[] {
 }
 
 /**
+ * The fixtures a sweep with these flags would run, name + extractor only.
+ *
+ * Selection runs through the same two paths the sweep itself uses, so `--real`
+ * lists the real-section names (`<filing> [<extractor>]`) rather than the
+ * miniatures, and `--extractor` narrows the list. This backs the CLI's
+ * "you didn't say which" error — telling an operator a value is missing without
+ * telling them the values is the part that sends them to the source.
+ */
+export function availableFixtures(opts: {
+  readonly extractor?: string | undefined;
+  readonly real?: boolean | undefined;
+}): ReadonlyArray<{ readonly name: string; readonly extractor: string }> {
+  const selected = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
+  return selected.map((f) => ({ name: f.name, extractor: f.extractor }));
+}
+
+/**
  * Fixtures built from the REAL committed S-1 sections rather than the curated
  * miniatures.
  *

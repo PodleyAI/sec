@@ -112,6 +112,32 @@ export function fixtureCik(filing: string): string | null {
 }
 
 /**
+ * The fixture HTML in the first directory that exists, with the directory that
+ * won. Shared by the sweep and by the CLI's "which CIKs may I pass?" hint so the
+ * two can never disagree about which corpus is in play under `--dir`.
+ */
+function listFixtureFiles(dir: string | undefined): {
+  readonly resolvedDir: string;
+  readonly files: string[];
+} {
+  const candidates = s1MockDirCandidates(dir);
+  const resolvedDir = candidates.find(existsSync);
+  const files = resolvedDir ? readdirSync(resolvedDir).filter((f) => f.endsWith(".htm")) : [];
+  if (resolvedDir === undefined || files.length === 0) {
+    throw new Error(`No S-1 fixtures found. Searched:\n  - ${candidates.join("\n  - ")}`);
+  }
+  return { resolvedDir, files };
+}
+
+/** Distinct filer CIKs the fixture corpus covers, ascending — what `--cik` accepts. */
+export function availableFixtureCiks(dir?: string): string[] {
+  const { files } = listFixtureFiles(dir);
+  return [...new Set(files.map((f) => fixtureCik(f.replace(/\.htm$/, ""))))]
+    .filter((c): c is string => c !== null)
+    .sort((a, b) => Number(a) - Number(b));
+}
+
+/**
  * Segment every committed real S-1 HTML and yield the prose for each requested
  * extractor's section, skipping documents where that section is absent/empty.
  * A document that fails to parse is skipped (logged to the returned `skipped`).
@@ -129,16 +155,7 @@ export function loadRealS1Sections(
   readonly sections: RealSection[];
   readonly skipped: string[];
 } {
-  const candidates = s1MockDirCandidates(dir);
-  const resolvedDir = candidates.find(existsSync);
-  const allFiles = resolvedDir
-    ? readdirSync(resolvedDir).filter((f) => f.endsWith(".htm"))
-    : [];
-  if (resolvedDir === undefined || allFiles.length === 0) {
-    throw new Error(
-      `No S-1 fixtures found. Searched:\n  - ${candidates.join("\n  - ")}`
-    );
-  }
+  const { resolvedDir, files: allFiles } = listFixtureFiles(dir);
   // A CIK filter that matches nothing is an error, not an empty sweep: the whole
   // point of `--cik` is isolating ONE filing, so "scored 0 sections" would read
   // as a passing run of a typo'd CIK.
@@ -150,12 +167,9 @@ export function loadRealS1Sections(
       return cik !== null && wanted.has(cik);
     });
     if (files.length === 0) {
-      const known = [...new Set(allFiles.map((f) => fixtureCik(f.replace(/\.htm$/, ""))))]
-        .filter((c): c is string => c !== null)
-        .sort();
       throw new Error(
         `No S-1 fixture matches CIK ${[...wanted].join(", ")} in ${resolvedDir}. ` +
-          `Available CIKs: ${known.join(", ")}`
+          `Available CIKs: ${availableFixtureCiks(dir).join(", ")}`
       );
     }
   }
