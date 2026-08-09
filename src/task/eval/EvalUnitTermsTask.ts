@@ -18,6 +18,12 @@ const InputSchema = () =>
     dir: Type.Optional(
       Type.String({ title: "S-1 dir", description: "Directory of real S-1 HTML to segment" })
     ),
+    dumpRaw: Type.Optional(
+      Type.Boolean({
+        title: "Dump raw",
+        description: "Retain model JSON payloads on each result for CLI --dump-raw",
+      })
+    ),
   });
 export type EvalUnitTermsTaskInput = Static<ReturnType<typeof InputSchema>>;
 
@@ -56,6 +62,7 @@ export class EvalUnitTermsTask extends Task<EvalUnitTermsTaskInput, EvalUnitTerm
     const report = await runUnitTermsEval({
       models: input.models,
       dir: input.dir,
+      dumpRaw: input.dumpRaw,
       signal: context.signal,
       context,
       onProgress: (done, total, message) => {

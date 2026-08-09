@@ -38,6 +38,12 @@ const InputSchema = () =>
         minimum: 1,
       })
     ),
+    dumpRaw: Type.Optional(
+      Type.Boolean({
+        title: "Dump raw",
+        description: "Retain model JSON payloads on each result for CLI --dump-raw",
+      })
+    ),
   });
 export type EvalExtractTaskInput = Static<ReturnType<typeof InputSchema>>;
 
@@ -97,6 +103,7 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
       ...(fixtures && fixtures.length > 0 ? { fixtures } : {}),
       runs: input.runs,
       real: input.real,
+      dumpRaw: input.dumpRaw,
       signal: context.signal,
       context,
       onProgress: (done, total, message) => {

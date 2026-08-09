@@ -17,6 +17,8 @@ import {
   type PrintPromptItem,
   type PrintPromptsMode,
 } from "../../eval/printEvalPrompts";
+import type { EvalRawDump } from "../../eval/captureEvalRaw";
+import { shouldDumpEvalRaw, writeEvalRawDump } from "../../eval/dumpEvalRaw";
 import {
   availableFixtures,
   extractorsWithFixtures,
@@ -171,6 +173,31 @@ function hasDiff(d: ExtractionDiff): boolean {
 }
 
 /**
+ * Stderr dumps for `--dump-raw`: successful runs that disagree with truth.
+ * Independent of `--details` / `--no-details` — the flag asked for the payload.
+ */
+function dumpDisagreementRaws(
+  results: readonly {
+    readonly ok: boolean;
+    readonly model: string;
+    readonly fixture?: string;
+    readonly filing?: string;
+    readonly extractor: string;
+    readonly run?: number;
+    readonly raw: EvalRawDump | undefined;
+    readonly score: { readonly diff: ExtractionDiff } | null;
+  }[]
+): void {
+  for (const r of results) {
+    if (!r.ok || r.score == null) continue;
+    if (!shouldDumpEvalRaw({ ok: true, raw: r.raw, diff: r.score.diff })) continue;
+    const section = r.fixture ?? `${r.filing} / ${r.extractor}`;
+    const runTag = r.run && r.run > 1 ? ` run=${r.run}` : "";
+    writeEvalRawDump(`${r.model} / ${section}${runTag}`, r.raw!);
+  }
+}
+
+/**
  * Join a capped list of row keys, appending "(+N more)" when truncated. Each key
  * is quoted: entity names routinely contain commas ("V-Cube, Inc."), so a bare
  * ", " join renders two rows as `V-Cube, Inc., Naoaki Mashita` — unreadable, and
@@ -316,7 +343,13 @@ function printTable(
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
     console.log("\nfailures:");
-    for (const r of failed) console.log(`  ${r.model} / ${r.fixture}: ${r.error}`);
+    for (const r of failed) {
+      const runTag = r.run > 1 ? ` run=${r.run}` : "";
+      console.log(`  ${r.model} / ${r.fixture}${runTag}: ${r.error}`);
+      if (shouldDumpEvalRaw({ ok: false, raw: r.raw, diff: undefined }) && r.raw) {
+        writeEvalRawDump(`${r.model} / ${r.fixture}${runTag}`, r.raw);
+      }
+    }
   }
 
   if (details) {
@@ -332,6 +365,7 @@ function printTable(
       "expected"
     );
   }
+  dumpDisagreementRaws(report.results);
 }
 
 function printOracleTable(report: OracleReport, details: boolean): void {
@@ -365,7 +399,12 @@ function printOracleTable(report: OracleReport, details: boolean): void {
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
     console.log("\nfailures:");
-    for (const r of failed) console.log(`  ${r.model} / ${r.filing} / ${r.extractor}: ${r.error}`);
+    for (const r of failed) {
+      console.log(`  ${r.model} / ${r.filing} / ${r.extractor}: ${r.error}`);
+      if (shouldDumpEvalRaw({ ok: false, raw: r.raw, diff: undefined }) && r.raw) {
+        writeEvalRawDump(`${r.model} / ${r.filing} / ${r.extractor}`, r.raw);
+      }
+    }
   }
   if (report.skipped.length) {
     console.log("\nskipped (no such section / unparseable):");
@@ -387,6 +426,7 @@ function printOracleTable(report: OracleReport, details: boolean): void {
       "reference"
     );
   }
+  dumpDisagreementRaws(report.results);
 }
 
 /**
@@ -449,6 +489,10 @@ export function addEvalCommands(program: Command): void {
       "--real",
       "sweep the REAL committed S-1 sections (12k-275k chars) instead of the curated miniatures; correctness is not scored (no golden labels at that size), reproducibility/latency/cost are"
     )
+    .option(
+      "--dump-raw",
+      "print model JSON on stderr for hard failures and scoring disagreements (also included in --format json)"
+    )
     .action(
       async (opts: {
         models?: string | boolean;
@@ -459,6 +503,7 @@ export function addEvalCommands(program: Command): void {
         runs?: number;
         real?: boolean;
         printPrompts?: string | boolean;
+        dumpRaw?: boolean;
       }) => {
         await runCommand(async () => {
           const extractor = optionValue(
@@ -514,6 +559,7 @@ export function addEvalCommands(program: Command): void {
             ...(fixtures ? { fixtures } : {}),
             ...(runs !== undefined ? { runs: Math.trunc(runs) } : {}),
             ...(opts.real ? { real: true } : {}),
+            ...(opts.dumpRaw ? { dumpRaw: true } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.
@@ -565,6 +611,10 @@ export function addEvalCommands(program: Command): void {
       `dump extraction prompts and exit (${PRINT_PROMPTS_MODES.join(" | ")}) — no model calls`
     )
     .option("--no-details", "hide per-row/field disagreements after the table")
+    .option(
+      "--dump-raw",
+      "print model JSON on stderr for hard failures and scoring disagreements (also included in --format json)"
+    )
     .action(
       async (opts: {
         reference: string | boolean;
@@ -575,6 +625,7 @@ export function addEvalCommands(program: Command): void {
         format: string | boolean;
         details: boolean;
         printPrompts?: string | boolean;
+        dumpRaw?: boolean;
       }) => {
         await runCommand(async () => {
           const requestedExtractors = csvOptionValue(
@@ -660,6 +711,7 @@ export function addEvalCommands(program: Command): void {
             extractors: selectedExtractors,
             ...(opts.dir ? { dir: opts.dir } : {}),
             ...(ciks && ciks.length > 0 ? { ciks } : {}),
+            ...(opts.dumpRaw ? { dumpRaw: true } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.
@@ -690,6 +742,10 @@ export function addEvalCommands(program: Command): void {
       `dump extraction prompts and exit (${PRINT_PROMPTS_MODES.join(" | ")}) — no model calls`
     )
     .option("--no-details", "hide per-row/field disagreements after the table")
+    .option(
+      "--dump-raw",
+      "print model JSON on stderr for hard failures and scoring disagreements (also included in --format json)"
+    )
     .action(
       async (opts: {
         models?: string | boolean;
@@ -697,6 +753,7 @@ export function addEvalCommands(program: Command): void {
         format: string | boolean;
         details: boolean;
         printPrompts?: string | boolean;
+        dumpRaw?: boolean;
       }) => {
         await runCommand(async () => {
           const printMode = requirePrintPromptsMode(opts.printPrompts);
@@ -729,7 +786,11 @@ export function addEvalCommands(program: Command): void {
           const models = parseModels(
             csvOptionValue("--models", opts.models, () => modelIdsHint(DEFAULT_MODELS))
           );
-          const input = { models, ...(opts.dir ? { dir: opts.dir } : {}) };
+          const input = {
+            models,
+            ...(opts.dir ? { dir: opts.dir } : {}),
+            ...(opts.dumpRaw ? { dumpRaw: true } : {}),
+          };
           const report = await runWorkflowCli<UnitTermsReport>([
             new EvalUnitTermsTask({ defaults: input }),
           ]);
