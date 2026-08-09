@@ -222,6 +222,60 @@ describe("throttling does not consume the retry budget", () => {
     await expect(pending).rejects.toThrow(/429/);
   });
 
+  it("abandons the budget up front when the stated delay outlasts it", async () => {
+    // An OpenAI daily (RPD) limit answers with minutes. Every wait is capped at
+    // MAX_RATE_LIMIT_WAIT_MS, so 8m38.4s cannot clear inside the whole budget
+    // (5 x 30s): sleeping it out spends five waits, five more billed calls and
+    // two and a half minutes of wall-clock to arrive at the same
+    // RateLimitExhaustedError. Fail on the first one instead.
+    const throttle = new Error(
+      "Rate limit reached for gpt-5.6-luna in organization org-abc on requests per day " +
+        "(RPD): Limit 10000, Used 10000. Please try again in 8m38.4s."
+    );
+    const { unregister, calls } = registerFakeStructuredProvider([throttle]);
+    cleanup = unregister;
+
+    const pending = extractManagement("Jane Roe served as Director.", fakeS1Model());
+    const assertion = expect(pending).rejects.toBeInstanceOf(RateLimitExhaustedError);
+    // Zero fake time passes: every throttle wait is at least seconds long, so
+    // settling here means none was taken.
+    await vi.advanceTimersByTimeAsync(0);
+    await assertion;
+    expect(calls).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+    // The dead-letter detail keeps the provider's own wording AND says how long
+    // the window was stated to be, so an operator knows when to retry.
+    await expect(pending).rejects.toThrow(/8m38\.4s/);
+    await expect(pending).rejects.toThrow(/518/);
+  });
+
+  it("still waits out a stated delay that fits inside the budget", async () => {
+    // 2m is under 5 x 30s, so the window can plausibly clear: the early exit
+    // must not swallow a recoverable throttle.
+    const throttle = new Error("429 Too Many Requests. Please try again in 2m.");
+    const { unregister, calls } = registerFakeStructuredProvider([
+      throttle,
+      {
+        people: [
+          {
+            full_name: "Jane Roe",
+            titles: ["Director"],
+            relationship: null,
+            confidence: 0.9,
+            source_span: "Jane Roe",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    const pending = extractManagement("Jane Roe served as Director.", fakeS1Model());
+    await vi.advanceTimersByTimeAsync(MAX_RATE_LIMIT_WAIT_MS * 2);
+    const rows = await pending;
+    expect(rows.map((r) => r.full_name)).toEqual(["Jane Roe"]);
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("surfaces a Ctrl-C during a throttle wait as a cancellation", async () => {
     // Rethrowing the 429 instead made the section record a version-gated dead
     // letter and return normally, so the sweep carried on dead-lettering every

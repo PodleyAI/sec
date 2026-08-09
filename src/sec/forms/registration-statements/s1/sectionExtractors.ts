@@ -197,7 +197,10 @@ export const MAX_RATE_LIMIT_WAIT_MS = 30_000;
 
 /**
  * Thrown when a call was throttled {@link MAX_RATE_LIMIT_WAITS} times and the
- * provider's window still had not cleared.
+ * provider's window still had not cleared, OR when the provider stated a delay
+ * longer than the whole remaining wait budget — sleeping out a window that
+ * cannot clear in time buys nothing but wall-clock, and the outcome is this
+ * same error either way.
  *
  * It gets its own type because the section runner has to tell it apart from a
  * bad response: nothing was wrong with the extractor here, it never got to run.
@@ -211,11 +214,16 @@ export const MAX_RATE_LIMIT_WAIT_MS = 30_000;
 export class RateLimitExhaustedError extends Error {
   constructor(
     readonly waits: number,
-    cause: unknown
+    cause: unknown,
+    readonly statedDelayMs?: number
   ) {
     const providerText = cause instanceof Error ? cause.message : String(cause);
+    const abandoned =
+      statedDelayMs === undefined
+        ? ""
+        : ` (provider stated ${Math.round(statedDelayMs / 1000)}s, more than the remaining wait budget)`;
     super(
-      `Provider throttle did not clear after ${waits} wait${waits === 1 ? "" : "s"}: ${providerText}`,
+      `Provider throttle did not clear after ${waits} wait${waits === 1 ? "" : "s"}${abandoned}: ${providerText}`,
       { cause }
     );
     this.name = "RateLimitExhaustedError";
@@ -878,6 +886,18 @@ async function runGuardedExtraction(
         // clear by bumping the extractor version.
         if (rateLimitWaits >= MAX_RATE_LIMIT_WAITS) {
           throw new RateLimitExhaustedError(rateLimitWaits, e);
+        }
+        // A stated delay longer than every wait still available cannot clear
+        // inside the budget: each wait is capped at MAX_RATE_LIMIT_WAIT_MS, so
+        // honouring it would burn the remaining waits, the provider calls that
+        // follow them, and minutes of wall-clock, and still end at the same
+        // RateLimitExhaustedError. Fail now — the reason code is the same, and
+        // RATE_LIMITED stays retry-eligible under the current extractor
+        // version, so nothing is lost by giving the window time to move on.
+        const stated = statedDelayMs(e instanceof Error ? e.message : String(e));
+        const remainingBudgetMs = (MAX_RATE_LIMIT_WAITS - rateLimitWaits) * MAX_RATE_LIMIT_WAIT_MS;
+        if (stated !== null && stated > remainingBudgetMs) {
+          throw new RateLimitExhaustedError(rateLimitWaits, e, stated);
         }
         rateLimitWaits++;
         await sleepUnlessAborted(rateLimitWaitMs(e, rateLimitWaits), context?.signal);
