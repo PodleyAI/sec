@@ -137,6 +137,27 @@ describe("eval value-less options", () => {
     expect(out).toContain("Extract every director and executive officer");
   });
 
+  it("extract --print-prompts instructions supports an extractor without fixtures", async () => {
+    const lines: string[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...a) => {
+      lines.push(a.map(String).join(" "));
+    });
+    try {
+      await runEvalOk([
+        "extract",
+        "--print-prompts",
+        "instructions",
+        "--extractor",
+        "related-party",
+      ]);
+    } finally {
+      log.mockRestore();
+    }
+    const out = lines.join("\n");
+    expect(out).toContain("=== related-party / instructions ===");
+    expect(out).toContain("Extract related parties and their transactions");
+  });
+
   /**
    * The options that carried a Commander default (`--format`, `--reference`) had
    * to give it up: Commander resolves a value-less option to its default instead

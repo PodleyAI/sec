@@ -828,14 +828,20 @@ async function runGuardedExtraction(
   maxTokens?: number
 ): Promise<Record<string, unknown>> {
   const local = isLocalProvider(model);
+  const nonceEnabled = !local && isNonceEnabled();
+  // Without a nonce the prompt is attempt-invariant, so build and defang the
+  // filer text once rather than repeating that work for every retry.
+  const staticPrompt = nonceEnabled
+    ? undefined
+    : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
-    const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
-    const prompt = buildExtractionPrompt({ instructions, sectionText, nonce });
+    const nonce = nonceEnabled ? deriveVerifyNonce(sectionText, attempt) : undefined;
+    const prompt = staticPrompt ?? buildExtractionPrompt({ instructions, sectionText, nonce });
     try {
       const obj = await runStructured(
         label,

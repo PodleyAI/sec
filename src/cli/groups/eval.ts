@@ -480,16 +480,21 @@ export function addEvalCommands(program: Command): void {
           );
           const printMode = requirePrintPromptsMode(opts.printPrompts);
           if (printMode !== undefined) {
-            const resolved = resolveEvalFixtures({
-              extractor,
-              fixtures,
-              real: opts.real === true,
-            });
-            const items: PrintPromptItem[] = resolved.map((f) => ({
-              extractor: f.extractor,
-              label: f.name,
-              sectionText: f.text,
-            }));
+            const items: PrintPromptItem[] =
+              printMode === "full"
+                ? resolveEvalFixtures({
+                    extractor,
+                    fixtures,
+                    real: opts.real === true,
+                  }).map((f) => ({
+                    extractor: f.extractor,
+                    label: f.name,
+                    sectionText: f.text,
+                  }))
+                : (extractor ? [extractor] : Object.keys(EVAL_EXTRACTORS)).map((name) => ({
+                    extractor: name,
+                    label: name,
+                  }));
             printEvalPrompts({ mode: printMode, items });
             return;
           }
@@ -580,14 +585,6 @@ export function addEvalCommands(program: Command): void {
             // is in --help, and repeating it doubles the line.
             () => `one or more of: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
           );
-          const extractors = requestedExtractors ?? extractorsWithGoldenLabels();
-          for (const name of extractors) {
-            if (!EVAL_EXTRACTORS[name]) {
-              throw new Error(
-                `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
-              );
-            }
-          }
           // The CIK list is the corpus `--dir` selects, so the hint reads the
           // same directory the sweep will.
           const ciks = csvOptionValue(
@@ -597,6 +594,14 @@ export function addEvalCommands(program: Command): void {
           );
           const printMode = requirePrintPromptsMode(opts.printPrompts);
           if (printMode !== undefined) {
+            const extractors = requestedExtractors ?? extractorsWithGoldenLabels();
+            for (const name of extractors) {
+              if (!EVAL_EXTRACTORS[name]) {
+                throw new Error(
+                  `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+                );
+              }
+            }
             if (printMode === "full") {
               const { sections, skipped } = loadRealS1Sections(extractors, opts.dir, ciks);
               if (sections.length === 0) {
@@ -642,6 +647,13 @@ export function addEvalCommands(program: Command): void {
           const defaultExtractors =
             reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
           const selectedExtractors = requestedExtractors ?? defaultExtractors;
+          for (const name of selectedExtractors) {
+            if (!EVAL_EXTRACTORS[name]) {
+              throw new Error(
+                `unknown extractor "${name}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
+              );
+            }
+          }
           const input = {
             reference,
             candidates,
