@@ -41,4 +41,32 @@ describe("runExtractionEval fixture selection", () => {
       runExtractionEval({ models: ["claude-haiku-4-5"], extractor: "does-not-exist" })
     ).rejects.toThrow(/has no fixtures in EVAL_FIXTURES/);
   });
+
+  // A misspelled --fixture would otherwise sweep zero runs and print an empty
+  // table with exit 0 — indistinguishable from a passing evaluation.
+  it("throws for a fixture name that matches nothing, listing what is available", async () => {
+    const real = EVAL_FIXTURES[0]!.name;
+    await expect(
+      runExtractionEval({ models: ["claude-haiku-4-5"], fixtures: ["does-not-exist"] })
+    ).rejects.toThrow(/no fixture named "does-not-exist"/);
+    // The message names the real candidates, so a typo is fixable from the error.
+    await expect(
+      runExtractionEval({ models: ["claude-haiku-4-5"], fixtures: ["does-not-exist"] })
+    ).rejects.toThrow(new RegExp(real.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+
+  // The filter composes with --extractor rather than reaching past it: a real
+  // fixture belonging to a different extractor must not smuggle itself in.
+  it("throws when a named fixture is outside the selected extractor", async () => {
+    const management = EVAL_FIXTURES.find((f) => f.extractor === "management");
+    const other = EVAL_FIXTURES.find((f) => f.extractor !== "management");
+    if (management === undefined || other === undefined) return;
+    await expect(
+      runExtractionEval({
+        models: ["claude-haiku-4-5"],
+        extractor: "management",
+        fixtures: [other.name],
+      })
+    ).rejects.toThrow(/no fixture named/);
+  });
 });

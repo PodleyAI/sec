@@ -365,6 +365,11 @@ export function addEvalCommands(program: Command): void {
       // EVAL_EXTRACTORS with no committed fixture has nothing to run.
       `limit to one extractor (${extractorsWithFixtures().join(", ")})`
     )
+    .option(
+      "--fixture <csv>",
+      "limit to these fixtures by name, as printed in the failures list " +
+        "(e.g. s1-management-operating-company) — re-run just the one a model failed on"
+    )
     .option("--format <fmt>", "table | json", "table")
     .option("--no-details", "hide per-row/field disagreements after the table")
     .option(
@@ -380,6 +385,7 @@ export function addEvalCommands(program: Command): void {
       async (opts: {
         models?: string;
         extractor?: string;
+        fixture?: string;
         format: string;
         details: boolean;
         runs?: number;
@@ -395,9 +401,17 @@ export function addEvalCommands(program: Command): void {
               `unknown extractor "${opts.extractor}"; known: ${Object.keys(EVAL_EXTRACTORS).join(", ")}`
             );
           }
+          const fixtures = (opts.fixture ?? "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          if (opts.fixture !== undefined && fixtures.length === 0) {
+            throw new Error("--fixture was given but names no fixture");
+          }
           const input = {
             models,
             ...(opts.extractor ? { extractor: opts.extractor } : {}),
+            ...(fixtures.length > 0 ? { fixtures } : {}),
             ...(opts.runs !== undefined ? { runs: Math.trunc(opts.runs) } : {}),
             ...(opts.real ? { real: true } : {}),
           };

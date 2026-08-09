@@ -18,6 +18,13 @@ const InputSchema = () =>
     extractor: Type.Optional(
       Type.String({ title: "Extractor", description: "Limit to one extractor (e.g. 'management')" })
     ),
+    fixtures: Type.Optional(
+      Type.Array(Type.String(), {
+        title: "Fixture names",
+        description: "Limit to these fixtures by name (e.g. 's1-management-operating-company')",
+        minItems: 1,
+      })
+    ),
     real: Type.Optional(
       Type.Boolean({
         title: "Real sections",
@@ -87,6 +94,7 @@ export class EvalExtractTask extends Task<EvalExtractTaskInput, EvalExtractTaskO
     const report = await runExtractionEval({
       models: input.models,
       extractor: input.extractor,
+      fixtures: input.fixtures,
       runs: input.runs,
       real: input.real,
       signal: context.signal,

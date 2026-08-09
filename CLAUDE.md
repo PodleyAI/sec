@@ -127,7 +127,7 @@ coercing to `0`, which would read back as "greedy sampling is on" — the opposi
 of what a typo like `0,5` was asking for).
 Extraction is transcription — the answer is already in the filing — and unpinned
 sampling made re-processing ONE filing yield 138/138/109 risk factors whose
-contents differed in all three cases; the two 138-row runs disagreed on *which*
+contents differed in all three cases; the two 138-row runs disagreed on _which_
 captions they found. On OpenAI's reasoning families the two knobs are coupled:
 `gpt-5.6-luna` answers `temperature` alone with `400 Unsupported parameter`, but
 accepts `{reasoning: {effort: "none"}, temperature: 0}`. The provider therefore
@@ -302,6 +302,9 @@ sec eval extract                              # default: haiku, sonnet, deepseek
 sec eval extract --models "claude-haiku-4-5,onnx-community/Qwen3-4B-Instruct-2507-ONNX"
 sec eval extract --extractor management --format json
 
+# Re-run just the fixture a model failed on (name as printed in the failures list)
+sec eval extract --fixture s1-management-operating-company --models "claude-haiku-4-5"
+
 # Cross-provider head-to-head: Anthropic vs OpenAI vs Gemini vs xAI vs DeepSeek.
 # Each id routes to its provider by shape (gpt-*→OpenAI, gemini-*→Gemini,
 # grok-*→xAI, deepseek-*→DeepSeek); needs the matching *_API_KEY per provider
@@ -371,6 +374,16 @@ models work for `json-mode` — a thinking model wraps the JSON in reasoning.
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.
 - **Speed** — measured wall-clock latency per extraction.
+
+The `ok` column is `successful runs / total runs`, where total is
+models × fixtures × `--runs` — **not** a retry count. `--extractor management`
+has two fixtures, so a clean sweep of one model reads `2/2` and `1/2` means one
+of the two fixtures failed (named underneath). Retries are a separate,
+inner loop: `runStructured` passes `maxRetries: 1`, so
+`StructuredGenerationTask` reports "after 2 attempt(s)" — the initial call plus
+one schema-feedback retry. Every score in the row is averaged over ALL runs
+including failures (a failure scores 0), so one perfect and one failed fixture
+reads 50% across the board; `latency` is likewise a mean, not one call.
 
 Models are registered on demand via `registerModelIds`, so any candidate id works;
 a model that fails to resolve or errors on a fixture is recorded as a failed run
@@ -1197,7 +1210,6 @@ sec exposes the general downstream seams embarc-data (and future features) build
   `--exact`, and `--format json` carries `estimated` per row (`db stats`) and per
   result (`db status`). Two things the query gets right that the naive form does
   not:
-
   - The relation name is **schema-qualified to `current_schema()`**
     (`to_regclass(quote_ident(current_schema()) || '.' || quote_ident($1))`,
     still fully parameterized). Unqualified, `to_regclass('filings')` resolves
@@ -1242,8 +1254,8 @@ sec exposes the general downstream seams embarc-data (and future features) build
   orphaning them (the derivation is pinned against the installed storage's own
   migration DDL by `resetAllDatabases.test.ts`). Every Postgres drop is
   schema-qualified to
-  `current_schema()` — an unqualified name resolves through the search_path and
-  would reach a same-named table in the _next_ schema on it. Tables it does not
+  `current_schema()` — an unqualified name resolves through the search*path and
+  would reach a same-named table in the \_next* schema on it. Tables it does not
   own are left in place and named in a warning. `--cascade` drops dependent
   objects; `--drop-schema` restores the old whole-schema drop (Postgres only,
   destroys unowned objects too). A drop blocked by a dependent object raises an

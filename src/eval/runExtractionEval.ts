@@ -87,6 +87,12 @@ export interface RunEvalOptions {
   /** Restrict to one extractor (e.g. `management`); default runs every fixture. */
   readonly extractor?: string;
   /**
+   * Restrict to named fixtures (e.g. `s1-management-operating-company`), the way
+   * `sec eval s1 --cik` narrows to one filer: re-running the single fixture a
+   * model failed on, without paying for the ones that already passed.
+   */
+  readonly fixtures?: readonly string[];
+  /**
    * Sweep the real committed S-1 sections instead of the curated miniatures.
    * Correctness is not scored (no golden labels at that size); reproducibility,
    * latency and cost are.
@@ -169,6 +175,27 @@ function selectFixtures(extractor: string | undefined): EvalFixture[] {
       `extractor "${extractor}" has no fixtures in EVAL_FIXTURES — nothing to score. ` +
         `Add one to src/eval/fixtures.ts. Extractors with fixtures: ` +
         `${extractorsWithFixtures().join(", ")}`
+    );
+  }
+  return selected;
+}
+
+/**
+ * Narrow an already-selected fixture set to the named ones.
+ *
+ * A name matching nothing is an error listing what is available, not an empty
+ * sweep: a zero-fixture run prints a table with no rows and exits 0, which reads
+ * exactly like a passing evaluation — the same trap `--extractor` and
+ * `sec eval s1 --cik` already refuse to fall into.
+ */
+function filterByName(fixtures: EvalFixture[], names: readonly string[]): EvalFixture[] {
+  const wanted = new Set(names);
+  const selected = fixtures.filter((f) => wanted.has(f.name));
+  const missing = names.filter((n) => !fixtures.some((f) => f.name === n));
+  if (missing.length > 0) {
+    throw new Error(
+      `no fixture named ${missing.map((m) => `"${m}"`).join(", ")} in this sweep — ` +
+        `available: ${fixtures.map((f) => f.name).join(", ")}`
     );
   }
   return selected;
@@ -303,7 +330,9 @@ export function summarizeModelRuns(
  */
 export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalReport> {
   // Select first: an unscorable extractor should fail before we register models.
-  const fixtures = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
+  const selected = opts.real ? realSectionFixtures(opts.extractor) : selectFixtures(opts.extractor);
+  const fixtures =
+    opts.fixtures && opts.fixtures.length > 0 ? filterByName(selected, opts.fixtures) : selected;
   await registerModelIds(opts.models);
   const repo = getGlobalModelRepository();
 
