@@ -576,6 +576,16 @@ export function wrapUntrusted(sectionText: string): string {
   return `<${tag}>\n${defanged}\n</${tag}>`;
 }
 
+export function buildExtractionPrompt(args: {
+  readonly instructions: string;
+  readonly sectionText: string;
+  readonly nonce?: string | undefined;
+}): string {
+  const preamble = buildUntrustedPreamble(args.nonce);
+  const wrapped = wrapUntrusted(args.sectionText);
+  return `${preamble}\n\n${args.instructions}\n\n${wrapped}`;
+}
+
 /**
  * Minimal execution context for driving a {@link StructuredGenerationTask}
  * outside a full task-graph run. The task only uses `signal`, `updateProgress`,
@@ -820,16 +830,12 @@ async function runGuardedExtraction(
   const local = isLocalProvider(model);
   let lastError: unknown;
   let rateLimitWaits = 0;
-  // The fence is attempt-independent now that no nonce is embedded in it, so it
-  // is built once instead of re-normalizing the whole section on every retry.
-  const wrapped = wrapUntrusted(sectionText);
   for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
     const nonce = local || !isNonceEnabled() ? undefined : deriveVerifyNonce(sectionText, attempt);
-    const preamble = buildUntrustedPreamble(nonce);
-    const prompt = `${preamble}\n\n${instructions}\n\n${wrapped}`;
+    const prompt = buildExtractionPrompt({ instructions, sectionText, nonce });
     try {
       const obj = await runStructured(
         label,
