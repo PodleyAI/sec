@@ -41,7 +41,9 @@ describe("isRiskCategoryHeading", () => {
 describe("chunkRiskFactorText", () => {
   it("returns one chunk for a section that fits", () => {
     const text = [CATEGORY, CAPTION, "Body paragraph."].join("\n\n");
-    expect(chunkRiskFactorText(text)).toEqual([text]);
+    // A single chunk carries no injected heading: nothing precedes it, so every
+    // line in it is the filer's.
+    expect(chunkRiskFactorText(text)).toEqual([{ text, carriedHeading: null }]);
   });
 
   it("returns nothing for blank text", () => {
@@ -53,7 +55,10 @@ describe("chunkRiskFactorText", () => {
     const chunks = chunkRiskFactorText(paragraphs.join("\n\n"), 400);
     expect(chunks.length).toBeGreaterThan(1);
     for (const paragraph of paragraphs) {
-      expect(chunks.some((c) => c.includes(paragraph)), paragraph).toBe(true);
+      expect(
+        chunks.some((c) => c.text.includes(paragraph)),
+        paragraph
+      ).toBe(true);
     }
   });
 
@@ -63,7 +68,11 @@ describe("chunkRiskFactorText", () => {
       CAPTION.length + 40
     );
     expect(chunks.length).toBeGreaterThan(1);
-    for (const chunk of chunks) expect(chunk.startsWith(CATEGORY)).toBe(true);
+    for (const chunk of chunks) expect(chunk.text.startsWith(CATEGORY)).toBe(true);
+    // The first chunk opens on the filer's own heading; only the later ones had
+    // one injected, and each says so.
+    expect(chunks[0].carriedHeading).toBeNull();
+    for (const c of chunks.slice(1)) expect(c.carriedHeading).toBe(CATEGORY);
   });
 
   it("does not prefix a chunk that already opens on a category heading", () => {
@@ -75,14 +84,33 @@ describe("chunkRiskFactorText", () => {
       CATEGORY.length + CAPTION.length + 10
     );
     expect(chunks).toHaveLength(2);
-    expect(chunks[1].startsWith(second)).toBe(true);
-    expect(chunks[1]).not.toContain(CATEGORY);
+    expect(chunks[1].text.startsWith(second)).toBe(true);
+    expect(chunks[1].text).not.toContain(CATEGORY);
+    // Nothing was injected, so there is no echo for the extractor to remove.
+    expect(chunks[1].carriedHeading).toBeNull();
   });
 
   it("keeps a paragraph larger than the chunk size whole", () => {
     const huge = `${CAPTION} `.repeat(40).trim();
     const chunks = chunkRiskFactorText([huge, CAPTION].join("\n\n"), 200);
-    expect(chunks[0]).toBe(huge);
+    expect(chunks[0].text).toBe(huge);
     expect(chunks).toHaveLength(2);
+  });
+
+  it("reports the heading it injected so the extractor can un-echo it", () => {
+    // The contract the extractor's echo removal depends on: when a chunk
+    // reports a carried heading, that heading is literally the chunk's first
+    // line. Exact string equality is what makes dropping an echo safe — no
+    // caption the model read out of the body can ever match it.
+    const chunks = chunkRiskFactorText(
+      [CATEGORY, ...Array.from({ length: 8 }, (_, i) => `${CAPTION} (${i})`)].join("\n\n"),
+      CAPTION.length + 40
+    );
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      if (chunk.carriedHeading === null) continue;
+      expect(chunk.text.startsWith(chunk.carriedHeading)).toBe(true);
+    }
+    expect(chunks.some((c) => c.carriedHeading !== null)).toBe(true);
   });
 });

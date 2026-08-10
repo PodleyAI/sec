@@ -760,17 +760,36 @@ caught by the same "enforce it, don't trust the prompt" guard the ownership
 subtotal gets — a heading is verbatim section text, so nothing downstream would
 otherwise stop it becoming a row that reads like a disclosed risk.
 
-That guard is applied to the section's **shape as a whole**, not row by row,
+Two different rules do that work, and the order matters. First the chunk prefix
+is reconciled against itself: `chunkRiskFactorText` reports the heading line it
+prepended to each chunk (`RiskFactorChunk.carriedHeading`), and a row whose
+caption is exactly that line is dropped. That drop is not a judgement about the
+section — the line is one this code inserted, not a caption the filer printed
+under it — which is why it is the one drop that leaves no trace, and it removes
+the artifact chunking creates: a ~7-chunk section hands the model ~6 headings
+and invites it to echo them back as rows. An echo that is _reworded_ rather than
+copied is not this rule's problem: it fails `verifyRow` like any other
+paraphrase and lands on the existing `<section>-partial` /
+`UNVERIFIED_SOURCE_SPAN` triage entry.
+
+What survives is judged on the response's **shape as a whole**, not row by row,
 because the shape heuristic (no sentence-ending punctuation) cannot tell a
-category heading from an Item 105(b) summary bullet. A **homogeneous** section
+category heading from an Item 105(b) summary bullet. A **homogeneous** response
 is kept intact either way — all bare phrases is a summary list whose "headings"
 ARE the captions; no bare phrases is an ordinary sentence-caption list with
-nothing to drop. A **mixed** section is unanswerable and dead-letters
-`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting
-a subset: filers are inconsistent about terminal punctuation, so one summary
+nothing to drop. A **mixed** one is unanswerable and dead-letters
+`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting a
+subset: filers are inconsistent about terminal punctuation, so one summary
 bullet ending in a period was enough to make an all-or-nothing filter keep that
 single row and silently drop the other 29 — a partial disclosure recorded as
-complete, exactly what the chunked-section contract exists to prevent.
+complete, exactly what the chunked-section contract exists to prevent. A
+ratio-gated variant of this rule (drop the heading-shaped rows while they are a
+small enough minority of the response) was tried and removed: it reproduced that
+failure in the other direction — four bare bullets out of twenty deleted from a
+section that then resolved clean, with a `console.warn` as the only record. The
+price of the strict rule is that one stray heading fails the whole section; it
+fails visibly, onto the version-gated retry worklist, with every caption
+recoverable by re-running the filing.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate
@@ -779,10 +798,11 @@ chunking: one response cannot hold ~90 captions without overrunning the
 extractors' output-token ceiling and truncating the JSON. `chunkRiskFactorText`
 (`s1/riskFactorChunks.ts`) splits the section on paragraph boundaries into
 40k-char chunks (~15–25 captions each, at the ~1.5–2.8k chars per risk the
-fixtures measure) and prefixes every chunk after the first with the last
-category heading seen before it — a verbatim line from the section, so spans
-still verify — and `extractRiskFactors` runs one call per chunk, concatenating
-in document order and de-duplicating on the caption. A
+fixtures measure) and prefixes every chunk after the first with the last category heading seen
+before it — a verbatim line from the section, so spans still verify — reporting
+that line back on the chunk so the extractor can drop its echoes by exact match.
+`extractRiskFactors` runs one call per chunk, concatenating in document order and
+de-duplicating on the caption. A
 chunk that fails propagates and fails the whole section: persisting the captions
 that happened to arrive first would record a silently partial list as if it were
 the filing's complete disclosure. A section over 400k chars is a segmentation
