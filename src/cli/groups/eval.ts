@@ -133,7 +133,12 @@ function requireFormat(value: string | boolean): string {
   return optionValue("--format", value, () => "one of: table, json") ?? "table";
 }
 
-const PRINT_PROMPTS_MODES: readonly PrintPromptsMode[] = ["instructions", "template", "full"];
+const PRINT_PROMPTS_MODES: readonly PrintPromptsMode[] = [
+  "instructions",
+  "template",
+  "full",
+  "schema",
+];
 
 function requirePrintPromptsMode(
   value: string | boolean | undefined

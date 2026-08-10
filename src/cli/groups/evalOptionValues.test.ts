@@ -108,6 +108,7 @@ describe("eval value-less options", () => {
     expect(err).toContain("instructions");
     expect(err).toContain("template");
     expect(err).toContain("full");
+    expect(err).toContain("schema");
     expect(process.exitCode).toBe(1);
   });
 
@@ -135,6 +136,22 @@ describe("eval value-less options", () => {
     const out = lines.join("\n");
     expect(out).toContain("=== management / instructions ===");
     expect(out).toContain("Extract every director and executive officer");
+  });
+
+  it("extract --print-prompts schema dumps management JSON and does not need models", async () => {
+    const lines: string[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...a) => {
+      lines.push(a.map(String).join(" "));
+    });
+    try {
+      await runEvalOk(["extract", "--print-prompts", "schema", "--extractor", "management"]);
+    } finally {
+      log.mockRestore();
+    }
+    const out = lines.join("\n");
+    expect(out).toContain("=== management / schema ===");
+    expect(out).toContain('"people"');
+    expect(out).toContain('"nonce_seen"');
   });
 
   it("extract --print-prompts instructions supports an extractor without fixtures", async () => {
