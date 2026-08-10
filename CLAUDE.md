@@ -411,8 +411,17 @@ a model oracle caps every candidate at its own accuracy, costs a call per
 section, and disagrees with ITSELF between runs, so the bar moves under you.
 Golden labels are free, instant and stable.
 
-They cover `management` and `beneficial-ownership` only. A golden run scores
-those and reports every other section as skipped rather than quietly passing it.
+Coverage is derived from `GOLDEN_S1_LABELS`, not fixed: every extractor with at
+least one committed label is scored, and `extractorsWithGoldenLabels()` is what
+both the default `--extractors` set and the `sec eval s1 --help` line read — so
+the current list is always one `--help` away and this paragraph cannot silently
+go stale. As committed today that is 12 extractors —
+`beneficial-ownership`, `executive-compensation`, `management`,
+`offering-terms`, `related-party`, `risk-factors`, `spac-classification`,
+`spac-profile`, `spac-sponsors`, `sponsor-promote`, `underwriters`,
+`use-of-proceeds` — over 42 labelled filings. A golden run scores the sections
+that carry a label and reports every other one as skipped rather than quietly
+passing it.
 Pass `--reference <model-id>` (use the strongest available, currently
 `claude-opus-5` — never the model you are evaluating) to fall back to an oracle
 for the unlabelled extractors, accepting that its verdict is an opinion.
@@ -426,8 +435,10 @@ truth — even the strongest model drops or invents the odd role, capping
 achievable agreement and penalizing a correct candidate. `--reference golden`
 scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
 instead of a model run — no reference API call, `$0`, deterministic. Only sections
-with a golden entry are scored (the rest are reported as skipped); currently
-seven committed `management` sections and seven `beneficial-ownership` sections.
+with a golden entry are scored (the rest are reported as skipped);
+the committed set is roughly 400 labelled (filing, section) pairs across the 12
+extractors named above — densest on `risk-factors`, `spac-classification` and
+`use-of-proceeds` (42 filings each), thinnest on `spac-sponsors` (2).
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
@@ -440,6 +451,15 @@ hypothetical — embarc-data vendors its own copy of the S-1 corpus
 behind sec's the labelled filing produced no section at all, so the sweep scored
 fewer filings than the labels covered and still printed a clean table. Re-copy
 the corpus into the vendoring package when you add a fixture.
+
+**A bare `sec eval s1` is not a cheap command.** Under the default golden
+reference the default extractor set is _every_ labelled extractor, so one
+candidate model sweeps roughly 400 sections — more calls than that, since
+`risk-factors` chunks its section into several — over prose running from a few
+thousand chars to ~246k. Budget it, or narrow it: `--extractors` picks the
+sections, `--cik` picks the filer, and the two compose. Only the candidate side
+costs money under `--reference golden` (no oracle call); a model reference
+roughly doubles the calls and pays the reference model's rate on top.
 
 `--cik <csv>` narrows a sweep to one filer (leading zeros optional), which is how
 you check a newly added fixture or label without paying for the whole corpus. A
