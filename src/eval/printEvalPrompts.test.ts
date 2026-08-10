@@ -71,4 +71,35 @@ describe("printEvalPrompts", () => {
       })
     ).toThrow(/sectionText|full/i);
   });
+
+  it("schema mode prints pretty JSON once per extractor", () => {
+    const lines: string[] = [];
+    printEvalPrompts({
+      mode: "schema",
+      items: [
+        { extractor: "management", label: "management" },
+        { extractor: "management", label: "dup" },
+      ],
+      write: (l) => lines.push(l),
+    });
+    const out = lines.join("\n");
+    expect(out).toContain("=== management / schema ===");
+    expect(out.match(/=== management \/ schema ===/g)?.length).toBe(1);
+    const jsonStart = out.indexOf("{");
+    expect(jsonStart).toBeGreaterThan(-1);
+    const parsed = JSON.parse(out.slice(jsonStart)) as {
+      properties?: { people?: unknown; nonce_seen?: unknown };
+    };
+    expect(parsed.properties?.people).toBeDefined();
+    expect(parsed.properties?.nonce_seen).toBeDefined();
+  });
+
+  it("schema mode does not require sectionText", () => {
+    expect(() =>
+      printEvalPrompts({
+        mode: "schema",
+        items: [{ extractor: "management", label: "x" }],
+      })
+    ).not.toThrow();
+  });
 });

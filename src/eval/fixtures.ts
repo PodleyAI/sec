@@ -5,6 +5,15 @@
  */
 
 import type { IExecuteContext, ModelConfig } from "workglow";
+import { ExecutiveCompensationOutputSchema } from "../sec/forms/registration-statements/s1/executiveCompensationSchema";
+import { LoiOutputSchema } from "../sec/forms/registration-statements/s1/loiSchema";
+import { OfferingTermsOutputSchema } from "../sec/forms/registration-statements/s1/offeringTermsSchema";
+import { RiskFactorsOutputSchema } from "../sec/forms/registration-statements/s1/riskFactorSchema";
+import {
+  BeneficialOwnershipOutputSchema,
+  ManagementOutputSchema,
+  RelatedPartyOutputSchema,
+} from "../sec/forms/registration-statements/s1/sectionSchemas";
 import {
   beneficialOwnershipInstructions,
   executiveCompensationInstructions,
@@ -33,6 +42,12 @@ import {
   underwritersInstructions,
   useOfProceedsInstructions,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
+import { SpacClassificationOutputSchema } from "../sec/forms/registration-statements/s1/spacClassifierSchema";
+import { SpacProfileOutputSchema } from "../sec/forms/registration-statements/s1/spacProfileSchema";
+import { SpacSponsorOutputSchema } from "../sec/forms/registration-statements/s1/spacSponsorSchema";
+import { SponsorPromoteOutputSchema } from "../sec/forms/registration-statements/s1/sponsorPromoteSchema";
+import { UnderwriterOutputSchema } from "../sec/forms/registration-statements/s1/underwriterSchema";
+import { UseOfProceedsOutputSchema } from "../sec/forms/registration-statements/s1/useOfProceedsSchema";
 
 /**
  * A section extractor the harness can drive: it takes section prose + a model
@@ -49,6 +64,8 @@ import {
 export interface EvalExtractor {
   readonly run: (text: string, model: ModelConfig, context?: IExecuteContext) => Promise<unknown[]>;
   readonly instructions: () => string;
+  /** Canonical JSON Schema the extractor validates model output against. */
+  readonly schema: () => object;
   readonly keyField?: string;
   /**
    * Fields that count toward the score when comparing against a reference (used
@@ -74,6 +91,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
     run: (text, model, context) => extractManagement(text, model, context),
     instructions: managementInstructions,
+    schema: () => ManagementOutputSchema,
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
     instructionOverheadChars: 900,
@@ -81,6 +99,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "beneficial-ownership": {
     run: (text, model, context) => extractBeneficialOwnership(text, model, context),
     instructions: beneficialOwnershipInstructions,
+    schema: () => BeneficialOwnershipOutputSchema,
     keyField: "name",
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
@@ -94,6 +113,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "risk-factors": {
     run: (text, model, context) => extractRiskFactors(text, model, context),
     instructions: riskFactorsInstructions,
+    schema: () => RiskFactorsOutputSchema,
     keyField: "headline",
     compareFields: ["headline", "category"],
     instructionOverheadChars: 1300,
@@ -101,6 +121,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
     instructions: relatedPartyInstructions,
+    schema: () => RelatedPartyOutputSchema,
     keyField: "name",
     compareFields: ["name"],
     instructionOverheadChars: 900,
@@ -113,6 +134,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       return row === null ? [] : [row];
     },
     instructions: offeringTermsInstructions,
+    schema: () => OfferingTermsOutputSchema,
     compareFields: [
       "price_per_unit",
       "warrant_fraction_per_unit",
@@ -129,6 +151,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       return row === null ? [] : [row];
     },
     instructions: sponsorPromoteInstructions,
+    schema: () => SponsorPromoteOutputSchema,
     compareFields: [
       "founder_shares",
       "founder_percent",
@@ -147,6 +170,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       return row === null ? [] : [row];
     },
     instructions: spacClassificationInstructions,
+    schema: () => SpacClassificationOutputSchema,
     keyField: "entity_kind",
     compareFields: ["is_spac", "entity_kind"],
     instructionOverheadChars: 1300,
@@ -160,6 +184,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "executive-compensation": {
     run: (text, model, context) => extractExecutiveCompensation(text, model, context),
     instructions: executiveCompensationInstructions,
+    schema: () => ExecutiveCompensationOutputSchema,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
     instructionOverheadChars: 1600,
   },
@@ -169,6 +194,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   underwriters: {
     run: (text, model, context) => extractUnderwriters(text, model, context),
     instructions: underwritersInstructions,
+    schema: () => UnderwriterOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name", "role"],
     instructionOverheadChars: 1100,
@@ -177,6 +203,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "use-of-proceeds": {
     run: (text, model, context) => extractUseOfProceeds(text, model, context),
     instructions: useOfProceedsInstructions,
+    schema: () => UseOfProceedsOutputSchema,
     keyField: "purpose",
     compareFields: ["purpose", "amount"],
     instructionOverheadChars: 1000,
@@ -190,6 +217,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       return row === null ? [] : [row];
     },
     instructions: spacProfileInstructions,
+    schema: () => SpacProfileOutputSchema,
     compareFields: ["focus", "focus_location"],
     instructionOverheadChars: 1400,
   },
@@ -197,6 +225,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   "spac-sponsors": {
     run: (text, model, context) => extractSpacSponsors(text, model, context),
     instructions: spacSponsorsInstructions,
+    schema: () => SpacSponsorOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name"],
     instructionOverheadChars: 900,
@@ -211,6 +240,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       return row === null ? [] : [row];
     },
     instructions: loiInstructions,
+    schema: () => LoiOutputSchema,
     keyField: "target_name",
     compareFields: ["target_name", "loi_date"],
     instructionOverheadChars: 1200,
