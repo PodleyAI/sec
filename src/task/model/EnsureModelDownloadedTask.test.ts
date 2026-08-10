@@ -78,12 +78,16 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded("gguf:/models/x.gguf", ctx())).resolves.toBeUndefined();
   });
 
-  it("attempts a download for a HuggingFace ONNX id (org/name shape)", async () => {
-    await expect(ensureModelDownloaded("onnx-community/x", ctx())).rejects.toThrow();
+  it("attempts a download for a HuggingFace ONNX id (onnx: prefix)", async () => {
+    await expect(ensureModelDownloaded("onnx:onnx-community/x", ctx())).rejects.toThrow();
   });
 
   it("attempts a download for a GGUF id with a remote model_url", async () => {
     await expect(ensureModelDownloaded("gguf:hf:org/repo:Q4_K_M", ctx())).rejects.toThrow();
+  });
+
+  it("attempts a download for a llama: id with a remote model_url", async () => {
+    await expect(ensureModelDownloaded("llama:hf:org/repo:Q4_K_M", ctx())).rejects.toThrow();
   });
 
   it("no-ops on an empty id", async () => {
@@ -132,12 +136,12 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
       // The download's phase event, emitted two task layers down (the owned
       // ModelDownloadTask under EnsureModelDownloadedTask), reaches the running
       // task's progress sink — this is what the withCli UI renders on screen.
-      await ensureModelDownloaded("onnx-community/progress", context);
+      await ensureModelDownloaded("onnx:onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
       expect(progress).toContainEqual([42, "Downloading model"]);
 
       // Memoized: a second call does not re-invoke the download run-fn.
-      await ensureModelDownloaded("onnx-community/progress", context);
+      await ensureModelDownloaded("onnx:onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
     });
 
@@ -151,7 +155,7 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
         },
       } as any);
 
-      const input = { model: "onnx-community/standalone" };
+      const input = { model: "onnx:onnx-community/standalone" };
       const out = await new EnsureModelDownloadedTask({ defaults: input }).run(input);
       expect(out.downloaded).toBe(true);
       expect(runFnCalls).toBe(1);

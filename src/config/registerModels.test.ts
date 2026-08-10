@@ -63,7 +63,7 @@ describe("registerSecModels", () => {
   });
 
   it("builds a routable HFT record", () => {
-    const record = hftModelRecord("onnx-community/Qwen2.5-0.5B-Instruct");
+    const record = hftModelRecord("onnx:onnx-community/Qwen2.5-0.5B-Instruct");
     expect(record.provider).toBe("HF_TRANSFORMERS_ONNX");
     expect(record.provider_config.model_path).toBe("onnx-community/Qwen2.5-0.5B-Instruct");
     expect(record.capabilities).toContain("json-mode");
@@ -101,17 +101,29 @@ describe("registerSecModels", () => {
     expect(secModelRecord("grok-4.5").provider).toBe("XAI");
     expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
     expect(secModelRecord("deepseek-v4-pro").provider).toBe("DEEPSEEK");
-    expect(secModelRecord("onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(
+    expect(secModelRecord("onnx:onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(
       "HF_TRANSFORMERS_ONNX"
     );
     expect(secModelRecord("gguf:model.gguf").provider).toBe("LOCAL_LLAMACPP");
+    expect(secModelRecord("llama:model.gguf").provider).toBe("LOCAL_LLAMACPP");
+    expect(secModelRecord("node-llama:model.gguf").provider).toBe("LOCAL_LLAMACPP");
+    expect(secModelRecord("hfi:meta-llama/Llama-3.3-70B-Instruct").provider).toBe("HF_INFERENCE");
+    expect(secModelRecord("open-router:anthropic/claude-sonnet-4").provider).toBe("OPENROUTER");
   });
 
   it("throws on a model id matching no provider shape instead of defaulting to Anthropic", () => {
     // Regression: these used to mint an ANTHROPIC record, so a typo or an
     // unwired provider only surfaced downstream as a `404 model: <id>` from the
     // Anthropic API — the wrong provider's error, well after registration.
-    for (const id of ["sonnet-5", "llama-4-70b", "mistral-large", ""]) {
+    // Bare `org/name` is also unknown now — it needs an explicit `onnx:` /
+    // `hfi:` / `open-router:` prefix.
+    for (const id of [
+      "sonnet-5",
+      "llama-4-70b",
+      "mistral-large",
+      "onnx-community/Qwen2.5-0.5B-Instruct",
+      "",
+    ]) {
       expect(() => secModelRecord(id)).toThrow(SecCliConfigurationError);
     }
     expect(() => secModelRecord("claude--typo")).not.toThrow();
@@ -123,10 +135,11 @@ describe("registerSecModels", () => {
     );
   });
 
-  it("routes a deepseek-ai HuggingFace repo id to the local ONNX provider, not DeepSeek cloud", () => {
-    expect(secModelRecord("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B").provider).toBe(
+  it("routes a deepseek-ai HuggingFace repo id via onnx: to the local ONNX provider, not DeepSeek cloud", () => {
+    expect(secModelRecord("onnx:deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B").provider).toBe(
       "HF_TRANSFORMERS_ONNX"
     );
+    expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
   });
 
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {
@@ -166,11 +179,25 @@ describe("registerSecModels", () => {
   });
 
   it("registerModelIds registers an explicit list by provider-appropriate record", async () => {
-    await registerModelIds(["claude-haiku-4-5", "gpt-5.4-mini", "onnx-community/tiny"]);
+    await registerModelIds([
+      "claude-haiku-4-5",
+      "gpt-5.4-mini",
+      "onnx:onnx-community/tiny",
+      "hfi:meta-llama/Llama-3.3-70B-Instruct",
+      "open-router:anthropic/claude-sonnet-4",
+    ]);
     const repo = getGlobalModelRepository();
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
     expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
-    expect((await repo.findByName("onnx-community/tiny"))?.provider).toBe("HF_TRANSFORMERS_ONNX");
+    expect((await repo.findByName("onnx:onnx-community/tiny"))?.provider).toBe(
+      "HF_TRANSFORMERS_ONNX"
+    );
+    expect((await repo.findByName("hfi:meta-llama/Llama-3.3-70B-Instruct"))?.provider).toBe(
+      "HF_INFERENCE"
+    );
+    expect((await repo.findByName("open-router:anthropic/claude-sonnet-4"))?.provider).toBe(
+      "OPENROUTER"
+    );
   });
 
   describe("llamaCppModelRecord GGUF id parsing", () => {
@@ -235,6 +262,18 @@ describe("registerSecModels", () => {
       expect(config.model_url).toBe("https://host.example/a/b/model.gguf");
       expect(config.models_dir).toBe("/models/gguf");
       expect(config.model_path).toBe("/models/gguf/host.example-a-b-model.gguf");
+    });
+
+    it("accepts llama: and node-llama: as aliases of gguf:", () => {
+      expect(llamaCppModelRecord("llama:Bonsai-27B-Q2_0.gguf").provider_config.model_path).toBe(
+        "/models/gguf/Bonsai-27B-Q2_0.gguf"
+      );
+      expect(
+        llamaCppModelRecord("node-llama:Bonsai-27B-Q2_0.gguf").provider_config.model_path
+      ).toBe("/models/gguf/Bonsai-27B-Q2_0.gguf");
+      expect(llamaCppModelRecord("llama:hf:org/repo:Q4").provider_config.model_url).toBe(
+        "hf:org/repo:Q4"
+      );
     });
   });
 

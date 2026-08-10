@@ -25,25 +25,51 @@ const XAI_PROVIDER = "XAI";
 const DEEPSEEK_PROVIDER = "DEEPSEEK";
 const HFT_PROVIDER = "HF_TRANSFORMERS_ONNX";
 const LLAMACPP_PROVIDER = "LOCAL_LLAMACPP";
+const HFI_PROVIDER = "HF_INFERENCE";
+const OPENROUTER_PROVIDER = "OPENROUTER";
 
 /**
- * Prefix that routes a model id to the node-llama-cpp (GGUF) provider. The rest
- * of the id is either a **local path** to a `.gguf` file — absolute
- * (`gguf:/abs/x.gguf`) or relative to the GGUF models dir
- * (`gguf:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`) — or a **remote URI** the download
- * harness fetches: a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`)
- * or an `https://` URL. We key on an explicit prefix rather than the id shape
- * because a GGUF repo id (`org/name`) is indistinguishable from an ONNX one.
+ * Explicit id prefixes. Several providers use `org/name` (or vendor/model) paths,
+ * so a bare `/` is not enough to pick a backend — the prefix is the discriminator.
+ * The remainder after the prefix is what the provider's `provider_config` wants
+ * (HF repo id, GGUF path/URI, OpenRouter model id, …).
  */
-const GGUF_ID_PREFIX = "gguf:";
+const ONNX_ID_PREFIX = "onnx:";
+const HFI_ID_PREFIX = "hfi:";
+const OPEN_ROUTER_ID_PREFIX = "open-router:";
+/**
+ * Prefixes that route to node-llama-cpp. `gguf:` is kept as a legacy alias of
+ * `llama:` / `node-llama:` so existing eval commands and docs keep working.
+ * Longer prefixes are listed first so a future overlapping short form cannot
+ * steal a match.
+ */
+const LLAMACPP_ID_PREFIXES = ["node-llama:", "llama:", "gguf:"] as const;
 
-/** HuggingFace repo ids are `org/name`; Anthropic ids (`claude-*`) never contain `/`. */
+function matchIdPrefix(modelId: string, prefixes: readonly string[]): string | undefined {
+  for (const prefix of prefixes) {
+    if (modelId.startsWith(prefix)) return prefix;
+  }
+  return undefined;
+}
+
 function isHftModelId(modelId: string): boolean {
-  return modelId.includes("/");
+  return modelId.startsWith(ONNX_ID_PREFIX);
+}
+
+function isHfInferenceModelId(modelId: string): boolean {
+  return modelId.startsWith(HFI_ID_PREFIX);
+}
+
+function isOpenRouterModelId(modelId: string): boolean {
+  return modelId.startsWith(OPEN_ROUTER_ID_PREFIX);
+}
+
+function llamaCppIdPrefix(modelId: string): string | undefined {
+  return matchIdPrefix(modelId, LLAMACPP_ID_PREFIXES);
 }
 
 function isLlamaCppModelId(modelId: string): boolean {
-  return modelId.startsWith(GGUF_ID_PREFIX);
+  return llamaCppIdPrefix(modelId) !== undefined;
 }
 
 /** Anthropic cloud ids — the Claude family (`claude-sonnet-5`, `claude-opus-5`, …). */
@@ -72,10 +98,10 @@ function isXaiModelId(modelId: string): boolean {
 }
 
 /**
- * DeepSeek cloud ids — `deepseek-v4-flash`, `deepseek-v4-pro`, …. Matched only
- * after {@link isHftModelId}, so a HuggingFace repo id under the `deepseek-ai`
- * org (`deepseek-ai/DeepSeek-R1-…`) still routes to the local ONNX provider —
- * it carries a `/`, which the cloud prefixes never do.
+ * DeepSeek cloud ids — `deepseek-v4-flash`, `deepseek-v4-pro`, …. A HuggingFace
+ * repo under the `deepseek-ai` org must use an explicit local prefix
+ * (`onnx:deepseek-ai/…` or `hfi:deepseek-ai/…`); a bare `deepseek-*` id is always
+ * the cloud API.
  */
 function isDeepSeekModelId(modelId: string): boolean {
   return /^deepseek-/i.test(modelId);
@@ -83,8 +109,9 @@ function isDeepSeekModelId(modelId: string): boolean {
 
 /**
  * Directory holding downloaded `.gguf` weights: `$SEC_GGUF_DIR`, else
- * `$SEC_RAW_DATA_FOLDER/gguf`, else `./models`. A relative `gguf:` id resolves
- * against this; an absolute one is used as-is.
+ * `$SEC_RAW_DATA_FOLDER/gguf`, else `./models`. A relative llama-cpp id
+ * (`llama:…` / `node-llama:…` / `gguf:…`) resolves against this; an absolute
+ * one is used as-is.
  */
 function ggufModelsDir(): string {
   const explicit = process.env.SEC_GGUF_DIR?.trim();
@@ -305,20 +332,24 @@ const HFT_CAPABILITIES: readonly string[] = [
 ];
 
 /**
- * Builds a fully-specified HuggingFace Transformers (ONNX) {@link ModelRecord}.
- * `provider_config.model_path` is the HuggingFace repo id (`org/name`), loaded on
- * first use into the worker; `pipeline: "text-generation"` selects the causal-LM
- * pipeline the structured-generation path drives.
+ * Builds a fully-specified HuggingFace Transformers (ONNX) {@link ModelRecord}
+ * from an `onnx:`-prefixed id. `provider_config.model_path` is the HuggingFace
+ * repo id after the prefix (`onnx:org/name` → `org/name`), loaded on first use
+ * into the worker; `pipeline: "text-generation"` selects the causal-LM pipeline
+ * the structured-generation path drives.
  */
 export function hftModelRecord(modelId: string): ModelRecord {
+  const modelPath = modelId.startsWith(ONNX_ID_PREFIX)
+    ? modelId.slice(ONNX_ID_PREFIX.length)
+    : modelId;
   return {
     model_id: modelId,
     provider: HFT_PROVIDER,
     title: modelId,
-    description: `HuggingFace Transformers ONNX ${modelId}`,
+    description: `HuggingFace Transformers ONNX ${modelPath}`,
     capabilities: [...HFT_CAPABILITIES],
     provider_config: {
-      model_path: modelId,
+      model_path: modelPath,
       pipeline: "text-generation",
       device: "webgpu",
       dtype: "q4f16",
@@ -347,22 +378,22 @@ const LLAMACPP_CAPABILITIES: readonly string[] = [
 ];
 
 /**
- * Builds a node-llama-cpp {@link ModelRecord} from a `gguf:`-prefixed id. The
- * remainder is either a **local path** to a `.gguf` file (absolute, or relative
- * to {@link ggufModelsDir}) or a **remote URI** (`hf:org/repo:quant` or an
- * `https://` URL) that carries a `model_url` for the download harness to fetch —
- * see {@link ggufPathConfig}. `gpu_layers` is set high (offload every layer to the
- * GPU — Metal on Apple Silicon; node-llama-cpp clamps to the model's layer
- * count). Do NOT use `-1`: that is llama.cpp's "all" sentinel but node-llama-cpp
- * treats it as zero, silently running the whole model on CPU (~20x slower).
- * `context_size` is sized for large S-1 sections. A bare local path must already
- * exist on disk — the provider loads `model_path` directly and does not fetch at
- * generation; the download harness (`ensureModelDownloaded`) fetches a `model_url`
- * ahead of use.
+ * Builds a node-llama-cpp {@link ModelRecord} from a `llama:` / `node-llama:` /
+ * `gguf:`-prefixed id. The remainder is either a **local path** to a `.gguf`
+ * file (absolute, or relative to {@link ggufModelsDir}) or a **remote URI**
+ * (`hf:org/repo:quant` or an `https://` URL) that carries a `model_url` for the
+ * download harness to fetch — see {@link ggufPathConfig}. `gpu_layers` is set
+ * high (offload every layer to the GPU — Metal on Apple Silicon; node-llama-cpp
+ * clamps to the model's layer count). Do NOT use `-1`: that is llama.cpp's "all"
+ * sentinel but node-llama-cpp treats it as zero, silently running the whole
+ * model on CPU (~20x slower). `context_size` is sized for large S-1 sections. A
+ * bare local path must already exist on disk — the provider loads `model_path`
+ * directly and does not fetch at generation; the download harness
+ * (`ensureModelDownloaded`) fetches a `model_url` ahead of use.
  */
 const GGUF_GPU_LAYERS_ALL = 999;
 
-/** A `gguf:` remainder that names a remote source the download harness can fetch. */
+/** A llama-cpp id remainder that names a remote source the download harness can fetch. */
 function isRemoteGgufUri(rawPath: string): boolean {
   return /^hf:/i.test(rawPath) || /^https?:\/\//i.test(rawPath);
 }
@@ -398,22 +429,22 @@ function ggufCacheFileName(uri: string): string {
 }
 
 /**
- * Resolves a `gguf:` id remainder into node-llama-cpp path config. A remote URI
+ * Resolves a llama-cpp id remainder into node-llama-cpp path config. A remote URI
  * ({@link isRemoteGgufUri}) becomes `model_url` (the download source) plus a local
  * `model_path` / `models_dir` under {@link ggufModelsDir} so the harness fetches
  * it there; a plain path stays `model_path`-only (assumed already on disk).
  */
-function ggufPathConfig(rawPath: string): Record<string, unknown> {
+function ggufPathConfig(rawPath: string, idPrefix: string): Record<string, unknown> {
   if (!isRemoteGgufUri(rawPath)) {
     const resolved = isAbsolute(rawPath) ? rawPath : join(ggufModelsDir(), rawPath);
-    // A `gguf:` id must point at a `.gguf` weights file. Absent the guard, a
+    // A llama-cpp id must point at a `.gguf` weights file. Absent the guard, a
     // typo (or the id shape as a whole) can silently coerce node-llama-cpp
     // into loading an arbitrary file off disk — the provider takes what the
     // record's `model_path` says. The remote-URI branch stays unchecked: the
     // download harness always caches under a synthesized `.gguf` filename.
     if (!/\.gguf$/i.test(resolved)) {
       throw new SecCliConfigurationError(
-        `gguf:${rawPath} must resolve to a .gguf file (got ${resolved})`
+        `${idPrefix}${rawPath} must resolve to a .gguf file (got ${resolved})`
       );
     }
     return { model_path: resolved };
@@ -427,7 +458,8 @@ function ggufPathConfig(rawPath: string): Record<string, unknown> {
 }
 
 export function llamaCppModelRecord(modelId: string): ModelRecord {
-  const rawPath = modelId.slice(GGUF_ID_PREFIX.length);
+  const prefix = llamaCppIdPrefix(modelId) ?? "gguf:";
+  const rawPath = modelId.slice(prefix.length);
   return {
     model_id: modelId,
     provider: LLAMACPP_PROVIDER,
@@ -435,11 +467,51 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
     description: `node-llama-cpp GGUF ${rawPath}`,
     capabilities: [...LLAMACPP_CAPABILITIES],
     provider_config: {
-      ...ggufPathConfig(rawPath),
+      ...ggufPathConfig(rawPath, prefix),
       gpu_layers: GGUF_GPU_LAYERS_ALL,
       context_size: ggufContextSize(),
       flash_attention: true,
     },
+    metadata: {},
+  };
+}
+
+/**
+ * Builds a HuggingFace Inference API {@link ModelRecord} from an `hfi:`-prefixed
+ * id. The remainder is the HF repo id (`hfi:meta-llama/…` → `model_name`). Needs
+ * `HF_TOKEN` at run time.
+ */
+export function hfInferenceModelRecord(modelId: string): ModelRecord {
+  const modelName = modelId.startsWith(HFI_ID_PREFIX)
+    ? modelId.slice(HFI_ID_PREFIX.length)
+    : modelId;
+  return {
+    model_id: modelId,
+    provider: HFI_PROVIDER,
+    title: modelId,
+    description: `HuggingFace Inference ${modelName}`,
+    capabilities: [...CLOUD_CHAT_CAPABILITIES],
+    provider_config: { model_name: modelName },
+    metadata: {},
+  };
+}
+
+/**
+ * Builds an OpenRouter {@link ModelRecord} from an `open-router:`-prefixed id.
+ * The remainder is the OpenRouter model id (`open-router:anthropic/claude-sonnet-4`
+ * → `model_name`). Needs `OPENROUTER_API_KEY` at run time.
+ */
+export function openRouterModelRecord(modelId: string): ModelRecord {
+  const modelName = modelId.startsWith(OPEN_ROUTER_ID_PREFIX)
+    ? modelId.slice(OPEN_ROUTER_ID_PREFIX.length)
+    : modelId;
+  return {
+    model_id: modelId,
+    provider: OPENROUTER_PROVIDER,
+    title: modelId,
+    description: `OpenRouter ${modelName}`,
+    capabilities: [...CLOUD_CHAT_CAPABILITIES],
+    provider_config: { model_name: modelName },
     metadata: {},
   };
 }
@@ -452,7 +524,9 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
 export const KNOWN_MODEL_ID_SHAPES =
   "claude-* (Anthropic), gpt-*/chatgpt-*/o1-*/o3-*/o4-* (OpenAI), " +
   "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
-  "org/name (local HuggingFace ONNX), gguf:… (local node-llama-cpp)";
+  "onnx:org/name (local HuggingFace ONNX), " +
+  "llama:… / node-llama:… / gguf:… (local node-llama-cpp), " +
+  "hfi:org/name (HuggingFace Inference), open-router:vendor/model (OpenRouter)";
 
 /**
  * {@link secModelRecord} without the unknown-id throw: `undefined` when no
@@ -465,6 +539,8 @@ export const KNOWN_MODEL_ID_SHAPES =
 export function trySecModelRecord(modelId: string): ModelRecord | undefined {
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
   if (isHftModelId(modelId)) return hftModelRecord(modelId);
+  if (isHfInferenceModelId(modelId)) return hfInferenceModelRecord(modelId);
+  if (isOpenRouterModelId(modelId)) return openRouterModelRecord(modelId);
   if (isAnthropicModelId(modelId)) return anthropicModelRecord(modelId);
   if (isOpenAiModelId(modelId)) return openAiModelRecord(modelId);
   if (isGeminiModelId(modelId)) return geminiModelRecord(modelId);
@@ -484,6 +560,8 @@ export function trySecModelRecord(modelId: string): ModelRecord | undefined {
  */
 export function modelApiKeyEnvVar(modelId: string): string | undefined {
   if (isLlamaCppModelId(modelId) || isHftModelId(modelId)) return undefined;
+  if (isHfInferenceModelId(modelId)) return "HF_TOKEN";
+  if (isOpenRouterModelId(modelId)) return "OPENROUTER_API_KEY";
   if (isAnthropicModelId(modelId)) return "ANTHROPIC_API_KEY";
   if (isOpenAiModelId(modelId)) return "OPENAI_API_KEY";
   if (isGeminiModelId(modelId)) return "GEMINI_API_KEY";
@@ -494,11 +572,12 @@ export function modelApiKeyEnvVar(modelId: string): string | undefined {
 
 /**
  * Builds a provider-appropriate {@link ModelRecord} for a model id, dispatching
- * on id shape: a `gguf:` id → node-llama-cpp (local GGUF), a HuggingFace
- * `org/name` id → HFT ONNX (local), a `claude-*` id → Anthropic, a `gpt-*`/`o*`
- * id → OpenAI, a `gemini-*` id → Google Gemini, a `grok-*` id → xAI, a
- * `deepseek-*` id → DeepSeek. Shared by {@link registerSecModels} and the
- * `sec eval` harness so both mint identical records for the same id.
+ * on an explicit prefix (or a cloud-vendor name pattern): `onnx:` → HFT ONNX,
+ * `llama:` / `node-llama:` / `gguf:` → node-llama-cpp, `hfi:` → HuggingFace
+ * Inference, `open-router:` → OpenRouter, `claude-*` → Anthropic, `gpt-*`/`o*`
+ * → OpenAI, `gemini-*` → Gemini, `grok-*` → xAI, `deepseek-*` → DeepSeek.
+ * Shared by {@link registerSecModels} and the `sec eval` harness so both mint
+ * identical records for the same id.
  *
  * An id matching no known shape is a hard error rather than a fall-through to
  * one provider. This used to default to Anthropic, which turned every typo and

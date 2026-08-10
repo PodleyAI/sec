@@ -48,9 +48,9 @@ export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_
 /**
  * A local HuggingFace Transformers (ONNX) model, registered alongside the cloud
  * default so it is available for the extraction comparison harness (`sec eval`)
- * without a cloud API key. Override the repo id via `SEC_HFT_MODEL`. Its `/`
- * (HuggingFace `org/name` form) is what routes it to the HFT provider rather
- * than Anthropic — see `secModelRecord`.
+ * without a cloud API key. Override the repo id via `SEC_HFT_MODEL`. The
+ * `onnx:` prefix is what routes it to the HFT provider — see `secModelRecord`
+ * (a bare `org/name` is ambiguous with OpenRouter / HF Inference paths).
  *
  * This is only the fallback repo id for the HFT provider when `SEC_HFT_MODEL` is
  * unset — it is NOT part of the default `sec eval` sweep (haiku vs sonnet) and is
@@ -58,7 +58,7 @@ export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_
  * real S-1 sections and hallucinate entities memorized from pretraining. Rank any
  * local candidate yourself against `sec eval s1 --reference golden` before relying
  * on it. For a stronger but far slower local baseline set
- * `SEC_HFT_MODEL=onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
+ * `SEC_HFT_MODEL=onnx:onnx-community/Qwen3-4B-Instruct-2507-ONNX`.
  */
-const DEFAULT_SEC_HFT_MODEL = "onnx-community/LFM2.5-350M-ONNX";
+const DEFAULT_SEC_HFT_MODEL = "onnx:onnx-community/LFM2.5-350M-ONNX";
 export const SecHftModelDefault = process.env.SEC_HFT_MODEL?.trim() || DEFAULT_SEC_HFT_MODEL;

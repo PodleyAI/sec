@@ -52,8 +52,9 @@ export type EnsureModelDownloadedOutput = Static<ReturnType<typeof OutputSchema>
  * Ensure a model's weights are present locally before it is used for generation,
  * deriving what to do entirely from the **model id**.
  *
- * `trySecModelRecord` dispatches on the id shape (a `gguf:` id → node-llama-cpp,
- * an `org/name` id → HuggingFace ONNX, a `claude-*`/`gpt-*`/`gemini-*`/`grok-*`/`deepseek-*`
+ * `trySecModelRecord` dispatches on the id shape (an `onnx:` id → HuggingFace
+ * ONNX, a `llama:` / `node-llama:` / `gguf:` id → node-llama-cpp, an `hfi:` /
+ * `open-router:` / `claude-*` / `gpt-*` / `gemini-*` / `grok-*` / `deepseek-*`
  * id → the matching cloud provider — the same dispatch registration uses), so the
  * task figures out the provider without being handed a resolved `ModelConfig`.
  * The non-throwing variant, because an id sec doesn't route may still be a model
@@ -66,7 +67,7 @@ export type EnsureModelDownloadedOutput = Static<ReturnType<typeof OutputSchema>
  * - node-llama-cpp (GGUF) loads its `model_path` directly and does **not** fetch
  *   on generation — so a GGUF id configured with a `model_url` (a remote `hf:` /
  *   `https:` URI) only lands on disk if `ModelDownloadTask` runs first, while a
- *   bare local `gguf:` path is assumed already on disk and skipped.
+ *   bare local `llama:` / `gguf:` path is assumed already on disk and skipped.
  *
  * The download runs as an **owned** subtask (`context.own`), so it is registered
  * in the running task's graph and inherits its registry + abort signal, and its

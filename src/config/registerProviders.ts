@@ -31,6 +31,10 @@
  *   worker (`llamaCppWorker.ts`). This is the local path for larger GGUF models,
  *   and its `json-mode` is **grammar-constrained**, so structured extraction
  *   stays schema-valid (and thinking models can't leak a reasoning preamble).
+ * - **HuggingFace Inference** (`provider: "HF_INFERENCE"`) — inline; the cloud
+ *   Inference API for `hfi:org/name` ids. Needs `HF_TOKEN` at run time.
+ * - **OpenRouter** (`provider: "OPENROUTER"`) — inline; the OpenRouter gateway
+ *   for `open-router:vendor/model` ids. Needs `OPENROUTER_API_KEY` at run time.
  *
  * Each provider is registered independently and defensively: a failure to load
  * one (missing optional dependency, worker spawn error) is logged and skipped so
@@ -43,6 +47,8 @@ export async function registerSecProviders(): Promise<void> {
   await registerGemini();
   await registerXai();
   await registerDeepSeek();
+  await registerHfInference();
+  await registerOpenRouter();
   await registerHft();
   await registerLlamaCpp();
 }
@@ -89,6 +95,24 @@ async function registerDeepSeek(): Promise<void> {
     await registerDeepSeekInline();
   } catch (err) {
     warn("DeepSeek", err);
+  }
+}
+
+async function registerHfInference(): Promise<void> {
+  try {
+    const { registerHfInferenceInline } = await import("workglow/hf-inference/runtime");
+    await registerHfInferenceInline();
+  } catch (err) {
+    warn("HuggingFace Inference", err);
+  }
+}
+
+async function registerOpenRouter(): Promise<void> {
+  try {
+    const { registerOpenRouterInline } = await import("workglow/openrouter/runtime");
+    await registerOpenRouterInline();
+  } catch (err) {
+    warn("OpenRouter", err);
   }
 }
 

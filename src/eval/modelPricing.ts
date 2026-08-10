@@ -83,8 +83,10 @@ const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, price: ModelPrice
  * unknown id so the harness reports cost as unavailable rather than guessing.
  */
 function priceFor(modelId: string): ModelPrice | null {
-  if (modelId.includes("/")) return { inputPerM: 0, outputPerM: 0 }; // local (HFT/ONNX)
-  if (modelId.startsWith("gguf:")) return { inputPerM: 0, outputPerM: 0 }; // local (llama.cpp)
+  if (modelId.startsWith("onnx:")) return { inputPerM: 0, outputPerM: 0 }; // local (HFT/ONNX)
+  if (/^(gguf:|llama:|node-llama:)/.test(modelId)) return { inputPerM: 0, outputPerM: 0 }; // local (llama.cpp)
+  // Prefixed cloud gateways — pricing is provider-specific and not tabulated here.
+  if (modelId.startsWith("hfi:") || modelId.startsWith("open-router:")) return null;
   if (/opus/i.test(modelId)) return { inputPerM: 5, outputPerM: 25 };
   if (/sonnet/i.test(modelId)) return { inputPerM: 3, outputPerM: 15 };
   if (/haiku/i.test(modelId)) return { inputPerM: 1, outputPerM: 5 };

@@ -50,8 +50,19 @@ describe("DeepSeek pricing", () => {
 
 describe("priceFor dispatch", () => {
   it("treats local models as free", () => {
-    expect(estimateCost("onnx-community/Qwen3-4B-Instruct-2507-ONNX", 40_000, 2_000).usd).toBe(0);
+    expect(estimateCost("onnx:onnx-community/Qwen3-4B-Instruct-2507-ONNX", 40_000, 2_000).usd).toBe(
+      0
+    );
     expect(estimateCost("gguf:Model-Q4.gguf", 40_000, 2_000).usd).toBe(0);
+    expect(estimateCost("llama:Model-Q4.gguf", 40_000, 2_000).usd).toBe(0);
+  });
+
+  it("does not treat a cloud vendor/model path as a free local model", () => {
+    // Regression: a bare `/` used to mean "local ONNX", which priced OpenRouter
+    // / HF Inference ids at $0.
+    expect(estimateCost("open-router:anthropic/claude-sonnet-4", 40_000, 2_000).usd).toBeNull();
+    expect(estimateCost("hfi:meta-llama/Llama-3.3-70B-Instruct", 40_000, 2_000).usd).toBeNull();
+    expect(estimateCost("onnx-community/Qwen3-4B-Instruct-2507-ONNX", 40_000, 2_000).usd).toBeNull();
   });
 
   it("reports an unknown id as unavailable rather than guessing", () => {
