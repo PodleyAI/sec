@@ -140,7 +140,7 @@ function ggufContextSize(): number {
  * their own `maxTokens`, so this only bounds callers that don't — the Anthropic
  * provider otherwise falls back to 1024, which truncates extraction output.
  */
-const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_MAX_TOKENS = 8192 * 2;
 
 /**
  * Full capability set for an Anthropic chat model, matching what the Anthropic
