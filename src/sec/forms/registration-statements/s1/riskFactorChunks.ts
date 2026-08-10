@@ -32,7 +32,7 @@ export const MAX_RISK_FACTORS_CHARS = 400_000;
 /** Upper bound on a category heading's length; real ones run well under it. */
 const CATEGORY_MAX_CHARS = 200;
 
-function stripHeadingMarkers(paragraph: string): string {
+export function stripHeadingMarkers(paragraph: string): string {
   return paragraph.replace(/^#{1,6}\s*/, "").trim();
 }
 
@@ -45,10 +45,8 @@ function stripHeadingMarkers(paragraph: string): string {
  *
  * Two callers: {@link chunkRiskFactorText} carries the last heading into the
  * next chunk, where a false positive costs only a redundant context line; and
- * the extractor drops a returned row whose caption looks like a heading, where a
- * false positive drops a caption written as a bare phrase. The terminal-
- * punctuation rule is what keeps that second case rare, and erring that way is
- * deliberate — a heading persisted as a row reads like a disclosed risk.
+ * the extractor uses it to ask whether a response's rows are homogeneous in
+ * shape, where a mixed verdict fails the section rather than dropping rows.
  */
 export function isRiskCategoryHeading(paragraph: string): boolean {
   const line = stripHeadingMarkers(paragraph);
@@ -58,13 +56,26 @@ export function isRiskCategoryHeading(paragraph: string): boolean {
   return /\brisks?\b/i.test(line);
 }
 
+export interface RiskFactorChunk {
+  /** Prose handed to one structured-generation call, carried prefix included. */
+  readonly text: string;
+  /**
+   * The category-heading line prepended to this chunk, or null when the chunk
+   * opens on its own heading (or is the first). A row echoing it back is an
+   * artifact of the prefix, not a caption the filer printed.
+   */
+  readonly carriedHeading: string | null;
+}
+
 /**
  * Splits risk-factor section prose into chunks of at most `maxChars`, never
  * cutting a paragraph. Each chunk after the first is prefixed with the most
  * recent category heading seen before it, so a chunk that starts mid-category
  * can still attribute its captions. That prefix is a verbatim line from the
  * section, so a caption or span quoting it still verifies against the full
- * section text.
+ * section text — and it is reported back on the chunk (`carriedHeading`) so the
+ * extractor can drop a row echoing it by exact match, which is the one drop
+ * that provably discards nothing the filer wrote.
  *
  * A single paragraph longer than `maxChars` becomes its own oversized chunk:
  * splitting inside it would hand the model half a caption and produce a row
@@ -73,14 +84,14 @@ export function isRiskCategoryHeading(paragraph: string): boolean {
 export function chunkRiskFactorText(
   text: string,
   maxChars: number = RISK_FACTOR_CHUNK_CHARS
-): string[] {
+): RiskFactorChunk[] {
   const paragraphs = text
     .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
   if (paragraphs.length === 0) return [];
 
-  const chunks: string[] = [];
+  const chunks: RiskFactorChunk[] = [];
   let current: string[] = [];
   let currentChars = 0;
   let carriedCategory: string | null = null;
@@ -89,9 +100,12 @@ export function chunkRiskFactorText(
   const flush = (): void => {
     if (current.length === 0) return;
     // A chunk that already opens on a category heading needs no carried one.
-    const prefix =
-      carriedCategory !== null && !isRiskCategoryHeading(current[0]) ? [carriedCategory] : [];
-    chunks.push([...prefix, ...current].join("\n\n"));
+    const carried =
+      carriedCategory !== null && !isRiskCategoryHeading(current[0]) ? carriedCategory : null;
+    chunks.push({
+      text: (carried !== null ? [carried, ...current] : current).join("\n\n"),
+      carriedHeading: carried,
+    });
     carriedCategory = lastCategory;
     current = [];
     currentChars = 0;

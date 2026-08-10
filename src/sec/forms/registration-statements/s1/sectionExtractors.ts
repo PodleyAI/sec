@@ -40,7 +40,11 @@ import {
 import { UnderwriterOutputSchema, type UnderwriterRowOut } from "./underwriterSchema";
 import { UseOfProceedsOutputSchema, type UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { RiskFactorsOutputSchema, type RiskFactorRow } from "./riskFactorSchema";
-import { chunkRiskFactorText, isRiskCategoryHeading } from "./riskFactorChunks";
+import {
+  chunkRiskFactorText,
+  isRiskCategoryHeading,
+  stripHeadingMarkers,
+} from "./riskFactorChunks";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
@@ -65,20 +69,6 @@ const MAX_TOKENS = 4096;
  * a target.
  */
 const RISK_FACTORS_MAX_TOKENS = 16_384;
-
-/**
- * Share of heading-shaped rows at or above which a mixed-shape risk-factor
- * section is unanswerable and fails, rather than having its heading-shaped rows
- * dropped.
- *
- * A minority below this is the chunking artifact, not an ambiguous section:
- * {@link chunkRiskFactorText} prefixes every chunk after the first with the last
- * category heading, so the model is handed roughly one heading per chunk and
- * echoes some back. A 246k-char section is ~7 chunks against ~90 captions —
- * well under the ratio — and failing it would discard all ~90 for the sake of
- * ~6 strays.
- */
-export const MIXED_SHAPE_FAIL_RATIO = 0.25;
 
 /**
  * Thrown when a model's structured response fails to echo back the per-call
@@ -111,6 +101,10 @@ export class NonceMismatchError extends Error {
  * if it were complete, which is precisely what the chunked-section contract
  * exists to prevent. Failing the section instead puts it on the retry worklist
  * where a human can look at it.
+ *
+ * Echoes of the heading {@link chunkRiskFactorText} itself prefixed onto a chunk
+ * are removed by exact match before this check, so what reaches it is genuinely
+ * ambiguous rather than an artifact of our own chunking.
  *
  * {@link makeRunSection} records it under the `MIXED_CAPTION_SHAPE` reason code.
  */
@@ -1622,7 +1616,8 @@ export function riskFactorsInstructions(): string {
  * is the largest in an S-1 and enumerates far more rows than one response can
  * hold, so the text is split into paragraph-aligned chunks
  * ({@link chunkRiskFactorText}) and each is enumerated by its own call; rows are
- * concatenated in document order and de-duplicated on the caption.
+ * concatenated in document order, de-duplicated on the caption, and stripped of
+ * echoes of the category heading the chunker itself prefixed onto a chunk.
  *
  * A chunk that fails propagates, failing the section as a whole: persisting the
  * captions that happened to come back before the failure would record a
@@ -1641,58 +1636,46 @@ export async function extractRiskFactors(
       "risk factors",
       model,
       riskFactorsInstructions(),
-      chunk,
+      chunk.text,
       RiskFactorsOutputSchema,
       context,
       RISK_FACTORS_MAX_TOKENS
     );
     const risks = (obj.risks as RiskFactorRow[] | undefined) ?? [];
+    const carriedKey =
+      chunk.carriedHeading === null
+        ? null
+        : riskHeadlineKey(stripHeadingMarkers(chunk.carriedHeading));
     for (const risk of risks) {
       const key = riskHeadlineKey(risk?.headline);
       if (key === "" || seen.has(key)) continue;
       seen.add(key);
+      // The carried prefix is a line this code prepended so a chunk starting
+      // mid-category can attribute its captions; a row echoing it is that
+      // artifact, not a caption the filer printed. Matched EXACTLY, so no
+      // caption the model read out of the body is ever at stake. Keyed into
+      // `seen` above, so a later chunk echoing the same heading goes too.
+      if (
+        carriedKey !== null &&
+        riskHeadlineKey(stripHeadingMarkers(risk?.headline ?? "")) === carriedKey
+      ) {
+        continue;
+      }
       out.push(risk);
     }
   }
 
-  // Enforce the "a category heading is not a risk" rule rather than trusting the
-  // prompt: a heading verifies as verbatim section text, so nothing downstream
-  // would stop it becoming a row that reads like a disclosed risk. The heuristic
-  // keys on a heading having no sentence-ending punctuation.
-  //
-  // The rule is about the section's SHAPE, and it only has an answer when the
-  // section is homogeneous:
-  //
-  // - every row heading-shaped — an Item 105(b) "Summary of Risk Factors"
-  //   bullet list, which the segmenter accepts as this section and which is all
-  //   a filing carrying only the summary has. Its bullets are bare unpunctuated
-  //   phrases ("Risks related to our inability to complete an initial business
-  //   combination"), so the "headings" ARE the captions. Kept.
-  // - no row heading-shaped — an ordinary Item 105 list of sentence captions,
-  //   with nothing to drop. Kept.
-  // - mixed — answered by how large the heading-shaped minority is
-  //   (MIXED_SHAPE_FAIL_RATIO). Filers are inconsistent about terminal
-  //   punctuation, so one summary bullet ending in a period is enough to make
-  //   29 bare-phrase bullets look droppable; an all-or-nothing filter would
-  //   keep the single punctuated row and persist it as the filing's complete
-  //   disclosure. At or above the ratio the section is unanswerable and fails
-  //   rather than guessing; below it, the minority is the chunk-prefix echo
-  //   described at the drop below.
+  // Enforce the "a category heading is not a risk" rule rather than trusting
+  // the prompt: a heading verifies as verbatim section text, so nothing
+  // downstream would stop it becoming a row that reads like a disclosed risk.
+  // The rule is about the response's SHAPE as a whole and only has an answer
+  // when it is homogeneous — all bare phrases is an Item 105(b) summary list
+  // whose "headings" ARE the captions; none is an ordinary sentence-caption
+  // list. Mixed is unanswerable: dropping either minority records a partial
+  // disclosure as complete, so the section fails onto the retry worklist.
   const headingLike = out.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
   if (headingLike > 0 && headingLike < out.length) {
-    if (headingLike / out.length >= MIXED_SHAPE_FAIL_RATIO) {
-      throw new MixedRiskCaptionShapeError(headingLike, out.length);
-    }
-    // A small minority of heading-shaped rows is the expected artifact of
-    // chunking, not an ambiguous section: every chunk after the first is
-    // prefixed with the last category heading seen before it, so a ~7-chunk
-    // section hands the model ~6 headings and invites it to echo them back as
-    // rows. Failing the section on those discards every real caption it found,
-    // so drop the handful and keep the disclosure. Only when heading-shaped
-    // rows are a large enough share is the section's shape genuinely
-    // unanswerable (a summary-bullet list whose bullets ARE the captions).
-    console.warn(`risk factors: dropped ${headingLike} heading-shaped row(s) of ${out.length}`);
-    return out.filter((risk) => !isRiskCategoryHeading(risk.headline));
+    throw new MixedRiskCaptionShapeError(headingLike, out.length);
   }
   return out;
 }

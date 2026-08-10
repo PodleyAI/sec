@@ -37,7 +37,7 @@ const NULL_HEADER = {
 
 const ACCESSION = "0000000000-26-000001";
 
-async function runS1(): Promise<void> {
+async function runS1With(html: string): Promise<void> {
   await processFormS1({
     cik: 1018724,
     file_number: "333-1",
@@ -45,9 +45,13 @@ async function runS1(): Promise<void> {
     filing_date: "2026-01-02",
     primary_doc: "s1.htm",
     form: "S-1",
-    formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+    formS1: { header: NULL_HEADER, html, xbrlInstanceXml: null, feeExhibitHtml: null },
     model: fakeS1Model(),
   });
+}
+
+async function runS1(): Promise<void> {
+  await runS1With(HTML);
 }
 
 let cleanup: (() => void) | undefined;
@@ -155,6 +159,51 @@ describe("processFormS1 risk factors", () => {
     const mixed = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
     expect(mixed?.reason_code).toBe("MIXED_CAPTION_SHAPE");
     expect(mixed?.status).toBe("pending");
+  });
+
+  it("dead-letters a mixed section rather than resolving it with the minority deleted", async () => {
+    // The end-to-end shape of the defect, at the layer an operator reads. Four
+    // sentence captions and one heading-shaped row: a heading-shaped minority
+    // small enough that a ratio-gated filter deletes it and lets the rest
+    // through, leaving the section marked resolved and nothing on the retry
+    // worklist to say four rows were persisted from a response the extractor
+    // could not read. The same reasoning applies in reverse — had those bare
+    // phrases been real Item 105(b) bullets, they would be the disclosures
+    // deleted. Neither is separable on shape, so the section fails visibly.
+    const captions = [
+      FIRST,
+      SECOND,
+      "Our stock price may be volatile after this offering.",
+      "We do not intend to pay dividends on our common stock.",
+    ];
+    const html =
+      "<h1>RISK FACTORS</h1>" +
+      `<h2>${CATEGORY}</h2>` +
+      captions
+        .map((c) => `<p><b>${c}</b></p><p>Explanatory paragraph for the caption above.</p>`)
+        .join("");
+
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          ...captions.map((c) => ({
+            headline: c,
+            category: CATEGORY,
+            confidence: 0.9,
+            source_span: c,
+          })),
+          { headline: CATEGORY, category: null, confidence: 0.9, source_span: CATEGORY },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await runS1With(html);
+
+    expect(await new RiskFactorRepo().queryByAccession(ACCESSION)).toHaveLength(0);
+    const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
+    expect(entry?.reason_code).toBe("MIXED_CAPTION_SHAPE");
+    expect(entry?.status).toBe("pending");
   });
 
   it("refuses an elided caption rather than storing its head as the whole thing", async () => {

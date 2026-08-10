@@ -5,11 +5,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  extractRiskFactors,
-  MIXED_SHAPE_FAIL_RATIO,
-  MixedRiskCaptionShapeError,
-} from "./sectionExtractors";
+import { extractRiskFactors, MixedRiskCaptionShapeError } from "./sectionExtractors";
 import { RISK_FACTOR_CHUNK_CHARS } from "./riskFactorChunks";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
@@ -120,42 +116,55 @@ describe("extractRiskFactors", () => {
     ).rejects.toThrow(MixedRiskCaptionShapeError);
   });
 
-  it("drops the chunk-prefix heading echoes instead of losing every real caption", async () => {
-    // The regression the ratio gate exists for. chunkRiskFactorText prefixes
-    // every chunk after the first with the last category heading, so a section
-    // large enough to chunk hands the model roughly one heading per chunk and
-    // invites it to echo them back. An all-or-nothing rule turned six such
-    // strays into a version-gated dead letter that discarded all 90 captions.
-    const captions = Array.from(
-      { length: 90 },
-      (_, i) => `We may be unable to complete our initial business combination number ${i + 1}.`
+  it("drops a chunk's echo of the heading the chunker prefixed onto it", async () => {
+    // The artifact chunking creates, removed at its source instead of by a
+    // ratio. chunkRiskFactorText prepends the last category heading to every
+    // chunk that starts mid-category, so the model is handed a heading it did
+    // not read in the filer's body and invited to echo it back as a row. That
+    // one line is the only thing this code inserted, so an EXACT match against
+    // it is provably not a caption the filer printed.
+    const CATEGORY_LINE = "Risks Relating to our Securities";
+    const bodies = Array.from(
+      { length: 40 },
+      (_, i) =>
+        `We may be unable to complete a business combination number ${i + 1}.\n\n${"prose ".repeat(500)}`
     );
-    const echoes = Array.from({ length: 6 }, (_, i) => `Risks Relating to our Securities ${i + 1}`);
-    const { unregister } = registerFakeStructuredProvider([
-      { risks: [...captions.map((c) => risk(c)), ...echoes.map((e) => risk(e, null))] },
+    const text = [CATEGORY_LINE, ...bodies].join("\n\n");
+
+    const { unregister, calls } = registerFakeStructuredProvider([
+      { risks: [risk("First risk.")] },
+      { risks: [risk(CATEGORY_LINE, null), risk("Second risk.")] },
+      { risks: [risk(CATEGORY_LINE, null), risk("Third risk.")] },
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors("Some risk prose.", fakeS1Model());
-    expect(rows.map((r) => r.headline)).toEqual(captions);
-    expect(6 / 96).toBeLessThan(MIXED_SHAPE_FAIL_RATIO);
+    const rows = await extractRiskFactors(text, fakeS1Model());
+    expect(calls.length).toBeGreaterThan(1);
+    // Every real caption survives and the injected line never becomes a row —
+    // so the shape check that follows sees a homogeneous response and the
+    // section is not failed for an artifact of our own chunking.
+    expect(rows.map((r) => r.headline)).toEqual(["First risk.", "Second risk.", "Third risk."]);
   });
 
-  it("fails at exactly MIXED_SHAPE_FAIL_RATIO, so the boundary is inclusive", async () => {
-    // 3 of 12 is exactly the ratio: a section this mixed is unanswerable, and
-    // the gate must not let the boundary case through on a `>` comparison.
-    const headingCount = 3;
-    const total = Math.round(headingCount / MIXED_SHAPE_FAIL_RATIO);
+  it("dead-letters a mixed section instead of silently deleting the heading-shaped minority", async () => {
+    // The inverse of the case above, and the reason a ratio cannot stand in for
+    // exact echo removal. One chunk, so nothing was injected: these four bare
+    // phrases may well be real Item 105(b) summary bullets the filer printed,
+    // and nothing in their shape proves otherwise. Deleting them would record
+    // 16 of 20 disclosed risks as the filing's complete list, with the section
+    // marked resolved.
     const captions = Array.from(
-      { length: total - headingCount },
+      { length: 16 },
       (_, i) => `Our securities may be delisted for reason ${i + 1}.`
     );
-    const headings = Array.from(
-      { length: headingCount },
-      (_, i) => `Risks Relating to our Business ${i + 1}`
-    );
+    const bare = [
+      "Risks related to our sponsor and management team",
+      "Risks related to our securities and the trust account",
+      "Risks related to our inability to complete an initial business combination",
+      "Risks related to our business and operations",
+    ];
     const { unregister } = registerFakeStructuredProvider([
-      { risks: [...captions.map((c) => risk(c)), ...headings.map((h) => risk(h, null))] },
+      { risks: [...captions.map((c) => risk(c)), ...bare.map((b) => risk(b, null))] },
     ]);
     cleanup = unregister;
 
