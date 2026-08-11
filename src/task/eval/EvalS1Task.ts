@@ -15,7 +15,7 @@ import {
   type EvalRawDump,
 } from "../../eval/captureEvalRaw";
 import { sweepStepContext } from "../../eval/evalProgressContext";
-import { EVAL_EXTRACTORS } from "../../eval/fixtures";
+import { EVAL_EXTRACTORS, estimateExtractionPromptChars } from "../../eval/fixtures";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
 import { estimateCost, type CostEstimate } from "../../eval/modelPricing";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
@@ -82,7 +82,7 @@ async function runSection(
   dumpRaw: boolean
 ): Promise<{ rows: unknown[]; result: Omit<OracleRunResult, "score"> }> {
   const extractor = EVAL_EXTRACTORS[section.extractor];
-  const promptChars = section.text.length + extractor.instructionOverheadChars;
+  const promptChars = estimateExtractionPromptChars(extractor.instructions(), section.text);
   const t0 = Bun.nanoseconds();
   try {
     const rows = await extractor.run(section.text, model, context);

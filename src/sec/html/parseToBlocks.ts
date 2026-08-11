@@ -9,6 +9,7 @@ import type { ImageNode, ListNode, ParagraphNode } from "workglow";
 import type { EdgarBlock, ResolvedStyle } from "./types";
 import { resolveStyle } from "./StyleResolver";
 import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
+import { isPageFurniture } from "./pageFurniture";
 import { extractTable } from "./TableExtractor";
 
 const BLOCK_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"]);
@@ -221,6 +222,19 @@ export function parseToBlocks(html: string): EdgarBlock[] {
         } else if (isHeadingCandidate(text, style)) {
           emitProse(prose, out);
           out.push({ type: "heading", text, style, level: 1 });
+        } else if (isPageFurniture(text)) {
+          // Flush first so a TOC back-link / page number never joins the
+          // previous or next body paragraph — coalesced furniture is unique
+          // long text the de-paginator cannot frequency-match or page-number
+          // drop, and is what leaked into every extractor prompt.
+          emitProse(prose, out);
+          const node: ParagraphNode = {
+            nodeId: uuid4(),
+            kind: NodeKind.PARAGRAPH,
+            range: { startOffset: 0, endOffset: 0 },
+            text,
+          };
+          out.push({ type: "paragraph", node });
         } else {
           prose.push(text);
         }

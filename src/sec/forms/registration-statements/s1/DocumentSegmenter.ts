@@ -34,6 +34,14 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*(our\s+)?management\s*$/i,
     /^\s*executive officers(,| and)? (and )?directors\s*$/i,
     /^\s*directors and executive officers\s*$/i,
+    // SPAC prospectuses often brand this section rather than titling it
+    // "Management" — Constellation Acquisition I's 2021 S-1 heads it "Our Team"
+    // (anchored `<A NAME="OurTeam">`, followed by the officers-and-directors
+    // roster). Whole-line matches, so body prose mentioning "our team" cannot
+    // trigger them, and the segmenter already prefers the occurrence with the
+    // most body when a heading repeats in the summary.
+    /^\s*our team\s*$/i,
+    /^\s*(our\s+)?management team\s*$/i,
   ],
   [S1_SECTIONS.BENEFICIAL_OWNERSHIP]: [
     /^\s*principal (and selling )?stockholders\s*$/i,

@@ -14,6 +14,7 @@ import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
   printEvalPrompts,
+  printPromptsNeedsSectionText,
   type PrintPromptItem,
   type PrintPromptsMode,
 } from "../../eval/printEvalPrompts";
@@ -136,8 +137,9 @@ function requireFormat(value: string | boolean): string {
 const PRINT_PROMPTS_MODES: readonly PrintPromptsMode[] = [
   "instructions",
   "template",
-  "full",
+  "document",
   "schema",
+  "full",
 ];
 
 function requirePrintPromptsMode(
@@ -530,21 +532,20 @@ export function addEvalCommands(program: Command): void {
           );
           const printMode = requirePrintPromptsMode(opts.printPrompts);
           if (printMode !== undefined) {
-            const items: PrintPromptItem[] =
-              printMode === "full"
-                ? resolveEvalFixtures({
-                    extractor,
-                    fixtures,
-                    real: opts.real === true,
-                  }).map((f) => ({
-                    extractor: f.extractor,
-                    label: f.name,
-                    sectionText: f.text,
-                  }))
-                : (extractor ? [extractor] : Object.keys(EVAL_EXTRACTORS)).map((name) => ({
-                    extractor: name,
-                    label: name,
-                  }));
+            const items: PrintPromptItem[] = printPromptsNeedsSectionText(printMode)
+              ? resolveEvalFixtures({
+                  extractor,
+                  fixtures,
+                  real: opts.real === true,
+                }).map((f) => ({
+                  extractor: f.extractor,
+                  label: f.name,
+                  sectionText: f.text,
+                }))
+              : (extractor ? [extractor] : Object.keys(EVAL_EXTRACTORS)).map((name) => ({
+                  extractor: name,
+                  label: name,
+                }));
             printEvalPrompts({ mode: printMode, items });
             return;
           }
@@ -658,7 +659,7 @@ export function addEvalCommands(program: Command): void {
                 );
               }
             }
-            if (printMode === "full") {
+            if (printPromptsNeedsSectionText(printMode)) {
               const { sections, skipped } = loadRealS1Sections(extractors, opts.dir, ciks);
               if (sections.length === 0) {
                 throw new Error(
@@ -667,7 +668,7 @@ export function addEvalCommands(program: Command): void {
                 );
               }
               printEvalPrompts({
-                mode: "full",
+                mode: printMode,
                 items: sections.map((s) => ({
                   extractor: s.extractor,
                   label: `${s.filing} [${s.extractor}]`,
@@ -763,7 +764,7 @@ export function addEvalCommands(program: Command): void {
         await runCommand(async () => {
           const printMode = requirePrintPromptsMode(opts.printPrompts);
           if (printMode !== undefined) {
-            if (printMode === "full") {
+            if (printPromptsNeedsSectionText(printMode)) {
               const { sections, skipped } = loadRealS1Sections(["offering-terms"], opts.dir);
               if (sections.length === 0) {
                 throw new Error(
@@ -772,7 +773,7 @@ export function addEvalCommands(program: Command): void {
                 );
               }
               printEvalPrompts({
-                mode: "full",
+                mode: printMode,
                 items: sections.map((s) => ({
                   extractor: "offering-terms",
                   label: s.filing,

@@ -49,6 +49,11 @@ export const KNOWN_TITLE_FIXES: readonly TitleFix[] = [
     note: "a plain board seat ('Member of the Board of Directors') is just 'Director'",
   },
   {
+    pattern: /^(?:a\s+|an\s+)?board member$/i,
+    replacement: "Director",
+    note: "a plain 'board member' is just 'Director'",
+  },
+  {
     // A bare board reference as the WHOLE title is just a directorship. Anchored
     // to the full title so it never rewrites the trailing "Board of Directors"
     // inside "Chairman of the Board of Directors".
@@ -254,6 +259,85 @@ export function normalizeManagementTitles(
     }
   }
   return dropRedundantDirector(roles);
+}
+
+/**
+ * Full "Chief … Officer" titles and the acronym a filer may use instead.
+ * Checked as whole words so a hallucinated "Chief Technology Officer" is not
+ * kept just because the span happens to contain the letters "cto" inside another
+ * word — and so a span that only says "CTO" still supports the canonical form.
+ */
+const CHIEF_TITLE_ACRONYMS: ReadonlyMap<string, string> = new Map([
+  ["chief executive officer", "ceo"],
+  ["chief financial officer", "cfo"],
+  ["chief operating officer", "coo"],
+  ["chief technology officer", "cto"],
+  ["chief information officer", "cio"],
+  ["chief marketing officer", "cmo"],
+  ["chief revenue officer", "cro"],
+]);
+
+/**
+ * Longest management title we bother to re-normalize out of a span, in words.
+ * Real titles top out around "Executive Vice President of Business Development"
+ * (~6) or a nominee board chair (~8); a generous cap keeps the window scan
+ * cheap on a 1–2k-char bio.
+ */
+const MAX_SPAN_TITLE_WORDS = 10;
+
+/** Strip leading/trailing punctuation so "Directors." / ""Board"" tokenize cleanly. */
+function spanWord(raw: string): string {
+  return raw.replace(/^[^A-Za-z0-9(+]+|[^A-Za-z0-9)]+$/g, "");
+}
+
+/**
+ * Whether a canonical management title is evidenced by the row's source_span.
+ *
+ * Small local models sometimes copy a neighboring officer's title onto another
+ * person while citing only that person's bio. The span still verifies as a
+ * substring of the section (so {@link verifyRowSpan} cannot catch it), but the
+ * invented title is not present in the citation.
+ *
+ * Evidence is **not** a literal substring of the canonical form — that would
+ * drop a real "Director" whose span only says "board member" / "member of our
+ * Board of Directors". Instead we ask the same normalizer that produced the
+ * canonical title: if some word-window of the span normalizes to it, the title
+ * is supported. C-suite acronyms are a separate fast path ("CTO" ↔ full title).
+ */
+export function titleSupportedBySpan(title: string, sourceSpan: string): boolean {
+  const t = title.toLowerCase();
+  if (t === "" || sourceSpan.trim() === "") return false;
+
+  const collapsed = sourceSpan.replace(/\s+/g, " ").trim();
+  if (collapsed.toLowerCase().includes(t)) return true;
+
+  const acronym = CHIEF_TITLE_ACRONYMS.get(t);
+  if (acronym !== undefined && new RegExp(`\\b${acronym}\\b`, "i").test(collapsed)) {
+    return true;
+  }
+
+  const words = collapsed.split(" ").map(spanWord).filter((w) => w.length > 0);
+  for (let i = 0; i < words.length; i++) {
+    const maxJ = Math.min(words.length, i + MAX_SPAN_TITLE_WORDS);
+    for (let j = i + 1; j <= maxJ; j++) {
+      const phrase = words.slice(i, j).join(" ");
+      if (normalizeManagementTitle(phrase) === title) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Keep only titles evidenced in `sourceSpan`. An empty/missing span leaves the
+ * list unchanged — no citation means we cannot prove a title wrong, and wiping
+ * roles would destroy rows whose span was merely omitted.
+ */
+export function filterTitlesSupportedBySpan(
+  titles: readonly string[],
+  sourceSpan: string | null | undefined
+): string[] {
+  if (sourceSpan == null || sourceSpan.trim() === "") return [...titles];
+  return titles.filter((title) => titleSupportedBySpan(title, sourceSpan));
 }
 
 /** A board-seat role — "... of the Board of Directors" (Chairman, Vice Chairman, …). */

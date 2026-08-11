@@ -72,6 +72,36 @@ describe("parseToBlocks", () => {
     expect(blocks.some((b) => b.type === "table")).toBe(true);
   });
 
+  it("emits TOC back-links and page numbers as their own blocks, not coalesced into body", () => {
+    // Modern page-container filings put a "Table of Contents" <a> and a centered
+    // page number in their own <p>s adjacent to body prose. Coalescing them into
+    // the prose buffer produces unique long paragraphs the de-paginator cannot
+    // recognize as furniture, so every page's TOC/page number leaks into the
+    // section text handed to extractors.
+    const blocks = parseToBlocks(`
+      <html><body>
+        <div style="height:792pt;width:612pt">
+          <p><a href="#TOC">Table of Contents</a></p>
+          <p>Body of the first page continues here.</p>
+          <p style="text-align:center">42</p>
+        </div>
+        <div style="height:792pt;width:612pt">
+          <p><a href="#TOC">Table of Contents</a></p>
+          <p>Body of the second page continues here.</p>
+          <p style="text-align:center">43</p>
+        </div>
+      </body></html>`);
+    const paras = blocks
+      .filter((b) => b.type === "paragraph")
+      .map((b) => (b.type === "paragraph" ? b.node.text : ""));
+    expect(paras.filter((t) => t === "Table of Contents")).toHaveLength(2);
+    expect(paras.filter((t) => t === "42" || t === "43")).toEqual(["42", "43"]);
+    expect(paras.some((t) => t.startsWith("Table of Contents\n"))).toBe(false);
+    expect(paras.some((t) => /\n\d{1,4}$/.test(t))).toBe(false);
+    expect(paras).toContain("Body of the first page continues here.");
+    expect(paras).toContain("Body of the second page continues here.");
+  });
+
   it("treats semantic h1-h6 tags as headings ranked by level", () => {
     const blocks = parseToBlocks(`
       <html><body>

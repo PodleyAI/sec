@@ -23,6 +23,11 @@ import { Form_DEFM14C } from "./proxies-information-statements/Form_DEFM14C";
 import { Form_DEFR14A } from "./proxies-information-statements/Form_DEFR14A";
 import { Form_PREM14A } from "./proxies-information-statements/Form_PREM14A";
 import { Form_PREM14C } from "./proxies-information-statements/Form_PREM14C";
+import { Form_DEF_14A } from "./proxies-information-statements/Form_DEF_14A";
+import { Form_DEF_14C } from "./proxies-information-statements/Form_DEF_14C";
+import { Form_DEFA14A } from "./proxies-information-statements/Form_DEFA14A";
+import { Form_PRE_14A } from "./proxies-information-statements/Form_PRE_14A";
+import { Form_PRE_14C } from "./proxies-information-statements/Form_PRE_14C";
 import { Form_PRER14A } from "./proxies-information-statements/Form_PRER14A";
 import { Form_424 } from "./registration-statements/Form_424";
 import { Form_DRS } from "./registration-statements/Form_DRS";
@@ -75,4 +80,11 @@ export type ParsedFormDocument =
   | ParsedDocumentOf<typeof Form_DEFM14C>
   | ParsedDocumentOf<typeof Form_PREM14C>
   | ParsedDocumentOf<typeof Form_DEFR14A>
-  | ParsedDocumentOf<typeof Form_PRER14A>;
+  | ParsedDocumentOf<typeof Form_PRER14A>
+  // General proxy/information statements. A SPAC business-combination vote is
+  // routinely filed on these rather than the "M" merger variants.
+  | ParsedDocumentOf<typeof Form_DEF_14A>
+  | ParsedDocumentOf<typeof Form_PRE_14A>
+  | ParsedDocumentOf<typeof Form_DEFA14A>
+  | ParsedDocumentOf<typeof Form_DEF_14C>
+  | ParsedDocumentOf<typeof Form_PRE_14C>;

@@ -15,6 +15,8 @@ interface RawStyle {
   underline: boolean | undefined;
   centered: boolean | undefined;
   fontSizePt: number | undefined;
+  /** `text-transform: uppercase` — the text READS as caps whatever the source says. */
+  uppercased: boolean | undefined;
 }
 
 /** Map a legacy HTML `<font size="1..7">` attribute to an approximate point size. */
@@ -26,18 +28,124 @@ function fontSizeAttrToPt(size: string | undefined): number | undefined {
   return Number.isFinite(n) ? map[n] : undefined;
 }
 
+/**
+ * Convert a CSS length to points. Every unit must land on one scale: heading
+ * ranking compares these magnitudes directly, so reading "120%" as 120pt would
+ * rank a slightly-enlarged heading above every genuinely larger one. Relative
+ * units resolve against BASE_PT rather than the true parent size — `pick` gives
+ * the nearest styled ancestor, not a computed cascade — which is approximate but
+ * keeps sizes ordered.
+ */
+function parseFontSizePt(size: string): number | undefined {
+  const m = size.match(/^([\d.]+)\s*(pt|px|em|rem|%)?/);
+  const n = m ? Number(m[1]) : NaN;
+  if (!Number.isFinite(n)) return undefined;
+  switch (m?.[2]) {
+    case "px":
+      return n * PX_TO_PT;
+    case "%":
+      return (n / 100) * BASE_PT;
+    case "em":
+    case "rem":
+      return n * BASE_PT;
+    // "pt" and the unit-less legacy form (invalid CSS, but present in real
+    // EDGAR markup) are already points.
+    default:
+      return n;
+  }
+}
+
+/** Keywords that may precede the size in a `font` shorthand and are not weights. */
+const FONT_SHORTHAND_SKIP = new Set([
+  "small-caps",
+  "all-small-caps",
+  "petite-caps",
+  "titling-caps",
+  "unicase",
+  "condensed",
+  "expanded",
+  "semi-condensed",
+  "semi-expanded",
+  "extra-condensed",
+  "extra-expanded",
+  "ultra-condensed",
+  "ultra-expanded",
+]);
+
+/**
+ * Expand the `font` shorthand into the longhands this resolver reads.
+ *
+ * Not a nicety: it is how a large share of EDGAR filings express emphasis at
+ * all. Older filing agents write `font: bold 10pt Times New Roman, Times, Serif`
+ * where newer ones write `font-weight:700;font-size:10pt`, and the shorthand
+ * form dominates where it appears — Constellation's 2021 S-1 carries 3,048
+ * shorthand declarations against 256 `font-weight`, and Inception's has 410
+ * against ZERO. Reading only the longhands makes every heading in such a filing
+ * invisible, which is what left those documents unsegmentable.
+ *
+ * Grammar: `[style|variant|weight|stretch]* <size>[/<line-height>] <family>`.
+ * Everything before the size is an unordered keyword set, so walk until a token
+ * parses as a size. Omitted sub-properties reset to their initial values per
+ * spec, which matters here — `font: 10pt Arial` inside a bold ancestor is NOT
+ * bold — so absent style/weight are written as explicit "normal" rather than
+ * left undefined for the ancestor chain to fill in.
+ */
+function expandFontShorthand(value: string, decls: Map<string, string>): void {
+  // `font: inherit | caption | menu | ...` set no size we can read; the system
+  // font keywords in particular carry no usable size or weight.
+  if (!/\d/.test(value)) return;
+  let weight = "normal";
+  let style = "normal";
+  let sizePt: number | undefined;
+
+  for (const token of value.split(/\s+/)) {
+    if (token === "") continue;
+    if (token === "italic" || token === "oblique") style = token;
+    else if (token === "bold" || token === "bolder") weight = "700";
+    else if (token === "lighter") weight = "300";
+    // A bare multiple-of-100 is a WEIGHT, not a size: inside the shorthand the
+    // size must carry a unit (or be a keyword), so `font: italic 700 12pt Arial`
+    // means weight 700 at 12pt. Checked before the size branch, which would
+    // otherwise swallow the 700 and abandon the whole declaration. The unit-less
+    // font-size the LONGHAND tolerates is invalid here.
+    else if (/^[1-9]00$/.test(token)) weight = token;
+    else if (token === "normal" || FONT_SHORTHAND_SKIP.has(token)) continue;
+    else {
+      // The size ends the keyword prefix; `10pt/1.2` carries line-height after.
+      const candidate = token.split("/")[0] ?? "";
+      if (/^[\d.]/.test(candidate)) {
+        sizePt = parseFontSizePt(candidate);
+        break;
+      }
+      // Anything else is the family starting without a size — malformed; stop
+      // rather than mistake a family name for a keyword.
+      break;
+    }
+  }
+
+  // A shorthand with no readable size is malformed (family is required after
+  // it); trust none of it rather than resetting weight off a bad parse.
+  if (sizePt === undefined) return;
+  decls.set("font-weight", weight);
+  decls.set("font-style", style);
+  decls.set("font-size", `${sizePt}pt`);
+}
+
 function parseInlineStyle(style: string): RawStyle {
   const decls = new Map<string, string>();
   for (const part of style.split(";")) {
     const idx = part.indexOf(":");
     if (idx === -1) continue;
-    decls.set(
-      part.slice(0, idx).trim().toLowerCase(),
-      part
-        .slice(idx + 1)
-        .trim()
-        .toLowerCase()
-    );
+    const key = part.slice(0, idx).trim().toLowerCase();
+    const value = part
+      .slice(idx + 1)
+      .trim()
+      .toLowerCase();
+    // Expanded in declaration order, writing into the same map the longhands
+    // use, so precedence is CSS's own last-wins: a longhand after the shorthand
+    // overrides it, and a shorthand after a longhand resets it.
+    if (key === "font") expandFontShorthand(value, decls);
+    else decls.set(key, value);
   }
   const weightRaw = decls.get("font-weight");
   let fontWeight: number | undefined;
@@ -48,43 +156,25 @@ function parseInlineStyle(style: string): RawStyle {
   const fontStyle = decls.get("font-style");
   const textDecoration = decls.get("text-decoration");
   const align = decls.get("text-align");
+  // Heading rank counts ALL-CAPS as an emphasis trait, but reads it off the
+  // source text — so a filing that writes `Risk Factors` and uppercases it in
+  // CSS scored as mixed case and ranked BELOW a literal `THE OFFERING`
+  // elsewhere. In Constellation's S-1 that inverted the tree: every real
+  // section became a child of the summary's offering table, which then absorbed
+  // 574k characters. `none`/`lowercase`/`capitalize` are recorded as an explicit
+  // false so they stop an inherited uppercase, which is how CSS behaves.
+  const textTransform = decls.get("text-transform");
 
-  let fontSizePt: number | undefined;
   const size = decls.get("font-size");
-  if (size) {
-    // Every unit must be converted to points. Heading ranking compares these
-    // magnitudes directly, so reading "120%" as 120pt would rank a slightly-
-    // enlarged heading above every genuinely larger one. Relative units resolve
-    // against BASE_PT rather than the true parent size — `pick` gives the
-    // nearest styled ancestor, not a computed cascade — which is approximate but
-    // keeps sizes on one scale and in the right order.
-    const m = size.match(/^([\d.]+)\s*(pt|px|em|rem|%)?/);
-    const n = m ? Number(m[1]) : NaN;
-    if (Number.isFinite(n)) {
-      switch (m?.[2]) {
-        case "px":
-          fontSizePt = n * PX_TO_PT;
-          break;
-        case "%":
-          fontSizePt = (n / 100) * BASE_PT;
-          break;
-        case "em":
-        case "rem":
-          fontSizePt = n * BASE_PT;
-          break;
-        // "pt" and the unit-less legacy form (invalid CSS, but present in real
-        // EDGAR markup) are already points.
-        default:
-          fontSizePt = n;
-      }
-    }
-  }
+  const fontSizePt = size ? parseFontSizePt(size) : undefined;
   return {
     fontWeight,
     italic: fontStyle === "italic" ? true : fontStyle === "normal" ? false : undefined,
     underline: textDecoration?.includes("underline"),
     centered: align === "center" ? true : align ? false : undefined,
     fontSizePt,
+    uppercased:
+      textTransform === "uppercase" ? true : textTransform !== undefined ? false : undefined,
   };
 }
 
@@ -212,7 +302,9 @@ export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
     italic: pick("italic") ?? tagItalic,
     underline: pick("underline") ?? tagUnderline ?? false,
     centered: pick("centered") ?? false,
-    upperRatio: upperRatio(text),
+    // CSS uppercasing makes the rendered text all-caps regardless of how the
+    // source spells it, so it counts as fully upper for ranking purposes.
+    upperRatio: pick("uppercased") === true ? 1 : upperRatio(text),
   };
 }
 

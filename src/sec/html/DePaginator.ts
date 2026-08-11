@@ -6,6 +6,7 @@
 import { renderMarkdown } from "workglow";
 import type { TableCell, TableNode } from "workglow";
 import { SECTION_HEADING_PATTERNS } from "../forms/registration-statements/s1/DocumentSegmenter";
+import { isPageNumber } from "./pageFurniture";
 import type { EdgarBlock } from "./types";
 
 const FREQ_THRESHOLD = 5;
@@ -13,12 +14,6 @@ const SHORT_LEN = 100;
 
 function normalize(text: string): string {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-function isPageNumber(text: string): boolean {
-  const t = text.trim();
-  if (t.length > SHORT_LEN) return false;
-  return /^\W*page\s+\d+\W*$/i.test(t) || /^[-\s]*\d{1,4}[-\s]*$/.test(t);
 }
 
 /**

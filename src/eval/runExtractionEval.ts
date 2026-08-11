@@ -11,7 +11,7 @@ import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
 import { loadRealS1Sections } from "./realSections";
-import { EVAL_EXTRACTORS, EVAL_FIXTURES, type EvalFixture } from "./fixtures";
+import { EVAL_EXTRACTORS, EVAL_FIXTURES, estimateExtractionPromptChars, type EvalFixture } from "./fixtures";
 import {
   captureEvalRawFromError,
   captureEvalRawFromRows,
@@ -247,7 +247,7 @@ async function runOne(
   dumpRaw: boolean
 ): Promise<FixtureRunResult> {
   const extractor = EVAL_EXTRACTORS[fixture.extractor];
-  const promptChars = fixture.text.length + extractor.instructionOverheadChars;
+  const promptChars = estimateExtractionPromptChars(extractor.instructions(), fixture.text);
   const t0 = Bun.nanoseconds();
   try {
     const rows = await extractor.run(fixture.text, model, context);

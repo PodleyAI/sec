@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizeManagementTitle, normalizeManagementTitles } from "./normalizeTitle";
+import {
+  filterTitlesSupportedBySpan,
+  normalizeManagementTitle,
+  normalizeManagementTitles,
+  titleSupportedBySpan,
+} from "./normalizeTitle";
 
 describe("normalizeManagementTitle", () => {
   // Each pair is [raw model output, canonical form]. These are the recurring
@@ -18,6 +23,8 @@ describe("normalizeManagementTitle", () => {
     ["Member of the Board of Directors", "Director"],
     ["member of our board of directors", "Director"],
     ["a member of the board", "Director"],
+    ["board member", "Director"],
+    ["a Board Member", "Director"],
     // drop an article before a role
     ["Chief Executive Officer and a director", "Chief Executive Officer and Director"],
     // bare board chair expands to canonical
@@ -143,5 +150,79 @@ describe("normalizeManagementTitles", () => {
     for (const [, roles] of cases) {
       expect(normalizeManagementTitles(roles)).toEqual(roles);
     }
+  });
+});
+
+describe("filterTitlesSupportedBySpan", () => {
+  const susanSpan =
+    "Susan Whitfield-Chen, age 63, has served as a member of our Board of Directors since 2019. " +
+    "Ms. Whitfield-Chen currently serves as a director of two other public companies.";
+  const devinSpan =
+    "Devin O'Leary, age 41, has served as our Chief Technology Officer since 2016. " +
+    "Mr. O'Leary previously led engineering teams at two venture-backed software startups.";
+  const marcusSpan =
+    "Marcus T. Delgado, age 54, has served as our Chief Executive Officer and Chairman of the Board " +
+    "since our founding in 2015.";
+
+  it("drops a neighboring officer's title copied onto a director-only bio", () => {
+    expect(
+      filterTitlesSupportedBySpan(["Chief Technology Officer", "Director"], susanSpan)
+    ).toEqual(["Director"]);
+  });
+
+  it("keeps a C-suite title that appears in the span", () => {
+    expect(filterTitlesSupportedBySpan(["Chief Technology Officer"], devinSpan)).toEqual([
+      "Chief Technology Officer",
+    ]);
+  });
+
+  it("keeps a board chair when the span omits 'of Directors'", () => {
+    expect(
+      filterTitlesSupportedBySpan(
+        ["Chief Executive Officer", "Chairman of the Board of Directors"],
+        marcusSpan
+      )
+    ).toEqual(["Chief Executive Officer", "Chairman of the Board of Directors"]);
+  });
+
+  it("accepts a C-suite acronym in the span as evidence of the full title", () => {
+    expect(
+      titleSupportedBySpan("Chief Financial Officer", "Jane Doe has served as our CFO since 2020.")
+    ).toBe(true);
+  });
+
+  it("keeps Director when the span only says 'board member' (no 'director' word)", () => {
+    expect(
+      titleSupportedBySpan(
+        "Director",
+        "Jane Roe has served as a board member since 2019."
+      )
+    ).toBe(true);
+  });
+
+  it("keeps Director when the span uses 'member of our Board' prose", () => {
+    expect(
+      titleSupportedBySpan(
+        "Director",
+        "Jane Roe has served as a member of our Board of Directors since 2019."
+      )
+    ).toBe(true);
+  });
+
+  it("still drops a title with no supporting prose in the span", () => {
+    expect(
+      titleSupportedBySpan(
+        "Chief Technology Officer",
+        "Jane Roe has served as a board member since 2019."
+      )
+    ).toBe(false);
+  });
+
+  it("leaves titles unchanged when the span is missing", () => {
+    expect(filterTitlesSupportedBySpan(["Director", "Chief Executive Officer"], null)).toEqual([
+      "Director",
+      "Chief Executive Officer",
+    ]);
+    expect(filterTitlesSupportedBySpan(["Director"], "   ")).toEqual(["Director"]);
   });
 });

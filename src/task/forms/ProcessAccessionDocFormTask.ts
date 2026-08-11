@@ -597,6 +597,20 @@ export class ProcessAccessionDocFormTask extends Task<
         case "PREM14C":
         case "DEFR14A":
         case "PRER14A":
+        // General proxy forms: a SPAC's business-combination vote is commonly
+        // filed on these, not on the "M" variants. See FORM_TO_EXTRACTOR_ID.
+        case "DEF 14A":
+        case "PRE 14A":
+        case "PRE 14A/A":
+        case "PRE14A":
+        case "PREN14A":
+        case "PREN14A/A":
+        case "PREM14A/A":
+        case "PREC14A/A":
+        case "DEFA14A":
+        case "DEF 14C":
+        case "PRE 14C":
+        case "PREA14C":
           await processMergerProxy({
             ...storageArgs,
             form: form!,

@@ -789,9 +789,9 @@ function isLocalProvider(model: ModelConfig): boolean {
 /**
  * Returns a copy of an output schema with the `nonce_seen` property (and its
  * `required` entry) removed, so a local provider isn't asked to produce a token
- * it can't reliably echo. Cloud providers keep the field.
+ * it can't reliably echo. Cloud providers keep the field when the nonce is on.
  */
-function stripNonceSeen(schema: object): object {
+export function stripNonceSeen(schema: object): object {
   const cloned = JSON.parse(JSON.stringify(schema)) as {
     properties?: Record<string, unknown>;
     required?: string[];
@@ -890,41 +890,13 @@ async function runGuardedExtraction(
 
 export function managementInstructions(): string {
   return (
-    "Extract every director and executive officer named in the S-1 MANAGEMENT section " +
-    "between the tags below. For each, give full_name, titles, relationship " +
-    "(or null), age (the person's stated age as an integer, or null if not stated), bio " +
-    "(a short biography summarizing their background/experience as stated, or null), a " +
-    "confidence in [0,1], and the verbatim source_span you drew them from. " +
-    "titles is a JSON array of the person's DISTINCT roles, each role a SEPARATE " +
-    "string element — never combine roles into one string. So 'Chief Executive Officer " +
-    "and a director' -> ['Chief Executive Officer', 'Director'] (NOT ['Chief Executive " +
-    "Officer and Director'] or ['Chief Executive Officer, Director']), and 'President, " +
-    "CFO and Secretary' -> ['President', 'Chief Financial Officer', 'Secretary']. " +
-    "A person's roles are often split between the summary table (a 'Name / Age / " +
-    "Title' row) and the prose bio that follows (a 'has served as our X and Y since " +
-    "…' sentence). Take the UNION of every distinct role stated at THIS company in " +
-    "EITHER place — so if the table row says 'Chief Financial Officer' but the bio " +
-    "says 'has served as our Chief Financial Officer and Secretary', the titles are " +
-    "['Chief Financial Officer', 'Secretary']. Include " +
-    "ONLY roles the person currently holds at THIS company as stated in the section; do " +
-    "NOT include titles held at prior or other employers, and do not invent a role that " +
-    "is not explicitly stated. Use [] if no title is stated. " +
-    "Include people the section presents as director NOMINEES or officer appointees " +
-    "(nominated or to be appointed on/after the offering but not yet seated), and capture " +
-    "the nominee status as a distinct role: a plain board nominee is exactly 'Director " +
-    "Nominee' (so 'Director nominee' -> ['Director Nominee']); a nominee to a specific " +
-    "board role is that role with a ' (Nominee)' suffix (so 'Chairman of the Board " +
-    "nominee' -> ['Chairman of the Board of Directors (Nominee)']). Do NOT include people " +
-    "the section lists only as advisors, consultants, or advisory-board members who are " +
-    "neither directors/nominees nor executive officers. " +
-    "Normalize each role to its canonical form (the source_span stays verbatim; the " +
-    "titles field is normalized): use standard Title Case; refer to the board as 'the " +
-    "Board of Directors', never a possessive ('our', the company's name); render a plain " +
-    "board seat as exactly 'Director' (not 'Member of the Board of Directors', 'board " +
-    "member', etc.); drop articles before a role ('a director' -> 'Director'). " +
-    "For example 'member of our board of directors' -> ['Director'] and 'Chairman of our " +
-    "board of directors' -> ['Chairman of the Board of Directors']. " +
-    "Return JSON matching the schema."
+    "Extract every director and executive officer named in the MANAGEMENT section " +
+    "between the tags below. For each, give full_name, titles (a JSON array of that " +
+    "person's distinct current roles at this company — one role per element; use [] if " +
+    "none are stated), relationship (or null), age (integer or null), bio (short summary " +
+    "or null), confidence in [0,1], and the verbatim source_span. Include director or " +
+    "officer nominees; omit advisors/consultants who are neither. Do not invent roles or " +
+    "assign another person's titles. Return JSON matching the schema."
   );
 }
 
@@ -948,6 +920,11 @@ export async function extractManagement(
   // ("Our Officers and Directors") is dropped first — it names a group, not a
   // director, and enforcing that here rather than trusting the prompt mirrors
   // the ownership-subtotal guard.
+  //
+  // Span-based title filtering ({@link filterTitlesSupportedBySpan}) is off
+  // while we measure whether the shortened management instructions alone stop
+  // small models from inventing roles. Re-enable by wrapping titles with
+  // filterTitlesSupportedBySpan(..., person.source_span).
   return people
     .filter((person) => !isCollectivePartyName(person?.full_name))
     .map((person) => ({

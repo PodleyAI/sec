@@ -5,6 +5,8 @@
  */
 
 import { Form } from "../Form";
+import { parseRegistrationSubmission } from "../registration-statements/s1/parseSubmission";
+import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 
 export class Form_PRE_14A extends Form {
   static readonly name = "Preliminary Proxy Statement";
@@ -21,4 +23,15 @@ export class Form_PRE_14A extends Form {
     "PREC14A",
     "PREC14A/A",
   ] as const;
+
+  /**
+   * Parsed like the merger proxies: a SPAC's business-combination vote is
+   * routinely filed on a general proxy form rather than on `DEFM14A`. Without
+   * this override the form was recognised but never parsed, so the proxy stage
+   * of the SPAC lifecycle was silently skipped for most filers.
+   */
+  static override async parse(form: string, txt: string): Promise<FormS1Parsed> {
+    return parseRegistrationSubmission(form, txt);
+  }
+
 }

@@ -9,6 +9,7 @@ import { globalServiceRegistry } from "workglow";
 import { parseIntOption, parseOutputFormat, type OutputFormat } from "../cli/GlobalOptions";
 import { isDryRun } from "../cli/isDryRun";
 import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
+import { runCommand } from "../cli/runCommand";
 import { runWorkflowCli } from "../cli/runWorkflow";
 import {
   SPAC_CANDIDATE_CONFIDENCES,
@@ -19,6 +20,10 @@ import {
   type ListSpacCandidatesTaskOutput,
 } from "../task/spac/ListSpacCandidatesTask";
 import { SpacRepo } from "../storage/spac/SpacRepo";
+import {
+  ProcessSpacTimelineTask,
+  type ProcessSpacTimelineTaskOutput,
+} from "../task/spac/ProcessSpacTimelineTask";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import type { ExtractorBackfillResult } from "../task/forms/BackfillExtractorTask";
@@ -97,6 +102,60 @@ export function registerSpacCommands(program: Command): void {
   if (!spacCmd) {
     spacCmd = program.command("spac").description("SPAC consolidated report and history");
   }
+
+  spacCmd
+    .command("process <ciks...>")
+    .description(
+      "Replay each SPAC's filings in filing-date order (the whole timeline, not one " +
+        "form at a time). Issuers run in parallel; one issuer's filings run serially."
+    )
+    .option(
+      "-c, --concurrency <n>",
+      "How many ISSUERS to process at once (default 3). Filings within an issuer are " +
+        "always serial — that ordering is what makes the timeline correct.",
+      parseIntOption,
+      3
+    )
+    .action(async (ciks: string[], opts: { concurrency: number }) => {
+      await runCommand(async () => {
+        // parseCikArg reports and returns null on a bad value; drop those so one
+        // typo does not abandon the rest of the batch.
+        const parsed = ciks.map((c) => parseCikArg(c)).filter((c): c is number => c !== null);
+        if (parsed.length === 0) throw new Error("no valid CIKs given");
+        const limit = Math.max(1, opts.concurrency);
+        let failed = 0;
+        // Hand-rolled pool rather than one Workflow over all issuers: each CIK
+        // gets its own serial replay, and a failure on one issuer must not
+        // abandon the rest of the batch.
+        const queue = [...parsed];
+        const runOne = async (): Promise<void> => {
+          for (;;) {
+            const cik = queue.shift();
+            if (cik === undefined) return;
+            try {
+              const out = await runWorkflowCli<ProcessSpacTimelineTaskOutput>([
+                new ProcessSpacTimelineTask({ defaults: { cik } }),
+              ]);
+              if (out.matched === 0) {
+                console.log(`${cik}: no processable filings`);
+              } else {
+                console.log(
+                  `${cik}: ${out.processed}/${out.matched} filings ` +
+                    `(${out.firstDate} \u2192 ${out.lastDate})`
+                );
+              }
+            } catch (e) {
+              failed++;
+              console.error(`${cik}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(limit, parsed.length) }, runOne));
+        if (failed > 0) {
+          throw new Error(`${failed} of ${parsed.length} issuer(s) failed`);
+        }
+      });
+    });
 
   spacCmd
     .command("report <cik>")

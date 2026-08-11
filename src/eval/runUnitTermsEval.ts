@@ -14,7 +14,7 @@ import {
   loadEmbarcUnitTermsReference,
 } from "./embarcUnitTermsReference";
 import { sweepStepContext } from "./evalProgressContext";
-import { EVAL_EXTRACTORS } from "./fixtures";
+import { EVAL_EXTRACTORS, estimateExtractionPromptChars } from "./fixtures";
 import { fingerprintRows } from "./fingerprintRows";
 import { estimateCost } from "./modelPricing";
 import { loadRealS1Sections, type RealSection } from "./realSections";
@@ -139,7 +139,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
       if (opts.signal?.aborted) break;
       const label = `${modelId} — ${section.filing}`;
       progress(done, total, label);
-      const promptChars = section.text.length + extractor.instructionOverheadChars;
+      const promptChars = estimateExtractionPromptChars(extractor.instructions(), section.text);
       const t0 = Bun.nanoseconds();
       let result: FixtureRunResult;
       try {

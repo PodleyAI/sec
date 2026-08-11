@@ -31,6 +31,7 @@ import {
   resolveModelId,
 } from "../registration-statements/s1/mergerModel";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
+import { MERGER_PROXY_OPTIONAL_FORMS } from "../../../storage/versioning/extractorIds";
 
 const EXTRACTOR_ID = "merger-proxy";
 // Stays 1.0.0: no persisted data to re-extract, so the target_description
@@ -154,9 +155,22 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     .filter((t): t is string => typeof t === "string")
     .join("\n\n");
 
+  // A general proxy form with no merger section is an ordinary shareholder vote
+  // — an annual meeting, a director election, an extension vote — not a failed
+  // extraction. Those forms carry a SPAC's business-combination vote often
+  // enough to be worth routing here (see FORM_TO_EXTRACTOR_ID), but most of them
+  // legitimately contain no deal, and dead-lettering each one would bury the
+  // genuine failures under thousands of entries no operator can act on. Record a
+  // successful run, emit no deal, and let the deterministic proxy event below
+  // still advance the SPAC timeline.
+  const mergerSectionOptional = MERGER_PROXY_OPTIONAL_FORMS.has(form);
+  const skipMergerSection = mergerSectionOptional && mergerText === "";
+
   let idx = 0;
 
-  if (!model) {
+  if (skipMergerSection) {
+    // Nothing to extract, and nothing wrong. Fall through to the proxy event.
+  } else if (!model) {
     // No model: dead-letter the merger section but still emit the proxy event
     // (deterministic, definitive statements only) so the SPAC timeline advances.
     await deadLetters.record({

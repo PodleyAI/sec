@@ -105,10 +105,7 @@ describe("eval value-less options", () => {
   it("lists print-prompts modes for a bare --print-prompts on extract", async () => {
     const err = await runEval(["extract", "--print-prompts"]);
     expect(err).toContain("--print-prompts needs a value");
-    expect(err).toContain("instructions");
-    expect(err).toContain("template");
-    expect(err).toContain("full");
-    expect(err).toContain("schema");
+    expect(err).toContain("instructions, template, document, schema, full");
     expect(process.exitCode).toBe(1);
   });
 
@@ -151,7 +148,32 @@ describe("eval value-less options", () => {
     const out = lines.join("\n");
     expect(out).toContain("=== management / schema ===");
     expect(out).toContain('"people"');
-    expect(out).toContain('"nonce_seen"');
+    // Nonce is off by default — printed schema matches the runtime shape.
+    expect(out).not.toContain('"nonce_seen"');
+  });
+
+  it("extract --print-prompts document dumps fixture prose without the template", async () => {
+    const lines: string[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...a) => {
+      lines.push(a.map(String).join(" "));
+    });
+    try {
+      await runEvalOk([
+        "extract",
+        "--print-prompts",
+        "document",
+        "--extractor",
+        "management",
+        "--fixture",
+        "s1-management-operating-company",
+      ]);
+    } finally {
+      log.mockRestore();
+    }
+    const out = lines.join("\n");
+    expect(out).toContain("=== management / s1-management-operating-company ===");
+    expect(out).toContain("Marcus T. Delgado");
+    expect(out).not.toContain("<UNTRUSTED_FILER_DOCUMENT>");
   });
 
   it("extract --print-prompts instructions supports an extractor without fixtures", async () => {

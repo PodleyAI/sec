@@ -93,6 +93,11 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   ],
   "s1_1602409_000152013826000232.htm": [
     PROSPECTUS_SUMMARY,
+    // Gained when the CSS `font` shorthand became readable: this filing marks
+    // its headings with `font: bold 10pt ...` rather than `font-weight`, so the
+    // section was invisible before. Verified as a real "The Offering" summary
+    // table (shares offered, shares outstanding, Nasdaq symbol FNGR).
+    THE_OFFERING,
     RISK_FACTORS,
     USE_OF_PROCEEDS,
     UNDERWRITING,

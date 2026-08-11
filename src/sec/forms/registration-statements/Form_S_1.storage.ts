@@ -30,6 +30,7 @@ import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+import { SECTIONLESS_REGISTRATION_FORMS } from "../../../storage/versioning/extractorIds";
 import { S1_SECTIONS, type S1SectionName } from "./s1/DocumentSegmenter";
 import { boundSourceSpan, classifySpan, isElided, worstVerdict } from "./s1/verifySourceSpan";
 import {
@@ -45,6 +46,7 @@ import {
 } from "./s1/sectionExtractors";
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
+import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModel } from "./s1/riskFactorsModel";
@@ -70,6 +72,35 @@ const RISK_FACTORS_SECTION = "risk-factors";
 // Summary" profile section), but with a blank DB none of it needs a bump;
 // revisit versioning once a populated database exists.
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
+
+/**
+ * Every dead-letter section name a full S-1 sweep could have recorded, for use
+ * by the two paths that return before running any section — a Rule 462(b)
+ * short-form registration and a Part II-only amendment — to resolve what an
+ * earlier sweep left pending.
+ *
+ * Deliberately a superset rather than the exact list that run would produce:
+ * `markResolved` no-ops on a missing entry, so over-listing is free, while
+ * under-listing strands an entry forever. It therefore ignores `isSpac` for the
+ * SPAC-only sections — the flag is derived from SIC code and heuristics and can
+ * differ between the sweeping run and this one, which is exactly the case that
+ * would otherwise leak. The `-partial` siblings are included because
+ * `runSection` records those alongside the section itself.
+ */
+export function sectionlessResolvableSections(): readonly string[] {
+  const base = [
+    S1_SECTIONS.MANAGEMENT,
+    S1_SECTIONS.BENEFICIAL_OWNERSHIP,
+    S1_SECTIONS.RELATED_PARTY,
+    S1_SECTIONS.EXECUTIVE_COMPENSATION,
+    RISK_FACTORS_SECTION,
+    ...offeringSectionNames(true),
+    "spac-profile",
+    "spac-sponsors",
+    "spac-classification",
+  ];
+  return [...base, ...base.map((s) => `${s}-partial`)];
+}
 
 /**
  * Convert a stated age (from the management section, relative to the filing
@@ -264,6 +295,37 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     return;
   }
 
+  // A Rule 462(b) short-form registration (`S-1MEF` / `F-1MEF`) registers
+  // ADDITIONAL securities for an offering whose prospectus is already on file,
+  // and incorporates that earlier registration statement by reference. It is a
+  // cover page and a signature block — 26 Capital's is 8,570 characters — and
+  // carries no management roster, no ownership table, no risk factors.
+  //
+  // Running the full section sweep over one dead-letters all ten sections as
+  // SECTION_NOT_FOUND. That is noise, not a finding: nothing is missing, the
+  // sections were never there. Four such filings produced 40 of the 104
+  // SECTION_NOT_FOUND entries across this fleet.
+  //
+  // Resolve any entries an earlier sweep already recorded before returning.
+  // Skipping the sweep stops NEW noise but cannot clear the old: every other
+  // resolution happens per-section inside runSection, which this path never
+  // reaches, so without this the stale entries are stuck pending forever —
+  // never retried (nothing re-attempts them) and never resolved. They are
+  // resolved rather than deleted because the entry is a true historical record
+  // of a run that did fail; it is the pending state that is wrong.
+  //
+  // Still record the registration event: the SGML header carries the name, SIC
+  // and date, which is exactly what the SPAC row needs, and the MEF is a real
+  // step in the offering.
+  if (SECTIONLESS_REGISTRATION_FORMS.has(args.form)) {
+    if (isSpac) await new SpacReportWriter().recordRegistration(baseReg);
+    for (const section of sectionlessResolvableSections()) {
+      // No-ops when no entry exists, so this costs nothing on a first run.
+      await deadLetters.markResolved(EXTRACTOR_ID, accession_number, section);
+    }
+    return;
+  }
+
   // Converting real-world HTML can throw on malformed/adversarial input. A throw
   // here would abort the whole filing with no record; instead dead-letter every
   // target section as PARSE_ERROR so the filing stays on the retry worklist.
@@ -301,6 +363,22 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     }
     return;
   }
+  // An amendment filed only to add exhibits or answer a comment letter carries
+  // no prospectus, so the ten sections below are absent for the same reason they
+  // are absent from an S-1MEF: there is nothing to find. Treated identically —
+  // record the registration, resolve anything an earlier sweep left pending, and
+  // return — but decided from content, because the form type is the ordinary
+  // `S-1/A` that usually DOES carry a prospectus. Gated on the segmenter finding
+  // nothing at all, so a filing that resolved even one section still takes the
+  // normal path and reports its genuine failures.
+  if (byName.size === 0 && looksLikePartIIOnlyAmendment(formS1.html)) {
+    if (isSpac) await new SpacReportWriter().recordRegistration(baseReg);
+    for (const section of sectionlessResolvableSections()) {
+      await deadLetters.markResolved(EXTRACTOR_ID, accession_number, section);
+    }
+    return;
+  }
+
   const recordOk = (section: S1SectionName) =>
     deadLetters.markResolved(EXTRACTOR_ID, accession_number, section);
 

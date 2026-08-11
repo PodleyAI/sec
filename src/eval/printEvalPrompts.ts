@@ -4,15 +4,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { buildExtractionPrompt } from "../sec/forms/registration-statements/s1/sectionExtractors";
+import {
+  buildExtractionPrompt,
+  isNonceEnabled,
+  stripNonceSeen,
+} from "../sec/forms/registration-statements/s1/sectionExtractors";
 import { EVAL_EXTRACTORS } from "./fixtures";
 
-export type PrintPromptsMode = "instructions" | "template" | "full" | "schema";
+export type PrintPromptsMode =
+  | "instructions"
+  | "template"
+  | "document"
+  | "schema"
+  | "full";
 
 export interface PrintPromptItem {
   readonly extractor: string;
   readonly label: string;
   readonly sectionText?: string | undefined;
+}
+
+/** Modes that need resolved section/fixture prose (not just extractor metadata). */
+export function printPromptsNeedsSectionText(mode: PrintPromptsMode): boolean {
+  return mode === "full" || mode === "document";
+}
+
+/**
+ * Schema as the model would see it under the current nonce setting: the
+ * canonical extractor schema when {@link isNonceEnabled}, otherwise with
+ * `nonce_seen` stripped (the default / local-provider shape).
+ */
+export function schemaForPrint(schema: object): object {
+  return isNonceEnabled() ? schema : stripNonceSeen(schema);
+}
+
+function writeSchema(write: (line: string) => void, extractor: string, schema: object): void {
+  write(`=== ${extractor} / schema ===`);
+  write(JSON.stringify(schemaForPrint(schema), null, 2));
+  write("");
 }
 
 export function printEvalPrompts(args: {
@@ -32,22 +61,40 @@ export function printEvalPrompts(args: {
       seen.add(item.extractor);
       const ext = EVAL_EXTRACTORS[item.extractor];
       if (!ext) throw new Error(`unknown extractor "${item.extractor}"`);
-      write(`=== ${item.extractor} / ${args.mode} ===`);
       if (args.mode === "schema") {
-        write(JSON.stringify(ext.schema(), null, 2));
+        writeSchema(write, item.extractor, ext.schema());
       } else {
         const instructions = ext.instructions();
+        write(`=== ${item.extractor} / ${args.mode} ===`);
         write(
           args.mode === "instructions"
             ? instructions
             : buildExtractionPrompt({ instructions, sectionText: "" })
         );
+        write("");
       }
+    }
+    return;
+  }
+
+  if (args.mode === "document") {
+    for (const item of args.items) {
+      if (item.sectionText === undefined) {
+        throw new Error(
+          `document mode requires sectionText for "${item.label}" (${item.extractor})`
+        );
+      }
+      if (!EVAL_EXTRACTORS[item.extractor]) {
+        throw new Error(`unknown extractor "${item.extractor}"`);
+      }
+      write(`=== ${item.extractor} / ${item.label} ===`);
+      write(item.sectionText);
       write("");
     }
     return;
   }
 
+  const schemaWritten = new Set<string>();
   for (const item of args.items) {
     if (item.sectionText === undefined) {
       throw new Error(
@@ -56,6 +103,10 @@ export function printEvalPrompts(args: {
     }
     const ext = EVAL_EXTRACTORS[item.extractor];
     if (!ext) throw new Error(`unknown extractor "${item.extractor}"`);
+    if (!schemaWritten.has(item.extractor)) {
+      schemaWritten.add(item.extractor);
+      writeSchema(write, item.extractor, ext.schema());
+    }
     const body = buildExtractionPrompt({
       instructions: ext.instructions(),
       sectionText: item.sectionText,

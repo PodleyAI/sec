@@ -997,6 +997,14 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_1507957_000143774926010088", "offering-terms")]: [
     { price_per_unit: null, warrant_fraction_per_unit: null, right_fraction_per_unit: null, trust_per_unit: null },
   ],
+  // FingerMotion (FNGR), a resale registration for shares issuable on
+  // conversion of a note — no units, no warrants, no trust, so every unit-shaped
+  // field is null. Its "The Offering" section only became visible once the CSS
+  // `font` shorthand was parsed; the filing marks headings with
+  // `font: bold 10pt ...` rather than `font-weight`.
+  [goldenLabelKey("s1_1602409_000152013826000232", "offering-terms")]: [
+    { price_per_unit: null, warrant_fraction_per_unit: null, right_fraction_per_unit: null, trust_per_unit: null },
+  ],
   [goldenLabelKey("s1_1817004_000149315226027137", "offering-terms")]: [
     { price_per_unit: null, warrant_fraction_per_unit: null, right_fraction_per_unit: null, trust_per_unit: null },
   ],
@@ -1163,6 +1171,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // do trip it, reporting the legacy shell's 14,300,000 / 6,800,000 private
   // warrants as this offering's promote; `[]` is what makes that cost precision.
   [goldenLabelKey("s1_1507957_000143774926010088", "sponsor-promote")]: [],
+  // Non-SPAC (see its empty spac-classification): no sponsor, no promote.
+  [goldenLabelKey("s1_1602409_000152013826000232", "sponsor-promote")]: [],
   [goldenLabelKey("s1_1817004_000149315226027137", "sponsor-promote")]: [],
   [goldenLabelKey("s1_1822912_000121390021001475", "sponsor-promote")]: [
     { founder_shares: 5750000, founder_percent: 0.2, private_placement_warrants: 6000000, public_warrant_coverage: 0.5, trust_per_public_share: 10.0 },

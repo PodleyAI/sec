@@ -145,7 +145,22 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       filing_date: args.filing_date,
       form,
       primary_document: null,
-      ipo_proceeds: unitTerms?.gross_proceeds ?? null,
+      // Derive from the unit economics when the prospectus does not state a
+      // gross-proceeds figure inside "The Offering". It usually does not: the
+      // number is printed on the prospectus COVER ("$240,000,000 / 24,000,000
+      // Units"), which is not part of the section this extractor is handed, so
+      // `gross_proceeds` came back null for 9 of 10 SPACs while
+      // `units_offered` and `price_per_unit` were both extracted correctly.
+      //
+      // units × price is the definition of gross proceeds, not an estimate, and
+      // `trust_amount` below is already computed exactly this way — that is why
+      // trust was right while proceeds was empty. Prefer a stated figure when
+      // there is one, since it accounts for anything the arithmetic misses.
+      ipo_proceeds:
+        unitTerms?.gross_proceeds ??
+        (unitTerms?.price_per_unit != null && unitTerms?.units_offered != null
+          ? unitTerms.price_per_unit * unitTerms.units_offered
+          : null),
       trust_amount:
         unitTerms?.trust_per_unit != null && unitTerms?.units_offered != null
           ? unitTerms.trust_per_unit * unitTerms.units_offered

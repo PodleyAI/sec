@@ -16,6 +16,7 @@ import {
 } from "../sec/forms/registration-statements/s1/sectionSchemas";
 import {
   beneficialOwnershipInstructions,
+  buildExtractionPrompt,
   executiveCompensationInstructions,
   extractBeneficialOwnership,
   extractExecutiveCompensation,
@@ -50,6 +51,20 @@ import { UnderwriterOutputSchema } from "../sec/forms/registration-statements/s1
 import { UseOfProceedsOutputSchema } from "../sec/forms/registration-statements/s1/useOfProceedsSchema";
 
 /**
+ * Character length of the extraction prompt (preamble + instructions + fenced
+ * section) used for eval cost estimates. Derived from the real builder so it
+ * tracks instruction edits automatically — not a hand-tuned constant.
+ * Uses the no-nonce shape (local providers / default estimate); a cloud nonce
+ * adds a few dozen characters and does not change comparative ranking.
+ */
+export function estimateExtractionPromptChars(
+  instructions: string,
+  sectionText: string
+): number {
+  return buildExtractionPrompt({ instructions, sectionText }).length;
+}
+
+/**
  * A section extractor the harness can drive: it takes section prose + a model
  * and returns an array of row objects (single-object extractors wrap their one
  * result). `keyField` aligns candidate rows with a fixture's expected rows; omit
@@ -74,12 +89,6 @@ export interface EvalExtractor {
    * Defaults (when unset) to comparing every field of the expected row.
    */
   readonly compareFields?: readonly string[];
-  /**
-   * Approximate non-text prompt overhead (instructions + untrusted-input
-   * scaffolding) in characters, added to the section text for the input-cost
-   * estimate. A rough constant is fine — cost is comparative, not billed.
-   */
-  readonly instructionOverheadChars: number;
 }
 
 /**
@@ -94,7 +103,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => ManagementOutputSchema,
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
-    instructionOverheadChars: 900,
   },
   "beneficial-ownership": {
     run: (text, model, context) => extractBeneficialOwnership(text, model, context),
@@ -104,7 +112,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
-    instructionOverheadChars: 1000,
   },
   // List extractor over a prospectus Item 105 section: one row per risk-factor
   // caption. Scored on the caption (verbatim) and the category heading it sits
@@ -116,7 +123,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => RiskFactorsOutputSchema,
     keyField: "headline",
     compareFields: ["headline", "category"],
-    instructionOverheadChars: 1300,
   },
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
@@ -124,7 +130,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => RelatedPartyOutputSchema,
     keyField: "name",
     compareFields: ["name"],
-    instructionOverheadChars: 900,
   },
   // Single-object extractor over an S-1/424 "The Offering" section; positional
   // alignment (no keyField). Scored on the objective numeric unit terms.
@@ -141,7 +146,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "right_fraction_per_unit",
       "trust_per_unit",
     ],
-    instructionOverheadChars: 1300,
   },
   // Single-object extractor over a SPAC "The Offering" / "The Sponsor" section;
   // positional alignment (no keyField). Scored on the objective promote figures.
@@ -159,7 +163,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "public_warrant_coverage",
       "trust_per_public_share",
     ],
-    instructionOverheadChars: 1400,
   },
   // Detection-style classifier over a registration filing's summary prose: a
   // true SPAC yields one row; a shell or operating company yields none, so a
@@ -173,7 +176,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => SpacClassificationOutputSchema,
     keyField: "entity_kind",
     compareFields: ["is_spac", "entity_kind"],
-    instructionOverheadChars: 1300,
   },
   // Multi-row table extractor over the Item 402 Summary Compensation Table.
   // Positionally aligned (no keyField): a table yields one row per officer PER
@@ -186,7 +188,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: executiveCompensationInstructions,
     schema: () => ExecutiveCompensationOutputSchema,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
-    instructionOverheadChars: 1600,
   },
   // Multi-row extractor over the Underwriting / Plan of Distribution section.
   // Keyed on the bank's legal name — the field the persist path dedupes on, so
@@ -197,7 +198,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => UnderwriterOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name", "role"],
-    instructionOverheadChars: 1100,
   },
   // Multi-row extractor over the Use of Proceeds section: one row per line item.
   "use-of-proceeds": {
@@ -206,7 +206,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => UseOfProceedsOutputSchema,
     keyField: "purpose",
     compareFields: ["purpose", "amount"],
-    instructionOverheadChars: 1000,
   },
   // Single-object profile over a SPAC's prospectus-summary prose. Scored on the
   // controlled-vocabulary focus rather than the free-text description, which no
@@ -219,7 +218,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: spacProfileInstructions,
     schema: () => SpacProfileOutputSchema,
     compareFields: ["focus", "focus_location"],
-    instructionOverheadChars: 1400,
   },
   // Multi-row extractor naming the sponsor entities behind a blank-check issuer.
   "spac-sponsors": {
@@ -228,7 +226,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => SpacSponsorOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name"],
-    instructionOverheadChars: 900,
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
   // a non-binding letter of intent yields one row; anything else (definitive
@@ -243,7 +240,6 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => LoiOutputSchema,
     keyField: "target_name",
     compareFields: ["target_name", "loi_date"],
-    instructionOverheadChars: 1200,
   },
 };
 

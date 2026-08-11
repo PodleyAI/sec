@@ -114,7 +114,31 @@ export async function processForm8K({
   );
 
   const spacRow = await new SpacRepo().getSpac(cik);
-  if (spacRow) {
+  if (!spacRow) {
+    // ORDER DEPENDENCE, made visible on purpose.
+    //
+    // The SPAC row is created by `recordRegistration` (S-1) or `recordIpo`
+    // (424). Until one of those has run, an 8-K carrying real de-SPAC
+    // milestones records NOTHING here — and the filing still reports success,
+    // so a backfill that happens to process 8-Ks first silently produces an
+    // empty timeline. That is not hypothetical: a SPAC with 58 8-Ks and no
+    // 424B4 yielded zero events, every filing "successful", because its S-1 had
+    // not been processed yet.
+    //
+    // Deliberately not auto-creating the row from here: an 8-K does not carry
+    // the SIC, so this path cannot tell a SPAC from any other issuer, and
+    // minting SPAC rows for every 8-K filer would be worse than the gap. Warn
+    // instead, and process registration/IPO forms before 8-Ks in a backfill.
+    const eventDate = effectiveReportDate || filing_date;
+    const wouldHaveRecorded = eventDate ? mapItemCodesToSpacEvents(itemCodes, eventDate) : [];
+    if (wouldHaveRecorded.length > 0) {
+      console.warn(
+        `[8-K ${accession_number}] CIK ${cik} has no SPAC row, so ` +
+          `${wouldHaveRecorded.length} de-SPAC milestone event(s) were dropped. ` +
+          `Process the S-1 / 424 for this issuer first, then re-run its 8-Ks.`
+      );
+    }
+  } else {
     // Skip when no usable date is available: an undated milestone (empty
     // event_date) would write junk announced_date/definitive_agreement_date
     // onto the deal/row. Reachable only on the best-effort path where the
