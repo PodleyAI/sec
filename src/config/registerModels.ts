@@ -9,6 +9,7 @@ import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
 import { SecHftModelDefault, SecModelDefault } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
+import { listPricingForModelId } from "./listPricing";
 
 /**
  * Provider discriminators. Mirror the constants the provider packages register
@@ -62,6 +63,30 @@ function isHfInferenceModelId(modelId: string): boolean {
 
 function isOpenRouterModelId(modelId: string): boolean {
   return modelId.startsWith(OPEN_ROUTER_ID_PREFIX);
+}
+
+/**
+ * After an `hfi:` / `open-router:` prefix strip, an optional inference-provider
+ * segment may precede the model id (`PROVIDER:model`). Split on the first `:`;
+ * no colon means model-only. Empty left or right after a colon is a config error.
+ */
+function splitOptionalInferenceProvider(remainder: string): {
+  readonly inferenceProvider: string | undefined;
+  readonly modelName: string;
+} {
+  const colon = remainder.indexOf(":");
+  if (colon < 0) {
+    return { inferenceProvider: undefined, modelName: remainder };
+  }
+  const inferenceProvider = remainder.slice(0, colon);
+  const modelName = remainder.slice(colon + 1);
+  if (!inferenceProvider || !modelName) {
+    throw new SecCliConfigurationError(
+      `Invalid gated model id remainder "${remainder}" — expected ` +
+        `"[provider:]model" with non-empty provider and model segments.`
+    );
+  }
+  return { inferenceProvider, modelName };
 }
 
 function llamaCppIdPrefix(modelId: string): string | undefined {
@@ -178,6 +203,7 @@ export function anthropicModelRecord(modelId: string): ModelRecord {
     capabilities: [...ANTHROPIC_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -242,6 +268,7 @@ export function openAiModelRecord(modelId: string): ModelRecord {
       ...(effort === undefined ? {} : { reasoning: { effort } }),
     },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -280,6 +307,7 @@ export function geminiModelRecord(modelId: string): ModelRecord {
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -293,6 +321,7 @@ export function xaiModelRecord(modelId: string): ModelRecord {
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -311,6 +340,7 @@ export function deepSeekModelRecord(modelId: string): ModelRecord {
     capabilities: CLOUD_CHAT_CAPABILITIES.filter((c) => c !== "vision-input"),
     provider_config: { model_name: modelId, max_tokens: DEFAULT_MAX_TOKENS },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -355,6 +385,7 @@ export function hftModelRecord(modelId: string): ModelRecord {
       dtype: "q4f16",
     },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -473,46 +504,62 @@ export function llamaCppModelRecord(modelId: string): ModelRecord {
       flash_attention: true,
     },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
 /**
  * Builds a HuggingFace Inference API {@link ModelRecord} from an `hfi:`-prefixed
- * id. The remainder is the HF repo id (`hfi:meta-llama/…` → `model_name`). Needs
- * `HF_TOKEN` at run time.
+ * id. The remainder is the HF repo id (`hfi:meta-llama/…` → `model_name`), or
+ * `hfi:PROVIDER:org/name` to pin the HF Inference router host onto
+ * `provider_config.provider`. Needs `HF_TOKEN` at run time.
  */
 export function hfInferenceModelRecord(modelId: string): ModelRecord {
-  const modelName = modelId.startsWith(HFI_ID_PREFIX)
+  const remainder = modelId.startsWith(HFI_ID_PREFIX)
     ? modelId.slice(HFI_ID_PREFIX.length)
     : modelId;
+  const { inferenceProvider, modelName } = splitOptionalInferenceProvider(remainder);
   return {
     model_id: modelId,
     provider: HFI_PROVIDER,
     title: modelId,
     description: `HuggingFace Inference ${modelName}`,
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
-    provider_config: { model_name: modelName },
+    provider_config: {
+      model_name: modelName,
+      ...(inferenceProvider ? { provider: inferenceProvider } : {}),
+    },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
 /**
  * Builds an OpenRouter {@link ModelRecord} from an `open-router:`-prefixed id.
  * The remainder is the OpenRouter model id (`open-router:anthropic/claude-sonnet-4`
- * → `model_name`). Needs `OPENROUTER_API_KEY` at run time.
+ * → `model_name`), or `open-router:PROVIDER:vendor/model` to hard-pin routing via
+ * `provider_config.provider_routing` (`only` + no fallbacks). Needs
+ * `OPENROUTER_API_KEY` at run time.
  */
 export function openRouterModelRecord(modelId: string): ModelRecord {
-  const modelName = modelId.startsWith(OPEN_ROUTER_ID_PREFIX)
+  const remainder = modelId.startsWith(OPEN_ROUTER_ID_PREFIX)
     ? modelId.slice(OPEN_ROUTER_ID_PREFIX.length)
     : modelId;
+  const { inferenceProvider, modelName } = splitOptionalInferenceProvider(remainder);
   return {
     model_id: modelId,
     provider: OPENROUTER_PROVIDER,
     title: modelId,
     description: `OpenRouter ${modelName}`,
     capabilities: [...CLOUD_CHAT_CAPABILITIES],
-    provider_config: { model_name: modelName },
+    provider_config: {
+      model_name: modelName,
+      ...(inferenceProvider
+        ? { provider_routing: { only: [inferenceProvider], allow_fallbacks: false } }
+        : {}),
+    },
     metadata: {},
+    pricing: listPricingForModelId(modelId),
   };
 }
 
@@ -526,7 +573,8 @@ export const KNOWN_MODEL_ID_SHAPES =
   "gemini-* (Google), grok-* (xAI), deepseek-* (DeepSeek), " +
   "onnx:org/name (local HuggingFace ONNX), " +
   "llama:… / node-llama:… / gguf:… (local node-llama-cpp), " +
-  "hfi:org/name (HuggingFace Inference), open-router:vendor/model (OpenRouter)";
+  "hfi:[provider:]org/name (HuggingFace Inference), " +
+  "open-router:[provider:]vendor/model (OpenRouter)";
 
 /**
  * {@link secModelRecord} without the unknown-id throw: `undefined` when no

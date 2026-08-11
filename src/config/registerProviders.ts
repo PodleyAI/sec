@@ -32,9 +32,10 @@
  *   and its `json-mode` is **grammar-constrained**, so structured extraction
  *   stays schema-valid (and thinking models can't leak a reasoning preamble).
  * - **HuggingFace Inference** (`provider: "HF_INFERENCE"`) — inline; the cloud
- *   Inference API for `hfi:org/name` ids. Needs `HF_TOKEN` at run time.
+ *   Inference API for `hfi:[provider:]org/name` ids. Needs `HF_TOKEN` at run time.
  * - **OpenRouter** (`provider: "OPENROUTER"`) — inline; the OpenRouter gateway
- *   for `open-router:vendor/model` ids. Needs `OPENROUTER_API_KEY` at run time.
+ *   for `open-router:[provider:]vendor/model` ids. Needs `OPENROUTER_API_KEY` at
+ *   run time.
  *
  * Each provider is registered independently and defensively: a failure to load
  * one (missing optional dependency, worker spawn error) is logged and skipped so

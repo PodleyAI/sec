@@ -17,9 +17,11 @@ import {
   anthropicModelRecord,
   deepSeekModelRecord,
   geminiModelRecord,
+  hfInferenceModelRecord,
   hftModelRecord,
   llamaCppModelRecord,
   openAiModelRecord,
+  openRouterModelRecord,
   registerModelIds,
   registerSecModels,
   secModelRecord,
@@ -60,6 +62,14 @@ describe("registerSecModels", () => {
     expect(record.model_id).toBe("claude-sonnet-5");
     expect(record.provider).toBe("ANTHROPIC");
     expect(record.provider_config.model_name).toBe("claude-sonnet-5");
+    expect(record.pricing).toEqual({
+      currency: "USD",
+      input: 3,
+      output: 15,
+      cached: 0.3,
+      cacheWrite: 3.75,
+      cacheStoragePerHour: undefined,
+    });
   });
 
   it("builds a routable HFT record", () => {
@@ -109,6 +119,37 @@ describe("registerSecModels", () => {
     expect(secModelRecord("node-llama:model.gguf").provider).toBe("LOCAL_LLAMACPP");
     expect(secModelRecord("hfi:meta-llama/Llama-3.3-70B-Instruct").provider).toBe("HF_INFERENCE");
     expect(secModelRecord("open-router:anthropic/claude-sonnet-4").provider).toBe("OPENROUTER");
+  });
+
+  it("pins an optional inference provider from hfi: / open-router: ids onto provider_config", () => {
+    const bareHfi = hfInferenceModelRecord("hfi:meta-llama/Llama-3.3-70B-Instruct");
+    expect(bareHfi.provider_config).toEqual({ model_name: "meta-llama/Llama-3.3-70B-Instruct" });
+
+    const routedHfi = hfInferenceModelRecord("hfi:together:meta-llama/Llama-3.3-70B-Instruct");
+    expect(routedHfi.provider_config).toEqual({
+      model_name: "meta-llama/Llama-3.3-70B-Instruct",
+      provider: "together",
+    });
+
+    const bareOr = openRouterModelRecord("open-router:anthropic/claude-sonnet-4");
+    expect(bareOr.provider_config).toEqual({ model_name: "anthropic/claude-sonnet-4" });
+
+    const routedOr = openRouterModelRecord("open-router:Fireworks:deepseek/deepseek-chat");
+    expect(routedOr.provider_config).toEqual({
+      model_name: "deepseek/deepseek-chat",
+      provider_routing: { only: ["Fireworks"], allow_fallbacks: false },
+    });
+  });
+
+  it("rejects empty inference-provider or model segments on gated ids", () => {
+    for (const id of [
+      "hfi:together:",
+      "hfi::meta-llama/Llama-3.3-70B-Instruct",
+      "open-router:Fireworks:",
+      "open-router::deepseek/deepseek-chat",
+    ]) {
+      expect(() => secModelRecord(id)).toThrow(SecCliConfigurationError);
+    }
   });
 
   it("throws on a model id matching no provider shape instead of defaulting to Anthropic", () => {
