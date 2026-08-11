@@ -220,20 +220,26 @@ version-gated failures on filings it merely stopped mid-flight.
 ### Download-before-use harness
 
 Local model weights must be on disk before generation, and providers differ on
-when that happens: cloud models have nothing to download; HuggingFace ONNX
-auto-fetches on first generation; but node-llama-cpp (GGUF) loads its
-`model_path` directly and never fetches at generation. `EnsureModelDownloadedTask`
+when that happens: HuggingFace ONNX auto-fetches on first generation; node-llama-cpp
+(GGUF) loads its `model_path` directly and never fetches at generation; cloud API
+models have nothing to download but must still exist on the provider. `EnsureModelDownloadedTask`
 (`src/task/model/EnsureModelDownloadedTask.ts`) is the single seam that normalizes this.
 It takes a **model id** and figures out the provider from the id shape via
-`secModelRecord` (no resolved `ModelConfig` handed in), then owns and runs
-`ModelDownloadTask` for the local providers (no-op for cloud, memoized per model
-id so a per-section sweep pays the download once) and skips a bare-path GGUF (no
-`model_url` — the file is assumed on disk).
+`secModelRecord` (no resolved `ModelConfig` handed in), then:
 
-The download runs as an **owned** subtask (`context.own`), so it is registered in
-the running task's graph and inherits its registry + abort signal. Passing the
-**real** `IExecuteContext` (not a throwaway stub) is what surfaces download
-progress — the download run-fn's `phase` events are forwarded to
+- owns and runs `ModelDownloadTask` for the local providers (memoized per model
+  id so a per-section sweep pays the download once), skipping a bare-path GGUF
+  (no `model_url` — the file is assumed on disk); and
+- owns and runs `ModelInfoTask` for cloud API providers (`ANTHROPIC`, `OPENAI`,
+  `GOOGLE_GEMINI`, `XAI`, `DEEPSEEK`, `HF_INFERENCE`, `OPENROUTER`) so a typo'd
+  or retired model id fails before extraction starts — each provider's `model.info`
+  run-fn hits the live API (retrieve/get, or list+exact match where retrieve
+  does not exist; never a curated FALLBACK list).
+
+The download / verify runs as an **owned** subtask (`context.own`), so it is
+registered in the running task's graph and inherits its registry + abort signal.
+Passing the **real** `IExecuteContext` (not a throwaway stub) is what surfaces
+download progress — the download run-fn's `phase` events are forwarded to
 `context.updateProgress`, which the `@workglow/cli` progress UI (`withCli`)
 renders, so a multi-GB GGUF/ONNX fetch shows a live percentage instead of a silent
 hang (and `context.signal` aborts it on Ctrl-C). `prefetchModel(modelId, context)`
@@ -243,9 +249,9 @@ swallowing failures): the AI form processors (`processFormS1` / `processForm424`
 threaded through `storageArgs`) prefetch once after resolving their model, and the
 eval loops prefetch before their timed sections (so download time isn't charged to
 a model's measured latency). `runStructured` keeps an `ensureModelDownloaded` call
-as a per-section correctness safety-net — it downloads silently if a model was
-never prefetched (e.g. a sub-extractor's distinct model), but the progress-bearing
-fetch lives at the task boundary.
+as a per-section correctness safety-net — it downloads / verifies silently if a
+model was never prefetched (e.g. a sub-extractor's distinct model), but the
+progress-bearing fetch lives at the task boundary.
 
 To make GGUF weights fetchable rather than pre-staged, a `gguf:` id may be a
 **remote URI** — a node-llama-cpp HuggingFace URI (`gguf:hf:org/repo:Q4_K_M`) or

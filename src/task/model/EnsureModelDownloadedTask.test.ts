@@ -24,54 +24,35 @@ const ctx = (): IExecuteContext =>
   }) as unknown as IExecuteContext;
 
 /**
- * The task figures out the provider (and its download config) from the model id
- * *shape* alone, via `secModelRecord` — no resolved `ModelConfig` is handed in.
- * No AI providers are registered in this suite, so any id that actually dispatches
- * `ModelDownloadTask` rejects fast with "No run function found … model.download".
- * We use that as the observable signal that a download was *attempted*; a clean
- * resolve is the signal that it was *skipped* (a no-op).
+ * The task figures out the provider (and its download/verify config) from the
+ * model id *shape* alone, via `secModelRecord` — no resolved `ModelConfig` is
+ * handed in. No AI providers are registered unless a describe block installs
+ * them, so a downloadable id rejects with "No run function found … model.download"
+ * and a cloud id rejects with "… model.info" — those throws are the observable
+ * signal that the matching path was taken. A clean resolve means the id was
+ * skipped (unknown shape / bare GGUF) or a stub run-fn succeeded.
  */
 describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
   beforeEach(() => {
     resetEnsuredModelsForTesting();
   });
 
-  it("is a no-op for cloud ids, whichever provider the name resolves to", async () => {
+  it("attempts ModelInfo verification for cloud ids (no run-fn → rejects)", async () => {
     // claude-* → Anthropic, gpt-* → OpenAI, gemini-* → Gemini, grok-* → xAI —
-    // all cloud, so nothing to download.
-    await expect(ensureModelDownloaded("claude-sonnet-5", ctx())).resolves.toBeUndefined();
-    await expect(ensureModelDownloaded("gpt-5.5", ctx())).resolves.toBeUndefined();
-    await expect(ensureModelDownloaded("gemini-3-flash-preview", ctx())).resolves.toBeUndefined();
-    await expect(ensureModelDownloaded("grok-4.5", ctx())).resolves.toBeUndefined();
+    // all cloud, so verify via model.info rather than download.
+    await expect(ensureModelDownloaded("claude-sonnet-5", ctx())).rejects.toThrow(/model\.info/i);
+    await expect(ensureModelDownloaded("gpt-5.5", ctx())).rejects.toThrow(/model\.info/i);
+    await expect(ensureModelDownloaded("gemini-3-flash-preview", ctx())).rejects.toThrow(
+      /model\.info/i
+    );
+    await expect(ensureModelDownloaded("grok-4.5", ctx())).rejects.toThrow(/model\.info/i);
   });
 
   it("is a no-op for an id whose shape sec does not route", async () => {
     // Such an id is legal — a record registered straight into the model
     // repository by an operator, a harness, or a test fixture. It is simply not
-    // ours to download, so this must skip rather than reject: `secModelRecord`
-    // throws on an unrecognized shape, and letting that escape here would fail
-    // every extraction driven by a directly-registered model.
+    // ours to download/verify, so this must skip rather than reject.
     await expect(ensureModelDownloaded("fake-s1-model", ctx())).resolves.toBeUndefined();
-  });
-
-  it("owns no task node for a cloud id after the first call", async () => {
-    // A sweep calls this once per section. The first call settles "nothing to
-    // download"; every later one must short-circuit before `own()`, or the CLI
-    // task UI fills with one no-op EnsureModelDownloadedTask row per section.
-    const owned: unknown[] = [];
-    const counting = {
-      ...ctx(),
-      own: <T,>(v: T): T => {
-        owned.push(v);
-        return v;
-      },
-    } as unknown as IExecuteContext;
-
-    await ensureModelDownloaded("claude-haiku-4-5", counting);
-    expect(owned).toHaveLength(1);
-    await ensureModelDownloaded("claude-haiku-4-5", counting);
-    await ensureModelDownloaded("claude-haiku-4-5", counting);
-    expect(owned).toHaveLength(1);
   });
 
   it("skips a bare-path GGUF id (no model_url): the file is assumed on disk", async () => {
@@ -96,9 +77,97 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded(undefined, ctx())).resolves.toBeUndefined();
   });
 
+  describe("cloud ModelInfo verification", () => {
+    let original: AiProviderRegistry;
+    beforeEach(() => {
+      original = getAiProviderRegistry();
+      setAiProviderRegistry(new AiProviderRegistry());
+      resetEnsuredModelsForTesting();
+    });
+    afterEach(() => {
+      setAiProviderRegistry(original);
+    });
+
+    it("succeeds and memoizes when model.info verifies the cloud id", async () => {
+      let runFnCalls = 0;
+      getAiProviderRegistry().registerRunFn("ANTHROPIC", {
+        serves: ["model.info"],
+        runFn: async (input: any, _m: any, _s: any, emit: any) => {
+          runFnCalls += 1;
+          emit({
+            type: "finish",
+            data: {
+              model: input.model,
+              is_local: false,
+              is_remote: true,
+              supports_browser: true,
+              supports_node: true,
+              is_cached: false,
+              is_loaded: false,
+              file_sizes: null,
+            },
+          });
+        },
+      } as any);
+
+      const owned: unknown[] = [];
+      const counting = {
+        ...ctx(),
+        own: <T,>(v: T): T => {
+          owned.push(v);
+          return v;
+        },
+      } as unknown as IExecuteContext;
+
+      await ensureModelDownloaded("claude-haiku-4-5", counting);
+      expect(runFnCalls).toBe(1);
+      expect(owned).toHaveLength(1);
+
+      await ensureModelDownloaded("claude-haiku-4-5", counting);
+      await ensureModelDownloaded("claude-haiku-4-5", counting);
+      expect(runFnCalls).toBe(1);
+      expect(owned).toHaveLength(1);
+    });
+
+    it("throws when model.info reports the cloud model missing", async () => {
+      getAiProviderRegistry().registerRunFn("ANTHROPIC", {
+        serves: ["model.info"],
+        runFn: async () => {
+          throw new Error('ANTHROPIC model "claude-haiku-4-5" was not found');
+        },
+      } as any);
+
+      await expect(ensureModelDownloaded("claude-haiku-4-5", ctx())).rejects.toThrow(/not found/i);
+    });
+
+    it("reports verified=true downloaded=false for a cloud id via EnsureModelDownloadedTask.run", async () => {
+      getAiProviderRegistry().registerRunFn("OPENAI", {
+        serves: ["model.info"],
+        runFn: async (input: any, _m: any, _s: any, emit: any) => {
+          emit({
+            type: "finish",
+            data: {
+              model: input.model,
+              is_local: false,
+              is_remote: true,
+              supports_browser: true,
+              supports_node: true,
+              is_cached: false,
+              is_loaded: false,
+              file_sizes: null,
+            },
+          });
+        },
+      } as any);
+
+      const input = { model: "gpt-5.5" };
+      const out = await new EnsureModelDownloadedTask({ defaults: input }).run(input);
+      expect(out.downloaded).toBe(false);
+      expect(out.verified).toBe(true);
+    });
+  });
+
   describe("progress + abort forwarding", () => {
-    // Swap in a throwaway provider registry so a fake download run-fn doesn't leak
-    // into sibling suites, mirroring registerModels.test's model-repo swap.
     let original: AiProviderRegistry;
     beforeEach(() => {
       original = getAiProviderRegistry();
@@ -111,8 +180,6 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
 
     it("forwards the download run-fn's progress to context.updateProgress (and memoizes)", async () => {
       let runFnCalls = 0;
-      // Real provider run-fns are plain async fns that push events via `emit`
-      // (see LlamaCpp_Download), not generators.
       getAiProviderRegistry().registerRunFn("HF_TRANSFORMERS_ONNX", {
         serves: ["model.download"],
         runFn: async (input: any, _model: any, _signal: any, emit: any) => {
@@ -133,14 +200,10 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
         resourceScope: { register: () => {}, dispose: async () => {} },
       } as unknown as IExecuteContext;
 
-      // The download's phase event, emitted two task layers down (the owned
-      // ModelDownloadTask under EnsureModelDownloadedTask), reaches the running
-      // task's progress sink — this is what the withCli UI renders on screen.
       await ensureModelDownloaded("onnx:onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
       expect(progress).toContainEqual([42, "Downloading model"]);
 
-      // Memoized: a second call does not re-invoke the download run-fn.
       await ensureModelDownloaded("onnx:onnx-community/progress", context);
       expect(runFnCalls).toBe(1);
     });
@@ -158,6 +221,7 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
       const input = { model: "onnx:onnx-community/standalone" };
       const out = await new EnsureModelDownloadedTask({ defaults: input }).run(input);
       expect(out.downloaded).toBe(true);
+      expect(out.verified).toBe(false);
       expect(runFnCalls).toBe(1);
     });
   });
