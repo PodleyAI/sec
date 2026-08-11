@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { estimateCost, estimateTokens } from "./modelPricing";
+import { estimateCost, costFromUsage, estimateTokens } from "./modelPricing";
 
 /** 1M input tokens' worth of characters at the harness's ~4 chars/token ratio. */
 const ONE_M_TOKENS_OF_CHARS = 4_000_000;
@@ -74,6 +74,52 @@ describe("priceFor dispatch", () => {
     expect(perMillion("gpt-5.4-mini")).toEqual({ input: 0.75, output: 4.5 });
     expect(perMillion("gemini-3-flash-preview")).toEqual({ input: 0.5, output: 3 });
     expect(perMillion("grok-4.5")).toEqual({ input: 2, output: 6 });
+  });
+});
+
+describe("costFromUsage", () => {
+  it("prefers a provider-stated cost over the rate card (OpenRouter)", () => {
+    const cost = costFromUsage(
+      {
+        input: 1000,
+        output: 50,
+        cached: 200,
+        cacheWrite: undefined,
+        reasoning: undefined,
+        total: 1250,
+        extra: { cost: 0.00042 },
+      },
+      "open-router:deepseek-v4-flash",
+      40_000,
+      2_000
+    );
+    expect(cost.usd).toBe(0.00042);
+    expect(cost.inputTokens).toBe(1200);
+    expect(cost.outputTokens).toBe(50);
+  });
+
+  it("falls back to the char estimate when usage is absent", () => {
+    expect(costFromUsage(undefined, "deepseek-v4-flash", 4_000, 400)).toEqual(
+      estimateCost("deepseek-v4-flash", 4_000, 400)
+    );
+  });
+
+  it("keeps real tokens but leaves USD null when usage has no stated cost and no rate card", () => {
+    const cost = costFromUsage(
+      {
+        input: 100,
+        output: 10,
+        cached: undefined,
+        cacheWrite: undefined,
+        reasoning: undefined,
+        total: 110,
+        extra: undefined,
+      },
+      "open-router:deepseek-v4-flash",
+      40_000,
+      2_000
+    );
+    expect(cost).toEqual({ inputTokens: 100, outputTokens: 10, usd: null });
   });
 });
 
