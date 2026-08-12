@@ -47,7 +47,7 @@ describe("eval value-less options", () => {
     const err = await runEval(["extract", "--extractor"]);
     expect(err).toContain("--extractor needs a value");
     expect(err).toContain("management");
-    expect(err).toContain("risk-factors");
+    expect(err).not.toContain("risk-factors");
     // Registered in EVAL_EXTRACTORS but unfixtured — offering it would name a
     // value that errors out on the next run.
     expect(err).not.toContain("related-party");
@@ -209,5 +209,11 @@ describe("eval value-less options", () => {
     // an unknown extractor proves we got that far without a reference.
     const err = await runEval(["s1", "--extractors", "nope"]);
     expect(err).toContain('unknown extractor "nope"');
+  });
+
+  it("rejects eval s1 --concurrency 0 before a sweep", async () => {
+    const err = await runEval(["s1", "--concurrency", "0", "--extractors", "nope"]);
+    expect(err).toMatch(/concurrency must be an integer >= 1/);
+    expect(process.exitCode).toBe(1);
   });
 });
