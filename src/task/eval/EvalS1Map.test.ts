@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { EvalS1CandidateTask } from "./EvalS1CandidateTask";
+import { EvalS1SectionTask } from "./EvalS1SectionTask";
 
 function arrayPortNames(schema: { properties?: Record<string, { type?: string }> }): string[] {
   return Object.entries(schema.properties ?? {})
@@ -18,6 +19,11 @@ describe("eval s1 map schemas", () => {
     expect(
       arrayPortNames(
         EvalS1CandidateTask.inputSchema() as { properties?: Record<string, { type?: string }> }
+      )
+    ).toEqual([]);
+    expect(
+      arrayPortNames(
+        EvalS1SectionTask.inputSchema() as { properties?: Record<string, { type?: string }> }
       )
     ).toEqual([]);
   });
