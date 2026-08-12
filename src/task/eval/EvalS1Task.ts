@@ -5,149 +5,33 @@
  */
 
 import { Static, Type } from "typebox";
-import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository, IExecuteContext, Task } from "workglow";
+import type { ModelConfig, ModelEffort } from "workglow";
+import { getGlobalModelRepository, IExecuteContext, isModelEffort, Task } from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
-import {
-  captureEvalRawFromError,
-  captureEvalRawFromRows,
-  type EvalRawDump,
-} from "../../eval/captureEvalRaw";
 import { sweepStepContext } from "../../eval/evalProgressContext";
-import { EVAL_EXTRACTORS, estimateExtractionPromptChars } from "../../eval/fixtures";
+import { EVAL_EXTRACTORS, preparedSectionText } from "../../eval/fixtures";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
-import { estimateCost, type CostEstimate } from "../../eval/modelPricing";
+import { estimateCost } from "../../eval/modelPricing";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
-import { scoreExtraction, type ExtractionScore } from "../../eval/scoreExtraction";
+import { scoreExtraction } from "../../eval/scoreExtraction";
+import { setExtractionEffortOverride } from "../../sec/forms/registration-statements/s1/extractionReasoning";
+import {
+  GOLDEN_REFERENCE,
+  REFERENCE_MAX_ATTEMPTS,
+  runSection,
+  summarize,
+  type OracleModelSummary,
+  type OracleReport,
+  type OracleRunResult,
+} from "./evalS1Run";
 
-/** Sentinel `reference` value selecting committed human-verified golden labels. */
-export const GOLDEN_REFERENCE = "golden";
-
-export interface OracleRunResult {
-  readonly filing: string;
-  readonly extractor: string;
-  readonly model: string;
-  readonly ok: boolean;
-  readonly error: string | undefined;
-  readonly latencyMs: number;
-  readonly rows: number;
-  readonly cost: CostEstimate;
-  /** Agreement with the reference; null for the reference model's own runs. */
-  readonly score: ExtractionScore | null;
-  /** Present only when the sweep was run with `dumpRaw: true`. */
-  readonly raw: EvalRawDump | undefined;
-}
-
-export interface OracleModelSummary {
-  readonly model: string;
-  readonly provider: string;
-  readonly role: "reference" | "candidate";
-  readonly runs: number;
-  readonly okRuns: number;
-  /** Mean field-level agreement with the reference (candidates only). */
-  readonly avgAgreement: number;
-  /** Mean fraction of the reference's entities the model also found. */
-  readonly avgEntityRecall: number;
-  /** Mean fraction of the model's entities the reference also had (1 − hallucination). */
-  readonly avgPrecision: number;
-  readonly avgLatencyMs: number;
-  readonly totalRows: number;
-  /**
-   * Distinct rows after de-duplicating on the extractor's key field, summed
-   * across scored sections (candidates only; equals {@link totalRows} for the
-   * reference). The gap between this and {@link totalRows} is the model's
-   * duplicate over-production, which no longer counts against precision.
-   */
-  readonly totalDistinctRows: number;
-  readonly totalUsd: number | null;
-}
-
-export interface OracleReport {
-  readonly reference: string;
-  readonly sections: number;
-  readonly skipped: readonly string[];
-  readonly results: readonly OracleRunResult[];
-  readonly summaries: readonly OracleModelSummary[];
-}
-
-/** How many times to (re)try the reference extraction before giving up on a section. */
-const REFERENCE_MAX_ATTEMPTS = 3;
-
-async function runSection(
-  modelId: string,
-  model: ModelConfig,
-  section: RealSection,
-  context: IExecuteContext | undefined,
-  dumpRaw: boolean
-): Promise<{ rows: unknown[]; result: Omit<OracleRunResult, "score"> }> {
-  const extractor = EVAL_EXTRACTORS[section.extractor];
-  const promptChars = estimateExtractionPromptChars(extractor.instructions(), section.text);
-  const t0 = Bun.nanoseconds();
-  try {
-    const rows = await extractor.run(section.text, model, context);
-    const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
-    return {
-      rows,
-      result: {
-        filing: section.filing,
-        extractor: section.extractor,
-        model: modelId,
-        ok: true,
-        error: undefined,
-        latencyMs,
-        rows: rows.length,
-        cost: estimateCost(modelId, promptChars, JSON.stringify(rows).length),
-        raw: captureEvalRawFromRows(dumpRaw, rows),
-      },
-    };
-  } catch (err) {
-    const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
-    return {
-      rows: [],
-      result: {
-        filing: section.filing,
-        extractor: section.extractor,
-        model: modelId,
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-        latencyMs,
-        rows: 0,
-        cost: estimateCost(modelId, promptChars, 0),
-        raw: captureEvalRawFromError(dumpRaw, err),
-      },
-    };
-  }
-}
-
-function summarize(
-  modelId: string,
-  provider: string,
-  role: "reference" | "candidate",
-  rows: OracleRunResult[]
-): OracleModelSummary {
-  const n = rows.length || 1;
-  const scored = rows.filter((r) => r.score !== null);
-  const sn = scored.length || 1;
-  const anyUnknownCost = rows.some((r) => r.cost.usd === null);
-  // Reference runs carry no score (candidateDistinct), so fall back to their raw
-  // row count; candidate runs report distinct rows from the scorer's dedupe.
-  const totalDistinctRows = rows.reduce((s, r) => s + (r.score?.candidateDistinct ?? r.rows), 0);
-  return {
-    model: modelId,
-    provider,
-    role,
-    runs: rows.length,
-    okRuns: rows.filter((r) => r.ok).length,
-    avgAgreement: scored.reduce((s, r) => s + (r.score?.score ?? 0), 0) / sn,
-    avgEntityRecall: scored.reduce((s, r) => s + (r.score?.entityRecall ?? 0), 0) / sn,
-    avgPrecision: scored.reduce((s, r) => s + (r.score?.precision ?? 0), 0) / sn,
-    avgLatencyMs: rows.reduce((s, r) => s + r.latencyMs, 0) / n,
-    totalRows: rows.reduce((s, r) => s + r.rows, 0),
-    totalDistinctRows,
-    totalUsd: anyUnknownCost ? null : rows.reduce((s, r) => s + (r.cost.usd ?? 0), 0),
-  };
-}
+export {
+  GOLDEN_REFERENCE,
+  type OracleModelSummary,
+  type OracleReport,
+  type OracleRunResult,
+};
 
 const InputSchema = () =>
   Type.Object({
@@ -178,6 +62,21 @@ const InputSchema = () =>
       Type.Boolean({
         title: "Dump raw",
         description: "Retain model JSON payloads on each result for CLI --dump-raw",
+      })
+    ),
+    effort: Type.Optional(
+      Type.String({
+        title: "Effort override",
+        description:
+          "When set, replaces every extractor's baked-in model.effort for this sweep " +
+          "(none|low|medium|high|extra|ultra)",
+      })
+    ),
+    concurrency: Type.Optional(
+      Type.Number({
+        title: "Concurrency",
+        description: "Max S-1 sections in flight (default 5)",
+        minimum: 1,
       })
     ),
   });
@@ -227,6 +126,25 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
   }
 
   async execute(input: EvalS1TaskInput, context: IExecuteContext): Promise<EvalS1TaskOutput> {
+    if (input.effort !== undefined) {
+      if (!isModelEffort(input.effort)) {
+        throw new Error(
+          `invalid effort "${input.effort}"; expected one of: none, low, medium, high, extra, ultra`
+        );
+      }
+      setExtractionEffortOverride(input.effort as ModelEffort);
+    }
+    try {
+      return await this.runOracle(input, context);
+    } finally {
+      setExtractionEffortOverride(undefined);
+    }
+  }
+
+  private async runOracle(
+    input: EvalS1TaskInput,
+    context: IExecuteContext
+  ): Promise<EvalS1TaskOutput> {
     // On a TTY, `withCli` renders the task-graph UI from `updateProgress`; when
     // piped (background / `--format json`), that UI is suppressed, so mirror
     // progress to stderr so a long local-model run isn't blind. stdout stays
@@ -310,7 +228,8 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     for (let si = 0; si < sections.length; si++) {
       if (context.signal?.aborted) break;
       const section = sections[si];
-      const tag = `[${si + 1}/${sections.length}] ${section.filing} ${section.extractor} (${kchars(section.text.length)})`;
+      const promptLen = preparedSectionText(section.extractor, section.text).length;
+      const tag = `[${si + 1}/${sections.length}] ${section.filing} ${section.extractor} (${kchars(promptLen)})`;
       // Reference establishes truth for this section. Retry on failure: strong
       // models intermittently emit a nested array as a JSON *string* (which the
       // strict schema rejects), so a couple of retries recover most sections
@@ -392,6 +311,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
           ? scoreExtraction(rows, expected, {
               keyField: extractor.keyField,
               fields: extractor.compareFields,
+              personNameFields: extractor.personNameFields,
             })
           : null;
         push({ ...result, score });
