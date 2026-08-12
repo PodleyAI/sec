@@ -6,20 +6,17 @@
 
 import { Static, Type } from "typebox";
 import type { ModelConfig, ModelEffort } from "workglow";
-import { getGlobalModelRepository, IExecuteContext, isModelEffort, Task } from "workglow";
+import { getGlobalModelRepository, IExecuteContext, isModelEffort, Task, Workflow } from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
-import { sweepStepContext } from "../../eval/evalProgressContext";
-import { EVAL_EXTRACTORS, preparedSectionText } from "../../eval/fixtures";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
-import { estimateCost } from "../../eval/modelPricing";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
-import { scoreExtraction } from "../../eval/scoreExtraction";
 import { setExtractionEffortOverride } from "../../sec/forms/registration-statements/s1/extractionReasoning";
+import { resolveEvalS1Concurrency } from "./evalS1Concurrency";
+import { EvalS1SectionTask } from "./EvalS1SectionTask";
 import {
+  collectMappedResults,
   GOLDEN_REFERENCE,
-  REFERENCE_MAX_ATTEMPTS,
-  runSection,
   summarize,
   type OracleModelSummary,
   type OracleReport,
@@ -103,13 +100,14 @@ export type EvalS1TaskOutput = Static<ReturnType<typeof OutputSchema>>;
  * `candidate` extracts the same section and is scored on how closely it agrees
  * with the reference (field agreement, entity recall, precision). This answers
  * "can a cheap/local model stand in for sonnet on real filings?" without hand-
- * labeling every section. Runs sequentially (models share a local HFT worker and
- * cloud limits). A section the reference itself fails on is not scored.
+ * labeling every section. Sections run through a MapTask (default 5 in flight);
+ * candidates for one section run in parallel after that section's reference.
+ * A section the reference itself fails on is not scored.
  *
  * Running as a task (rather than a bare function) puts the sweep under the CLI's
- * automatic task-graph progress UI (one step per model×section) and makes it
- * abortable — large real S-1 sections take tens of seconds each on a local
- * model, so live progress matters here.
+ * automatic task-graph progress UI and makes it abortable — large real S-1
+ * sections take tens of seconds each on a local model, so live progress matters
+ * here.
  */
 export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
   static readonly type = "EvalS1Task";
@@ -145,16 +143,6 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     input: EvalS1TaskInput,
     context: IExecuteContext
   ): Promise<EvalS1TaskOutput> {
-    // On a TTY, `withCli` renders the task-graph UI from `updateProgress`; when
-    // piped (background / `--format json`), that UI is suppressed, so mirror
-    // progress to stderr so a long local-model run isn't blind. stdout stays
-    // clean for the report.
-    const emitProgress = (done: number, total: number, message: string): void => {
-      const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
-      void context.updateProgress(pct, message);
-      if (!process.stdout.isTTY) process.stderr.write(`${message}\n`);
-    };
-
     const extractorNames = input.extractors.length ? input.extractors : ["management"];
     const useGolden = input.reference === GOLDEN_REFERENCE;
     const dumpRaw = input.dumpRaw === true;
@@ -206,123 +194,40 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     for (const id of [...(refModel ? [input.reference] : []), ...input.candidates]) {
       await prefetchModel(id, context);
     }
-    const results: OracleRunResult[] = [];
-    const perModel = new Map<string, OracleRunResult[]>();
-    const push = (r: OracleRunResult): void => {
-      results.push(r);
-      (perModel.get(r.model) ?? perModel.set(r.model, []).get(r.model)!).push(r);
-    };
-    const kchars = (n: number): string => `${(n / 1000).toFixed(0)}k`;
-    // One step per model run: the reference (a model run, or the golden lookup)
-    // plus every candidate.
-    const hasReference = refModel !== undefined || useGolden;
-    const total = sections.length * ((hasReference ? 1 : 0) + input.candidates.length);
-    let done = 0;
 
-    const refLabel = useGolden ? "golden truth" : "1 reference";
-    emitProgress(
-      done,
-      total,
-      `oracle: ${sections.length} section(s) × (${refLabel} + ${input.candidates.length} candidate(s))`
-    );
-    for (let si = 0; si < sections.length; si++) {
-      if (context.signal?.aborted) break;
-      const section = sections[si];
-      const promptLen = preparedSectionText(section.extractor, section.text).length;
-      const tag = `[${si + 1}/${sections.length}] ${section.filing} ${section.extractor} (${kchars(promptLen)})`;
-      // Reference establishes truth for this section. Retry on failure: strong
-      // models intermittently emit a nested array as a JSON *string* (which the
-      // strict schema rejects), so a couple of retries recover most sections
-      // rather than dropping them from the comparison.
-      let refRows: unknown[] = [];
-      let refOk = false;
-      if (useGolden) {
-        // Committed human-verified truth — no model call, no cost.
-        const golden = getGoldenLabels(section.filing, section.extractor) ?? [];
-        refRows = golden as unknown[];
-        refOk = true;
-        push({
-          filing: section.filing,
-          extractor: section.extractor,
-          model: GOLDEN_REFERENCE,
-          ok: true,
-          error: undefined,
-          latencyMs: 0,
-          rows: golden.length,
-          cost: { inputTokens: 0, outputTokens: 0, usd: 0 },
-          score: null,
-          raw: undefined,
-        });
-        done += 1;
-        emitProgress(done, total, `${tag} golden: ${golden.length} rows`);
-      } else if (refModel) {
-        const refStep = sweepStepContext(
-          context,
-          Math.floor((done / (total || 1)) * 100),
-          `${tag} ref ${input.reference}`
-        );
-        let outcome = await runSection(input.reference, refModel, section, refStep, dumpRaw);
-        for (let attempt = 1; !outcome.result.ok && attempt < REFERENCE_MAX_ATTEMPTS; attempt++) {
-          outcome = await runSection(input.reference, refModel, section, refStep, dumpRaw);
-        }
-        refRows = outcome.rows;
-        refOk = outcome.result.ok;
-        push({ ...outcome.result, score: null });
-        done += 1;
-        emitProgress(
-          done,
-          total,
-          `${tag} ref ${input.reference}: ${refOk ? "ok" : "FAIL"} ${outcome.result.latencyMs.toFixed(0)}ms ${outcome.result.rows} rows`
-        );
-      }
-      const extractor = EVAL_EXTRACTORS[section.extractor];
-      const expected = refRows as Record<string, unknown>[];
-      for (const candidateId of input.candidates) {
-        const candModel = (await repo.findByName(candidateId)) as ModelConfig | undefined;
-        if (!candModel) {
-          push({
-            filing: section.filing,
-            extractor: section.extractor,
-            model: candidateId,
-            ok: false,
-            error: `model "${candidateId}" not registered`,
-            latencyMs: 0,
-            rows: 0,
-            cost: estimateCost(candidateId, 0, 0),
-            score: null,
-            raw: dumpRaw ? { kind: "none" } : undefined,
-          });
-          done += 1;
-          continue;
-        }
-        const { rows, result } = await runSection(
-          candidateId,
-          candModel,
-          section,
-          sweepStepContext(
-            context,
-            Math.floor((done / (total || 1)) * 100),
-            `${tag} ${candidateId}`
-          ),
-          dumpRaw
-        );
-        // Only score when the reference produced a usable truth for this section.
-        const score = refOk
-          ? scoreExtraction(rows, expected, {
-              keyField: extractor.keyField,
-              fields: extractor.compareFields,
-              personNameFields: extractor.personNameFields,
-            })
-          : null;
-        push({ ...result, score });
-        done += 1;
-        const agree = score ? ` agree ${(score.score * 100).toFixed(0)}%` : "";
-        emitProgress(
-          done,
-          total,
-          `${tag} cand ${candidateId}: ${result.ok ? "ok" : "FAIL"} ${result.latencyMs.toFixed(0)}ms ${result.rows} rows${agree}`
-        );
-      }
+    const concurrencyLimit = resolveEvalS1Concurrency(input.concurrency);
+    const results: OracleRunResult[] = [];
+    if (sections.length > 0) {
+      const wf = context.own(new Workflow(), {
+        title: `Evaluate ${sections.length} S-1 sections`,
+      });
+      const loop = wf.map({
+        concurrencyLimit,
+        maxIterations: sections.length,
+        preserveOrder: true,
+        flatten: true,
+      });
+      loop.pipe(
+        new EvalS1SectionTask({
+          defaults: {
+            reference: input.reference,
+            candidates: input.candidates,
+            dumpRaw,
+          },
+        })
+      );
+      loop.endMap();
+      const mapped = await wf.run({
+        filing: sections.map((s) => s.filing),
+        extractor: sections.map((s) => s.extractor),
+        text: sections.map((s) => s.text),
+      });
+      results.push(...collectMappedResults<OracleRunResult>(mapped));
+    }
+
+    const perModel = new Map<string, OracleRunResult[]>();
+    for (const r of results) {
+      (perModel.get(r.model) ?? perModel.set(r.model, []).get(r.model)!).push(r);
     }
 
     const summaries: OracleModelSummary[] = [];
