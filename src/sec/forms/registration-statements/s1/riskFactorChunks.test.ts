@@ -25,6 +25,20 @@ describe("isRiskCategoryHeading", () => {
     }
   });
 
+  it("recognizes a heading whose last word is a dotted initialism", () => {
+    // The period closing "U.S." is part of the abbreviation, not sentence
+    // punctuation — but the sentence-ending test read it as one, so these
+    // headings were classified as captions. That miss is now load-bearing
+    // twice over: a heading counted as a caption both escapes the mixed-shape
+    // check (persisting as a disclosed risk) and, by making the section look
+    // homogeneous in sentences, changes whether a carried-heading echo is kept.
+    expect(isRiskCategoryHeading("Risks Related to Our Operations in the U.S.")).toBe(true);
+    expect(isRiskCategoryHeading("Risks Related to Regulation by the S.E.C.")).toBe(true);
+    // A real sentence that merely CONTAINS an initialism still ends as a
+    // sentence, so it stays a caption.
+    expect(isRiskCategoryHeading("We face risks operating in the U.S. market.")).toBe(false);
+  });
+
   it("does not mistake a risk caption or body paragraph for a heading", () => {
     // A caption is a full sentence — it ends in sentence punctuation.
     expect(isRiskCategoryHeading(CAPTION)).toBe(false);
