@@ -567,6 +567,34 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(warnings.join("\n")).toContain("acc-unsafe");
   });
 
+  it("matches and builds the worklist per chunk, never accumulating every filing", async () => {
+    // `push(...rows)` spreads each row into its own argument and blows the call
+    // stack somewhere past ~125k elements. The query is by CIK only, so ONE
+    // chunk returns a candidate's whole filing history whichever form set was
+    // asked for — `registration` is as exposed as `everything`. Filings here
+    // are cheap stand-ins for that volume; what the test pins is that the
+    // form filter and the worklist are built inside the chunk loop, so
+    // `matched` counts only matching rows and the non-matching ones are never
+    // carried past their chunk.
+    const many = 2500;
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    const rows: Filing[] = [];
+    for (let i = 0; i < many; i++) {
+      rows.push(
+        filing({ cik: 1, accession_number: `acc-noise-${i}`, form: "4", primary_doc: "f.xml" })
+      );
+    }
+    rows.push(filing({ cik: 1, accession_number: "acc-s1", form: "S-1" }));
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk(rows);
+    TestCacheOne.docs.set("1/acc-s1/acc-s1.txt", "s1");
+
+    const out = await runDownload({ set: "registration" });
+    expect(out.matched).toBe(1);
+    expect(out.downloaded).toBe(1);
+    expect(out.failed).toBe(0);
+    expect(TestCacheOne.requested).toEqual(["1/acc-s1/acc-s1.txt"]);
+  });
+
   it("owns each filing's task into the subgraph and releases it again", async () => {
     // The task is run, not `execute`d, so it is a real subgraph member for the
     // duration of its filing: that is what gives it a progress row, nests its
