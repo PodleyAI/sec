@@ -1331,7 +1331,12 @@ sec exposes the general downstream seams embarc-data (and future features) build
   `maxLength`), drop a `NOT NULL` — which makes it idempotent (empty plan
   on a fresh DB). Postgres only; SQLite emits TEXT, and its one NOT NULL
   relaxation needs the rename/recreate rebuild in
-  `AddressRegionNullableMigration`. ⚠️ Widening a `varchar` is
+  `AddressRegionNullableMigration`. A relaxation with no such migration —
+  `filings.primary_doc` — therefore reaches Postgres on the next `db setup` and
+  a pre-existing SQLite database not at all. That is a widening, so an old
+  SQLite file keeps exactly today's behavior (it still rejects a null
+  `primary_doc`) rather than breaking; only new databases gain the ability to
+  store one. ⚠️ Widening a `varchar` is
   binary-coercible so the heap is not rewritten, but every index on the column
   — including the unique index backing a primary key — is rebuilt under an
   ACCESS EXCLUSIVE lock. On a large deployment, run `db setup` in a maintenance

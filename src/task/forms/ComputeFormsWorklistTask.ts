@@ -21,7 +21,7 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { SecFetchMaxPerSec } from "../../config/Constants";
-import { stripXslPrefix } from "../../util/accessionDocPath";
+import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 
 export type ComputeFormsWorklistTaskInput = {
   /** Omit (or pass empty) to process every form with a registered extractor. */
@@ -330,7 +330,10 @@ export class ComputeFormsWorklistTask extends Task<
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);
         formOut.push(f.form!);
-        fileName.push(stripXslPrefix(f.primary_doc));
+        // "" when the filing names no primary document: the port is a parallel
+        // array, so the row has to keep its slot. `ProcessAccessionDocFormTask`
+        // reads it as absent and dead-letters that one filing.
+        fileName.push(resolvePrimaryDocName(f.primary_doc) ?? "");
       }
 
       if (lastExamined !== undefined) {
