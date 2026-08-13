@@ -13,6 +13,7 @@ import {
   TaskError,
   Workflow,
 } from "workglow";
+import { isDryRun } from "../../cli/isDryRun";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
@@ -162,6 +163,27 @@ export class ProcessSpacTimelineTask extends Task<
       return emptyOutcome(cik, "");
     }
 
+    const firstDate = timeline[0]!.filing_date ?? "";
+    const lastDate = timeline[timeline.length - 1]!.filing_date ?? "";
+
+    // `--dry-run` already no-ops writes via ReadOnlyTabularStorage. Replaying
+    // still makes live model.info / extraction calls, then reads outcome
+    // counts from extractor_runs rows that were never written, so every
+    // filing looks failed. Count the timeline; do not run the form processor.
+    if (isDryRun()) {
+      return {
+        cik,
+        matched: timeline.length,
+        processed: 0,
+        partial: 0,
+        failed: 0,
+        triage: 0,
+        firstDate,
+        lastDate,
+        error: "",
+      };
+    }
+
     const wf = context.own(new Workflow(), {
       title: `Replay ${timeline.length} filings for CIK ${cik} in date order`,
     });
@@ -192,8 +214,8 @@ export class ProcessSpacTimelineTask extends Task<
       partial: counts.partial,
       failed: counts.failed,
       triage: counts.triage,
-      firstDate: timeline[0]!.filing_date ?? "",
-      lastDate: timeline[timeline.length - 1]!.filing_date ?? "",
+      firstDate,
+      lastDate,
       error: "",
     };
   }

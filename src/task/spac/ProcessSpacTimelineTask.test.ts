@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -193,6 +193,30 @@ describe("ProcessSpacTimelineTask", () => {
     } finally {
       proto.execute = real;
     }
+  });
+
+  it("dry-run reports the timeline without reprocessing filings", async () => {
+    // `--dry-run` wraps storage as read-only, but the replay still ran every
+    // filing — including a live model.info verify that hangs the CLI, and
+    // outcome counts read back from extractor_runs writes that never landed,
+    // so a 52-filing issuer printed as 0/52 failed. Count the timeline; do
+    // not call the form processor.
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04", "primary_doc.xml");
+    cacheDoc("0000000000-26-000001", "primary_doc.xml", GOOD_FORM_D);
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.matched).toBe(2);
+    expect(out.processed).toBe(0);
+    expect(out.failed).toBe(0);
+    expect(out.partial).toBe(0);
+    expect(out.firstDate).toBe("2021-01-04");
+    expect(out.lastDate).toBe("2021-02-04");
+    expect(out.error).toBe("");
   });
 
   it("echoes the cik so a fan-out's result columns are self-labelling", async () => {

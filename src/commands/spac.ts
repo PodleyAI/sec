@@ -150,7 +150,13 @@ export function spacProcessRows(
  * One issuer's replay summary. Partial/failed/triage are omitted when zero so
  * a clean run still reads as `CIK: N/N filings (from → to)`.
  */
-export function formatSpacProcessSummary(row: ProcessSpacTimelineTaskOutput): string {
+export function formatSpacProcessSummary(
+  row: ProcessSpacTimelineTaskOutput,
+  opts?: { readonly dryRun?: boolean }
+): string {
+  if (opts?.dryRun === true) {
+    return `${row.cik}: would replay ${row.matched} filings (${row.firstDate} \u2192 ${row.lastDate})`;
+  }
   const parts = [
     `${row.processed}/${row.matched} filings (${row.firstDate} \u2192 ${row.lastDate})`,
   ];
@@ -225,7 +231,7 @@ export function registerSpacCommands(program: Command): void {
           } else if (row.matched === 0) {
             console.log(`${row.cik}: no processable filings`);
           } else {
-            console.log(formatSpacProcessSummary(row));
+            console.log(formatSpacProcessSummary(row, { dryRun: isDryRun() }));
             if (row.partial > 0 || row.failed > 0) {
               failed++;
               console.error(

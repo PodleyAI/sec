@@ -172,4 +172,23 @@ describe("formatSpacProcessSummary", () => {
       "1822912: 51/52 filings (2020-09-23 \u2192 2023-10-03); 1 partial; 11 section(s) pending triage"
     );
   });
+
+  it("dry-run names the timeline rather than 0/N failed", () => {
+    expect(
+      formatSpacProcessSummary(
+        {
+          cik: 1822912,
+          matched: 52,
+          processed: 0,
+          partial: 0,
+          failed: 0,
+          triage: 0,
+          firstDate: "2020-09-23",
+          lastDate: "2023-10-03",
+          error: "",
+        },
+        { dryRun: true }
+      )
+    ).toBe("1822912: would replay 52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
 });
