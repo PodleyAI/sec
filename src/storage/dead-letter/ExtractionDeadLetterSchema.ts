@@ -74,6 +74,29 @@ export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
  */
 export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR", "RATE_LIMITED"] as const;
 
+/**
+ * Reason codes describing a **non-deterministic** model response rather than a
+ * bug in the extractor: the same filing under the same extractor version can
+ * come back clean on the next call. Retrying under the same version is the only
+ * thing that recovers them, so they must not be version-gated — but unlike
+ * {@link MODEL_ERROR_REASON_CODES} the retry is **bounded**. A genuinely
+ * ambiguous section would otherwise sit on the worklist forever, unclearable by
+ * any operator action, re-paying the AI cost of the largest section in the
+ * filing on every sweep. After {@link NONDETERMINISTIC_RETRY_ATTEMPTS} recorded
+ * attempts the entry falls back to the ordinary version gate, where a prompt or
+ * heuristic fix plus a version bump is the honest remedy.
+ */
+export const NONDETERMINISTIC_REASON_CODES = ["MIXED_CAPTION_SHAPE"] as const;
+
+/**
+ * Recorded attempts after which a {@link NONDETERMINISTIC_REASON_CODES} entry
+ * stops being retry-eligible under its own version. `attempts` counts
+ * CONSECUTIVE failures of the current `(reason_code, failed_extractor_version)`
+ * pair, so this counts real re-runs of THIS failure — the section's earlier
+ * history under other codes or versions does not spend the budget.
+ */
+export const NONDETERMINISTIC_RETRY_ATTEMPTS = 3;
+
 export const DEAD_LETTER_STATUSES = ["pending", "resolved", "abandoned"] as const;
 export type DeadLetterStatus = (typeof DEAD_LETTER_STATUSES)[number];
 

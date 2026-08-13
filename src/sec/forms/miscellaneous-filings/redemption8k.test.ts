@@ -683,7 +683,13 @@ describe("processRedemption8K", () => {
 
     let entry = await dlRepo.get("redemption", "0000000000-26-RES001", sectionKey);
     expect(entry?.status).toBe("resolved");
-    expect(entry?.attempts).toBe(1);
+    // `attempts` counts CONSECUTIVE failures of the current
+    // (reason_code, version) pair, and this run resolved — so the streak is
+    // over and the counter is 0, not a running tally of how many times the
+    // entry was ever recorded. The bounded same-version retry spends this
+    // counter, so it has to mean "how many times has THIS failure repeated
+    // without a clean run", which a lifetime tally cannot answer.
+    expect(entry?.attempts).toBe(0);
 
     // The current extractor version must be derivable; we use the version on the
     // recorded entry itself as the source of truth.
@@ -695,8 +701,10 @@ describe("processRedemption8K", () => {
       )
     ).toHaveLength(0);
 
-    // Run #2: idempotent — the entry stays resolved, attempts increments (audit
-    // trail), and listEligible still excludes it.
+    // Run #2: idempotent — the entry stays resolved and listEligible still
+    // excludes it. `attempts` does NOT accumulate across replays: each run
+    // re-records (streak restarts at 1) and then resolves (back to 0), so a
+    // filing that keeps auto-resolving never drifts toward the retry bound.
     await processRedemption8K({
       cik: 53,
       accession_number: "0000000000-26-RES001",
@@ -709,7 +717,7 @@ describe("processRedemption8K", () => {
 
     entry = await dlRepo.get("redemption", "0000000000-26-RES001", sectionKey);
     expect(entry?.status).toBe("resolved");
-    expect(entry?.attempts).toBe(2);
+    expect(entry?.attempts).toBe(0);
     eligible = await dlRepo.listEligible("redemption", currentVersion);
     expect(
       eligible.filter(
