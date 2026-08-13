@@ -5,10 +5,12 @@
  */
 
 import type { IExecuteContext, ModelConfig } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
 import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
 import type { Form8K } from "./Form_8_K.schema";
 import { Form_8_K_ITEMS } from "./Form_8_K";
+import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
@@ -49,6 +51,20 @@ function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K
   }
 
   return [...itemSet].sort();
+}
+
+/**
+ * Whether the submissions-only SPAC screen has flagged this CIK. Read
+ * defensively: the table is optional in a consumer's schema, and a missing
+ * screen must silence the warning rather than fail the filing.
+ */
+async function isSpacCandidate(cik: number): Promise<boolean> {
+  try {
+    const repo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    return (await repo.get({ cik })) !== undefined;
+  } catch {
+    return false;
+  }
 }
 
 export async function processForm8K({
@@ -129,9 +145,17 @@ export async function processForm8K({
     // the SIC, so this path cannot tell a SPAC from any other issuer, and
     // minting SPAC rows for every 8-K filer would be worse than the gap. Warn
     // instead, and process registration/IPO forms before 8-Ks in a backfill.
+    //
+    // The item codes alone are not evidence of a SPAC: 1.01/2.01/5.07 are
+    // ordinary 8-K items every operating company files, so warning on them
+    // fired on most 8-Ks in a corpus sweep and buried the real cases it exists
+    // to surface. `spac_candidate` is the independent, document-free screen for
+    // exactly this question, so require a row there before speaking. An issuer
+    // the screen misses (94% recall overall, 86% on completed de-SPACs) loses
+    // its warning — the right trade for one that is findable at volume.
     const eventDate = effectiveReportDate || filing_date;
     const wouldHaveRecorded = eventDate ? mapItemCodesToSpacEvents(itemCodes, eventDate) : [];
-    if (wouldHaveRecorded.length > 0) {
+    if (wouldHaveRecorded.length > 0 && (await isSpacCandidate(cik))) {
       console.warn(
         `[8-K ${accession_number}] CIK ${cik} has no SPAC row, so ` +
           `${wouldHaveRecorded.length} de-SPAC milestone event(s) were dropped. ` +

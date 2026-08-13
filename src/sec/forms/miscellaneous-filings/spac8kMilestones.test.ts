@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { EntityRepo } from "../../../storage/entity/EntityRepo";
+import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { Form_8_K } from "./Form_8_K";
@@ -78,6 +80,51 @@ describe("processForm8K SPAC milestone wiring", () => {
       form8K,
     });
   }
+
+  async function seedSpacCandidate(cik: number): Promise<void> {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put({
+      cik,
+      name: "Screened Acquisition Corp",
+      current_sic: 6770,
+      signal_sic_6770: true,
+      signal_name_match: true,
+      signal_renamed_from: null,
+      first_reg_form: "S-1",
+      first_reg_date: "2020-11-01",
+      reg_while_spac_named: true,
+      confidence: "high",
+      identified_at: "2026-01-01T00:00:00.000Z",
+    });
+  }
+
+  it("stays silent about a missing SPAC row for an issuer the screen never flagged", async () => {
+    // 1.01 / 2.01 / 5.07 are ordinary 8-K items every operating company files,
+    // so warning on the item codes alone fired on most 8-Ks in a corpus sweep.
+    // A warning that common is unreadable at volume, which costs exactly the
+    // cases it exists to surface.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await run8K(700, "700-da", "1.01", "2021-03-01");
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns about a missing SPAC row when the submissions screen flagged the issuer", async () => {
+    // `spac_candidate` is independent, document-free evidence that this CIK
+    // looks like a SPAC, so a dropped milestone here is worth an operator's
+    // attention.
+    await seedSpacCandidate(701);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await run8K(701, "701-da", "1.01", "2021-03-01");
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain("has no SPAC row");
+    } finally {
+      warn.mockRestore();
+    }
+  });
 
   it("advances a known SPAC through DA -> vote -> completion", async () => {
     await seedSpac(100);

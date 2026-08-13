@@ -5,7 +5,15 @@
  */
 
 import { Static, Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task, TaskError, Workflow } from "workglow";
+import {
+  globalServiceRegistry,
+  IExecuteContext,
+  Task,
+  TaskAbortedError,
+  TaskError,
+  Workflow,
+} from "workglow";
+import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
@@ -21,10 +29,20 @@ export type ProcessSpacTimelineTaskInput = Static<ReturnType<typeof InputSchema>
 
 const OutputSchema = () =>
   Type.Object({
+    // Echoed so a fan-out's index-aligned result columns are self-labelling:
+    // the caller reports per-issuer outcomes and must never mis-attribute one.
+    cik: Type.Number({ title: "CIK", description: "The issuer these counts belong to." }),
     matched: Type.Number({ title: "Matched", description: "Filings on the issuer's timeline." }),
-    processed: Type.Number({ title: "Processed", description: "Filings actually run." }),
+    processed: Type.Number({
+      title: "Processed",
+      description: "Filings that reported success.",
+    }),
     firstDate: Type.String({ title: "First", description: "Earliest filing_date processed." }),
     lastDate: Type.String({ title: "Last", description: "Latest filing_date processed." }),
+    error: Type.String({
+      title: "Error",
+      description: "Failure message for this issuer, or '' when it replayed.",
+    }),
   });
 
 export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchema>>;
@@ -53,6 +71,12 @@ export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchem
  * Concurrency belongs BETWEEN issuers, not within one: SPACs are independent and
  * the writer already serializes per-CIK via `withCikLock`. Run this task once
  * per CIK and fan those out.
+ *
+ * A failure on one issuer is reported through the `error` output port rather
+ * than thrown, so a fan-out over many issuers finishes the rest of the batch.
+ * Cancellation and configuration errors still escape — neither is a verdict
+ * about this issuer, and swallowing them would turn Ctrl-C into a batch of
+ * per-issuer "failures".
  */
 export class ProcessSpacTimelineTask extends Task<
   ProcessSpacTimelineTaskInput,
@@ -77,7 +101,35 @@ export class ProcessSpacTimelineTask extends Task<
   ): Promise<ProcessSpacTimelineTaskOutput> {
     const { cik } = input;
     if (!cik) throw new TaskError("Invalid input");
+    try {
+      return await this.replay(cik, context);
+    } catch (e) {
+      // Cooperative cancellation and a misconfigured CLI are wrong for the
+      // whole batch, not for this issuer, so they keep escaping. Checked in
+      // that order for the reason `sectionRunner` uses: once an abort is in
+      // flight, whatever a torn-down call surfaces is teardown noise.
+      if (e instanceof TaskAbortedError) throw e;
+      if (context.signal?.aborted === true) {
+        const aborted = new TaskAbortedError();
+        aborted.cause = e;
+        throw aborted;
+      }
+      if (e instanceof SecCliConfigurationError) throw e;
+      return {
+        cik,
+        matched: 0,
+        processed: 0,
+        firstDate: "",
+        lastDate: "",
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  }
 
+  private async replay(
+    cik: number,
+    context: IExecuteContext
+  ): Promise<ProcessSpacTimelineTaskOutput> {
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
     const all = (await filingRepo.query({ cik })) ?? [];
 
@@ -97,7 +149,7 @@ export class ProcessSpacTimelineTask extends Task<
       });
 
     if (timeline.length === 0) {
-      return { matched: 0, processed: 0, firstDate: "", lastDate: "" };
+      return { cik, matched: 0, processed: 0, firstDate: "", lastDate: "", error: "" };
     }
 
     const wf = context.own(new Workflow(), {
@@ -107,18 +159,37 @@ export class ProcessSpacTimelineTask extends Task<
     const loop = wf.map({ concurrencyLimit: 1, maxIterations: timeline.length });
     loop.pipe(new ProcessAccessionDocFormTask());
     loop.endMap();
-    await wf.run({
+    const mapped = (await wf.run({
       cik: timeline.map(() => cik),
       form: timeline.map((f) => f.form),
       accessionNumber: timeline.map((f) => f.accession_number),
-      fileName: timeline.map((f) => stripXslPrefix(f.primary_doc)),
-    });
+      // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
+      // without a primary document threw out of the whole issuer's replay.
+      // Left absent, the form task resolves it or dead-letters that one filing.
+      fileName: timeline.map((f) =>
+        f.primary_doc === null ? undefined : stripXslPrefix(f.primary_doc)
+      ),
+    })) as { readonly success?: unknown };
 
     return {
+      cik,
       matched: timeline.length,
-      processed: timeline.length,
+      // `ProcessAccessionDocFormTask` contains its own failures and reports
+      // them on a `success` port, so counting the timeline length here printed
+      // "58/58 filings" for a CIK whose 58 filings all dead-lettered.
+      processed: countSuccesses(mapped.success),
       firstDate: timeline[0]!.filing_date ?? "",
       lastDate: timeline[timeline.length - 1]!.filing_date ?? "",
+      error: "",
     };
   }
+}
+
+/**
+ * Successful iterations in a map's merged `success` column. A single-iteration
+ * map merges to a scalar rather than a one-element array, so both shapes count.
+ */
+function countSuccesses(success: unknown): number {
+  if (Array.isArray(success)) return success.filter((s) => s === true).length;
+  return success === true ? 1 : 0;
 }
