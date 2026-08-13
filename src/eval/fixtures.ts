@@ -89,6 +89,23 @@ export interface EvalExtractor {
    * Defaults (when unset) to comparing every field of the expected row.
    */
   readonly compareFields?: readonly string[];
+  /**
+   * Optional extraction-path rewrite of section prose (e.g. drop post-roster
+   * fluff). Applied by `eval s1 --print-prompts=document|full` so printed
+   * prompts match what {@link run} sends the model. Production extractors that
+   * need the same cut apply it inside `run` themselves.
+   */
+  readonly prepareSectionText?: (sectionText: string) => string;
+  /**
+   * Fields whose values are person names — passed to {@link scoreExtraction} so
+   * credentials do not split identity. Defaults to none.
+   */
+  readonly personNameFields?: readonly string[];
+  /**
+   * When true, exclude from default golden / extract sweeps. Explicit
+   * `--extractors` / `--extractor` still accepts the name.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -103,6 +120,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => ManagementOutputSchema,
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
+    personNameFields: ["full_name"],
   },
   "beneficial-ownership": {
     run: (text, model, context) => extractBeneficialOwnership(text, model, context),
@@ -112,17 +130,20 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
+    personNameFields: ["name"],
   },
   // List extractor over a prospectus Item 105 section: one row per risk-factor
   // caption. Scored on the caption (verbatim) and the category heading it sits
   // under — the section's introductory prose and category headings themselves
   // must NOT produce rows, so emitting one costs precision.
+  // Disabled from default eval sweeps: low priority / may be dropped.
   "risk-factors": {
     run: (text, model, context) => extractRiskFactors(text, model, context),
     instructions: riskFactorsInstructions,
     schema: () => RiskFactorsOutputSchema,
     keyField: "headline",
     compareFields: ["headline", "category"],
+    disabled: true,
   },
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
@@ -188,6 +209,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: executiveCompensationInstructions,
     schema: () => ExecutiveCompensationOutputSchema,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
+    personNameFields: ["person_name"],
   },
   // Multi-row extractor over the Underwriting / Plan of Distribution section.
   // Keyed on the bank's legal name — the field the persist path dedupes on, so
@@ -242,6 +264,15 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     compareFields: ["target_name", "loi_date"],
   },
 };
+
+/**
+ * Apply an extractor's optional {@link EvalExtractor.prepareSectionText} so
+ * printed prompts match the prose {@link EvalExtractor.run} sends the model.
+ */
+export function preparedSectionText(extractor: string, sectionText: string): string {
+  const prepare = EVAL_EXTRACTORS[extractor]?.prepareSectionText;
+  return prepare ? prepare(sectionText) : sectionText;
+}
 
 export interface EvalFixture {
   readonly name: string;

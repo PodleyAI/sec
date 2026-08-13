@@ -133,9 +133,13 @@ export interface RunEvalOptions {
   readonly dumpRaw?: boolean;
 }
 
-/** Extractor ids that actually have at least one committed fixture. */
+/** Extractor ids that actually have at least one committed fixture and are eval-enabled. */
 export function extractorsWithFixtures(): string[] {
-  return [...new Set(EVAL_FIXTURES.map((f) => f.extractor))];
+  return [
+    ...new Set(
+      EVAL_FIXTURES.map((f) => f.extractor).filter((name) => !EVAL_EXTRACTORS[name]?.disabled)
+    ),
+  ];
 }
 
 /**
@@ -190,7 +194,11 @@ function realSectionFixtures(extractor: string | undefined): EvalFixture[] {
 
 function selectFixtures(extractor: string | undefined): EvalFixture[] {
   const all = [...EVAL_FIXTURES];
-  if (extractor === undefined) return all;
+  if (extractor === undefined) {
+    // Default sweep skips disabled extractors (e.g. risk-factors); an explicit
+    // `--extractor risk-factors` still selects them below.
+    return all.filter((f) => !EVAL_EXTRACTORS[f.extractor]?.disabled);
+  }
   const selected = all.filter((f) => f.extractor === extractor);
   // Registration in EVAL_EXTRACTORS does not imply a committed fixture — the CLI
   // validates the name against that map, so an unfixtured extractor would sweep

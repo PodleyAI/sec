@@ -16,6 +16,7 @@
  * comparison so trivial formatting differences are not penalized.
  */
 
+import { normalizePerson } from "../storage/person/PersonNormalization";
 import { foldTypographicPunctuation } from "../util/dataCleaningUtils";
 
 /** One field-level disagreement on a row that matched between candidate and expected. */
@@ -89,6 +90,14 @@ export interface ScoreOptions {
   readonly keyField?: string;
   /** Restrict comparison to these fields; defaults to the keys present on each expected row. */
   readonly fields?: readonly string[];
+  /**
+   * Fields whose values are person names (e.g. `full_name`, `person_name`).
+   * Alignment, de-duplication, and field equality for these use
+   * {@link normalizePerson}'s identity hash so professional credentials
+   * ("M.D.", "Ph.D.", "CFA", "PharmD") do not split or fail the same person —
+   * they may still appear in printed diffs, but they are not part of the match.
+   */
+  readonly personNameFields?: readonly string[];
 }
 
 function normalize(value: unknown): string {
@@ -110,6 +119,39 @@ function normalize(value: unknown): string {
       .replace(/\s+/g, " ")
       .trim()
   );
+}
+
+/**
+ * Match key for a field value. Person-name fields collapse to the production
+ * person hash (credentials stripped); everything else uses {@link normalize}.
+ */
+function matchKey(
+  value: unknown,
+  field: string | undefined,
+  personNameFields: ReadonlySet<string>
+): string {
+  if (field && personNameFields.has(field) && typeof value === "string") {
+    const person = normalizePerson({ name: value });
+    if (person) return `person:${person.person_hash_id}`;
+  }
+  return `raw:${normalize(value)}`;
+}
+
+function valuesAgree(
+  expectedValue: unknown,
+  candidateValue: unknown,
+  field: string,
+  personNameFields: ReadonlySet<string>
+): boolean {
+  if (personNameFields.has(field)) {
+    return (
+      matchKey(expectedValue, field, personNameFields) ===
+      matchKey(candidateValue, field, personNameFields)
+    );
+  }
+  const expectedNorm = normalize(expectedValue);
+  const candidateNorm = normalize(candidateValue);
+  return numericallyEqual(expectedNorm, candidateNorm) ?? candidateNorm === expectedNorm;
 }
 
 function asRow(value: unknown): Record<string, unknown> {
@@ -196,13 +238,14 @@ function fieldsFor(expectedRow: Record<string, unknown>, opts: ScoreOptions): st
  */
 function dedupeByKey(
   rows: readonly Record<string, unknown>[],
-  keyField: string | undefined
+  keyField: string | undefined,
+  personNameFields: ReadonlySet<string>
 ): Record<string, unknown>[] {
   if (!keyField) return [...rows];
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const row of rows) {
-    const key = normalize(row[keyField]);
+    const key = matchKey(row[keyField], keyField, personNameFields);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(row);
@@ -215,9 +258,14 @@ export function scoreExtraction(
   expected: readonly Record<string, unknown>[],
   opts: ScoreOptions = {}
 ): ExtractionScore {
+  const personNameFields = new Set(opts.personNameFields ?? []);
   const rawCandidateCount = candidate.length;
-  const candidateRows = dedupeByKey(candidate.map(asRow), opts.keyField);
-  const expectedRows = dedupeByKey(expected as readonly Record<string, unknown>[], opts.keyField);
+  const candidateRows = dedupeByKey(candidate.map(asRow), opts.keyField, personNameFields);
+  const expectedRows = dedupeByKey(
+    expected as readonly Record<string, unknown>[],
+    opts.keyField,
+    personNameFields
+  );
   const used = new Array<boolean>(candidateRows.length).fill(false);
 
   const findMatch = (expectedRow: Record<string, unknown>, index: number): number => {
@@ -225,9 +273,10 @@ export function scoreExtraction(
       // Positional alignment.
       return index < candidateRows.length && !used[index] ? index : -1;
     }
-    const target = normalize(expectedRow[opts.keyField]);
+    const target = matchKey(expectedRow[opts.keyField], opts.keyField, personNameFields);
     return candidateRows.findIndex(
-      (row, i) => !used[i] && normalize(row[opts.keyField!]) === target
+      (row, i) =>
+        !used[i] && matchKey(row[opts.keyField!], opts.keyField, personNameFields) === target
     );
   };
 
@@ -284,8 +333,10 @@ export function scoreExtraction(
       } else {
         // Scalar: a non-empty candidate value is one produced field-value
         // (counts toward precision even when it disagrees).
-        const candidateValue = normalize(candidateRow[field]);
-        const expectedValue = normalize(expectedRow[field]);
+        const candidateRaw = candidateRow[field];
+        const expectedRaw = expectedRow[field];
+        const candidateValue = normalize(candidateRaw);
+        const expectedValue = normalize(expectedRaw);
         if (candidateValue !== "") candidateFieldValues += 1;
         // A field BOTH sides leave empty is not scored at all. Crediting a match
         // here while the candidate produced no value added to the F1 numerator
@@ -293,18 +344,17 @@ export function scoreExtraction(
         // score exceeded 1 and ranked a model that emits nothing above one that
         // fills the field in.
         if (expectedValue === "" && candidateValue === "") continue;
-        // Numbers agree at the reference's stated precision; everything else is
+        // Person-name fields compare on identity hash (credentials ignored);
+        // numbers agree at the reference's stated precision; everything else is
         // compared as normalized text.
-        const agrees =
-          numericallyEqual(expectedValue, candidateValue) ?? candidateValue === expectedValue;
-        if (agrees) {
+        if (valuesAgree(expectedRaw, candidateRaw, field, personNameFields)) {
           matchedFieldValues += 1;
         } else {
           mismatches.push({
             key,
             field,
-            expected: displayValue(expectedRow[field]),
-            got: displayValue(candidateRow[field]),
+            expected: displayValue(expectedRaw),
+            got: displayValue(candidateRaw),
           });
         }
       }
