@@ -1054,14 +1054,88 @@ sec version coverage resolver underwriter-family
 > destructive half stays unregistered until a family `resolve` exists to restore
 > the rebuild invariant the other kinds rely on.
 
-> Batch `sec resolve` refuses any kind outside its `person|company` allow-list
-> rather than falling through to the company resolver. A family is keyed off the
-> sponsor/underwriter **common** name the AI extractor emitted; only the legal name
-> reaches the observation row, and the canonical family retains just one variant's
-> display name — so a batch pass cannot faithfully re-partition families (a
-> normalizer change that splits a family would reassign every member from that
-> single stored name). Re-extraction (`sec extractor backfill S-1`) is the rebuild
-> path today.
+> Batch `sec resolve` still refuses any kind outside its `person|company`
+> allow-list, but the reason it **had** to has been removed. The family key used to
+> come from the **common** name the AI extractor emitted, which never reached the
+> observation row, so a batch pass had nothing faithful to re-partition from.
+> `normalizeFamilyName` now derives it from the **legal** name via
+> `companyFamilyName` — a value every observation already carries — so a
+> re-partition is a re-computation. Wiring the family-tier `resolve` (and the
+> `drop-previous` it gates) is what remains.
+
+#### Family keys: `companyFamilyName`
+
+`companyFamilyName` (`src/storage/company/CompanyFamilyName.ts`) answers "are
+these the same house", where `normalizeCompany` answers "are these the same
+legal entity". It strips the trailing legal form, series marker (roman numeral
+or year), parenthetical jurisdiction, `Entities affiliated with` bloc prefix,
+and a conjunction stranded by an `& Co.` — so `Churchill Sponsor XIII LLC` and
+`Churchill Sponsor XIV LLC` are one family, and `Morgan Stanley` needs no alias
+to meet `Morgan Stanley & Co.`
+
+It deliberately does **not** strip business-line words. Dropping `Capital`,
+`Ventures`, `Partners`, `Group` reads as harmless boilerplate and is not: those
+words routinely separate two real houses, and `Acme Capital` / `Acme Ventures`
+can be unrelated firms. The asymmetry decides it — an **over**-merge silently
+attributes one house's deals to another and leaves no trace, while an
+**under**-merge is visible as two families and costs one alias:
+
+```bash
+sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
+```
+
+Two shapes the rule is measured against, both from real names in the committed
+golden labels: stripping is **token-exact**, so `Fundamental Global Inc.` is not
+gutted by the `Fund` prefix; and it never empties a name, so `Fund III` — all
+droppable tokens, naming no house — is kept rather than colliding with every
+other such name. `Citigroup Global Markets Inc.` does **not** unify with
+`Citigroup`, a known gap: stripping `Global` would fix it and corrupt
+`Fundamental Global Inc.`, which is the worse error.
+
+> ⚠️ It is **not** an identity key. It throws away exactly what separates two
+> vehicles of one sponsor, so using it to de-duplicate entities merges every SPV
+> a sponsor ever formed. `CompanyFamilyName.test.ts` pins the contract: two funds
+> of one family are ONE family and TWO companies.
+
+#### Diacritics in identity keys
+
+`foldDiacritics` (`src/util/dataCleaningUtils.ts`) folds accented Latin letters
+to their ASCII base, and both identity tiers use it — a filer writing
+`Jörg Müller` in one filing and `Jorg Muller` in the next names one person.
+
+Two passes, because one does not cover the alphabet: NFD splits a letter from
+its combining mark, and an explicit map handles `ø ł đ ð þ ß æ œ …`, which carry
+the mark inside the glyph and have no combining form. An NFD-only fold leaves
+those for the caller's `[^a-z]` filter, which turns `Søren` into `s ren` and
+**deletes** the `Ł` in `Łukasz` — a name silently missing a letter is a
+different name. Case is preserved; callers building a key lowercase themselves.
+
+For persons the fold is applied to the identity **parts**, not just the hash, so
+`person_hash_id` and the `normalized_*` columns `personKey` matches on cannot
+drift apart. The name as filed keeps its accents in `first_name` / `last_name`.
+
+#### Re-keying without a version bump
+
+A resolver version bump preserves rows minted under the old normalizer so the
+two generations can be compared and rolled between. When the old rows are
+disposable, wiping is cheaper and more honest — `version coverage` would
+otherwise report against a generation nobody intends to keep.
+
+`scripts/sql/truncate-identity-tier.sql` clears the derived identity tier
+(canonical person/company/family rows, identity links, junctions, memberships,
+person observations and everything keyed to one) and finishes with
+`extractor_runs`, so the forms sweep's anti-join re-selects every filing at the
+**same** version. Raw EDGAR ingest is left alone — nothing in `entities`,
+`filings`, `cik_names`, `company_facts` or `xbrl_fact` is keyed by a normalizer,
+and re-downloading it costs hours against the rate limit. `family_description`
+is spared too: it is hand-curated and its `(family_kind, normalized_name)` key
+changed, so re-import it rather than lose it.
+
+```bash
+sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
+sec extractor backfill S-1
+sec editorial import data/editorial/family-descriptions.csv
+```
 
 ### SPAC consolidated report
 
