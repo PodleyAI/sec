@@ -32,6 +32,34 @@ export const MAX_RISK_FACTORS_CHARS = 400_000;
 /** Upper bound on a category heading's length; real ones run well under it. */
 const CATEGORY_MAX_CHARS = 200;
 
+/**
+ * A dotted initialism closing the line ("…Operations in the U.S.", "…by the
+ * S.E.C."). Its final period is part of the abbreviation, not sentence
+ * punctuation, so a heading ending this way must not be read as a caption.
+ */
+const TRAILING_INITIALISM = /(?:\b[A-Za-z]\.){2,}$/;
+
+/**
+ * A line that OPENS on the risk noun ("Risks Related to…", "General Risk
+ * Factors", "Summary of Risk Factors"), optionally behind a qualifier. This is
+ * the structural difference between the two things the predicate separates: a
+ * category heading NAMES a topic, so the risk noun is its subject; a caption
+ * PREDICATES something of a subject ("We are subject to risks arising from our
+ * operations in the U.S."), so the risk noun appears mid-sentence.
+ *
+ * It exists solely to gate {@link TRAILING_INITIALISM}. Reading a closing
+ * period as an abbreviation rather than as punctuation is only ever right for a
+ * heading; for any other opener that period is overwhelmingly likely to be real
+ * sentence punctuation, and mis-reading it is expensive in both directions —
+ * such a line becomes the carried heading of the next chunk (so a genuine
+ * caption echoing it can be deleted), and a single one among ninety sentence
+ * captions makes the response look mixed and version-gates the whole filing's
+ * risk disclosure. Declining the bypass falls back to treating the line as a
+ * caption, whose worst case is one extra persisted row.
+ */
+const HEADING_NOUN_OPENER =
+  /^(?:(?:general|additional|other|certain|material|principal|summary\s+of|post-business-combination)\s+)*risks?\b/i;
+
 export function stripHeadingMarkers(paragraph: string): string {
   return paragraph.replace(/^#{1,6}\s*/, "").trim();
 }
@@ -43,16 +71,31 @@ export function stripHeadingMarkers(paragraph: string): string {
  * risk, and — unlike a risk caption, which is a full sentence — does not end in
  * sentence punctuation.
  *
+ * The risk-word requirement is load-bearing and must not be relaxed into a
+ * punctuation-only test. Across the committed golden labels ~52 captions are
+ * bare phrases carrying no terminal punctuation and NONE of them contains the
+ * word "risk"; every one of the 14 filings printing them also prints ordinary
+ * punctuated captions. A punctuation-only predicate would therefore call all 14
+ * mixed and version-gate ~1,411 hand-verified captions' worth of disclosure.
+ *
  * Two callers: {@link chunkRiskFactorText} carries the last heading into the
  * next chunk, where a false positive costs only a redundant context line; and
  * the extractor uses it to ask whether a response's rows are homogeneous in
- * shape, where a mixed verdict fails the section rather than dropping rows.
+ * shape — a verdict that both fails a mixed section and decides whether a
+ * carried-heading echo is dropped, so a miss here costs real rows.
  */
 export function isRiskCategoryHeading(paragraph: string): boolean {
   const line = stripHeadingMarkers(paragraph);
   if (line.length === 0 || line.length > CATEGORY_MAX_CHARS) return false;
   if (line.includes("\n")) return false;
-  if (/[.?!;:]$/.test(line)) return false;
+  // The trailing-initialism bypass is spent only by a line shaped like a
+  // heading; otherwise the closing period is sentence punctuation.
+  if (
+    /[.?!;:]$/.test(line) &&
+    !(TRAILING_INITIALISM.test(line) && HEADING_NOUN_OPENER.test(line))
+  ) {
+    return false;
+  }
   return /\brisks?\b/i.test(line);
 }
 
@@ -61,8 +104,11 @@ export interface RiskFactorChunk {
   readonly text: string;
   /**
    * The category-heading line prepended to this chunk, or null when the chunk
-   * opens on its own heading (or is the first). A row echoing it back is an
-   * artifact of the prefix, not a caption the filer printed.
+   * opens on its own heading (or is the first). A row echoing it back MAY be an
+   * artifact of the prefix — but the line is also verbatim section text, so on
+   * a filing whose risk section is an Item 105(b) summary list it is equally
+   * one of the filer's own bullets. Which it is cannot be decided from the row;
+   * the extractor decides it from the shape of the rest of the section.
    */
   readonly carriedHeading: string | null;
 }
@@ -74,8 +120,15 @@ export interface RiskFactorChunk {
  * can still attribute its captions. That prefix is a verbatim line from the
  * section, so a caption or span quoting it still verifies against the full
  * section text — and it is reported back on the chunk (`carriedHeading`) so the
- * extractor can drop a row echoing it by exact match, which is the one drop
- * that provably discards nothing the filer wrote.
+ * extractor can identify a row echoing it by exact match.
+ *
+ * An exact match identifies the candidate; it does not prove the row is an
+ * artifact. The carried line is a line the filer printed, so a section that
+ * enumerates its risks as bare summary bullets can legitimately return it as a
+ * caption, and de-duplication means the echo branch is only ever reached for a
+ * row no other chunk produced — precisely the case where the two are
+ * indistinguishable. The extractor therefore defers the drop until it has read
+ * the whole section and can judge its shape.
  *
  * A single paragraph longer than `maxChars` becomes its own oversized chunk:
  * splitting inside it would hand the model half a caption and produce a row

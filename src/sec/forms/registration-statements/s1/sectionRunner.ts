@@ -43,8 +43,29 @@ export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDEN
  * risk-factors section (7 chunks) whose citations verify badly can cost ~63
  * model calls before the section dead-letters. Raising either constant
  * multiplies, it does not add.
+ *
+ * A mixed caption shape re-asks on its own, smaller budget
+ * ({@link MIXED_SHAPE_REASK_ATTEMPTS}), so that path's worst case is 42 calls
+ * for the same section rather than 63.
  */
 export const VERIFICATION_ATTEMPTS = 3;
+
+/**
+ * Times a section is re-asked after a {@link MixedRiskCaptionShapeError}.
+ * Deliberately smaller than {@link VERIFICATION_ATTEMPTS}, because the two
+ * re-asks are betting on different things. A failed span verification re-asks a
+ * MALFORMED CITATION, and malformed citations are empirically unstable run to
+ * run — three consecutive live runs of one section produced three different
+ * spans for the same correct row, so extra attempts genuinely buy answers. A
+ * mixed shape re-asks for a re-classification of a byte-identical prompt under
+ * greedy decoding (`getExtractionTemperature()` defaults to 0, the nonce is off
+ * by default, and the extraction is not cacheable), so the only source of
+ * variation is provider-side batching. A third roll of that die is much less
+ * likely to differ from the second than in the citation case, and each roll on
+ * this path costs a full chunked enumeration of the largest section in the
+ * filing.
+ */
+export const MIXED_SHAPE_REASK_ATTEMPTS = 2;
 
 export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly sectionName: string;
@@ -167,8 +188,29 @@ export function makeRunSection(opts: {
       // — the same correct underwriter each time. Without a re-ask the section
       // is lost about two runs in three; the rest of the pipeline already
       // retries transport-level failures for the same reason.
+      // Counted separately from the loop index: the mixed-shape re-ask has its
+      // own, smaller budget, and an attempt spent on one question must not
+      // spend the other's.
+      let mixedShapeAttempts = 0;
       for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
-        raw = await sargs.extract(text);
+        try {
+          raw = await sargs.extract(text);
+        } catch (e) {
+          // A mixed caption shape is a property of ONE generation, not a verdict
+          // about the section: the model echoed a category heading back as a
+          // row, and the next call usually does not. Without this the throw
+          // escapes the loop entirely and the section gets zero re-asks, unlike
+          // every other recoverable response-shape failure here.
+          if (!(e instanceof MixedRiskCaptionShapeError)) throw e;
+          mixedShapeAttempts++;
+          if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
+            // Say what the re-ask cost, so the dead-letter detail records it
+            // rather than reading as a single unlucky generation.
+            e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
+            throw e;
+          }
+          continue;
+        }
         confident = raw.filter((r) => r.confidence >= floor);
         droppedUnverified = 0;
         droppedTooLong = 0;

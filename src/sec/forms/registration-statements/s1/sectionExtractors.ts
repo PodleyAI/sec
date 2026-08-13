@@ -102,11 +102,14 @@ export class NonceMismatchError extends Error {
  * exists to prevent. Failing the section instead puts it on the retry worklist
  * where a human can look at it.
  *
- * Echoes of the heading {@link chunkRiskFactorText} itself prefixed onto a chunk
- * are removed by exact match before this check, so what reaches it is genuinely
- * ambiguous rather than an artifact of our own chunking.
+ * Rows exactly echoing the heading {@link chunkRiskFactorText} itself prefixed
+ * onto a chunk are excluded from this count, so an artifact of our own chunking
+ * can never be what fails the section — and, being excluded, can never hide a
+ * genuine mix either.
  *
- * {@link makeRunSection} records it under the `MIXED_CAPTION_SHAPE` reason code.
+ * {@link makeRunSection} records it under the `MIXED_CAPTION_SHAPE` reason code
+ * and re-asks the model first: a mixed response is a fact about one generation,
+ * not a verdict about the section.
  */
 export class MixedRiskCaptionShapeError extends Error {
   constructor(
@@ -748,9 +751,10 @@ async function runStructured(
   const context = callerContext ?? makeExecuteContext();
   const modelId = resolveModelId(model);
   // Correctness safety-net: local providers (GGUF especially) must have their
-  // weights on disk before generation — cloud models no-op here. Memoized, so the
-  // per-section sweep pays the download once; a form/eval run that prefetched with
-  // a real context (for visible progress) already satisfied this.
+  // weights on disk before generation, and a cloud id is verified against the
+  // provider so a typo fails here rather than mid-extraction. Memoized, so the
+  // per-section sweep pays it once; a form/eval run that prefetched with a real
+  // context (for visible progress) already satisfied this.
   await ensureModelDownloaded(modelId, context);
   const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const configured = getExtractionTemperature();
@@ -875,7 +879,7 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
@@ -1638,8 +1642,13 @@ export function riskFactorsInstructions(): string {
  * is the largest in an S-1 and enumerates far more rows than one response can
  * hold, so the text is split into paragraph-aligned chunks
  * ({@link chunkRiskFactorText}) and each is enumerated by its own call; rows are
- * concatenated in document order, de-duplicated on the caption, and stripped of
- * echoes of the category heading the chunker itself prefixed onto a chunk.
+ * concatenated in document order and de-duplicated on the caption. A row
+ * echoing the category heading the chunker itself prefixed onto a chunk is
+ * dropped only when the rest of the section reads in sentence captions — on a
+ * filing whose section is an Item 105(b) summary list, that same line is one of
+ * the filer's own bullets, so the shape of the section decides. Whatever is
+ * dropped is reported verbatim through `onDroppedEchoes` so the caller, which
+ * knows the filing, can record it for triage.
  *
  * A chunk that fails propagates, failing the section as a whole: persisting the
  * captions that happened to come back before the failure would record a
@@ -1648,11 +1657,16 @@ export function riskFactorsInstructions(): string {
 export async function extractRiskFactors(
   sectionText: string,
   model: ModelConfig,
-  context?: IExecuteContext
+  context?: IExecuteContext,
+  onDroppedEchoes?: (headlines: readonly string[]) => void
 ): Promise<RiskFactorRow[]> {
   const chunks = chunkRiskFactorText(sectionText);
   const out: RiskFactorRow[] = [];
   const seen = new Set<string>();
+  // Rows that echo a carried heading, remembered but NOT dropped yet: whether
+  // the echo is our artifact or one of the filer's own summary bullets is only
+  // decided by the shape of the rest of the section, below.
+  const echoKeys = new Set<string>();
   for (const chunk of chunks) {
     const obj = await runGuardedExtraction(
       "risk factors",
@@ -1672,18 +1686,18 @@ export async function extractRiskFactors(
       const key = riskHeadlineKey(risk?.headline);
       if (key === "" || seen.has(key)) continue;
       seen.add(key);
+      out.push(risk);
       // The carried prefix is a line this code prepended so a chunk starting
-      // mid-category can attribute its captions; a row echoing it is that
-      // artifact, not a caption the filer printed. Matched EXACTLY, so no
-      // caption the model read out of the body is ever at stake. Keyed into
-      // `seen` above, so a later chunk echoing the same heading goes too.
+      // mid-category can attribute its captions. Matched EXACTLY, so no caption
+      // the model reworded is ever at stake — but an exact match alone does not
+      // prove the row is the artifact: on a filing whose section IS a summary
+      // list, the carried line is also one of the filer's own bullets.
       if (
         carriedKey !== null &&
         riskHeadlineKey(stripHeadingMarkers(risk?.headline ?? "")) === carriedKey
       ) {
-        continue;
+        echoKeys.add(key);
       }
-      out.push(risk);
     }
   }
 
@@ -1695,11 +1709,36 @@ export async function extractRiskFactors(
   // whose "headings" ARE the captions; none is an ordinary sentence-caption
   // list. Mixed is unanswerable: dropping either minority records a partial
   // disclosure as complete, so the section fails onto the retry worklist.
-  const headingLike = out.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
-  if (headingLike > 0 && headingLike < out.length) {
-    throw new MixedRiskCaptionShapeError(headingLike, out.length);
+  //
+  // The verdict is computed over the rows MINUS the carried echoes, so a
+  // dropped echo can never mask a genuine mix; and it is what decides the
+  // echoes' fate, because de-duplication means the echo branch is reachable
+  // only for a caption no chunk emitted on its own — precisely the case where
+  // artifact and real bullet are indistinguishable row-by-row.
+  const body = out.filter((risk) => !echoKeys.has(riskHeadlineKey(risk.headline)));
+  const headingLike = body.filter((risk) => isRiskCategoryHeading(risk.headline)).length;
+  if (headingLike > 0 && headingLike < body.length) {
+    throw new MixedRiskCaptionShapeError(headingLike, body.length);
   }
-  return out;
+  // Every surviving row is a bare phrase: the section is a summary list, so the
+  // carried line is one of its captions and dropping it loses a disclosed risk.
+  // Otherwise the section reads in sentences and the echo is the heading this
+  // code prepended.
+  const keepEchoes = body.length > 0 && headingLike === body.length;
+  if (!keepEchoes && echoKeys.size > 0) {
+    // Report the VERBATIM dropped headlines, not a count. This branch deletes
+    // rows a model returned and lets the section resolve as complete, and a
+    // console warning is not a record: it names no accession, survives no
+    // sweep, and is exactly what made the earlier ratio-gated variant of this
+    // drop unreviewable. The caller has the filing's identity in scope and
+    // turns these into a triage entry.
+    onDroppedEchoes?.(
+      out
+        .filter((risk) => echoKeys.has(riskHeadlineKey(risk.headline)))
+        .map((risk) => risk.headline)
+    );
+  }
+  return keepEchoes ? out : body;
 }
 
 export function useOfProceedsInstructions(): string {

@@ -8,12 +8,15 @@ import { globalServiceRegistry } from "workglow";
 import {
   EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
   MODEL_ERROR_REASON_CODES,
+  NONDETERMINISTIC_REASON_CODES,
+  NONDETERMINISTIC_RETRY_ATTEMPTS,
   type DeadLetterReasonCode,
   type ExtractionDeadLetter,
   type ExtractionDeadLetterRepositoryStorage,
 } from "./ExtractionDeadLetterSchema";
 
 const MODEL_ERROR_REASONS: ReadonlySet<string> = new Set(MODEL_ERROR_REASON_CODES);
+const NONDETERMINISTIC_REASONS: ReadonlySet<string> = new Set(NONDETERMINISTIC_REASON_CODES);
 
 export interface DeadLetterInput {
   readonly extractor_id: string;
@@ -49,13 +52,27 @@ export class ExtractionDeadLetterRepo {
   }
 
   /**
-   * Records (or re-records) a version-fixable failure. Re-failure increments
-   * attempts in place and refreshes reason/version/timestamps; status resets to
-   * pending so a previously-resolved-then-failed-again entry is re-surfaced.
+   * Records (or re-records) a version-fixable failure. Re-failure refreshes
+   * reason/version/timestamps; status resets to pending so a
+   * previously-resolved-then-failed-again entry is re-surfaced.
+   *
+   * `attempts` counts CONSECUTIVE failures of the current
+   * `(reason_code, failed_extractor_version)` pair, restarting at 1 whenever
+   * either changes. A dead-letter row is keyed by section, not by failure, so a
+   * lifetime counter is shared across every reason code and version the section
+   * ever hit — and {@link listEligible} spends it on a decision scoped to one
+   * pair. A section that failed span verification three times under an older
+   * version would otherwise arrive at its FIRST bounded-retry failure already
+   * over budget and get zero retries, making that path inert for exactly the
+   * entries it exists to recover.
    */
   async record(input: DeadLetterInput): Promise<void> {
     const now = new Date().toISOString();
     const existing = await this.get(input.extractor_id, input.accession_number, input.section_name);
+    const sameFailure =
+      existing !== undefined &&
+      existing.reason_code === input.reason_code &&
+      existing.failed_extractor_version === input.failed_extractor_version;
     await this.storage.put({
       extractor_id: input.extractor_id,
       accession_number: input.accession_number,
@@ -64,13 +81,18 @@ export class ExtractionDeadLetterRepo {
       detail: input.detail,
       failed_extractor_version: input.failed_extractor_version,
       status: "pending",
-      attempts: (existing?.attempts ?? 0) + 1,
+      attempts: sameFailure ? existing.attempts + 1 : 1,
       first_seen_at: existing?.first_seen_at ?? now,
       last_attempt_at: now,
       source_run_id: input.source_run_id,
     });
   }
 
+  /**
+   * Marks the section clean. `attempts` is zeroed explicitly rather than
+   * inherited through the spread: it counts CONSECUTIVE failures, and a clean
+   * run ends the streak.
+   */
   async markResolved(
     extractor_id: string,
     accession_number: string,
@@ -81,6 +103,7 @@ export class ExtractionDeadLetterRepo {
     await this.storage.put({
       ...existing,
       status: "resolved",
+      attempts: 0,
       last_attempt_at: new Date().toISOString(),
     });
   }
@@ -91,18 +114,29 @@ export class ExtractionDeadLetterRepo {
   }
 
   /**
-   * Pending entries eligible for retry: either the failing version differs from
-   * the current version (the usual version-fixable path), OR the reason code is a
-   * model/provider-availability error ({@link MODEL_ERROR_REASON_CODES}), which a
-   * version bump does not address — those recover by re-running once the model is
-   * registered, so they stay eligible under the same version.
+   * Pending entries eligible for retry. Three ways in:
+   *
+   * - the failing version differs from the current version — the usual
+   *   version-fixable path;
+   * - the reason code is a model/provider-availability error
+   *   ({@link MODEL_ERROR_REASON_CODES}), which a version bump does not address:
+   *   those recover by re-running once the model is registered, unbounded;
+   * - the reason code is a non-deterministic model response
+   *   ({@link NONDETERMINISTIC_REASON_CODES}), which the next call may well get
+   *   right — but only for {@link NONDETERMINISTIC_RETRY_ATTEMPTS} recorded
+   *   attempts, after which it falls back to the version gate rather than
+   *   re-paying the AI cost of an ambiguous section on every sweep forever.
    */
   async listEligible(
     extractor_id: string,
     currentVersion: string
   ): Promise<ExtractionDeadLetter[]> {
     return (await this.listPending(extractor_id)).filter(
-      (r) => r.failed_extractor_version !== currentVersion || MODEL_ERROR_REASONS.has(r.reason_code)
+      (r) =>
+        r.failed_extractor_version !== currentVersion ||
+        MODEL_ERROR_REASONS.has(r.reason_code) ||
+        (NONDETERMINISTIC_REASONS.has(r.reason_code) &&
+          r.attempts < NONDETERMINISTIC_RETRY_ATTEMPTS)
     );
   }
 
