@@ -397,9 +397,18 @@ thinking model wraps the JSON in reasoning.
   rows to `expected` by a key field (e.g. `full_name`) and scores field-level agreement,
   normalized (case/whitespace) and forgiving of provenance fields. Reports `score`
   (names + titles), `found` (entity recall), and `prec` (1 − hallucinated rows).
-- **Cost** — the generation task exposes no token usage, so cost is **estimated**
-  (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
-  Absolute dollars are approximate; the ranking is what matters.
+- **Cost** — two regimes, and the command tells you which one you got.
+  `sec eval s1` prices from **provider-stated usage** when the call returned any
+  (`costFromUsage`, `src/task/eval/evalS1Run.ts`): a stated `extra.cost` is used
+  verbatim, else billed token counts are priced through the rate card, and only
+  a call that surfaced no usage at all falls back to the estimate.
+  `sec eval extract` and `sec eval unit-terms` are still **estimated**
+  throughout (`estimateCost`, `src/eval/modelPricing.ts`: ~4 chars/token ×
+  public per-M pricing; local models $0), as is every failed run's `$0` row.
+  The rate card is `src/config/listPricing.ts`; a promotional rate there carries
+  an `EXPIRES <date>` marker that its unit test fails on once the date has
+  passed, so an estimate cannot quietly outlive the price it was built from.
+  Estimated dollars are approximate; the ranking is what matters.
 - **Speed** — measured wall-clock latency per extraction, under whatever
   parallelism the sweep ran at. `sec eval s1` therefore labels the column
   `lat@<s1>x<section>x<model>`: a `1x5x4` figure is not comparable with a `1x1x1`

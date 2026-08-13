@@ -79,12 +79,33 @@ const XAI_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
 /**
  * DeepSeek cache-miss input price — each extraction section is a distinct
  * prompt, so the hit rate would understate real cost by ~50x.
+ *
+ * First substring match wins, so more specific ids must come first: a dated
+ * snapshot (`deepseek-v4-flash-0731`) has to precede the bare id it extends
+ * (`deepseek-v4-flash`), which would otherwise swallow it. The snapshots price
+ * identically today, so a misordered row costs nothing until one of them
+ * diverges — and then it is a silently wrong dollar figure, not an error.
  */
 const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
-  ["deepseek-v4-flash", rates(0.14, 0.28, 0.014)],
   ["deepseek-v4-flash-0731", rates(0.14, 0.28, 0.014)],
+  ["deepseek-v4-flash", rates(0.14, 0.28, 0.014)],
   ["deepseek-v4-pro-0813", rates(0.435, 0.87, 0.0435)],
   ["deepseek-v4-pro", rates(0.435, 0.87, 0.0435)],
+];
+
+/**
+ * The substring-matched tables, in lookup order. Exported so the ordering
+ * invariant every one of them depends on — no entry may be a prefix of a later
+ * entry — is asserted structurally rather than through a rate that happens to
+ * differ today.
+ */
+export const SUBSTRING_PRICING_TABLES: ReadonlyArray<
+  readonly [name: string, ReadonlyArray<readonly [match: string, ModelPricing]>]
+> = [
+  ["OPENAI_PRICING", OPENAI_PRICING],
+  ["GEMINI_PRICING", GEMINI_PRICING],
+  ["XAI_PRICING", XAI_PRICING],
+  ["DEEPSEEK_PRICING", DEEPSEEK_PRICING],
 ];
 
 /**
@@ -97,12 +118,13 @@ export function listPricingForModelId(modelId: string): ModelPricing | undefined
   if (modelId.startsWith("hfi:") || modelId.startsWith("open-router:")) return undefined;
 
   if (/opus/i.test(modelId)) return rates(5, 25, 0.5, 6.25);
+  // EXPIRES 2026-08-31: introductory pricing; list is $3/$15 per MTok. Revert to rates(3, 15, 0.3, 3.75).
   if (/sonnet-5/i.test(modelId)) return rates(2, 10, 0.2, 2.5);
   if (/sonnet/i.test(modelId)) return rates(3, 15, 0.3, 3.75);
   if (/haiku/i.test(modelId)) return rates(1, 5, 0.1, 1.25);
 
   const id = modelId.toLowerCase();
-  for (const table of [OPENAI_PRICING, GEMINI_PRICING, XAI_PRICING, DEEPSEEK_PRICING]) {
+  for (const [, table] of SUBSTRING_PRICING_TABLES) {
     const hit = table.find(([match]) => id.includes(match));
     if (hit) return hit[1];
   }
