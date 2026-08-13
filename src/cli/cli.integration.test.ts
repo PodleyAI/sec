@@ -77,4 +77,11 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("stats");
     expect(output).toContain("reset");
   });
+
+  it("should show spac download subcommands", async () => {
+    const output = await runCli("spac", "download", "--help");
+    expect(output).toContain("registration");
+    expect(output).toContain("8k");
+    expect(output).toContain("everything");
+  });
 });

@@ -1150,7 +1150,39 @@ are ingested, and so the forms sweep has a worklist to aim at.
 sec update spacs                        # incremental: CIKs whose submissions changed
 sec update spacs --full                 # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
+sec spac download registration [--confidence high,medium] [--force]
+sec spac download 8k
+sec spac download everything
 ```
+
+`sec spac download` fills the on-disk `accessiondocs` cache for those candidates
+**without** running extractors. Default confidence is high+medium. Registration
+downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every
+filing for those CIKs. Already-cached files are skipped. Run this before
+`sec update forms` / `sec spac process` so the forms sweep is a cache hit.
+
+`--force` **deletes** the cache entry and then re-fetches. The delete is the
+point: the fetch task's own file cache keys off that exact path and is consulted
+before the fetch runs, so without it a "re-fetch" is served from the very file
+being replaced and a corrupt entry can never be evicted. Deleting is also the
+only variant that keeps `SecFetchFileOutputCache.saveOutput`'s tmp+rename as the
+single writer — `CacheCoordinator.lookup` and `.save` share one gate, so a
+cache-bypass flag would suppress the write too and force a non-atomic
+hand-rolled one.
+
+> ⚠️ The delete precedes the fetch, so a `--force` run whose fetch then fails
+> leaves NO cached document — a merely-stale entry ends up empty, and a mistyped
+> broad run evicts a large cache before re-fetching it at the SEC rate limit.
+> This is **not** the behavior of `sec bootstrap download-docs --force`, which
+> streams from a tarball and overwrites once the bytes are in hand, so it has no
+> such window. Scope a `--force` run before using it; losses show up in the
+> `failed` count and a re-run refills them.
+
+Failures never abort the sweep: each one is counted with a short reason (404 vs
+403 vs an exhausted-retry 429 vs "no text" stay distinguishable), warned per
+filing, and tallied by reason at the end. Skips are reported three ways —
+already-cached, no filename on the filing, and a filer-authored name that could
+not be made path-safe — because only the first is a healthy steady state.
 
 Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
