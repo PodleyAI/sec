@@ -34,10 +34,10 @@ import { extractPrimaryDocFromSubmission } from "../bootstrap/feedTarball";
 import { FORMS_SWEEP_CONCURRENCY_LIMIT } from "../forms/formsSweep";
 import { SecFetchAccessionDocTask } from "../forms/SecFetchAccessionDocTask";
 import {
-  DEFAULT_SPAC_DOWNLOAD_CONFIDENCE,
-  MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY,
   accessionDocCacheRelative,
+  DEFAULT_SPAC_DOWNLOAD_CONFIDENCE,
   formsForDownloadSet,
+  MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY,
   spacDocFetchFileName,
   type SpacDownloadSet,
 } from "./spacCandidateDownload";
@@ -221,7 +221,7 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
     let text: string | undefined;
     wf.pipe(
       new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
-      async function capture(fetchOutput: FetchUrlTaskOutput) {
+      async function checkDownloadSuccess(fetchOutput: FetchUrlTaskOutput) {
         text = fetchOutput.text ?? undefined;
         return { success: true };
       }
