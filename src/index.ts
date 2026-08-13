@@ -174,6 +174,7 @@ export {
   hasCompanyEnding,
   normalizeCompanyName,
 } from "./storage/company/CompanyNormalization";
+export { companyFamilyName } from "./storage/company/CompanyFamilyName";
 export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
 export { normalizePhone } from "./storage/phone/PhoneNormalization";
 
