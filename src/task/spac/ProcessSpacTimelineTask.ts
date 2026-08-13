@@ -17,7 +17,7 @@ import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
-import { stripXslPrefix } from "../../util/accessionDocPath";
+import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
 
 const InputSchema = () =>
@@ -145,7 +145,9 @@ export class ProcessSpacTimelineTask extends Task<
         // creates the SPAC row and have its events silently dropped.
         const ad = a.filing_date ?? "9999-12-31";
         const bd = b.filing_date ?? "9999-12-31";
-        return ad === bd ? a.accession_number.localeCompare(b.accession_number) : ad.localeCompare(bd);
+        return ad === bd
+          ? a.accession_number.localeCompare(b.accession_number)
+          : ad.localeCompare(bd);
       });
 
     if (timeline.length === 0) {
@@ -166,9 +168,7 @@ export class ProcessSpacTimelineTask extends Task<
       // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
       // without a primary document threw out of the whole issuer's replay.
       // Left absent, the form task resolves it or dead-letters that one filing.
-      fileName: timeline.map((f) =>
-        f.primary_doc === null ? undefined : stripXslPrefix(f.primary_doc)
-      ),
+      fileName: timeline.map((f) => resolvePrimaryDocName(f.primary_doc)),
     })) as { readonly success?: unknown };
 
     return {
@@ -186,10 +186,10 @@ export class ProcessSpacTimelineTask extends Task<
 }
 
 /**
- * Successful iterations in a map's merged `success` column. A single-iteration
- * map merges to a scalar rather than a one-element array, so both shapes count.
+ * Successful iterations in a map's merged `success` column, which is one array
+ * per output port regardless of how many iterations ran — a one-filing replay
+ * merges to `[true]`, not to `true`.
  */
 function countSuccesses(success: unknown): number {
-  if (Array.isArray(success)) return success.filter((s) => s === true).length;
-  return success === true ? 1 : 0;
+  return Array.isArray(success) ? success.filter((s) => s === true).length : 0;
 }

@@ -26,6 +26,23 @@ export function stripXslPrefix(fileName: string): string {
 }
 
 /**
+ * The document filename to fetch for a filing, or `undefined` when the filing
+ * names none.
+ *
+ * `Filing.primary_doc` is nullable and EDGAR also serves the field as an empty
+ * string, so callers cannot hand it straight to {@link stripXslPrefix} — which
+ * takes a `string` and would throw on a null. A filing with no primary document
+ * is not a crash, it is a filing the forms pipeline dead-letters
+ * `PRIMARY_DOC_UNRESOLVED`; returning `undefined` is what lets it reach that
+ * path as one contained failure instead of taking its whole batch down.
+ */
+export function resolvePrimaryDocName(primaryDoc: string | null | undefined): string | undefined {
+  const raw = (primaryDoc ?? "").trim();
+  if (raw === "") return undefined;
+  return stripXslPrefix(raw);
+}
+
+/**
  * Validates a filer-authored primary-document filename before it is used to
  * compose an on-disk cache path. Rejects anything that could escape the
  * accession-doc directory (path separators, parent-directory refs, absolute

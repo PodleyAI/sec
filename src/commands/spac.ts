@@ -89,31 +89,26 @@ const SPAC_CANDIDATE_COLUMNS: ReadonlyArray<ColumnDef> = [
  * {@link ProcessSpacTimelineTask} output port, index-aligned across columns.
  */
 type SpacProcessColumns = {
-  readonly [K in keyof ProcessSpacTimelineTaskOutput]?:
-    | ProcessSpacTimelineTaskOutput[K]
-    | ReadonlyArray<ProcessSpacTimelineTaskOutput[K]>;
+  readonly [K in keyof ProcessSpacTimelineTaskOutput]?: ReadonlyArray<
+    ProcessSpacTimelineTaskOutput[K]
+  >;
 };
 
 /**
  * Transposes the fan-out's column arrays back into one row per issuer.
  *
- * A map merges each output port into an array across iterations, but collapses
- * to a bare scalar for a single iteration — so `sec spac process 1234567` and
- * `sec spac process A B C` arrive in different shapes and both must render.
- * `cik` is echoed by the task rather than zipped from the input list, so a row
- * can never be reported under the wrong issuer.
+ * The map merges each output port into an array across iterations — always an
+ * array, including for the one-issuer run that is the commonest invocation, so
+ * there is no scalar shape to unwrap. `cik` is echoed by the task rather than
+ * zipped from the input list, so a row can never be reported under the wrong
+ * issuer.
  */
 export function spacProcessRows(
   columns: SpacProcessColumns
 ): readonly ProcessSpacTimelineTaskOutput[] {
   const column = <K extends keyof ProcessSpacTimelineTaskOutput>(
     key: K
-  ): ReadonlyArray<ProcessSpacTimelineTaskOutput[K] | undefined> => {
-    const value = columns[key];
-    return Array.isArray(value)
-      ? (value as ReadonlyArray<ProcessSpacTimelineTaskOutput[K]>)
-      : [value as ProcessSpacTimelineTaskOutput[K] | undefined];
-  };
+  ): ReadonlyArray<ProcessSpacTimelineTaskOutput[K] | undefined> => columns[key] ?? [];
   const ciks = column("cik");
   const matched = column("matched");
   const processed = column("processed");
