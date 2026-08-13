@@ -19,6 +19,14 @@ import {
   ListSpacCandidatesTask,
   type ListSpacCandidatesTaskOutput,
 } from "../task/spac/ListSpacCandidatesTask";
+import {
+  DownloadSpacCandidateDocsTask,
+  type DownloadSpacCandidateDocsTaskOutput,
+} from "../task/spac/DownloadSpacCandidateDocsTask";
+import {
+  parseSpacDownloadConfidence,
+  type SpacDownloadSet,
+} from "../task/spac/spacCandidateDownload";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import {
   ProcessSpacTimelineTask,
@@ -298,6 +306,52 @@ export function registerSpacCommands(program: Command): void {
         );
       }
     );
+
+  const download = spacCmd
+    .command("download")
+    .description(
+      "Pre-fetch accession documents for SPAC candidates into the on-disk cache (no extraction)"
+    );
+
+  const addDownloadLeaf = (name: string, set: SpacDownloadSet, blurb: string): void => {
+    download
+      .command(name)
+      .description(blurb)
+      .option(
+        "--confidence <csv>",
+        "Confidence tiers to include (default high,medium)",
+        "high,medium"
+      )
+      .option("--force", "Re-download even when the cache file already exists", false)
+      .action(async (opts: { confidence: string; force?: boolean }) => {
+        await runCommand(async () => {
+          const out = await runWorkflowCli<DownloadSpacCandidateDocsTaskOutput>([
+            new DownloadSpacCandidateDocsTask({
+              defaults: {
+                set,
+                confidence: parseSpacDownloadConfidence(opts.confidence),
+                force: opts.force === true,
+              },
+            }),
+          ]);
+          console.log(
+            `SPAC docs: ${out.candidates} candidates; ${out.matched} matched; ${out.skipped} skipped; ${out.downloaded} downloaded; ${out.failed} failed`
+          );
+        });
+      });
+  };
+
+  addDownloadLeaf(
+    "registration",
+    "registration",
+    "Download S-1/F-1/DRS family filings for high+medium SPAC candidates"
+  );
+  addDownloadLeaf("8k", "8k", "Download every 8-K/8-K/A for high+medium SPAC candidates");
+  addDownloadLeaf(
+    "everything",
+    "all",
+    "Download every filing for high+medium SPAC candidates"
+  );
 
   // De-SPAC linkage refresh: the item-2.01 8-K that closes a combination is
   // usually processed BEFORE the surviving entity's renamed submissions land, so

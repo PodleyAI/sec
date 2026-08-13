@@ -1080,7 +1080,12 @@ are ingested, and so the forms sweep has a worklist to aim at.
 sec update spacs                        # incremental: CIKs whose submissions changed
 sec update spacs --full                 # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
+sec spac download registration [--confidence high,medium] [--force]
+sec spac download 8k
+sec spac download everything
 ```
+
+`sec spac download` fills the on-disk `accessiondocs` cache for those candidates **without** running extractors. Default confidence is high+medium. Registration downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every filing for those CIKs. Already-cached files are skipped (`--force` re-fetches). Run this before `sec update forms` / `sec spac process` so the forms sweep is a cache hit.
 
 Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
