@@ -211,9 +211,18 @@ describe("eval value-less options", () => {
     expect(err).toContain('unknown extractor "nope"');
   });
 
-  it("rejects eval s1 --concurrency 0 before a sweep", async () => {
-    const err = await runEval(["s1", "--concurrency", "0", "--extractors", "nope"]);
-    expect(err).toMatch(/concurrency must be an integer >= 1/);
+  /**
+   * Each axis validates before the sweep loads the corpus or registers models,
+   * and the message names the flag that was typed — one shared "concurrency
+   * must be an integer >= 1" would not say which of the three to fix.
+   */
+  it.each([
+    ["--concurrency-s1", /--concurrency-s1 must be an integer >= 1/],
+    ["--concurrency-section", /--concurrency-section must be an integer >= 1/],
+    ["--concurrency-section-model", /--concurrency-section-model must be an integer >= 1/],
+  ])("rejects eval s1 %s 0 before a sweep", async (flag, expected) => {
+    const err = await runEval(["s1", flag, "0", "--extractors", "nope"]);
+    expect(err).toMatch(expected);
     expect(process.exitCode).toBe(1);
   });
 });

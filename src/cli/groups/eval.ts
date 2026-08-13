@@ -32,7 +32,12 @@ import {
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
 import { EvalS1Task, GOLDEN_REFERENCE, type OracleReport } from "../../task/eval/EvalS1Task";
-import { resolveEvalS1Concurrency } from "../../task/eval/evalS1Concurrency";
+import {
+  evalS1ConcurrencyProduct,
+  formatEvalS1Concurrency,
+  resolveEvalS1Concurrency,
+  EVAL_S1_CONCURRENCY_DEFAULTS,
+} from "../../task/eval/evalS1Concurrency";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 
@@ -390,7 +395,15 @@ function printOracleTable(report: OracleReport, details: boolean): void {
     ["prec", 6, (m) => (m.role === "reference" ? "—" : pct(m.avgPrecision))],
     ["rows", 6, (m) => String(m.totalRows)],
     ["dist", 6, (m) => String(m.totalDistinctRows)],
-    ["latency", 10, (m) => `${m.avgLatencyMs.toFixed(0)}ms`],
+    // Latency is measured under whatever parallelism the sweep ran at, so the
+    // header carries all three axes: an unlabelled `latency` invited comparison
+    // of a serial figure against a 20-wide one as though they measured the same
+    // thing, and wall-clock here includes time queued behind the sweep itself.
+    [
+      `lat@${formatEvalS1Concurrency(report.concurrency)}`,
+      12,
+      (m) => `${m.avgLatencyMs.toFixed(0)}ms`,
+    ],
     ["est.cost", 10, (m) => usd(m.totalUsd)],
     ["ok", 6, (m) => `${m.okRuns}/${m.runs}`],
   ];
@@ -404,7 +417,15 @@ function printOracleTable(report: OracleReport, details: boolean): void {
       "invented values; recall = reference entities the model also found;\nprec = model " +
       "entities the reference also had (1 − hallucination), over DISTINCT rows; rows = raw " +
       "rows emitted, dist = distinct after de-duping on the key field (gap = duplicate " +
-      "over-production).\nReference rows are the truth, so it has no agreement score."
+      "over-production).\nReference rows are the truth, so it has no agreement score.\n" +
+      `lat@${formatEvalS1Concurrency(report.concurrency)} = mean wall-clock per extraction ` +
+      `measured with ${report.concurrency.s1} filing(s) x ${report.concurrency.section} ` +
+      `section(s) x ${report.concurrency.sectionModel} model(s) in flight ` +
+      `(${evalS1ConcurrencyProduct(report.concurrency)} concurrent extractions).\n` +
+      "Wall-clock includes time queued behind the sweep's own other extractions — a local " +
+      "model's especially, since one worker serves them all — so set\n" +
+      "--concurrency-s1 1 --concurrency-section 1 --concurrency-section-model 1 for figures " +
+      "comparable across runs."
   );
   const failed = report.results.filter((r) => !r.ok);
   if (failed.length) {
@@ -629,9 +650,24 @@ export function addEvalCommands(program: Command): void {
       "override every extractor's baked-in thinking effort for this sweep " +
         "(none|low|medium|high|extra|ultra)"
     )
+    // Three axes rather than one number: they multiply, so a single flag can
+    // only bound the product by guessing how the operator wants it spent.
     .option(
-      "--concurrency <n>",
-      "max S-1 sections to extract at once (default 5)",
+      "--concurrency-s1 <n>",
+      `filings extracted at once (default ${EVAL_S1_CONCURRENCY_DEFAULTS.s1}); ` +
+        `s1 x section x section-model = concurrent extractions`,
+      parseIntOption
+    )
+    .option(
+      "--concurrency-section <n>",
+      `sections of one filing extracted at once (default ${EVAL_S1_CONCURRENCY_DEFAULTS.section}); ` +
+        `s1 x section x section-model = concurrent extractions`,
+      parseIntOption
+    )
+    .option(
+      "--concurrency-section-model <n>",
+      `candidate models scoring one section at once (default ${EVAL_S1_CONCURRENCY_DEFAULTS.sectionModel}); ` +
+        `s1 x section x section-model = concurrent extractions`,
       parseIntOption
     )
     .action(
@@ -646,13 +682,25 @@ export function addEvalCommands(program: Command): void {
         printPrompts?: string | boolean;
         dumpRaw?: boolean;
         effort?: string | boolean;
-        concurrency?: number;
+        concurrencyS1?: number;
+        concurrencySection?: number;
+        concurrencySectionModel?: number;
       }) => {
         await runCommand(async () => {
-          const concurrency =
-            opts.concurrency === undefined
+          // Validated here rather than only inside the task so a bad value costs
+          // nothing — the sweep loads the corpus and registers models first.
+          const concurrencyS1 =
+            opts.concurrencyS1 === undefined
               ? undefined
-              : resolveEvalS1Concurrency(opts.concurrency);
+              : resolveEvalS1Concurrency("s1", opts.concurrencyS1);
+          const concurrencySection =
+            opts.concurrencySection === undefined
+              ? undefined
+              : resolveEvalS1Concurrency("section", opts.concurrencySection);
+          const concurrencySectionModel =
+            opts.concurrencySectionModel === undefined
+              ? undefined
+              : resolveEvalS1Concurrency("sectionModel", opts.concurrencySectionModel);
           const requestedExtractors = csvOptionValue(
             "--extractors",
             opts.extractors,
@@ -743,7 +791,9 @@ export function addEvalCommands(program: Command): void {
             ...(ciks && ciks.length > 0 ? { ciks } : {}),
             ...(opts.dumpRaw ? { dumpRaw: true } : {}),
             ...(effort ? { effort } : {}),
-            ...(concurrency !== undefined ? { concurrency } : {}),
+            ...(concurrencyS1 !== undefined ? { concurrencyS1 } : {}),
+            ...(concurrencySection !== undefined ? { concurrencySection } : {}),
+            ...(concurrencySectionModel !== undefined ? { concurrencySectionModel } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
           // it before we print), and runs plainly when piped.

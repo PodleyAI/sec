@@ -11,7 +11,9 @@ import { sweepStepContext } from "../../eval/evalProgressContext";
 import { preparedSectionText } from "../../eval/fixtures";
 import { getGoldenLabels } from "../../eval/goldenS1Labels";
 import { EvalS1CandidateTask } from "./EvalS1CandidateTask";
+import { sectionModelConcurrencyLimit } from "./evalS1Concurrency";
 import {
+  checkpointEvalS1Results,
   collectMappedResults,
   GOLDEN_REFERENCE,
   REFERENCE_MAX_ATTEMPTS,
@@ -26,6 +28,13 @@ const InputSchema = () =>
     text: Type.String({ title: "Section text" }),
     reference: Type.String({ title: "Reference id" }),
     dumpRaw: Type.Optional(Type.Boolean()),
+    sectionModelConcurrency: Type.Optional(
+      Type.Number({
+        title: "Section model concurrency",
+        description: "Candidate models in flight for this section",
+        minimum: 1,
+      })
+    ),
   });
 
 export type EvalS1SectionTaskInput = Static<ReturnType<typeof InputSchema>> & {
@@ -106,13 +115,19 @@ export class EvalS1SectionTask extends Task<
     }
 
     const n = input.candidates.length;
-    if (n === 0) return { results: refResults };
+    if (n === 0) {
+      checkpointEvalS1Results(refResults);
+      return { results: refResults };
+    }
 
     const wf = context.own(new Workflow(), {
       title: `Candidates for ${input.filing} ${input.extractor}`,
     });
     const loop = wf.map({
-      concurrencyLimit: n,
+      // Named by its own flag rather than taken from the candidate count, which
+      // is not a concurrency decision: it silently multiplied the sweep's
+      // fan-out by however many models the operator listed.
+      concurrencyLimit: sectionModelConcurrencyLimit(input.sectionModelConcurrency, n),
       maxIterations: n,
       preserveOrder: true,
       flatten: true,
@@ -133,6 +148,10 @@ export class EvalS1SectionTask extends Task<
     loop.endMap();
     const mapped = await wf.run({ modelId: [...input.candidates] });
     const candidateRows = collectMappedResults<OracleRunResult>(mapped);
-    return { results: [...refResults, ...candidateRows] };
+    const results = [...refResults, ...candidateRows];
+    // Checkpointed here rather than collected only at the end: the section map
+    // discards partial output on abort, and every row above cost an API call.
+    checkpointEvalS1Results(results);
+    return { results };
   }
 }
