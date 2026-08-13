@@ -383,7 +383,37 @@ models work for `json-mode` — a thinking model wraps the JSON in reasoning.
 - **Cost** — the generation task exposes no token usage, so cost is **estimated**
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.
-- **Speed** — measured wall-clock latency per extraction.
+- **Speed** — measured wall-clock latency per extraction, under whatever
+  parallelism the sweep ran at. `sec eval s1` therefore labels the column
+  `lat@<s1>x<section>x<model>`: a `1x5x4` figure is not comparable with a `1x1x1`
+  one, and the published haiku-vs-sonnet numbers below were measured
+  **serially**. Wall-clock includes time queued behind the sweep's own other
+  extractions — a local model's especially, since one worker serves them all, so
+  its latency reflects queue depth as much as model speed. Set all three
+  `--concurrency-*` flags to 1 for figures comparable across runs.
+
+  `sec eval s1` fans out on **three nested axes**, each with its own flag, and
+  the extractions in flight is their product (default `1 x 5 x 4 = 20`):
+
+  | flag                          | default | bounds                               |
+  | ----------------------------- | ------- | ------------------------------------ |
+  | `--concurrency-s1`            | 1       | filings extracted at once            |
+  | `--concurrency-section`       | 5       | sections of one filing at once       |
+  | `--concurrency-section-model` | 4       | candidate models scoring one section |
+
+  There is deliberately **no per-provider awareness** — no grouping candidates by
+  vendor, no per-provider limiter. The operator manages provider load with these
+  flags, which is also why the model axis is a flag at all: it used to run at
+  `candidates.length`, so `--models` with ten ids silently put 50 extractions in
+  flight rather than the 20 the defaults describe. Naming a model is not a
+  concurrency decision.
+
+  Filings are grouped (`groupSectionsByFiling`) before the outer map, so the
+  sweep finishes a filing before starting the next. That composes with the
+  Ctrl-C behavior: an interrupted sweep still prints what completed — per-section
+  results are checkpointed as they finish and the `skipped` list says how many of
+  how many sections the table covers — and with grouping, what it leaves behind
+  is whole filings rather than a scatter of partly-covered ones.
 
 The `ok` column is `successful runs / total runs`, where total is
 models × fixtures × `--runs` — **not** a retry count. `--extractor management`
