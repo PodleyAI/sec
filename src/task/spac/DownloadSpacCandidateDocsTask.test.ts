@@ -30,7 +30,6 @@ import { accessionDocCacheRelative } from "./spacCandidateDownload";
 import {
   CacheOneSpacCandidateDocTask,
   DownloadSpacCandidateDocsTask,
-  type CacheOneInput,
   type DownloadSpacCandidateDocsTaskInput,
 } from "./DownloadSpacCandidateDocsTask";
 
@@ -149,12 +148,8 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
 }
 
 class TestDownload extends DownloadSpacCandidateDocsTask {
-  static innerTitles: string[] = [];
-
-  protected override createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
-    const inner = new TestCacheOne({ title: `${item.form} ${item.accessionNumber}` });
-    TestDownload.innerTitles.push(inner.title);
-    return inner;
+  protected override createInnerTask(): CacheOneSpacCandidateDocTask {
+    return new TestCacheOne();
   }
 }
 
@@ -168,7 +163,6 @@ beforeEach(async () => {
   TestCacheOne.requested = [];
   TestCacheOne.docs = new Map();
   TestCacheOne.cachedThenThrows = new Map();
-  TestDownload.innerTitles = [];
   TestCacheOne.cacheExistedAtFetch = new Map();
 });
 
@@ -518,18 +512,16 @@ describe("DownloadSpacCandidateDocsTask", () => {
 
   it("splits skipped into cached / no-filename / unsafe-name, summing to skipped", async () => {
     await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
-    await globalServiceRegistry
-      .get(FILING_REPOSITORY_TOKEN)
-      .putBulk([
-        filing({ cik: 1, accession_number: "acc-cached", form: "S-1" }),
-        filing({ cik: 1, accession_number: "acc-empty", form: "10-K", primary_doc: "" }),
-        filing({
-          cik: 1,
-          accession_number: "acc-unsafe",
-          form: "10-K",
-          primary_doc: "../escape.htm",
-        }),
-      ]);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk([
+      filing({ cik: 1, accession_number: "acc-cached", form: "S-1" }),
+      filing({ cik: 1, accession_number: "acc-empty", form: "10-K", primary_doc: "" }),
+      filing({
+        cik: 1,
+        accession_number: "acc-unsafe",
+        form: "10-K",
+        primary_doc: "../escape.htm",
+      }),
+    ]);
     writeCache(1, "acc-cached", "acc-cached.txt", "cached");
 
     const warnings: string[] = [];
@@ -548,16 +540,5 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(out.skipped).toBe(3);
     // The unsafe branch used to drop the value silently.
     expect(warnings.join("\n")).toContain("acc-unsafe");
-  });
-
-  it("names each inner task after the filing it downloads", async () => {
-    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
-    await globalServiceRegistry
-      .get(FILING_REPOSITORY_TOKEN)
-      .put(filing({ cik: 1, accession_number: "acc-titled", form: "S-1" }));
-    TestCacheOne.docs.set("1/acc-titled/acc-titled.txt", "s1");
-
-    await runDownload({ set: "registration" });
-    expect(TestDownload.innerTitles).toEqual(["S-1 acc-titled"]);
   });
 });

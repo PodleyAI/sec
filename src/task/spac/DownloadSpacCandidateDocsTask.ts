@@ -375,15 +375,19 @@ export class DownloadSpacCandidateDocsTask extends Task<
    * Test seam: subclass and return a CacheOne that stubs
    * {@link CacheOneSpacCandidateDocTask.fetchDoc}.
    *
-   * Takes the item so the instance can carry a per-instance `title` — the CLI
-   * progress UI labels every row with it, and the whole sweep is instances of
-   * one class. No `defaults`: `force` arrives on the item this task is executed
-   * with, so seeding it as a default was dead weight.
+   * Deliberately carries neither `title` nor `defaults`. The worker below
+   * drives this instance with a direct `execute()` call rather than `run()`, so
+   * it is never owned into the subgraph, the runner never moves its status, and
+   * the progress UI has no row for it — a title would be written and never
+   * read. `force` likewise arrives on the item, so seeding it as a default was
+   * dead weight.
+   *
+   * Driving a task by `execute()` is the wrong shape: owning it and running it
+   * would give each in-flight filing a real row, nest its fetch beneath that
+   * row, and inherit the abort signal instead of hand-passing a context.
    */
-  protected createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
-    return new CacheOneSpacCandidateDocTask({
-      title: `${item.form} ${item.accessionNumber}`,
-    });
+  protected createInnerTask(): CacheOneSpacCandidateDocTask {
+    return new CacheOneSpacCandidateDocTask();
   }
 
   async execute(
@@ -502,7 +506,7 @@ export class DownloadSpacCandidateDocsTask extends Task<
         const i = next++;
         if (i >= todo.length) return;
         const item = todo[i];
-        const inner = this.createInnerTask(item);
+        const inner = this.createInnerTask();
         const result = await inner.execute(item, context);
         if (result.success) {
           downloaded++;
