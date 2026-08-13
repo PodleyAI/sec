@@ -304,4 +304,70 @@ describe("scoreExtraction", () => {
       expect(s.score).toBeCloseTo(0, 5);
     });
   });
+
+  describe("personNameFields", () => {
+    // The flag exists because a filing's roster and its bio prose disagree about
+    // credentials. Alignment must survive that; it must NOT survive being pointed
+    // at a field that can hold an organization.
+    const roster = [{ full_name: "Isaac Manke", titles: ["Director"] }];
+
+    it("aligns a credentialed variant to the same person and scores it 1.0", () => {
+      const s = scoreExtraction(
+        [{ full_name: "Isaac Manke, Ph.D.", titles: ["Director"] }],
+        roster,
+        {
+          keyField: "full_name",
+          fields: ["full_name", "titles"],
+          personNameFields: ["full_name"],
+        }
+      );
+      expect(s.matchedItems).toBe(1);
+      expect(s.entityRecall).toBe(1);
+      expect(s.score).toBeCloseTo(1, 5);
+      expect(s.diff.missing).toEqual([]);
+      expect(s.diff.mismatches).toEqual([]);
+    });
+
+    it("without the flag, the same pair does not align", () => {
+      // Establishes that the case above is measuring the flag and not normalize()
+      // already folding the credential away.
+      const s = scoreExtraction(
+        [{ full_name: "Isaac Manke, Ph.D.", titles: ["Director"] }],
+        roster,
+        {
+          keyField: "full_name",
+          fields: ["full_name", "titles"],
+        }
+      );
+      expect(s.matchedItems).toBe(0);
+    });
+
+    it("keeps two entities of one fund family DISTINCT under plain normalization", () => {
+      // Guards the beneficial-ownership decision: an ownership `name` is a person
+      // OR an entity, and the person hash reads a legal-form suffix as a
+      // credential — "WAVE Equity Fund, L.P." and "WAVE Equity Fund, LLC" both
+      // hash to `wave-equity-fund`. This test fails the moment anyone re-adds
+      // personNameFields to an entity-bearing name field.
+      const owners = [{ name: "WAVE Equity Fund, L.P." }, { name: "WAVE Equity Fund, LLC" }];
+      const s = scoreExtraction(owners, owners, { keyField: "name", fields: ["name"] });
+      expect(s.candidateDistinct).toBe(2);
+      expect(s.expectedItems).toBe(2);
+      expect(s.matchedItems).toBe(2);
+      expect(s.precision).toBe(1);
+    });
+
+    it("would collapse those two entities into one row if the field were flagged", () => {
+      // The failure this fix removes, stated directly: one of the two funds is
+      // reported missing and the other absorbs it, so a model that correctly
+      // listed both is scored as having found one.
+      const owners = [{ name: "WAVE Equity Fund, L.P." }, { name: "WAVE Equity Fund, LLC" }];
+      const s = scoreExtraction(owners, owners, {
+        keyField: "name",
+        fields: ["name"],
+        personNameFields: ["name"],
+      });
+      expect(s.candidateDistinct).toBe(1);
+      expect(s.expectedItems).toBe(1);
+    });
+  });
 });

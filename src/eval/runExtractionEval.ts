@@ -260,7 +260,10 @@ async function runOne(
   try {
     const rows = await extractor.run(fixture.text, model, context);
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
-    const score = scoreExtraction(rows, fixture.expected, { keyField: extractor.keyField });
+    const score = scoreExtraction(rows, fixture.expected, {
+      keyField: extractor.keyField,
+      personNameFields: extractor.personNameFields,
+    });
     const cost = estimateCost(modelId, promptChars, JSON.stringify(rows).length);
     return {
       model: modelId,
@@ -287,7 +290,10 @@ async function runOne(
       error: err instanceof Error ? err.message : String(err),
       latencyMs,
       rows: 0,
-      score: scoreExtraction([], fixture.expected, { keyField: extractor.keyField }),
+      score: scoreExtraction([], fixture.expected, {
+        keyField: extractor.keyField,
+        personNameFields: extractor.personNameFields,
+      }),
       cost: estimateCost(modelId, promptChars, 0),
       run,
       // A failed run has no rows to fingerprint. Give it a distinct sentinel
@@ -427,6 +433,7 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               rows: 0,
               score: scoreExtraction([], fixture.expected, {
                 keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
+                personNameFields: EVAL_EXTRACTORS[fixture.extractor].personNameFields,
               }),
               cost: estimateCost(modelId, 0, 0),
               run,

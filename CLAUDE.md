@@ -397,6 +397,17 @@ thinking model wraps the JSON in reasoning.
   rows to `expected` by a key field (e.g. `full_name`) and scores field-level agreement,
   normalized (case/whitespace) and forgiving of provenance fields. Reports `score`
   (names + titles), `found` (entity recall), and `prec` (1 − hallucinated rows).
+  An extractor may declare `personNameFields` so credentials do not split
+  identity ("Isaac Manke" aligns with "Isaac Manke, Ph.D."), and every harness
+  passes it — `eval extract` and `eval s1` must score one extractor by one set
+  of rules. It is restricted to **person-only** extractors (`management`,
+  `executive-compensation`): `normalizePerson` is lossy on organization names in
+  exactly the way that matters, reading a legal-form suffix as a credential, so
+  `WAVE Equity Fund, L.P.` and `WAVE Equity Fund, LLC` both hash to
+  `wave-equity-fund` and collapse into one row. `beneficial-ownership` — whose
+  `name` is a person OR an entity, per its `owner_kind` — therefore declares
+  none, and `fixtures.test.ts` fails any extractor that declares the flag while
+  carrying an `owner_kind` / `entity_kind` discriminator.
 - **Cost** — the generation task exposes no token usage, so cost is **estimated**
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.

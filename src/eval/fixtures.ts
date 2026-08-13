@@ -98,7 +98,17 @@ export interface EvalExtractor {
   readonly prepareSectionText?: (sectionText: string) => string;
   /**
    * Fields whose values are person names — passed to {@link scoreExtraction} so
-   * credentials do not split identity. Defaults to none.
+   * credentials do not split identity ("Isaac Manke" and "Isaac Manke, Ph.D."
+   * are the same person). Defaults to none.
+   *
+   * Only for extractors whose rows are **person-only by construction**. The
+   * person normalizer is lossy on anything else, and its losses are exactly the
+   * parts that distinguish organizations: a legal-form suffix is read as a
+   * credential and dropped, so `WAVE Equity Fund, L.P.` and
+   * `WAVE Equity Fund, LLC` both hash to `wave-equity-fund` and silently
+   * collapse into one row. So a field on a mixed-entity extractor (one with an
+   * `owner_kind` / `entity_kind` discriminator) must NOT be listed here — see
+   * the guard in `fixtures.test.ts`.
    */
   readonly personNameFields?: readonly string[];
   /**
@@ -130,7 +140,11 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
-    personNameFields: ["name"],
+    // No `personNameFields`: an ownership table's `name` is a person OR an
+    // entity (the row carries `owner_kind`), and person hashing is lossy on
+    // entity names in exactly the way that matters — it treats a legal-form
+    // suffix as a credential, so two distinct funds of the same family collapse
+    // into one row.
   },
   // List extractor over a prospectus Item 105 section: one row per risk-factor
   // caption. Scored on the caption (verbatim) and the category heading it sits
