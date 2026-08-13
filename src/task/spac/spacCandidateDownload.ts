@@ -8,7 +8,7 @@ import {
   SPAC_CANDIDATE_CONFIDENCES,
   type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
-import { stripXslPrefix } from "../../util/accessionDocPath";
+import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
 import { SPAC_REGISTRATION_FORMS } from "./classifySpacCandidate";
 
@@ -39,13 +39,24 @@ export function spacDocFetchKind(form: string): SpacDocFetchKind {
   return "primary-doc";
 }
 
+/**
+ * The document filename to fetch for a filing, or `""` when the filing names
+ * none.
+ *
+ * `Filing.primary_doc` is nullable (EDGAR also serves it as an empty string),
+ * so the primary-doc branch resolves through {@link resolvePrimaryDocName}
+ * rather than stripping the viewer prefix off a value that may be `null`. `""`
+ * is the sentinel the caller's empty-name guard already consumes, which turns
+ * a filing with no named document into one skipped row instead of a throw that
+ * takes the whole sweep down.
+ */
 export function spacDocFetchFileName(
   form: string,
   accessionNumber: string,
-  primaryDoc: string
+  primaryDoc: string | null | undefined
 ): string {
   if (spacDocFetchKind(form) === "full-submission") return `${accessionNumber}.txt`;
-  return stripXslPrefix(primaryDoc);
+  return resolvePrimaryDocName(primaryDoc) ?? "";
 }
 
 export function accessionDocCacheRelative(
