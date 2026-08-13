@@ -1085,7 +1085,17 @@ sec spac download 8k
 sec spac download everything
 ```
 
-`sec spac download` fills the on-disk `accessiondocs` cache for those candidates **without** running extractors. Default confidence is high+medium. Registration downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every filing for those CIKs. Already-cached files are skipped (`--force` re-fetches). Run this before `sec update forms` / `sec spac process` so the forms sweep is a cache hit.
+`sec spac download` fills the on-disk `accessiondocs` cache for those candidates **without** running extractors. Default confidence is high+medium. Registration downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every filing for those CIKs. Already-cached files are skipped. `--force` **deletes** the cache entry and then
+re-fetches, matching `sec bootstrap download-docs --force`: the fetch task's own
+file cache keys off that exact path and is consulted before the fetch runs, so
+without the delete a "re-fetch" is served from the very file being replaced and
+a corrupt entry can never be evicted. Deleting is also the only variant that
+keeps `SecFetchFileOutputCache.saveOutput`'s tmp+rename as the single writer —
+`CacheCoordinator.lookup` and `.save` share one gate, so a cache-bypass flag
+would suppress the write too and force a non-atomic hand-rolled one. ⚠️ Because
+`--force` deletes first, a mistyped broad run evicts a large cache before
+re-fetching it at the SEC rate limit; scope it before using it. Run this before
+`sec update forms` / `sec spac process` so the forms sweep is a cache hit.
 
 Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a

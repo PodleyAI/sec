@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { existsSync, mkdirSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Type } from "typebox";
 import {
@@ -69,10 +69,64 @@ function isEightK(form: string): boolean {
   return form === "8-K" || form === "8-K/A";
 }
 
-async function writeCacheFile(fullPath: string, dir: string, body: string): Promise<void> {
+/**
+ * Writes a cache file the way {@link SecFetchFileOutputCache} does: to a unique
+ * tmp name, then `rename` onto the final path. A plain `writeFile` leaves a
+ * truncated entry behind when the process is interrupted mid-write, and two
+ * concurrent writers targeting the same key can interleave bytes — and this
+ * task runs {@link FORMS_SWEEP_CONCURRENCY_LIMIT} writers at once. A truncated
+ * accession document is worse than a missing one: the forms sweep reads it as a
+ * cache hit and parses garbage.
+ */
+async function writeFileAtomic(fullPath: string, dir: string, body: string): Promise<void> {
   assertInsideDir(fullPath, dir);
-  mkdirSync(path.dirname(fullPath), { recursive: true });
-  await writeFile(fullPath, body, "utf-8");
+  await mkdir(path.dirname(fullPath), { recursive: true });
+  const tmpPath = `${fullPath}.tmp.${process.pid}.${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    await writeFile(tmpPath, body, "utf-8");
+    await rename(tmpPath, fullPath);
+  } catch (error) {
+    await unlink(tmpPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Deletes a cache entry so a `--force` re-fetch actually re-fetches.
+ *
+ * The fetch path composes its cache filename identically to
+ * {@link accessionDocCacheRelative} and installs a {@link SecFetchFileOutputCache}
+ * as `runConfig.outputCache`; the task runner consults that cache before
+ * `execute`, and with no `date` input the cache has no freshness branch to
+ * fail — so without this unlink the "re-fetch" is served from the very file the
+ * operator asked to replace, and a corrupt entry can never be evicted.
+ *
+ * Unlinking is the eviction, rather than a cache-bypass flag, because
+ * `CacheCoordinator.lookup` and `.save` are gated by the same condition pair
+ * (`!outputCache || !task.cacheable`): any bypass knob suppresses the WRITE as
+ * well as the read, which would force a hand-rolled non-atomic write back into
+ * the one place this file is removing it. With the entry gone, `getOutput`
+ * takes its ENOENT miss path and `saveOutput`'s tmp+rename stays the single
+ * atomic writer. Same semantics as `sec bootstrap download-docs --force`.
+ */
+async function evictCacheFile(fullPath: string, dir: string): Promise<void> {
+  assertInsideDir(fullPath, dir);
+  await rm(fullPath, { force: true });
+}
+
+/**
+ * Once per process, not once per filing: a sweep degraded this way degrades for
+ * every one of its thousands of filings, and the operator needs the fact, not
+ * the count.
+ */
+let warnedNonAtomicFallback = false;
+function warnNonAtomicFallbackOnce(): void {
+  if (warnedNonAtomicFallback) return;
+  warnedNonAtomicFallback = true;
+  console.warn(
+    "SPAC doc download: the fetch left no cache file, writing it directly. " +
+      "In production this means SEC_RAW_DATA_FOLDER was not registered when the fetch task was built."
+  );
 }
 
 /**
@@ -151,10 +205,27 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
     const requiredPath = path.join(raw, accessionDocCacheRelative(cik, accessionNumber, fileName));
 
     let text: string;
-    const requiredExists = existsSync(requiredPath);
-    if (requiredExists && !force) {
+    // `fileName` arrives on a data port that accepts any string, and this task
+    // is exported — the parent's worklist sanitization is not a substitute.
+    // Guard the READ the same way `ProcessAccessionDocFormTask.readCachedDoc`
+    // does; an unsafe name is a cache miss, not a path to open.
+    let cacheReadable = existsSync(requiredPath) && !force;
+    if (cacheReadable) {
+      try {
+        sanitizePrimaryDoc(fileName);
+        assertInsideDir(requiredPath, cikDir);
+      } catch {
+        cacheReadable = false;
+      }
+    }
+    if (cacheReadable) {
       text = await readFile(requiredPath, "utf-8");
     } else {
+      if (force && !isDryRun()) {
+        // Evict BEFORE fetching: the fetch task's own file cache keys off this
+        // exact path, so a surviving entry short-circuits the re-fetch.
+        await evictCacheFile(requiredPath, cikDir);
+      }
       try {
         text = await this.fetchDoc(cik, accessionNumber, fileName, context);
       } catch (err) {
@@ -162,7 +233,18 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
         if (context.signal?.aborted) throw new TaskAbortedError();
         return { success: false };
       }
-      await writeCacheFile(requiredPath, cikDir, text);
+      // The production fetch path already persisted the body through
+      // `SecFetchFileOutputCache.saveOutput` (tmp + rename). Writing again on
+      // top of that is a second, non-atomic write of bytes that are already on
+      // disk. This fallback covers the two cases where nothing wrote: the test
+      // seam that stubs `fetchDoc`, and a process where SEC_RAW_DATA_FOLDER was
+      // not yet registered when the fetch task was constructed (no output cache
+      // is installed then) — which in production means a mis-ordered DI
+      // registration, hence the warning.
+      if (!existsSync(requiredPath)) {
+        warnNonAtomicFallbackOnce();
+        await writeFileAtomic(requiredPath, cikDir, text);
+      }
     }
 
     if (isEightK(form) && primaryDoc.trim().length > 0) {
@@ -175,7 +257,12 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
             accessionDocCacheRelative(cik, accessionNumber, safeName)
           );
           if (force || !existsSync(primaryPath)) {
-            await writeCacheFile(primaryPath, cikDir, sliced);
+            // Nothing else writes this one — the slice is derived here, not
+            // fetched — so it needs both the eviction and the atomic write.
+            if (force && !isDryRun()) {
+              await evictCacheFile(primaryPath, cikDir);
+            }
+            await writeFileAtomic(primaryPath, cikDir, sliced);
           }
         }
       } catch {

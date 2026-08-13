@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -100,6 +108,13 @@ function candidate(
 class TestCacheOne extends CacheOneSpacCandidateDocTask {
   static requested: string[] = [];
   static docs = new Map<string, string | Error>();
+  /**
+   * Whether the cache file still existed when the fetch was entered. The real
+   * fetch task's output cache keys off exactly this path and is consulted
+   * BEFORE its `execute`, so a `true` here is the state in which a `--force`
+   * re-fetch silently short-circuits back to the file it meant to replace.
+   */
+  static cacheExistedAtFetch = new Map<string, boolean>();
 
   protected override async fetchDoc(
     cik: number,
@@ -109,6 +124,7 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
   ): Promise<string> {
     const key = `${cik}/${accessionNumber}/${fileName}`;
     TestCacheOne.requested.push(key);
+    TestCacheOne.cacheExistedAtFetch.set(key, existsSync(cachePath(cik, accessionNumber, fileName)));
     const v = TestCacheOne.docs.get(key);
     if (v instanceof Error) throw v;
     if (typeof v !== "string") throw new Error(`unexpected fetch ${key}`);
@@ -131,6 +147,7 @@ beforeEach(async () => {
   globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, raw);
   TestCacheOne.requested = [];
   TestCacheOne.docs = new Map();
+  TestCacheOne.cacheExistedAtFetch = new Map();
 });
 
 afterEach(() => {
@@ -254,6 +271,58 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(readFileSync(cachePath(1, "0000000001-21-000001", "0000000001-21-000001.txt"), "utf-8")).toBe(
       "new"
     );
+  });
+
+  it("force deletes the cache entry BEFORE fetching, so the fetch cannot be served from it", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-force", form: "S-1" }));
+    writeCache(1, "acc-force", "acc-force.txt", "old");
+    TestCacheOne.docs.set("1/acc-force/acc-force.txt", "new");
+
+    await runDownload({ set: "registration", force: true });
+    // The real fetch task consults its file cache at this exact path before
+    // running, so `true` here means `--force` never re-downloads anything.
+    expect(TestCacheOne.cacheExistedAtFetch.get("1/acc-force/acc-force.txt")).toBe(false);
+  });
+
+  it("force replaces a corrupt cache entry with the fetched bytes", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-corrupt", form: "S-1" }));
+    writeCache(1, "acc-corrupt", "acc-corrupt.txt", "CORRUPT");
+    TestCacheOne.docs.set("1/acc-corrupt/acc-corrupt.txt", "<SEC-DOCUMENT>good</SEC-DOCUMENT>");
+
+    const out = await runDownload({ set: "registration", force: true });
+    expect(out.downloaded).toBe(1);
+    expect(readFileSync(cachePath(1, "acc-corrupt", "acc-corrupt.txt"), "utf-8")).toBe(
+      "<SEC-DOCUMENT>good</SEC-DOCUMENT>"
+    );
+  });
+
+  it("leaves no partial tmp files behind after a forced 8-K run", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put(
+      filing({
+        cik: 1,
+        accession_number: "acc-8k-force",
+        form: "8-K",
+        primary_doc: "d8k.htm",
+      })
+    );
+    writeCache(1, "acc-8k-force", "acc-8k-force.txt", "CORRUPT");
+    writeCache(1, "acc-8k-force", "d8k.htm", "CORRUPT");
+    TestCacheOne.docs.set("1/acc-8k-force/acc-8k-force.txt", EIGHT_K_HTML);
+
+    await runDownload({ set: "8k", force: true });
+    const cikDir = path.dirname(cachePath(1, "acc-8k-force", "d8k.htm"));
+    expect(readdirSync(cikDir).filter((f) => f.includes(".tmp."))).toEqual([]);
+    expect(readFileSync(cachePath(1, "acc-8k-force", "acc-8k-force.txt"), "utf-8")).toBe(
+      EIGHT_K_HTML
+    );
+    expect(readFileSync(cachePath(1, "acc-8k-force", "d8k.htm"), "utf-8")).toBe("<html>ok</html>");
   });
 
   it("writes the 8-K full submission and a sliced primary from one fetch", async () => {
