@@ -7,10 +7,15 @@
 /**
  * `eval s1` fans out on three nested axes — filings, that filing's sections,
  * and the candidate models scoring one section — each with its own flag, so the
- * extractions actually in flight is their **product** (default 1 x 5 x 4 = 20).
+ * extractions in flight is at most their **product** (default 1 x 5 x 4 = 20).
  * One number covering all three cannot be set without knowing how it will be
  * spent; three can, and a sweep that takes days is tuned by raising the axis
  * that is actually idle.
+ *
+ * The product is a ceiling, not a measurement: each axis is separately capped by
+ * the work available to it (filing count, that filing's section count, `--models`
+ * count). {@link effectiveEvalS1Concurrency} computes what a sweep can actually
+ * reach, which is what the reported `lat@…` axes must describe.
  */
 export const EVAL_S1_CONCURRENCY_DEFAULTS = {
   s1: 1,
@@ -80,6 +85,45 @@ export function sectionModelConcurrencyLimit(
 /** Extractions in flight when all three maps are full. */
 export function evalS1ConcurrencyProduct(concurrency: EvalS1Concurrency): number {
   return concurrency.s1 * concurrency.section * concurrency.sectionModel;
+}
+
+/** The work each axis actually has to spread across, for {@link effectiveEvalS1Concurrency}. */
+export interface EvalS1Workload {
+  /** Filings the sweep will run. */
+  readonly filings: number;
+  /** Sections carried by the widest single filing — the section map is per-filing. */
+  readonly maxSectionsPerFiling: number;
+  /** Candidate models scoring one section. */
+  readonly candidates: number;
+}
+
+/**
+ * What the three maps can actually reach, given how much work there is.
+ *
+ * Every axis is clamped downstream — the filing map to `filings.length`, each
+ * filing's section map to its own section count, the model map to
+ * `candidates.length` — so the requested triple is an upper bound, not a
+ * measurement. That matters because the `lat@…` column exists for exactly one
+ * purpose: telling whether two latency figures were measured under the same
+ * load. A default sweep with the default single `--models` id runs at most
+ * `1 x 5 x 1` while the request reads `1 x 5 x 4`, and labeling both runs the
+ * same way makes the column claim a comparison it cannot support.
+ *
+ * The `section` figure is a **maximum**, not a uniform width: the section map is
+ * per-filing, so a filing with fewer sections than the limit runs narrower.
+ * Callers should render it as "at most N sections".
+ */
+export function effectiveEvalS1Concurrency(
+  requested: EvalS1Concurrency,
+  workload: EvalS1Workload
+): EvalS1Concurrency {
+  const clamp = (limit: number, available: number): number =>
+    Math.max(1, Math.min(limit, available));
+  return {
+    s1: clamp(requested.s1, workload.filings),
+    section: clamp(requested.section, workload.maxSectionsPerFiling),
+    sectionModel: sectionModelConcurrencyLimit(requested.sectionModel, workload.candidates),
+  };
 }
 
 /**

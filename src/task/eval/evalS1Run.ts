@@ -10,7 +10,11 @@ import {
   captureEvalRawFromRows,
   type EvalRawDump,
 } from "../../eval/captureEvalRaw";
-import { EVAL_EXTRACTORS, estimateExtractionPromptChars, preparedSectionText } from "../../eval/fixtures";
+import {
+  EVAL_EXTRACTORS,
+  estimateExtractionPromptChars,
+  preparedSectionText,
+} from "../../eval/fixtures";
 import { costFromUsage, type CostEstimate } from "../../eval/modelPricing";
 import type { RealSection } from "../../eval/realSections";
 import type { ExtractionScore } from "../../eval/scoreExtraction";
@@ -63,10 +67,18 @@ export interface OracleReport {
   readonly reference: string;
   readonly sections: number;
   /**
-   * The three fan-out axes the sweep ran at. Latency is only comparable across
-   * runs measured at the same settings, so the table labels its column with them.
+   * The three fan-out axes as **requested** (flags, or their defaults) — an
+   * upper bound on the fan-out, not a measurement of it.
    */
   readonly concurrency: EvalS1Concurrency;
+  /**
+   * The three axes the sweep could actually **reach**: each one capped by the
+   * work available to it (filing count, the widest filing's section count,
+   * `--models` count). Latency is only comparable across runs measured under
+   * the same load, so this — not {@link concurrency} — is what the table's
+   * `lat@…` column is labelled with.
+   */
+  readonly effectiveConcurrency: EvalS1Concurrency;
   readonly skipped: readonly string[];
   readonly results: readonly OracleRunResult[];
   readonly summaries: readonly OracleModelSummary[];
@@ -218,9 +230,7 @@ export function summarize(
  * extra array slot. Map `flatten` may already have concatenated per-iteration
  * arrays. Accept either shape.
  */
-export function collectMappedResults<T>(runOutput: {
-  readonly results?: readonly unknown[];
-}): T[] {
+export function collectMappedResults<T>(runOutput: { readonly results?: readonly unknown[] }): T[] {
   const raw = runOutput.results ?? [];
   const out: T[] = [];
   for (const item of raw) {

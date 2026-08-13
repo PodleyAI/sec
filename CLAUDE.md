@@ -186,8 +186,17 @@ whole wait-out budget without the window clearing) is retryable under the
 **same** extractor version — `retry-dead-letters` recovers it once the
 model/provider is registered, or once the quota window has moved on, with no
 version bump required (`MODEL_ERROR_REASON_CODES` in
-`ExtractionDeadLetterSchema.ts`). Every other reason code stays version-gated
-(fix the extractor, bump the version, then retry).
+`ExtractionDeadLetterSchema.ts`).
+
+`MIXED_CAPTION_SHAPE` is same-version retryable too, but **bounded**
+(`NONDETERMINISTIC_REASON_CODES` / `NONDETERMINISTIC_RETRY_ATTEMPTS = 3`, same
+file). It describes one generation's response, not a defect in the extractor, so
+a version bump is the wrong ceremony — but unlike a provider outage a genuinely
+ambiguous section never clears on its own, and an unbounded same-version retry
+would leave an entry no operator can resolve while re-paying the AI cost of the
+largest section in the filing on every sweep. After three recorded attempts it
+falls back to the version gate. Every other reason code is version-gated from
+the start (fix the extractor, bump the version, then retry).
 
 The two are deliberately **not** the same code even though their retry semantics
 are identical: `MODEL_RESOLUTION_ERROR` means the configured model id is not
@@ -421,13 +430,26 @@ thinking model wraps the JSON in reasoning.
   `--concurrency-*` flags to 1 for figures comparable across runs.
 
   `sec eval s1` fans out on **three nested axes**, each with its own flag, and
-  the extractions in flight is their product (default `1 x 5 x 4 = 20`):
+  the extractions in flight is at most their product (default `1 x 5 x 4 = 20`):
 
   | flag                          | default | bounds                               |
   | ----------------------------- | ------- | ------------------------------------ |
   | `--concurrency-s1`            | 1       | filings extracted at once            |
   | `--concurrency-section`       | 5       | sections of one filing at once       |
   | `--concurrency-section-model` | 4       | candidate models scoring one section |
+
+  That product is an **upper bound, not a measurement**. Each axis is separately
+  capped by the work available to it — the filing count, the widest filing's
+  section count, and the number of ids `--models` named — so a bare
+  `sec eval s1` (whose default `--models` is a single id) reaches at most
+  `1 x 5 x 1 = 5` in flight while the request reads `1 x 5 x 4 = 20`. The
+  `lat@…` header and the footer therefore report the **effective** triple, since
+  the column's only purpose is telling whether two latency figures were measured
+  under the same load; the footer names the requested triple as well whenever
+  the two differ, so a capped axis reads as a cap rather than an ignored flag.
+  The section figure is a per-filing **maximum** ("at most N sections"), not a
+  uniform width. `--format json` carries both `concurrency` (requested) and
+  `effectiveConcurrency` (reached).
 
   There is deliberately **no per-provider awareness** — no grouping candidates by
   vendor, no per-provider limiter. The operator manages provider load with these
@@ -476,16 +498,26 @@ section, and disagrees with ITSELF between runs, so the bar moves under you.
 Golden labels are free, instant and stable.
 
 Coverage is derived from `GOLDEN_S1_LABELS`, not fixed: every extractor with at
-least one committed label is scored, and `extractorsWithGoldenLabels()` is what
-both the default `--extractors` set and the `sec eval s1 --help` line read — so
-the current list is always one `--help` away and this paragraph cannot silently
-go stale. As committed today that is 12 extractors —
-`beneficial-ownership`, `executive-compensation`, `management`,
-`offering-terms`, `related-party`, `risk-factors`, `spac-classification`,
+least one committed label is scored, and `defaultGoldenSweepExtractors()`
+(`src/eval/defaultSweepExtractors.ts`) is what both the default `--extractors`
+set and the `sec eval s1 --help` line read — so the current list is always one
+`--help` away and this paragraph cannot silently go stale. As committed today
+that is 11 extractors — `beneficial-ownership`, `executive-compensation`,
+`management`, `offering-terms`, `related-party`, `spac-classification`,
 `spac-profile`, `spac-sponsors`, `sponsor-promote`, `underwriters`,
 `use-of-proceeds` — over 42 labelled filings. A golden run scores the sections
 that carry a label and reports every other one as skipped rather than quietly
 passing it.
+
+A twelfth extractor, `risk-factors`, is labelled but flagged
+`disabled` in `EVAL_EXTRACTORS` — "exclude from **default** sweeps", not "hide
+from the labels index". `extractorsWithGoldenLabels()` stays the complete index
+(the coverage guards in `goldenS1Labels.test.ts` read it to prove every
+committed label is reachable); `defaultGoldenSweepExtractors()` is that index
+minus the flagged ones, and both eval harnesses now derive their default set
+through the same `participatesInDefaultSweeps` predicate rather than each
+deciding for themselves. Naming it explicitly still runs it:
+`sec eval s1 --extractors risk-factors`.
 Pass `--reference <model-id>` (use the strongest available, currently
 `claude-opus-5` — never the model you are evaluating) to fall back to an oracle
 for the unlabelled extractors, accepting that its verdict is an opinion.
@@ -501,8 +533,10 @@ scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
 instead of a model run — no reference API call, `$0`, deterministic. Only sections
 with a golden entry are scored (the rest are reported as skipped);
 the committed set is roughly 400 labelled (filing, section) pairs across the 12
-extractors named above — densest on `risk-factors`, `spac-classification` and
-`use-of-proceeds` (42 filings each), thinnest on `spac-sponsors` (2).
+labelled extractors — densest on `risk-factors`, `spac-classification` and
+`use-of-proceeds` (42 filings each), thinnest on `spac-sponsors` (2). A default
+sweep scores 11 of those 12: `risk-factors`' 42 labels are still committed and
+still guarded, but only an explicit `--extractors risk-factors` pays for them.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
@@ -517,10 +551,12 @@ fewer filings than the labels covered and still printed a clean table. Re-copy
 the corpus into the vendoring package when you add a fixture.
 
 **A bare `sec eval s1` is not a cheap command.** Under the default golden
-reference the default extractor set is _every_ labelled extractor, so one
-candidate model sweeps roughly 400 sections — more calls than that, since
-`risk-factors` chunks its section into several — over prose running from a few
-thousand chars to ~246k. Budget it, or narrow it: `--extractors` picks the
+reference the default extractor set is every labelled extractor not flagged out
+of default sweeps, so one candidate model sweeps roughly 350 sections over prose
+running from a few thousand chars to ~57k. Adding `--extractors risk-factors`
+adds 42 more sections and materially more than 42 calls, since that extractor
+chunks a section running to ~246k chars into several — which is why it is
+excluded by default. Budget it, or narrow it: `--extractors` picks the
 sections, `--cik` picks the filer, and the two compose. Only the candidate side
 costs money under `--reference golden` (no oracle call); a model reference
 roughly doubles the calls and pays the reference model's rate on top.
@@ -844,36 +880,97 @@ caught by the same "enforce it, don't trust the prompt" guard the ownership
 subtotal gets — a heading is verbatim section text, so nothing downstream would
 otherwise stop it becoming a row that reads like a disclosed risk.
 
-Two different rules do that work, and the order matters. First the chunk prefix
-is reconciled against itself: `chunkRiskFactorText` reports the heading line it
+One rule does that work, and it is decided **after** the whole section has been
+read, not chunk by chunk. `chunkRiskFactorText` reports the heading line it
 prepended to each chunk (`RiskFactorChunk.carriedHeading`), and a row whose
-caption is exactly that line is dropped. That drop is not a judgement about the
-section — the line is one this code inserted, not a caption the filer printed
-under it — which is why it is the one drop that leaves no trace, and it removes
-the artifact chunking creates: a ~7-chunk section hands the model ~6 headings
-and invites it to echo them back as rows. An echo that is _reworded_ rather than
-copied is not this rule's problem: it fails `verifyRow` like any other
-paraphrase and lands on the existing `<section>-partial` /
-`UNVERIFIED_SOURCE_SPAN` triage entry.
+caption is exactly that line is **remembered as a candidate echo** — it removes
+the artifact chunking creates (a ~7-chunk section hands the model ~6 headings
+and invites it to echo them back as rows) but it is not yet dropped. An echo
+that is _reworded_ rather than copied is not this rule's problem: it fails
+`verifyRow` like any other paraphrase and lands on the existing
+`<section>-partial` / `UNVERIFIED_SOURCE_SPAN` triage entry.
 
-What survives is judged on the response's **shape as a whole**, not row by row,
-because the shape heuristic (no sentence-ending punctuation) cannot tell a
-category heading from an Item 105(b) summary bullet. A **homogeneous** response
-is kept intact either way — all bare phrases is a summary list whose "headings"
-ARE the captions; no bare phrases is an ordinary sentence-caption list with
-nothing to drop. A **mixed** one is unanswerable and dead-letters
-`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting a
-subset: filers are inconsistent about terminal punctuation, so one summary
-bullet ending in a period was enough to make an all-or-nothing filter keep that
-single row and silently drop the other 29 — a partial disclosure recorded as
-complete, exactly what the chunked-section contract exists to prevent. A
-ratio-gated variant of this rule (drop the heading-shaped rows while they are a
-small enough minority of the response) was tried and removed: it reproduced that
-failure in the other direction — four bare bullets out of twenty deleted from a
-section that then resolved clean, with a `console.warn` as the only record. The
-price of the strict rule is that one stray heading fails the whole section; it
-fails visibly, onto the version-gated retry worklist, with every caption
-recoverable by re-running the filing.
+Dropping the echo where it is found loses real captions, because de-duplication
+runs first: a caption any earlier chunk already emitted is dropped as a
+duplicate, so the echo branch is reachable **only** for a caption no chunk
+emitted on its own — precisely the row whose sole appearance in the whole sweep
+is that echo. On a filing whose section IS an Item 105(b) summary list, every
+bullet is heading-shaped and the carried line is itself one of the filer's
+bullets, so the drop deletes a disclosed risk and marks the section resolved.
+
+The evidence that separates "line this code inserted" from "bullet the filer
+printed" is the shape of the **rest** of the section, which only exists once
+every chunk has answered. So the verdict is taken there, over the response's
+shape **as a whole** rather than row by row — the shape heuristic cannot tell a
+category heading from a summary bullet in isolation. Computed over the rows
+**minus** the candidate echoes, so a dropped echo can never mask a mix:
+
+- **all heading-like** — the section reads as a summary list, its "headings" ARE
+  its captions, so the echoes are kept and nothing is dropped;
+- **none heading-like** — an ordinary sentence-caption list, so an echo is the
+  heading this code prepended and is dropped;
+- **mixed** — unanswerable, and dead-letters `MIXED_CAPTION_SHAPE` (via
+  `MixedRiskCaptionShapeError`) rather than persisting a subset.
+
+"Heading-like" is `isRiskCategoryHeading`, and it is **two** conditions, not
+one: the line does not end in sentence punctuation **and** it mentions risk
+(`\brisks?\b`). Both halves are load-bearing, and the risk-word half is what
+keeps the mixed-shape rule from firing on real filings — do not relax it to a
+punctuation-only test. Measured over the committed golden labels: 52 captions
+carry no terminal punctuation, and **zero** of them contain the word "risk";
+all 52 sit in 14 filings, every one of which also prints ordinary punctuated
+captions. Under a punctuation-only predicate `0 < headingLike < body.length`
+would therefore hold for all 14, throwing `MIXED_CAPTION_SHAPE` and permanently
+version-gating the **1,411** hand-verified captions those filings carry between
+them.
+
+The same clause bounds the `keepEchoes` remedy: keeping the echoes requires
+**every** extracted row to be heading-like, hence to mention risk — which none
+of the committed bare captions does. On today's corpus that branch is therefore
+unreachable and the echo is dropped exactly as before. It is a guard against a
+filing whose summary bullets happen to be phrased as "Risks relating to …", not
+a fix already exercised by the committed fixtures.
+
+The remaining dropped echo is at least **attributable**. `extractRiskFactors`
+reports the dropped headlines verbatim to its caller, and the S-1 processor
+records them as a sibling `risk-factors-echo-dropped` dead-letter carrying the
+accession and the removed text — reconciled (resolved) on a run that drops
+nothing, mirroring the `<section>-partial` entry. A `console.warn` naming a
+count is what made the earlier ratio-gated variant unreviewable; this branch
+still deletes rows a model returned and still lets the section resolve as
+complete, so it must leave a record an operator can read.
+
+Filers are inconsistent about terminal punctuation, so one summary bullet ending
+in a period was enough to make an all-or-nothing filter keep that single row and
+silently drop the other 29 — a partial disclosure recorded as complete, exactly
+what the chunked-section contract exists to prevent. A ratio-gated variant (drop
+the heading-shaped rows while they are a small enough minority) was tried and
+removed: it reproduced that failure in the other direction — four bare bullets
+out of twenty deleted from a section that then resolved clean. The price of the
+strict rule is that one stray heading fails the whole section; it fails visibly,
+with every caption recoverable by re-running the filing. Because a mixed shape
+is a property of one generation rather than of the section, `sectionRunner`
+re-asks the model up to `MIXED_SHAPE_REASK_ATTEMPTS` (2) times before recording
+it — its own budget, deliberately smaller than the `VERIFICATION_ATTEMPTS` (3)
+a failed span verification gets, because the two re-asks bet on different
+things. A malformed citation varies run to run; a mixed shape re-asks a
+byte-identical prompt under greedy decoding (`SEC_EXTRACTION_TEMPERATURE`
+defaults to `0`, the nonce is off by default, the call is not cacheable), where
+only provider-side batching can change the answer — and each ask re-enumerates
+the largest section in the filing. Worst case for a 7-chunk section is 42 model
+calls rather than 63. The recorded entry then stays retry-eligible under the
+**same** extractor version for `NONDETERMINISTIC_RETRY_ATTEMPTS` (3) attempts —
+after which it falls back to the ordinary version gate rather than re-paying the
+AI cost of a genuinely ambiguous section on every sweep forever.
+
+That budget is counted per failure, not per section. `attempts` on a dead-letter
+row counts **consecutive** failures of the current
+`(reason_code, failed_extractor_version)` pair and restarts at 1 when either
+changes (and is zeroed by `markResolved`). The row is keyed by section, so a
+lifetime counter would be shared across every code the section ever hit: a
+section that failed `UNVERIFIED_SOURCE_SPAN` three times under an older version
+would arrive at its first-ever `MIXED_CAPTION_SHAPE` already over budget and get
+no same-version retry at all.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate
@@ -884,9 +981,9 @@ extractors' output-token ceiling and truncating the JSON. `chunkRiskFactorText`
 40k-char chunks (~15–25 captions each, at the ~1.5–2.8k chars per risk the
 fixtures measure) and prefixes every chunk after the first with the last category heading seen
 before it — a verbatim line from the section, so spans still verify — reporting
-that line back on the chunk so the extractor can drop its echoes by exact match.
-`extractRiskFactors` runs one call per chunk, concatenating in document order and
-de-duplicating on the caption. A
+that line back on the chunk so the extractor can identify its echoes by exact
+match. `extractRiskFactors` runs one call per chunk, concatenating in document
+order and de-duplicating on the caption. A
 chunk that fails propagates and fails the whole section: persisting the captions
 that happened to arrive first would record a silently partial list as if it were
 the filing's complete disclosure. A section over 400k chars is a segmentation
@@ -908,9 +1005,16 @@ model is the reason to separate it. The `risk-factors` entry in
 `EVAL_EXTRACTORS` (with a golden two-category fixture) ranks the prompt, and
 `sec eval s1 --extractors risk-factors` sweeps the real committed sections.
 
+That entry is flagged **`disabled: true`**, so `risk-factors` is **excluded from
+both harnesses' default sweeps** — its 42 golden labels are still committed and
+still guarded, but a chunked ~246k-char section run over the whole corpus is not
+something a bare `sec eval extract` or `sec eval s1` should charge you for.
+Naming it runs it, in either harness:
+
 ```bash
-sec eval extract --extractor risk-factors
-sec extractor dead-letters S-1            # includes the risk-factors section
+sec eval extract --extractor risk-factors        # explicit: runs despite the flag
+sec eval s1 --extractors risk-factors            # explicit: runs despite the flag
+sec extractor dead-letters S-1                   # includes the risk-factors section
 ```
 
 Scoped to the S-1/F-1/DRS pipeline: the 424 processor shares the segmenter but
@@ -1091,7 +1195,39 @@ are ingested, and so the forms sweep has a worklist to aim at.
 sec update spacs                        # incremental: CIKs whose submissions changed
 sec update spacs --full                 # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
+sec spac download registration [--confidence high,medium] [--force]
+sec spac download 8k
+sec spac download everything
 ```
+
+`sec spac download` fills the on-disk `accessiondocs` cache for those candidates
+**without** running extractors. Default confidence is high+medium. Registration
+downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every
+filing for those CIKs. Already-cached files are skipped. Run this before
+`sec update forms` / `sec spac process` so the forms sweep is a cache hit.
+
+`--force` **deletes** the cache entry and then re-fetches. The delete is the
+point: the fetch task's own file cache keys off that exact path and is consulted
+before the fetch runs, so without it a "re-fetch" is served from the very file
+being replaced and a corrupt entry can never be evicted. Deleting is also the
+only variant that keeps `SecFetchFileOutputCache.saveOutput`'s tmp+rename as the
+single writer — `CacheCoordinator.lookup` and `.save` share one gate, so a
+cache-bypass flag would suppress the write too and force a non-atomic
+hand-rolled one.
+
+> ⚠️ The delete precedes the fetch, so a `--force` run whose fetch then fails
+> leaves NO cached document — a merely-stale entry ends up empty, and a mistyped
+> broad run evicts a large cache before re-fetching it at the SEC rate limit.
+> This is **not** the behavior of `sec bootstrap download-docs --force`, which
+> streams from a tarball and overwrites once the bytes are in hand, so it has no
+> such window. Scope a `--force` run before using it; losses show up in the
+> `failed` count and a re-run refills them.
+
+Failures never abort the sweep: each one is counted with a short reason (404 vs
+403 vs an exhausted-retry 429 vs "no text" stay distinguishable), warned per
+filing, and tallied by reason at the end. Skips are reported three ways —
+already-cached, no filename on the filing, and a filer-authored name that could
+not be made path-safe — because only the first is a healthy steady state.
 
 Three signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, and a

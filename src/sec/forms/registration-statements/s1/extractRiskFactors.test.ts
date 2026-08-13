@@ -6,7 +6,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { extractRiskFactors, MixedRiskCaptionShapeError } from "./sectionExtractors";
-import { RISK_FACTOR_CHUNK_CHARS } from "./riskFactorChunks";
+import { chunkRiskFactorText, RISK_FACTOR_CHUNK_CHARS } from "./riskFactorChunks";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
 
 const CATEGORY = "Risks Relating to our Securities";
@@ -138,12 +138,19 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(text, fakeS1Model());
+    const dropped: string[][] = [];
+    const rows = await extractRiskFactors(text, fakeS1Model(), undefined, (headlines) =>
+      dropped.push([...headlines])
+    );
     expect(calls.length).toBeGreaterThan(1);
     // Every real caption survives and the injected line never becomes a row —
     // so the shape check that follows sees a homogeneous response and the
     // section is not failed for an artifact of our own chunking.
     expect(rows.map((r) => r.headline)).toEqual(["First risk.", "Second risk.", "Third risk."]);
+    // The drop is reported VERBATIM, once, so the caller can record what was
+    // removed against the filing. Both chunks echoed the same line, but
+    // de-duplication means only one row ever existed to drop.
+    expect(dropped).toEqual([[CATEGORY_LINE]]);
   });
 
   it("dead-letters a mixed section instead of silently deleting the heading-shaped minority", async () => {
@@ -228,6 +235,93 @@ describe("extractRiskFactors", () => {
       fakeS1Model()
     );
     expect(rows.map((r) => r.headline)).toEqual(bullets);
+  });
+
+  it("keeps a summary bullet a later chunk echoed back as the carried heading", async () => {
+    // The data-loss bug. On a summary-bullet section EVERY bullet is
+    // heading-shaped, so the chunker's carried line is itself one of the filer's
+    // captions. De-duplication already removes a bullet an earlier chunk
+    // emitted, which means the carried-echo branch is reachable ONLY for a
+    // caption no chunk emitted on its own — exactly the bullet whose sole
+    // appearance in the whole sweep is that echo. Dropping it deletes a
+    // disclosed risk from the record, with the section marked resolved.
+    //
+    // Deferring the drop until the section's shape is known separates the two
+    // cases: all-bare-phrase means the section IS a summary list and the
+    // carried line is one of its captions, so it is kept.
+    const bullets = Array.from(
+      { length: 30 },
+      (_, i) => `Risks related to our business and operations number ${i + 1}`
+    );
+    // Long, sentence-ending, "risk"-free prose so the paragraph that opens the
+    // second chunk is NOT itself heading-shaped — which is what makes the
+    // chunker carry a heading into it at all.
+    const prose = (i: number): string => `${"filler ".repeat(285)}paragraph ${i}.`;
+    const paragraphs: string[] = [];
+    for (let i = 0; i < bullets.length; i++) {
+      paragraphs.push(bullets[i]);
+      paragraphs.push(prose(i));
+    }
+    const text = paragraphs.join("\n\n");
+
+    // Pin the chunking this case depends on rather than assuming it.
+    const chunks = chunkRiskFactorText(text);
+    expect(chunks.length).toBeGreaterThan(1);
+    const carried = chunks[1].carriedHeading;
+    expect(carried).not.toBeNull();
+    const carriedIndex = bullets.indexOf(carried!);
+    expect(carriedIndex).toBeGreaterThanOrEqual(0);
+
+    // The first chunk's response omits the carried bullet (models routinely
+    // drop a row); the second chunk returns it, having been handed it as the
+    // prefix line. It is therefore the only chunk that ever names it.
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: bullets.slice(0, carriedIndex).map((b) => risk(b, null)) },
+      { risks: bullets.slice(carriedIndex).map((b) => risk(b, null)) },
+    ]);
+    cleanup = unregister;
+
+    const rows = await extractRiskFactors(text, fakeS1Model());
+    expect(rows.map((r) => r.headline)).toEqual(bullets);
+  });
+
+  it("still fails a mixed section when a carried echo is present", async () => {
+    // The echo is excluded from the shape verdict, which must not turn a
+    // genuinely mixed response into a homogeneous-looking one. Sixteen sentence
+    // captions and four bare phrases are unanswerable whether or not one row
+    // happens to match the line the chunker prefixed.
+    const CATEGORY_LINE = "Risks Relating to our Securities";
+    const bodies = Array.from(
+      { length: 40 },
+      (_, i) =>
+        `We may be unable to complete a business combination number ${i + 1}.\n\n${"prose ".repeat(500)}`
+    );
+    const text = [CATEGORY_LINE, ...bodies].join("\n\n");
+    const captions = Array.from(
+      { length: 16 },
+      (_, i) => `Our securities may be delisted for reason ${i + 1}.`
+    );
+    const bare = [
+      "Risks related to our sponsor and management team",
+      "Risks related to our securities and the trust account",
+      "Risks related to our inability to complete an initial business combination",
+      "Risks related to our business and operations",
+    ];
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [risk("First risk.")] },
+      {
+        risks: [
+          risk(CATEGORY_LINE, null),
+          ...captions.map((c) => risk(c)),
+          ...bare.map((b) => risk(b, null)),
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await expect(extractRiskFactors(text, fakeS1Model())).rejects.toThrow(
+      MixedRiskCaptionShapeError
+    );
   });
 
   it("drops a row with a blank caption", async () => {
