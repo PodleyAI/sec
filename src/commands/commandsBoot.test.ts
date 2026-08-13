@@ -9,29 +9,27 @@ import { describe, expect, it } from "vitest";
 import { AddCommands } from "./index";
 
 /**
- * The whole CLI hangs off one static import graph: `sec.ts` calls
- * `AddCommands`, which pulls in every command group, which pulls in every task.
- * A single unresolved module or missing named export anywhere in that graph
- * makes the `sec` binary throw before Commander ever sees `argv` — so
- * `sec --help`, `sec db status` and every other subcommand die identically,
- * with a module-resolution error that says nothing about SEC data.
+ * Asserts the registered command TREE, against `program.commands`, rather than
+ * against `--help` text.
  *
- * Nothing else in the suite imports the command graph, which is how that state
- * reached a shipping branch once already: the eval tasks were merged carrying
- * imports for `setExtractionEffortOverride`, `preparedSectionText`,
- * `takeExtractionUsage` and `EvalExtractor.personNameFields` while the modules
- * defining them sat unmerged on another branch. Every test stayed green,
- * because none of them loaded a command; only `bun build` failed, and a bundler
- * error reads as a packaging problem rather than a product that will not start.
+ * `cli.integration.test.ts` already boots the real binary in a subprocess, so a
+ * module that fails to resolve anywhere in the command graph fails there
+ * loudly — that is the check for "does the CLI start at all", and this file is
+ * not a second copy of it.
  *
- * This test costs one import and closes that gap — it fails at module load
- * against any tree whose command graph does not resolve. Asserting the
- * registered top-level names, rather than merely importing, additionally pins
- * that each `add*Commands` call really registered its group, so a group
- * silently dropped from the list is caught by the same case.
+ * What a help-text check cannot do is prove a group was REGISTERED. It matches
+ * a substring of prose, and ten of the sixteen group names appear more than
+ * once in `sec --help`: `version` appears as the `-V, --version` global option
+ * and inside two descriptions, `resolve` four times, `fetch` three. Unregister
+ * the `version` group and `toContain("version")` still passes, because the
+ * global option supplies the string. Matching `c.name()` exactly is the only
+ * form no amount of description text can satisfy by accident.
+ *
+ * It costs one in-process import, and it needs no subprocess — so it also
+ * covers the graph on a runner where spawning `bun` is unavailable.
  */
 describe("CLI command graph", () => {
-  it("registers every top-level command group without a module-load failure", () => {
+  it("registers every top-level command group", () => {
     const program = new Command();
     AddCommands(program);
 
@@ -48,6 +46,10 @@ describe("CLI command graph", () => {
       "resolve",
       "canonical",
       "spac",
+      // Registered by registerUnderwriterFamilyCommands / the issuer query
+      // group, and the only top-level evidence either of them ran.
+      "underwriter",
+      "issuer",
       "editorial",
       "extractor",
       "eval",
