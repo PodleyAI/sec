@@ -19,7 +19,11 @@ import { registerModelIds } from "../../config/registerModels";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
 import { setExtractionEffortOverride } from "../../sec/forms/registration-statements/s1/extractionReasoning";
-import { resolveEvalS1Concurrencies, type EvalS1Concurrency } from "./evalS1Concurrency";
+import {
+  effectiveEvalS1Concurrency,
+  resolveEvalS1Concurrencies,
+  type EvalS1Concurrency,
+} from "./evalS1Concurrency";
 import { EvalS1FilingTask } from "./EvalS1FilingTask";
 import {
   beginEvalS1Sweep,
@@ -108,8 +112,14 @@ const OutputSchema = () =>
   Type.Object({
     reference: Type.String(),
     sections: Type.Number(),
-    /** The three fan-out axes the reported latencies were measured under. */
+    /** The three fan-out axes as REQUESTED — an upper bound, not a measurement. */
     concurrency: Type.Object({
+      s1: Type.Number(),
+      section: Type.Number(),
+      sectionModel: Type.Number(),
+    }),
+    /** The three axes the sweep could actually reach — what the latencies were measured under. */
+    effectiveConcurrency: Type.Object({
       s1: Type.Number(),
       section: Type.Number(),
       sectionModel: Type.Number(),
@@ -128,8 +138,10 @@ export type EvalS1TaskOutput = Static<ReturnType<typeof OutputSchema>>;
  * "can a cheap/local model stand in for sonnet on real filings?" without hand-
  * labeling every section. Three nested MapTasks fan the sweep out — filings,
  * then that filing's sections, then the candidates scoring one section — each
- * bounded by its own flag, so the extractions in flight is their product
- * (default 1 x 5 x 4). A section the reference itself fails on is not scored.
+ * bounded by its own flag, so the extractions in flight is at most their product
+ * (default 1 x 5 x 4) — each axis is separately capped by the work available to
+ * it, which is what `effectiveConcurrency` on the output reports. A section the
+ * reference itself fails on is not scored.
  *
  * Running as a task (rather than a bare function) puts the sweep under the CLI's
  * automatic task-graph progress UI and makes it abortable — large real S-1
@@ -231,6 +243,15 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     const results: OracleRunResult[] = [];
     beginEvalS1Sweep();
     const filings = groupSectionsByFiling(sections);
+    // First point at which every axis's real bound is known. Reported alongside
+    // the request rather than replacing it: the request is what the operator
+    // typed, and quietly redefining a field's meaning is the same class of
+    // mistake as reporting the request as though it were the measurement.
+    const effectiveConcurrency = effectiveEvalS1Concurrency(concurrency, {
+      filings: filings.length,
+      maxSectionsPerFiling: filings.reduce((n, f) => Math.max(n, f.sections.length), 0),
+      candidates: input.candidates.length,
+    });
     if (filings.length > 0) {
       const wf = context.own(new Workflow(), {
         title: `Evaluate ${sections.length} S-1 sections across ${filings.length} filing(s)`,
@@ -305,6 +326,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
       reference: input.reference,
       sections: sections.length,
       concurrency,
+      effectiveConcurrency,
       skipped,
       results,
       summaries,

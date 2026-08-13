@@ -8,6 +8,7 @@ import type { IExecuteContext, ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
 import { registerModelIds } from "../config/registerModels";
 import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
+import { participatesInDefaultSweeps } from "./defaultSweepExtractors";
 import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
 import { loadRealS1Sections } from "./realSections";
@@ -135,11 +136,7 @@ export interface RunEvalOptions {
 
 /** Extractor ids that actually have at least one committed fixture and are eval-enabled. */
 export function extractorsWithFixtures(): string[] {
-  return [
-    ...new Set(
-      EVAL_FIXTURES.map((f) => f.extractor).filter((name) => !EVAL_EXTRACTORS[name]?.disabled)
-    ),
-  ];
+  return [...new Set(EVAL_FIXTURES.map((f) => f.extractor).filter(participatesInDefaultSweeps))];
 }
 
 /**
@@ -197,7 +194,7 @@ function selectFixtures(extractor: string | undefined): EvalFixture[] {
   if (extractor === undefined) {
     // Default sweep skips disabled extractors (e.g. risk-factors); an explicit
     // `--extractor risk-factors` still selects them below.
-    return all.filter((f) => !EVAL_EXTRACTORS[f.extractor]?.disabled);
+    return all.filter((f) => participatesInDefaultSweeps(f.extractor));
   }
   const selected = all.filter((f) => f.extractor === extractor);
   // Registration in EVAL_EXTRACTORS does not imply a committed fixture — the CLI

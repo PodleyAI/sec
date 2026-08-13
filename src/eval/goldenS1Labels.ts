@@ -5490,14 +5490,20 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
 };
 
-/** Golden rows for one section, or undefined when the section is unlabeled. */
 /**
- * Extractors that have at least one committed golden label.
+ * Extractors that have at least one committed golden label — the complete
+ * index of what is labelled, and nothing else.
  *
- * Derived from the labels rather than hardcoded, so adding a label set for a new
- * extractor automatically brings it into the default `--reference golden` sweep
- * — the alternative is a constant that silently drifts out of date and quietly
- * stops scoring sections somebody took the trouble to label.
+ * Derived from the labels rather than hardcoded, so labeling a new extractor
+ * automatically brings it under the coverage guards in `goldenS1Labels.test.ts`
+ * and into the `--reference golden` sweep — the alternative is a constant that
+ * silently drifts out of date and quietly stops scoring sections somebody took
+ * the trouble to label.
+ *
+ * Whether a labelled extractor runs in a sweep nobody asked for by name is a
+ * separate question, answered by `defaultGoldenSweepExtractors` — filtering it
+ * in here would drop a disabled extractor's labels out from under the coverage
+ * guards, which read this as the full index.
  */
 export function extractorsWithGoldenLabels(): string[] {
   const seen = new Set<string>();
@@ -5508,6 +5514,7 @@ export function extractorsWithGoldenLabels(): string[] {
   return [...seen].sort();
 }
 
+/** Golden rows for one section, or undefined when the section is unlabeled. */
 export function getGoldenLabels(
   filing: string,
   extractor: string

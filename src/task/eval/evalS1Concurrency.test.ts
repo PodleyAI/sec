@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Workflow } from "workglow";
 import { EvalS1SectionTask } from "./EvalS1SectionTask";
 import {
+  effectiveEvalS1Concurrency,
   evalS1ConcurrencyProduct,
   formatEvalS1Concurrency,
   resolveEvalS1Concurrencies,
@@ -136,6 +137,64 @@ describe("eval s1 concurrency reporting", () => {
     // the column header carries every axis, not just one of them.
     expect(formatEvalS1Concurrency({ s1: 1, section: 5, sectionModel: 4 })).toBe("1x5x4");
     expect(formatEvalS1Concurrency({ s1: 1, section: 1, sectionModel: 1 })).toBe("1x1x1");
+  });
+});
+
+describe("effectiveEvalS1Concurrency", () => {
+  it("caps the model axis by how many models were actually named", () => {
+    // The whole point of the `lat@…` label is comparing two latency figures, so
+    // it has to describe the load the sweep RAN at. The default `--models` is a
+    // single id, so a bare `sec eval s1` reaches 1x5x1 = 5 in flight while the
+    // request reads 1x5x4 = 20 — a four-fold overstatement on the column whose
+    // only job is to make the comparison honest.
+    expect(
+      effectiveEvalS1Concurrency(
+        { s1: 1, section: 5, sectionModel: 4 },
+        { filings: 42, maxSectionsPerFiling: 12, candidates: 1 }
+      )
+    ).toEqual({ s1: 1, section: 5, sectionModel: 1 });
+  });
+
+  it("caps the filing axis by the corpus, not the request", () => {
+    // `--cik` narrowing a sweep to one filing cannot run 4 filings at once.
+    expect(
+      effectiveEvalS1Concurrency(
+        { s1: 4, section: 5, sectionModel: 4 },
+        { filings: 1, maxSectionsPerFiling: 12, candidates: 4 }
+      )
+    ).toEqual({ s1: 1, section: 5, sectionModel: 4 });
+  });
+
+  it("caps the section axis by the widest filing", () => {
+    // The section map is per-filing, so this figure is a MAXIMUM across filings
+    // — a filing with fewer sections runs narrower, which is why callers render
+    // it as "at most N sections".
+    expect(
+      effectiveEvalS1Concurrency(
+        { s1: 1, section: 5, sectionModel: 4 },
+        { filings: 3, maxSectionsPerFiling: 2, candidates: 4 }
+      )
+    ).toEqual({ s1: 1, section: 2, sectionModel: 4 });
+  });
+
+  it("leaves a request the workload can satisfy untouched", () => {
+    expect(
+      effectiveEvalS1Concurrency(
+        { s1: 2, section: 3, sectionModel: 2 },
+        { filings: 42, maxSectionsPerFiling: 12, candidates: 4 }
+      )
+    ).toEqual({ s1: 2, section: 3, sectionModel: 2 });
+  });
+
+  it("floors every axis at 1 for a degenerate workload", () => {
+    // An empty corpus reports 1x1x1 rather than 0 — a zero would render as
+    // "lat@0x0x0" and divide-by-zero any product printed beside it.
+    expect(
+      effectiveEvalS1Concurrency(
+        { s1: 1, section: 5, sectionModel: 4 },
+        { filings: 0, maxSectionsPerFiling: 0, candidates: 0 }
+      )
+    ).toEqual({ s1: 1, section: 1, sectionModel: 1 });
   });
 });
 
