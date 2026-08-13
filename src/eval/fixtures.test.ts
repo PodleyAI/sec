@@ -75,4 +75,34 @@ describe("EVAL_EXTRACTORS personNameFields", () => {
     expect(EVAL_EXTRACTORS["executive-compensation"].personNameFields).toEqual(["person_name"]);
     expect(EVAL_EXTRACTORS["beneficial-ownership"].personNameFields).toBeUndefined();
   });
+
+  it("routes a mixed-entity extractor through its own discriminator", () => {
+    // The other half of the rule: a mixed extractor must not be left on plain
+    // normalization either, which costs it alignment the codebase can already
+    // do. It names the field under `entityNameFields` instead.
+    const ownership = EVAL_EXTRACTORS["beneficial-ownership"];
+    expect(ownership.entityNameFields).toEqual(["name"]);
+    expect(ownership.entityKindField).toBe("owner_kind");
+  });
+
+  it("names an entityKindField that exists, whenever entityNameFields is used", () => {
+    // Without the discriminator the mixed fields silently fall back to plain
+    // normalization — the flag would read as configured and do nothing.
+    for (const [name, spec] of Object.entries(EVAL_EXTRACTORS)) {
+      if (!spec.entityNameFields?.length) continue;
+      const props = schemaPropertyNames(spec.schema());
+      expect(spec.entityKindField, `${name}: entityNameFields without entityKindField`).toBeTypeOf(
+        "string"
+      );
+      expect(
+        props.has(spec.entityKindField!),
+        `${name}: entityKindField "${spec.entityKindField}" is not in the schema`
+      ).toBe(true);
+      for (const field of spec.entityNameFields) {
+        expect(props.has(field), `${name}: entityNameFields names unknown field "${field}"`).toBe(
+          true
+        );
+      }
+    }
+  });
 });

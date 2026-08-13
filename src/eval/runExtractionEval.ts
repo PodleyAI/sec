@@ -12,7 +12,12 @@ import { participatesInDefaultSweeps } from "./defaultSweepExtractors";
 import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
 import { loadRealS1Sections } from "./realSections";
-import { EVAL_EXTRACTORS, EVAL_FIXTURES, estimateExtractionPromptChars, type EvalFixture } from "./fixtures";
+import {
+  EVAL_EXTRACTORS,
+  EVAL_FIXTURES,
+  estimateExtractionPromptChars,
+  type EvalFixture,
+} from "./fixtures";
 import {
   captureEvalRawFromError,
   captureEvalRawFromRows,
@@ -260,6 +265,9 @@ async function runOne(
     const score = scoreExtraction(rows, fixture.expected, {
       keyField: extractor.keyField,
       personNameFields: extractor.personNameFields,
+      companyNameFields: extractor.companyNameFields,
+      entityNameFields: extractor.entityNameFields,
+      entityKindField: extractor.entityKindField,
     });
     const cost = estimateCost(modelId, promptChars, JSON.stringify(rows).length);
     return {
@@ -290,6 +298,9 @@ async function runOne(
       score: scoreExtraction([], fixture.expected, {
         keyField: extractor.keyField,
         personNameFields: extractor.personNameFields,
+        companyNameFields: extractor.companyNameFields,
+        entityNameFields: extractor.entityNameFields,
+        entityKindField: extractor.entityKindField,
       }),
       cost: estimateCost(modelId, promptChars, 0),
       run,
@@ -431,12 +442,18 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               score: scoreExtraction([], fixture.expected, {
                 keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
                 personNameFields: EVAL_EXTRACTORS[fixture.extractor].personNameFields,
+                companyNameFields: EVAL_EXTRACTORS[fixture.extractor].companyNameFields,
+                entityNameFields: EVAL_EXTRACTORS[fixture.extractor].entityNameFields,
+                entityKindField: EVAL_EXTRACTORS[fixture.extractor].entityKindField,
               }),
               cost: estimateCost(modelId, 0, 0),
               run,
               fingerprint: `unregistered:${run}`,
               contentFingerprint: `unregistered:${run}`,
-              raw: captureEvalRawFromError(opts.dumpRaw === true, new Error(`model "${modelId}" not registered`)),
+              raw: captureEvalRawFromError(
+                opts.dumpRaw === true,
+                new Error(`model "${modelId}" not registered`)
+              ),
             } satisfies FixtureRunResult);
         results.push(result);
         modelRows.push(result);

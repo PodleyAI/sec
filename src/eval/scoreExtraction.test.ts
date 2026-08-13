@@ -369,5 +369,61 @@ describe("scoreExtraction", () => {
       expect(s.candidateDistinct).toBe(1);
       expect(s.expectedItems).toBe(1);
     });
+    it("scores a mixed name column through the row's own owner_kind", () => {
+      // The whole point of the per-row dispatch, in one table: the two funds
+      // must stay distinct (person hashing merges them) AND the person must
+      // align across a credential (company hashing splits them). No single
+      // parser satisfies both, which is why the row decides.
+      const expected = [
+        { name: "WAVE Equity Fund, L.P.", owner_kind: "company" },
+        { name: "WAVE Equity Fund, LLC", owner_kind: "company" },
+        { name: "Isaac Manke", owner_kind: "person" },
+      ];
+      const candidate = [
+        { name: "WAVE Equity Fund, L.P.", owner_kind: "company" },
+        { name: "WAVE Equity Fund, LLC", owner_kind: "company" },
+        { name: "Isaac Manke, Ph.D.", owner_kind: "person" },
+      ];
+      const s = scoreExtraction(candidate, expected, {
+        keyField: "name",
+        fields: ["name"],
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.candidateDistinct).toBe(3);
+      expect(s.expectedItems).toBe(3);
+      expect(s.matchedItems).toBe(3);
+      expect(s.entityRecall).toBe(1);
+      expect(s.precision).toBe(1);
+    });
+
+    it("falls back to plain normalization when the discriminator is absent or unknown", () => {
+      // Never guess a parser: each one corrupts identity in a different
+      // direction, and plain normalization only costs alignment it could have
+      // had. Two funds with no owner_kind stay two rows.
+      const owners = [
+        { name: "WAVE Equity Fund, L.P." },
+        { name: "WAVE Equity Fund, LLC" },
+        { name: "Someone Else", owner_kind: "trust" },
+      ];
+      const s = scoreExtraction(owners, owners, {
+        keyField: "name",
+        fields: ["name"],
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.candidateDistinct).toBe(3);
+      expect(s.matchedItems).toBe(3);
+    });
+
+    it("aligns an organization across a legal-form spelling via companyNameFields", () => {
+      const s = scoreExtraction(
+        [{ name: "WAVE Equity Fund LP" }],
+        [{ name: "WAVE Equity Fund, L.P." }],
+        { keyField: "name", fields: ["name"], companyNameFields: ["name"] }
+      );
+      expect(s.matchedItems).toBe(1);
+      expect(s.entityRecall).toBe(1);
+    });
   });
 });
