@@ -127,4 +127,40 @@ describe("ExtractionDeadLetterRepo", () => {
     expect(eligible.map((r) => r.accession_number)).toEqual(["throttled"]);
     expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
   });
+
+  it("keeps MIXED_CAPTION_SHAPE eligible under the same version, but only for a bounded number of attempts", async () => {
+    // A mixed caption shape is a property of one generation, not of the
+    // extractor: the model echoed a category heading back as a row, and the
+    // next call usually does not. Gating that behind a version bump asks for a
+    // code change to recover from a dice roll, so it retries under the same
+    // version.
+    //
+    // The bound is the other half. Unlike a provider outage, a genuinely
+    // ambiguous section never clears — an unbounded same-version retry would
+    // leave an entry no operator can resolve while re-paying the AI cost of the
+    // largest section in the filing on every sweep, forever.
+    const record = async (): Promise<void> =>
+      repo.record({
+        extractor_id: "S-1",
+        accession_number: "mixed",
+        section_name: "Risk Factors",
+        reason_code: "MIXED_CAPTION_SHAPE",
+        detail: "4 of 20 rows have no sentence-ending punctuation",
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+
+    await record();
+    expect((await repo.get("S-1", "mixed", "Risk Factors"))?.attempts).toBe(1);
+    expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
+
+    await record();
+    await record();
+    // Three recorded attempts: the budget is spent, so it falls back to the
+    // ordinary version gate — fix the prompt or the heuristic, bump, retry.
+    expect((await repo.get("S-1", "mixed", "Risk Factors"))?.attempts).toBe(3);
+    expect(await repo.countEligible("S-1", "1.0.0")).toBe(0);
+    // Still recoverable the version-gated way.
+    expect(await repo.countEligible("S-1", "1.1.0")).toBe(1);
+  });
 });

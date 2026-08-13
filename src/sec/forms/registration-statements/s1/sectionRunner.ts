@@ -168,7 +168,19 @@ export function makeRunSection(opts: {
       // is lost about two runs in three; the rest of the pipeline already
       // retries transport-level failures for the same reason.
       for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
-        raw = await sargs.extract(text);
+        try {
+          raw = await sargs.extract(text);
+        } catch (e) {
+          // A mixed caption shape is a property of ONE generation, not a verdict
+          // about the section: the model echoed a category heading back as a
+          // row, and the next call usually does not. Without this the throw
+          // escapes the loop entirely and the section gets zero re-asks, unlike
+          // every other recoverable response-shape failure here.
+          if (!(e instanceof MixedRiskCaptionShapeError) || attempt === VERIFICATION_ATTEMPTS) {
+            throw e;
+          }
+          continue;
+        }
         confident = raw.filter((r) => r.confidence >= floor);
         droppedUnverified = 0;
         droppedTooLong = 0;

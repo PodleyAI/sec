@@ -186,8 +186,17 @@ whole wait-out budget without the window clearing) is retryable under the
 **same** extractor version — `retry-dead-letters` recovers it once the
 model/provider is registered, or once the quota window has moved on, with no
 version bump required (`MODEL_ERROR_REASON_CODES` in
-`ExtractionDeadLetterSchema.ts`). Every other reason code stays version-gated
-(fix the extractor, bump the version, then retry).
+`ExtractionDeadLetterSchema.ts`).
+
+`MIXED_CAPTION_SHAPE` is same-version retryable too, but **bounded**
+(`NONDETERMINISTIC_REASON_CODES` / `NONDETERMINISTIC_RETRY_ATTEMPTS = 3`, same
+file). It describes one generation's response, not a defect in the extractor, so
+a version bump is the wrong ceremony — but unlike a provider outage a genuinely
+ambiguous section never clears on its own, and an unbounded same-version retry
+would leave an entry no operator can resolve while re-paying the AI cost of the
+largest section in the filing on every sweep. After three recorded attempts it
+falls back to the version gate. Every other reason code is version-gated from
+the start (fix the extractor, bump the version, then retry).
 
 The two are deliberately **not** the same code even though their retry semantics
 are identical: `MODEL_RESOLUTION_ERROR` means the configured model id is not
@@ -833,36 +842,56 @@ caught by the same "enforce it, don't trust the prompt" guard the ownership
 subtotal gets — a heading is verbatim section text, so nothing downstream would
 otherwise stop it becoming a row that reads like a disclosed risk.
 
-Two different rules do that work, and the order matters. First the chunk prefix
-is reconciled against itself: `chunkRiskFactorText` reports the heading line it
+One rule does that work, and it is decided **after** the whole section has been
+read, not chunk by chunk. `chunkRiskFactorText` reports the heading line it
 prepended to each chunk (`RiskFactorChunk.carriedHeading`), and a row whose
-caption is exactly that line is dropped. That drop is not a judgement about the
-section — the line is one this code inserted, not a caption the filer printed
-under it — which is why it is the one drop that leaves no trace, and it removes
-the artifact chunking creates: a ~7-chunk section hands the model ~6 headings
-and invites it to echo them back as rows. An echo that is _reworded_ rather than
-copied is not this rule's problem: it fails `verifyRow` like any other
-paraphrase and lands on the existing `<section>-partial` /
-`UNVERIFIED_SOURCE_SPAN` triage entry.
+caption is exactly that line is **remembered as a candidate echo** — it removes
+the artifact chunking creates (a ~7-chunk section hands the model ~6 headings
+and invites it to echo them back as rows) but it is not yet dropped. An echo
+that is _reworded_ rather than copied is not this rule's problem: it fails
+`verifyRow` like any other paraphrase and lands on the existing
+`<section>-partial` / `UNVERIFIED_SOURCE_SPAN` triage entry.
 
-What survives is judged on the response's **shape as a whole**, not row by row,
-because the shape heuristic (no sentence-ending punctuation) cannot tell a
-category heading from an Item 105(b) summary bullet. A **homogeneous** response
-is kept intact either way — all bare phrases is a summary list whose "headings"
-ARE the captions; no bare phrases is an ordinary sentence-caption list with
-nothing to drop. A **mixed** one is unanswerable and dead-letters
-`MIXED_CAPTION_SHAPE` (via `MixedRiskCaptionShapeError`) rather than persisting a
-subset: filers are inconsistent about terminal punctuation, so one summary
-bullet ending in a period was enough to make an all-or-nothing filter keep that
-single row and silently drop the other 29 — a partial disclosure recorded as
-complete, exactly what the chunked-section contract exists to prevent. A
-ratio-gated variant of this rule (drop the heading-shaped rows while they are a
-small enough minority of the response) was tried and removed: it reproduced that
-failure in the other direction — four bare bullets out of twenty deleted from a
-section that then resolved clean, with a `console.warn` as the only record. The
-price of the strict rule is that one stray heading fails the whole section; it
-fails visibly, onto the version-gated retry worklist, with every caption
-recoverable by re-running the filing.
+Dropping the echo where it is found loses real captions, because de-duplication
+runs first: a caption any earlier chunk already emitted is dropped as a
+duplicate, so the echo branch is reachable **only** for a caption no chunk
+emitted on its own — precisely the row whose sole appearance in the whole sweep
+is that echo. On a filing whose section IS an Item 105(b) summary list, every
+bullet is heading-shaped and the carried line is itself one of the filer's
+bullets, so the drop deletes a disclosed risk and marks the section resolved.
+
+The evidence that separates "line this code inserted" from "bullet the filer
+printed" is the shape of the **rest** of the section, which only exists once
+every chunk has answered. So the verdict is taken there, over the response's
+shape **as a whole** rather than row by row — the shape heuristic
+(no sentence-ending punctuation, `isRiskCategoryHeading`) cannot tell a category
+heading from a summary bullet in isolation. Computed over the rows **minus** the
+candidate echoes, so a dropped echo can never mask a mix:
+
+- **all bare phrases** — the section is a summary list, its "headings" ARE its
+  captions, so the echoes are kept and nothing is dropped;
+- **no bare phrases** — an ordinary sentence-caption list, so an echo is the
+  heading this code prepended and is dropped (with a `console.warn` naming the
+  count, since a silent drop is what made the earlier version of this so hard to
+  see);
+- **mixed** — unanswerable, and dead-letters `MIXED_CAPTION_SHAPE` (via
+  `MixedRiskCaptionShapeError`) rather than persisting a subset.
+
+Filers are inconsistent about terminal punctuation, so one summary bullet ending
+in a period was enough to make an all-or-nothing filter keep that single row and
+silently drop the other 29 — a partial disclosure recorded as complete, exactly
+what the chunked-section contract exists to prevent. A ratio-gated variant (drop
+the heading-shaped rows while they are a small enough minority) was tried and
+removed: it reproduced that failure in the other direction — four bare bullets
+out of twenty deleted from a section that then resolved clean. The price of the
+strict rule is that one stray heading fails the whole section; it fails visibly,
+with every caption recoverable by re-running the filing. Because a mixed shape
+is a property of one generation rather than of the section, `sectionRunner`
+re-asks the model up to `VERIFICATION_ATTEMPTS` times before recording it, and
+the recorded entry stays retry-eligible under the **same** extractor version for
+`NONDETERMINISTIC_RETRY_ATTEMPTS` (3) attempts — after which it falls back to
+the ordinary version gate rather than re-paying the AI cost of a genuinely
+ambiguous section on every sweep forever.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate
@@ -873,9 +902,9 @@ extractors' output-token ceiling and truncating the JSON. `chunkRiskFactorText`
 40k-char chunks (~15–25 captions each, at the ~1.5–2.8k chars per risk the
 fixtures measure) and prefixes every chunk after the first with the last category heading seen
 before it — a verbatim line from the section, so spans still verify — reporting
-that line back on the chunk so the extractor can drop its echoes by exact match.
-`extractRiskFactors` runs one call per chunk, concatenating in document order and
-de-duplicating on the caption. A
+that line back on the chunk so the extractor can identify its echoes by exact
+match. `extractRiskFactors` runs one call per chunk, concatenating in document
+order and de-duplicating on the caption. A
 chunk that fails propagates and fails the whole section: persisting the captions
 that happened to arrive first would record a silently partial list as if it were
 the filing's complete disclosure. A section over 400k chars is a segmentation

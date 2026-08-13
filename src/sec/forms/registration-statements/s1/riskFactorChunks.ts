@@ -32,6 +32,13 @@ export const MAX_RISK_FACTORS_CHARS = 400_000;
 /** Upper bound on a category heading's length; real ones run well under it. */
 const CATEGORY_MAX_CHARS = 200;
 
+/**
+ * A dotted initialism closing the line ("…Operations in the U.S.", "…by the
+ * S.E.C."). Its final period is part of the abbreviation, not sentence
+ * punctuation, so a heading ending this way must not be read as a caption.
+ */
+const TRAILING_INITIALISM = /(?:\b[A-Za-z]\.){2,}$/;
+
 export function stripHeadingMarkers(paragraph: string): string {
   return paragraph.replace(/^#{1,6}\s*/, "").trim();
 }
@@ -46,13 +53,14 @@ export function stripHeadingMarkers(paragraph: string): string {
  * Two callers: {@link chunkRiskFactorText} carries the last heading into the
  * next chunk, where a false positive costs only a redundant context line; and
  * the extractor uses it to ask whether a response's rows are homogeneous in
- * shape, where a mixed verdict fails the section rather than dropping rows.
+ * shape — a verdict that both fails a mixed section and decides whether a
+ * carried-heading echo is dropped, so a miss here costs real rows.
  */
 export function isRiskCategoryHeading(paragraph: string): boolean {
   const line = stripHeadingMarkers(paragraph);
   if (line.length === 0 || line.length > CATEGORY_MAX_CHARS) return false;
   if (line.includes("\n")) return false;
-  if (/[.?!;:]$/.test(line)) return false;
+  if (/[.?!;:]$/.test(line) && !TRAILING_INITIALISM.test(line)) return false;
   return /\brisks?\b/i.test(line);
 }
 

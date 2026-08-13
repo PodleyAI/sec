@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { TaskAbortedError } from "workglow";
-import { RateLimitExhaustedError } from "./sectionExtractors";
+import { MixedRiskCaptionShapeError, RateLimitExhaustedError } from "./sectionExtractors";
 import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
 
 interface RecordedLetter {
@@ -255,6 +255,73 @@ describe("makeRunSection confidenceFloor", () => {
 
     expect(call).toBe(VERIFICATION_ATTEMPTS);
     expect(letters[0]?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+  });
+
+  it("re-asks a MixedRiskCaptionShapeError and keeps the retry's rows", async () => {
+    // `extract` THROWS this one rather than returning rows, so before the fix
+    // it escaped the re-ask loop entirely and went straight to the catch — the
+    // one recoverable response-shape failure in this file that got zero
+    // re-asks, on by far the most expensive section to re-run. The heading echo
+    // that causes it is a property of one generation, not of the section.
+    const { repo, letters, resolved } = stubDeadLetters();
+    let call = 0;
+    const persisted: string[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-mixed-retry",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "Risk Factors",
+      text: "We may be unable to complete a business combination.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        call++;
+        if (call === 1) throw new MixedRiskCaptionShapeError(4, 20);
+        return [{ confidence: 0.9, span: "We may be unable to complete a business combination." }];
+      },
+      persist: async (rows) => {
+        persisted.push(...rows.map((r) => r.span));
+        return rows.length;
+      },
+    });
+
+    expect(call).toBe(2);
+    expect(persisted).toEqual(["We may be unable to complete a business combination."]);
+    expect(letters).toEqual([]);
+    expect(resolved).toContain("Risk Factors");
+  });
+
+  it("dead-letters MIXED_CAPTION_SHAPE once every re-ask has been spent", async () => {
+    // The bound: a section that is mixed on every attempt is a real
+    // ambiguity and belongs on the worklist, not in an endless re-ask.
+    const { repo, letters } = stubDeadLetters();
+    let call = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-mixed-final",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "Risk Factors",
+      text: "Some risk prose.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      extract: async () => {
+        call++;
+        throw new MixedRiskCaptionShapeError(4, 20);
+      },
+      persist: async () => 0,
+    });
+
+    expect(call).toBe(VERIFICATION_ATTEMPTS);
+    expect(letters).toEqual([
+      { section_name: "Risk Factors", reason_code: "MIXED_CAPTION_SHAPE" },
+    ]);
   });
 
   it("does not re-ask an empty response", async () => {
