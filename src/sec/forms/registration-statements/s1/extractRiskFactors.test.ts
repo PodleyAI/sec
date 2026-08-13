@@ -138,12 +138,19 @@ describe("extractRiskFactors", () => {
     ]);
     cleanup = unregister;
 
-    const rows = await extractRiskFactors(text, fakeS1Model());
+    const dropped: string[][] = [];
+    const rows = await extractRiskFactors(text, fakeS1Model(), undefined, (headlines) =>
+      dropped.push([...headlines])
+    );
     expect(calls.length).toBeGreaterThan(1);
     // Every real caption survives and the injected line never becomes a row —
     // so the shape check that follows sees a homogeneous response and the
     // section is not failed for an artifact of our own chunking.
     expect(rows.map((r) => r.headline)).toEqual(["First risk.", "Second risk.", "Third risk."]);
+    // The drop is reported VERBATIM, once, so the caller can record what was
+    // removed against the filing. Both chunks echoed the same line, but
+    // de-duplication means only one row ever existed to drop.
+    expect(dropped).toEqual([[CATEGORY_LINE]]);
   });
 
   it("dead-letters a mixed section instead of silently deleting the heading-shaped minority", async () => {

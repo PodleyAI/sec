@@ -879,7 +879,7 @@ async function runGuardedExtraction(
     : buildExtractionPrompt({ instructions, sectionText });
   let lastError: unknown;
   let rateLimitWaits = 0;
-  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS;) {
+  for (let attempt = 1; attempt <= EXTRACTION_ATTEMPTS; ) {
     // Local grammar/ONNX providers cannot reliably echo a 16-hex token, and the
     // nonce is off by default besides; either way the schema must drop
     // `nonce_seen` or the model is asked to echo something it was never given.
@@ -1646,7 +1646,9 @@ export function riskFactorsInstructions(): string {
  * echoing the category heading the chunker itself prefixed onto a chunk is
  * dropped only when the rest of the section reads in sentence captions — on a
  * filing whose section is an Item 105(b) summary list, that same line is one of
- * the filer's own bullets, so the shape of the section decides.
+ * the filer's own bullets, so the shape of the section decides. Whatever is
+ * dropped is reported verbatim through `onDroppedEchoes` so the caller, which
+ * knows the filing, can record it for triage.
  *
  * A chunk that fails propagates, failing the section as a whole: persisting the
  * captions that happened to come back before the failure would record a
@@ -1655,7 +1657,8 @@ export function riskFactorsInstructions(): string {
 export async function extractRiskFactors(
   sectionText: string,
   model: ModelConfig,
-  context?: IExecuteContext
+  context?: IExecuteContext,
+  onDroppedEchoes?: (headlines: readonly string[]) => void
 ): Promise<RiskFactorRow[]> {
   const chunks = chunkRiskFactorText(sectionText);
   const out: RiskFactorRow[] = [];
@@ -1723,8 +1726,16 @@ export async function extractRiskFactors(
   // code prepended.
   const keepEchoes = body.length > 0 && headingLike === body.length;
   if (!keepEchoes && echoKeys.size > 0) {
-    console.warn(
-      `risk factors: dropped ${echoKeys.size} carried-heading echo(es) of ${out.length} row(s)`
+    // Report the VERBATIM dropped headlines, not a count. This branch deletes
+    // rows a model returned and lets the section resolve as complete, and a
+    // console warning is not a record: it names no accession, survives no
+    // sweep, and is exactly what made the earlier ratio-gated variant of this
+    // drop unreviewable. The caller has the filing's identity in scope and
+    // turns these into a triage entry.
+    onDroppedEchoes?.(
+      out
+        .filter((risk) => echoKeys.has(riskHeadlineKey(risk.headline)))
+        .map((risk) => risk.headline)
     );
   }
   return keepEchoes ? out : body;
