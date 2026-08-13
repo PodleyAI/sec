@@ -11,12 +11,16 @@ import {
   extractManagement,
   extractBeneficialOwnership,
   extractRelatedParty,
+  extractSpacProfile,
   extractSpacSponsors,
   extractOfferingTerms,
   extractUnderwriters,
   extractUseOfProceeds,
   extractMergerDeal,
+  coerceUnderwritersArray,
+  filterVerifiedFocusLocations,
   isCollectivePartyName,
+  isProfessionalServiceProvider,
   requireNonEmptyGrammarArrays,
 } from "./sectionExtractors";
 import { fakeS1Model, registerFakeStructuredProvider } from "./testing/fakeStructuredProvider";
@@ -252,6 +256,81 @@ it("extractUnderwriters returns parsed underwriter rows", async () => {
     const rows = await extractUnderwriters("UNDERWRITING ...", fakeS1Model());
     expect(rows[0].common_name).toBe("Goldman Sachs");
     expect(rows[0].role).toBe("lead");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractUnderwriters coerces a JSON-stringified underwriters array", async () => {
+  const payload = [
+    {
+      legal_name: "B. Riley",
+      common_name: "B. Riley",
+      role: "underwriter",
+      shares_allocated: null,
+      over_allotment_shares: null,
+      confidence: 0.9,
+      source_span: "B. Riley",
+    },
+  ];
+  const { unregister } = registerFakeStructuredProvider([
+    { underwriters: JSON.stringify(payload) },
+  ]);
+  try {
+    const rows = await extractUnderwriters("UNDERWRITING ...", fakeS1Model());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].legal_name).toBe("B. Riley");
+  } finally {
+    unregister();
+  }
+});
+
+it("extractSpacProfile drops focus_location not stated in the section", async () => {
+  const section =
+    "We intend to focus on healthcare and biopharmaceutical businesses in North America.";
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      focus: ["Healthcare", "Biopharmaceuticals"],
+      focus_location: ["North America", "Europe", "Asia"],
+      description: "A blank-check company.",
+      team: null,
+      url_spac: null,
+      confidence: 0.9,
+      source_span: "healthcare and biopharmaceutical businesses",
+    },
+  ]);
+  try {
+    const row = await extractSpacProfile(section, fakeS1Model());
+    expect(row?.focus_location).toEqual(["North America"]);
+  } finally {
+    unregister();
+  }
+});
+
+it("extractRelatedParty drops outside counsel named only as a service provider", async () => {
+  const { unregister } = registerFakeStructuredProvider([
+    {
+      parties: [
+        {
+          name: "Chardan",
+          party_kind: "company",
+          confidence: 0.9,
+          source_span: "Chardan Capital Markets LLC",
+          transactions: [],
+        },
+        {
+          name: "Goodwin Procter LLP",
+          party_kind: "company",
+          confidence: 0.8,
+          source_span: "Goodwin Procter LLP serves as our counsel",
+          transactions: [],
+        },
+      ],
+    },
+  ]);
+  try {
+    const parties = await extractRelatedParty("We engaged Chardan ...", fakeS1Model());
+    expect(parties.map((p) => p.name)).toEqual(["Chardan"]);
   } finally {
     unregister();
   }
@@ -552,5 +631,65 @@ describe("isCollectivePartyName", () => {
     expect(isCollectivePartyName(null)).toBe(false);
     expect(isCollectivePartyName(undefined)).toBe(false);
     expect(isCollectivePartyName("")).toBe(false);
+  });
+});
+
+describe("filterVerifiedFocusLocations", () => {
+  it("keeps locations present in the section or source span", () => {
+    const section = "We may pursue targets in North America and Europe.";
+    expect(filterVerifiedFocusLocations(["North America", "Asia"], section, "")).toEqual([
+      "North America",
+    ]);
+  });
+
+  it("is case-insensitive", () => {
+    expect(filterVerifiedFocusLocations(["north america"], "North America", "")).toEqual([
+      "north america",
+    ]);
+  });
+});
+
+describe("coerceUnderwritersArray", () => {
+  it("parses a JSON string into an array", () => {
+    const rows = [{ legal_name: "B. Riley", common_name: "B. Riley" }];
+    expect(coerceUnderwritersArray(JSON.stringify(rows))).toEqual(rows);
+  });
+
+  it("returns an empty array for invalid JSON", () => {
+    expect(coerceUnderwritersArray("not json")).toEqual([]);
+  });
+});
+
+describe("isProfessionalServiceProvider", () => {
+  it("flags an LLP with no transactions", () => {
+    expect(
+      isProfessionalServiceProvider({
+        name: "Goodwin Procter LLP",
+        party_kind: "company",
+        confidence: 0.9,
+        source_span: "Goodwin Procter LLP",
+        transactions: [],
+      })
+    ).toBe(true);
+  });
+
+  it("does not flag a real counterparty with a transaction amount", () => {
+    expect(
+      isProfessionalServiceProvider({
+        name: "Chardan Capital Markets LLC",
+        party_kind: "company",
+        confidence: 0.9,
+        source_span: "Chardan",
+        transactions: [
+          {
+            counterparty: "the Company",
+            nature: "underwriting",
+            amount: 100000,
+            period: null,
+            footnote: null,
+          },
+        ],
+      })
+    ).toBe(false);
   });
 });

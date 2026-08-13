@@ -49,6 +49,17 @@ import { SpacSponsorOutputSchema } from "../sec/forms/registration-statements/s1
 import { SponsorPromoteOutputSchema } from "../sec/forms/registration-statements/s1/sponsorPromoteSchema";
 import { UnderwriterOutputSchema } from "../sec/forms/registration-statements/s1/underwriterSchema";
 import { UseOfProceedsOutputSchema } from "../sec/forms/registration-statements/s1/useOfProceedsSchema";
+import { trimManagementSectionText } from "../sec/forms/registration-statements/s1/trimManagementSection";
+import { trimExecutiveCompensationSectionText } from "../sec/forms/registration-statements/s1/trimExecutiveCompensationSection";
+import { trimProspectusSummarySectionText } from "../sec/forms/registration-statements/s1/trimProspectusSummarySection";
+import { trimOfferingSectionText, trimOfferingTermsSectionText } from "../sec/forms/registration-statements/s1/trimOfferingSection";
+import { trimSponsorPromoteSectionText } from "../sec/forms/registration-statements/s1/trimSponsorPromoteSection";
+import { trimUnderwritingSectionText } from "../sec/forms/registration-statements/s1/trimUnderwritingSection";
+import { trimRelatedPartySectionText } from "../sec/forms/registration-statements/s1/trimRelatedPartySection";
+import { trimUseOfProceedsSectionText } from "../sec/forms/registration-statements/s1/trimUseOfProceedsSection";
+import { trimBeneficialOwnershipSectionText } from "../sec/forms/registration-statements/s1/trimBeneficialOwnershipSection";
+import { trimSpacSponsorsSectionText } from "../sec/forms/registration-statements/s1/trimSpacSponsorsSection";
+import { trimLoiSectionText } from "../sec/forms/registration-statements/s1/trimLoiSection";
 
 /**
  * Character length of the extraction prompt (preamble + instructions + fenced
@@ -89,6 +100,23 @@ export interface EvalExtractor {
    * Defaults (when unset) to comparing every field of the expected row.
    */
   readonly compareFields?: readonly string[];
+  /**
+   * Optional extraction-path rewrite of section prose (e.g. drop post-roster
+   * fluff). Applied by `eval s1 --print-prompts=document|full` so printed
+   * prompts match what {@link run} sends the model. Production extractors that
+   * need the same cut apply it inside `run` themselves.
+   */
+  readonly prepareSectionText?: (sectionText: string) => string;
+  /**
+   * Fields whose values are person names — passed to {@link scoreExtraction} so
+   * credentials do not split identity. Defaults to none.
+   */
+  readonly personNameFields?: readonly string[];
+  /**
+   * When true, exclude from default golden / extract sweeps. Explicit
+   * `--extractors` / `--extractor` still accepts the name.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -103,6 +131,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => ManagementOutputSchema,
     keyField: "full_name",
     compareFields: ["full_name", "titles"],
+    personNameFields: ["full_name"],
+    prepareSectionText: trimManagementSectionText,
   },
   "beneficial-ownership": {
     run: (text, model, context) => extractBeneficialOwnership(text, model, context),
@@ -112,17 +142,23 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
+    personNameFields: ["name"],
+    prepareSectionText: trimBeneficialOwnershipSectionText,
   },
   // List extractor over a prospectus Item 105 section: one row per risk-factor
   // caption. Scored on the caption (verbatim) and the category heading it sits
   // under — the section's introductory prose and category headings themselves
   // must NOT produce rows, so emitting one costs precision.
+  // Size control is {@link chunkRiskFactorText} inside extractRiskFactors (not
+  // a prepareSectionText trim): one response cannot hold ~90 captions.
+  // Disabled from default eval sweeps: low priority / may be dropped.
   "risk-factors": {
     run: (text, model, context) => extractRiskFactors(text, model, context),
     instructions: riskFactorsInstructions,
     schema: () => RiskFactorsOutputSchema,
     keyField: "headline",
     compareFields: ["headline", "category"],
+    disabled: true,
   },
   "related-party": {
     run: (text, model, context) => extractRelatedParty(text, model, context),
@@ -130,6 +166,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => RelatedPartyOutputSchema,
     keyField: "name",
     compareFields: ["name"],
+    prepareSectionText: trimRelatedPartySectionText,
   },
   // Single-object extractor over an S-1/424 "The Offering" section; positional
   // alignment (no keyField). Scored on the objective numeric unit terms.
@@ -146,6 +183,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "right_fraction_per_unit",
       "trust_per_unit",
     ],
+    prepareSectionText: trimOfferingTermsSectionText,
   },
   // Single-object extractor over a SPAC "The Offering" / "The Sponsor" section;
   // positional alignment (no keyField). Scored on the objective promote figures.
@@ -163,6 +201,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "public_warrant_coverage",
       "trust_per_public_share",
     ],
+    prepareSectionText: trimSponsorPromoteSectionText,
   },
   // Detection-style classifier over a registration filing's summary prose: a
   // true SPAC yields one row; a shell or operating company yields none, so a
@@ -176,6 +215,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => SpacClassificationOutputSchema,
     keyField: "entity_kind",
     compareFields: ["is_spac", "entity_kind"],
+    prepareSectionText: trimProspectusSummarySectionText,
   },
   // Multi-row table extractor over the Item 402 Summary Compensation Table.
   // Positionally aligned (no keyField): a table yields one row per officer PER
@@ -188,6 +228,8 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: executiveCompensationInstructions,
     schema: () => ExecutiveCompensationOutputSchema,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
+    personNameFields: ["person_name"],
+    prepareSectionText: trimExecutiveCompensationSectionText,
   },
   // Multi-row extractor over the Underwriting / Plan of Distribution section.
   // Keyed on the bank's legal name — the field the persist path dedupes on, so
@@ -198,6 +240,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => UnderwriterOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name", "role"],
+    prepareSectionText: trimUnderwritingSectionText,
   },
   // Multi-row extractor over the Use of Proceeds section: one row per line item.
   "use-of-proceeds": {
@@ -206,6 +249,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => UseOfProceedsOutputSchema,
     keyField: "purpose",
     compareFields: ["purpose", "amount"],
+    prepareSectionText: trimUseOfProceedsSectionText,
   },
   // Single-object profile over a SPAC's prospectus-summary prose. Scored on the
   // controlled-vocabulary focus rather than the free-text description, which no
@@ -218,6 +262,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: spacProfileInstructions,
     schema: () => SpacProfileOutputSchema,
     compareFields: ["focus", "focus_location"],
+    prepareSectionText: trimProspectusSummarySectionText,
   },
   // Multi-row extractor naming the sponsor entities behind a blank-check issuer.
   "spac-sponsors": {
@@ -226,6 +271,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => SpacSponsorOutputSchema,
     keyField: "legal_name",
     compareFields: ["legal_name", "common_name"],
+    prepareSectionText: trimSpacSponsorsSectionText,
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
   // a non-binding letter of intent yields one row; anything else (definitive
@@ -240,8 +286,18 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     schema: () => LoiOutputSchema,
     keyField: "target_name",
     compareFields: ["target_name", "loi_date"],
+    prepareSectionText: trimLoiSectionText,
   },
 };
+
+/**
+ * Apply an extractor's optional {@link EvalExtractor.prepareSectionText} so
+ * printed prompts match the prose {@link EvalExtractor.run} sends the model.
+ */
+export function preparedSectionText(extractor: string, sectionText: string): string {
+  const prepare = EVAL_EXTRACTORS[extractor]?.prepareSectionText;
+  return prepare ? prepare(sectionText) : sectionText;
+}
 
 export interface EvalFixture {
   readonly name: string;

@@ -118,7 +118,12 @@ describe("goldenS1Labels", () => {
   it(
     "labels only sections that exist in the committed set",
     () => {
-      const { sections } = loadRealS1Sections([...LABELED_EXTRACTORS]);
+      // Include disabled-but-still-labelled extractors (e.g. risk-factors) so
+      // orphan keys are still caught; LABELED_EXTRACTORS alone skips them.
+      const allLabeled = [
+        ...new Set(Object.keys(GOLDEN_S1_LABELS).map((k) => extractorOf(k))),
+      ];
+      const { sections } = loadRealS1Sections(allLabeled);
       const present = new Set(sections.map((s) => goldenLabelKey(s.filing, s.extractor)));
       for (const key of Object.keys(GOLDEN_S1_LABELS)) {
         expect(present.has(key), `golden key not found in committed sections: ${key}`).toBe(true);

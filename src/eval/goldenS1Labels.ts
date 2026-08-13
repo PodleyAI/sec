@@ -5499,11 +5499,18 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
  * — the alternative is a constant that silently drifts out of date and quietly
  * stops scoring sections somebody took the trouble to label.
  */
+/**
+ * Extractors that have at least one committed golden label and are enabled for
+ * the default `--reference golden` sweep. `risk-factors` stays labelled for
+ * explicit `--extractors risk-factors` but is skipped by default (low priority).
+ */
+const DISABLED_GOLDEN_EXTRACTORS: ReadonlySet<string> = new Set(["risk-factors"]);
+
 export function extractorsWithGoldenLabels(): string[] {
   const seen = new Set<string>();
   for (const key of Object.keys(GOLDEN_S1_LABELS)) {
     const extractor = key.split("::")[1];
-    if (extractor) seen.add(extractor);
+    if (extractor && !DISABLED_GOLDEN_EXTRACTORS.has(extractor)) seen.add(extractor);
   }
   return [...seen].sort();
 }

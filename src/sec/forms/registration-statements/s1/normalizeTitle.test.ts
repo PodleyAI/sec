@@ -56,6 +56,15 @@ describe("normalizeManagementTitle", () => {
     // Title Case + acronym preservation
     ["chief financial officer", "Chief Financial Officer"],
     ["CEO", "CEO"],
+    // SEC principal-officer parentheticals are annotations, not roles
+    [
+      "Chief Executive Officer (principal Executive Officer)",
+      "Chief Executive Officer",
+    ],
+    [
+      "Chief Financial Officer (principal Financial and Accounting Officer)",
+      "Chief Financial Officer",
+    ],
     // already-canonical stays put
     ["Director", "Director"],
     ["Chief Technology Officer", "Chief Technology Officer"],
@@ -119,6 +128,17 @@ describe("normalizeManagementTitles", () => {
     // ...but a plain officer role does NOT imply board membership, so both are kept
     ["Chief Executive Officer and Director", ["Chief Executive Officer", "Director"]],
     ["Chief Financial Officer and Director", ["Chief Financial Officer", "Director"]],
+    // SEC principal-* annotations alongside the matching Chief title are dropped
+    [
+      ["Chief Executive Officer", "Principal Executive Officer", "Director"],
+      ["Chief Executive Officer", "Director"],
+    ],
+    [
+      ["Chief Financial Officer", "Principal Financial and Accounting Officer"],
+      ["Chief Financial Officer"],
+    ],
+    // a bare Principal Accounting Officer (no CFO peer) is kept — real distinct seat
+    [["Principal Accounting Officer"], ["Principal Accounting Officer"]],
     // director nominees split and canonicalize per role
     ["Director nominee", ["Director Nominee"]],
     ["Chairman of the Board nominee", ["Chairman of the Board of Directors (Nominee)"]],

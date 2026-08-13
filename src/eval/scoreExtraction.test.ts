@@ -94,19 +94,43 @@ describe("scoreExtraction", () => {
     expect(s.precision).toBe(1);
   });
 
-  it("aligns names that differ only by a curly vs straight apostrophe", () => {
-    // Reference uses the typographic apostrophe (U+2019); candidate the ASCII
-    // one (U+0027). Same person — must align, not count as missing + extra.
-    const ref = [{ full_name: "Frank D’Angelo", titles: ["Director"] }];
-    const cand = [{ full_name: "Frank D'Angelo", titles: ["Director"] }];
+  it("aligns names differing only by professional credentials", () => {
+    // Production normalizePerson folds "M.D., CFA" / "Ph.D." into credentials;
+    // eval must match the same way so a bare name and a credentialed spelling
+    // of the same person are one row, not missing+extra.
+    const ref = [
+      { full_name: "Gbola Amusa, M.D., CFA", titles: ["Chief Executive Officer", "Director"] },
+      { full_name: "Isaac Manke, Ph.D.", titles: ["Director"] },
+      { full_name: "Andrew Lam, PharmD", titles: ["Director"] },
+    ];
+    const cand = [
+      { full_name: "Gbola Amusa", titles: ["Chief Executive Officer", "Director"] },
+      { full_name: "Isaac Manke", titles: ["Director"] },
+      { full_name: "Andrew Lam", titles: ["Director"] },
+    ];
+    const s = scoreExtraction(cand, ref, {
+      keyField: "full_name",
+      fields: ["full_name", "titles"],
+      personNameFields: ["full_name"],
+    });
+    expect(s.diff.missing).toEqual([]);
+    expect(s.diff.extra).toEqual([]);
+    expect(s.diff.mismatches).toEqual([]);
+    expect(s.entityRecall).toBe(1);
+    expect(s.precision).toBe(1);
+    expect(s.score).toBe(1);
+  });
+
+  it("without personNameFields, credentials still split identity", () => {
+    const ref = [{ full_name: "Gbola Amusa, M.D., CFA", titles: ["Director"] }];
+    const cand = [{ full_name: "Gbola Amusa", titles: ["Director"] }];
     const s = scoreExtraction(cand, ref, {
       keyField: "full_name",
       fields: ["full_name", "titles"],
     });
-    expect(s.diff.missing).toEqual([]);
-    expect(s.diff.extra).toEqual([]);
-    expect(s.entityRecall).toBe(1);
-    expect(s.score).toBe(1);
+    expect(s.entityRecall).toBe(0);
+    expect(s.diff.missing).toEqual(["Gbola Amusa, M.D., CFA"]);
+    expect(s.diff.extra).toEqual(["Gbola Amusa"]);
   });
 
   it("aligns names differing only by a comma before the suffix", () => {

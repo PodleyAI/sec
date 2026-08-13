@@ -11,15 +11,16 @@ import { prefetchModel } from "../task/model/EnsureModelDownloadedTask";
 import { sweepStepContext } from "./evalProgressContext";
 import { fingerprintRows } from "./fingerprintRows";
 import { loadRealS1Sections } from "./realSections";
-import { EVAL_EXTRACTORS, EVAL_FIXTURES, estimateExtractionPromptChars, type EvalFixture } from "./fixtures";
+import { EVAL_EXTRACTORS, EVAL_FIXTURES, estimateExtractionPromptChars, preparedSectionText, type EvalFixture } from "./fixtures";
 import {
   captureEvalRawFromError,
   captureEvalRawFromRows,
   type EvalRawDump,
 } from "./captureEvalRaw";
-import { estimateCost, type CostEstimate } from "./modelPricing";
+import { estimateCost, costFromUsage, type CostEstimate } from "./modelPricing";
 import { scoreExtraction, type ExtractionScore } from "./scoreExtraction";
 import { unloadLocalModel } from "./unloadModel";
+import { takeExtractionUsage } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 export interface FixtureRunResult {
   readonly model: string;
@@ -133,9 +134,13 @@ export interface RunEvalOptions {
   readonly dumpRaw?: boolean;
 }
 
-/** Extractor ids that actually have at least one committed fixture. */
+/** Extractor ids that actually have at least one committed fixture and are eval-enabled. */
 export function extractorsWithFixtures(): string[] {
-  return [...new Set(EVAL_FIXTURES.map((f) => f.extractor))];
+  return [
+    ...new Set(
+      EVAL_FIXTURES.map((f) => f.extractor).filter((name) => !EVAL_EXTRACTORS[name]?.disabled)
+    ),
+  ];
 }
 
 /**
@@ -190,7 +195,11 @@ function realSectionFixtures(extractor: string | undefined): EvalFixture[] {
 
 function selectFixtures(extractor: string | undefined): EvalFixture[] {
   const all = [...EVAL_FIXTURES];
-  if (extractor === undefined) return all;
+  if (extractor === undefined) {
+    // Default sweep skips disabled extractors (e.g. risk-factors); an explicit
+    // `--extractor risk-factors` still selects them below.
+    return all.filter((f) => !EVAL_EXTRACTORS[f.extractor]?.disabled);
+  }
   const selected = all.filter((f) => f.extractor === extractor);
   // Registration in EVAL_EXTRACTORS does not imply a committed fixture — the CLI
   // validates the name against that map, so an unfixtured extractor would sweep
@@ -247,13 +256,23 @@ async function runOne(
   dumpRaw: boolean
 ): Promise<FixtureRunResult> {
   const extractor = EVAL_EXTRACTORS[fixture.extractor];
-  const promptChars = estimateExtractionPromptChars(extractor.instructions(), fixture.text);
+  const sectionText = preparedSectionText(fixture.extractor, fixture.text);
+  const promptChars = estimateExtractionPromptChars(extractor.instructions(), sectionText);
   const t0 = Bun.nanoseconds();
   try {
-    const rows = await extractor.run(fixture.text, model, context);
+    const rows = await extractor.run(sectionText, model, context);
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
-    const score = scoreExtraction(rows, fixture.expected, { keyField: extractor.keyField });
-    const cost = estimateCost(modelId, promptChars, JSON.stringify(rows).length);
+    const score = scoreExtraction(rows, fixture.expected, {
+      keyField: extractor.keyField,
+      fields: extractor.compareFields,
+      personNameFields: extractor.personNameFields,
+    });
+    const cost = costFromUsage(
+      takeExtractionUsage(context),
+      modelId,
+      promptChars,
+      JSON.stringify(rows).length
+    );
     return {
       model: modelId,
       fixture: fixture.name,
@@ -279,8 +298,12 @@ async function runOne(
       error: err instanceof Error ? err.message : String(err),
       latencyMs,
       rows: 0,
-      score: scoreExtraction([], fixture.expected, { keyField: extractor.keyField }),
-      cost: estimateCost(modelId, promptChars, 0),
+      score: scoreExtraction([], fixture.expected, {
+        keyField: extractor.keyField,
+        fields: extractor.compareFields,
+        personNameFields: extractor.personNameFields,
+      }),
+      cost: costFromUsage(takeExtractionUsage(context), modelId, promptChars, 0),
       run,
       // A failed run has no rows to fingerprint. Give it a distinct sentinel
       // rather than the empty-set digest, so two failures are not mistaken for
@@ -419,6 +442,8 @@ export async function runExtractionEval(opts: RunEvalOptions): Promise<EvalRepor
               rows: 0,
               score: scoreExtraction([], fixture.expected, {
                 keyField: EVAL_EXTRACTORS[fixture.extractor].keyField,
+                fields: EVAL_EXTRACTORS[fixture.extractor].compareFields,
+                personNameFields: EVAL_EXTRACTORS[fixture.extractor].personNameFields,
               }),
               cost: estimateCost(modelId, 0, 0),
               run,

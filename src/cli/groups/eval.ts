@@ -5,12 +5,9 @@
  */
 
 import type { Command } from "commander";
-import { runCommand } from "../runCommand";
-import { runWorkflowCli } from "../runWorkflow";
-import { csvOptionValue, optionValue } from "../optionValue";
-import { parseIntOption } from "../GlobalOptions";
 import { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "../../config/registerModels";
-import { availableFixtureCiks, loadRealS1Sections } from "../../eval/realSections";
+import type { EvalRawDump } from "../../eval/captureEvalRaw";
+import { shouldDumpEvalRaw, writeEvalRawDump } from "../../eval/dumpEvalRaw";
 import { EVAL_EXTRACTORS, preparedSectionText } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
@@ -19,8 +16,7 @@ import {
   type PrintPromptItem,
   type PrintPromptsMode,
 } from "../../eval/printEvalPrompts";
-import type { EvalRawDump } from "../../eval/captureEvalRaw";
-import { shouldDumpEvalRaw, writeEvalRawDump } from "../../eval/dumpEvalRaw";
+import { availableFixtureCiks, loadRealS1Sections } from "../../eval/realSections";
 import {
   availableFixtures,
   extractorsWithFixtures,
@@ -29,12 +25,16 @@ import {
   type ModelSummary,
   type StabilitySummary,
 } from "../../eval/runExtractionEval";
+import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 import type { ExtractionDiff } from "../../eval/scoreExtraction";
 import { EvalExtractTask } from "../../task/eval/EvalExtractTask";
-import { EvalS1Task, GOLDEN_REFERENCE, type OracleReport } from "../../task/eval/EvalS1Task";
 import { resolveEvalS1Concurrency } from "../../task/eval/evalS1Concurrency";
+import { EvalS1Task, GOLDEN_REFERENCE, type OracleReport } from "../../task/eval/EvalS1Task";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
-import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
+import { parseIntOption } from "../GlobalOptions";
+import { csvOptionValue, optionValue } from "../optionValue";
+import { runCommand } from "../runCommand";
+import { runWorkflowCli } from "../runWorkflow";
 
 /**
  * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap

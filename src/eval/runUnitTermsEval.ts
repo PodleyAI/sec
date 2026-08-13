@@ -16,12 +16,13 @@ import {
 import { sweepStepContext } from "./evalProgressContext";
 import { EVAL_EXTRACTORS, estimateExtractionPromptChars } from "./fixtures";
 import { fingerprintRows } from "./fingerprintRows";
-import { estimateCost } from "./modelPricing";
+import { costFromUsage } from "./modelPricing";
 import { loadRealS1Sections, type RealSection } from "./realSections";
 import { scoreExtraction } from "./scoreExtraction";
 import { summarizeModelRuns, type EvalReport, type FixtureRunResult } from "./runExtractionEval";
 import { captureEvalRawFromError, captureEvalRawFromRows } from "./captureEvalRaw";
 import { unloadLocalModel } from "./unloadModel";
+import { takeExtractionUsage } from "../sec/forms/registration-statements/s1/sectionExtractors";
 
 /**
  * embarc-truth eval for the offering-terms extraction: instead of a reference
@@ -142,15 +143,16 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
       const promptChars = estimateExtractionPromptChars(extractor.instructions(), section.text);
       const t0 = Bun.nanoseconds();
       let result: FixtureRunResult;
+      const step = sweepStepContext(
+        opts.context,
+        Math.floor((done / (total || 1)) * 100),
+        label
+      );
       try {
         if (!model) throw new Error(`model "${modelId}" not registered`);
-        const rows = (
-          await extractor.run(
-            section.text,
-            model,
-            sweepStepContext(opts.context, Math.floor((done / (total || 1)) * 100), label)
-          )
-        ).map((r) => roundUnitFields(r as Record<string, unknown>));
+        const rows = (await extractor.run(section.text, model, step)).map((r) =>
+          roundUnitFields(r as Record<string, unknown>)
+        );
         result = {
           model: modelId,
           fixture: section.filing,
@@ -160,7 +162,12 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           latencyMs: (Bun.nanoseconds() - t0) / 1e6,
           rows: rows.length,
           score: scoreExtraction(rows, [expected], {}),
-          cost: estimateCost(modelId, promptChars, JSON.stringify(rows).length),
+          cost: costFromUsage(
+            takeExtractionUsage(step),
+            modelId,
+            promptChars,
+            JSON.stringify(rows).length
+          ),
           run: 1,
           fingerprint: fingerprintRows(rows, true),
           contentFingerprint: fingerprintRows(rows, false),
@@ -176,7 +183,7 @@ export async function runUnitTermsEval(opts: RunUnitTermsOptions): Promise<UnitT
           latencyMs: (Bun.nanoseconds() - t0) / 1e6,
           rows: 0,
           score: scoreExtraction([], [expected], {}),
-          cost: estimateCost(modelId, promptChars, 0),
+          cost: costFromUsage(takeExtractionUsage(step), modelId, promptChars, 0),
           run: 1,
           fingerprint: `error:1`,
           contentFingerprint: `error:1`,

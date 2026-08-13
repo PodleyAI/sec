@@ -31,7 +31,7 @@ export const SponsorPromoteOutputSchema = {
     source_span: NULLABLE_STRING,
     nonce_seen: { type: "string", pattern: "^[0-9a-f]{16}$" },
   },
-  required: ["confidence", "nonce_seen"],
+  required: ["nonce_seen"],
   additionalProperties: false,
 } as const satisfies DataPortSchema;
 

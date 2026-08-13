@@ -39,6 +39,15 @@ export interface TitleFix {
  */
 export const KNOWN_TITLE_FIXES: readonly TitleFix[] = [
   {
+    // SEC Item 401/402 parentheticals ("principal executive officer") annotate
+    // which statutory officer seat a title fills — not a distinct role. Models
+    // echo them; strip before Title Case so "CEO (principal Executive Officer)"
+    // collapses to "Chief Executive Officer".
+    pattern: /\s*\(\s*principal\s+[^)]+\)/gi,
+    replacement: "",
+    note: "drop SEC 'principal … officer' parentheticals from a title",
+  },
+  {
     pattern: /\b(?:our|its|their|the company'?s|the registrant'?s)\s+board\b/gi,
     replacement: "the Board",
     note: "a possessive board reference ('our board', \"the Company's board\") -> 'the Board'",
@@ -344,13 +353,36 @@ export function filterTitlesSupportedBySpan(
 const BOARD_SEAT_ROLE = /of the board of directors$/i;
 
 /**
+ * SEC "principal … officer" annotations that merely restate a C-suite seat.
+ * Models often emit these as extra titles alongside CEO/CFO; they are not
+ * distinct roles. A bare "Principal Accounting Officer" without a CFO peer is
+ * kept — some tables use that as the only title for that seat.
+ */
+const PRINCIPAL_EXECUTIVE_OFFICER = /^principal executive officer$/i;
+const PRINCIPAL_FINANCIAL_OFFICER =
+  /^principal financial(?: and accounting)? officer$/i;
+
+/**
  * A board chair already sits on the board, so a bare "Director" listed alongside
  * a "... of the Board of Directors" role is redundant and is dropped — e.g.
  * ["Chairman of the Board of Directors", "Director"] -> ["Chairman of the Board
  * of Directors"]. A plain officer role does NOT imply board membership, so
  * ["Chief Executive Officer", "Director"] keeps both.
+ *
+ * Likewise, a "Principal Executive Officer" / "Principal Financial … Officer"
+ * annotation next to the matching Chief … Officer title is dropped.
  */
 function dropRedundantDirector(roles: readonly string[]): string[] {
-  if (!roles.some((r) => BOARD_SEAT_ROLE.test(r))) return [...roles];
-  return roles.filter((r) => r.toLowerCase() !== "director");
+  let out = [...roles];
+  if (out.some((r) => BOARD_SEAT_ROLE.test(r))) {
+    out = out.filter((r) => r.toLowerCase() !== "director");
+  }
+  const lower = new Set(out.map((r) => r.toLowerCase()));
+  if (lower.has("chief executive officer")) {
+    out = out.filter((r) => !PRINCIPAL_EXECUTIVE_OFFICER.test(r));
+  }
+  if (lower.has("chief financial officer")) {
+    out = out.filter((r) => !PRINCIPAL_FINANCIAL_OFFICER.test(r));
+  }
+  return out;
 }

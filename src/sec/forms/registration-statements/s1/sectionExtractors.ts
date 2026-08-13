@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IExecuteContext, ModelConfig } from "workglow";
-import { StructuredGenerationTask, TaskAbortedError } from "workglow";
+import type { IExecuteContext, ModelConfig, Usage } from "workglow";
+import { StructuredGenerationTask, TaskAbortedError, mergeUsage } from "workglow";
 import { createHash } from "node:crypto";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
+import {
+  withExtractionReasoning,
+  type ExtractionReasoningEffort,
+} from "./extractionReasoning";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
 import {
@@ -49,6 +53,17 @@ import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
+import { trimManagementSectionText } from "./trimManagementSection";
+import { trimExecutiveCompensationSectionText } from "./trimExecutiveCompensationSection";
+import { trimProspectusSummarySectionText } from "./trimProspectusSummarySection";
+import { trimOfferingSectionText, trimOfferingTermsSectionText } from "./trimOfferingSection";
+import { trimSponsorPromoteSectionText } from "./trimSponsorPromoteSection";
+import { trimUnderwritingSectionText } from "./trimUnderwritingSection";
+import { trimRelatedPartySectionText } from "./trimRelatedPartySection";
+import { trimUseOfProceedsSectionText } from "./trimUseOfProceedsSection";
+import { trimBeneficialOwnershipSectionText } from "./trimBeneficialOwnershipSection";
+import { trimSpacSponsorsSectionText } from "./trimSpacSponsorsSection";
+import { trimLoiSectionText } from "./trimLoiSection";
 
 // Re-exported so the extraction knob still reads as part of this module's
 // surface; it lives in `config/` because a malformed value must abort the CLI
@@ -56,6 +71,8 @@ import { normalizeManagementTitles } from "./normalizeTitle";
 export { getExtractionTemperature } from "../../../../config/extractionTemperature";
 
 const MAX_TOKENS = 4096;
+/** Extra answer budget when an extractor enables reasoning tokens. */
+const REASONING_TOKEN_PADDING = 8192;
 
 /**
  * Output-token ceiling for the risk-factor list, which is the only extractor
@@ -671,6 +688,41 @@ export function requireNonEmptyGrammarArrays(schema: object): object {
  */
 const generationNodes = new WeakMap<IExecuteContext, StructuredGenerationTask>();
 
+/**
+ * Billed usage accrued by {@link runStructured} on a given execute context.
+ * Eval sweeps key one derived context per (model, section) step, so taking the
+ * entry after the extractor returns yields that step's spend — including
+ * OpenRouter's provider-stated `extra.cost` — without changing every extractor
+ * return type. Multi-call sections (chunked risk factors) merge additively.
+ */
+const extractionUsageByContext = new WeakMap<IExecuteContext, Usage>();
+/** Standalone calls (no caller context) stash here for the same take API. */
+let standaloneExtractionUsage: Usage | undefined;
+
+/**
+ * Returns and clears the usage accrued by extraction calls on `context` since
+ * the last take. Pass the same context object handed to the extractor.
+ */
+export function takeExtractionUsage(context: IExecuteContext | undefined): Usage | undefined {
+  if (!context) {
+    const usage = standaloneExtractionUsage;
+    standaloneExtractionUsage = undefined;
+    return usage;
+  }
+  const usage = extractionUsageByContext.get(context);
+  extractionUsageByContext.delete(context);
+  return usage;
+}
+
+function recordExtractionUsage(context: IExecuteContext | undefined, usage: Usage | undefined): void {
+  if (!usage) return;
+  if (!context) {
+    standaloneExtractionUsage = mergeUsage(standaloneExtractionUsage, usage);
+    return;
+  }
+  extractionUsageByContext.set(context, mergeUsage(extractionUsageByContext.get(context), usage) ?? usage);
+}
+
 function generationNodeFor(context: IExecuteContext, title: string): StructuredGenerationTask {
   const existing = generationNodes.get(context);
   if (existing !== undefined) {
@@ -698,28 +750,38 @@ async function runStructured(
   prompt: string,
   outputSchema: object,
   callerContext?: IExecuteContext,
-  maxTokens: number = MAX_TOKENS
+  maxTokens: number = MAX_TOKENS,
+  reasoningEffort?: ExtractionReasoningEffort
 ): Promise<Record<string, unknown>> {
   // The running task's context, when the form pipeline threads one down, so the
   // generation task's `Preparing`/`Generating` phase events (and any download)
   // render on that task's row in the CLI UI. Absent (eval sweeps, unit tests), a
   // throwaway stub keeps the one-shot call self-contained.
   const context = callerContext ?? makeExecuteContext();
-  const modelId = resolveModelId(model);
+  const effectiveModel = withExtractionReasoning(model, reasoningEffort);
+  const modelId = resolveModelId(effectiveModel);
   // Correctness safety-net: local providers (GGUF especially) must have their
-  // weights on disk before generation — cloud models no-op here. Memoized, so the
-  // per-section sweep pays the download once; a form/eval run that prefetched with
-  // a real context (for visible progress) already satisfied this.
+  // weights on disk before generation; cloud models are verified via ModelInfo.
+  // Memoized, so the per-section sweep pays the download/verify once; a form/eval
+  // run that prefetched with a real context (for visible progress) already
+  // satisfied this.
   await ensureModelDownloaded(modelId, context);
-  const grammarConstrained = (model as { provider?: string }).provider === "LOCAL_LLAMACPP";
+  const grammarConstrained =
+    (effectiveModel as { provider?: string }).provider === "LOCAL_LLAMACPP";
   const configured = getExtractionTemperature();
   const temperature =
     modelId !== null && temperatureUnsupported.has(modelId) ? undefined : configured;
+  const effectiveMaxTokens =
+    reasoningEffort !== undefined && reasoningEffort !== "none"
+      ? maxTokens + REASONING_TOKEN_PADDING
+      : maxTokens;
   const input = {
-    model,
+    model: effectiveModel,
     prompt,
-    outputSchema: grammarConstrained ? requireNonEmptyGrammarArrays(outputSchema) : outputSchema,
-    maxTokens,
+    outputSchema: grammarConstrained
+      ? requireNonEmptyGrammarArrays(outputSchema)
+      : outputSchema,
+    maxTokens: effectiveMaxTokens,
     maxRetries: 1,
     // Omitted when unset or when this model has already rejected it.
     ...(temperature === undefined ? {} : { temperature }),
@@ -761,6 +823,10 @@ async function runStructured(
     }
     throw e;
   } finally {
+    // Capture before clearing outputs: OpenRouter (and similar) put the charged
+    // credits on `runUsage.extra.cost`, which the eval harness reads via
+    // {@link takeExtractionUsage}. A failed attempt still spent tokens.
+    recordExtractionUsage(callerContext, task.runUsage);
     // `run` leaves this section's prompt in `runInputData` (and its result in
     // `runOutputData`). Clearing both keeps the idle node between sections empty
     // rather than pinning the largest section of the filing until the next call.
@@ -819,7 +885,8 @@ async function runGuardedExtraction(
   sectionText: string,
   outputSchema: object,
   context?: IExecuteContext,
-  maxTokens?: number
+  maxTokens?: number,
+  reasoningEffort?: ExtractionReasoningEffort
 ): Promise<Record<string, unknown>> {
   const local = isLocalProvider(model);
   const nonceEnabled = !local && isNonceEnabled();
@@ -843,7 +910,8 @@ async function runGuardedExtraction(
         prompt,
         nonce === undefined ? stripNonceSeen(outputSchema) : outputSchema,
         context,
-        maxTokens
+        maxTokens,
+        reasoningEffort
       );
       if (nonce !== undefined) verifyNonce(obj, nonce);
       return obj;
@@ -894,9 +962,11 @@ export function managementInstructions(): string {
     "between the tags below. For each, give full_name, titles (a JSON array of that " +
     "person's distinct current roles at this company — one role per element; use [] if " +
     "none are stated), relationship (or null), age (integer or null), bio (short summary " +
-    "or null), confidence in [0,1], and the verbatim source_span. Include director or " +
-    "officer nominees; omit advisors/consultants who are neither. Do not invent roles or " +
-    "assign another person's titles. Return JSON matching the schema."
+    "or null), confidence in [0,1], and the verbatim source_span. Include every seated " +
+    "director or officer AND every director NOMINEE named in the section — a nominee " +
+    "awaiting appointment is still a named person and must appear. Omit advisors/consultants " +
+    "who are neither. Do not invent roles or assign another person's titles. Return JSON " +
+    "matching the schema."
   );
 }
 
@@ -905,13 +975,16 @@ export async function extractManagement(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<ManagementPersonRow[]> {
+  const trimmed = trimManagementSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "management",
     model,
     managementInstructions(),
-    sectionText,
+    trimmed,
     ManagementOutputSchema,
-    context
+    context,
+    undefined,
+    "medium"
   );
   const people = (obj.people as ManagementPersonRow[] | undefined) ?? [];
   // Post-model canonicalization: split compound titles and canonicalize each
@@ -1034,11 +1107,12 @@ export async function extractExecutiveCompensation(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<ExecutiveCompensationRow[]> {
+  const trimmed = trimExecutiveCompensationSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "executive compensation",
     model,
     executiveCompensationInstructions(),
-    sectionText,
+    trimmed,
     ExecutiveCompensationOutputSchema,
     context
   );
@@ -1180,6 +1254,77 @@ export function isCollectivePartyName(name: string | null | undefined): boolean 
   return COLLECTIVE_PARTY_LABEL.test(trimmed) || isAllRoleWords(trimmed);
 }
 
+/** Law-firm / professional-advisor shape — not a related-party counterparty. */
+const PROFESSIONAL_ADVISOR_NAME =
+  /\b(?:LLP|L\.L\.P\.|P\.C\.|P\.A\.|Attorneys at Law|Law Firm)\b/i;
+
+function transactionNatureLooksLikeLegalCounsel(nature: string | null | undefined): boolean {
+  if (nature == null) return true;
+  const lower = nature.toLowerCase();
+  return (
+    lower.includes("counsel") ||
+    lower.includes("legal") ||
+    lower.includes("attorney") ||
+    lower.includes("advisor") ||
+    lower.includes("adviser")
+  );
+}
+
+/**
+ * True when a related-party row names outside counsel or another professional
+ * service provider rather than a transaction counterparty.
+ */
+export function isProfessionalServiceProvider(party: RelatedPartyRow): boolean {
+  const name = party.name?.trim() ?? "";
+  if (!name || !PROFESSIONAL_ADVISOR_NAME.test(name)) return false;
+  const transactions = party.transactions ?? [];
+  if (transactions.length === 0) return true;
+  return transactions.every(
+    (t) =>
+      (t.amount == null || t.amount === 0) &&
+      transactionNatureLooksLikeLegalCounsel(t.nature)
+  );
+}
+
+/** Keep only geography the section (or the model's span) actually states. */
+export function filterVerifiedFocusLocations(
+  locations: readonly string[],
+  sectionText: string,
+  sourceSpan: string
+): string[] {
+  const haystack = `${sourceSpan}\n${sectionText}`.toLowerCase();
+  return locations.filter((loc) => {
+    const trimmed = loc.trim();
+    return trimmed.length > 0 && haystack.includes(trimmed.toLowerCase());
+  });
+}
+
+/** Coerce a model that stringified the underwriters array. */
+export function coerceUnderwritersArray(raw: unknown): UnderwriterRowOut[] {
+  if (Array.isArray(raw)) return raw as UnderwriterRowOut[];
+  if (typeof raw !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as UnderwriterRowOut[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+const SPONSOR_PROMOTE_FIGURE_FIELDS = [
+  "founder_shares",
+  "founder_percent",
+  "private_placement_warrants",
+  "private_placement_warrant_price",
+  "public_warrant_coverage",
+  "trust_per_public_share",
+  "trust_total",
+] as const;
+
+function hasSponsorPromoteFigure(obj: Record<string, unknown>): boolean {
+  return SPONSOR_PROMOTE_FIGURE_FIELDS.some((field) => obj[field] != null);
+}
+
 export function beneficialOwnershipInstructions(): string {
   return (
     "Extract every beneficial owner from the S-1 Principal and Selling Stockholders " +
@@ -1188,10 +1333,11 @@ export function beneficialOwnershipInstructions(): string {
     "shares_after, percent_after, is_selling_stockholder, footnote, a confidence in " +
     "[0,1], and the verbatim source_span. Use null for figures shown as '*', '-', '—', " +
     "or blank. Emit a row for EVERY name the table prints, INCLUDING one whose share " +
-    "and percentage cells are all dashes or blank: an officer or director holding no " +
-    "shares is listed precisely to disclose that they hold none, so give them a row " +
-    "with null figures rather than skipping the name. Give the name as printed but " +
-    "WITHOUT footnote markers or parenthetical " +
+    "and percentage cells are all dashes or blank: an officer, director, or director " +
+    "NOMINEE holding no shares is listed precisely to disclose that they hold none, so " +
+    "give them a row with null figures rather than skipping the name. Include every " +
+    "director nominee named in the table even when every figure column is empty. Give " +
+    "the name as printed but WITHOUT footnote markers or parenthetical " +
     "annotations — 'Churchill Sponsor XII LLC(our sponsor)(3)' is 'Churchill Sponsor " +
     "XII LLC'. A parenthesized NICKNAME is part of the name, not an annotation: keep " +
     "it, so 'Yong (David) Yan' stays 'Yong (David) Yan'. It is often the only thing " +
@@ -1210,13 +1356,16 @@ export async function extractBeneficialOwnership(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<BeneficialOwnerRow[]> {
+  const trimmed = trimBeneficialOwnershipSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "beneficial ownership",
     model,
     beneficialOwnershipInstructions(),
-    sectionText,
+    trimmed,
     BeneficialOwnershipOutputSchema,
-    context
+    context,
+    undefined,
+    "high"
   );
   const owners = (obj.owners as BeneficialOwnerRow[] | undefined) ?? [];
   // Enforce the subtotal exclusion rather than trusting the prompt: a leaked row
@@ -1239,6 +1388,10 @@ export function relatedPartyInstructions(): string {
     "sections are written entirely in these terms and name nobody at all; when that is " +
     "true the correct answer is an EMPTY list. Do not turn a role into a party to avoid " +
     "returning nothing. " +
+    "Do NOT emit outside counsel, auditors, or other professional advisors named only as " +
+    "service providers (e.g. 'Goodwin Procter LLP', 'Ogier') — they are not related-party " +
+    "counterparties unless the section describes a specific transaction with them beyond " +
+    "their ordinary engagement. " +
     "`name` must hold EXACTLY ONE party. When a sentence names two ('Stellantis " +
     "Ventures B.V. and Stellantis Europe', '5G Ventures S.A. in its capacity as Manager " +
     "of Phaistos Investment Fund'), emit one row per party — never a combined " +
@@ -1252,15 +1405,19 @@ export async function extractRelatedParty(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<RelatedPartyRow[]> {
+  const trimmed = trimRelatedPartySectionText(sectionText);
   const obj = await runGuardedExtraction(
     "related party",
     model,
     relatedPartyInstructions(),
-    sectionText,
+    trimmed,
     RelatedPartyOutputSchema,
-    context
+    context,
+    undefined,
+    "medium"
   );
-  return (obj.parties as RelatedPartyRow[] | undefined) ?? [];
+  const parties = (obj.parties as RelatedPartyRow[] | undefined) ?? [];
+  return parties.filter((party) => !isProfessionalServiceProvider(party));
 }
 
 export function offeringTermsInstructions(): string {
@@ -1278,8 +1435,9 @@ export function offeringTermsInstructions(): string {
     "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
     "List every distinct ticker symbol in 'tickers' " +
     "(exact symbol, is_primary true for the common-equity/units symbol, false for " +
-    "warrant/right symbols). Use null for anything not stated. Give a confidence in [0,1] " +
-    "and a verbatim source_span. Return JSON matching the schema."
+    "warrant/right symbols). When no ticker is stated, tickers is []. Use null for " +
+    "anything not stated. Always include confidence in [0,1] and a verbatim source_span. " +
+    "Return JSON matching the schema."
   );
 }
 
@@ -1288,13 +1446,16 @@ export async function extractOfferingTerms(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<OfferingTermsRow | null> {
+  const trimmed = trimOfferingTermsSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "offering terms",
     model,
     offeringTermsInstructions(),
-    sectionText,
+    trimmed,
     OfferingTermsOutputSchema,
-    context
+    context,
+    undefined,
+    "medium"
   );
   if (obj.confidence == null || obj.source_span == null) return null;
   return obj as unknown as OfferingTermsRow;
@@ -1307,7 +1468,7 @@ export function sponsorPromoteInstructions(): string {
     "founders' shares held by the sponsor, or null), founder_percent (those founder shares " +
     "as a FRACTION of the post-IPO shares outstanding — e.g. 0.20 for 20%, the customary " +
     "promote — or null), private_placement_warrants (the number of private placement / " +
-    "sponsor warrants purchased, or null), private_placement_warrant_price (the purchase " +
+    "sponsor WARRANTS purchased, or null), private_placement_warrant_price (the purchase " +
     "price per private placement warrant in dollars, e.g. 1.00 or 1.50, or null), " +
     "public_warrant_coverage (the warrant fraction included with each PUBLIC unit — e.g. " +
     "0.5 for one-half of a redeemable warrant per unit — or null), trust_per_public_share " +
@@ -1319,6 +1480,15 @@ export function sponsorPromoteInstructions(): string {
     "to forfeiture are deducted: '5,366,667 founder shares, of which 700,000 are subject " +
     "to forfeiture' is 5366667, not the 4,666,667 the post-offering table shows. The " +
     "forfeiture is a contingency on the promote, not a smaller promote. " +
+    "private_placement_warrants is the WARRANTS count only. Prefer a table row or sentence " +
+    "that literally says 'private placement warrants' or 'Number of private placement " +
+    "warrants to be sold' — that number goes in the field even when a separate private " +
+    "placement UNITS count is also printed nearby. Example: warrants 48,593 and units " +
+    "194,375 → private_placement_warrants is 48593, never 194375. A unit is not a warrant. " +
+    "Only when the text never states a private-placement WARRANTS count (sponsor buys " +
+    "private units and does not disclose the warrant count inside them) is the field null " +
+    "— do not invent or multiply. Prefer the base-case figure (no overallotment), not an " +
+    "'or up to' / fully-exercised figure. " +
     "Write a repeating fraction to four decimal places: one-third is 0.3333. " +
     "A post-de-SPAC RESALE registration is not a promote: when the founder shares, " +
     "sponsor and private warrants named belong to a PREDECESSOR shell rather than to an " +
@@ -1340,15 +1510,25 @@ export async function extractSponsorPromote(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SponsorPromoteRow | null> {
+  const trimmed = trimSponsorPromoteSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "sponsor promote",
     model,
     sponsorPromoteInstructions(),
-    sectionText,
+    trimmed,
     SponsorPromoteOutputSchema,
-    context
+    context,
+    undefined,
+    "medium"
   );
-  if (obj.confidence == null || obj.source_span == null) return null;
+  if (obj.source_span == null) return null;
+  const confidence =
+    typeof obj.confidence === "number"
+      ? obj.confidence
+      : hasSponsorPromoteFigure(obj)
+        ? 0.5
+        : null;
+  if (confidence == null) return null;
   return {
     founder_shares: (obj.founder_shares as number | null) ?? null,
     founder_percent: (obj.founder_percent as number | null) ?? null,
@@ -1357,7 +1537,7 @@ export async function extractSponsorPromote(
     public_warrant_coverage: (obj.public_warrant_coverage as number | null) ?? null,
     trust_per_public_share: (obj.trust_per_public_share as number | null) ?? null,
     trust_total: (obj.trust_total as number | null) ?? null,
-    confidence: obj.confidence as number,
+    confidence,
     source_span: obj.source_span as string,
   };
 }
@@ -1371,7 +1551,10 @@ export function underwritersInstructions(): string {
     "representative/lead, 'bookrunner' for a book-running manager, 'co-manager', else " +
     "'underwriter'; null if unclear), shares_allocated (the number of shares " +
     "underwritten, or null), over_allotment_shares (or null), a confidence in [0,1], " +
-    "and the verbatim source_span. Return JSON matching the schema."
+    "and the verbatim source_span. Include every syndicate member AND any FINRA Rule 5121 " +
+    "qualified independent underwriter (e.g. 'B. Riley') with role 'underwriter'. The " +
+    "underwriters field MUST be a JSON array of objects — never a JSON-encoded string. " +
+    "Return JSON matching the schema."
   );
 }
 
@@ -1380,15 +1563,18 @@ export async function extractUnderwriters(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<UnderwriterRowOut[]> {
+  const trimmed = trimUnderwritingSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "underwriters",
     model,
     underwritersInstructions(),
-    sectionText,
+    trimmed,
     UnderwriterOutputSchema,
-    context
+    context,
+    undefined,
+    "high"
   );
-  return (obj.underwriters as UnderwriterRowOut[] | undefined) ?? [];
+  return coerceUnderwritersArray(obj.underwriters);
 }
 
 export function spacSponsorsInstructions(): string {
@@ -1406,11 +1592,12 @@ export async function extractSpacSponsors(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacSponsorRow[]> {
+  const trimmed = trimSpacSponsorsSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "SPAC sponsors",
     model,
     spacSponsorsInstructions(),
-    sectionText,
+    trimmed,
     SpacSponsorOutputSchema,
     context
   );
@@ -1426,12 +1613,21 @@ export function spacProfileInstructions(): string {
     `matches, and use an empty array if the SPAC is a generalist with no stated sector): ` +
     `${FOCUS_VOCABULARY.join(", ")}. ` +
     "Give focus_location: an array of geographic regions/countries the SPAC targets " +
-    "(e.g. 'North America', 'Latin America', 'Europe', 'Southeast Asia'); empty array " +
-    "if none stated. Give description: a concise 1-3 sentence description of the SPAC " +
-    "and its business purpose (or null). Give team: a short narrative describing the " +
-    "management/sponsor team's background and experience (or null). Give url_spac: the " +
-    "SPAC's website URL if stated (or null). Give a confidence in [0,1] and the verbatim " +
-    "source_span you drew the focus/description from. Return JSON matching the schema."
+    "for acquisition search (e.g. 'North America', 'Latin America', 'Europe', " +
+    "'Southeast Asia'); empty array if none stated. Do NOT infer focus_location from " +
+    "where the management or sponsor team worked previously — team career backgrounds " +
+    "are NOT acquisition geography. A sentence like 'working with companies, investors, " +
+    "and advisors in North America, Europe, Asia, the Middle East, Australia, and other " +
+    "international markets' is team experience → focus_location []. Only include a " +
+    "region when the SPAC explicitly states it will SEARCH FOR / FOCUS ON targets there " +
+    "(e.g. 'we intend to focus on businesses based in Asia'). If the text says it may " +
+    "pursue an opportunity in any geographic location / worldwide without naming a " +
+    "preferred search region, focus_location is []. Give description: a concise 1-3 sentence " +
+    "description of the SPAC and its business purpose (or null). Give team: a short " +
+    "narrative describing the management/sponsor team's background and experience (or " +
+    "null). Give url_spac: the SPAC's website URL if stated (or null). Give a confidence " +
+    "in [0,1] and the verbatim source_span you drew the focus/description from. Return " +
+    "JSON matching the schema."
   );
 }
 
@@ -1447,23 +1643,30 @@ export async function extractSpacProfile(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacProfileRow | null> {
+  const trimmed = trimProspectusSummarySectionText(sectionText);
   const obj = await runGuardedExtraction(
     "SPAC profile",
     model,
     spacProfileInstructions(),
-    sectionText,
+    trimmed,
     SpacProfileOutputSchema,
-    context
+    context,
+    undefined,
+    "none"
   );
   if (obj.confidence == null || obj.source_span == null) return null;
+  const sourceSpan = obj.source_span as string;
+  const focusLocations = Array.isArray(obj.focus_location)
+    ? filterVerifiedFocusLocations(obj.focus_location as string[], trimmed, sourceSpan)
+    : [];
   return {
     focus: Array.isArray(obj.focus) ? (obj.focus as string[]) : [],
-    focus_location: Array.isArray(obj.focus_location) ? (obj.focus_location as string[]) : [],
+    focus_location: focusLocations,
     description: (obj.description as string | null) ?? null,
     team: (obj.team as string | null) ?? null,
     url_spac: (obj.url_spac as string | null) ?? null,
     confidence: obj.confidence as number,
-    source_span: obj.source_span as string,
+    source_span: sourceSpan,
   };
 }
 
@@ -1498,11 +1701,12 @@ export async function extractSpacClassification(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<SpacClassificationRow | null> {
+  const trimmed = trimProspectusSummarySectionText(sectionText);
   const obj = await runGuardedExtraction(
     "SPAC classification",
     model,
     spacClassificationInstructions(),
-    sectionText,
+    trimmed,
     SpacClassificationOutputSchema,
     context
   );
@@ -1663,11 +1867,16 @@ export function useOfProceedsInstructions(): string {
     "between the tags below. For each stated purpose give purpose, amount (dollars, or " +
     "null), percent (or null), note (any qualifier, or null), a confidence in [0,1], " +
     "and the verbatim source_span. " +
-    "`purpose` is the row label copied WHOLE, including any parenthetical the cell " +
-    "carries: 'Underwriting commissions (2% of gross proceeds from units offered to " +
-    "public, excluding deferred portion)' is one purpose, not 'Underwriting commissions'. " +
+    "`purpose` is the row label copied WHOLE, including any DESCRIPTIVE parenthetical " +
+    "the cell carries: 'Underwriting commissions (2% of gross proceeds from units offered " +
+    "to public, excluding deferred portion)' is one purpose, not 'Underwriting commissions'. " +
+    "Strip trailing FOOTNOTE markers only — bare '(1)', '(2)', '(3)' or '(1),(2)' glued to " +
+    "the label — so 'Held in trust account(3)' is 'Held in trust account' and " +
+    "'…excluding deferred portion)(3)' keeps the descriptive parenthetical and drops '(3)'. " +
     "Emit a row for a line item ONLY if the section prints it. Do not add a customary " +
-    "SPAC line the table omits. " +
+    "SPAC line the table omits. Emit a row for 'Held in trust account' when the table " +
+    "prints that line, even when the amount cell is blank or stated as a formula — use " +
+    "null for the amount rather than skipping the row. " +
     "Do NOT emit a SOURCE of proceeds ('Gross proceeds', 'Proceeds from sale of shares by " +
     "selling stockholders'), a TOTAL or subtotal ('Total', 'Total offering expenses'), or " +
     "a per-share metric ('Amount held in trust per share') — none is a use. " +
@@ -1684,13 +1893,16 @@ export async function extractUseOfProceeds(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<UseOfProceedsLineRow[]> {
+  const trimmed = trimUseOfProceedsSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "use of proceeds",
     model,
     useOfProceedsInstructions(),
-    sectionText,
+    trimmed,
     UseOfProceedsOutputSchema,
-    context
+    context,
+    undefined,
+    "medium"
   );
   return (obj.line_items as UseOfProceedsLineRow[] | undefined) ?? [];
 }
@@ -1757,11 +1969,12 @@ export async function extractLoi(
   model: ModelConfig,
   context?: IExecuteContext
 ): Promise<LoiRow | null> {
+  const trimmed = trimLoiSectionText(sectionText);
   const obj = await runGuardedExtraction(
     "LOI",
     model,
     loiInstructions(),
-    sectionText,
+    trimmed,
     LoiOutputSchema,
     context
   );

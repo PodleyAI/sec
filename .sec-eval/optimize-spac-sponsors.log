@@ -1,0 +1,19 @@
+optimize: 1 extractor(s); results → /Volumes/code/workglow/sec/.sec-eval/s1-effort-optimize.json
+
+>>> spac-sponsors | open-router:deepinfra:deepseek-v4-flash-0731 | effort=none
+    ok 2/2 agree 75.0% recall 100.0% prec 100.0% usd=0.000531408 2395ms
+
+>>> spac-sponsors | open-router:deepinfra:deepseek-v4-flash-0731 | effort=low
+    ok 2/2 agree 100.0% recall 100.0% prec 100.0% usd=0.000328724 7047ms PERFECT
+
+=== winners ===
+[
+  {
+    "extractor": "spac-sponsors",
+    "model": "open-router:deepinfra:deepseek-v4-flash-0731",
+    "effort": "low",
+    "usd": 0.000328724,
+    "agree": 1,
+    "runs": 2
+  }
+]

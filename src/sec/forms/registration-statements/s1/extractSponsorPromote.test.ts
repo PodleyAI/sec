@@ -86,4 +86,27 @@ describe("extractSponsorPromote", () => {
     expect(row?.founder_percent).toBe(0.2);
     expect(row?.trust_per_public_share).toBe(10.2);
   });
+
+  it("defaults confidence to 0.5 when figures are present but confidence is omitted", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        founder_shares: 2156250,
+        founder_percent: 0.2,
+        private_placement_warrants: 48593,
+        private_placement_warrant_price: null,
+        public_warrant_coverage: 0.25,
+        trust_per_public_share: 10.0,
+        trust_total: null,
+        source_span: "our sponsor will hold 2,156,250 founder shares",
+      },
+    ]);
+    cleanup = unregister;
+    const row = await extractSponsorPromote(
+      "Our sponsor will hold 2,156,250 founder shares.",
+      fakeS1Model()
+    );
+    expect(row).not.toBeNull();
+    expect(row?.confidence).toBe(0.5);
+    expect(row?.founder_shares).toBe(2156250);
+  });
 });

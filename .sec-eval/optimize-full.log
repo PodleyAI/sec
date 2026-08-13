@@ -1,0 +1,421 @@
+optimize: 11 extractor(s); results → /Volumes/code/workglow/sec/.sec-eval/s1-effort-optimize.json
+skip spac-sponsors: already won with open-router:deepinfra:deepseek-v4-flash-0731 @ low
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=none
+    ok 20/20 agree 79.0% recall 100.0% prec 100.0% usd=0.01974202 4515ms
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=low
+    ok 20/20 agree 92.8% recall 100.0% prec 100.0% usd=0.013397436000000002 28397ms
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=medium
+    ok 20/20 agree 93.5% recall 100.0% prec 100.0% usd=0.011928483999999998 25138ms
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=high
+    ok 20/20 agree 89.4% recall 100.0% prec 100.0% usd=0.014746388 36631ms
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=extra
+    ok 20/20 agree 89.2% recall 100.0% prec 100.0% usd=0.013810152 30663ms
+
+>>> spac-profile | open-router:deepinfra:deepseek-v4-flash-0731 | effort=ultra
+    ok 20/20 agree 84.2% recall 100.0% prec 100.0% usd=0.028888639999999997 96877ms
+
+>>> spac-profile | gpt-5.6-luna | effort=none
+    ok 20/20 agree 58.2% recall 100.0% prec 100.0% usd=0.006896400000000001 3119ms
+
+>>> spac-profile | gpt-5.6-luna | effort=low
+    ok 20/20 agree 73.8% recall 100.0% prec 100.0% usd=0.012118400000000001 3726ms
+
+>>> spac-profile | gpt-5.6-luna | effort=medium
+    ok 20/20 agree 75.2% recall 100.0% prec 100.0% usd=0.019996399999999998 7114ms
+
+>>> spac-profile | gpt-5.6-luna | effort=high
+    ok 20/20 agree 74.0% recall 100.0% prec 100.0% usd=0.04039519999999999 15823ms
+
+>>> spac-profile | gpt-5.6-luna | effort=extra
+    ok 20/20 agree 82.4% recall 100.0% prec 100.0% usd=0.0847322 26080ms
+
+>>> spac-profile | gpt-5.6-luna | effort=ultra
+    ok 13/20 agree 69.1% recall 65.0% prec 65.0% usd=0.15819595999999997 118078ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=none
+    ok 20/20 agree 77.5% recall 100.0% prec 100.0% usd=0.413771 7772ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=low
+    ok 0/20 agree 20.0% recall 0.0% prec 0.0% usd=0.315601 592ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=medium
+    ok 0/20 agree 20.0% recall 0.0% prec 0.0% usd=0.315601 558ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=high
+    ok 0/20 agree 20.0% recall 0.0% prec 0.0% usd=0.315601 606ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=extra
+    ok 0/20 agree 20.0% recall 0.0% prec 0.0% usd=0.315601 609ms
+
+>>> spac-profile | claude-haiku-4-5 | effort=ultra
+    ok 0/20 agree 20.0% recall 0.0% prec 0.0% usd=0.315601 580ms
+
+>>> spac-profile | grok-4.5 | effort=none
+    ok 20/20 agree 75.9% recall 100.0% prec 100.0% usd=0.5378620000000001 13824ms
+
+>>> spac-profile | grok-4.5 | effort=low
+    ok 20/20 agree 79.5% recall 100.0% prec 100.0% usd=0.292414 16065ms
+
+>>> spac-profile | grok-4.5 | effort=medium
+    ok 20/20 agree 78.1% recall 100.0% prec 100.0% usd=0.20290000000000008 14586ms
+
+>>> spac-profile | grok-4.5 | effort=high
+    ok 20/20 agree 85.5% recall 100.0% prec 100.0% usd=0.18196 12613ms
+
+>>> spac-profile | grok-4.5 | effort=extra
+    ok 20/20 agree 78.1% recall 100.0% prec 100.0% usd=0.20243199999999995 12441ms
+
+>>> spac-profile | grok-4.5 | effort=ultra
+    ok 20/20 agree 76.5% recall 100.0% prec 100.0% usd=0.316186 11966ms
+
+>>> spac-profile | gpt-5.6-terra | effort=none
+    ok 20/20 agree 72.9% recall 100.0% prec 100.0% usd=0.0853275 3629ms
+
+>>> spac-profile | gpt-5.6-terra | effort=low
+    ok 20/20 agree 79.6% recall 100.0% prec 100.0% usd=0.159535 5119ms
+
+>>> spac-profile | gpt-5.6-terra | effort=medium
+    ok 20/20 agree 89.5% recall 100.0% prec 100.0% usd=0.18175 5840ms
+
+>>> spac-profile | gpt-5.6-terra | effort=high
+    ok 20/20 agree 85.7% recall 100.0% prec 100.0% usd=0.2557075 8922ms
+
+>>> spac-profile | gpt-5.6-terra | effort=extra
+    ok 20/20 agree 85.1% recall 100.0% prec 100.0% usd=0.441655 15923ms
+
+>>> spac-profile | gpt-5.6-terra | effort=ultra
+    ok 11/20 agree 50.0% recall 55.0% prec 55.0% usd=2.03419075 158810ms
+
+>>> spac-profile | claude-sonnet-5 | effort=none
+    ok 20/20 agree 84.6% recall 100.0% prec 100.0% usd=1.433799 8873ms
+
+>>> spac-profile | claude-sonnet-5 | effort=low
+    ok 20/20 agree 85.3% recall 100.0% prec 100.0% usd=1.3901640000000002 7263ms
+
+>>> spac-profile | claude-sonnet-5 | effort=medium
+    ok 20/20 agree 83.6% recall 100.0% prec 100.0% usd=1.411494 7810ms
+
+>>> spac-profile | claude-sonnet-5 | effort=high
+    ok 20/20 agree 79.8% recall 100.0% prec 100.0% usd=1.433079 8565ms
+
+>>> spac-profile | claude-sonnet-5 | effort=extra
+    ok 20/20 agree 86.0% recall 100.0% prec 100.0% usd=1.5161069999999999 9333ms
+
+>>> spac-profile | claude-sonnet-5 | effort=ultra
+    ok 20/20 agree 83.4% recall 100.0% prec 100.0% usd=1.449129 9048ms
+
+>>> spac-profile | gpt-5.6-sol | effort=none
+    ok 20/20 agree 73.0% recall 100.0% prec 100.0% usd=0.19978499999999996 5633ms
+
+>>> spac-profile | gpt-5.6-sol | effort=low
+    ok 20/20 agree 77.5% recall 100.0% prec 100.0% usd=0.33428 9449ms
+
+>>> spac-profile | gpt-5.6-sol | effort=medium
+    ok 20/20 agree 78.5% recall 100.0% prec 100.0% usd=0.49886 13191ms
+
+>>> spac-profile | gpt-5.6-sol | effort=high
+    ok 20/20 agree 77.9% recall 100.0% prec 100.0% usd=0.854751 29626ms
+
+>>> spac-profile | gpt-5.6-sol | effort=extra
+    ok 20/20 agree 80.2% recall 100.0% prec 100.0% usd=1.4645460000000003 44067ms
+
+>>> spac-profile | gpt-5.6-sol | effort=ultra
+    ok 6/20 agree 49.5% recall 30.0% prec 30.0% usd=4.1808395 27598ms
+
+>>> spac-profile | claude-opus-5 | effort=none
+    ok 20/20 agree 79.0% recall 100.0% prec 100.0% usd=2.4301900000000005 9416ms
+
+>>> spac-profile | claude-opus-5 | effort=low
+    ok 20/20 agree 79.7% recall 100.0% prec 100.0% usd=2.46401 9194ms
+
+>>> spac-profile | claude-opus-5 | effort=medium
+    ok 20/20 agree 80.2% recall 100.0% prec 100.0% usd=2.39679 8720ms
+
+>>> spac-profile | claude-opus-5 | effort=high
+    ok 20/20 agree 78.5% recall 100.0% prec 100.0% usd=2.4393399999999996 9608ms
+
+>>> spac-profile | claude-opus-5 | effort=extra
+    ok 20/20 agree 78.2% recall 100.0% prec 100.0% usd=2.44749 10725ms
+
+>>> spac-profile | claude-opus-5 | effort=ultra
+    ok 20/20 agree 78.4% recall 100.0% prec 100.0% usd=2.45649 10931ms
+!!! no 100% combo found for spac-profile
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=none
+    ok 33/33 agree 78.4% recall 74.9% prec 56.2% usd=0.012137004000000002 10295ms
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=low
+    ok 32/33 agree 78.1% recall 75.7% prec 84.1% usd=? 314995ms
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=medium
+    ok 31/33 agree 75.7% recall 73.1% prec 81.1% usd=? 219703ms
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=high
+    ok 31/33 agree 74.3% recall 71.0% prec 81.8% usd=? 222618ms
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=extra
+    ok 33/33 agree 78.2% recall 75.8% prec 87.5% usd=0.056399012000000005 241570ms
+
+>>> related-party | open-router:deepinfra:deepseek-v4-flash-0731 | effort=ultra
+    ok 19/33 agree 55.6% recall 54.5% prec 57.6% usd=? 774786ms
+
+>>> related-party | gpt-5.6-luna | effort=none
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 2079ms
+
+>>> related-party | gpt-5.6-luna | effort=low
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 1622ms
+
+>>> related-party | gpt-5.6-luna | effort=medium
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 1437ms
+
+>>> related-party | gpt-5.6-luna | effort=high
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 1491ms
+
+>>> related-party | gpt-5.6-luna | effort=extra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 1380ms
+
+>>> related-party | gpt-5.6-luna | effort=ultra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.08057820000000002 1469ms
+
+>>> related-party | claude-haiku-4-5 | effort=none
+    ok 33/33 agree 84.1% recall 81.9% prec 68.9% usd=0.2989909999999999 5775ms
+
+>>> related-party | claude-haiku-4-5 | effort=low
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.13429700000000003 547ms
+
+>>> related-party | claude-haiku-4-5 | effort=medium
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.13429700000000003 528ms
+
+>>> related-party | claude-haiku-4-5 | effort=high
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.13429700000000003 582ms
+
+>>> related-party | claude-haiku-4-5 | effort=extra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.13429700000000003 553ms
+
+>>> related-party | claude-haiku-4-5 | effort=ultra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.13429700000000003 513ms
+
+>>> related-party | grok-4.5 | effort=none
+    ok 33/33 agree 84.1% recall 82.4% prec 86.1% usd=0.43027800000000005 34317ms
+
+>>> related-party | grok-4.5 | effort=low
+    ok 33/33 agree 84.5% recall 82.7% prec 86.5% usd=0.330776 31461ms
+
+>>> related-party | grok-4.5 | effort=medium
+    ok 33/33 agree 81.1% recall 79.1% prec 83.4% usd=0.288078 33167ms
+
+>>> related-party | grok-4.5 | effort=high
+    ok 33/33 agree 84.9% recall 83.3% prec 86.4% usd=0.29037599999999997 37846ms
+
+>>> related-party | grok-4.5 | effort=extra
+    ok 33/33 agree 81.0% recall 79.2% prec 83.2% usd=0.30892200000000003 40879ms
+
+>>> related-party | grok-4.5 | effort=ultra
+    ok 33/33 agree 87.9% recall 86.2% prec 89.6% usd=0.3008660000000001 37225ms
+
+>>> related-party | gpt-5.6-terra | effort=none
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1921ms
+
+>>> related-party | gpt-5.6-terra | effort=low
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1599ms
+
+>>> related-party | gpt-5.6-terra | effort=medium
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1500ms
+
+>>> related-party | gpt-5.6-terra | effort=high
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1698ms
+
+>>> related-party | gpt-5.6-terra | effort=extra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1472ms
+
+>>> related-party | gpt-5.6-terra | effort=ultra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=1.0072275 1604ms
+
+>>> related-party | claude-sonnet-5 | effort=none
+    ok 30/33 agree 80.4% recall 79.5% prec 72.9% usd=1.5496559999999997 14308ms
+
+>>> related-party | claude-sonnet-5 | effort=low
+    ok 29/33 agree 80.2% recall 79.2% prec 77.7% usd=1.63263 16037ms
+
+>>> related-party | claude-sonnet-5 | effort=medium
+    ok 31/33 agree 78.9% recall 77.5% prec 71.0% usd=1.3923299999999998 14093ms
+
+>>> related-party | claude-sonnet-5 | effort=high
+    ok 30/33 agree 79.5% recall 78.1% prec 73.6% usd=1.343895 12084ms
+
+>>> related-party | claude-sonnet-5 | effort=extra
+    ok 31/33 agree 82.8% recall 81.6% prec 76.0% usd=1.50528 15263ms
+
+>>> related-party | claude-sonnet-5 | effort=ultra
+    ok 33/33 agree 82.3% recall 80.9% prec 71.6% usd=1.5432029999999999 14942ms
+
+>>> related-party | gpt-5.6-sol | effort=none
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 2123ms
+
+>>> related-party | gpt-5.6-sol | effort=low
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 1681ms
+
+>>> related-party | gpt-5.6-sol | effort=medium
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 1536ms
+
+>>> related-party | gpt-5.6-sol | effort=high
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 1640ms
+
+>>> related-party | gpt-5.6-sol | effort=extra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 1470ms
+
+>>> related-party | gpt-5.6-sol | effort=ultra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=2.014455 1778ms
+
+>>> related-party | claude-opus-5 | effort=none
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 485ms
+
+>>> related-party | claude-opus-5 | effort=low
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 498ms
+
+>>> related-party | claude-opus-5 | effort=medium
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 484ms
+
+>>> related-party | claude-opus-5 | effort=high
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 523ms
+
+>>> related-party | claude-opus-5 | effort=extra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 512ms
+
+>>> related-party | claude-opus-5 | effort=ultra
+    ok 0/33 agree 24.2% recall 24.2% prec 24.2% usd=0.671485 512ms
+!!! no 100% combo found for related-party
+
+>>> beneficial-ownership | open-router:deepinfra:deepseek-v4-flash-0731 | effort=none
+    ok 34/34 agree 100.0% recall 100.0% prec 100.0% usd=0.020075876000000003 24512ms PERFECT
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=none
+    ok 34/34 agree 99.4% recall 100.0% prec 100.0% usd=0.00798886 8722ms
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=low
+    ok 23/34 agree 67.4% recall 67.2% prec 67.6% usd=? 210455ms
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=medium
+    ok 22/34 agree 62.6% recall 62.3% prec 64.7% usd=? 229179ms
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=high
+    ok 21/34 agree 61.8% recall 61.8% prec 61.8% usd=? 244306ms
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=extra
+    ok 21/34 agree 61.8% recall 61.8% prec 61.8% usd=? 177390ms
+
+>>> executive-compensation | open-router:deepinfra:deepseek-v4-flash-0731 | effort=ultra
+5.6-luna for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | claude-haiku-4-5 | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.11397499999999999 472ms
+
+>>> executive-compensation | claude-haiku-4-5 | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.11397499999999999 562ms
+abandon claude-haiku-4-5 for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | grok-4.5 | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.22794999999999999 123ms
+
+>>> executive-compensation | grok-4.5 | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.22794999999999999 126ms
+abandon grok-4.5 for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | gpt-5.6-terra | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.8548125000000002 1707ms
+
+>>> executive-compensation | gpt-5.6-terra | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.8548125000000002 1661ms
+abandon gpt-5.6-terra for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | claude-sonnet-5 | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.3419249999999999 528ms
+
+>>> executive-compensation | claude-sonnet-5 | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.3419249999999999 501ms
+abandon claude-sonnet-5 for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | gpt-5.6-sol | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=1.7096250000000004 1702ms
+
+>>> executive-compensation | gpt-5.6-sol | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=1.7096250000000004 1581ms
+abandon gpt-5.6-sol for executive-compensation: medium/high plateau under 98%
+
+>>> executive-compensation | claude-opus-5 | effort=medium
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.569875 463ms
+
+>>> executive-compensation | claude-opus-5 | effort=high
+    ok 0/34 agree 55.9% recall 55.9% prec 55.9% usd=0.569875 632ms
+abandon claude-opus-5 for executive-compensation: medium/high plateau under 98%
+!!! no 100% combo found for executive-compensation
+
+>>> management | open-router:deepinfra:deepseek-v4-flash-0731 | effort=medium
+    ok 34/34 agree 91.9% recall 100.0% prec 100.0% usd=0.041502488000000004 118972ms
+
+>>> management | open-router:deepinfra:deepseek-v4-flash-0731 | effort=high
+    ok 34/34 agree 92.0% recall 99.3% prec 99.3% usd=0.038815608 104867ms
+abandon open-router:deepinfra:deepseek-v4-flash-0731 for management: medium/high plateau under 98%
+
+>>> management | gpt-5.6-luna | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.0810042 1849ms
+
+>>> management | gpt-5.6-luna | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.0810042 1836ms
+abandon gpt-5.6-luna for management: medium/high plateau under 98%
+
+>>> management | claude-haiku-4-5 | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.135007 576ms
+
+>>> management | claude-haiku-4-5 | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.135007 496ms
+abandon claude-haiku-4-5 for management: medium/high plateau under 98%
+
+>>> management | grok-4.5 | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.270014 121ms
+
+>>> management | grok-4.5 | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.270014 131ms
+abandon grok-4.5 for management: medium/high plateau under 98%
+
+>>> management | gpt-5.6-terra | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=1.0125525 1642ms
+
+>>> management | gpt-5.6-terra | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=1.0125525 1554ms
+abandon gpt-5.6-terra for management: medium/high plateau under 98%
+
+>>> management | claude-sonnet-5 | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.40502099999999996 552ms
+
+>>> management | claude-sonnet-5 | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.40502099999999996 531ms
+abandon claude-sonnet-5 for management: medium/high plateau under 98%
+
+>>> management | gpt-5.6-sol | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=2.025105 1735ms
+
+>>> management | gpt-5.6-sol | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=2.025105 1761ms
+abandon gpt-5.6-sol for management: medium/high plateau under 98%
+
+>>> management | claude-opus-5 | effort=medium
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.6750349999999998 485ms
+
+>>> management | claude-opus-5 | effort=high
+    ok 0/34 agree 0.0% recall 0.0% prec 0.0% usd=0.6750349999999998 509ms
+abandon claude-opus-5 for management: medium/high plateau under 98%
+!!! no 100% combo found for management
+
+>>> offering-terms | open-router:deepinfra:deepseek-v4-flash-0731 | effort=medium
+    ok 40/40 agree 94.2% recall 100.0% prec 100.0% usd=0.08037558800000001 231339ms
+
+>>> offering-terms | open-router:deepinfra:deepseek-v4-flash-0731 | effort=high
+    ok 40/40 agree 96.3% recall 100.0% prec 100.0% usd=0.063129436 190550ms
+
+>>> offering-terms | open-router:deepinfra:deepseek-v4-flash-0731 | effort=ultra
