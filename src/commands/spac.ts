@@ -334,8 +334,16 @@ export function registerSpacCommands(program: Command): void {
               },
             }),
           ]);
+          // The task reports an expected user error on its `error` port rather
+          // than throwing, so the workflow renderer cannot `process.exit(1)`
+          // out from under the CLI's teardown. Re-raise it here so the non-zero
+          // exit comes from `runCommand`, matching `spac process`.
+          if (out.error) throw new Error(out.error);
           console.log(
-            `SPAC docs: ${out.candidates} candidates; ${out.matched} matched; ${out.skipped} skipped; ${out.downloaded} downloaded; ${out.failed} failed`
+            `SPAC docs: ${out.candidates} candidates; ${out.matched} matched; ` +
+              `${out.skipped} skipped (${out.skippedCached} cached, ` +
+              `${out.skippedNoFileName} no filename, ${out.skippedUnsafeName} unsafe name); ` +
+              `${out.downloaded} downloaded; ${out.failed} failed`
           );
         });
       });

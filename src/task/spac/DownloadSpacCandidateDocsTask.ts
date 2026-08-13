@@ -47,12 +47,27 @@ export type DownloadSpacCandidateDocsTaskInput = {
 export type DownloadSpacCandidateDocsTaskOutput = {
   readonly candidates: number;
   readonly matched: number;
+  /** Total skipped — the sum of the three reasons below. */
   readonly skipped: number;
+  /** Skipped because every file this filing needs was already on disk. */
+  readonly skippedCached: number;
+  /** Skipped because the filing names no document to fetch. */
+  readonly skippedNoFileName: number;
+  /** Skipped because the filer-authored filename could not be made path-safe. */
+  readonly skippedUnsafeName: number;
   readonly downloaded: number;
   readonly failed: number;
+  /**
+   * An EXPECTED user error (e.g. an empty candidate table). Reported as an
+   * output port rather than thrown: on a TTY the workflow renderer answers a
+   * thrown error with `process.exit(1)`, which bypasses the command's error
+   * handling and the CLI's teardown (job queue / pool shutdown).
+   */
+  readonly error?: string;
 };
 
-type CacheOneInput = {
+/** One filing's worth of work. Exported so a test seam can type its override. */
+export type CacheOneInput = {
   readonly cik: number;
   readonly accessionNumber: string;
   readonly form: string;
@@ -63,10 +78,35 @@ type CacheOneInput = {
 
 type CacheOneOutput = {
   readonly success: boolean;
+  /**
+   * Why the fetch failed, in one short phrase. Without it a 404, a 403 (EDGAR
+   * blocking the User-Agent), an exhausted-retry 429 and "the response carried
+   * no text" all sum into one counter and are indistinguishable — three of
+   * which need completely different operator responses.
+   */
+  readonly reason?: string;
 };
 
 function isEightK(form: string): boolean {
   return form === "8-K" || form === "8-K/A";
+}
+
+/** Longest failure reason kept on a row, so one HTML error page cannot flood the log. */
+const MAX_REASON_LENGTH = 160;
+
+/**
+ * One short phrase naming why a fetch failed, for the per-filing warning and
+ * the grouped tally. Kept to the message so distinct causes — 404, 403, an
+ * exhausted-retry 429, "no text" — stay distinguishable without a stack trace
+ * per filing in a sweep that can fail thousands of times.
+ */
+function describeFetchFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const collapsed = message.replace(/\s+/g, " ").trim();
+  if (collapsed.length === 0) return "unknown error";
+  return collapsed.length > MAX_REASON_LENGTH
+    ? `${collapsed.slice(0, MAX_REASON_LENGTH - 1)}…`
+    : collapsed;
 }
 
 async function writeCacheFile(fullPath: string, dir: string, body: string): Promise<void> {
@@ -97,7 +137,7 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
   }
 
   public static outputSchema() {
-    return Type.Object({ success: Type.Boolean() });
+    return Type.Object({ success: Type.Boolean(), reason: Type.Optional(Type.String()) });
   }
 
   /**
@@ -141,7 +181,10 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
   async execute(input: CacheOneInput, context: IExecuteContext): Promise<CacheOneOutput> {
     const { cik, accessionNumber, form, fileName, primaryDoc } = input;
     const force = input.force === true;
-    await context.updateProgress(0, `${form} ${accessionNumber}`);
+    // No progress report here. This task runs on the PARENT's context, so N
+    // concurrent workers each wrote their own filing's label over the previous
+    // one and the percentage never moved off 0. The parent reports progress
+    // from worker completions instead.
 
     if (!globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
       throw new TaskError("SEC_RAW_DATA_FOLDER is not configured");
@@ -160,7 +203,15 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       } catch (err) {
         if (err instanceof TaskAbortedError) throw err;
         if (context.signal?.aborted) throw new TaskAbortedError();
-        return { success: false };
+        // A binary primary document (`.pdf`, `.jpg`, …) resolves to
+        // `response_type: "blob"`, so `fetchOutput.text` is undefined and
+        // `fetchDoc` throws "Fetch returned no text" — AFTER the fetch task's
+        // own file cache already wrote the bytes. The document is cached; the
+        // filing is not a failure, and only the text-only slice step below is
+        // unavailable (which no binary form uses). Reachable on `everything`
+        // for any primary-doc form.
+        if (existsSync(requiredPath)) return { success: true };
+        return { success: false, reason: describeFetchFailure(err) };
       }
       await writeCacheFile(requiredPath, cikDir, text);
     }
@@ -209,14 +260,28 @@ export class DownloadSpacCandidateDocsTask extends Task<
       candidates: Type.Integer(),
       matched: Type.Integer(),
       skipped: Type.Integer(),
+      skippedCached: Type.Integer(),
+      skippedNoFileName: Type.Integer(),
+      skippedUnsafeName: Type.Integer(),
       downloaded: Type.Integer(),
       failed: Type.Integer(),
+      error: Type.Optional(Type.String()),
     });
   }
 
-  /** Test seam: subclass and return a CacheOne that stubs {@link CacheOneSpacCandidateDocTask.fetchDoc}. */
-  protected createInnerTask(force: boolean): CacheOneSpacCandidateDocTask {
-    return new CacheOneSpacCandidateDocTask({ defaults: { force } });
+  /**
+   * Test seam: subclass and return a CacheOne that stubs
+   * {@link CacheOneSpacCandidateDocTask.fetchDoc}.
+   *
+   * Takes the item so the instance can carry a per-instance `title` — the CLI
+   * progress UI labels every row with it, and the whole sweep is instances of
+   * one class. No `defaults`: `force` arrives on the item this task is executed
+   * with, so seeding it as a default was dead weight.
+   */
+  protected createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
+    return new CacheOneSpacCandidateDocTask({
+      title: `${item.form} ${item.accessionNumber}`,
+    });
   }
 
   async execute(
@@ -235,9 +300,16 @@ export class DownloadSpacCandidateDocsTask extends Task<
       wanted.has(row.confidence)
     );
     if (candidates.length === 0) {
-      throw new TaskError(
-        "No SPAC candidates in the requested confidence tier(s). Run `sec update spacs` first."
-      );
+      // An EXPECTED user error, so it leaves on the `error` port rather than
+      // being thrown: the workflow renderer answers a throw with
+      // `process.exit(1)`, which skips the command's error handling and the
+      // CLI's teardown. (The SEC_RAW_DATA_FOLDER check above stays a throw — a
+      // misconfiguration is not an expected user error.)
+      return {
+        ...emptyResult(0, 0),
+        error:
+          "No SPAC candidates in the requested confidence tier(s). Run `sec update spacs` first.",
+      };
     }
 
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -257,22 +329,35 @@ export class DownloadSpacCandidateDocsTask extends Task<
     });
 
     const todo: CacheOneInput[] = [];
-    let skipped = 0;
+    // Three different situations, kept as three counters: "already have it" is
+    // the healthy steady state, "the filing names no document" is an EDGAR
+    // shape, and "the name is not path-safe" is a filer-authored value worth
+    // looking at. One shared counter said only "nothing happened".
+    let skippedCached = 0;
+    let skippedNoFileName = 0;
+    let skippedUnsafeName = 0;
     for (const row of matchedRows) {
       const form = row.form ?? "";
       const fileName = spacDocFetchFileName(form, row.accession_number, row.primary_doc);
       if (fileName.trim().length === 0) {
-        skipped++;
+        skippedNoFileName++;
         continue;
       }
       try {
         sanitizePrimaryDoc(fileName);
       } catch {
-        skipped++;
+        skippedUnsafeName++;
+        console.warn(
+          `Skipping unsafe document name for cik=${row.cik} accession=${row.accession_number}: ` +
+            JSON.stringify(fileName)
+        );
         continue;
       }
-      if (!force && shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)) {
-        skipped++;
+      if (
+        !force &&
+        shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)
+      ) {
+        skippedCached++;
         continue;
       }
       todo.push({
@@ -285,44 +370,102 @@ export class DownloadSpacCandidateDocsTask extends Task<
       });
     }
 
-    const empty: DownloadSpacCandidateDocsTaskOutput = {
-      candidates: candidates.length,
-      matched: matchedRows.length,
-      skipped,
-      downloaded: 0,
-      failed: 0,
-    };
+    const skips = { skippedCached, skippedNoFileName, skippedUnsafeName };
 
     if (isDryRun() || todo.length === 0) {
-      return empty;
+      return { ...emptyResult(candidates.length, matchedRows.length), ...skips, ...totals(skips) };
     }
 
     let downloaded = 0;
     let failed = 0;
     let next = 0;
+    const failuresByReason = new Map<string, number>();
+    const skippedTotal = totals(skips).skipped;
+    const report = (): void => {
+      const done = downloaded + failed;
+      void context.updateProgress(
+        Math.floor((done / todo.length) * 100),
+        // A COUNTER, not the current filing: with FORMS_SWEEP_CONCURRENCY_LIMIT
+        // workers reporting into one context, a per-filing label is only ever
+        // the last one to win a race.
+        `${downloaded} downloaded · ${skippedTotal} skipped · ${failed} failed`
+      );
+    };
     const worker = async (): Promise<void> => {
       while (true) {
         if (context.signal?.aborted) throw new TaskAbortedError();
         const i = next++;
         if (i >= todo.length) return;
         const item = todo[i];
-        const inner = this.createInnerTask(force);
+        const inner = this.createInnerTask(item);
         const result = await inner.execute(item, context);
-        if (result.success) downloaded++;
-        else failed++;
+        if (result.success) {
+          downloaded++;
+        } else {
+          failed++;
+          const reason = result.reason ?? "unknown error";
+          failuresByReason.set(reason, (failuresByReason.get(reason) ?? 0) + 1);
+          console.warn(
+            `${item.cik}/${item.accessionNumber} · ${item.form} · ${item.fileName} → ${reason}`
+          );
+        }
+        report();
       }
     };
     const n = Math.min(FORMS_SWEEP_CONCURRENCY_LIMIT, todo.length);
-    await Promise.all(Array.from({ length: n }, () => worker()));
+    // allSettled, not all: `Promise.all` rejects on the first TaskAbortedError
+    // while up to n-1 fetch+write pairs are still in flight, so their writes
+    // landed after `execute` had already thrown. Wait for every worker to
+    // settle, then re-raise.
+    const settled = await Promise.allSettled(Array.from({ length: n }, () => worker()));
+    const firstRejection = settled.find((s) => s.status === "rejected");
+    if (firstRejection && firstRejection.status === "rejected") {
+      throw firstRejection.reason;
+    }
+
+    if (failuresByReason.size > 0) {
+      const tally = [...failuresByReason.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([reason, count]) => `  ${count} × ${reason}`)
+        .join("\n");
+      console.warn(`SPAC doc download: ${failed} filing(s) failed:\n${tally}`);
+    }
 
     return {
       candidates: candidates.length,
       matched: matchedRows.length,
-      skipped,
+      ...skips,
+      ...totals(skips),
       downloaded,
       failed,
     };
   }
+}
+
+interface SkipCounts {
+  readonly skippedCached: number;
+  readonly skippedNoFileName: number;
+  readonly skippedUnsafeName: number;
+}
+
+/** `skipped` stays the sum of its parts, so no caller has to add them up. */
+function totals(skips: SkipCounts): { readonly skipped: number } {
+  return {
+    skipped: skips.skippedCached + skips.skippedNoFileName + skips.skippedUnsafeName,
+  };
+}
+
+function emptyResult(candidates: number, matched: number): DownloadSpacCandidateDocsTaskOutput {
+  return {
+    candidates,
+    matched,
+    skipped: 0,
+    skippedCached: 0,
+    skippedNoFileName: 0,
+    skippedUnsafeName: 0,
+    downloaded: 0,
+    failed: 0,
+  };
 }
 
 function shouldSkipCached(

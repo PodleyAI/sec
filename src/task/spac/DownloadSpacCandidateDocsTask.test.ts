@@ -22,6 +22,7 @@ import { accessionDocCacheRelative } from "./spacCandidateDownload";
 import {
   CacheOneSpacCandidateDocTask,
   DownloadSpacCandidateDocsTask,
+  type CacheOneInput,
   type DownloadSpacCandidateDocsTaskInput,
 } from "./DownloadSpacCandidateDocsTask";
 
@@ -100,6 +101,13 @@ function candidate(
 class TestCacheOne extends CacheOneSpacCandidateDocTask {
   static requested: string[] = [];
   static docs = new Map<string, string | Error>();
+  /**
+   * Keys whose fetch writes the cache file and THEN throws — the shape a
+   * binary primary document produces: `response_type` resolves to `blob`, so
+   * `fetchOutput.text` is undefined and `fetchDoc` raises "Fetch returned no
+   * text" after `SecFetchFileOutputCache` already persisted the bytes.
+   */
+  static cachedThenThrows = new Map<string, string>();
 
   protected override async fetchDoc(
     cik: number,
@@ -109,6 +117,11 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
   ): Promise<string> {
     const key = `${cik}/${accessionNumber}/${fileName}`;
     TestCacheOne.requested.push(key);
+    const cachedBody = TestCacheOne.cachedThenThrows.get(key);
+    if (cachedBody !== undefined) {
+      writeCache(cik, accessionNumber, fileName, cachedBody);
+      throw new Error(`Fetch returned no text for ${key}`);
+    }
     const v = TestCacheOne.docs.get(key);
     if (v instanceof Error) throw v;
     if (typeof v !== "string") throw new Error(`unexpected fetch ${key}`);
@@ -117,8 +130,12 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
 }
 
 class TestDownload extends DownloadSpacCandidateDocsTask {
-  protected override createInnerTask(force: boolean): CacheOneSpacCandidateDocTask {
-    return new TestCacheOne({ defaults: { force } });
+  static innerTitles: string[] = [];
+
+  protected override createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
+    const inner = new TestCacheOne({ title: `${item.form} ${item.accessionNumber}` });
+    TestDownload.innerTitles.push(inner.title);
+    return inner;
   }
 }
 
@@ -131,6 +148,8 @@ beforeEach(async () => {
   globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, raw);
   TestCacheOne.requested = [];
   TestCacheOne.docs = new Map();
+  TestCacheOne.cachedThenThrows = new Map();
+  TestDownload.innerTitles = [];
 });
 
 afterEach(() => {
@@ -155,8 +174,15 @@ async function runDownload(
 }
 
 describe("DownloadSpacCandidateDocsTask", () => {
-  it("throws when spac_candidate is empty", async () => {
-    await expect(runDownload({ set: "registration" })).rejects.toThrow(/sec update spacs/);
+  it("reports an empty spac_candidate table on the error port, without throwing", async () => {
+    // Thrown, the workflow renderer answers it with process.exit(1) on a TTY,
+    // skipping the command's error handling and the CLI's teardown.
+    const out = await runDownload({ set: "registration" });
+    expect(out.error).toMatch(/sec update spacs/);
+    expect(out.candidates).toBe(0);
+    expect(out.matched).toBe(0);
+    expect(out.downloaded).toBe(0);
+    expect(out.failed).toBe(0);
   });
 
   it("throws when SEC_RAW_DATA_FOLDER is not registered", async () => {
@@ -346,5 +372,88 @@ describe("DownloadSpacCandidateDocsTask", () => {
     const out = await runDownload({ set: "registration" });
     expect(out.downloaded).toBe(1);
     expect(out.failed).toBe(1);
+  });
+
+  it("warns one line per failure carrying the reason, and tallies by reason", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk([
+      filing({ cik: 1, accession_number: "acc-404", form: "S-1" }),
+      filing({ cik: 1, accession_number: "acc-403", form: "S-1" }),
+      filing({ cik: 1, accession_number: "acc-404b", form: "S-1" }),
+    ]);
+    TestCacheOne.docs.set("1/acc-404/acc-404.txt", new Error("HTTP 404 Not Found"));
+    TestCacheOne.docs.set("1/acc-404b/acc-404b.txt", new Error("HTTP 404 Not Found"));
+    TestCacheOne.docs.set("1/acc-403/acc-403.txt", new Error("HTTP 403 Forbidden"));
+
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (...args: unknown[]) => void warnings.push(args.join(" "));
+    try {
+      const out = await runDownload({ set: "registration" });
+      expect(out.failed).toBe(3);
+    } finally {
+      console.warn = original;
+    }
+
+    const joined = warnings.join("\n");
+    // A 404 and a 403 demand different operator responses; before this they
+    // were both just "failed".
+    expect(joined).toContain("1/acc-404 · S-1 · acc-404.txt → HTTP 404 Not Found");
+    expect(joined).toContain("1/acc-403 · S-1 · acc-403.txt → HTTP 403 Forbidden");
+    expect(joined).toContain("2 × HTTP 404 Not Found");
+    expect(joined).toContain("1 × HTTP 403 Forbidden");
+  });
+
+  it("counts a binary primary doc as downloaded, not failed, when the fetch cached it", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-pdf", form: "10-K", primary_doc: "d10k.pdf" }));
+    // `guessResponseType` maps `.pdf` to `blob`, so `fetchOutput.text` is
+    // undefined and fetchDoc throws — after the bytes were already cached.
+    TestCacheOne.cachedThenThrows.set("1/acc-pdf/d10k.pdf", "%PDF-1.4 bytes");
+
+    const out = await runDownload({ set: "all" });
+    expect(out.downloaded).toBe(1);
+    expect(out.failed).toBe(0);
+    expect(readFileSync(cachePath(1, "acc-pdf", "d10k.pdf"), "utf-8")).toBe("%PDF-1.4 bytes");
+  });
+
+  it("splits skipped into cached / no-filename / unsafe-name, summing to skipped", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk([
+      filing({ cik: 1, accession_number: "acc-cached", form: "S-1" }),
+      filing({ cik: 1, accession_number: "acc-empty", form: "10-K", primary_doc: "" }),
+      filing({ cik: 1, accession_number: "acc-unsafe", form: "10-K", primary_doc: "../escape.htm" }),
+    ]);
+    writeCache(1, "acc-cached", "acc-cached.txt", "cached");
+
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (...args: unknown[]) => void warnings.push(args.join(" "));
+    let out: Awaited<ReturnType<DownloadSpacCandidateDocsTask["execute"]>>;
+    try {
+      out = await runDownload({ set: "all" });
+    } finally {
+      console.warn = original;
+    }
+
+    expect(out.skippedCached).toBe(1);
+    expect(out.skippedNoFileName).toBe(1);
+    expect(out.skippedUnsafeName).toBe(1);
+    expect(out.skipped).toBe(3);
+    // The unsafe branch used to drop the value silently.
+    expect(warnings.join("\n")).toContain("acc-unsafe");
+  });
+
+  it("names each inner task after the filing it downloads", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-titled", form: "S-1" }));
+    TestCacheOne.docs.set("1/acc-titled/acc-titled.txt", "s1");
+
+    await runDownload({ set: "registration" });
+    expect(TestDownload.innerTitles).toEqual(["S-1 acc-titled"]);
   });
 });
