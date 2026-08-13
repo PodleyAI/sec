@@ -111,7 +111,16 @@ async function writeFileAtomic(fullPath: string, dir: string, body: string): Pro
  * well as the read, which would force a hand-rolled non-atomic write back into
  * the one place this file is removing it. With the entry gone, `getOutput`
  * takes its ENOENT miss path and `saveOutput`'s tmp+rename stays the single
- * atomic writer. Same semantics as `sec bootstrap download-docs --force`.
+ * atomic writer.
+ *
+ * The cost is that the eviction precedes the fetch, so a `--force` run whose
+ * fetch then fails leaves NO cached document — the entry it deleted is not
+ * restored, and a merely-stale cache ends up empty. `sec bootstrap
+ * download-docs --force` has no such window: it streams from a tarball and
+ * overwrites once the bytes are in hand. There is no fetch-then-replace
+ * ordering available here, because the runner consults the cache before
+ * `execute` ever runs; the loss shows up in the sweep's `failed` count and a
+ * re-run refills it.
  */
 async function evictCacheFile(fullPath: string, dir: string): Promise<void> {
   assertInsideDir(fullPath, dir);
