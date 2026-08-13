@@ -16,6 +16,7 @@
  * comparison so trivial formatting differences are not penalized.
  */
 
+import { normalizeCompany } from "../storage/company/CompanyNormalization";
 import { normalizePerson } from "../storage/person/PersonNormalization";
 import { foldTypographicPunctuation } from "../util/dataCleaningUtils";
 
@@ -98,6 +99,66 @@ export interface ScoreOptions {
    * they may still appear in printed diffs, but they are not part of the match.
    */
   readonly personNameFields?: readonly string[];
+  /**
+   * Fields whose values are organization names. Scored through
+   * {@link normalizeCompany}, which keeps the parts that identify an
+   * organization — the legal form and any roman numeral — so
+   * `WAVE Equity Fund, L.P.` and `WAVE Equity Fund, LLC` stay two rows.
+   */
+  readonly companyNameFields?: readonly string[];
+  /**
+   * Fields whose values are a person name OR an organization name, decided per
+   * row by {@link ScoreOptions.entityKindField}. Requires that field; without
+   * it the values fall back to plain normalization.
+   *
+   * Neither single parser is usable on a mixed field, and the two fail in
+   * opposite directions: {@link normalizePerson} reads a legal form as a
+   * credential and drops it, collapsing two distinct funds into one row, while
+   * {@link normalizeCompany} keeps a person's credential and splits
+   * `Isaac Manke` from `Isaac Manke, Ph.D.` — the very split
+   * `personNameFields` exists to prevent.
+   */
+  readonly entityNameFields?: readonly string[];
+  /**
+   * Field naming a row's entity kind, `"person"` or `"company"` (e.g.
+   * `owner_kind`). Only consulted for {@link ScoreOptions.entityNameFields}.
+   */
+  readonly entityKindField?: string;
+}
+
+/** Which normalizer a field's value is scored through, for one row. */
+type NameKind = "person" | "company" | "raw";
+
+/**
+ * Resolves a field to its normalizer, per row.
+ *
+ * Per ROW rather than per field, because a mixed extractor's name column holds
+ * both kinds and only the row's own discriminator says which — the production
+ * observation tier makes the same distinction, routing person mentions through
+ * `normalizePerson` and company mentions through `normalizeCompany`.
+ */
+function makeNameKindResolver(
+  opts: ScoreOptions
+): (row: Record<string, unknown>, field: string | undefined) => NameKind {
+  const person = new Set(opts.personNameFields ?? []);
+  const company = new Set(opts.companyNameFields ?? []);
+  const entity = new Set(opts.entityNameFields ?? []);
+  const kindField = opts.entityKindField;
+  return (row, field) => {
+    if (!field) return "raw";
+    if (person.has(field)) return "person";
+    if (company.has(field)) return "company";
+    if (entity.has(field) && kindField !== undefined) {
+      const kind = row[kindField];
+      if (kind === "person") return "person";
+      if (kind === "company") return "company";
+      // An absent or out-of-enum discriminator is not a licence to guess: a
+      // wrong parser corrupts identity in one direction or the other, and plain
+      // normalization only ever costs alignment it could have had.
+      return "raw";
+    }
+    return "raw";
+  };
 }
 
 function normalize(value: unknown): string {
@@ -122,31 +183,48 @@ function normalize(value: unknown): string {
 }
 
 /**
- * Match key for a field value. Person-name fields collapse to the production
- * person hash (credentials stripped); everything else uses {@link normalize}.
+ * Match key for a field value, in the row it came from. A name field collapses
+ * to the production identity hash for its kind — person or company, resolved by
+ * {@link makeNameKindResolver} — and everything else uses {@link normalize}.
+ *
+ * The row is a parameter because the kind can be a property of the row rather
+ * than of the field.
  */
 function matchKey(
+  row: Record<string, unknown>,
   value: unknown,
   field: string | undefined,
-  personNameFields: ReadonlySet<string>
+  nameKind: (row: Record<string, unknown>, field: string | undefined) => NameKind
 ): string {
-  if (field && personNameFields.has(field) && typeof value === "string") {
-    const person = normalizePerson({ name: value });
-    if (person) return `person:${person.person_hash_id}`;
+  if (field && typeof value === "string") {
+    const kind = nameKind(row, field);
+    if (kind === "person") {
+      const person = normalizePerson({ name: value });
+      if (person) return `person:${person.person_hash_id}`;
+    } else if (kind === "company") {
+      const company = normalizeCompany(value);
+      if (company) return `company:${company.company_hash_id}`;
+    }
   }
   return `raw:${normalize(value)}`;
 }
 
 function valuesAgree(
+  expectedRow: Record<string, unknown>,
+  candidateRow: Record<string, unknown>,
   expectedValue: unknown,
   candidateValue: unknown,
   field: string,
-  personNameFields: ReadonlySet<string>
+  nameKind: (row: Record<string, unknown>, field: string | undefined) => NameKind
 ): boolean {
-  if (personNameFields.has(field)) {
+  // Each side is keyed in ITS OWN row, so a candidate that also got the
+  // discriminator wrong compares as the kind it claimed rather than silently
+  // borrowing the reference's. Disagreeing on kind then reads as a mismatch,
+  // which is what it is.
+  if (nameKind(expectedRow, field) !== "raw" || nameKind(candidateRow, field) !== "raw") {
     return (
-      matchKey(expectedValue, field, personNameFields) ===
-      matchKey(candidateValue, field, personNameFields)
+      matchKey(expectedRow, expectedValue, field, nameKind) ===
+      matchKey(candidateRow, candidateValue, field, nameKind)
     );
   }
   const expectedNorm = normalize(expectedValue);
@@ -239,13 +317,13 @@ function fieldsFor(expectedRow: Record<string, unknown>, opts: ScoreOptions): st
 function dedupeByKey(
   rows: readonly Record<string, unknown>[],
   keyField: string | undefined,
-  personNameFields: ReadonlySet<string>
+  nameKind: (row: Record<string, unknown>, field: string | undefined) => NameKind
 ): Record<string, unknown>[] {
   if (!keyField) return [...rows];
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const row of rows) {
-    const key = matchKey(row[keyField], keyField, personNameFields);
+    const key = matchKey(row, row[keyField], keyField, nameKind);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(row);
@@ -258,13 +336,13 @@ export function scoreExtraction(
   expected: readonly Record<string, unknown>[],
   opts: ScoreOptions = {}
 ): ExtractionScore {
-  const personNameFields = new Set(opts.personNameFields ?? []);
+  const nameKind = makeNameKindResolver(opts);
   const rawCandidateCount = candidate.length;
-  const candidateRows = dedupeByKey(candidate.map(asRow), opts.keyField, personNameFields);
+  const candidateRows = dedupeByKey(candidate.map(asRow), opts.keyField, nameKind);
   const expectedRows = dedupeByKey(
     expected as readonly Record<string, unknown>[],
     opts.keyField,
-    personNameFields
+    nameKind
   );
   const used = new Array<boolean>(candidateRows.length).fill(false);
 
@@ -273,10 +351,9 @@ export function scoreExtraction(
       // Positional alignment.
       return index < candidateRows.length && !used[index] ? index : -1;
     }
-    const target = matchKey(expectedRow[opts.keyField], opts.keyField, personNameFields);
+    const target = matchKey(expectedRow, expectedRow[opts.keyField], opts.keyField, nameKind);
     return candidateRows.findIndex(
-      (row, i) =>
-        !used[i] && matchKey(row[opts.keyField!], opts.keyField, personNameFields) === target
+      (row, i) => !used[i] && matchKey(row, row[opts.keyField!], opts.keyField, nameKind) === target
     );
   };
 
@@ -347,7 +424,7 @@ export function scoreExtraction(
         // Person-name fields compare on identity hash (credentials ignored);
         // numbers agree at the reference's stated precision; everything else is
         // compared as normalized text.
-        if (valuesAgree(expectedRaw, candidateRaw, field, personNameFields)) {
+        if (valuesAgree(expectedRow, candidateRow, expectedRaw, candidateRaw, field, nameKind)) {
           matchedFieldValues += 1;
         } else {
           mismatches.push({

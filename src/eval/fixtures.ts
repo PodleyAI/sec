@@ -57,10 +57,7 @@ import { UseOfProceedsOutputSchema } from "../sec/forms/registration-statements/
  * Uses the no-nonce shape (local providers / default estimate); a cloud nonce
  * adds a few dozen characters and does not change comparative ranking.
  */
-export function estimateExtractionPromptChars(
-  instructions: string,
-  sectionText: string
-): number {
+export function estimateExtractionPromptChars(instructions: string, sectionText: string): number {
   return buildExtractionPrompt({ instructions, sectionText }).length;
 }
 
@@ -98,9 +95,28 @@ export interface EvalExtractor {
   readonly prepareSectionText?: (sectionText: string) => string;
   /**
    * Fields whose values are person names — passed to {@link scoreExtraction} so
-   * credentials do not split identity. Defaults to none.
+   * credentials do not split identity ("Isaac Manke" and "Isaac Manke, Ph.D."
+   * are the same person). Defaults to none.
+   *
+   * Only for extractors whose rows are **person-only by construction**. The
+   * person normalizer is lossy on anything else, and its losses are exactly the
+   * parts that distinguish organizations: a legal-form suffix is read as a
+   * credential and dropped, so `WAVE Equity Fund, L.P.` and
+   * `WAVE Equity Fund, LLC` both hash to `wave-equity-fund` and silently
+   * collapse into one row. So a field on a mixed-entity extractor (one with an
+   * `owner_kind` / `entity_kind` discriminator) must NOT be listed here — see
+   * the guard in `fixtures.test.ts`. Use {@link entityNameFields} for those.
    */
   readonly personNameFields?: readonly string[];
+  /** Fields whose values are organization names. Scored via `normalizeCompany`. */
+  readonly companyNameFields?: readonly string[];
+  /**
+   * Fields holding a person name OR an organization name, scored through the
+   * parser named by the row's own {@link entityKindField}.
+   */
+  readonly entityNameFields?: readonly string[];
+  /** Field naming a row's entity kind (`"person"` / `"company"`), e.g. `owner_kind`. */
+  readonly entityKindField?: string;
   /**
    * When true, exclude from default golden / extract sweeps. Explicit
    * `--extractors` / `--extractor` still accepts the name.
@@ -130,7 +146,10 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     // Percentages/share counts are formatted too variably to score cleanly;
     // compare on who is listed (name) — the field the models should agree on.
     compareFields: ["name"],
-    personNameFields: ["name"],
+    // An ownership table's `name` is a person OR an entity, so neither single
+    // parser fits: it is scored through the row's own `owner_kind`.
+    entityNameFields: ["name"],
+    entityKindField: "owner_kind",
   },
   // List extractor over a prospectus Item 105 section: one row per risk-factor
   // caption. Scored on the caption (verbatim) and the category heading it sits

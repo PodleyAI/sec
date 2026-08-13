@@ -284,4 +284,35 @@ describe("PersonNormalization", () => {
       expect(normalizePerson({ name: "Yong (David) Yan" })!.person_hash_id).toBe("yong-david-yan");
     });
   });
+
+  describe("organization names (a known lossy input)", () => {
+    // normalizePerson parses PERSON names. Feeding it an organization is not a
+    // bug in this module — it is a documented property callers must respect,
+    // and these cases exist so the losses are visible rather than discovered in
+    // a scoring table. They are why `EvalExtractor.personNameFields` is
+    // restricted to person-only extractors.
+
+    it("drops a legal-form suffix as if it were a credential, merging distinct entities", () => {
+      // "L.P." and "LLC" are the only thing distinguishing these two funds.
+      expect(normalizePerson({ name: "WAVE Equity Fund, L.P." })!.person_hash_id).toBe(
+        "wave-equity-fund"
+      );
+      expect(normalizePerson({ name: "WAVE Equity Fund, LLC" })!.person_hash_id).toBe(
+        "wave-equity-fund"
+      );
+    });
+
+    it("reads a roman numeral in a fund name as a generational suffix", () => {
+      // "II" becomes a Jr./Sr.-class suffix, so the fund number is not merely
+      // lost — it is replaced by a token that means something else entirely.
+      expect(normalizePerson({ name: "Wave Equity Partners Fund II, L.P." })!.person_hash_id).toBe(
+        "wave-equity-partners-fund-jr"
+      );
+    });
+
+    it("reorders a corporate name around its suffix", () => {
+      // "Inc." is taken for a given name, so the hash leads with it.
+      expect(normalizePerson({ name: "BlackRock, Inc." })!.person_hash_id).toBe("inc-blackrock");
+    });
+  });
 });

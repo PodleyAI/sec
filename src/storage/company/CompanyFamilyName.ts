@@ -1,0 +1,156 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+
+/**
+ * The *family* a company name belongs to — the sponsor or underwriter behind a
+ * vehicle, rather than the vehicle itself. `WAVE Equity Fund II, L.P.` and
+ * `WAVE Equity Fund, LLC` are two vehicles of one family, `wave-equity-fund`.
+ *
+ * Deliberately lossy, and NOT an identity key. `normalizeCompany` answers "are
+ * these the same legal entity" and keeps the legal form and series numeral that
+ * distinguish one fund from the next; this answers "are these the same house"
+ * and throws exactly those away. Using it to de-duplicate entities would merge
+ * every SPV a sponsor ever formed.
+ *
+ * Today the family tier keys off a **common name the AI extractor emitted**,
+ * which is why a family cannot be re-partitioned in batch: only the legal name
+ * reaches the observation row. Deriving the key from the legal name is what
+ * this exists for.
+ */
+
+/**
+ * Legal forms, stripped wherever they trail. Written without punctuation
+ * because the caller has already folded it — `L.P.` arrives as `lp`.
+ */
+const LEGAL_FORMS = new Set([
+  "llc",
+  "lllp",
+  "llp",
+  "lp",
+  "inc",
+  "incorporated",
+  "corp",
+  "corporation",
+  "co",
+  "company",
+  "ltd",
+  "limited",
+  "plc",
+  "sa",
+  "nv",
+  "bv",
+  "ua",
+  "spc",
+  "ag",
+  "gmbh",
+  "kg",
+  "ab",
+  "as",
+  "oy",
+  "pte",
+  "pty",
+  "aps",
+  "sarl",
+  "trust",
+]);
+
+/**
+ * Business-line words are deliberately NOT stripped.
+ *
+ * An earlier draft dropped `Capital`, `Ventures`, `Partners`, `Group` and the
+ * rest, which read as harmless boilerplate and is not: those words routinely
+ * distinguish two real houses. `Acme Capital` and `Acme Ventures` can be
+ * unrelated firms, and a rule that folds both to `acme` merges them with no
+ * evidence that they belong together and no way to tell afterwards. A family
+ * key that over-merges is worse than one that under-merges — an under-merge is
+ * visible as two families and fixable with an alias, while an over-merge
+ * silently attributes one house's deals to another.
+ *
+ * So this strips only what carries no identity in any name: the legal form, the
+ * series marker that separates one vehicle from the next, and structural noise.
+ * `Chardan Capital Markets` therefore stays `chardan-capital-markets` rather
+ * than becoming `chardan`, and the two are joined by an explicit alias:
+ *
+ * ```sh
+ * sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
+ * ```
+ *
+ * That is the right home for it: an alias is a stated, reviewable claim that
+ * two names are one house, recorded once by someone who checked — which is what
+ * these cases actually are. They are also rare, so the cost is small.
+ */
+
+/** A roman numeral (series marker): `II`, `XIII`, `VG VI`'s `VI`. */
+const ROMAN = /^[ivxlcdm]+$/;
+
+/** A bare number or year a sponsor uses to serialize vehicles: `3`, `22`, `2017`. */
+const SERIES_NUMBER = /^\d{1,4}$/;
+
+/**
+ * Prefixes an ownership table uses to describe a bloc rather than name one
+ * holder. They are not part of any company's name.
+ */
+const BLOC_PREFIX = /^entit(?:y|ies)\s+(?:affiliated\s+with|of)\s+/i;
+
+function isDroppableTail(token: string): boolean {
+  return (
+    LEGAL_FORMS.has(token) ||
+    ROMAN.test(token) ||
+    SERIES_NUMBER.test(token) ||
+    // A conjunction stranded by the token it joined: `Goldman Sachs & Co. LLC`
+    // becomes `goldman sachs and co llc`, and dropping `llc` then `co` leaves
+    // `and` hanging off the end of the house name.
+    token === "and"
+  );
+}
+
+/**
+ * Family slug for a company name, or `""` when the name yields none.
+ *
+ * Trailing legal forms and series markers are dropped repeatedly, so
+ * `Churchill Sponsor XIII LLC` loses `llc`, then `xiii`, and keeps
+ * `churchill-sponsor`. Business-line words stay (see {@link LEGAL_FORMS}'s
+ * neighbouring note) — joining `Chardan Capital Markets` to `Chardan` is an
+ * alias's job, not a normalizer's.
+ *
+ * Stripping never empties the result: `Fund III` is nothing BUT droppable
+ * tokens, and a name that says only "the third fund" identifies no house, so
+ * the last non-empty state is kept rather than returning nothing.
+ */
+export function companyFamilyName(name: string | null | undefined): string {
+  if (!name) return "";
+  const folded = foldTypographicPunctuation(String(name))
+    .replace(BLOC_PREFIX, "")
+    // A parenthetical is a jurisdiction or disambiguator, never the house:
+    // `Credit Suisse Securities (USA) LLC`, `B&R Technology Sponsor LLC (Cayman)`.
+    .replace(/\([^)]*\)/g, " ")
+    // An ampersand is part of a house name (`Cohen & Company`,
+    // `Keefe, Bruyette & Woods`), so it is spelled out rather than dropped.
+    .replace(/&/g, " and ")
+    .replace(/[.,;:]/g, "");
+  // Fold accents to their ASCII base BEFORE dropping non-ASCII, or the filter
+  // below turns the letter into a word break (`Coöperatieve` → `co peratieve`,
+  // whose `co` then reads as a legal form) or deletes it outright (`Łukasz` →
+  // `ukasz`, a different name). NFD alone is not enough: `ø` and `ł` carry the
+  // mark inside the glyph and have no combining form to strip.
+  const base = foldDiacritics(folded)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (base === "") return "";
+
+  const tokens = base.split(" ").filter((t) => t.length > 0);
+  let end = tokens.length;
+  while (end > 1 && isDroppableTail(tokens[end - 1])) end--;
+  // Every token was droppable (`Fund III`): keep the whole thing rather than
+  // inventing a family from the first word of a vehicle description.
+  const kept = end > 1 || !isDroppableTail(tokens[0]) ? tokens.slice(0, end) : tokens;
+
+  return kept.join("-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}

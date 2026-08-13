@@ -23,7 +23,7 @@ const TYPOGRAPHIC_PUNCTUATION: Readonly<Record<string, string>> = {
   "’": "'", // ’ right single (curly apostrophe)
   "‚": "'", // ‚ single low-9
   "‛": "'", // ‛ single high-reversed-9
-  "ʼ": "'", // ʼ modifier letter apostrophe
+  ʼ: "'", // ʼ modifier letter apostrophe
   "′": "'", // ′ prime
   "‵": "'", // ‵ reversed prime
   // Double quotes / primes -> "
@@ -54,6 +54,70 @@ const TYPOGRAPHIC_PUNCTUATION_RE = new RegExp(
  */
 export function foldTypographicPunctuation(s: string): string {
   return s.replace(TYPOGRAPHIC_PUNCTUATION_RE, (c) => TYPOGRAPHIC_PUNCTUATION[c]);
+}
+
+/**
+ * Latin letters that carry their mark INSIDE the glyph, so Unicode has no
+ * combining-mark form to strip. `Ø` does not decompose the way `Ö` does, which
+ * is why NFD alone is not a diacritic fold: it silently leaves these untouched,
+ * and a downstream `[^a-z]` filter then deletes the letter or turns it into a
+ * word break. `Łukasz` losing its `Ł` is not a normalization, it is a different
+ * name.
+ *
+ * Expansions (`æ` → `ae`) follow the convention the filer's own romanized
+ * spelling uses when EDGAR carries both.
+ */
+const NON_DECOMPOSING_LATIN: Record<string, string> = {
+  ø: "o",
+  Ø: "O",
+  œ: "oe",
+  Œ: "Oe",
+  æ: "ae",
+  Æ: "Ae",
+  ł: "l",
+  Ł: "L",
+  đ: "d",
+  Đ: "D",
+  ð: "d",
+  Ð: "D",
+  þ: "th",
+  Þ: "Th",
+  ß: "ss",
+  ħ: "h",
+  Ħ: "H",
+  ı: "i",
+  ŋ: "n",
+  Ŋ: "N",
+  ŧ: "t",
+  Ŧ: "T",
+  ƶ: "z",
+  Ƶ: "Z",
+};
+
+const NON_DECOMPOSING_LATIN_RE = new RegExp(
+  `[${Object.keys(NON_DECOMPOSING_LATIN).join("")}]`,
+  "g"
+);
+
+/**
+ * Folds accented Latin letters to their ASCII base: `Jörg Müller` and
+ * `Jorg Muller` become the same string, as do `Søren` and `Soren`.
+ *
+ * Two passes, because one does not cover the alphabet: NFD splits a letter from
+ * its combining mark so the mark can be dropped, and the map above handles the
+ * letters that have no such split.
+ *
+ * Case is PRESERVED. Most callers lowercase anyway to build a key, but the
+ * person normalizer keeps `James` as written — its output feeds display columns
+ * as well as match ones — so case folding is left to whoever wants it.
+ *
+ * Idempotent and safe on plain ASCII.
+ */
+export function foldDiacritics(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(NON_DECOMPOSING_LATIN_RE, (c) => NON_DECOMPOSING_LATIN[c]);
 }
 
 /**
