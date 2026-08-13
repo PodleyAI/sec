@@ -17,7 +17,7 @@
  * - **Google Gemini** (`provider: "GOOGLE_GEMINI"`) — inline; the `gemini-*`
  *   family (`gemini-3.1-pro-preview`, `gemini-3-flash-preview`, …). Needs
  *   `GEMINI_API_KEY` at run time.
- * - **xAI Grok** (`provider: "XAI"`) — inline; the `grok-*` family (`grok-4.5`,
+ * - **xAI Grok** (`provider: "XAI"`) — inline; the `grok-*` family (`grok-4.6`,
  *   …). Needs `XAI_API_KEY` at run time.
  * - **DeepSeek** (`provider: "DEEPSEEK"`) — inline; the `deepseek-*` family
  *   (`deepseek-v4-flash`, `deepseek-v4-pro`). Needs `DEEPSEEK_API_KEY` at run

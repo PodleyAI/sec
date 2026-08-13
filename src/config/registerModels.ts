@@ -117,7 +117,7 @@ function isGeminiModelId(modelId: string): boolean {
   return /^gemini-/i.test(modelId);
 }
 
-/** xAI Grok cloud ids — `grok-4.5`, `grok-4.3`, … */
+/** xAI Grok cloud ids — `grok-4.6`, `grok-4.5`, … */
 function isXaiModelId(modelId: string): boolean {
   return /^grok-/i.test(modelId);
 }

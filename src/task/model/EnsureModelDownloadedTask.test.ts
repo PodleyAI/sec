@@ -45,7 +45,7 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded("gemini-3-flash-preview", ctx())).rejects.toThrow(
       /model\.info/i
     );
-    await expect(ensureModelDownloaded("grok-4.5", ctx())).rejects.toThrow(/model\.info/i);
+    await expect(ensureModelDownloaded("grok-4.6", ctx())).rejects.toThrow(/model\.info/i);
   });
 
   it("is a no-op for an id whose shape sec does not route", async () => {

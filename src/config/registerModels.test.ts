@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ModelRepository } from "workglow";
 import {
   getGlobalModelRepository,
   InMemoryModelRepository,
   setGlobalModelRepository,
 } from "workglow";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_SEC_MODEL, SecHftModelDefault, SecModelDefault } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import {
@@ -64,10 +64,10 @@ describe("registerSecModels", () => {
     expect(record.provider_config.model_name).toBe("claude-sonnet-5");
     expect(record.pricing).toEqual({
       currency: "USD",
-      input: 3,
-      output: 15,
-      cached: 0.3,
-      cacheWrite: 3.75,
+      input: 2,
+      output: 10,
+      cached: 0.2,
+      cacheWrite: 2.5,
       cacheStoragePerHour: undefined,
     });
   });
@@ -83,7 +83,7 @@ describe("registerSecModels", () => {
     expect(openAiModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(openAiModelRecord("gpt-5.4-mini").provider_config.model_name).toBe("gpt-5.4-mini");
     expect(geminiModelRecord("gemini-3-flash-preview").provider).toBe("GOOGLE_GEMINI");
-    expect(xaiModelRecord("grok-4.5").provider).toBe("XAI");
+    expect(xaiModelRecord("grok-4.6").provider).toBe("XAI");
     expect(deepSeekModelRecord("deepseek-v4-pro").provider).toBe("DEEPSEEK");
     expect(deepSeekModelRecord("deepseek-v4-pro").provider_config.model_name).toBe(
       "deepseek-v4-pro"
@@ -91,8 +91,9 @@ describe("registerSecModels", () => {
     for (const r of [
       openAiModelRecord("gpt-5.4-mini"),
       geminiModelRecord("gemini-3-flash-preview"),
-      xaiModelRecord("grok-4.5"),
+      xaiModelRecord("grok-4.6"),
       deepSeekModelRecord("deepseek-v4-flash"),
+      deepSeekModelRecord("deepseek-v4-pro"),
     ]) {
       expect(r.capabilities).toContain("json-mode");
     }
@@ -108,7 +109,7 @@ describe("registerSecModels", () => {
     expect(secModelRecord("gpt-5.5").provider).toBe("OPENAI");
     expect(secModelRecord("gpt-5.4-mini").provider).toBe("OPENAI");
     expect(secModelRecord("gemini-3.1-pro-preview").provider).toBe("GOOGLE_GEMINI");
-    expect(secModelRecord("grok-4.5").provider).toBe("XAI");
+    expect(secModelRecord("grok-4.6").provider).toBe("XAI");
     expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
     expect(secModelRecord("deepseek-v4-pro").provider).toBe("DEEPSEEK");
     expect(secModelRecord("onnx:onnx-community/Qwen2.5-0.5B-Instruct").provider).toBe(

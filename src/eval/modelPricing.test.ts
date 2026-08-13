@@ -33,6 +33,7 @@ describe("DeepSeek pricing", () => {
 
   it("prices deepseek-v4-pro at the published cache-miss input / output rates", () => {
     expect(perMillion("deepseek-v4-pro")).toEqual({ input: 0.435, output: 0.87 });
+    expect(perMillion("deepseek-v4-pro-0813")).toEqual({ input: 0.435, output: 0.87 });
   });
 
   it("ranks flash cheaper than pro on the same text", () => {
@@ -70,10 +71,10 @@ describe("priceFor dispatch", () => {
   });
 
   it("still prices the other cloud vendors", () => {
-    expect(perMillion("claude-sonnet-5")).toEqual({ input: 3, output: 15 });
+    expect(perMillion("claude-sonnet-5")).toEqual({ input: 2, output: 10 });
     expect(perMillion("gpt-5.4-mini")).toEqual({ input: 0.75, output: 4.5 });
     expect(perMillion("gemini-3-flash-preview")).toEqual({ input: 0.5, output: 3 });
-    expect(perMillion("grok-4.5")).toEqual({ input: 2, output: 6 });
+    expect(perMillion("grok-4.6")).toEqual({ input: 2, output: 6 });
   });
 });
 

@@ -72,7 +72,8 @@ const GEMINI_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
 ];
 
 const XAI_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
-  ["grok-4.5", rates(2, 6, 0.5)],
+  ["grok-4.6", rates(2, 6, 0.5)],
+  ["grok-4.5", rates(2, 6, 0.3)],
 ];
 
 /**
@@ -81,6 +82,8 @@ const XAI_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
  */
 const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = [
   ["deepseek-v4-flash", rates(0.14, 0.28, 0.014)],
+  ["deepseek-v4-flash-0731", rates(0.14, 0.28, 0.014)],
+  ["deepseek-v4-pro-0813", rates(0.435, 0.87, 0.0435)],
   ["deepseek-v4-pro", rates(0.435, 0.87, 0.0435)],
 ];
 
@@ -94,6 +97,7 @@ export function listPricingForModelId(modelId: string): ModelPricing | undefined
   if (modelId.startsWith("hfi:") || modelId.startsWith("open-router:")) return undefined;
 
   if (/opus/i.test(modelId)) return rates(5, 25, 0.5, 6.25);
+  if (/sonnet-5/i.test(modelId)) return rates(2, 10, 0.2, 2.5);
   if (/sonnet/i.test(modelId)) return rates(3, 15, 0.3, 3.75);
   if (/haiku/i.test(modelId)) return rates(1, 5, 0.1, 1.25);
 
