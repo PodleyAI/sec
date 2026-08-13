@@ -142,6 +142,61 @@ describe("registerSecModels", () => {
     });
   });
 
+  it("keeps an OpenRouter variant suffix on the model name instead of reading it as a provider", () => {
+    // OpenRouter ids carry colon-suffixed variants (`:thinking`, `:free`,
+    // `:nitro`, `:online`). Splitting on the FIRST colon read
+    // `anthropic/claude-sonnet-4` as a routing provider and `thinking` as the
+    // entire model name — a request hard-pinned (`allow_fallbacks: false`) to a
+    // provider that does not exist, for a model that does not exist. The
+    // separator only counts when it precedes the first `/`.
+    const variant = openRouterModelRecord("open-router:anthropic/claude-sonnet-4:thinking");
+    expect(variant.provider_config).toEqual({
+      model_name: "anthropic/claude-sonnet-4:thinking",
+    });
+
+    const free = openRouterModelRecord("open-router:deepseek/deepseek-chat:free");
+    expect(free.provider_config).toEqual({ model_name: "deepseek/deepseek-chat:free" });
+
+    // A provider AND a variant still split at the right colon: the one before
+    // the slash is the separator, the one after belongs to the model id.
+    const both = openRouterModelRecord("open-router:Fireworks:deepseek/deepseek-chat:nitro");
+    expect(both.provider_config).toEqual({
+      model_name: "deepseek/deepseek-chat:nitro",
+      provider_routing: { only: ["Fireworks"], allow_fallbacks: false },
+    });
+
+    // The same rule on the hfi: side, which shares the splitter.
+    const hfiVariant = hfInferenceModelRecord("hfi:meta-llama/Llama-3.3-70B-Instruct:fast");
+    expect(hfiVariant.provider_config).toEqual({
+      model_name: "meta-llama/Llama-3.3-70B-Instruct:fast",
+    });
+  });
+
+  it("points a bare org/name id at the prefix it now needs", () => {
+    // `org/name` used to route to the local ONNX provider. Listing every legal
+    // shape leaves the operator to spot that one of them is their own id plus
+    // five characters, which is the single likeliest reason a working
+    // SEC_HFT_MODEL / --models value stopped resolving.
+    let message = "";
+    try {
+      secModelRecord("onnx-community/Qwen3-4B-Instruct-2507-ONNX");
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toContain("onnx:onnx-community/Qwen3-4B-Instruct-2507-ONNX");
+    expect(message).toContain("hfi:onnx-community/Qwen3-4B-Instruct-2507-ONNX");
+    expect(message).toContain("open-router:onnx-community/Qwen3-4B-Instruct-2507-ONNX");
+
+    // An id with no slash cannot be a repo id, so it gets no misleading hint.
+    let plain = "";
+    try {
+      secModelRecord("sonnet-5");
+    } catch (e) {
+      plain = e instanceof Error ? e.message : String(e);
+    }
+    expect(plain).not.toContain("bare");
+  });
+
   it("rejects empty inference-provider or model segments on gated ids", () => {
     for (const id of [
       "hfi:together:",

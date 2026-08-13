@@ -41,9 +41,24 @@ const VERIFYABLE_PROVIDERS = new Set<string>([
  */
 const ensured = new Set<string>();
 
+/**
+ * Readiness checks currently running, keyed by model id. `ensured` is only
+ * written AFTER the await resolves, so two callers that start before either
+ * finishes both miss the memo and both run — two concurrent multi-GB fetches
+ * writing the same file, or two `model.info` calls against a rate-limited API.
+ * That is reachable whenever issuers or sections run in parallel. A second
+ * caller awaits the in-flight promise instead.
+ *
+ * Deleted on BOTH settle paths, which preserves the deliberate "failures are
+ * not memoized" property: a rejected check leaves nothing behind, so a later
+ * retry runs for real after a key or network fix.
+ */
+const inFlight = new Map<string, Promise<EnsureModelDownloadedOutput>>();
+
 /** @internal Reset the memo — for tests only. */
 export function resetEnsuredModelsForTesting(): void {
   ensured.clear();
+  inFlight.clear();
 }
 
 const InputSchema = () =>
@@ -115,6 +130,26 @@ export class EnsureModelDownloadedTask extends Task<
     const modelId = input.model;
     if (!modelId || ensured.has(modelId)) return { downloaded: false, verified: false };
 
+    const running = inFlight.get(modelId);
+    // A concurrent caller inherits the FIRST caller's abort signal, not its own:
+    // one check is running and it belongs to whoever started it. Aborting that
+    // caller therefore aborts this await too — acceptable because the signals in
+    // play are the CLI's Ctrl-C, which cancels every branch anyway.
+    if (running) return await running;
+
+    const started = this.ensureOnce(modelId, context);
+    inFlight.set(modelId, started);
+    try {
+      return await started;
+    } finally {
+      inFlight.delete(modelId);
+    }
+  }
+
+  private async ensureOnce(
+    modelId: string,
+    context: IExecuteContext
+  ): Promise<EnsureModelDownloadedOutput> {
     // Figure out the provider (and its download/verify config) from the id shape alone.
     // An id whose shape sec doesn't route (`undefined`) is not an error here: it
     // belongs to a record registered directly in the model repository by an

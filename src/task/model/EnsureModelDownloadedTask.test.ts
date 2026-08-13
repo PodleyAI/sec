@@ -225,4 +225,88 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
       expect(runFnCalls).toBe(1);
     });
   });
+
+  describe("concurrent callers", () => {
+    let original: AiProviderRegistry;
+    beforeEach(() => {
+      original = getAiProviderRegistry();
+      setAiProviderRegistry(new AiProviderRegistry());
+      resetEnsuredModelsForTesting();
+    });
+    afterEach(() => {
+      setAiProviderRegistry(original);
+    });
+
+    /** Resolves only once `release()` is called, so both callers are in flight together. */
+    function gate(): { readonly wait: Promise<void>; release: () => void } {
+      let release = (): void => {};
+      const wait = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { wait, release };
+    }
+
+    it("runs the download once when two callers start before either finishes", async () => {
+      // `ensured` is written only AFTER the await resolves, so two callers that
+      // both start first both miss the memo and both run — two concurrent
+      // multi-GB fetches writing the same file. Reachable as soon as anything
+      // above runs models in parallel.
+      const g = gate();
+      let runFnCalls = 0;
+      getAiProviderRegistry().registerRunFn("HF_TRANSFORMERS_ONNX", {
+        serves: ["model.download"],
+        runFn: async (input: any, _m: any, _s: any, emit: any) => {
+          runFnCalls += 1;
+          await g.wait;
+          emit({ type: "finish", data: { model: input.model } });
+        },
+      } as any);
+
+      const both = Promise.all([
+        ensureModelDownloaded("onnx:onnx-community/race", ctx()),
+        ensureModelDownloaded("onnx:onnx-community/race", ctx()),
+      ]);
+      g.release();
+      await both;
+
+      expect(runFnCalls).toBe(1);
+    });
+
+    it("does not memoize a failure, so a later retry runs again", async () => {
+      // The in-flight entry must be dropped on the reject path too: a check
+      // that failed for a missing key must run for real once the key is set.
+      let runFnCalls = 0;
+      let fail = true;
+      getAiProviderRegistry().registerRunFn("ANTHROPIC", {
+        serves: ["model.info"],
+        runFn: async (input: any, _m: any, _s: any, emit: any) => {
+          runFnCalls += 1;
+          if (fail) throw new Error("ANTHROPIC_API_KEY is not set");
+          emit({
+            type: "finish",
+            data: {
+              model: input.model,
+              is_local: false,
+              is_remote: true,
+              supports_browser: true,
+              supports_node: true,
+              is_cached: false,
+              is_loaded: false,
+              file_sizes: null,
+            },
+          });
+        },
+      } as any);
+
+      const first = ensureModelDownloaded("claude-haiku-4-5", ctx());
+      const second = ensureModelDownloaded("claude-haiku-4-5", ctx());
+      await expect(first).rejects.toThrow(/ANTHROPIC_API_KEY/);
+      await expect(second).rejects.toThrow(/ANTHROPIC_API_KEY/);
+      expect(runFnCalls).toBe(1);
+
+      fail = false;
+      await ensureModelDownloaded("claude-haiku-4-5", ctx());
+      expect(runFnCalls).toBe(2);
+    });
+  });
 });

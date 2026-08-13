@@ -67,15 +67,24 @@ function isOpenRouterModelId(modelId: string): boolean {
 
 /**
  * After an `hfi:` / `open-router:` prefix strip, an optional inference-provider
- * segment may precede the model id (`PROVIDER:model`). Split on the first `:`;
- * no colon means model-only. Empty left or right after a colon is a config error.
+ * segment may precede the model id (`PROVIDER:vendor/model`). Empty left or
+ * right after a colon is a config error.
+ *
+ * The separator is the first `:` only when it comes BEFORE the first `/`. An
+ * OpenRouter id carries its own colon-suffixed variants
+ * (`anthropic/claude-sonnet-4:thinking`, `…:free`, `…:nitro`), so splitting on
+ * the first colon unconditionally read `anthropic/claude-sonnet-4` as a routing
+ * provider and `thinking` as the whole model name — a request pinned to a
+ * non-existent provider for a non-existent model. A colon after the slash is
+ * part of the model id and stays there.
  */
 function splitOptionalInferenceProvider(remainder: string): {
   readonly inferenceProvider: string | undefined;
   readonly modelName: string;
 } {
   const colon = remainder.indexOf(":");
-  if (colon < 0) {
+  const slash = remainder.indexOf("/");
+  if (colon < 0 || (slash >= 0 && colon > slash)) {
     return { inferenceProvider: undefined, modelName: remainder };
   }
   const inferenceProvider = remainder.slice(0, colon);
@@ -641,8 +650,18 @@ export function modelApiKeyEnvVar(modelId: string): string | undefined {
 export function secModelRecord(modelId: string): ModelRecord {
   const record = trySecModelRecord(modelId);
   if (record) return record;
+  // A bare `org/name` used to route to the local ONNX provider and now needs an
+  // explicit prefix. Without this hint the message lists every legal shape and
+  // leaves the operator to notice that one of them is their id plus five
+  // characters — the single most likely reason a previously working
+  // `SEC_HFT_MODEL` / `--models` value stopped resolving.
+  const hint = modelId.includes("/")
+    ? ` A bare "org/name" id no longer routes anywhere: prefix it with the provider you mean — ` +
+      `"${ONNX_ID_PREFIX}${modelId}" (local ONNX), "${HFI_ID_PREFIX}${modelId}" ` +
+      `(HuggingFace Inference), or "${OPEN_ROUTER_ID_PREFIX}${modelId}" (OpenRouter).`
+    : "";
   throw new SecCliConfigurationError(
-    `Unknown model id "${modelId}" — no provider matches its shape. Expected one of: ${KNOWN_MODEL_ID_SHAPES}.`
+    `Unknown model id "${modelId}" — no provider matches its shape. Expected one of: ${KNOWN_MODEL_ID_SHAPES}.${hint}`
   );
 }
 
