@@ -82,7 +82,6 @@ export class EvalS1CandidateTask extends Task<
         ? scoreExtraction(rows, input.expected as Record<string, unknown>[], {
             keyField: extractor.keyField,
             fields: extractor.compareFields,
-            personNameFields: extractor.personNameFields,
           })
         : null;
     const scored: OracleRunResult = { ...result, score };

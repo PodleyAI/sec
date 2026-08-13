@@ -11,7 +11,7 @@ import { csvOptionValue, optionValue } from "../optionValue";
 import { parseIntOption } from "../GlobalOptions";
 import { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "../../config/registerModels";
 import { availableFixtureCiks, loadRealS1Sections } from "../../eval/realSections";
-import { EVAL_EXTRACTORS, preparedSectionText } from "../../eval/fixtures";
+import { EVAL_EXTRACTORS } from "../../eval/fixtures";
 import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
 import {
   printEvalPrompts,
@@ -272,8 +272,7 @@ function printDiffs(entries: readonly DiffEntry[], truthLabel: string): void {
 const DEFAULT_SCORE_LEGEND =
   "score = field-level F1 (names + titles): rewards found values and penalizes missed " +
   "AND invented ones; found = expected people matched; prec = 1 − hallucinated rows.\n" +
-  "est.cost uses provider-stated spend when the API returned it (OpenRouter), " +
-  "else a char×rate-card estimate; local models are $0. " +
+  "est.cost is an estimate (no usage from the task); local models are $0. " +
   "Best-first: correctness, then cost, then latency.";
 
 /**
@@ -543,7 +542,7 @@ export function addEvalCommands(program: Command): void {
                 }).map((f) => ({
                   extractor: f.extractor,
                   label: f.name,
-                  sectionText: preparedSectionText(f.extractor, f.text),
+                  sectionText: f.text,
                 }))
               : (extractor ? [extractor] : Object.keys(EVAL_EXTRACTORS)).map((name) => ({
                   extractor: name,
@@ -625,11 +624,6 @@ export function addEvalCommands(program: Command): void {
       "print model JSON on stderr for hard failures and scoring disagreements (also included in --format json)"
     )
     .option(
-      "--effort [level]",
-      "override every extractor's baked-in thinking effort for this sweep " +
-        "(none|low|medium|high|extra|ultra)"
-    )
-    .option(
       "--concurrency <n>",
       "max S-1 sections to extract at once (default 5)",
       parseIntOption
@@ -645,7 +639,6 @@ export function addEvalCommands(program: Command): void {
         details: boolean;
         printPrompts?: string | boolean;
         dumpRaw?: boolean;
-        effort?: string | boolean;
         concurrency?: number;
       }) => {
         await runCommand(async () => {
@@ -691,7 +684,7 @@ export function addEvalCommands(program: Command): void {
                 items: sections.map((s) => ({
                   extractor: s.extractor,
                   label: `${s.filing} [${s.extractor}]`,
-                  sectionText: preparedSectionText(s.extractor, s.text),
+                  sectionText: s.text,
                 })),
               });
             } else {
@@ -730,11 +723,6 @@ export function addEvalCommands(program: Command): void {
               );
             }
           }
-          const effort = optionValue(
-            "--effort",
-            opts.effort,
-            () => "one of: none, low, medium, high, extra, ultra"
-          );
           const input = {
             reference,
             candidates,
@@ -742,7 +730,6 @@ export function addEvalCommands(program: Command): void {
             ...(opts.dir ? { dir: opts.dir } : {}),
             ...(ciks && ciks.length > 0 ? { ciks } : {}),
             ...(opts.dumpRaw ? { dumpRaw: true } : {}),
-            ...(effort ? { effort } : {}),
             ...(concurrency !== undefined ? { concurrency } : {}),
           };
           // runWorkflowCli renders the task-graph progress UI on a TTY (clearing
@@ -840,7 +827,7 @@ export function addEvalCommands(program: Command): void {
             "score = field-value F1 vs embarc's curated unit terms (price / warrant fraction / " +
               "rights fraction, rounded to 2 decimals); found = covered filings with a matching " +
               "row; prec = 1 − spurious rows.\n" +
-              "est.cost prefers API-stated spend when available; local models are $0. Best-first: correctness, then cost, " +
+              "est.cost is an estimate; local models are $0. Best-first: correctness, then cost, " +
               "then latency."
           );
           if (report.skipped.length) {

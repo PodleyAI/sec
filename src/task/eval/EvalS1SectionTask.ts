@@ -8,7 +8,6 @@ import { Static, Type } from "typebox";
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository, IExecuteContext, Task, Workflow } from "workglow";
 import { sweepStepContext } from "../../eval/evalProgressContext";
-import { preparedSectionText } from "../../eval/fixtures";
 import { getGoldenLabels } from "../../eval/goldenS1Labels";
 import { EvalS1CandidateTask } from "./EvalS1CandidateTask";
 import {
@@ -60,7 +59,7 @@ export class EvalS1SectionTask extends Task<
     const dumpRaw = input.dumpRaw === true;
     const useGolden = input.reference === GOLDEN_REFERENCE;
     const section = { filing: input.filing, extractor: input.extractor, text: input.text };
-    const promptLen = preparedSectionText(input.extractor, input.text).length;
+    const promptLen = input.text.length;
     const tag = `${input.filing} ${input.extractor} (${(promptLen / 1000).toFixed(0)}k)`;
     const emit = (message: string): void => {
       if (!process.stdout.isTTY) process.stderr.write(`${message}\n`);

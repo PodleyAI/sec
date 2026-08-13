@@ -47,7 +47,8 @@ describe("eval value-less options", () => {
     const err = await runEval(["extract", "--extractor"]);
     expect(err).toContain("--extractor needs a value");
     expect(err).toContain("management");
-    expect(err).not.toContain("risk-factors");
+    // `risk-factors` has a committed fixture, so it IS a legal --extractor value.
+    expect(err).toContain("risk-factors");
     // Registered in EVAL_EXTRACTORS but unfixtured — offering it would name a
     // value that errors out on the next run.
     expect(err).not.toContain("related-party");

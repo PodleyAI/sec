@@ -10,11 +10,10 @@ import {
   captureEvalRawFromRows,
   type EvalRawDump,
 } from "../../eval/captureEvalRaw";
-import { EVAL_EXTRACTORS, estimateExtractionPromptChars, preparedSectionText } from "../../eval/fixtures";
-import { costFromUsage, type CostEstimate } from "../../eval/modelPricing";
+import { EVAL_EXTRACTORS, estimateExtractionPromptChars } from "../../eval/fixtures";
+import { estimateCost, type CostEstimate } from "../../eval/modelPricing";
 import type { RealSection } from "../../eval/realSections";
 import type { ExtractionScore } from "../../eval/scoreExtraction";
-import { takeExtractionUsage } from "../../sec/forms/registration-statements/s1/sectionExtractors";
 
 /** Sentinel `reference` value selecting committed human-verified golden labels. */
 export const GOLDEN_REFERENCE = "golden";
@@ -77,11 +76,10 @@ export async function runSection(
   dumpRaw: boolean
 ): Promise<{ rows: unknown[]; result: Omit<OracleRunResult, "score"> }> {
   const extractor = EVAL_EXTRACTORS[section.extractor];
-  const sectionText = preparedSectionText(section.extractor, section.text);
-  const promptChars = estimateExtractionPromptChars(extractor.instructions(), sectionText);
+  const promptChars = estimateExtractionPromptChars(extractor.instructions(), section.text);
   const t0 = Bun.nanoseconds();
   try {
-    const rows = await extractor.run(sectionText, model, context);
+    const rows = await extractor.run(section.text, model, context);
     const latencyMs = (Bun.nanoseconds() - t0) / 1e6;
     return {
       rows,
@@ -93,12 +91,7 @@ export async function runSection(
         error: undefined,
         latencyMs,
         rows: rows.length,
-        cost: costFromUsage(
-          takeExtractionUsage(context),
-          modelId,
-          promptChars,
-          JSON.stringify(rows).length
-        ),
+        cost: estimateCost(modelId, promptChars, JSON.stringify(rows).length),
         raw: captureEvalRawFromRows(dumpRaw, rows),
       },
     };
@@ -114,7 +107,7 @@ export async function runSection(
         error: err instanceof Error ? err.message : String(err),
         latencyMs,
         rows: 0,
-        cost: costFromUsage(takeExtractionUsage(context), modelId, promptChars, 0),
+        cost: estimateCost(modelId, promptChars, 0),
         raw: captureEvalRawFromError(dumpRaw, err),
       },
     };

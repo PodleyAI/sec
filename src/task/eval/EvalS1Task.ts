@@ -5,13 +5,12 @@
  */
 
 import { Static, Type } from "typebox";
-import type { ModelConfig, ModelEffort } from "workglow";
-import { getGlobalModelRepository, IExecuteContext, isModelEffort, Task, Workflow } from "workglow";
+import type { ModelConfig } from "workglow";
+import { getGlobalModelRepository, IExecuteContext, Task, Workflow } from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
-import { setExtractionEffortOverride } from "../../sec/forms/registration-statements/s1/extractionReasoning";
 import { resolveEvalS1Concurrency } from "./evalS1Concurrency";
 import { EvalS1SectionTask } from "./EvalS1SectionTask";
 import {
@@ -59,14 +58,6 @@ const InputSchema = () =>
       Type.Boolean({
         title: "Dump raw",
         description: "Retain model JSON payloads on each result for CLI --dump-raw",
-      })
-    ),
-    effort: Type.Optional(
-      Type.String({
-        title: "Effort override",
-        description:
-          "When set, replaces every extractor's baked-in model.effort for this sweep " +
-          "(none|low|medium|high|extra|ultra)",
       })
     ),
     concurrency: Type.Optional(
@@ -124,19 +115,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
   }
 
   async execute(input: EvalS1TaskInput, context: IExecuteContext): Promise<EvalS1TaskOutput> {
-    if (input.effort !== undefined) {
-      if (!isModelEffort(input.effort)) {
-        throw new Error(
-          `invalid effort "${input.effort}"; expected one of: none, low, medium, high, extra, ultra`
-        );
-      }
-      setExtractionEffortOverride(input.effort as ModelEffort);
-    }
-    try {
-      return await this.runOracle(input, context);
-    } finally {
-      setExtractionEffortOverride(undefined);
-    }
+    return await this.runOracle(input, context);
   }
 
   private async runOracle(
