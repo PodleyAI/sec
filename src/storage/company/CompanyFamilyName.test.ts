@@ -62,6 +62,17 @@ describe("companyFamilyName", () => {
     );
   });
 
+  it("folds Latin letters that carry the mark inside the glyph", () => {
+    // NFD does not decompose these, so an NFD-only fold left them for the ASCII
+    // filter, which turned `Søren` into `s ren` and DELETED the `Ł` in
+    // `Łukasz`. A name silently missing a letter is a different name.
+    expect(companyFamilyName("Søren Skou Holdings LLC")).toBe("soren-skou");
+    expect(companyFamilyName("Søren Skou Holdings LLC")).toBe(companyFamilyName("Soren Skou"));
+    expect(companyFamilyName("Łukasz Nowak Capital")).toBe("lukasz-nowak");
+    expect(companyFamilyName("Łukasz Nowak Capital")).toBe(companyFamilyName("Lukasz Nowak"));
+    expect(companyFamilyName("Ærø Invest ApS")).toBe("aero");
+  });
+
   it("drops a bloc prefix and a parenthetical jurisdiction", () => {
     expect(companyFamilyName("Entities affiliated with Osage University Partners")).toBe(
       "osage-university"

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
 
 /**
  * The *family* a company name belongs to — the sponsor or underwriter behind a
@@ -54,6 +54,8 @@ const LEGAL_FORMS = new Set([
   "oy",
   "pte",
   "pty",
+  "aps",
+  "sarl",
   "trust",
 ]);
 
@@ -137,7 +139,7 @@ function isDroppableTail(token: string): boolean {
  */
 export function companyFamilyName(name: string | null | undefined): string {
   if (!name) return "";
-  const base = foldTypographicPunctuation(String(name))
+  const folded = foldTypographicPunctuation(String(name))
     .replace(BLOC_PREFIX, "")
     // A parenthetical is a jurisdiction or disambiguator, never the house:
     // `Credit Suisse Securities (USA) LLC`, `B&R Technology Sponsor LLC (Cayman)`.
@@ -145,13 +147,13 @@ export function companyFamilyName(name: string | null | undefined): string {
     // An ampersand is part of a house name (`Cohen & Company`,
     // `Keefe, Bruyette & Woods`), so it is spelled out rather than dropped.
     .replace(/&/g, " and ")
-    .toLowerCase()
-    .replace(/[.,;:]/g, "")
-    // Fold diacritics to their base letter BEFORE dropping non-ASCII, or the
-    // mark itself becomes a word break: `Coöperatieve` split into
-    // `co peratieve` and read as the legal form `co` plus a stray token.
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[.,;:]/g, "");
+  // Fold accents to their ASCII base BEFORE dropping non-ASCII, or the filter
+  // below turns the letter into a word break (`Coöperatieve` → `co peratieve`,
+  // whose `co` then reads as a legal form) or deletes it outright (`Łukasz` →
+  // `ukasz`, a different name). NFD alone is not enough: `ø` and `ł` carry the
+  // mark inside the glyph and have no combining form to strip.
+  const base = foldDiacritics(folded)
     .replace(/[^a-z0-9\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
