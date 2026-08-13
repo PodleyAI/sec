@@ -24,7 +24,11 @@ import {
   SPAC_CANDIDATE_REPOSITORY_TOKEN,
   type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
-import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "../../util/accessionDocPath";
+import {
+  assertInsideDir,
+  resolvePrimaryDocName,
+  sanitizePrimaryDoc,
+} from "../../util/accessionDocPath";
 import { TypeSecCik } from "../../util/TypeSecCik";
 import { extractPrimaryDocFromSubmission } from "../bootstrap/feedTarball";
 import { FORMS_SWEEP_CONCURRENCY_LIMIT } from "../forms/formsSweep";
@@ -167,7 +171,9 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
 
     if (isEightK(form) && primaryDoc.trim().length > 0) {
       try {
-        const safeName = sanitizePrimaryDoc(stripXslPrefix(primaryDoc));
+        // Same resolution `shouldSkipCached` uses, so the path this writes is
+        // the path the next run's skip check looks for.
+        const safeName = sanitizePrimaryDoc(resolvePrimaryDocName(primaryDoc) ?? "");
         const sliced = extractPrimaryDocFromSubmission(text, safeName);
         if (sliced !== undefined) {
           const primaryPath = path.join(
@@ -271,7 +277,10 @@ export class DownloadSpacCandidateDocsTask extends Task<
         skipped++;
         continue;
       }
-      if (!force && shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)) {
+      if (
+        !force &&
+        shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)
+      ) {
         skipped++;
         continue;
       }
@@ -280,7 +289,10 @@ export class DownloadSpacCandidateDocsTask extends Task<
         accessionNumber: row.accession_number,
         form,
         fileName,
-        primaryDoc: row.primary_doc,
+        // `Filing.primary_doc` is nullable; the data port is not. Coalesce once
+        // here, at the worklist boundary, exactly as the accession-doc
+        // bootstrap does — a nullable does not belong in a task's input port.
+        primaryDoc: row.primary_doc ?? "",
         force,
       });
     }
@@ -331,13 +343,17 @@ function shouldSkipCached(
   accessionNumber: string,
   form: string,
   fileName: string,
-  primaryDoc: string
+  primaryDoc: string | null | undefined
 ): boolean {
   const requiredPath = path.join(raw, accessionDocCacheRelative(cik, accessionNumber, fileName));
   if (!existsSync(requiredPath)) return false;
   if (!isEightK(form)) return true;
+  const primaryName = resolvePrimaryDocName(primaryDoc);
+  // No named primary document: the cached full submission is everything this
+  // filing has to cache, so it is already complete.
+  if (primaryName === undefined) return true;
   try {
-    const safeName = sanitizePrimaryDoc(stripXslPrefix(primaryDoc));
+    const safeName = sanitizePrimaryDoc(primaryName);
     const primaryPath = path.join(raw, accessionDocCacheRelative(cik, accessionNumber, safeName));
     return existsSync(primaryPath);
   } catch {
