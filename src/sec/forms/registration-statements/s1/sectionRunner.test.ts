@@ -9,7 +9,12 @@ import { SecCliConfigurationError } from "../../../../config/EnvToDI";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { TaskAbortedError } from "workglow";
 import { MixedRiskCaptionShapeError, RateLimitExhaustedError } from "./sectionExtractors";
-import { VERIFICATION_ATTEMPTS, makeRunSection, parseConfidenceFloor } from "./sectionRunner";
+import {
+  MIXED_SHAPE_REASK_ATTEMPTS,
+  VERIFICATION_ATTEMPTS,
+  makeRunSection,
+  parseConfidenceFloor,
+} from "./sectionRunner";
 
 interface RecordedLetter {
   section_name: string;
@@ -20,19 +25,23 @@ interface RecordedLetter {
 function stubDeadLetters(): {
   repo: ExtractionDeadLetterRepo;
   letters: RecordedLetter[];
+  /** Details kept alongside, so the letter assertions stay shape-exact. */
+  details: (string | null)[];
   resolved: string[];
 } {
   const letters: RecordedLetter[] = [];
+  const details: (string | null)[] = [];
   const resolved: string[] = [];
   const repo = {
-    record: async (args: { section_name: string; reason_code: string }) => {
+    record: async (args: { section_name: string; reason_code: string; detail: string | null }) => {
       letters.push({ section_name: args.section_name, reason_code: args.reason_code });
+      details.push(args.detail);
     },
     markResolved: async (_id: string, _acc: string, section: string) => {
       resolved.push(section);
     },
   } as unknown as ExtractionDeadLetterRepo;
-  return { repo, letters, resolved };
+  return { repo, letters, details, resolved };
 }
 
 describe("parseConfidenceFloor", () => {
@@ -298,7 +307,14 @@ describe("makeRunSection confidenceFloor", () => {
   it("dead-letters MIXED_CAPTION_SHAPE once every re-ask has been spent", async () => {
     // The bound: a section that is mixed on every attempt is a real
     // ambiguity and belongs on the worklist, not in an endless re-ask.
-    const { repo, letters } = stubDeadLetters();
+    //
+    // It is its OWN bound, smaller than the span-verification one. A malformed
+    // citation varies run to run, so a third ask can genuinely produce a
+    // different one; a mixed shape re-asks a byte-identical prompt under greedy
+    // decoding, where only provider-side batching can change the answer — and
+    // each ask on this path re-enumerates the largest section in the filing.
+    // For a 7-chunk section this is the difference between 42 and 63 calls.
+    const { repo, letters, details } = stubDeadLetters();
     let call = 0;
     const runSection = makeRunSection({
       deadLetters: repo,
@@ -318,10 +334,12 @@ describe("makeRunSection confidenceFloor", () => {
       persist: async () => 0,
     });
 
-    expect(call).toBe(VERIFICATION_ATTEMPTS);
-    expect(letters).toEqual([
-      { section_name: "Risk Factors", reason_code: "MIXED_CAPTION_SHAPE" },
-    ]);
+    expect(call).toBe(MIXED_SHAPE_REASK_ATTEMPTS);
+    expect(MIXED_SHAPE_REASK_ATTEMPTS).toBeLessThan(VERIFICATION_ATTEMPTS);
+    expect(letters).toEqual([{ section_name: "Risk Factors", reason_code: "MIXED_CAPTION_SHAPE" }]);
+    // The entry says what the re-ask cost, so the worklist does not read as a
+    // single unlucky generation.
+    expect(details[0]).toContain(`unchanged after ${MIXED_SHAPE_REASK_ATTEMPTS} attempt(s)`);
   });
 
   it("does not re-ask an empty response", async () => {

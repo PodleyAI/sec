@@ -46,6 +46,61 @@ describe("ExtractionDeadLetterRepo", () => {
     expect((await repo.get("S-1", "acc1", "Management"))?.status).toBe("resolved");
   });
 
+  it("restarts attempts when the reason code or version changes", async () => {
+    // `attempts` gates the bounded same-version retry, a decision scoped to ONE
+    // (reason_code, version) pair — but the row is keyed by SECTION, so a
+    // lifetime counter is shared across every failure the section ever had. A
+    // section that burned three attempts on an unrelated code under an older
+    // version must still arrive at its first bounded-retry failure with a full
+    // budget, or the retry path is inert for exactly the entries it exists for.
+    const record = async (
+      reason_code: "UNVERIFIED_SOURCE_SPAN" | "MIXED_CAPTION_SHAPE",
+      failed_extractor_version: string
+    ): Promise<void> =>
+      repo.record({
+        extractor_id: "S-1",
+        accession_number: "history",
+        section_name: "Risk Factors",
+        reason_code,
+        detail: null,
+        failed_extractor_version,
+        source_run_id: null,
+      });
+
+    await record("UNVERIFIED_SOURCE_SPAN", "1.0.0");
+    await record("UNVERIFIED_SOURCE_SPAN", "1.0.0");
+    await record("UNVERIFIED_SOURCE_SPAN", "1.0.0");
+    expect((await repo.get("S-1", "history", "Risk Factors"))?.attempts).toBe(3);
+
+    // First-ever MIXED_CAPTION_SHAPE, under a new version: a fresh streak.
+    await record("MIXED_CAPTION_SHAPE", "1.1.0");
+    expect((await repo.get("S-1", "history", "Risk Factors"))?.attempts).toBe(1);
+    expect((await repo.listEligible("S-1", "1.1.0")).map((r) => r.accession_number)).toEqual([
+      "history",
+    ]);
+  });
+
+  it("zeroes attempts on resolve so a later failure starts a fresh streak", async () => {
+    const record = async (): Promise<void> =>
+      repo.record({
+        extractor_id: "S-1",
+        accession_number: "flapping",
+        section_name: "Risk Factors",
+        reason_code: "MIXED_CAPTION_SHAPE",
+        detail: null,
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+
+    await record();
+    await repo.markResolved("S-1", "flapping", "Risk Factors");
+    expect((await repo.get("S-1", "flapping", "Risk Factors"))?.attempts).toBe(0);
+    // A clean run ended the streak, so the next failure is attempt one — not a
+    // continuation of a run that has since been shown to recover.
+    await record();
+    expect((await repo.get("S-1", "flapping", "Risk Factors"))?.attempts).toBe(1);
+  });
+
   it("lists pending entries eligible under a newer version", async () => {
     await repo.record({
       extractor_id: "S-1",

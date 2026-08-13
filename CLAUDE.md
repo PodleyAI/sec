@@ -863,19 +863,44 @@ bullets, so the drop deletes a disclosed risk and marks the section resolved.
 The evidence that separates "line this code inserted" from "bullet the filer
 printed" is the shape of the **rest** of the section, which only exists once
 every chunk has answered. So the verdict is taken there, over the response's
-shape **as a whole** rather than row by row — the shape heuristic
-(no sentence-ending punctuation, `isRiskCategoryHeading`) cannot tell a category
-heading from a summary bullet in isolation. Computed over the rows **minus** the
-candidate echoes, so a dropped echo can never mask a mix:
+shape **as a whole** rather than row by row — the shape heuristic cannot tell a
+category heading from a summary bullet in isolation. Computed over the rows
+**minus** the candidate echoes, so a dropped echo can never mask a mix:
 
-- **all bare phrases** — the section is a summary list, its "headings" ARE its
-  captions, so the echoes are kept and nothing is dropped;
-- **no bare phrases** — an ordinary sentence-caption list, so an echo is the
-  heading this code prepended and is dropped (with a `console.warn` naming the
-  count, since a silent drop is what made the earlier version of this so hard to
-  see);
+- **all heading-like** — the section reads as a summary list, its "headings" ARE
+  its captions, so the echoes are kept and nothing is dropped;
+- **none heading-like** — an ordinary sentence-caption list, so an echo is the
+  heading this code prepended and is dropped;
 - **mixed** — unanswerable, and dead-letters `MIXED_CAPTION_SHAPE` (via
   `MixedRiskCaptionShapeError`) rather than persisting a subset.
+
+"Heading-like" is `isRiskCategoryHeading`, and it is **two** conditions, not
+one: the line does not end in sentence punctuation **and** it mentions risk
+(`\brisks?\b`). Both halves are load-bearing, and the risk-word half is what
+keeps the mixed-shape rule from firing on real filings — do not relax it to a
+punctuation-only test. Measured over the committed golden labels: 52 captions
+carry no terminal punctuation, and **zero** of them contain the word "risk";
+all 52 sit in 14 filings, every one of which also prints ordinary punctuated
+captions. Under a punctuation-only predicate `0 < headingLike < body.length`
+would therefore hold for all 14, throwing `MIXED_CAPTION_SHAPE` and permanently
+version-gating the **1,411** hand-verified captions those filings carry between
+them.
+
+The same clause bounds the `keepEchoes` remedy: keeping the echoes requires
+**every** extracted row to be heading-like, hence to mention risk — which none
+of the committed bare captions does. On today's corpus that branch is therefore
+unreachable and the echo is dropped exactly as before. It is a guard against a
+filing whose summary bullets happen to be phrased as "Risks relating to …", not
+a fix already exercised by the committed fixtures.
+
+The remaining dropped echo is at least **attributable**. `extractRiskFactors`
+reports the dropped headlines verbatim to its caller, and the S-1 processor
+records them as a sibling `risk-factors-echo-dropped` dead-letter carrying the
+accession and the removed text — reconciled (resolved) on a run that drops
+nothing, mirroring the `<section>-partial` entry. A `console.warn` naming a
+count is what made the earlier ratio-gated variant unreviewable; this branch
+still deletes rows a model returned and still lets the section resolve as
+complete, so it must leave a record an operator can read.
 
 Filers are inconsistent about terminal punctuation, so one summary bullet ending
 in a period was enough to make an all-or-nothing filter keep that single row and
@@ -887,11 +912,27 @@ out of twenty deleted from a section that then resolved clean. The price of the
 strict rule is that one stray heading fails the whole section; it fails visibly,
 with every caption recoverable by re-running the filing. Because a mixed shape
 is a property of one generation rather than of the section, `sectionRunner`
-re-asks the model up to `VERIFICATION_ATTEMPTS` times before recording it, and
-the recorded entry stays retry-eligible under the **same** extractor version for
-`NONDETERMINISTIC_RETRY_ATTEMPTS` (3) attempts — after which it falls back to
-the ordinary version gate rather than re-paying the AI cost of a genuinely
-ambiguous section on every sweep forever.
+re-asks the model up to `MIXED_SHAPE_REASK_ATTEMPTS` (2) times before recording
+it — its own budget, deliberately smaller than the `VERIFICATION_ATTEMPTS` (3)
+a failed span verification gets, because the two re-asks bet on different
+things. A malformed citation varies run to run; a mixed shape re-asks a
+byte-identical prompt under greedy decoding (`SEC_EXTRACTION_TEMPERATURE`
+defaults to `0`, the nonce is off by default, the call is not cacheable), where
+only provider-side batching can change the answer — and each ask re-enumerates
+the largest section in the filing. Worst case for a 7-chunk section is 42 model
+calls rather than 63. The recorded entry then stays retry-eligible under the
+**same** extractor version for `NONDETERMINISTIC_RETRY_ATTEMPTS` (3) attempts —
+after which it falls back to the ordinary version gate rather than re-paying the
+AI cost of a genuinely ambiguous section on every sweep forever.
+
+That budget is counted per failure, not per section. `attempts` on a dead-letter
+row counts **consecutive** failures of the current
+`(reason_code, failed_extractor_version)` pair and restarts at 1 when either
+changes (and is zeroed by `markResolved`). The row is keyed by section, so a
+lifetime counter would be shared across every code the section ever hit: a
+section that failed `UNVERIFIED_SOURCE_SPAN` three times under an older version
+would arrive at its first-ever `MIXED_CAPTION_SHAPE` already over budget and get
+no same-version retry at all.
 
 Risk factors is by far the largest section in an S-1 — 3k to 246k chars across
 the committed fixtures, against 40–57k for the sections that already dominate

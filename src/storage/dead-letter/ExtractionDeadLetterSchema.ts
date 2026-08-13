@@ -90,8 +90,10 @@ export const NONDETERMINISTIC_REASON_CODES = ["MIXED_CAPTION_SHAPE"] as const;
 
 /**
  * Recorded attempts after which a {@link NONDETERMINISTIC_REASON_CODES} entry
- * stops being retry-eligible under its own version. `record()` increments
- * `attempts` on every re-failure, so this counts real re-runs.
+ * stops being retry-eligible under its own version. `attempts` counts
+ * CONSECUTIVE failures of the current `(reason_code, failed_extractor_version)`
+ * pair, so this counts real re-runs of THIS failure — the section's earlier
+ * history under other codes or versions does not spend the budget.
  */
 export const NONDETERMINISTIC_RETRY_ATTEMPTS = 3;
 
