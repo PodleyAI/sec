@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IExecuteContext, ModelConfig } from "workglow";
-import { StructuredGenerationTask, TaskAbortedError } from "workglow";
+import type { IExecuteContext, ModelConfig, Usage } from "workglow";
+import { StructuredGenerationTask, TaskAbortedError, mergeUsage } from "workglow";
 import { createHash } from "node:crypto";
 import { getExtractionTemperature } from "../../../../config/extractionTemperature";
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
@@ -671,6 +671,47 @@ export function requireNonEmptyGrammarArrays(schema: object): object {
  */
 const generationNodes = new WeakMap<IExecuteContext, StructuredGenerationTask>();
 
+/**
+ * Billed usage accrued by {@link runStructured} on a given execute context.
+ * Eval sweeps key one derived context per (model, section) step, so taking the
+ * entry after the extractor returns yields that step's spend — including
+ * OpenRouter's provider-stated `extra.cost` — without changing every extractor
+ * return type. Multi-call sections (chunked risk factors) merge additively.
+ */
+const extractionUsageByContext = new WeakMap<IExecuteContext, Usage>();
+/** Standalone calls (no caller context) stash here for the same take API. */
+let standaloneExtractionUsage: Usage | undefined;
+
+/**
+ * Returns and clears the usage accrued by extraction calls on `context` since
+ * the last take. Pass the same context object handed to the extractor.
+ */
+export function takeExtractionUsage(context: IExecuteContext | undefined): Usage | undefined {
+  if (!context) {
+    const usage = standaloneExtractionUsage;
+    standaloneExtractionUsage = undefined;
+    return usage;
+  }
+  const usage = extractionUsageByContext.get(context);
+  extractionUsageByContext.delete(context);
+  return usage;
+}
+
+function recordExtractionUsage(
+  context: IExecuteContext | undefined,
+  usage: Usage | undefined
+): void {
+  if (!usage) return;
+  if (!context) {
+    standaloneExtractionUsage = mergeUsage(standaloneExtractionUsage, usage);
+    return;
+  }
+  extractionUsageByContext.set(
+    context,
+    mergeUsage(extractionUsageByContext.get(context), usage) ?? usage
+  );
+}
+
 function generationNodeFor(context: IExecuteContext, title: string): StructuredGenerationTask {
   const existing = generationNodes.get(context);
   if (existing !== undefined) {
@@ -761,6 +802,10 @@ async function runStructured(
     }
     throw e;
   } finally {
+    // Capture before clearing outputs: OpenRouter (and similar) put the charged
+    // credits on `runUsage.extra.cost`, which the eval harness reads via
+    // {@link takeExtractionUsage}. A failed attempt still spent tokens.
+    recordExtractionUsage(callerContext, task.runUsage);
     // `run` leaves this section's prompt in `runInputData` (and its result in
     // `runOutputData`). Clearing both keeps the idle node between sections empty
     // rather than pinning the largest section of the filing until the next call.

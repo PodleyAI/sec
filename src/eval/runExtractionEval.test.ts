@@ -20,10 +20,15 @@ describe("extractorsWithFixtures", () => {
     }
   });
 
-  it("lists exactly the extractors EVAL_FIXTURES covers", () => {
+  it("lists enabled extractors EVAL_FIXTURES covers (skips disabled)", () => {
     const listed = [...extractorsWithFixtures()].sort();
-    const actual = [...new Set(EVAL_FIXTURES.map((f) => f.extractor))].sort();
+    const actual = [
+      ...new Set(
+        EVAL_FIXTURES.map((f) => f.extractor).filter((name) => !EVAL_EXTRACTORS[name]?.disabled)
+      ),
+    ].sort();
     expect(listed).toEqual(actual);
+    expect(listed).not.toContain("risk-factors");
   });
 
   it("only names extractors registered in EVAL_EXTRACTORS", () => {
