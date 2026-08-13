@@ -48,6 +48,17 @@ describe("spacDocFetchKind / spacDocFetchFileName", () => {
     expect(spacDocFetchKind("10-K")).toBe("primary-doc");
     expect(spacDocFetchFileName("10-K", "0001-21-000003", "xslF345X03/wf.xml")).toBe("wf.xml");
   });
+
+  it("a null primary_doc yields the empty-name sentinel, not a throw", () => {
+    expect(spacDocFetchFileName("10-K", "acc", null)).toBe("");
+    expect(spacDocFetchFileName("10-K", "acc", undefined)).toBe("");
+    expect(spacDocFetchFileName("10-K", "acc", "   ")).toBe("");
+  });
+
+  it("a full-submission form ignores a null primary_doc entirely", () => {
+    expect(spacDocFetchFileName("8-K", "acc", null)).toBe("acc.txt");
+    expect(spacDocFetchFileName("S-1", "acc", null)).toBe("acc.txt");
+  });
 });
 
 describe("accessionDocCacheRelative", () => {
