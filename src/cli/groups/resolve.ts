@@ -35,15 +35,13 @@ export function addResolveCommands(program: Command): void {
         // can be re-resolved from storage. A registered kind outside that set is
         // refused rather than run under a kind it was not written for.
         if (!isBatchResolvableKind(kind)) {
-          // A family is keyed off the sponsor/underwriter *common* name the AI
-          // extractor emitted; only the legal name reaches the observation row,
-          // and the canonical family keeps just one variant's display name. A
-          // batch pass therefore cannot re-partition families faithfully — a
-          // normalizer change that splits one family would reassign every member
-          // from that single stored name. Re-extraction is the rebuild path.
+          // A family is keyed off the legal name on the observation row via
+          // companyFamilyName, but the family-tier fact lives on the link row
+          // itself (not a derived identity link), so a batch pass is not yet
+          // wired. Re-extraction is the rebuild path.
           const why = isFamilyResolverId(kind)
-            ? `; family resolution runs inline during extraction, off the extracted ` +
-              `common name that is never persisted — re-extract to rebuild it`
+            ? `; family resolution runs inline during extraction from the ` +
+              `legal name — re-extract to rebuild it`
             : "";
           throw new Error(
             `'sec resolve' does not support resolver kind '${kind}' ` +

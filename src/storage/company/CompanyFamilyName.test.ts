@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { companyFamilyName } from "./CompanyFamilyName";
+import { companyFamilyName, isCompanyFamilyPrefix } from "./CompanyFamilyName";
 import { normalizeCompany } from "./CompanyNormalization";
 
 /**
@@ -30,6 +30,11 @@ describe("companyFamilyName", () => {
     // Chardan is the rare real join, and it is an alias's job, not this one's.
     expect(companyFamilyName("Chardan Capital Markets LLC")).toBe("chardan-capital-markets");
     expect(companyFamilyName("Chardan")).toBe("chardan");
+    // Holdings is a business-line word, not a legal form. The model used to
+    // drop it from a "common name"; keyed off the legal name, the house stays.
+    expect(companyFamilyName("26 Capital Holdings LLC")).toBe("26-capital-holdings");
+    expect(companyFamilyName("26 Capital")).toBe("26-capital");
+    expect(companyFamilyName("26 Capital Holdings LLC")).not.toBe(companyFamilyName("26 Capital"));
   });
 
   it.each([
@@ -121,5 +126,24 @@ describe("companyFamilyName", () => {
     const b = "WAVE Equity Fund III, LLC";
     expect(companyFamilyName(a)).toBe(companyFamilyName(b));
     expect(normalizeCompany(a)!.company_hash_id).not.toBe(normalizeCompany(b)!.company_hash_id);
+  });
+});
+
+describe("isCompanyFamilyPrefix", () => {
+  it("treats a brand stub as a prefix of the full legal name", () => {
+    // Live S-1: the model emitted both "Cantor" and "Cantor Fitzgerald & Co."
+    // as underwriters. The short one is a brand echo, not a second house.
+    expect(isCompanyFamilyPrefix("Cantor", "Cantor Fitzgerald & Co.")).toBe(true);
+    expect(isCompanyFamilyPrefix("Cantor Fitzgerald & Co.", "Cantor")).toBe(false);
+  });
+
+  it("does not treat two vehicles of one house as prefixes of each other", () => {
+    // Inc vs Limited (or LLC vs & Co.) collapse to the same family tokens.
+    // Dropping either would merge two legal entities that share a family.
+    expect(
+      isCompanyFamilyPrefix("Citigroup Global Markets Inc.", "Citigroup Global Markets Limited")
+    ).toBe(false);
+    expect(isCompanyFamilyPrefix("Goldman Sachs & Co. LLC", "Goldman Sachs LLC")).toBe(false);
+    expect(isCompanyFamilyPrefix("Goldman Sachs LLC", "Goldman Sachs & Co. LLC")).toBe(false);
   });
 });

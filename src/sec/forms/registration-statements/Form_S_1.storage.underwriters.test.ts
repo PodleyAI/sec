@@ -15,7 +15,8 @@ import { normalizeUnderwriterFamilyName } from "../../../resolver/UnderwriterFam
 import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
-const HTML = "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC and GS Securities.</p>";
+const HTML =
+  "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC and Goldman Sachs &amp; Co. II LLC.</p>";
 const NULL_HEADER = {
   sic: null,
   sicDescription: null,
@@ -37,9 +38,14 @@ describe("processFormS1 underwriters", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("links two Goldman entities to one family and answers the headline query", async () => {
+  it("links two series vehicles of one house to one family", async () => {
     // Sections present: Underwriting only. Call order: offering-terms (1st; reads
     // Underwriting text), then underwriters (2nd). Provide both payloads.
+    //
+    // The family key is companyFamilyName of the legal name, so a series marker
+    // drops and both vehicles land on one house. They stay two companies —
+    // identity keeps the numeral. Joining unrelated legal names (GS Securities
+    // → Goldman Sachs) is an alias, not this persist path.
     const { unregister } = registerFakeStructuredProvider([
       {
         security_type: null,
@@ -67,7 +73,6 @@ describe("processFormS1 underwriters", () => {
         underwriters: [
           {
             legal_name: "Goldman Sachs & Co. LLC",
-            common_name: "Goldman Sachs",
             role: "lead",
             shares_allocated: 3000000,
             over_allotment_shares: 450000,
@@ -75,13 +80,12 @@ describe("processFormS1 underwriters", () => {
             source_span: "Goldman Sachs & Co. LLC",
           },
           {
-            legal_name: "GS Securities LLC",
-            common_name: "Goldman Sachs",
+            legal_name: "Goldman Sachs & Co. II LLC",
             role: "bookrunner",
             shares_allocated: 1000000,
             over_allotment_shares: null,
             confidence: 0.9,
-            source_span: "GS Securities",
+            source_span: "Goldman Sachs & Co. II LLC",
           },
         ],
       },
@@ -106,7 +110,7 @@ describe("processFormS1 underwriters", () => {
     // hardcoding its shape here would pin a format rather than the behaviour.
     const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
       "1.0.0",
-      normalizeUnderwriterFamilyName("Goldman Sachs")
+      normalizeUnderwriterFamilyName("Goldman Sachs & Co. LLC")
     );
     expect(family).toBeDefined();
     const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
@@ -128,7 +132,6 @@ describe("processFormS1 underwriters", () => {
     // row, so `sec underwriter by-family` counted the model's stutter.
     const citi = (span: string) => ({
       legal_name: "Citigroup Global Markets Inc.",
-      common_name: "Citigroup",
       role: "underwriter",
       shares_allocated: null,
       over_allotment_shares: 4500000,
@@ -190,7 +193,7 @@ describe("processFormS1 underwriters", () => {
     ).toBe(1);
     const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
       "1.0.0",
-      "CITIGROUP"
+      normalizeUnderwriterFamilyName("Citigroup Global Markets Inc.")
     );
     expect(family).toBeDefined();
     const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
@@ -206,5 +209,78 @@ describe("processFormS1 underwriters", () => {
         (c) => c.accession_number === "0000000000-26-000002" && /citigroup/i.test(c.name ?? "")
       )
     ).toHaveLength(1);
+  });
+
+  it("drops a brand-only short name when the full legal name is also present", async () => {
+    // Live 1822912: S-1 extractors returned both "Cantor Fitzgerald & Co." and
+    // "Cantor", which keyed two families and showed as duplicate underwriters.
+    const emptyTerms = {
+      security_type: null,
+      shares_offered: null,
+      price: null,
+      price_low: null,
+      price_high: null,
+      gross_proceeds: null,
+      net_proceeds: null,
+      over_allotment_shares: null,
+      units_offered: null,
+      price_per_unit: null,
+      unit_composition: null,
+      warrant_fraction_per_unit: null,
+      right_fraction_per_unit: null,
+      trust_per_unit: null,
+      over_allotment_units: null,
+      exchange: null,
+      par_value: null,
+      confidence: 0.5,
+      source_span: "x",
+      tickers: [],
+    };
+    const { unregister } = registerFakeStructuredProvider([
+      emptyTerms,
+      {
+        underwriters: [
+          {
+            legal_name: "Cantor Fitzgerald & Co.",
+            role: "lead",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: "Cantor Fitzgerald & Co.",
+          },
+          {
+            legal_name: "Cantor",
+            role: "underwriter",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.9,
+            source_span: "Cantor",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1822912,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000003",
+      filing_date: "2021-01-11",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: "<h1>UNDERWRITING</h1><p>Cantor Fitzgerald &amp; Co. (Cantor) is the underwriter.</p>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new UnderwriterLinkRepo().count({ accession_number: "0000000000-26-000003" })
+    ).toBe(1);
+    const families = await new CanonicalUnderwriterFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.map((f) => f.normalized_name).sort()).toEqual(["CANTOR-FITZGERALD"]);
   });
 });

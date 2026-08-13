@@ -28,9 +28,11 @@ export function normalizeSponsorFamilyName(name: string): string {
 }
 
 /**
- * Resolves a sponsor *common* name to a CanonicalSponsorFamily id: normalize ->
- * find-or-create at the active resolver version -> alias resolve. Name-only
- * analogue of CompanyResolver's normalized-name fallback. Thin wrapper over the
+ * Resolves a sponsor legal name to a CanonicalSponsorFamily id: normalize ->
+ * find-or-create at the active resolver version -> alias resolve. The family
+ * key is {@link companyFamilyName} of that legal name (series markers and
+ * legal forms drop; business-line words stay). Name-only analogue of
+ * CompanyResolver's normalized-name fallback. Thin wrapper over the
  * shared {@link FamilyResolver}.
  */
 export class SponsorFamilyResolver {
@@ -62,7 +64,7 @@ export class SponsorFamilyResolver {
     });
   }
 
-  async resolve(commonName: string): Promise<string> {
-    return this.core.resolve(commonName);
+  async resolve(name: string): Promise<string> {
+    return this.core.resolve(name);
   }
 }

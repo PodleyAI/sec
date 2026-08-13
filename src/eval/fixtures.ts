@@ -238,7 +238,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: underwritersInstructions,
     schema: () => UnderwriterOutputSchema,
     keyField: "legal_name",
-    compareFields: ["legal_name", "common_name", "role"],
+    compareFields: ["legal_name", "role"],
   },
   // Multi-row extractor over the Use of Proceeds section: one row per line item.
   "use-of-proceeds": {
@@ -266,7 +266,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     instructions: spacSponsorsInstructions,
     schema: () => SpacSponsorOutputSchema,
     keyField: "legal_name",
-    compareFields: ["legal_name", "common_name"],
+    compareFields: ["legal_name"],
   },
   // Detection-style single-object extractor over a known-SPAC 8-K narrative:
   // a non-binding letter of intent yields one row; anything else (definitive

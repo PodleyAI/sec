@@ -1415,8 +1415,8 @@ export function underwritersInstructions(): string {
   return (
     "Extract every underwriter named in the S-1/F-1 Underwriting (or Plan of " +
     "Distribution) section between the tags below. For each give legal_name (full " +
-    "legal entity, e.g. 'Goldman Sachs & Co. LLC'), common_name (the bank brand " +
-    "without legal suffix, e.g. 'Goldman Sachs'), role (one of 'lead' for the " +
+    "legal entity, e.g. 'Goldman Sachs & Co. LLC'; one row per distinct firm, " +
+    "do not also emit a brand-only short name), role (one of 'lead' for the " +
     "representative/lead, 'bookrunner' for a book-running manager, 'co-manager', else " +
     "'underwriter'; null if unclear), shares_allocated (the number of shares " +
     "underwritten, or null), over_allotment_shares (or null), a confidence in [0,1], " +
@@ -1444,8 +1444,7 @@ export function spacSponsorsInstructions(): string {
   return (
     "The text between the tags below is from a SPAC (blank-check) registration " +
     "statement. Identify each sponsor entity. For each, give legal_name (the full " +
-    "legal entity, e.g. 'Acme Sponsor 2, LLC'), common_name (the sponsor brand/family " +
-    "without the legal suffix or series number, e.g. 'Acme Sponsor'), a confidence in " +
+    "legal entity, e.g. 'Acme Sponsor 2, LLC'), a confidence in " +
     "[0,1], and the verbatim source_span. Return JSON matching the schema."
   );
 }

@@ -48,6 +48,7 @@ import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema"
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
+import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModel } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
@@ -117,6 +118,14 @@ export function birthYearFromAge(age: number | null, filingDate: string): number
   return birthYear >= 1900 && birthYear <= 2100 ? birthYear : null;
 }
 
+/**
+ * Risk-factors extraction is parked: the section dominates per-filing cost and
+ * is excluded from default eval sweeps. Flip this (or pass
+ * `extractRiskFactors: true`) to turn it back on. Tests of the extractor path
+ * always pass the override so they keep scoring the real ceremony.
+ */
+const EXTRACT_S1_RISK_FACTORS = false;
+
 export interface ProcessFormS1Args {
   readonly cik: number;
   readonly file_number: string;
@@ -127,10 +136,12 @@ export interface ProcessFormS1Args {
   readonly formS1: FormS1Parsed;
   readonly model?: ModelConfig;
   readonly context?: IExecuteContext;
+  readonly extractRiskFactors?: boolean;
 }
 
 export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   const { cik, accession_number, formS1 } = args;
+  const runRiskFactors = args.extractRiskFactors ?? EXTRACT_S1_RISK_FACTORS;
   // A misconfigured/unregistered SEC_S1_MODEL must not discard the deterministic
   // work below (XBRL facts, issuer identity, the SPAC registration row). Resolve
   // to null on failure and dead-letter the AI sections, mirroring the PARSE_ERROR
@@ -188,8 +199,26 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   await ownershipRepo.clear(accession_number);
   await relatedRepo.clear(accession_number);
   await compensationRepo.clear(accession_number);
-  await riskFactorRepo.clear(accession_number);
+  // While parked, leave previously extracted rows in place: a replay must not
+  // wipe the last good extraction of a section this run is not replacing.
+  if (runRiskFactors) {
+    await riskFactorRepo.clear(accession_number);
+  }
   await linkRepo.clear(accession_number);
+
+  if (!runRiskFactors) {
+    await deadLetters.markResolved(EXTRACTOR_ID, accession_number, RISK_FACTORS_SECTION);
+    await deadLetters.markResolved(
+      EXTRACTOR_ID,
+      accession_number,
+      `${RISK_FACTORS_SECTION}-partial`
+    );
+    await deadLetters.markResolved(
+      EXTRACTOR_ID,
+      accession_number,
+      `${RISK_FACTORS_SECTION}-echo-dropped`
+    );
+  }
 
   const base = { accession_number, extractor_id: EXTRACTOR_ID, extractor_version };
   let idx = 0;
@@ -280,7 +309,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // Compensation Table is only knowable after segmentation, which these
       // paths never reached. A retry that finds none resolves the entry.
       S1_SECTIONS.EXECUTIVE_COMPENSATION,
-      RISK_FACTORS_SECTION,
+      ...(runRiskFactors ? [RISK_FACTORS_SECTION] : []),
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       // A SIC-miscoded, blank-check-looking non-SPAC filing gets a
@@ -353,7 +382,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // Compensation Table is only knowable after segmentation, which these
       // paths never reached. A retry that finds none resolves the entry.
       S1_SECTIONS.EXECUTIVE_COMPENSATION,
-      RISK_FACTORS_SECTION,
+      ...(runRiskFactors ? [RISK_FACTORS_SECTION] : []),
       ...offeringSectionNames(isSpac),
       ...(isSpac ? ["spac-profile", "spac-sponsors"] : []),
       ...(!isSpac && looksLikeBlankCheck(formS1.html) ? ["spac-classification"] : []),
@@ -862,126 +891,130 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // The largest section in a prospectus, and the only one whose row count runs
   // to dozens, so extraction is chunked (see `chunkRiskFactorText`) and carries
   // its own model / floor knobs; the rest of the ceremony is the standard one.
-  const riskText = byName.get(S1_SECTIONS.RISK_FACTORS);
-  if (riskText === undefined || riskText.trim() === "") {
-    await recordFail(RISK_FACTORS_SECTION, "SECTION_NOT_FOUND", "no risk factors section text");
-  } else if (riskText.length > MAX_RISK_FACTORS_CHARS) {
-    // A section this large means the prospectus body collapsed under one
-    // heading rather than that the filer disclosed that many risks; extracting
-    // it would fan out into dozens of calls over prose that is mostly not risk
-    // disclosure. Record it for triage instead of paying for it.
-    await recordFail(
-      RISK_FACTORS_SECTION,
-      "OVERSIZED_INPUT",
-      `risk factors section of ${riskText.length} chars exceeds the ` +
-        `${MAX_RISK_FACTORS_CHARS} char cap`
-    );
-  } else {
-    let riskModel: ModelConfig | null = null;
-    let riskModelError: string | null = null;
-    try {
-      riskModel = args.model ?? (await getRiskFactorsModel());
-    } catch (err) {
-      riskModelError = err instanceof Error ? err.message : String(err);
-    }
-    if (riskModel === null) {
-      await recordFail(RISK_FACTORS_SECTION, "MODEL_RESOLUTION_ERROR", riskModelError);
+  // Parked unless EXTRACT_S1_RISK_FACTORS (or the per-call override) is on;
+  // leftover dead-letters were already resolved above.
+  if (runRiskFactors) {
+    const riskText = byName.get(S1_SECTIONS.RISK_FACTORS);
+    if (riskText === undefined || riskText.trim() === "") {
+      await recordFail(RISK_FACTORS_SECTION, "SECTION_NOT_FOUND", "no risk factors section text");
+    } else if (riskText.length > MAX_RISK_FACTORS_CHARS) {
+      // A section this large means the prospectus body collapsed under one
+      // heading rather than that the filer disclosed that many risks; extracting
+      // it would fan out into dozens of calls over prose that is mostly not risk
+      // disclosure. Record it for triage instead of paying for it.
+      await recordFail(
+        RISK_FACTORS_SECTION,
+        "OVERSIZED_INPUT",
+        `risk factors section of ${riskText.length} chars exceeds the ` +
+          `${MAX_RISK_FACTORS_CHARS} char cap`
+      );
     } else {
-      const riskModelResolved = riskModel;
-      // Headlines the extractor deleted as echoes of a heading the chunker
-      // prefixed onto a chunk. Reset per extraction attempt so a re-ask's
-      // verdict replaces the previous one rather than accumulating.
-      let droppedEchoes: readonly string[] = [];
-      const riskRunSection = makeRunSection({
-        deadLetters,
-        extractor_id: EXTRACTOR_ID,
-        extractor_version,
-        accession_number,
-        confidenceFloor: getRiskFactorsConfidenceFloor(),
-        signal: args.context?.signal,
-      });
-      await riskRunSection<RiskFactorRow>({
-        sectionName: RISK_FACTORS_SECTION,
-        text: riskText,
-        emptyDetail: "no risk factors returned",
-        lowConfidenceDetail: "all rows below confidence floor",
-        invalidWriteDetail: "no risk factor rows carried a usable headline",
-        // Prompt-injection backstop, applied to the headline as well as the
-        // span: the caption IS the row's payload, so a paraphrased or invented
-        // risk is worthless even when the span it cites verifies. Verifying it
-        // also bounds the stored headline (the verifier rejects anything over
-        // MAX_SPAN_CHARS raw chars) inside the column's declared width.
-        //
-        // An elided headline fails outright rather than going through
-        // classifySpan, which would salvage the pre-"..." head. That salvage is
-        // right for a citation — a real quote you can find in the filing beats
-        // no citation — but wrong for this field: the caption's contract is the
-        // filer's sentence verbatim, and a truncated one is stored as a
-        // complete caption with no marker saying otherwise. Dropping the row
-        // routes it into the existing `-partial` / UNVERIFIED_SOURCE_SPAN
-        // machinery instead of quietly recording an abridged disclosure.
-        verifyRow: (text, r) =>
-          worstVerdict(
-            classifySpan(text, r.source_span),
-            isElided(r.headline) ? "not-found" : classifySpan(text, r.headline)
-          ),
-        unverifiedAllDetail:
-          "all $T confident risk factor rows had headline/source_span not present in section text",
-        unverifiedPartialDetail:
-          "$N of $T confident risk factor rows had headline/source_span not present in section text",
-        extract: (text) => {
-          droppedEchoes = [];
-          return extractRiskFactors(text, riskModelResolved, args.context, (headlines) => {
-            droppedEchoes = headlines;
-          });
-        },
-        persist: async (rows) => {
-          const now = new Date().toISOString();
-          let riskIndex = 0;
-          for (const r of rows) {
-            // Stored whole. Every row reaching persist has already had its
-            // headline verified verbatim against the section text and rejected
-            // if elided, so there is nothing left to salvage here — cutting at
-            // an elision marker would only be able to shorten a caption that
-            // is already the filer's complete sentence.
-            const headline = (r.headline ?? "").trim();
-            if (headline === "") continue;
-            const category = r.category?.trim() ?? "";
-            await riskFactorRepo.save({
-              extractor_id: EXTRACTOR_ID,
-              accession_number,
-              risk_index: riskIndex++,
-              cik,
-              // An over-long category is an annotation, not the row's identity:
-              // null it rather than fail the write (and the whole section).
-              category: category === "" || category.length > 512 ? null : category,
-              headline,
-              confidence: r.confidence,
-              source_span: boundSourceSpan(r.source_span),
-              created_at: now,
-            });
-          }
-          return riskIndex;
-        },
-      });
-      // Reconcile a sibling triage entry for the echo drop, mirroring the
-      // `-partial` reconciliation runSection does for unverified rows. The drop
-      // deletes rows the model returned and the section still resolves as
-      // complete, so it must leave a durable, attributable record: the entry
-      // carries the accession, the section and the dropped text verbatim, so an
-      // operator can read what was removed and judge it. Resolve it when this
-      // run dropped nothing, so a filing that stops dropping stops lingering on
-      // the worklist (markResolved no-ops when no entry exists).
-      const echoSection = `${RISK_FACTORS_SECTION}-echo-dropped`;
-      if (droppedEchoes.length > 0) {
-        await recordFail(
-          echoSection,
-          "MODEL_INVALID_OUTPUT",
-          `dropped ${droppedEchoes.length} row(s) echoing the category heading carried into a ` +
-            `chunk: ${droppedEchoes.map((h) => JSON.stringify(h)).join("; ")}`
-        );
+      let riskModel: ModelConfig | null = null;
+      let riskModelError: string | null = null;
+      try {
+        riskModel = args.model ?? (await getRiskFactorsModel());
+      } catch (err) {
+        riskModelError = err instanceof Error ? err.message : String(err);
+      }
+      if (riskModel === null) {
+        await recordFail(RISK_FACTORS_SECTION, "MODEL_RESOLUTION_ERROR", riskModelError);
       } else {
-        await deadLetters.markResolved(EXTRACTOR_ID, accession_number, echoSection);
+        const riskModelResolved = riskModel;
+        // Headlines the extractor deleted as echoes of a heading the chunker
+        // prefixed onto a chunk. Reset per extraction attempt so a re-ask's
+        // verdict replaces the previous one rather than accumulating.
+        let droppedEchoes: readonly string[] = [];
+        const riskRunSection = makeRunSection({
+          deadLetters,
+          extractor_id: EXTRACTOR_ID,
+          extractor_version,
+          accession_number,
+          confidenceFloor: getRiskFactorsConfidenceFloor(),
+          signal: args.context?.signal,
+        });
+        await riskRunSection<RiskFactorRow>({
+          sectionName: RISK_FACTORS_SECTION,
+          text: riskText,
+          emptyDetail: "no risk factors returned",
+          lowConfidenceDetail: "all rows below confidence floor",
+          invalidWriteDetail: "no risk factor rows carried a usable headline",
+          // Prompt-injection backstop, applied to the headline as well as the
+          // span: the caption IS the row's payload, so a paraphrased or invented
+          // risk is worthless even when the span it cites verifies. Verifying it
+          // also bounds the stored headline (the verifier rejects anything over
+          // MAX_SPAN_CHARS raw chars) inside the column's declared width.
+          //
+          // An elided headline fails outright rather than going through
+          // classifySpan, which would salvage the pre-"..." head. That salvage is
+          // right for a citation — a real quote you can find in the filing beats
+          // no citation — but wrong for this field: the caption's contract is the
+          // filer's sentence verbatim, and a truncated one is stored as a
+          // complete caption with no marker saying otherwise. Dropping the row
+          // routes it into the existing `-partial` / UNVERIFIED_SOURCE_SPAN
+          // machinery instead of quietly recording an abridged disclosure.
+          verifyRow: (text, r) =>
+            worstVerdict(
+              classifySpan(text, r.source_span),
+              isElided(r.headline) ? "not-found" : classifySpan(text, r.headline)
+            ),
+          unverifiedAllDetail:
+            "all $T confident risk factor rows had headline/source_span not present in section text",
+          unverifiedPartialDetail:
+            "$N of $T confident risk factor rows had headline/source_span not present in section text",
+          extract: (text) => {
+            droppedEchoes = [];
+            return extractRiskFactors(text, riskModelResolved, args.context, (headlines) => {
+              droppedEchoes = headlines;
+            });
+          },
+          persist: async (rows) => {
+            const now = new Date().toISOString();
+            let riskIndex = 0;
+            for (const r of rows) {
+              // Stored whole. Every row reaching persist has already had its
+              // headline verified verbatim against the section text and rejected
+              // if elided, so there is nothing left to salvage here — cutting at
+              // an elision marker would only be able to shorten a caption that
+              // is already the filer's complete sentence.
+              const headline = (r.headline ?? "").trim();
+              if (headline === "") continue;
+              const category = r.category?.trim() ?? "";
+              await riskFactorRepo.save({
+                extractor_id: EXTRACTOR_ID,
+                accession_number,
+                risk_index: riskIndex++,
+                cik,
+                // An over-long category is an annotation, not the row's identity:
+                // null it rather than fail the write (and the whole section).
+                category: category === "" || category.length > 512 ? null : category,
+                headline,
+                confidence: r.confidence,
+                source_span: boundSourceSpan(r.source_span),
+                created_at: now,
+              });
+            }
+            return riskIndex;
+          },
+        });
+        // Reconcile a sibling triage entry for the echo drop, mirroring the
+        // `-partial` reconciliation runSection does for unverified rows. The drop
+        // deletes rows the model returned and the section still resolves as
+        // complete, so it must leave a durable, attributable record: the entry
+        // carries the accession, the section and the dropped text verbatim, so an
+        // operator can read what was removed and judge it. Resolve it when this
+        // run dropped nothing, so a filing that stops dropping stops lingering on
+        // the worklist (markResolved no-ops when no entry exists).
+        const echoSection = `${RISK_FACTORS_SECTION}-echo-dropped`;
+        if (droppedEchoes.length > 0) {
+          await recordFail(
+            echoSection,
+            "MODEL_INVALID_OUTPUT",
+            `dropped ${droppedEchoes.length} row(s) echoing the category heading carried into a ` +
+              `chunk: ${droppedEchoes.map((h) => JSON.stringify(h)).join("; ")}`
+          );
+        } else {
+          await deadLetters.markResolved(EXTRACTOR_ID, accession_number, echoSection);
+        }
       }
     }
   }
@@ -1028,7 +1061,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     notFoundDetail: "no section text available for sponsor extraction",
     emptyDetail: "no sponsors returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    invalidWriteDetail: "no sponsor rows had usable legal and common names",
+    invalidWriteDetail: "no sponsor rows had a usable legal name",
     // v1.1.0: verify the LLM-returned source_span actually appears in the
     // section text we sent. The sponsor-section input may be the concatenation
     // of management/ownership/related-party text (when "The Sponsor" heading
@@ -1043,13 +1076,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     extract: (text) => extractSpacSponsors(text, model, args.context),
     persist: async (rows) => {
       let wrote = 0;
+      const extractedNames = rows.map((r) => r.legal_name?.trim() ?? "");
       for (const r of rows) {
-        // A row whose legal or common name is blank (degenerate model output)
+        // A row whose legal name is blank (degenerate model output)
         // is skipped rather than allowed to throw inside the resolver and abort
         // every other valid sponsor in this filing.
         const legalName = r.legal_name?.trim() ?? "";
-        const commonName = r.common_name?.trim() ?? "";
-        if (legalName === "" || commonName === "") continue;
+        if (legalName === "") continue;
+        if (isCompanyFamilyPrefixEcho(legalName, extractedNames)) continue;
         const observation_index = idx++;
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
@@ -1067,7 +1101,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           prompt_version: extractor_version,
           extra: null,
         });
-        const sponsor_family_id = await sponsorFamilyResolver.resolve(commonName);
+        const sponsor_family_id = await sponsorFamilyResolver.resolve(legalName);
         await membershipRepo.record({
           resolver_version: activeSponsorFamilyVersion,
           canonical_company_id,

@@ -17,10 +17,10 @@ import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataClean
  * and throws exactly those away. Using it to de-duplicate entities would merge
  * every SPV a sponsor ever formed.
  *
- * Today the family tier keys off a **common name the AI extractor emitted**,
- * which is why a family cannot be re-partitioned in batch: only the legal name
- * reaches the observation row. Deriving the key from the legal name is what
- * this exists for.
+ * Today the family tier keys off the legal name every observation already
+ * carries, via {@link companyFamilyName}. That is what makes a family
+ * rebuildable: a re-partition is a re-computation, not a re-extraction of a
+ * model-emitted common name that never reached the observation row.
  */
 
 /**
@@ -153,4 +153,35 @@ export function companyFamilyName(name: string | null | undefined): string {
   const kept = end > 1 || !isDroppableTail(tokens[0]) ? tokens.slice(0, end) : tokens;
 
   return kept.join("-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+/**
+ * True when `shorter`'s family tokens are a proper prefix of `longer`'s.
+ *
+ * A model that extracts both "Cantor" and "Cantor Fitzgerald & Co." has named
+ * one house twice: the stub is a brand echo, not a second firm. Equal-length
+ * family keys (Inc vs Limited of the same house) are not prefixes — those stay
+ * two legal entities sharing a family.
+ */
+export function isCompanyFamilyPrefix(shorter: string, longer: string): boolean {
+  const a = companyFamilyName(shorter);
+  const b = companyFamilyName(longer);
+  if (a === "" || b === "") return false;
+  const aTok = a.split("-");
+  const bTok = b.split("-");
+  if (aTok.length >= bTok.length) return false;
+  for (let i = 0; i < aTok.length; i++) {
+    if (aTok[i] !== bTok[i]) return false;
+  }
+  return true;
+}
+
+/** True when `name`'s family tokens are a proper prefix of another name in `among`. */
+export function isCompanyFamilyPrefixEcho(name: string, among: readonly string[]): boolean {
+  const n = name.trim();
+  if (n === "") return false;
+  return among.some((other) => {
+    const o = other.trim();
+    return o !== "" && o !== n && isCompanyFamilyPrefix(n, o);
+  });
 }

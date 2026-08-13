@@ -15,11 +15,10 @@ export const SpacSponsorOutputSchema = {
         type: "object",
         properties: {
           legal_name: { type: "string" },
-          common_name: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
           source_span: { type: "string" },
         },
-        required: ["legal_name", "common_name", "confidence", "source_span"],
+        required: ["legal_name", "confidence", "source_span"],
         additionalProperties: false,
       },
     },
@@ -31,7 +30,6 @@ export const SpacSponsorOutputSchema = {
 
 export interface SpacSponsorRow {
   legal_name: string;
-  common_name: string;
   confidence: number;
   source_span: string;
 }

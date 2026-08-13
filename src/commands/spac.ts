@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { globalServiceRegistry, type DataPorts, type ITask } from "workglow";
 import { parseIntOption, parseOutputFormat, type OutputFormat } from "../cli/GlobalOptions";
 import { isDryRun } from "../cli/isDryRun";
+import { statusMessage } from "../cli/output/Progress";
 import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
 import { runCommand } from "../cli/runCommand";
 import { runWorkflowCli } from "../cli/runWorkflow";
@@ -120,6 +121,9 @@ export function spacProcessRows(
   const ciks = column("cik");
   const matched = column("matched");
   const processed = column("processed");
+  const partial = column("partial");
+  const failed = column("failed");
+  const triage = column("triage");
   const firstDate = column("firstDate");
   const lastDate = column("lastDate");
   const error = column("error");
@@ -131,12 +135,29 @@ export function spacProcessRows(
       cik,
       matched: matched[i] ?? 0,
       processed: processed[i] ?? 0,
+      partial: partial[i] ?? 0,
+      failed: failed[i] ?? 0,
+      triage: triage[i] ?? 0,
       firstDate: firstDate[i] ?? "",
       lastDate: lastDate[i] ?? "",
       error: error[i] ?? "",
     });
   }
   return rows;
+}
+
+/**
+ * One issuer's replay summary. Partial/failed/triage are omitted when zero so
+ * a clean run still reads as `CIK: N/N filings (from → to)`.
+ */
+export function formatSpacProcessSummary(row: ProcessSpacTimelineTaskOutput): string {
+  const parts = [
+    `${row.processed}/${row.matched} filings (${row.firstDate} \u2192 ${row.lastDate})`,
+  ];
+  if (row.partial > 0) parts.push(`${row.partial} partial`);
+  if (row.failed > 0) parts.push(`${row.failed} failed`);
+  if (row.triage > 0) parts.push(`${row.triage} section(s) pending triage`);
+  return `${row.cik}: ${parts.join("; ")}`;
 }
 
 /** Parse a CLI CIK argument, returning null (after printing an error) when it is not a non-negative integer. */
@@ -204,10 +225,23 @@ export function registerSpacCommands(program: Command): void {
           } else if (row.matched === 0) {
             console.log(`${row.cik}: no processable filings`);
           } else {
-            console.log(
-              `${row.cik}: ${row.processed}/${row.matched} filings ` +
-                `(${row.firstDate} \u2192 ${row.lastDate})`
-            );
+            console.log(formatSpacProcessSummary(row));
+            if (row.partial > 0 || row.failed > 0) {
+              failed++;
+              console.error(
+                statusMessage(
+                  "warn",
+                  "Some sections did not extract. Inspect them with: sec extractor dead-letters <extractor-id>"
+                )
+              );
+            } else if (row.triage > 0) {
+              console.error(
+                statusMessage(
+                  "info",
+                  "Some rows were dropped from otherwise-successful sections. Inspect: sec extractor dead-letters <extractor-id>"
+                )
+              );
+            }
           }
         }
         if (failed > 0) {

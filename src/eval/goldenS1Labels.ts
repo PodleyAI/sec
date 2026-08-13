@@ -932,50 +932,50 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_1606242_000121390026054471", "underwriters")]: [],
   [goldenLabelKey("s1_1817004_000149315226027137", "underwriters")]: [],
   [goldenLabelKey("s1_1822912_000121390021001475", "underwriters")]: [
-    { legal_name: "Cantor Fitzgerald & Co.", common_name: "Cantor Fitzgerald", role: "lead" },
+    { legal_name: "Cantor Fitzgerald & Co.", role: "lead" },
   ],
   [goldenLabelKey("s1_1848507_000119312521066104", "underwriters")]: [
-    { legal_name: "Credit Suisse Securities (USA) LLC", common_name: "Credit Suisse", role: "lead" },
-    { legal_name: "BofA Securities, Inc.", common_name: "BofA Securities", role: "lead" },
-    { legal_name: "Moelis & Company LLC", common_name: "Moelis & Company", role: "lead" },
+    { legal_name: "Credit Suisse Securities (USA) LLC", role: "lead" },
+    { legal_name: "BofA Securities, Inc.", role: "lead" },
+    { legal_name: "Moelis & Company LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_1849470_000110465921035696", "underwriters")]: [
-    { legal_name: "Barclays Capital Inc.", common_name: "Barclays", role: "lead" },
-    { legal_name: "Cantor Fitzgerald & Co.", common_name: "Cantor Fitzgerald", role: "lead" },
+    { legal_name: "Barclays Capital Inc.", role: "lead" },
+    { legal_name: "Cantor Fitzgerald & Co.", role: "lead" },
   ],
   [goldenLabelKey("s1_1853138_000162828026039200", "underwriters")]: [],
   [goldenLabelKey("s1_1880613_000162828026005423", "underwriters")]: [],
   [goldenLabelKey("s1_1918102_000110465926016226", "underwriters")]: [],
   [goldenLabelKey("s1_2030954_000149315226027129", "underwriters")]: [
-    { legal_name: "WestPark Capital, Inc.", common_name: "WestPark Capital", role: "lead" },
+    { legal_name: "WestPark Capital, Inc.", role: "lead" },
   ],
   [goldenLabelKey("s1_2049662_000110465926079324", "underwriters")]: [],
   [goldenLabelKey("s1_2075109_000121390026073335", "underwriters")]: [],
   [goldenLabelKey("s1_2087989_000143774926019444", "underwriters")]: [],
   [goldenLabelKey("s1_2105318_000149315226031978", "underwriters")]: [
-    { legal_name: "EarlyBirdCapital, Inc.", common_name: "EarlyBirdCapital", role: "lead" },
+    { legal_name: "EarlyBirdCapital, Inc.", role: "lead" },
   ],
   [goldenLabelKey("s1_2114227_000121390026039320", "underwriters")]: [
-    { legal_name: "Citigroup Global Markets Inc.", common_name: "Citigroup", role: "lead" },
+    { legal_name: "Citigroup Global Markets Inc.", role: "lead" },
   ],
   [goldenLabelKey("s1_2133239_000192998026000317", "underwriters")]: [
-    { legal_name: "D. Boral Capital LLC", common_name: "D. Boral Capital", role: "lead" },
+    { legal_name: "D. Boral Capital LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2134856_000182912626007847", "underwriters")]: [
-    { legal_name: "Cohen & Company Securities, LLC", common_name: "Cohen & Company Capital Markets", role: "lead" },
+    { legal_name: "Cohen & Company Securities, LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2135163_000182912626006553", "underwriters")]: [
-    { legal_name: "Polaris Advisory Partners, a division of Kingswood Capital LLC", common_name: "Polaris Advisory Partners", role: "lead" },
+    { legal_name: "Polaris Advisory Partners, a division of Kingswood Capital LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2136360_000213636026000003", "underwriters")]: [
-    { legal_name: "Lucid Capital Markets LLC", common_name: "Lucid Capital Markets", role: "lead" },
+    { legal_name: "Lucid Capital Markets LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2147219_000110465926092088", "underwriters")]: [
-    { legal_name: "Chardan Capital Markets LLC", common_name: "Chardan", role: "lead" },
-    { legal_name: "B. Riley", common_name: "B. Riley", role: "underwriter" },
+    { legal_name: "Chardan Capital Markets LLC", role: "lead" },
+    { legal_name: "B. Riley", role: "underwriter" },
   ],
   [goldenLabelKey("s1_95572_000121390026086369", "underwriters")]: [
-    { legal_name: "R.F. Lafferty & Co., Inc.", common_name: "R.F. Lafferty", role: "lead" },
+    { legal_name: "R.F. Lafferty & Co., Inc.", role: "lead" },
   ],
 
   // ── offering-terms ─────────────────────────────────────────────────────────
@@ -3540,81 +3540,81 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   // doubling set — underwriters
   [goldenLabelKey("s1_1489993_000162828026025811", "underwriters")]: [
-    { legal_name: "BofA Securities, Inc.", common_name: "BofA Securities", role: "lead" },
-    { legal_name: "J.P. Morgan Securities LLC", common_name: "J.P. Morgan Securities", role: "lead" },
-    { legal_name: "Goldman Sachs & Co. LLC", common_name: "Goldman Sachs", role: "lead" },
-    { legal_name: "BTIG, LLC", common_name: "BTIG", role: "underwriter" },
-    { legal_name: "Nomura Securities International, Inc.", common_name: "Nomura Securities International", role: "underwriter" },
-    { legal_name: "WR Securities, LLC", common_name: "WR Securities", role: "underwriter" },
+    { legal_name: "BofA Securities, Inc.", role: "lead" },
+    { legal_name: "J.P. Morgan Securities LLC", role: "lead" },
+    { legal_name: "Goldman Sachs & Co. LLC", role: "lead" },
+    { legal_name: "BTIG, LLC", role: "underwriter" },
+    { legal_name: "Nomura Securities International, Inc.", role: "underwriter" },
+    { legal_name: "WR Securities, LLC", role: "underwriter" },
   ],
   [goldenLabelKey("s1_1554818_000168316826002663", "underwriters")]: [
-    { legal_name: "Dawson James Securities, Inc.", common_name: "Dawson James Securities", role: "lead" },
+    { legal_name: "Dawson James Securities, Inc.", role: "lead" },
   ],
   [goldenLabelKey("s1_1563568_000143774926013504", "underwriters")]: [],
   [goldenLabelKey("s1_1602409_000152013826000232", "underwriters")]: [],
   [goldenLabelKey("s1_1816017_000119312526173846", "underwriters")]: [],
   [goldenLabelKey("s1_1849380_000149315226031598", "underwriters")]: [],
   [goldenLabelKey("s1_1925283_000162828026027260", "underwriters")]: [
-    { legal_name: "Goldman Sachs & Co. LLC", common_name: "Goldman Sachs", role: "lead" },
-    { legal_name: "Morgan Stanley & Co. LLC", common_name: "Morgan Stanley", role: "lead" },
-    { legal_name: "BMO Capital Markets Corp.", common_name: "BMO Capital Markets", role: "underwriter" },
-    { legal_name: "Citizens JMP Securities, LLC", common_name: "Citizens JMP Securities", role: "underwriter" },
-    { legal_name: "Evercore Group L.L.C.", common_name: "Evercore Group", role: "underwriter" },
-    { legal_name: "Keefe, Bruyette & Woods, Inc.", common_name: "Keefe, Bruyette & Woods", role: "underwriter" },
-    { legal_name: "Nomura Securities International, Inc.", common_name: "Nomura Securities International", role: "underwriter" },
-    { legal_name: "WR Securities, LLC", common_name: "WR Securities", role: "underwriter" },
+    { legal_name: "Goldman Sachs & Co. LLC", role: "lead" },
+    { legal_name: "Morgan Stanley & Co. LLC", role: "lead" },
+    { legal_name: "BMO Capital Markets Corp.", role: "underwriter" },
+    { legal_name: "Citizens JMP Securities, LLC", role: "underwriter" },
+    { legal_name: "Evercore Group L.L.C.", role: "underwriter" },
+    { legal_name: "Keefe, Bruyette & Woods, Inc.", role: "underwriter" },
+    { legal_name: "Nomura Securities International, Inc.", role: "underwriter" },
+    { legal_name: "WR Securities, LLC", role: "underwriter" },
   ],
   [goldenLabelKey("s1_2091349_000119312526214778", "underwriters")]: [],
   [goldenLabelKey("s1_2093507_000182912626003406", "underwriters")]: [
-    { legal_name: "ThinkEquity LLC", common_name: "ThinkEquity", role: "lead" },
+    { legal_name: "ThinkEquity LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2098410_000110465926086682", "underwriters")]: [
-    { legal_name: "BTIG, LLC", common_name: "BTIG", role: "lead" },
+    { legal_name: "BTIG, LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2110105_000162828026032836", "underwriters")]: [
-    { legal_name: "J.P. Morgan Securities LLC", common_name: "J.P. Morgan Securities", role: "lead" },
-    { legal_name: "Morgan Stanley & Co. LLC", common_name: "Morgan Stanley", role: "lead" },
-    { legal_name: "Jefferies LLC", common_name: "Jefferies", role: "bookrunner" },
-    { legal_name: "Evercore Group L.L.C.", common_name: "Evercore Group", role: "bookrunner" },
-    { legal_name: "BofA Securities, Inc.", common_name: "BofA Securities", role: "underwriter" },
-    { legal_name: "UBS Securities LLC", common_name: "UBS Securities", role: "underwriter" },
-    { legal_name: "Cantor Fitzgerald & Co.", common_name: "Cantor Fitzgerald", role: "underwriter" },
-    { legal_name: "Mizuho Securities USA LLC", common_name: "Mizuho Securities USA", role: "underwriter" },
-    { legal_name: "Needham & Company, LLC", common_name: "Needham & Company", role: "underwriter" },
-    { legal_name: "SG Americas Securities, LLC", common_name: "SG Americas Securities", role: "underwriter" },
-    { legal_name: "TD Securities (USA) LLC", common_name: "TD Securities (USA)", role: "underwriter" },
-    { legal_name: "Craig-Hallum Capital Group LLC", common_name: "Craig-Hallum Capital Group", role: "underwriter" },
-    { legal_name: "Rosenblatt Securities Inc.", common_name: "Rosenblatt Securities", role: "underwriter" },
+    { legal_name: "J.P. Morgan Securities LLC", role: "lead" },
+    { legal_name: "Morgan Stanley & Co. LLC", role: "lead" },
+    { legal_name: "Jefferies LLC", role: "bookrunner" },
+    { legal_name: "Evercore Group L.L.C.", role: "bookrunner" },
+    { legal_name: "BofA Securities, Inc.", role: "underwriter" },
+    { legal_name: "UBS Securities LLC", role: "underwriter" },
+    { legal_name: "Cantor Fitzgerald & Co.", role: "underwriter" },
+    { legal_name: "Mizuho Securities USA LLC", role: "underwriter" },
+    { legal_name: "Needham & Company, LLC", role: "underwriter" },
+    { legal_name: "SG Americas Securities, LLC", role: "underwriter" },
+    { legal_name: "TD Securities (USA) LLC", role: "underwriter" },
+    { legal_name: "Craig-Hallum Capital Group LLC", role: "underwriter" },
+    { legal_name: "Rosenblatt Securities Inc.", role: "underwriter" },
   ],
   [goldenLabelKey("s1_2110119_000121390026072712", "underwriters")]: [
-    { legal_name: "BTIG, LLC", common_name: "BTIG", role: "lead" },
+    { legal_name: "BTIG, LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2113481_000121390026068811", "underwriters")]: [
-    { legal_name: "Cantor Fitzgerald & Co.", common_name: "Cantor Fitzgerald", role: "lead" },
+    { legal_name: "Cantor Fitzgerald & Co.", role: "lead" },
   ],
   [goldenLabelKey("s1_2114229_000121390026078277", "underwriters")]: [
-    { legal_name: "Citigroup Global Markets Inc.", common_name: "Citigroup Global Markets", role: "underwriter" },
+    { legal_name: "Citigroup Global Markets Inc.", role: "underwriter" },
   ],
   [goldenLabelKey("s1_2116230_000192998026000257", "underwriters")]: [
-    { legal_name: "D. Boral Capital LLC", common_name: "D. Boral Capital", role: "lead" },
+    { legal_name: "D. Boral Capital LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2123955_000121390026080433", "underwriters")]: [
-    { legal_name: "Santander US Capital Markets LLC", common_name: "Santander US Capital Markets", role: "lead" },
-    { legal_name: "CIBC World Markets Corp.", common_name: "CIBC World Markets", role: "underwriter" },
-    { legal_name: "RBC Capital Markets LLC", common_name: "RBC Capital Markets", role: "underwriter" },
-    { legal_name: "BMO Capital Markets Corp.", common_name: "BMO Capital Markets", role: "underwriter" },
+    { legal_name: "Santander US Capital Markets LLC", role: "lead" },
+    { legal_name: "CIBC World Markets Corp.", role: "underwriter" },
+    { legal_name: "RBC Capital Markets LLC", role: "underwriter" },
+    { legal_name: "BMO Capital Markets Corp.", role: "underwriter" },
   ],
   [goldenLabelKey("s1_2128045_000121390026070217", "underwriters")]: [
-    { legal_name: "Cohen & Company Capital Markets", common_name: "Cohen & Company Capital Markets", role: "lead" },
+    { legal_name: "Cohen & Company Capital Markets", role: "lead" },
   ],
   [goldenLabelKey("s1_2131350_000119312526294964", "underwriters")]: [
-    { legal_name: "Citigroup Global Markets Inc.", common_name: "Citigroup Global Markets", role: "underwriter" },
+    { legal_name: "Citigroup Global Markets Inc.", role: "underwriter" },
   ],
   [goldenLabelKey("s1_2137679_000182912626006500", "underwriters")]: [
-    { legal_name: "Polaris Advisory Partners, a division of Kingswood Capital LLC", common_name: "Polaris Advisory Partners", role: "lead" },
+    { legal_name: "Polaris Advisory Partners, a division of Kingswood Capital LLC", role: "lead" },
   ],
   [goldenLabelKey("s1_2137965_000119312526308950", "underwriters")]: [
-    { legal_name: "Jefferies LLC", common_name: "Jefferies", role: "lead" },
+    { legal_name: "Jefferies LLC", role: "lead" },
   ],
   // doubling set — offering-terms
   [goldenLabelKey("s1_1083743_000149315226025047", "offering-terms")]: [
@@ -3803,7 +3803,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   // doubling set — spac-sponsors
   [goldenLabelKey("s1_2098410_000110465926086682", "spac-sponsors")]: [
-    { legal_name: "Bluerock Acquisition Holdings II, LLC", common_name: "Bluerock Acquisition Holdings" },
+    { legal_name: "Bluerock Acquisition Holdings II, LLC" },
   ],
   // doubling set — risk-factors
   [goldenLabelKey("s1_1083743_000149315226025047", "risk-factors")]: [
@@ -5388,7 +5388,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // is worth labelling: the extractor should read the sponsor a section names,
   // not assume the SPAC shape its own name implies.
   [goldenLabelKey("s1_2087989_000143774926019444", "spac-sponsors")]: [
-    { legal_name: "Teucrium Asset Management, LLC", common_name: "Teucrium Asset Management" },
+    { legal_name: "Teucrium Asset Management, LLC" },
   ],
 
   // ── spac-classification ────────────────────────────────────────────────────

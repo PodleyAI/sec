@@ -81,10 +81,10 @@ export class FamilyResolver {
 
   constructor(private opts: FamilyResolverOptions) {}
 
-  async resolve(commonName: string): Promise<string> {
-    const normalized = normalizeFamilyName(commonName);
+  async resolve(name: string): Promise<string> {
+    const normalized = normalizeFamilyName(name);
     if (!normalized) {
-      throw new Error(`cannot resolve ${this.opts.kind} family: empty common name`);
+      throw new Error(`cannot resolve ${this.opts.kind} family: empty name`);
     }
     const key = `${this.opts.activeResolverVersion}|${this.opts.kind}-family|${normalized}`;
 
@@ -104,7 +104,7 @@ export class FamilyResolver {
           candidateId = existing;
         } else {
           try {
-            candidateId = await this.opts.createFamily(commonName, normalized);
+            candidateId = await this.opts.createFamily(name, normalized);
           } catch (err) {
             // A concurrent writer in a different process / resolver instance
             // won the UNIQUE constraint race. Re-query so we converge on the

@@ -15,7 +15,10 @@ import {
 } from "workglow";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
+import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
@@ -35,7 +38,19 @@ const OutputSchema = () =>
     matched: Type.Number({ title: "Matched", description: "Filings on the issuer's timeline." }),
     processed: Type.Number({
       title: "Processed",
-      description: "Filings that reported success.",
+      description: "Filings whose latest extractor run was `success`.",
+    }),
+    partial: Type.Number({
+      title: "Partial",
+      description: "Filings where some sections extracted and others dead-lettered.",
+    }),
+    failed: Type.Number({
+      title: "Failed",
+      description: "Filings whose latest run was `failure`, or that wrote no run row.",
+    }),
+    triage: Type.Number({
+      title: "Triage entries",
+      description: "Pending dead-letter entries across the replayed filings.",
     }),
     firstDate: Type.String({ title: "First", description: "Earliest filing_date processed." }),
     lastDate: Type.String({ title: "Last", description: "Latest filing_date processed." }),
@@ -115,14 +130,7 @@ export class ProcessSpacTimelineTask extends Task<
         throw aborted;
       }
       if (e instanceof SecCliConfigurationError) throw e;
-      return {
-        cik,
-        matched: 0,
-        processed: 0,
-        firstDate: "",
-        lastDate: "",
-        error: e instanceof Error ? e.message : String(e),
-      };
+      return emptyOutcome(cik, e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -151,7 +159,7 @@ export class ProcessSpacTimelineTask extends Task<
       });
 
     if (timeline.length === 0) {
-      return { cik, matched: 0, processed: 0, firstDate: "", lastDate: "", error: "" };
+      return emptyOutcome(cik, "");
     }
 
     const wf = context.own(new Workflow(), {
@@ -161,7 +169,7 @@ export class ProcessSpacTimelineTask extends Task<
     const loop = wf.map({ concurrencyLimit: 1, maxIterations: timeline.length });
     loop.pipe(new ProcessAccessionDocFormTask());
     loop.endMap();
-    const mapped = (await wf.run({
+    await wf.run({
       cik: timeline.map(() => cik),
       form: timeline.map((f) => f.form),
       accessionNumber: timeline.map((f) => f.accession_number),
@@ -169,15 +177,21 @@ export class ProcessSpacTimelineTask extends Task<
       // without a primary document threw out of the whole issuer's replay.
       // Left absent, the form task resolves it or dead-letters that one filing.
       fileName: timeline.map((f) => resolvePrimaryDocName(f.primary_doc)),
-    })) as { readonly success?: unknown };
+    });
 
+    // Counts come from the persisted `extractor_runs` rows rather than the
+    // sub-task's boolean. ProcessAccessionDocFormTask returns `{ success: true }`
+    // whenever store did not throw — including when a section dead-lettered and
+    // the run was recorded `partial`. Counting that boolean printed "52/52
+    // filings" for a CIK whose DRS underwriters section came back MODEL_EMPTY.
+    const counts = await countTimelineOutcomes(cik, timeline);
     return {
       cik,
       matched: timeline.length,
-      // `ProcessAccessionDocFormTask` contains its own failures and reports
-      // them on a `success` port, so counting the timeline length here printed
-      // "58/58 filings" for a CIK whose 58 filings all dead-lettered.
-      processed: countSuccesses(mapped.success),
+      processed: counts.succeeded,
+      partial: counts.partial,
+      failed: counts.failed,
+      triage: counts.triage,
       firstDate: timeline[0]!.filing_date ?? "",
       lastDate: timeline[timeline.length - 1]!.filing_date ?? "",
       error: "",
@@ -185,11 +199,58 @@ export class ProcessSpacTimelineTask extends Task<
   }
 }
 
+function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput {
+  return {
+    cik,
+    matched: 0,
+    processed: 0,
+    partial: 0,
+    failed: 0,
+    triage: 0,
+    firstDate: "",
+    lastDate: "",
+    error,
+  };
+}
+
 /**
- * Successful iterations in a map's merged `success` column, which is one array
- * per output port regardless of how many iterations ran — a one-filing replay
- * merges to `[true]`, not to `true`.
+ * Per-filing outcomes for one issuer's replay, matching the form-fetch
+ * counter: the form's own extractor, newest run by `ran_at`, and every
+ * pending dead-letter on those accessions (including sub-extractors). A
+ * filing with no run row for its extractor counts as failed.
  */
-function countSuccesses(success: unknown): number {
-  return Array.isArray(success) ? success.filter((s) => s === true).length : 0;
+async function countTimelineOutcomes(
+  cik: number,
+  timeline: readonly Filing[]
+): Promise<{
+  readonly succeeded: number;
+  readonly partial: number;
+  readonly failed: number;
+  readonly triage: number;
+}> {
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  const deadLetterRepo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+  let succeeded = 0;
+  let partial = 0;
+  let failed = 0;
+  let triage = 0;
+  for (const filing of timeline) {
+    const extractorId = filing.form !== null ? formToExtractorId(filing.form) : undefined;
+    if (extractorId === undefined) {
+      failed++;
+      continue;
+    }
+    const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
+    if (latest?.outcome === "success") succeeded++;
+    else if (latest?.outcome === "partial") partial++;
+    else failed++;
+
+    const pending =
+      (await deadLetterRepo.query({
+        accession_number: filing.accession_number,
+        status: "pending",
+      })) ?? [];
+    triage += pending.length;
+  }
+  return { succeeded, partial, failed, triage };
 }

@@ -312,15 +312,12 @@ export class ProcessAccessionDocFormTask extends Task<
       throw new TaskError(`Filing ${accessionNumber} has no form type`);
     }
 
-    // Per-iteration progress label. In the forms sweep each ProcessAccessionDoc
-    // run is one iteration of the outer ForEach, so the updateProgress calls
-    // below surface on that iteration's CLI row (the framework forwards a task's
-    // progress → the iteration subgraph's graph_progress → the iterator's
-    // iteration_progress event). Without them the row is just a bare spinner —
-    // they identify which filing a worker is on and which stage it reached.
-    // First emitted at the fetch stage (below), i.e. only once the filing is
-    // actually committed to processing — after extractor/slot resolution.
+    // Per-iteration identity. `spac process` and the forms sweep reuse ONE
+    // instance across filings; `setTitle` is what the CLI re-reads for the row
+    // label (updateProgress is the stage, and a nested "Generating" phase
+    // overwrites it). Matches the download sweep's `${form} ${accession}`.
     const label = `${form} ${accessionNumber}`;
+    this.setTitle(label);
 
     // Registration prospectus forms (S-1 / DRS family) are fetched as the full
     // submission .txt so Form.parse() can read the <SEC-HEADER> and select the

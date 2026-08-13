@@ -47,6 +47,7 @@ async function runS1With(html: string): Promise<void> {
     form: "S-1",
     formS1: { header: NULL_HEADER, html, xbrlInstanceXml: null, feeExhibitHtml: null },
     model: fakeS1Model(),
+    extractRiskFactors: true,
   });
 }
 
@@ -65,6 +66,66 @@ describe("processFormS1 risk factors", () => {
     cleanup?.();
     cleanup = undefined;
     resetDependencyInjectionsForTesting();
+  });
+
+  it("does not persist risk-factor rows while the section is parked", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        risks: [
+          { headline: FIRST, category: CATEGORY, confidence: 0.9, source_span: FIRST },
+          { headline: SECOND, category: CATEGORY, confidence: 0.8, source_span: SECOND },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: ACCESSION,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    expect(await new RiskFactorRepo().queryByAccession(ACCESSION)).toHaveLength(0);
+    const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");
+    expect(entry?.status ?? "resolved").toBe("resolved");
+  });
+
+  it("does not clear previously extracted risk-factor rows while parked", async () => {
+    const first = registerFakeStructuredProvider([
+      {
+        risks: [
+          { headline: FIRST, category: CATEGORY, confidence: 0.9, source_span: FIRST },
+          { headline: SECOND, category: CATEGORY, confidence: 0.8, source_span: SECOND },
+        ],
+      },
+    ]);
+    await runS1();
+    first.unregister();
+    expect(await new RiskFactorRepo().queryByAccession(ACCESSION)).toHaveLength(2);
+
+    const { unregister } = registerFakeStructuredProvider([
+      { risks: [{ headline: FIRST, category: CATEGORY, confidence: 0.9, source_span: FIRST }] },
+    ]);
+    cleanup = unregister;
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: ACCESSION,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const rows = await new RiskFactorRepo().queryByAccession(ACCESSION);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.headline)).toEqual([FIRST, SECOND]);
   });
 
   it("writes one row per risk caption, in document order", async () => {
@@ -266,6 +327,7 @@ describe("processFormS1 risk factors", () => {
         feeExhibitHtml: null,
       },
       model: fakeS1Model(),
+      extractRiskFactors: true,
     });
 
     const entry = await new ExtractionDeadLetterRepo().get("S-1", ACCESSION, "risk-factors");

@@ -63,6 +63,25 @@ describe("ProcessAccessionDocFormTask (versioned)", () => {
     ).rejects.toThrow(/No extractor.*10-K/i);
   });
 
+  it("relabels the reused instance with form and accession", async () => {
+    // `spac process` (and the forms sweep) pipes one instance through a map;
+    // without setTitle the CLI row stays "Process filing document" for every
+    // filing. This path throws before fetch, so the label is observable
+    // without the network.
+    await seedFiling({
+      cik: 1234567,
+      accession_number: "0001234567-25-000001",
+      form: "10-K",
+      primary_doc: "primary_doc.xml",
+    });
+    const task = new ProcessAccessionDocFormTask();
+    expect(task.title).toBe("Process filing document");
+    await expect(
+      task.execute({ accessionNumber: "0001234567-25-000001" }, { own: <T>(x: T): T => x } as any)
+    ).rejects.toThrow(/No extractor.*10-K/i);
+    expect(task.title).toBe("10-K 0001234567-25-000001");
+  });
+
   it("throws if no current version is bootstrapped for the form's extractor", async () => {
     const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     // bootstrap ran in setupAllDatabases; clear the D current slot for this test

@@ -26,7 +26,7 @@ const BODY = [
   "<h1>MANAGEMENT</h1><p>x</p>",
   "<h1>PRINCIPAL AND SELLING STOCKHOLDERS</h1><p>x</p>",
   "<h1>CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</h1>",
-  "<p>The Sponsor backs this SPAC. Acme Sponsor 2, LLC and Acme Sponsor, LLC are the sponsors.</p>",
+  "<p>The Sponsor backs this SPAC. Acme Sponsor 2, LLC and Acme Sponsor, LLC are the sponsors. 26 Capital Holdings LLC is the sponsor of 26 Capital Acquisition Corp.</p>",
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
@@ -77,7 +77,6 @@ describe("SPAC sponsor end-to-end", () => {
         sponsors: [
           {
             legal_name: "Acme Sponsor 2, LLC",
-            common_name: "Acme Sponsor",
             confidence: 0.95,
             source_span: "Acme Sponsor 2, LLC",
           },
@@ -97,14 +96,33 @@ describe("SPAC sponsor end-to-end", () => {
     expect(await new SpacSponsorLinkRepo().listIssuerCiksForFamily(famId)).toEqual([1848507]);
   });
 
-  it("unifies two SPACs with the same sponsor common name under one family", async () => {
+  it("keys the sponsor family off the legal name so Holdings is kept", async () => {
+    // Live split: the model sometimes emitted common_name "26 Capital" and
+    // sometimes "26 Capital Holdings" for the same legal entity. The family
+    // key is now companyFamilyName(legal_name), which keeps Holdings.
+    const holdings = {
+      legal_name: "26 Capital Holdings LLC",
+      confidence: 0.95,
+      source_span: "26 Capital Holdings LLC",
+    };
+    ({ unregister } = registerFakeStructuredProvider([...EMPTY_SECTIONS, { sponsors: [holdings] }]));
+    await processFormS1(runArgs(1822912, "0000000000-26-000801", 6770));
+    unregister?.();
+
+    ({ unregister } = registerFakeStructuredProvider([...EMPTY_SECTIONS, { sponsors: [holdings] }]));
+    await processFormS1(runArgs(1822912, "0000000000-26-000802", 6770));
+
+    const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.map((f) => f.normalized_name).sort()).toEqual(["26-CAPITAL-HOLDINGS"]);
+  });
+
+  it("unifies series vehicles of one sponsor under one family", async () => {
     ({ unregister } = registerFakeStructuredProvider([
       ...EMPTY_SECTIONS,
       {
         sponsors: [
           {
             legal_name: "Acme Sponsor, LLC",
-            common_name: "Acme Sponsor",
             confidence: 0.9,
             source_span: "Acme Sponsor, LLC",
           },
@@ -120,7 +138,6 @@ describe("SPAC sponsor end-to-end", () => {
         sponsors: [
           {
             legal_name: "Acme Sponsor 2, LLC",
-            common_name: "Acme Sponsor",
             confidence: 0.9,
             source_span: "Acme Sponsor 2, LLC",
           },
@@ -130,7 +147,7 @@ describe("SPAC sponsor end-to-end", () => {
     await processFormS1(runArgs(222, "0000000000-26-000302", 6770));
 
     const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
-    expect(families.length).toBe(1); // same common name -> one family
+    expect(families.length).toBe(1);
     const famId = families[0].canonical_sponsor_family_id;
 
     const members = await new SponsorFamilyMembershipRepo().listCompaniesForFamily("1.0.0", famId);
@@ -159,13 +176,11 @@ describe("SPAC sponsor end-to-end", () => {
             // Both rows have plausible names but neither source_span appears
             // anywhere in the BODY sections — this is the LLM-hallucination case.
             legal_name: "Phantom Sponsor, LLC",
-            common_name: "Phantom Sponsor",
             confidence: 0.95,
             source_span: "This phrase is not anywhere in the prospectus body.",
           },
           {
             legal_name: "Ghost Capital, LLC",
-            common_name: "Ghost Capital",
             confidence: 0.95,
             source_span: "Another fabricated quotation that does not occur.",
           },
@@ -195,14 +210,12 @@ describe("SPAC sponsor end-to-end", () => {
           {
             // Verified: this exact phrase appears in the related-party section.
             legal_name: "Acme Sponsor, LLC",
-            common_name: "Acme Sponsor",
             confidence: 0.95,
             source_span: "The Sponsor backs this SPAC.",
           },
           {
             // Hallucinated: this phrase does not appear in any section text.
             legal_name: "Phantom Sponsor, LLC",
-            common_name: "Phantom Sponsor",
             confidence: 0.95,
             source_span: "Phrase definitely not present in the body.",
           },
@@ -233,8 +246,8 @@ describe("SPAC sponsor end-to-end", () => {
       ...EMPTY_SECTIONS,
       {
         sponsors: [
-          { legal_name: "", common_name: "", confidence: 0.9, source_span: "x" }, // degenerate
-          { legal_name: "Acme Sponsor, LLC", common_name: "Acme Sponsor", confidence: 0.9, source_span: "Acme Sponsor, LLC" },
+          { legal_name: "", confidence: 0.9, source_span: "x" }, // degenerate
+          { legal_name: "Acme Sponsor, LLC", confidence: 0.9, source_span: "Acme Sponsor, LLC" },
         ],
       },
     ]));

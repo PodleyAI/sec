@@ -12,7 +12,11 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
 import { ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
 
 const CIK = 1800001;
@@ -99,6 +103,8 @@ describe("ProcessSpacTimelineTask", () => {
 
     expect(out.matched).toBe(2);
     expect(out.processed).toBe(0);
+    expect(out.failed).toBe(2);
+    expect(out.partial).toBe(0);
     expect(out.cik).toBe(CIK);
     expect(out.error).toBe("");
     expect(out.firstDate).toBe("2021-01-04");
@@ -119,6 +125,8 @@ describe("ProcessSpacTimelineTask", () => {
 
     expect(out.matched).toBe(2);
     expect(out.processed).toBe(1);
+    expect(out.failed).toBe(1);
+    expect(out.partial).toBe(0);
     expect(out.error).toBe("");
   });
 
@@ -138,9 +146,65 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.processed).toBe(0);
   });
 
+  it("counts a store-completed filing whose sections dead-lettered as partial, not processed", async () => {
+    // ProcessAccessionDocFormTask returns `{ success: true }` when store did
+    // not throw, even if a section dead-lettered and extractor_runs recorded
+    // `outcome: "partial"`. Counting that boolean printed "52/52 filings" for
+    // a CIK whose DRS/S-1 underwriters section came back MODEL_EMPTY.
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04", "primary_doc.xml");
+
+    const proto = ProcessAccessionDocFormTask.prototype;
+    const real = proto.execute;
+    proto.execute = async (input) => {
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      await runRepo.recordRun({
+        cik: CIK,
+        accession_number: input.accessionNumber!,
+        form: "D",
+        extractor_id: "D",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: false,
+        outcome: "partial",
+        error: null,
+      });
+      await new ExtractionDeadLetterRepo().record({
+        extractor_id: "D",
+        accession_number: input.accessionNumber!,
+        section_name: "underwriters",
+        reason_code: "MODEL_EMPTY",
+        detail: "no underwriters returned",
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+      return { success: true };
+    };
+
+    try {
+      const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+      expect(out.matched).toBe(1);
+      expect(out.processed).toBe(0);
+      expect(out.partial).toBe(1);
+      expect(out.failed).toBe(0);
+      expect(out.triage).toBe(1);
+      expect(out.error).toBe("");
+    } finally {
+      proto.execute = real;
+    }
+  });
+
   it("echoes the cik so a fan-out's result columns are self-labelling", async () => {
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
     // No filings at all is still an answer about THIS issuer.
-    expect(out).toMatchObject({ cik: CIK, matched: 0, processed: 0, error: "" });
+    expect(out).toMatchObject({
+      cik: CIK,
+      matched: 0,
+      processed: 0,
+      partial: 0,
+      failed: 0,
+      error: "",
+    });
   });
 });

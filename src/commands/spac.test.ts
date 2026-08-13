@@ -11,7 +11,7 @@ import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
 import { ProcessSpacTimelineTask } from "../task/spac/ProcessSpacTimelineTask";
-import { assembleSpacReport, spacProcessRows } from "./spac";
+import { assembleSpacReport, formatSpacProcessSummary, spacProcessRows } from "./spac";
 
 describe("assembleSpacReport", () => {
   beforeEach(async () => {
@@ -53,6 +53,9 @@ describe("spacProcessRows", () => {
         cik: [11, 22, 33],
         matched: [5, 0, 2],
         processed: [5, 0, 0],
+        partial: [0, 0, 0],
+        failed: [0, 0, 0],
+        triage: [0, 0, 0],
         firstDate: ["2021-01-01", "", "2022-01-01"],
         lastDate: ["2021-12-31", "", "2022-06-30"],
         error: ["", "", "filing store unavailable"],
@@ -62,15 +65,31 @@ describe("spacProcessRows", () => {
         cik: 11,
         matched: 5,
         processed: 5,
+        partial: 0,
+        failed: 0,
+        triage: 0,
         firstDate: "2021-01-01",
         lastDate: "2021-12-31",
         error: "",
       },
-      { cik: 22, matched: 0, processed: 0, firstDate: "", lastDate: "", error: "" },
+      {
+        cik: 22,
+        matched: 0,
+        processed: 0,
+        partial: 0,
+        failed: 0,
+        triage: 0,
+        firstDate: "",
+        lastDate: "",
+        error: "",
+      },
       {
         cik: 33,
         matched: 2,
         processed: 0,
+        partial: 0,
+        failed: 0,
+        triage: 0,
         firstDate: "2022-01-01",
         lastDate: "2022-06-30",
         error: "filing store unavailable",
@@ -107,6 +126,9 @@ describe("spacProcessRows", () => {
           cik,
           matched: 0,
           processed: 0,
+          partial: 0,
+          failed: 0,
+          triage: 0,
           firstDate: "",
           lastDate: "",
           error: "",
@@ -114,4 +136,40 @@ describe("spacProcessRows", () => {
       );
     }
   );
+});
+
+describe("formatSpacProcessSummary", () => {
+  it("keeps a clean run as CIK: N/N filings (from → to)", () => {
+    expect(
+      formatSpacProcessSummary({
+        cik: 1822912,
+        matched: 52,
+        processed: 52,
+        partial: 0,
+        failed: 0,
+        triage: 0,
+        firstDate: "2020-09-23",
+        lastDate: "2023-10-03",
+        error: "",
+      })
+    ).toBe("1822912: 52/52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
+
+  it("names partial filings and pending triage so a degraded replay cannot read as 52/52", () => {
+    expect(
+      formatSpacProcessSummary({
+        cik: 1822912,
+        matched: 52,
+        processed: 51,
+        partial: 1,
+        failed: 0,
+        triage: 11,
+        firstDate: "2020-09-23",
+        lastDate: "2023-10-03",
+        error: "",
+      })
+    ).toBe(
+      "1822912: 51/52 filings (2020-09-23 \u2192 2023-10-03); 1 partial; 11 section(s) pending triage"
+    );
+  });
 });

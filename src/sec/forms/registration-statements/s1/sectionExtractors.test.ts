@@ -238,7 +238,6 @@ it("extractUnderwriters returns parsed underwriter rows", async () => {
       underwriters: [
         {
           legal_name: "Goldman Sachs & Co. LLC",
-          common_name: "Goldman Sachs",
           role: "lead",
           shares_allocated: 3000000,
           over_allotment_shares: 450000,
@@ -250,7 +249,7 @@ it("extractUnderwriters returns parsed underwriter rows", async () => {
   ]);
   try {
     const rows = await extractUnderwriters("UNDERWRITING ...", fakeS1Model());
-    expect(rows[0].common_name).toBe("Goldman Sachs");
+    expect(rows[0].legal_name).toBe("Goldman Sachs & Co. LLC");
     expect(rows[0].role).toBe("lead");
   } finally {
     unregister();
@@ -263,7 +262,6 @@ it("extractSpacSponsors returns scripted sponsor rows", async () => {
       sponsors: [
         {
           legal_name: "Pershing Square Sponsor 2, LLC",
-          common_name: "Pershing Square Sponsor",
           confidence: 0.95,
           source_span: "Pershing Square Sponsor 2, LLC",
         },
@@ -275,7 +273,6 @@ it("extractSpacSponsors returns scripted sponsor rows", async () => {
       "The Sponsor is Pershing Square Sponsor 2, LLC.",
       fakeS1Model()
     );
-    expect(rows[0].common_name).toBe("Pershing Square Sponsor");
     expect(rows[0].legal_name).toBe("Pershing Square Sponsor 2, LLC");
   } finally {
     unregister();

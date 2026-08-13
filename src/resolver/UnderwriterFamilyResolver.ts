@@ -21,9 +21,10 @@ interface UnderwriterFamilyResolverOptions {
 }
 
 /**
- * Resolves an underwriter *common* name to a CanonicalUnderwriterFamily id:
+ * Resolves an underwriter legal name to a CanonicalUnderwriterFamily id:
  * normalize → find-or-create at the active resolver version → alias resolve.
- * Name-only analogue of SponsorFamilyResolver. Thin wrapper over the shared
+ * The family key is {@link companyFamilyName} of that legal name. Name-only
+ * analogue of SponsorFamilyResolver. Thin wrapper over the shared
  * {@link FamilyResolver}.
  */
 export class UnderwriterFamilyResolver {
@@ -55,7 +56,7 @@ export class UnderwriterFamilyResolver {
     });
   }
 
-  async resolve(commonName: string): Promise<string> {
-    return this.core.resolve(commonName);
+  async resolve(name: string): Promise<string> {
+    return this.core.resolve(name);
   }
 }

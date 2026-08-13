@@ -29,6 +29,7 @@ import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 import type { RunSection } from "./sectionRunner";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
 import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
@@ -422,7 +423,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     text: byName.get(S1_SECTIONS.UNDERWRITING),
     emptyDetail: "no underwriters returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    invalidWriteDetail: "no underwriter rows had usable legal and common names",
+    invalidWriteDetail: "no underwriter rows had a usable legal name",
     // Prompt-injection backstop: refuse to persist any underwriter row whose
     // source_span is not a verbatim substring of the Underwriting section text.
     verifyRow: (text, r) => classifySpan(text, r.source_span),
@@ -443,10 +444,14 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       // Markets Limited" are two entities that share one family, and collapsing
       // on the family would silently drop the second.
       const seenLegalNames = new Set<string>();
+      const extractedNames = rows.map((r) => r.legal_name?.trim() ?? "");
       for (const r of rows) {
         const legalName = r.legal_name?.trim() ?? "";
-        const commonName = r.common_name?.trim() ?? "";
-        if (legalName === "" || commonName === "") continue;
+        if (legalName === "") continue;
+        // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
+        // & Co.") is one house, not two. Inc vs Limited of the same house are
+        // equal-length family keys and are not dropped.
+        if (isCompanyFamilyPrefixEcho(legalName, extractedNames)) continue;
         const dedupeKey = normalizeEntityName(legalName);
         if (seenLegalNames.has(dedupeKey)) continue;
         seenLegalNames.add(dedupeKey);
@@ -467,7 +472,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           prompt_version: extractor_version,
           extra: null,
         });
-        const underwriter_family_id = await underwriterFamilyResolver.resolve(commonName);
+        const underwriter_family_id = await underwriterFamilyResolver.resolve(legalName);
         await underwriterMembershipRepo.record({
           resolver_version: activeUnderwriterFamilyVersion,
           canonical_company_id,

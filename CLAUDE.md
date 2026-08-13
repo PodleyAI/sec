@@ -1009,7 +1009,14 @@ That entry is flagged **`disabled: true`**, so `risk-factors` is **excluded from
 both harnesses' default sweeps** — its 42 golden labels are still committed and
 still guarded, but a chunked ~246k-char section run over the whole corpus is not
 something a bare `sec eval extract` or `sec eval s1` should charge you for.
-Naming it runs it, in either harness:
+Naming it runs it, in either harness.
+
+Production extraction is parked too (`EXTRACT_S1_RISK_FACTORS` in
+`Form_S_1.storage.ts`). `sec spac process` / `sec update forms` skip the AI
+call, leave any previously extracted rows in place, and do not dead-letter the
+section. Flip the constant (or pass `extractRiskFactors: true` in tests) to
+turn it back on; already-processed S-1s then need `sec extractor backfill S-1
+--force`.
 
 ```bash
 sec eval extract --extractor risk-factors        # explicit: runs despite the flag
