@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
 
 export type CompanyImport = {
   company_name: string;
@@ -215,15 +215,15 @@ export function normalizeCompanyName(name: string): string | null {
  * Generates a hash ID for a company based on normalized name components
  */
 export function generateCompanyHash(company_name: string): string {
-  const hashString = company_name
+  // `foldDiacritics` rather than a bare NFD pass: NFD leaves `ø` and `ł`
+  // untouched (their mark is inside the glyph, not a combining character), so
+  // the old code hashed `Søren` and `Soren` to two different companies.
+  const hashString = foldDiacritics(company_name)
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/-&-/g, "-and-")
     .replaceAll(/\//g, "-")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
     .replaceAll(/--/g, "-")
     .trim()
     .replace(/^-|-$/g, "");

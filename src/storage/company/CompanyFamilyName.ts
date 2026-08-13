@@ -9,7 +9,7 @@ import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataClean
 /**
  * The *family* a company name belongs to — the sponsor or underwriter behind a
  * vehicle, rather than the vehicle itself. `WAVE Equity Fund II, L.P.` and
- * `WAVE Equity Fund III, LLC` are two funds of one family, `wave-equity`.
+ * `WAVE Equity Fund, LLC` are two vehicles of one family, `wave-equity-fund`.
  *
  * Deliberately lossy, and NOT an identity key. `normalizeCompany` answers "are
  * these the same legal entity" and keeps the legal form and series numeral that
@@ -60,48 +60,30 @@ const LEGAL_FORMS = new Set([
 ]);
 
 /**
- * Vehicle and business-line words that describe what an entity *is* rather than
- * who runs it. Stripped only from the END, and only token-exact — a prefix rule
- * would take `Fundamental Global Inc.` down to nothing on `Fund`.
+ * Business-line words are deliberately NOT stripped.
  *
- * `Equity` is deliberately absent: it is a qualifier inside a house name
- * (`WAVE Equity`), not a vehicle type, and stripping it would take the target
- * of this function's own worked example down to `wave`.
+ * An earlier draft dropped `Capital`, `Ventures`, `Partners`, `Group` and the
+ * rest, which read as harmless boilerplate and is not: those words routinely
+ * distinguish two real houses. `Acme Capital` and `Acme Ventures` can be
+ * unrelated firms, and a rule that folds both to `acme` merges them with no
+ * evidence that they belong together and no way to tell afterwards. A family
+ * key that over-merges is worse than one that under-merges — an under-merge is
+ * visible as two families and fixable with an alias, while an over-merge
+ * silently attributes one house's deals to another.
  *
- * `Global` is also absent, and that is a KNOWN GAP rather than an oversight:
- * dropping it would unify `Citigroup Global Markets Inc.` with `Citigroup`, but
- * would also take the real company `Fundamental Global Inc.` to `Fundamental`.
- * Corrupting a real name is the worse error, so the miss is accepted until
- * there is a corpus big enough to tell the two shapes apart.
+ * So this strips only what carries no identity in any name: the legal form, the
+ * series marker that separates one vehicle from the next, and structural noise.
+ * `Chardan Capital Markets` therefore stays `chardan-capital-markets` rather
+ * than becoming `chardan`, and the two are joined by an explicit alias:
+ *
+ * ```sh
+ * sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
+ * ```
+ *
+ * That is the right home for it: an alias is a stated, reviewable claim that
+ * two names are one house, recorded once by someone who checked — which is what
+ * these cases actually are. They are also rare, so the cost is small.
  */
-const VEHICLE_WORDS = new Set([
-  "fund",
-  "funds",
-  "capital",
-  "partners",
-  "partnership",
-  "holding",
-  "holdings",
-  "group",
-  "securities",
-  "markets",
-  "market",
-  "sponsor",
-  "sponsors",
-  "venture",
-  "ventures",
-  "management",
-  "advisors",
-  "advisers",
-  "associates",
-  "investment",
-  "investments",
-  "invest",
-  "acquisition",
-  "acquisitions",
-  "portfolio",
-  "master",
-]);
 
 /** A roman numeral (series marker): `II`, `XIII`, `VG VI`'s `VI`. */
 const ROMAN = /^[ivxlcdm]+$/;
@@ -118,7 +100,6 @@ const BLOC_PREFIX = /^entit(?:y|ies)\s+(?:affiliated\s+with|of)\s+/i;
 function isDroppableTail(token: string): boolean {
   return (
     LEGAL_FORMS.has(token) ||
-    VEHICLE_WORDS.has(token) ||
     ROMAN.test(token) ||
     SERIES_NUMBER.test(token) ||
     // A conjunction stranded by the token it joined: `Goldman Sachs & Co. LLC`
@@ -131,11 +112,15 @@ function isDroppableTail(token: string): boolean {
 /**
  * Family slug for a company name, or `""` when the name yields none.
  *
- * Trailing legal forms, vehicle words and series markers are dropped
- * repeatedly, so `Churchill Sponsor XIII LLC` loses `llc`, then `xiii`, then
- * `sponsor`. Stripping never empties the result: `Fund III` is nothing BUT
- * droppable tokens, and a name that says only "the third fund" identifies no
- * house, so the last non-empty state is kept rather than returning nothing.
+ * Trailing legal forms and series markers are dropped repeatedly, so
+ * `Churchill Sponsor XIII LLC` loses `llc`, then `xiii`, and keeps
+ * `churchill-sponsor`. Business-line words stay (see {@link LEGAL_FORMS}'s
+ * neighbouring note) — joining `Chardan Capital Markets` to `Chardan` is an
+ * alias's job, not a normalizer's.
+ *
+ * Stripping never empties the result: `Fund III` is nothing BUT droppable
+ * tokens, and a name that says only "the third fund" identifies no house, so
+ * the last non-empty state is kept rather than returning nothing.
  */
 export function companyFamilyName(name: string | null | undefined): string {
   if (!name) return "";
@@ -154,6 +139,7 @@ export function companyFamilyName(name: string | null | undefined): string {
   // `ukasz`, a different name). NFD alone is not enough: `ø` and `ł` carry the
   // mark inside the glyph and have no combining form to strip.
   const base = foldDiacritics(folded)
+    .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

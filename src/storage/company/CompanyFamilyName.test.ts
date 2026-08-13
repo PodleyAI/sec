@@ -15,15 +15,25 @@ import { normalizeCompany } from "./CompanyNormalization";
  */
 describe("companyFamilyName", () => {
   it("takes a fund vehicle to its house", () => {
-    expect(companyFamilyName("WAVE Equity Fund II, L.P.")).toBe("wave-equity");
-    expect(companyFamilyName("WAVE Equity Fund, LLC")).toBe("wave-equity");
+    // The series marker and legal form go; `Fund` stays, because a
+    // business-line word can distinguish two real houses.
+    expect(companyFamilyName("WAVE Equity Fund II, L.P.")).toBe("wave-equity-fund");
+    expect(companyFamilyName("WAVE Equity Fund, LLC")).toBe("wave-equity-fund");
+  });
+
+  it("keeps business-line words, leaving those joins to an alias", () => {
+    // `Acme Capital` and `Acme Ventures` can be unrelated firms; folding both
+    // to `acme` would merge them with no evidence and no way to tell after.
+    expect(companyFamilyName("Acme Capital LLC")).toBe("acme-capital");
+    expect(companyFamilyName("Acme Ventures LLC")).toBe("acme-ventures");
+    expect(companyFamilyName("Acme Capital LLC")).not.toBe(companyFamilyName("Acme Ventures LLC"));
+    // Chardan is the rare real join, and it is an alias's job, not this one's.
+    expect(companyFamilyName("Chardan Capital Markets LLC")).toBe("chardan-capital-markets");
+    expect(companyFamilyName("Chardan")).toBe("chardan");
   });
 
   it.each([
-    ["Chardan", "Chardan Capital Markets LLC"],
     ["Goldman Sachs", "Goldman Sachs & Co. LLC"],
-    ["Credit Suisse", "Credit Suisse Securities (USA) LLC"],
-    ["EcoR1", "EcoR1 Capital LLC"],
     ["Cantor Fitzgerald", "Cantor Fitzgerald & Co."],
     ["Jefferies", "Jefferies LLC"],
     ["J.P. Morgan Securities", "J.P. Morgan Securities LLC"],
@@ -42,10 +52,12 @@ describe("companyFamilyName", () => {
   });
 
   it("strips series markers, sponsors and legal forms together", () => {
-    expect(companyFamilyName("Churchill Sponsor XIII LLC")).toBe("churchill");
-    expect(companyFamilyName("Longitude Venture Partners V, L.P.")).toBe("longitude");
-    expect(companyFamilyName("Curnes Fund 2001")).toBe("curnes");
-    expect(companyFamilyName("CQ Invest I LLC")).toBe("cq");
+    expect(companyFamilyName("Churchill Sponsor XIII LLC")).toBe("churchill-sponsor");
+    expect(companyFamilyName("Longitude Venture Partners V, L.P.")).toBe(
+      "longitude-venture-partners"
+    );
+    expect(companyFamilyName("Curnes Fund 2001")).toBe("curnes-fund");
+    expect(companyFamilyName("CQ Invest I LLC")).toBe("cq-invest");
   });
 
   it("keeps an ampersand's words and drops the conjunction it strands", () => {
@@ -66,18 +78,20 @@ describe("companyFamilyName", () => {
     // NFD does not decompose these, so an NFD-only fold left them for the ASCII
     // filter, which turned `Søren` into `s ren` and DELETED the `Ł` in
     // `Łukasz`. A name silently missing a letter is a different name.
-    expect(companyFamilyName("Søren Skou Holdings LLC")).toBe("soren-skou");
-    expect(companyFamilyName("Søren Skou Holdings LLC")).toBe(companyFamilyName("Soren Skou"));
-    expect(companyFamilyName("Łukasz Nowak Capital")).toBe("lukasz-nowak");
-    expect(companyFamilyName("Łukasz Nowak Capital")).toBe(companyFamilyName("Lukasz Nowak"));
-    expect(companyFamilyName("Ærø Invest ApS")).toBe("aero");
+    expect(companyFamilyName("Søren Skou LLC")).toBe("soren-skou");
+    expect(companyFamilyName("Søren Skou LLC")).toBe(companyFamilyName("Soren Skou"));
+    expect(companyFamilyName("Łukasz Nowak")).toBe("lukasz-nowak");
+    expect(companyFamilyName("Łukasz Nowak")).toBe(companyFamilyName("Lukasz Nowak"));
+    expect(companyFamilyName("Ærø ApS")).toBe("aero");
   });
 
   it("drops a bloc prefix and a parenthetical jurisdiction", () => {
     expect(companyFamilyName("Entities affiliated with Osage University Partners")).toBe(
-      "osage-university"
+      "osage-university-partners"
     );
-    expect(companyFamilyName("B&R Technology Sponsor LLC (Cayman)")).toBe("b-and-r-technology");
+    expect(companyFamilyName("B&R Technology Sponsor LLC (Cayman)")).toBe(
+      "b-and-r-technology-sponsor"
+    );
   });
 
   it("is token-exact, so a name merely starting with a vehicle word survives", () => {
@@ -88,7 +102,7 @@ describe("companyFamilyName", () => {
   it("never strips a name down to nothing", () => {
     // Every token is droppable and the name identifies no house, so it is kept
     // whole rather than resolving to "" and colliding with every other such name.
-    expect(companyFamilyName("Fund III")).toBe("fund-iii");
+    expect(companyFamilyName("Fund III")).toBe("fund");
     expect(companyFamilyName("Holdings")).toBe("holdings");
   });
 

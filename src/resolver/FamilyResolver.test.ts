@@ -8,9 +8,27 @@ import { describe, expect, it } from "vitest";
 import { normalizeFamilyName } from "./FamilyResolver";
 
 describe("normalizeFamilyName", () => {
-  it("upper-cases the result so existing canonical rows stay reachable", () => {
-    expect(normalizeFamilyName("Goldman Sachs")).toBe("GOLDMAN SACHS");
-    expect(normalizeFamilyName("Pershing Square Sponsor")).toBe("PERSHING SQUARE SPONSOR");
+  it("upper-cases a hyphen-joined slug", () => {
+    // The key is `companyFamilyName`'s slug, upper-cased: hyphen-joined rather
+    // than space-separated, so it is stable to whitespace by construction.
+    expect(normalizeFamilyName("Goldman Sachs")).toBe("GOLDMAN-SACHS");
+    expect(normalizeFamilyName("Pershing Square Sponsor")).toBe("PERSHING-SQUARE-SPONSOR");
+  });
+
+  it("drops the legal form and series marker that separate two vehicles", () => {
+    // What makes a family rebuildable from the legal name: the vehicle-level
+    // differences go, so the roman numeral no longer mints a second family.
+    expect(normalizeFamilyName("Churchill Sponsor XIII LLC")).toBe("CHURCHILL-SPONSOR");
+    expect(normalizeFamilyName("Churchill Sponsor XIV LLC")).toBe("CHURCHILL-SPONSOR");
+  });
+
+  it("keeps business-line words apart, leaving that join to an alias", () => {
+    // `Acme Capital` and `Acme Ventures` can be two firms, so the normalizer
+    // does not guess. `Chardan Capital Markets` -> `Chardan` is an alias.
+    expect(normalizeFamilyName("Acme Capital")).not.toBe(normalizeFamilyName("Acme Ventures"));
+    expect(normalizeFamilyName("Chardan Capital Markets LLC")).not.toBe(
+      normalizeFamilyName("Chardan")
+    );
   });
 
   it("is case-insensitive (folds upper / lower / mixed to the same key)", () => {
@@ -21,8 +39,8 @@ describe("normalizeFamilyName", () => {
     expect(lower).toBe(mixed);
   });
 
-  it("collapses internal whitespace via normalizeCompanyName", () => {
-    expect(normalizeFamilyName("Goldman   Sachs")).toBe("GOLDMAN SACHS");
+  it("collapses internal whitespace", () => {
+    expect(normalizeFamilyName("Goldman   Sachs")).toBe("GOLDMAN-SACHS");
   });
 
   it("returns '' for empty / whitespace-only / null-normalized input", () => {

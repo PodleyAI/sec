@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
 import { CanonicalUnderwriterFamilyAliasRepo } from "../storage/canonical/CanonicalUnderwriterFamilyAliasRepo";
@@ -23,7 +24,7 @@ describe("ipoIssuersByUnderwriterFamilyName", () => {
       canonical_underwriter_family_id: "fam-1",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs",
-      normalized_name: "GOLDMAN SACHS",
+      normalized_name: normalizeUnderwriterFamilyName("Goldman Sachs"),
       created_at: new Date().toISOString(),
     });
     await new UnderwriterLinkRepo().save({
@@ -47,14 +48,14 @@ describe("ipoIssuersByUnderwriterFamilyName", () => {
       canonical_underwriter_family_id: "fam-1",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs",
-      normalized_name: "GOLDMAN SACHS",
+      normalized_name: normalizeUnderwriterFamilyName("Goldman Sachs"),
       created_at: new Date().toISOString(),
     });
     await families.create({
       canonical_underwriter_family_id: "gs-variant",
       resolver_version: "1.0.0",
       display_name: "Goldman Sachs Group",
-      normalized_name: "GOLDMAN SACHS GROUP",
+      normalized_name: normalizeUnderwriterFamilyName("Goldman Sachs Group"),
       created_at: new Date().toISOString(),
     });
     // The AI-emitted variant is merged into the canonical family.

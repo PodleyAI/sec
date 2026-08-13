@@ -33,10 +33,19 @@ describe("UnderwriterFamilyResolver", () => {
       canonicalUnderwriterFamilyAliasRepo: aliases,
       activeResolverVersion: "1.0.0",
     });
-    const x = await resolver.resolve("Morgan Stanley");
-    const y = await resolver.resolve("Morgan Stanley & Co.");
+    // `Morgan Stanley` / `Morgan Stanley & Co.` no longer need an alias — the
+    // normalizer unifies them, since `& Co.` is a legal form and a stranded
+    // conjunction. What still needs one is a business-line join, which the
+    // normalizer deliberately refuses to guess at.
+    expect(await resolver.resolve("Morgan Stanley")).toBe(
+      await resolver.resolve("Morgan Stanley & Co.")
+    );
+
+    const x = await resolver.resolve("Chardan");
+    const y = await resolver.resolve("Chardan Capital Markets LLC");
+    expect(y).not.toBe(x);
     await aliases.add(y, x, "variant", "op");
-    expect(await resolver.resolve("Morgan Stanley & Co.")).toBe(x);
+    expect(await resolver.resolve("Chardan Capital Markets LLC")).toBe(x);
   });
 
   it("serialises alias lookup inside the per-key mutex (no overlapping alias.resolve calls)", async () => {

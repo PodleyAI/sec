@@ -5,7 +5,7 @@
  */
 
 import { parseFullName } from "@sroussey/parse-full-name";
-import { foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
 
 export type PersonImport = {
   name: string;
@@ -55,6 +55,9 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
   // resolver's match tuple uses also keeps this hash and `personKey` from
   // disagreeing about who is the same person — they did before, in both
   // directions.
+  // Accents are already folded by `stripNamePartPunctuation`, so this hash and
+  // the `normalized_*` columns `personKey` matches on agree by construction —
+  // folding only here would recreate exactly the drift the note above warns of.
   const hashString = [person.first, person.middle, person.last, person.suffix, person.notes]
     .filter((v) => v !== null && v !== undefined)
     .join("-")
@@ -72,10 +75,21 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
  * the same person collapse: initials ("J." vs "J") and suffixes ("Jr." vs "Jr",
  * "Martire, III" already comma-split by the parser). Apostrophes and hyphens are
  * meaningful in names and are preserved. Returns null for an emptied value.
+ *
+ * Accents are folded here too, for the same reason and at the same cost: a
+ * filer who writes "Jörg Müller" in one filing and "Jorg Muller" in the next is
+ * naming one person, and without the fold the two spellings produced two
+ * `person_hash_id`s AND two `normalized_*` tuples, so the resolver minted a
+ * second canonical person. The company tier already folded, so the two tiers
+ * disagreed about the same string.
+ *
+ * Only the IDENTITY parts pass through here. The name as the filing wrote it,
+ * accents intact, is stored separately (`first_name` / `last_name` on the
+ * observation) — this feeds the match columns, not the display ones.
  */
 function stripNamePartPunctuation(part: string | null): string | null {
   if (part === null || part === undefined) return part ?? null;
-  const cleaned = part
+  const cleaned = foldDiacritics(part)
     .replace(/[.,]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -137,9 +151,9 @@ export function normalizePerson(importPerson: PersonImport | null): Person | und
   const parsedNick = emptyToNull(results.nick);
   const parsedMiddle = stripNamePartPunctuation(results.middle);
   const person: Omit<Person, "person_hash_id"> = {
-    first: stripNamePartPunctuation(results.first) ?? results.first,
+    first: stripNamePartPunctuation(results.first) ?? foldDiacritics(results.first),
     middle: parsedMiddle ?? stripNamePartPunctuation(parsedNick),
-    last: stripNamePartPunctuation(results.last) ?? results.last,
+    last: stripNamePartPunctuation(results.last) ?? foldDiacritics(results.last),
     suffix: stripNamePartPunctuation(emptyToNull(results.generation)),
     credentials: emptyToNull(results.credential),
     title: results.title,

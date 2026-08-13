@@ -69,18 +69,29 @@ export function foldTypographicPunctuation(s: string): string {
  */
 const NON_DECOMPOSING_LATIN: Record<string, string> = {
   ø: "o",
+  Ø: "O",
   œ: "oe",
+  Œ: "Oe",
   æ: "ae",
+  Æ: "Ae",
   ł: "l",
+  Ł: "L",
   đ: "d",
+  Đ: "D",
   ð: "d",
+  Ð: "D",
   þ: "th",
+  Þ: "Th",
   ß: "ss",
   ħ: "h",
+  Ħ: "H",
   ı: "i",
   ŋ: "n",
+  Ŋ: "N",
   ŧ: "t",
+  Ŧ: "T",
   ƶ: "z",
+  Ƶ: "Z",
 };
 
 const NON_DECOMPOSING_LATIN_RE = new RegExp(
@@ -94,14 +105,16 @@ const NON_DECOMPOSING_LATIN_RE = new RegExp(
  *
  * Two passes, because one does not cover the alphabet: NFD splits a letter from
  * its combining mark so the mark can be dropped, and the map above handles the
- * letters that have no such split. Lowercases as part of folding, since every
- * caller wants a case-insensitive key.
+ * letters that have no such split.
+ *
+ * Case is PRESERVED. Most callers lowercase anyway to build a key, but the
+ * person normalizer keeps `James` as written — its output feeds display columns
+ * as well as match ones — so case folding is left to whoever wants it.
  *
  * Idempotent and safe on plain ASCII.
  */
 export function foldDiacritics(s: string): string {
   return s
-    .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(NON_DECOMPOSING_LATIN_RE, (c) => NON_DECOMPOSING_LATIN[c]);

@@ -11,6 +11,7 @@ import { CanonicalUnderwriterFamilyRepo } from "../../../storage/canonical/Canon
 import { UnderwriterFamilyMembershipRepo } from "../../../storage/canonical/UnderwriterFamilyMembershipRepo";
 import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { normalizeUnderwriterFamilyName } from "../../../resolver/UnderwriterFamilyResolver";
 import { processFormS1 } from "./Form_S_1.storage";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
@@ -101,9 +102,11 @@ describe("processFormS1 underwriters", () => {
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => c.name === "Goldman Sachs & Co. LLC")).toBe(true);
 
+    // Computed, not spelled: the family key is derived from the legal name, so
+    // hardcoding its shape here would pin a format rather than the behaviour.
     const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
       "1.0.0",
-      "GOLDMAN SACHS"
+      normalizeUnderwriterFamilyName("Goldman Sachs")
     );
     expect(family).toBeDefined();
     const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
@@ -200,8 +203,7 @@ describe("processFormS1 underwriters", () => {
     const companies = await new CompanyObservationRepo().listAll();
     expect(
       companies.filter(
-        (c) =>
-          c.accession_number === "0000000000-26-000002" && /citigroup/i.test(c.name ?? "")
+        (c) => c.accession_number === "0000000000-26-000002" && /citigroup/i.test(c.name ?? "")
       )
     ).toHaveLength(1);
   });

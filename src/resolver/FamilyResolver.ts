@@ -4,27 +4,43 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
+import { companyFamilyName } from "../storage/company/CompanyFamilyName";
 import { AsyncMutex } from "../util/AsyncMutex";
 import { isUniqueConstraintError } from "../util/isUniqueConstraintError";
 
 /**
  * The single source of truth for a family natural key (sponsor or underwriter).
- * Normalizes the name via {@link normalizeCompanyName} (punctuation/whitespace
- * canonicalization plus the suffix handling that helper applies), then
+ *
+ * Derives the key from {@link companyFamilyName}, which drops the legal form
+ * and the series marker that separate one vehicle from the next, then
  * UPPER-cases so matching is case-insensitive. Every caller that looks up a
  * family by name (resolver, CLI query, alias commands) MUST use this so keys
- * line up. Returns "" when the name normalizes to nothing.
+ * line up. Returns "" when the name yields nothing.
  *
- * Case convention is UPPER and is locked in: existing
- * canonical_sponsor_family.normalized_name rows were minted under this
- * convention, and the alias table keys those canonical_*_id ids directly, so
- * changing the fold here would silently orphan rows and operator-installed
- * aliases. FamilyResolver.test.ts pins this — do not change without a
- * one-time migration.
+ * Deriving it from the LEGAL name is what makes a family rebuildable. The key
+ * previously came from `normalizeCompanyName`, which keeps the legal form, so
+ * `Churchill Sponsor XIII LLC` and `Churchill Sponsor XIV LLC` were two
+ * families and only the model's own "common name" could join them — which is
+ * why batch `sec resolve` had to refuse family kinds. With the key computed
+ * from a name every observation already carries, a re-partition is a
+ * re-computation.
+ *
+ * What it deliberately does NOT do is fold business-line words: `Acme Capital`
+ * and `Acme Ventures` stay two families, because they can be two firms. The
+ * rare genuine join (`Chardan Capital Markets` → `Chardan`) is an alias, a
+ * stated claim someone checked:
+ *
+ * ```sh
+ * sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
+ * ```
+ *
+ * Case convention is UPPER and is locked in. Changing the fold re-partitions
+ * existing `canonical_*_family.normalized_name` rows and orphans
+ * operator-installed aliases, so it needs a resolver version bump and a
+ * re-resolve, not a quiet edit. `FamilyResolver.test.ts` pins it.
  */
 export function normalizeFamilyName(name: string): string {
-  return normalizeCompanyName(name)?.toUpperCase() ?? "";
+  return companyFamilyName(name).toUpperCase();
 }
 
 interface FamilyResolverOptions {
