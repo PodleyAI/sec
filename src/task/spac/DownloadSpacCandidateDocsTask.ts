@@ -375,19 +375,18 @@ export class DownloadSpacCandidateDocsTask extends Task<
    * Test seam: subclass and return a CacheOne that stubs
    * {@link CacheOneSpacCandidateDocTask.fetchDoc}.
    *
-   * Deliberately carries neither `title` nor `defaults`. The worker below
-   * drives this instance with a direct `execute()` call rather than `run()`, so
-   * it is never owned into the subgraph, the runner never moves its status, and
-   * the progress UI has no row for it — a title would be written and never
-   * read. `force` likewise arrives on the item, so seeding it as a default was
-   * dead weight.
+   * Takes the item so the instance carries a per-instance `title`. The sweep is
+   * thousands of instances of one class, and the worker owns each into this
+   * task's subgraph, so that title is what labels its row while the filing is
+   * in flight. It has to be set HERE rather than passed to `own`: `ensureTask`
+   * returns a `Task` as-is, so `own`'s config never reaches one.
    *
-   * Driving a task by `execute()` is the wrong shape: owning it and running it
-   * would give each in-flight filing a real row, nest its fetch beneath that
-   * row, and inherit the abort signal instead of hand-passing a context.
+   * No `defaults`: `force` arrives on the item handed to `run`.
    */
-  protected createInnerTask(): CacheOneSpacCandidateDocTask {
-    return new CacheOneSpacCandidateDocTask();
+  protected createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
+    return new CacheOneSpacCandidateDocTask({
+      title: `${item.form} ${item.accessionNumber}`,
+    });
   }
 
   async execute(
@@ -506,8 +505,20 @@ export class DownloadSpacCandidateDocsTask extends Task<
         const i = next++;
         if (i >= todo.length) return;
         const item = todo[i];
-        const inner = this.createInnerTask();
-        const result = await inner.execute(item, context);
+        // Owned and RUN, never `execute`d directly. Ownership registers the
+        // task in this one's subgraph — which is what earns it a progress row,
+        // nests its fetch workflow beneath that row instead of beside it, and
+        // propagates the registry and abort signal that a bare `execute` call
+        // leaves to hand-passing a context. Disowned per item in a `finally`,
+        // so a sweep of thousands keeps only the in-flight filings on screen
+        // and in the graph.
+        const inner = context.own(this.createInnerTask(item));
+        let result: CacheOneOutput;
+        try {
+          result = await inner.run(item);
+        } finally {
+          context.disown(inner);
+        }
         if (result.success) {
           downloaded++;
         } else {

@@ -16,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, type IExecuteContext } from "workglow";
+import { globalServiceRegistry, TaskAbortedError, type IExecuteContext } from "workglow";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -30,6 +30,7 @@ import { accessionDocCacheRelative } from "./spacCandidateDownload";
 import {
   CacheOneSpacCandidateDocTask,
   DownloadSpacCandidateDocsTask,
+  type CacheOneInput,
   type DownloadSpacCandidateDocsTaskInput,
 } from "./DownloadSpacCandidateDocsTask";
 
@@ -55,12 +56,20 @@ const EIGHT_K_PDF = [
   "</DOCUMENT>",
 ].join("\n");
 
-function ctx(): IExecuteContext {
+/** Titles owned into the subgraph, and those released again, in call order. */
+const ownership = { owned: [] as string[], disowned: [] as string[] };
+
+function ctx(controller: AbortController = new AbortController()): IExecuteContext {
   return {
-    signal: new AbortController().signal,
+    signal: controller.signal,
     updateProgress: () => {},
-    own: <T>(value: T) => value,
-    disown: () => {},
+    own: <T>(value: T) => {
+      ownership.owned.push((value as { title: string }).title);
+      return value;
+    },
+    disown: (value: unknown) => {
+      ownership.disowned.push((value as { title: string }).title);
+    },
   } as unknown as IExecuteContext;
 }
 
@@ -122,6 +131,8 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
    * re-fetch silently short-circuits back to the file it meant to replace.
    */
   static cacheExistedAtFetch = new Map<string, boolean>();
+  /** When set, the fetch aborts this controller and raises, as Ctrl-C would. */
+  static abortOnFetch: AbortController | undefined;
 
   protected override async fetchDoc(
     cik: number,
@@ -131,6 +142,10 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
   ): Promise<string> {
     const key = `${cik}/${accessionNumber}/${fileName}`;
     TestCacheOne.requested.push(key);
+    if (TestCacheOne.abortOnFetch !== undefined) {
+      TestCacheOne.abortOnFetch.abort();
+      throw new TaskAbortedError();
+    }
     const cachedBody = TestCacheOne.cachedThenThrows.get(key);
     if (cachedBody !== undefined) {
       writeCache(cik, accessionNumber, fileName, cachedBody);
@@ -148,8 +163,13 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
 }
 
 class TestDownload extends DownloadSpacCandidateDocsTask {
-  protected override createInnerTask(): CacheOneSpacCandidateDocTask {
-    return new TestCacheOne();
+  /** Titles the sweep owned into its subgraph, in completion order. */
+  static innerTitles: string[] = [];
+
+  protected override createInnerTask(item: CacheOneInput): CacheOneSpacCandidateDocTask {
+    const inner = new TestCacheOne({ title: `${item.form} ${item.accessionNumber}` });
+    TestDownload.innerTitles.push(inner.title);
+    return inner;
   }
 }
 
@@ -164,6 +184,10 @@ beforeEach(async () => {
   TestCacheOne.docs = new Map();
   TestCacheOne.cachedThenThrows = new Map();
   TestCacheOne.cacheExistedAtFetch = new Map();
+  TestCacheOne.abortOnFetch = undefined;
+  TestDownload.innerTitles = [];
+  ownership.owned = [];
+  ownership.disowned = [];
 });
 
 afterEach(() => {
@@ -182,9 +206,10 @@ function writeCache(cik: number, acc: string, fileName: string, body: string): v
 }
 
 async function runDownload(
-  input: DownloadSpacCandidateDocsTaskInput
+  input: DownloadSpacCandidateDocsTaskInput,
+  controller?: AbortController
 ): Promise<Awaited<ReturnType<DownloadSpacCandidateDocsTask["execute"]>>> {
-  return new TestDownload().execute(input, ctx());
+  return new TestDownload().execute(input, ctx(controller));
 }
 
 describe("DownloadSpacCandidateDocsTask", () => {
@@ -540,5 +565,52 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(out.skipped).toBe(3);
     // The unsafe branch used to drop the value silently.
     expect(warnings.join("\n")).toContain("acc-unsafe");
+  });
+
+  it("owns each filing's task into the subgraph and releases it again", async () => {
+    // The task is run, not `execute`d, so it is a real subgraph member for the
+    // duration of its filing: that is what gives it a progress row, nests its
+    // fetch beneath that row, and hands it the abort signal.
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .putBulk([
+        filing({ cik: 1, accession_number: "acc-ok", form: "S-1" }),
+        filing({ cik: 1, accession_number: "acc-fail", form: "S-1" }),
+      ]);
+    TestCacheOne.docs.set("1/acc-ok/acc-ok.txt", "s1");
+    TestCacheOne.docs.set("1/acc-fail/acc-fail.txt", new Error("boom"));
+
+    const original = console.warn;
+    console.warn = () => {};
+    try {
+      await runDownload({ set: "registration" });
+    } finally {
+      console.warn = original;
+    }
+
+    expect(TestDownload.innerTitles.sort()).toEqual(["S-1 acc-fail", "S-1 acc-ok"]);
+    expect(ownership.owned.sort()).toEqual(["S-1 acc-fail", "S-1 acc-ok"]);
+    // Released even for the filing whose fetch failed — a sweep of thousands
+    // would otherwise accumulate every one of them in the subgraph.
+    expect(ownership.disowned.sort()).toEqual(["S-1 acc-fail", "S-1 acc-ok"]);
+  });
+
+  it("propagates an abort out of the run and still releases what it owned", async () => {
+    // The sweep now drives each filing through `run()` rather than `execute()`,
+    // so cancellation has to survive the runner rather than being re-thrown
+    // straight out of a method call.
+    const controller = new AbortController();
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-abort", form: "S-1" }));
+    TestCacheOne.abortOnFetch = controller;
+
+    await expect(runDownload({ set: "registration" }, controller)).rejects.toThrow();
+    expect(ownership.owned).toEqual(["S-1 acc-abort"]);
+    expect(ownership.disowned).toEqual(["S-1 acc-abort"]);
+    // Nothing was written for the filing the abort interrupted.
+    expect(existsSync(cachePath(1, "acc-abort", "acc-abort.txt"))).toBe(false);
   });
 });
