@@ -419,13 +419,26 @@ thinking model wraps the JSON in reasoning.
   `--concurrency-*` flags to 1 for figures comparable across runs.
 
   `sec eval s1` fans out on **three nested axes**, each with its own flag, and
-  the extractions in flight is their product (default `1 x 5 x 4 = 20`):
+  the extractions in flight is at most their product (default `1 x 5 x 4 = 20`):
 
   | flag                          | default | bounds                               |
   | ----------------------------- | ------- | ------------------------------------ |
   | `--concurrency-s1`            | 1       | filings extracted at once            |
   | `--concurrency-section`       | 5       | sections of one filing at once       |
   | `--concurrency-section-model` | 4       | candidate models scoring one section |
+
+  That product is an **upper bound, not a measurement**. Each axis is separately
+  capped by the work available to it — the filing count, the widest filing's
+  section count, and the number of ids `--models` named — so a bare
+  `sec eval s1` (whose default `--models` is a single id) reaches at most
+  `1 x 5 x 1 = 5` in flight while the request reads `1 x 5 x 4 = 20`. The
+  `lat@…` header and the footer therefore report the **effective** triple, since
+  the column's only purpose is telling whether two latency figures were measured
+  under the same load; the footer names the requested triple as well whenever
+  the two differ, so a capped axis reads as a cap rather than an ignored flag.
+  The section figure is a per-filing **maximum** ("at most N sections"), not a
+  uniform width. `--format json` carries both `concurrency` (requested) and
+  `effectiveConcurrency` (reached).
 
   There is deliberately **no per-provider awareness** — no grouping candidates by
   vendor, no per-provider limiter. The operator manages provider load with these
@@ -474,16 +487,26 @@ section, and disagrees with ITSELF between runs, so the bar moves under you.
 Golden labels are free, instant and stable.
 
 Coverage is derived from `GOLDEN_S1_LABELS`, not fixed: every extractor with at
-least one committed label is scored, and `extractorsWithGoldenLabels()` is what
-both the default `--extractors` set and the `sec eval s1 --help` line read — so
-the current list is always one `--help` away and this paragraph cannot silently
-go stale. As committed today that is 12 extractors —
-`beneficial-ownership`, `executive-compensation`, `management`,
-`offering-terms`, `related-party`, `risk-factors`, `spac-classification`,
+least one committed label is scored, and `defaultGoldenSweepExtractors()`
+(`src/eval/defaultSweepExtractors.ts`) is what both the default `--extractors`
+set and the `sec eval s1 --help` line read — so the current list is always one
+`--help` away and this paragraph cannot silently go stale. As committed today
+that is 11 extractors — `beneficial-ownership`, `executive-compensation`,
+`management`, `offering-terms`, `related-party`, `spac-classification`,
 `spac-profile`, `spac-sponsors`, `sponsor-promote`, `underwriters`,
 `use-of-proceeds` — over 42 labelled filings. A golden run scores the sections
 that carry a label and reports every other one as skipped rather than quietly
 passing it.
+
+A twelfth extractor, `risk-factors`, is labelled but flagged
+`disabled` in `EVAL_EXTRACTORS` — "exclude from **default** sweeps", not "hide
+from the labels index". `extractorsWithGoldenLabels()` stays the complete index
+(the coverage guards in `goldenS1Labels.test.ts` read it to prove every
+committed label is reachable); `defaultGoldenSweepExtractors()` is that index
+minus the flagged ones, and both eval harnesses now derive their default set
+through the same `participatesInDefaultSweeps` predicate rather than each
+deciding for themselves. Naming it explicitly still runs it:
+`sec eval s1 --extractors risk-factors`.
 Pass `--reference <model-id>` (use the strongest available, currently
 `claude-opus-5` — never the model you are evaluating) to fall back to an oracle
 for the unlabelled extractors, accepting that its verdict is an opinion.
@@ -499,8 +522,10 @@ scores candidates against **committed labels** (`src/eval/goldenS1Labels.ts`)
 instead of a model run — no reference API call, `$0`, deterministic. Only sections
 with a golden entry are scored (the rest are reported as skipped);
 the committed set is roughly 400 labelled (filing, section) pairs across the 12
-extractors named above — densest on `risk-factors`, `spac-classification` and
-`use-of-proceeds` (42 filings each), thinnest on `spac-sponsors` (2).
+labelled extractors — densest on `risk-factors`, `spac-classification` and
+`use-of-proceeds` (42 filings each), thinnest on `spac-sponsors` (2). A default
+sweep scores 11 of those 12: `risk-factors`' 42 labels are still committed and
+still guarded, but only an explicit `--extractors risk-factors` pays for them.
 Titles are stored in canonical (`normalizeManagementTitles`) form and unit-tested
 to stay canonical. Use golden truth to tell which model is actually _correct_
 (not merely reference-like); use a model reference to sweep sections that aren't
@@ -515,10 +540,12 @@ fewer filings than the labels covered and still printed a clean table. Re-copy
 the corpus into the vendoring package when you add a fixture.
 
 **A bare `sec eval s1` is not a cheap command.** Under the default golden
-reference the default extractor set is _every_ labelled extractor, so one
-candidate model sweeps roughly 400 sections — more calls than that, since
-`risk-factors` chunks its section into several — over prose running from a few
-thousand chars to ~246k. Budget it, or narrow it: `--extractors` picks the
+reference the default extractor set is every labelled extractor not flagged out
+of default sweeps, so one candidate model sweeps roughly 350 sections over prose
+running from a few thousand chars to ~57k. Adding `--extractors risk-factors`
+adds 42 more sections and materially more than 42 calls, since that extractor
+chunks a section running to ~246k chars into several — which is why it is
+excluded by default. Budget it, or narrow it: `--extractors` picks the
 sections, `--cik` picks the filer, and the two compose. Only the candidate side
 costs money under `--reference golden` (no oracle call); a model reference
 roughly doubles the calls and pays the reference model's rate on top.
@@ -967,9 +994,16 @@ model is the reason to separate it. The `risk-factors` entry in
 `EVAL_EXTRACTORS` (with a golden two-category fixture) ranks the prompt, and
 `sec eval s1 --extractors risk-factors` sweeps the real committed sections.
 
+That entry is flagged **`disabled: true`**, so `risk-factors` is **excluded from
+both harnesses' default sweeps** — its 42 golden labels are still committed and
+still guarded, but a chunked ~246k-char section run over the whole corpus is not
+something a bare `sec eval extract` or `sec eval s1` should charge you for.
+Naming it runs it, in either harness:
+
 ```bash
-sec eval extract --extractor risk-factors
-sec extractor dead-letters S-1            # includes the risk-factors section
+sec eval extract --extractor risk-factors        # explicit: runs despite the flag
+sec eval s1 --extractors risk-factors            # explicit: runs despite the flag
+sec extractor dead-letters S-1                   # includes the risk-factors section
 ```
 
 Scoped to the S-1/F-1/DRS pipeline: the 424 processor shares the segmenter but

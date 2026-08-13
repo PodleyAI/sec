@@ -12,7 +12,7 @@ import { parseIntOption } from "../GlobalOptions";
 import { KNOWN_MODEL_ID_SHAPES, modelApiKeyEnvVar } from "../../config/registerModels";
 import { availableFixtureCiks, loadRealS1Sections } from "../../eval/realSections";
 import { EVAL_EXTRACTORS, preparedSectionText } from "../../eval/fixtures";
-import { extractorsWithGoldenLabels } from "../../eval/goldenS1Labels";
+import { defaultGoldenSweepExtractors } from "../../eval/defaultSweepExtractors";
 import {
   printEvalPrompts,
   printPromptsNeedsSectionText,
@@ -383,6 +383,25 @@ function printTable(
   dumpDisagreementRaws(report.results);
 }
 
+/**
+ * Names the requested axes when the sweep could not reach them, so an operator
+ * who passed `--concurrency-section-model 4` and sees `x1` learns why (they
+ * named one model) rather than suspecting the flag was ignored.
+ */
+function concurrencyRequestNote(report: OracleReport): string {
+  const { concurrency: asked, effectiveConcurrency: got } = report;
+  if (
+    asked.s1 === got.s1 &&
+    asked.section === got.section &&
+    asked.sectionModel === got.sectionModel
+  )
+    return "";
+  return (
+    ` — requested ${formatEvalS1Concurrency(asked)}, capped by the filings, the widest ` +
+    `filing's section count and the number of --models named`
+  );
+}
+
 function printOracleTable(report: OracleReport, details: boolean): void {
   console.log(
     `Reference (truth): ${report.reference} — over ${report.sections} real S-1 section(s)\n`
@@ -399,8 +418,11 @@ function printOracleTable(report: OracleReport, details: boolean): void {
     // header carries all three axes: an unlabelled `latency` invited comparison
     // of a serial figure against a 20-wide one as though they measured the same
     // thing, and wall-clock here includes time queued behind the sweep itself.
+    // The EFFECTIVE axes, not the requested ones — every axis is capped by the
+    // work available to it, so a default sweep with one `--models` id ran at
+    // 1x5x1 while the request read 1x5x4.
     [
-      `lat@${formatEvalS1Concurrency(report.concurrency)}`,
+      `lat@${formatEvalS1Concurrency(report.effectiveConcurrency)}`,
       12,
       (m) => `${m.avgLatencyMs.toFixed(0)}ms`,
     ],
@@ -418,10 +440,12 @@ function printOracleTable(report: OracleReport, details: boolean): void {
       "entities the reference also had (1 − hallucination), over DISTINCT rows; rows = raw " +
       "rows emitted, dist = distinct after de-duping on the key field (gap = duplicate " +
       "over-production).\nReference rows are the truth, so it has no agreement score.\n" +
-      `lat@${formatEvalS1Concurrency(report.concurrency)} = mean wall-clock per extraction ` +
-      `measured with ${report.concurrency.s1} filing(s) x ${report.concurrency.section} ` +
-      `section(s) x ${report.concurrency.sectionModel} model(s) in flight ` +
-      `(${evalS1ConcurrencyProduct(report.concurrency)} concurrent extractions).\n` +
+      `lat@${formatEvalS1Concurrency(report.effectiveConcurrency)} = mean wall-clock per ` +
+      `extraction measured with ${report.effectiveConcurrency.s1} filing(s) x at most ` +
+      `${report.effectiveConcurrency.section} section(s) x ` +
+      `${report.effectiveConcurrency.sectionModel} model(s) in flight ` +
+      `(up to ${evalS1ConcurrencyProduct(report.effectiveConcurrency)} concurrent ` +
+      `extractions)${concurrencyRequestNote(report)}.\n` +
       "Wall-clock includes time queued behind the sweep's own other extractions — a local " +
       "model's especially, since one worker serves them all — so set\n" +
       "--concurrency-s1 1 --concurrency-section 1 --concurrency-section-model 1 for figures " +
@@ -623,7 +647,7 @@ export function addEvalCommands(program: Command): void {
     )
     .option(
       "--extractors [csv]",
-      `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: every extractor with golden labels (${extractorsWithGoldenLabels().join(", ")}), or management against a model reference`
+      `sections to pull (${Object.keys(EVAL_EXTRACTORS).join(", ")}); default: every extractor with golden labels that is not excluded from default sweeps (${defaultGoldenSweepExtractors().join(", ")}), or management against a model reference`
     )
     .option(
       "--dir <path>",
@@ -718,7 +742,7 @@ export function addEvalCommands(program: Command): void {
           );
           const printMode = requirePrintPromptsMode(opts.printPrompts);
           if (printMode !== undefined) {
-            const extractors = requestedExtractors ?? extractorsWithGoldenLabels();
+            const extractors = requestedExtractors ?? defaultGoldenSweepExtractors();
             for (const name of extractors) {
               if (!EVAL_EXTRACTORS[name]) {
                 throw new Error(
@@ -766,10 +790,12 @@ export function addEvalCommands(program: Command): void {
           // Under golden truth, default to every extractor that HAS labels —
           // scoring only `management` while committed beneficial-ownership
           // labels sat unused made the default look narrower than the evidence
-          // actually available. Against a model oracle there is no such
-          // coverage signal, so that path keeps its single cheap default.
+          // actually available. Extractors flagged out of default sweeps are
+          // excluded here (an explicit `--extractors` still runs them). Against
+          // a model oracle there is no such coverage signal, so that path keeps
+          // its single cheap default.
           const defaultExtractors =
-            reference === GOLDEN_REFERENCE ? extractorsWithGoldenLabels() : ["management"];
+            reference === GOLDEN_REFERENCE ? defaultGoldenSweepExtractors() : ["management"];
           const selectedExtractors = requestedExtractors ?? defaultExtractors;
           for (const name of selectedExtractors) {
             if (!EVAL_EXTRACTORS[name]) {
