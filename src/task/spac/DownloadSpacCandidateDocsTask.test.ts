@@ -403,6 +403,22 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(existsSync(cachePath(1, "0000000001-21-000001", "0000000001-21-000001.txt"))).toBe(false);
   });
 
+  it("skips a filing with a null primary_doc and still downloads the rest", async () => {
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk([
+      filing({ cik: 1, accession_number: "acc-10k", form: "10-K", primary_doc: null }),
+      filing({ cik: 1, accession_number: "acc-s1", form: "S-1", primary_doc: "s1.htm" }),
+    ]);
+    TestCacheOne.docs.set("1/acc-s1/acc-s1.txt", "s1");
+
+    const out = await runDownload({ set: "all" });
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+    expect(out.downloaded).toBe(1);
+    expect(out.failed).toBe(0);
+    expect(TestCacheOne.requested).toEqual(["1/acc-s1/acc-s1.txt"]);
+  });
+
   it("counts a fetch error as failed and continues", async () => {
     await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
     await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk([
