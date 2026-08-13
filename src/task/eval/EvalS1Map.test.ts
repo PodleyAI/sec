@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { EvalS1CandidateTask } from "./EvalS1CandidateTask";
+import { EvalS1FilingTask } from "./EvalS1FilingTask";
 import { EvalS1SectionTask } from "./EvalS1SectionTask";
 
 function arrayPortNames(schema: { properties?: Record<string, { type?: string }> }): string[] {
@@ -26,6 +27,17 @@ describe("eval s1 map schemas", () => {
         EvalS1SectionTask.inputSchema() as { properties?: Record<string, { type?: string }> }
       )
     ).toEqual([]);
+  });
+
+  it("declares the filing task's per-filing lists as arrays, which the outer map iterates", () => {
+    // The opposite case, on purpose: the filing map is handed one array per
+    // filing, and MapTask only iterates a port whose schema says array — a
+    // scalar-typed port here would hand the whole corpus to a single iteration.
+    expect(
+      arrayPortNames(
+        EvalS1FilingTask.inputSchema() as { properties?: Record<string, { type?: string }> }
+      )
+    ).toEqual(["extractors", "texts"]);
   });
 });
 

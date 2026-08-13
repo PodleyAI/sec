@@ -59,10 +59,16 @@ export const FilingSchema = Type.Object({
       description: "Film number(s) assigned by the SEC, comma-joined when several apply",
     })
   ),
-  primary_doc: Type.String({
-    maxLength: 128,
-    description: "Primary document filename",
-  }),
+  // Nullable because EDGAR's submissions payload does not guarantee it: a
+  // filing with no primary document is an error state downstream (the forms
+  // pipeline dead-letters it PRIMARY_DOC_UNRESOLVED), but it is a real row that
+  // has to be storable and readable rather than one that fails to ingest.
+  primary_doc: TypeNullable(
+    Type.String({
+      maxLength: 128,
+      description: "Primary document filename",
+    })
+  ),
   primary_doc_description: TypeNullable(
     Type.String({
       maxLength: 255,

@@ -290,7 +290,9 @@ export class ProcessAccessionDocFormTask extends Task<
       file_number = filing.file_number;
       items = filing.items;
       report_date = filing.report_date;
-      fileName = fileName ?? filing.primary_doc;
+      // `primary_doc` is nullable; a filing that names none leaves `fileName`
+      // absent so the PRIMARY_DOC_UNRESOLVED check below records it.
+      fileName = fileName ?? filing.primary_doc ?? undefined;
     } else {
       // Callers like FetchAndStoreFormsTask pass cik/form/fileName but not the
       // filing-level metadata; without this lookup every storage row gets

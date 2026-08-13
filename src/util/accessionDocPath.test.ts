@@ -6,7 +6,12 @@
 
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "./accessionDocPath";
+import {
+  assertInsideDir,
+  resolvePrimaryDocName,
+  sanitizePrimaryDoc,
+  stripXslPrefix,
+} from "./accessionDocPath";
 
 describe("stripXslPrefix", () => {
   it("strips the EDGAR inline-XBRL viewer prefix", () => {
@@ -34,6 +39,25 @@ describe("stripXslPrefix", () => {
 
   it("does not trim, so callers control the order", () => {
     expect(stripXslPrefix("  xslFoo/bar.htm  ")).toBe("  xslFoo/bar.htm  ");
+  });
+});
+
+describe("resolvePrimaryDocName", () => {
+  it("resolves a filename the way stripXslPrefix does, having trimmed it", () => {
+    expect(resolvePrimaryDocName("xslF345X03/wf-form4.xml")).toBe("wf-form4.xml");
+    expect(resolvePrimaryDocName("  primary_doc.xml  ")).toBe("primary_doc.xml");
+  });
+
+  it("answers undefined for every way a filing names no document", () => {
+    // `Filing.primary_doc` is nullable, and EDGAR also serves the field as an
+    // empty string. All three reach the caller as "no primary document", which
+    // the forms pipeline dead-letters PRIMARY_DOC_UNRESOLVED — a contained
+    // per-filing failure. Reading only `=== null` let undefined through to
+    // `stripXslPrefix`, which throws and takes the whole batch with it.
+    expect(resolvePrimaryDocName(null)).toBeUndefined();
+    expect(resolvePrimaryDocName(undefined)).toBeUndefined();
+    expect(resolvePrimaryDocName("")).toBeUndefined();
+    expect(resolvePrimaryDocName("   ")).toBeUndefined();
   });
 });
 

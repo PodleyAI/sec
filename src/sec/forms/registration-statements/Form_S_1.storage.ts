@@ -888,6 +888,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       await recordFail(RISK_FACTORS_SECTION, "MODEL_RESOLUTION_ERROR", riskModelError);
     } else {
       const riskModelResolved = riskModel;
+      // Headlines the extractor deleted as echoes of a heading the chunker
+      // prefixed onto a chunk. Reset per extraction attempt so a re-ask's
+      // verdict replaces the previous one rather than accumulating.
+      let droppedEchoes: readonly string[] = [];
       const riskRunSection = makeRunSection({
         deadLetters,
         extractor_id: EXTRACTOR_ID,
@@ -925,7 +929,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           "all $T confident risk factor rows had headline/source_span not present in section text",
         unverifiedPartialDetail:
           "$N of $T confident risk factor rows had headline/source_span not present in section text",
-        extract: (text) => extractRiskFactors(text, riskModelResolved, args.context),
+        extract: (text) => {
+          droppedEchoes = [];
+          return extractRiskFactors(text, riskModelResolved, args.context, (headlines) => {
+            droppedEchoes = headlines;
+          });
+        },
         persist: async (rows) => {
           const now = new Date().toISOString();
           let riskIndex = 0;
@@ -955,6 +964,25 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           return riskIndex;
         },
       });
+      // Reconcile a sibling triage entry for the echo drop, mirroring the
+      // `-partial` reconciliation runSection does for unverified rows. The drop
+      // deletes rows the model returned and the section still resolves as
+      // complete, so it must leave a durable, attributable record: the entry
+      // carries the accession, the section and the dropped text verbatim, so an
+      // operator can read what was removed and judge it. Resolve it when this
+      // run dropped nothing, so a filing that stops dropping stops lingering on
+      // the worklist (markResolved no-ops when no entry exists).
+      const echoSection = `${RISK_FACTORS_SECTION}-echo-dropped`;
+      if (droppedEchoes.length > 0) {
+        await recordFail(
+          echoSection,
+          "MODEL_INVALID_OUTPUT",
+          `dropped ${droppedEchoes.length} row(s) echoing the category heading carried into a ` +
+            `chunk: ${droppedEchoes.map((h) => JSON.stringify(h)).join("; ")}`
+        );
+      } else {
+        await deadLetters.markResolved(EXTRACTOR_ID, accession_number, echoSection);
+      }
     }
   }
 

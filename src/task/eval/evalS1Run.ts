@@ -15,6 +15,7 @@ import { costFromUsage, type CostEstimate } from "../../eval/modelPricing";
 import type { RealSection } from "../../eval/realSections";
 import type { ExtractionScore } from "../../eval/scoreExtraction";
 import { takeExtractionUsage } from "../../sec/forms/registration-statements/s1/sectionExtractors";
+import type { EvalS1Concurrency } from "./evalS1Concurrency";
 
 /** Sentinel `reference` value selecting committed human-verified golden labels. */
 export const GOLDEN_REFERENCE = "golden";
@@ -61,6 +62,11 @@ export interface OracleModelSummary {
 export interface OracleReport {
   readonly reference: string;
   readonly sections: number;
+  /**
+   * The three fan-out axes the sweep ran at. Latency is only comparable across
+   * runs measured at the same settings, so the table labels its column with them.
+   */
+  readonly concurrency: EvalS1Concurrency;
   readonly skipped: readonly string[];
   readonly results: readonly OracleRunResult[];
   readonly summaries: readonly OracleModelSummary[];
@@ -68,6 +74,63 @@ export interface OracleReport {
 
 /** How many times to (re)try the reference extraction before giving up on a section. */
 export const REFERENCE_MAX_ATTEMPTS = 3;
+
+/** One filing's sections, in the order the corpus yielded them. */
+export interface EvalS1FilingGroup {
+  readonly filing: string;
+  readonly sections: readonly RealSection[];
+}
+
+/**
+ * Groups a flat section list by filing, preserving first-seen filing order.
+ *
+ * The corpus loads as sections across every filing, so "how many filings at
+ * once" had nothing to bound until they are grouped — and grouping is also what
+ * makes an interrupted sweep leave whole filings behind rather than a scatter
+ * of partly-covered ones.
+ */
+export function groupSectionsByFiling(
+  sections: readonly RealSection[]
+): readonly EvalS1FilingGroup[] {
+  const byFiling = new Map<string, RealSection[]>();
+  for (const section of sections) {
+    const existing = byFiling.get(section.filing);
+    if (existing) existing.push(section);
+    else byFiling.set(section.filing, [section]);
+  }
+  return [...byFiling].map(([filing, grouped]) => ({ filing, sections: grouped }));
+}
+
+/**
+ * Results checkpointed as each section finishes, so a Ctrl-C partway through a
+ * ~400-section golden sweep still reports what was already paid for. The map
+ * discards a run's partial output on abort, and every one of those rows cost a
+ * real API call.
+ *
+ * Module-scoped rather than threaded through the map, following the precedent
+ * in `sectionExtractors.ts` (`temperatureUnsupported`, `generationNodes`):
+ * a `MapTask` shallow-copies task config when it clones the template graph, so
+ * a mutable sink passed through config is not reliably shared. One sweep runs
+ * per CLI invocation, so a single module-level sink is unambiguous.
+ */
+const sweepSink: OracleRunResult[] = [];
+
+/** Starts a fresh checkpoint window. Called once per sweep, before the map. */
+export function beginEvalS1Sweep(): void {
+  sweepSink.length = 0;
+}
+
+/** Records one section's results as they complete. */
+export function checkpointEvalS1Results(results: readonly OracleRunResult[]): void {
+  sweepSink.push(...results);
+}
+
+/** Everything checkpointed so far, in completion order. */
+export function drainEvalS1Sweep(): OracleRunResult[] {
+  const drained = [...sweepSink];
+  sweepSink.length = 0;
+  return drained;
+}
 
 export async function runSection(
   modelId: string,

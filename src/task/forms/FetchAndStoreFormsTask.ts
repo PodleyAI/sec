@@ -12,7 +12,7 @@ import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-lett
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { formToExtractorId } from "../../storage/versioning/extractorIds";
-import { stripXslPrefix } from "../../util/accessionDocPath";
+import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const FetchAndStoreFormsTaskInputSchema = () =>
@@ -127,7 +127,7 @@ export class FetchAndStoreFormsTask extends Task<
       cik: filings.map(() => cik),
       form: filings.map(() => form),
       accessionNumber: filings.map((f) => f.accession_number),
-      fileName: filings.map((f) => stripXslPrefix(f.primary_doc)),
+      fileName: filings.map((f) => resolvePrimaryDocName(f.primary_doc)),
     });
 
     // Counts come from the persisted `extractor_runs` rows rather than the

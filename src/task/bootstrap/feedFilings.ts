@@ -17,7 +17,7 @@ import { resolveSqlBackend } from "../../util/sqlBackend";
 export interface FeedFiling {
   readonly accession_number: string;
   readonly cik: number;
-  readonly primary_doc: string;
+  readonly primary_doc: string | null;
   readonly form: string | null;
 }
 

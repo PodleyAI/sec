@@ -5,7 +5,7 @@
  */
 
 import { Command } from "commander";
-import { globalServiceRegistry } from "workglow";
+import { globalServiceRegistry, type DataPorts, type ITask } from "workglow";
 import { parseIntOption, parseOutputFormat, type OutputFormat } from "../cli/GlobalOptions";
 import { isDryRun } from "../cli/isDryRun";
 import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
@@ -19,6 +19,14 @@ import {
   ListSpacCandidatesTask,
   type ListSpacCandidatesTaskOutput,
 } from "../task/spac/ListSpacCandidatesTask";
+import {
+  DownloadSpacCandidateDocsTask,
+  type DownloadSpacCandidateDocsTaskOutput,
+} from "../task/spac/DownloadSpacCandidateDocsTask";
+import {
+  parseSpacDownloadConfidence,
+  type SpacDownloadSet,
+} from "../task/spac/spacCandidateDownload";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import {
   ProcessSpacTimelineTask,
@@ -84,6 +92,53 @@ const SPAC_CANDIDATE_COLUMNS: ReadonlyArray<ColumnDef> = [
   { key: "signal_renamed_from", header: "Was", width: 28 },
 ];
 
+/**
+ * The `spac process` fan-out's merged output: one column per
+ * {@link ProcessSpacTimelineTask} output port, index-aligned across columns.
+ */
+type SpacProcessColumns = {
+  readonly [K in keyof ProcessSpacTimelineTaskOutput]?: ReadonlyArray<
+    ProcessSpacTimelineTaskOutput[K]
+  >;
+};
+
+/**
+ * Transposes the fan-out's column arrays back into one row per issuer.
+ *
+ * The map merges each output port into an array across iterations — always an
+ * array, including for the one-issuer run that is the commonest invocation, so
+ * there is no scalar shape to unwrap. `cik` is echoed by the task rather than
+ * zipped from the input list, so a row can never be reported under the wrong
+ * issuer.
+ */
+export function spacProcessRows(
+  columns: SpacProcessColumns
+): readonly ProcessSpacTimelineTaskOutput[] {
+  const column = <K extends keyof ProcessSpacTimelineTaskOutput>(
+    key: K
+  ): ReadonlyArray<ProcessSpacTimelineTaskOutput[K] | undefined> => columns[key] ?? [];
+  const ciks = column("cik");
+  const matched = column("matched");
+  const processed = column("processed");
+  const firstDate = column("firstDate");
+  const lastDate = column("lastDate");
+  const error = column("error");
+  const rows: ProcessSpacTimelineTaskOutput[] = [];
+  for (let i = 0; i < ciks.length; i++) {
+    const cik = ciks[i];
+    if (cik === undefined) continue;
+    rows.push({
+      cik,
+      matched: matched[i] ?? 0,
+      processed: processed[i] ?? 0,
+      firstDate: firstDate[i] ?? "",
+      lastDate: lastDate[i] ?? "",
+      error: error[i] ?? "",
+    });
+  }
+  return rows;
+}
+
 /** Parse a CLI CIK argument, returning null (after printing an error) when it is not a non-negative integer. */
 function parseCikArg(cikArg: string): number | null {
   const cik = Number(cikArg);
@@ -123,34 +178,38 @@ export function registerSpacCommands(program: Command): void {
         const parsed = ciks.map((c) => parseCikArg(c)).filter((c): c is number => c !== null);
         if (parsed.length === 0) throw new Error("no valid CIKs given");
         const limit = Math.max(1, opts.concurrency);
+        // ONE workflow over all issuers, fanned out by a map. The previous
+        // hand-rolled pool ran a separate `runWorkflowCli` per issuer, which on
+        // a TTY started a second Ink renderer while the first still owned the
+        // terminal, and — because the workflow renderer answers a thrown error
+        // with `process.exit(1)` — let one issuer's failure kill the whole
+        // batch mid-flight, which is exactly what the pool existed to prevent.
+        // The task now reports a failure on its `error` port instead of
+        // throwing, so nothing in the graph raises.
+        const results = await runWorkflowCli<SpacProcessColumns>([], { cik: [...parsed] }, (wf) => {
+          const loop = wf.map({
+            concurrencyLimit: Math.min(limit, parsed.length),
+            maxIterations: parsed.length,
+            preserveOrder: true,
+          });
+          loop.pipe(new ProcessSpacTimelineTask() as ITask<DataPorts, DataPorts>);
+          loop.endMap();
+        });
+        const rows = spacProcessRows(results);
         let failed = 0;
-        // Hand-rolled pool rather than one Workflow over all issuers: each CIK
-        // gets its own serial replay, and a failure on one issuer must not
-        // abandon the rest of the batch.
-        const queue = [...parsed];
-        const runOne = async (): Promise<void> => {
-          for (;;) {
-            const cik = queue.shift();
-            if (cik === undefined) return;
-            try {
-              const out = await runWorkflowCli<ProcessSpacTimelineTaskOutput>([
-                new ProcessSpacTimelineTask({ defaults: { cik } }),
-              ]);
-              if (out.matched === 0) {
-                console.log(`${cik}: no processable filings`);
-              } else {
-                console.log(
-                  `${cik}: ${out.processed}/${out.matched} filings ` +
-                    `(${out.firstDate} \u2192 ${out.lastDate})`
-                );
-              }
-            } catch (e) {
-              failed++;
-              console.error(`${cik}: ${e instanceof Error ? e.message : String(e)}`);
-            }
+        for (const row of rows) {
+          if (row.error) {
+            failed++;
+            console.error(`${row.cik}: ${row.error}`);
+          } else if (row.matched === 0) {
+            console.log(`${row.cik}: no processable filings`);
+          } else {
+            console.log(
+              `${row.cik}: ${row.processed}/${row.matched} filings ` +
+                `(${row.firstDate} \u2192 ${row.lastDate})`
+            );
           }
-        };
-        await Promise.all(Array.from({ length: Math.min(limit, parsed.length) }, runOne));
+        }
         if (failed > 0) {
           throw new Error(`${failed} of ${parsed.length} issuer(s) failed`);
         }
@@ -247,6 +306,60 @@ export function registerSpacCommands(program: Command): void {
         );
       }
     );
+
+  const download = spacCmd
+    .command("download")
+    .description(
+      "Pre-fetch accession documents for SPAC candidates into the on-disk cache (no extraction)"
+    );
+
+  const addDownloadLeaf = (name: string, set: SpacDownloadSet, blurb: string): void => {
+    download
+      .command(name)
+      .description(blurb)
+      .option(
+        "--confidence <csv>",
+        "Confidence tiers to include (default high,medium)",
+        "high,medium"
+      )
+      .option("--force", "Re-download even when the cache file already exists", false)
+      .action(async (opts: { confidence: string; force?: boolean }) => {
+        await runCommand(async () => {
+          const out = await runWorkflowCli<DownloadSpacCandidateDocsTaskOutput>([
+            new DownloadSpacCandidateDocsTask({
+              defaults: {
+                set,
+                confidence: parseSpacDownloadConfidence(opts.confidence),
+                force: opts.force === true,
+              },
+            }),
+          ]);
+          // The task reports an expected user error on its `error` port rather
+          // than throwing, so the workflow renderer cannot `process.exit(1)`
+          // out from under the CLI's teardown. Re-raise it here so the non-zero
+          // exit comes from `runCommand`, matching `spac process`.
+          if (out.error) throw new Error(out.error);
+          console.log(
+            `SPAC docs: ${out.candidates} candidates; ${out.matched} matched; ` +
+              `${out.skipped} skipped (${out.skippedCached} cached, ` +
+              `${out.skippedNoFileName} no filename, ${out.skippedUnsafeName} unsafe name); ` +
+              `${out.downloaded} downloaded; ${out.failed} failed`
+          );
+        });
+      });
+  };
+
+  addDownloadLeaf(
+    "registration",
+    "registration",
+    "Download S-1/F-1/DRS family filings for high+medium SPAC candidates"
+  );
+  addDownloadLeaf("8k", "8k", "Download every 8-K/8-K/A for high+medium SPAC candidates");
+  addDownloadLeaf(
+    "everything",
+    "all",
+    "Download every filing for high+medium SPAC candidates"
+  );
 
   // De-SPAC linkage refresh: the item-2.01 8-K that closes a combination is
   // usually processed BEFORE the surviving entity's renamed submissions land, so

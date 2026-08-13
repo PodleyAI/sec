@@ -220,6 +220,12 @@ describe("planColumnAlignment", () => {
       'ALTER TABLE "filings" ALTER COLUMN "file_number" TYPE varchar(255);',
       'ALTER TABLE "filings" ALTER COLUMN "film_number" TYPE varchar(255);',
       'ALTER TABLE "filings" ALTER COLUMN "primary_doc" TYPE varchar(128);',
+      // Both halves for one column: `primary_doc` was widened AND relaxed, and
+      // a legacy database needs each. This is the whole reason the relaxation
+      // ships without a bespoke migration — `db setup` reaches Postgres on its
+      // own (a pre-existing SQLite file keeps the NOT NULL, and so keeps
+      // today's behavior).
+      'ALTER TABLE "filings" ALTER COLUMN "primary_doc" DROP NOT NULL;',
       'ALTER TABLE "filings" ALTER COLUMN "primary_doc_description" TYPE varchar(255);',
       'ALTER TABLE "filings" ALTER COLUMN "act" TYPE varchar(16);',
       'ALTER TABLE "company_facts" ALTER COLUMN "grouping" TYPE varchar(20);',

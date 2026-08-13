@@ -5,10 +5,13 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import type { DataPorts, ITask } from "workglow";
+import { runWorkflowCli } from "../cli/runWorkflow";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
-import { assembleSpacReport } from "./spac";
+import { ProcessSpacTimelineTask } from "../task/spac/ProcessSpacTimelineTask";
+import { assembleSpacReport, spacProcessRows } from "./spac";
 
 describe("assembleSpacReport", () => {
   beforeEach(async () => {
@@ -31,4 +34,84 @@ describe("assembleSpacReport", () => {
     expect(report.events.length).toBe(1);
     expect(report.sponsorCount).toBe(0);
   });
+});
+
+describe("spacProcessRows", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("transposes the fan-out's column arrays into one row per issuer", () => {
+    // `sec spac process A B C` runs one map over all three issuers, and the
+    // sink merges each output port into an index-aligned column. Rendering
+    // reads rows, so the columns have to be zipped back — and `cik` comes from
+    // the task's own echoed port, never from the input list, so a row can never
+    // be printed under the wrong issuer.
+    expect(
+      spacProcessRows({
+        cik: [11, 22, 33],
+        matched: [5, 0, 2],
+        processed: [5, 0, 0],
+        firstDate: ["2021-01-01", "", "2022-01-01"],
+        lastDate: ["2021-12-31", "", "2022-06-30"],
+        error: ["", "", "filing store unavailable"],
+      })
+    ).toEqual([
+      {
+        cik: 11,
+        matched: 5,
+        processed: 5,
+        firstDate: "2021-01-01",
+        lastDate: "2021-12-31",
+        error: "",
+      },
+      { cik: 22, matched: 0, processed: 0, firstDate: "", lastDate: "", error: "" },
+      {
+        cik: 33,
+        matched: 2,
+        processed: 0,
+        firstDate: "2022-01-01",
+        lastDate: "2022-06-30",
+        error: "filing store unavailable",
+      },
+    ]);
+  });
+
+  it.each([
+    ["a single issuer", [4440]],
+    ["several issuers", [4441, 4442, 4443]],
+  ])(
+    "renders what the real %s fan-out actually merges to",
+    async (_label, ciks: readonly number[]) => {
+      // The shape `spacProcessRows` consumes is produced by `runWorkflowCli`,
+      // not asserted anywhere else — so build the graph `sec spac process`
+      // builds and read the sink. Notably a ONE-iteration map still merges to a
+      // one-element array per port rather than a bare scalar, which is the
+      // commonest invocation and was previously assumed to be the other way.
+      const merged = await runWorkflowCli<Record<string, unknown>>([], { cik: [...ciks] }, (wf) => {
+        const loop = wf.map({
+          concurrencyLimit: ciks.length,
+          maxIterations: ciks.length,
+          preserveOrder: true,
+        });
+        loop.pipe(new ProcessSpacTimelineTask() as ITask<DataPorts, DataPorts>);
+        loop.endMap();
+      });
+
+      expect(merged.cik).toEqual([...ciks]);
+      // None of these CIKs has a filing, so every issuer reports an empty
+      // timeline — the point here is the shape and the per-issuer labelling.
+      expect(spacProcessRows(merged as never)).toEqual(
+        ciks.map((cik) => ({
+          cik,
+          matched: 0,
+          processed: 0,
+          firstDate: "",
+          lastDate: "",
+          error: "",
+        }))
+      );
+    }
+  );
 });

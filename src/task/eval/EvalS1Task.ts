@@ -6,17 +6,27 @@
 
 import { Static, Type } from "typebox";
 import type { ModelConfig, ModelEffort } from "workglow";
-import { getGlobalModelRepository, IExecuteContext, isModelEffort, Task, Workflow } from "workglow";
+import {
+  getGlobalModelRepository,
+  IExecuteContext,
+  isModelEffort,
+  Task,
+  TaskAbortedError,
+  Workflow,
+} from "workglow";
 import { prefetchModel } from "../model/EnsureModelDownloadedTask";
 import { registerModelIds } from "../../config/registerModels";
 import { getGoldenLabels, goldenLabelKey, GOLDEN_S1_LABELS } from "../../eval/goldenS1Labels";
 import { loadRealS1Sections, type RealSection } from "../../eval/realSections";
 import { setExtractionEffortOverride } from "../../sec/forms/registration-statements/s1/extractionReasoning";
-import { resolveEvalS1Concurrency } from "./evalS1Concurrency";
-import { EvalS1SectionTask } from "./EvalS1SectionTask";
+import { resolveEvalS1Concurrencies, type EvalS1Concurrency } from "./evalS1Concurrency";
+import { EvalS1FilingTask } from "./EvalS1FilingTask";
 import {
+  beginEvalS1Sweep,
   collectMappedResults,
+  drainEvalS1Sweep,
   GOLDEN_REFERENCE,
+  groupSectionsByFiling,
   summarize,
   type OracleModelSummary,
   type OracleReport,
@@ -69,10 +79,20 @@ const InputSchema = () =>
           "(none|low|medium|high|extra|ultra)",
       })
     ),
-    concurrency: Type.Optional(
+    concurrencyS1: Type.Optional(
+      Type.Number({ title: "S-1 concurrency", description: "Filings in flight", minimum: 1 })
+    ),
+    concurrencySection: Type.Optional(
       Type.Number({
-        title: "Concurrency",
-        description: "Max S-1 sections in flight (default 5)",
+        title: "Section concurrency",
+        description: "Sections of one filing in flight",
+        minimum: 1,
+      })
+    ),
+    concurrencySectionModel: Type.Optional(
+      Type.Number({
+        title: "Section model concurrency",
+        description: "Candidate models in flight per section",
         minimum: 1,
       })
     ),
@@ -88,6 +108,12 @@ const OutputSchema = () =>
   Type.Object({
     reference: Type.String(),
     sections: Type.Number(),
+    /** The three fan-out axes the reported latencies were measured under. */
+    concurrency: Type.Object({
+      s1: Type.Number(),
+      section: Type.Number(),
+      sectionModel: Type.Number(),
+    }),
     skipped: Type.Array(Type.String()),
     results: Type.Array(Type.Unknown()),
     summaries: Type.Array(Type.Unknown()),
@@ -100,9 +126,10 @@ export type EvalS1TaskOutput = Static<ReturnType<typeof OutputSchema>>;
  * `candidate` extracts the same section and is scored on how closely it agrees
  * with the reference (field agreement, entity recall, precision). This answers
  * "can a cheap/local model stand in for sonnet on real filings?" without hand-
- * labeling every section. Sections run through a MapTask (default 5 in flight);
- * candidates for one section run in parallel after that section's reference.
- * A section the reference itself fails on is not scored.
+ * labeling every section. Three nested MapTasks fan the sweep out — filings,
+ * then that filing's sections, then the candidates scoring one section — each
+ * bounded by its own flag, so the extractions in flight is their product
+ * (default 1 x 5 x 4). A section the reference itself fails on is not scored.
  *
  * Running as a task (rather than a bare function) puts the sweep under the CLI's
  * automatic task-graph progress UI and makes it abortable — large real S-1
@@ -195,34 +222,59 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
       await prefetchModel(id, context);
     }
 
-    const concurrencyLimit = resolveEvalS1Concurrency(input.concurrency);
+    const concurrency: EvalS1Concurrency = resolveEvalS1Concurrencies({
+      s1: input.concurrencyS1,
+      section: input.concurrencySection,
+      sectionModel: input.concurrencySectionModel,
+    });
+
     const results: OracleRunResult[] = [];
-    if (sections.length > 0) {
+    beginEvalS1Sweep();
+    const filings = groupSectionsByFiling(sections);
+    if (filings.length > 0) {
       const wf = context.own(new Workflow(), {
-        title: `Evaluate ${sections.length} S-1 sections`,
+        title: `Evaluate ${sections.length} S-1 sections across ${filings.length} filing(s)`,
       });
       const loop = wf.map({
-        concurrencyLimit,
-        maxIterations: sections.length,
+        concurrencyLimit: Math.min(concurrency.s1, filings.length),
+        maxIterations: filings.length,
         preserveOrder: true,
         flatten: true,
       });
       loop.pipe(
-        new EvalS1SectionTask({
+        new EvalS1FilingTask({
           defaults: {
             reference: input.reference,
             candidates: input.candidates,
             dumpRaw,
+            sectionConcurrency: concurrency.section,
+            sectionModelConcurrency: concurrency.sectionModel,
           },
         })
       );
       loop.endMap();
-      const mapped = await wf.run({
-        filing: sections.map((s) => s.filing),
-        extractor: sections.map((s) => s.extractor),
-        text: sections.map((s) => s.text),
-      });
-      results.push(...collectMappedResults<OracleRunResult>(mapped));
+      try {
+        const mapped = await wf.run({
+          filing: filings.map((f) => f.filing),
+          extractors: filings.map((f) => f.sections.map((s) => s.extractor)),
+          texts: filings.map((f) => f.sections.map((s) => s.text)),
+        });
+        results.push(...collectMappedResults<OracleRunResult>(mapped));
+        drainEvalS1Sweep();
+      } catch (e) {
+        if (!(e instanceof TaskAbortedError)) throw e;
+        // The map discards a run's partial output on abort, but every completed
+        // section already cost real API calls. Report what was paid for, and
+        // say on the existing `skipped` channel that the sweep is incomplete —
+        // a truncated table read as a finished one is worse than no table.
+        const partial = drainEvalS1Sweep();
+        results.push(...partial);
+        const done = new Set(partial.map((r) => `${r.filing}::${r.extractor}`)).size;
+        skipped.push(
+          `interrupted after ${done} of ${sections.length} section(s) — the table below is ` +
+            `partial and its averages cover only what finished`
+        );
+      }
     }
 
     const perModel = new Map<string, OracleRunResult[]>();
@@ -252,6 +304,7 @@ export class EvalS1Task extends Task<EvalS1TaskInput, EvalS1TaskOutput> {
     return {
       reference: input.reference,
       sections: sections.length,
+      concurrency,
       skipped,
       results,
       summaries,
