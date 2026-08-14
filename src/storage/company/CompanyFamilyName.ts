@@ -85,6 +85,52 @@ const LEGAL_FORMS = new Set([
  * these cases actually are. They are also rare, so the cost is small.
  */
 
+/**
+ * Vehicle and business-line words that describe what an entity *is* rather than
+ * who runs it.
+ *
+ * This is a **floor, never a strip list** — the opposite polarity to the rule
+ * these words once served. Nothing here is dropped: `Chardan Capital Markets`
+ * keeps every token, for the reason set out above. The list exists only to
+ * answer one question — "would the name that survives stripping still name a
+ * house?" — and a single one of these words does not. `fund` as a family key is
+ * a collision waiting to happen: every sponsor's "Fund II" would land in it.
+ *
+ * `Equity` is deliberately absent: it is a qualifier inside a house name
+ * (`WAVE Equity`), not a vehicle type. `Global` is absent too — dropping it
+ * would unify `Citigroup Global Markets Inc.` with `Citigroup` at the cost of
+ * gutting the real company `Fundamental Global Inc.`, and corrupting a real name
+ * is the worse error.
+ */
+const GENERIC_VEHICLE_WORDS = new Set([
+  "fund",
+  "funds",
+  "capital",
+  "partners",
+  "partnership",
+  "holding",
+  "holdings",
+  "group",
+  "securities",
+  "markets",
+  "market",
+  "sponsor",
+  "sponsors",
+  "venture",
+  "ventures",
+  "management",
+  "advisors",
+  "advisers",
+  "associates",
+  "investment",
+  "investments",
+  "invest",
+  "acquisition",
+  "acquisitions",
+  "portfolio",
+  "master",
+]);
+
 /** A roman numeral (series marker): `II`, `XIII`, `VG VI`'s `VI`. */
 const ROMAN = /^[ivxlcdm]+$/;
 
@@ -97,16 +143,38 @@ const SERIES_NUMBER = /^\d{1,4}$/;
  */
 const BLOC_PREFIX = /^entit(?:y|ies)\s+(?:affiliated\s+with|of)\s+/i;
 
+/**
+ * A legal form, or the conjunction one strands: `Goldman Sachs & Co. LLC` folds
+ * to `goldman sachs and co llc`, and dropping `llc` then `co` leaves `and`
+ * hanging off the end of the house name. Always dropped — a legal form carries
+ * no identity in any name.
+ */
+function isLegalTail(token: string): boolean {
+  return LEGAL_FORMS.has(token) || token === "and";
+}
+
+/** A series marker separating one vehicle of a house from the next. */
+function isSeriesTail(token: string): boolean {
+  return ROMAN.test(token) || SERIES_NUMBER.test(token);
+}
+
 function isDroppableTail(token: string): boolean {
-  return (
-    LEGAL_FORMS.has(token) ||
-    ROMAN.test(token) ||
-    SERIES_NUMBER.test(token) ||
-    // A conjunction stranded by the token it joined: `Goldman Sachs & Co. LLC`
-    // becomes `goldman sachs and co llc`, and dropping `llc` then `co` leaves
-    // `and` hanging off the end of the house name.
-    token === "and"
-  );
+  return isLegalTail(token) || isSeriesTail(token);
+}
+
+/**
+ * Whether dropping the series marker at `end - 1` would leave a name that is a
+ * single generic vehicle word — `Fund II` → `fund`, `Ventures 2021` → `ventures`
+ * — and so names no house at all.
+ *
+ * Those are the names where the numeral is the ONLY distinguishing token, and
+ * dropping it merges every unrelated vehicle that shares the generic word. The
+ * asymmetry decides it: keeping the numeral under-merges, which shows up as two
+ * families and costs one alias, while dropping it over-merges, which silently
+ * attributes one house's deals to another and leaves no trace.
+ */
+function wouldLeaveBareVehicleWord(tokens: readonly string[], end: number): boolean {
+  return end === 2 && GENERIC_VEHICLE_WORDS.has(tokens[0]!);
 }
 
 /**
@@ -118,9 +186,14 @@ function isDroppableTail(token: string): boolean {
  * neighbouring note) — joining `Chardan Capital Markets` to `Chardan` is an
  * alias's job, not a normalizer's.
  *
- * Stripping never empties the result: `Fund III` is nothing BUT droppable
- * tokens, and a name that says only "the third fund" identifies no house, so
- * the last non-empty state is kept rather than returning nothing.
+ * The legal form always goes; the series marker goes UNLESS dropping it would
+ * leave a single generic vehicle word standing as the whole house name
+ * ({@link wouldLeaveBareVehicleWord}). `Fund III` therefore keeps its numeral
+ * rather than collapsing to `fund` alongside every other sponsor's third fund.
+ *
+ * Stripping never empties the result: a name of nothing but droppable tokens
+ * (`III LLC`) is kept whole rather than returning nothing and colliding with
+ * every other such name.
  */
 export function companyFamilyName(name: string | null | undefined): string {
   if (!name) return "";
@@ -147,7 +220,18 @@ export function companyFamilyName(name: string | null | undefined): string {
 
   const tokens = base.split(" ").filter((t) => t.length > 0);
   let end = tokens.length;
-  while (end > 1 && isDroppableTail(tokens[end - 1])) end--;
+  while (end > 1) {
+    const tail = tokens[end - 1]!;
+    if (isLegalTail(tail)) {
+      end--;
+      continue;
+    }
+    if (isSeriesTail(tail) && !wouldLeaveBareVehicleWord(tokens, end)) {
+      end--;
+      continue;
+    }
+    break;
+  }
   // Every token was droppable (`Fund III`): keep the whole thing rather than
   // inventing a family from the first word of a vehicle description.
   const kept = end > 1 || !isDroppableTail(tokens[0]) ? tokens.slice(0, end) : tokens;
