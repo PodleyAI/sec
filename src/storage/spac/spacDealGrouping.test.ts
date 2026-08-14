@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { deriveDeals } from "./spacDealGrouping";
+import { deriveDeals, pendingDealBefore } from "./spacDealGrouping";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import type { SpacMergerExtraction } from "./SpacMergerExtractionSchema";
@@ -396,5 +396,107 @@ describe("deriveDeals — completion is terminal", () => {
     expect(deals).toHaveLength(1);
     expect(deals[0].outcome).toBe("terminated");
     expect(deals[0].outcome_date).toBe("2022-11-01");
+  });
+});
+
+describe("deriveDeals — a completion outranks a deregistration", () => {
+  it("does not terminate the deal when the deregistration is dated before the completion", () => {
+    // The `completed` event is dated by the 8-K REPORT date while the Form 25
+    // event is dated by its FILING date, so a routine post-close delisting of
+    // the SPAC's units routinely lands at or before the closing.
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2022-01-10", "0002-8k-da"),
+        ev("deregistration", "2022-06-16", "0001-form25"),
+        ev("completed", "2022-06-21", "0009-8k-close"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("completed");
+    expect(deals[0].outcome_date).toBe("2022-06-21");
+    expect(deals[0].source_accession).toBe("0009-8k-close");
+  });
+
+  it("does not terminate the deal on a same-date Form 25 whose accession sorts first", () => {
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2022-01-10", "0002-8k-da"),
+        ev("deregistration", "2022-06-21", "0001-form25"),
+        ev("completed", "2022-06-21", "0009-8k-close"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("completed");
+    expect(deals[0].outcome_date).toBe("2022-06-21");
+  });
+
+  it("does not let a post-close liquidation event reopen or fail the completed deal", () => {
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2022-01-10", "0002-8k-da"),
+        ev("completed", "2022-06-21", "0009-8k-close"),
+        ev("liquidation", "2022-09-01", "0010-liq"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("completed");
+  });
+});
+
+describe("pendingDealBefore", () => {
+  it("reports the deal pending as of a boundary, ignoring later events", () => {
+    const events = [
+      ev("definitive_agreement", "2021-03-01", "acc-A"),
+      ev("completed", "2021-06-15", "acc-C"),
+    ];
+    const hint = pendingDealBefore(1, events, {
+      event_date: "2021-06-01",
+      accession_number: "acc-B",
+    });
+    expect(hint).not.toBeNull();
+    expect(hint?.definitive_agreement_date).toBe("2021-03-01");
+  });
+
+  it("reports no pending deal once the completion is in the prefix", () => {
+    const events = [
+      ev("definitive_agreement", "2021-03-01", "acc-A"),
+      ev("completed", "2021-06-15", "acc-C"),
+    ];
+    expect(
+      pendingDealBefore(1, events, { event_date: "2022-05-01", accession_number: "acc-D" })
+    ).toBeNull();
+  });
+
+  it("excludes the boundary accession's own events", () => {
+    // `processLoi8K` appends an `loi` event under the SAME accession, after the
+    // milestone map has already run. A second pass must not see it and flip the
+    // classification.
+    const events = [ev("loi", "2021-04-01", "acc-B")];
+    expect(
+      pendingDealBefore(1, events, { event_date: "2021-04-01", accession_number: "acc-B" })
+    ).toBeNull();
+  });
+
+  it("orders the prefix by (event_date, accession_number)", () => {
+    // Same-date events: only the accession sorting below the boundary counts.
+    const events = [ev("definitive_agreement", "2021-04-01", "acc-A")];
+    expect(
+      pendingDealBefore(1, events, { event_date: "2021-04-01", accession_number: "acc-B" })
+    ).not.toBeNull();
+    expect(
+      pendingDealBefore(1, events, { event_date: "2021-04-01", accession_number: "acc-0" })
+    ).toBeNull();
   });
 });

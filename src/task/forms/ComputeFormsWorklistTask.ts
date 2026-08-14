@@ -15,7 +15,11 @@ import {
   type FilingRepositoryStorage,
 } from "../../storage/filing/FilingSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { FORM_TO_EXTRACTOR_ID, formToExtractorId } from "../../storage/versioning/extractorIds";
+import {
+  FORM_TO_EXTRACTOR_ID,
+  formToExtractorId,
+  sortFormsForSweep,
+} from "../../storage/versioning/extractorIds";
 import { ExtractorRunRepo, filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
@@ -224,12 +228,21 @@ export class ComputeFormsWorklistTask extends Task<
 
     // Forms with a registered extractor, in a stable order so the resume
     // position (formPos) means the same thing on every iteration.
+    //
+    // The order is the SWEEP order, not the caller's: registration statements
+    // mint the `spac` row that the 8-K / proxy / 25-15 handlers are gated on,
+    // and each of those records a successful run when the row is missing, so
+    // reaching them first drops their events with nothing to re-select them.
+    // Applied to an explicit `--form` list too, so a multi-form request is
+    // ordered correctly without the operator knowing to do it.
     if (this.forms === undefined) {
-      this.forms = [...formSet].filter((form) => {
-        if (formToExtractorId(form)) return true;
-        console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
-        return false;
-      });
+      this.forms = sortFormsForSweep(
+        [...formSet].filter((form) => {
+          if (formToExtractorId(form)) return true;
+          console.warn(`update-forms: form '${form}' has no registered extractor; skipping`);
+          return false;
+        })
+      );
     }
 
     // Dry run reports the full total, so it scans everything in one pass and

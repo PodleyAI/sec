@@ -418,7 +418,27 @@ thinking model wraps the JSON in reasoning.
   `wave-equity-fund` and collapse into one row. `beneficial-ownership` — whose
   `name` is a person OR an entity, per its `owner_kind` — therefore declares
   none, and `fixtures.test.ts` fails any extractor that declares the flag while
-  carrying an `owner_kind` / `entity_kind` discriminator.
+  carrying an `owner_kind` / `entity_kind` discriminator. It names the field
+  under `entityNameFields` instead, and the row's own `entityKindField` picks the
+  parser per row.
+
+  That discriminator is **key material the reference side must carry**, not an
+  answer. `matchKey` namespaces a name by its row's kind, so a golden label or
+  fixture row that omits `owner_kind` keys as raw text while every candidate row
+  keys as `person:`/`company:` (the extractor's schema makes the field
+  required) — the two sides then align on nothing and a perfect model scores
+  0/0/0, with every owner reported as BOTH missing and hallucinated. Every
+  committed `beneficial-ownership` row therefore carries it, `O()` takes it as a
+  required argument (a default is how the two sides drift apart again), and two
+  guards hold the line: `fixtures.test.ts` fails a fixture row missing it, and
+  `goldenS1Labels.test.ts` requires `compareFields + entityKindField` on every
+  golden row. It is **excluded from the defaulted field set** — `eval s1` passes
+  an explicit `compareFields` that never names it while `eval extract` passes no
+  `fields` at all, so scoring it would have the two harnesses measuring different
+  questions. Belt-and-braces, alignment falls back to **exact normalized text**
+  when the kind-aware keys miss: strictly stricter than either identity hash, so
+  it recovers a one-sided or disagreeing kind without ever merging
+  `WAVE Equity Fund, L.P.` with `WAVE Equity Fund, LLC`.
 - **Cost** — the generation task exposes no token usage, so cost is **estimated**
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.
@@ -1296,14 +1316,62 @@ so replays are idempotent; an `as_of` guard protects filing-sourced scalar field
 from out-of-order writes, and `spac_history` + `ChangeLog` version the row.
 
 The IPO half is populated from S-1/DRS (`registration`) and priced 424B1/424B4
-(`ipo`). De-SPAC **milestone dates** are populated deterministically from 8-K
-item codes (known SPACs only — a `spac` row must already exist): item `1.01` →
-`definitive_agreement`, `1.02` → `terminated`, `2.01` → `completed`, `5.07` →
-`vote`. These group into `spac_deal` attempts via `deriveDeals`
-(recomputed from the event stream on every write, so `deal_index` is stable
-across replays) and roll up automatically. `target_name`, `pipe_amount`, and
-redemption amounts stay null until the narrative/AI extractors (S-4 / DEFM14A / 425) land — 8-K item codes carry no names or amounts. Still deferred: Form 25/15
-de-registration.
+(`ipo`). De-SPAC **milestone dates** come from 8-K item codes (known SPACs only
+— a `spac` row must already exist), but the mapping is **not 1:1**: the same
+item code carries a de-SPAC milestone on one filing and ordinary corporate
+housekeeping on the next, so `mapItemCodesToSpacEvents` classifies each code
+into a lifecycle type or a non-lifecycle one (`material_agreement` / `eight_k`,
+which no deal walk reads):
+
+| item   | lifecycle type         | condition                                                                                            |
+| ------ | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `2.01` | `completed`            | unconditional                                                                                        |
+| `1.01` | `definitive_agreement` | the submission carries a merger-shaped EX-2 exhibit AND the event is not dated before the date floor |
+| `1.02` | `terminated`           | a deal was pending as of that filing, or the exhibits are merger-shaped                              |
+| `5.07` | `vote`                 | the pending deal had a definitive-agreement or proxy date                                            |
+
+The date floor is `ipo_date`, falling back to `registration_date`. It exists
+only to reject the SPAC's own pre-IPO underwriting and formation agreements, so
+an **unknown** floor does not demote: `ipo_date` is written solely from a
+424B1/424B4 whose SGML header codes SIC 6770, and a row minted by the S-1 AI
+content classifier (a SIC-miscoded filer) legitimately has none. The real
+discriminator is the EX-2 exhibit.
+
+**The pending-deal hint is computed from the event stream strictly BEFORE this
+accession** (`pendingDealBefore`), never from the currently derived deal set.
+That is what makes replay idempotent, and it is easy to reintroduce: reading
+the derived deals makes filing N's classification depend on filings that came
+after N, so reprocessing N demotes its lifecycle event — and
+`recordDealMilestones` replaces every item-mapped row for the accession before
+appending, so the demotion deletes the event the first pass wrote.
+
+Classified events group into `spac_deal` attempts via `deriveDeals` (recomputed
+from the event stream on every write, so `deal_index` is stable across replays)
+and roll up automatically. `target_name`, `pipe_amount`, and redemption amounts
+stay null until the narrative/AI extractors (S-4 / DEFM14A / 425) land — 8-K
+item codes carry no names or amounts.
+
+**Deregistration.** Form 25 / 25-NSE / Form 15 (extractor id `25-15`) are
+implemented end to end: metadata-only, writing a `deregistration` event that
+closes a leftover pending deal and fails the vehicle. A deregistration ordered
+at or before a `completed` event is **post-close housekeeping and does not fail
+the deal** — the completion is dated by the 8-K's REPORT date while the Form 25
+event is dated by its FILING date, so the routine delisting of a de-SPAC'd
+shell's units routinely collides with or sorts ahead of the closing it follows.
+`deriveDeals` therefore ignores liquidation/deregistration entirely when the
+stream carries a completion anywhere.
+
+The whole 8-K / proxy / 25-15 tier is gated on the `spac` row that the
+registration statement mints, and each handler records a **successful** run
+when the row is missing — so a sweep that reaches them first drops their events
+with nothing to re-select the filing. `sortFormsForSweep`
+(`storage/versioning/extractorIds.ts`) gives `sec update forms` an explicit
+registration → prospectus → 8-K → proxies → 25/15 order rather than relying on
+`Object.keys` (which enumerates the integer-like `"25"` fourth). For filings
+ingested before that fix, or before their issuer's S-1 was processed, recover
+with `sec extractor backfill 25-15` — its `filterTodo` already selects
+known-SPAC Form 25/15 filings that have no deregistration event, so no `--force`
+is needed.
 
 **De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
 post-merger surviving entity. The rollup (`buildSpacRow`) derives `surviving_name`
@@ -1412,6 +1480,7 @@ sec spac report <cik> [--format json]   # consolidated report
 sec spac history <cik> [--format json]  # state-change history
 sec spac backfill-despac [--dry-run]    # refresh post-merger identity for completed SPACs
 sec spac backfill-trust [--dry-run]     # refresh current trust from 10-Q/10-K company facts
+sec extractor backfill 25-15            # recover deregistrations gated before their spac row existed
 ```
 
 ### SPAC identification from submissions (`spac_candidate`)

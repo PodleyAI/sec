@@ -98,16 +98,23 @@ describe("goldenS1Labels", () => {
   // marks a correct model wrong. With most extractors now labeled by hand, that
   // is the single most likely way to author a bad label, and nothing else
   // catches it.
-  it("carries exactly the scored fields for its extractor", () => {
+  it("carries exactly the scored fields for its extractor, plus its entity-kind key", () => {
     for (const [key, rows] of Object.entries(GOLDEN_S1_LABELS)) {
       const extractor = extractorOf(key);
       const spec = EVAL_EXTRACTORS[extractor];
       expect(spec, `unknown extractor in golden key: ${key}`).toBeDefined();
+      // `entityKindField` is not a scored field — it is the key material the
+      // scorer reads to decide which normalizer a name goes through. A label
+      // omitting it keys in a different namespace from every candidate row
+      // (whose schema makes it required) and matches nothing, so it is required
+      // here exactly like a compareField.
+      const required = [
+        ...spec!.compareFields,
+        ...(spec!.entityKindField ? [spec!.entityKindField] : []),
+      ].sort();
       for (const row of rows) {
         const present = Object.keys(row as Record<string, unknown>).sort();
-        expect(present, `${key} / ${rowKey(extractor, row)}`).toEqual(
-          [...spec!.compareFields].sort()
-        );
+        expect(present, `${key} / ${rowKey(extractor, row)}`).toEqual(required);
       }
     }
   });
