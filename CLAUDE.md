@@ -439,6 +439,7 @@ thinking model wraps the JSON in reasoning.
   when the kind-aware keys miss: strictly stricter than either identity hash, so
   it recovers a one-sided or disagreeing kind without ever merging
   `WAVE Equity Fund, L.P.` with `WAVE Equity Fund, LLC`.
+
 - **Cost** — the generation task exposes no token usage, so cost is **estimated**
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.
@@ -1995,6 +1996,20 @@ Set in `.env.local` (see `.env.test` for test defaults):
 - `SEC_PG_USER` — PostgreSQL user
 - `SEC_PG_PASSWORD` — PostgreSQL password
 - `SEC_PG_DATABASE` — PostgreSQL database name (default: `edgar`)
+- `SEC_FETCH_MAX_PER_SEC` — EDGAR fetch RATE, in requests/second, shared across
+  every process via the cluster rate limiter (default 8, clamped to 1–8 so a
+  stray value cannot approach EDGAR's 10/s ceiling)
+- `SEC_FETCH_MAX_CONCURRENT` — EDGAR fetches IN FLIGHT at once, per process
+  (default 16, clamped to 1–64). The two are independent limits and both are
+  needed: the rate limiter meters STARTS over a one-second window and its
+  reservations age out rather than being held until completion, so on its own it
+  admits `rate x latency` requests — a slow EDGAR serving multi-MB
+  full-submission `.txt` documents at 30s each puts ~240 fetches in flight, and
+  at roughly two file descriptors apiece that exhausts the process's descriptor
+  table (macOS's default `ulimit -n` of 256 goes first). The concurrency
+  limiter holds its slot until the job reaches a terminal state, which is what
+  bounds the peak. At the default pair it binds only once a fetch averages over
+  two seconds, so a healthy sweep is unaffected
 - `SEC_FIXTURES_DIR` — root under which `sec fetch fixtures` / `sec fetch s1-fixtures` write their gitignored cache (default: cwd). Written output goes to `<SEC_FIXTURES_DIR>/.sec-fixtures/exempt-offerings/` and `<SEC_FIXTURES_DIR>/.sec-fixtures/s1/.cache/` — never into the source tree or the bundled `dist/`.
 - `SEC_S1_MOCK_DIR` — override the committed S-1 fixtures directory read by `sec eval s1` and `loadRealS1Sections`. Falls back to the built-tree copy, then the source-tree copy.
 - `SEC_UNIT_TERMS_REF` — override the embarc unit-terms reference CSV read by `sec eval unit-terms` and `loadEmbarcUnitTermsReference` (mirrors `SEC_S1_MOCK_DIR`). A downstream package consuming the published tarball (which ships no `mock_data/`) points this at its own vendored copy. Fail-fast semantics: when the env var is set, a missing file throws (naming the env var and the path) instead of silently falling through to the package-relative default, so a typo cannot masquerade as "fixture missing, using default". When unset, resolves the package-shipped CSV (dist copy in the built tarball, src copy in dev).

@@ -31,6 +31,39 @@ export const SecFetchMaxPerSec = ((): number => {
 })();
 
 /**
+ * Ceiling on SEC fetches IN FLIGHT at once, per process.
+ *
+ * {@link SecFetchMaxPerSec} caps how many fetches may START each second; it
+ * does not cap how many are still running. The queue worker dispatches each
+ * claimed job in the background and immediately loops for the next, and the
+ * rate limiter's window is pruned by AGE rather than by completion, so a slot
+ * frees one second after a fetch begins no matter how long it takes. In-flight
+ * work is therefore `rate x latency`: while EDGAR is healthy (sub-second) that
+ * is ~8, but a slow spell serving multi-MB full-submission `.txt` documents at
+ * 30s each admits ~240 concurrent requests.
+ *
+ * Each in-flight fetch holds roughly two file descriptors, and the pool only
+ * releases them after an idle period, so that pile-up is what exhausts the
+ * process's descriptor table — reliably on macOS, whose default `ulimit -n` of
+ * 256 is crossed at ~128 concurrent fetches. The failure is not a leak: at a
+ * fixed concurrency the descriptor count is flat and returns to baseline once
+ * the pool goes idle. It is the unbounded PEAK that has to be capped.
+ *
+ * 16 is chosen so the cap binds only in the slow case it exists for: at 8
+ * starts/second it is not reached until a fetch averages over two seconds, so
+ * a healthy sweep runs at exactly the speed it does today, while a degraded
+ * EDGAR costs throughput instead of the whole process. Override via
+ * SEC_FETCH_MAX_CONCURRENT, clamped to 1..64 — an unclamped override would
+ * restore the unbounded behavior this constant exists to prevent, and 64
+ * in-flight (~128 descriptors) still fits inside the smallest default limit.
+ */
+export const SecFetchMaxConcurrent = ((): number => {
+  const raw = process.env.SEC_FETCH_MAX_CONCURRENT?.trim();
+  const parsed = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 16;
+  return Math.min(64, Math.max(1, parsed || 16));
+})();
+
+/**
  * General default model id shared by every SEC AI extractor (S-1, merger-proxy,
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
