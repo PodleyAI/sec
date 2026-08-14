@@ -12,6 +12,8 @@ import {
   FetchUrlTaskOutput,
   globalServiceRegistry,
   IExecuteContext,
+  type PageCursor,
+  type SearchCriteria,
   Task,
   TaskAbortedError,
   TaskError,
@@ -19,7 +21,7 @@ import {
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   SPAC_CANDIDATE_REPOSITORY_TOKEN,
   type SpacCandidateConfidence,
@@ -37,8 +39,9 @@ import {
   accessionDocCacheRelative,
   DEFAULT_SPAC_DOWNLOAD_CONFIDENCE,
   formsForDownloadSet,
-  MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY,
+  SPAC_DOWNLOAD_FILING_PAGE_SIZE,
   spacDocFetchFileName,
+  spacDownloadCikChunkSize,
   type SpacDownloadSet,
 } from "./spacCandidateDownload";
 
@@ -421,18 +424,20 @@ export class DownloadSpacCandidateDocsTask extends Task<
     const ciks = candidates.map((c) => c.cik);
     const formSet = formsForDownloadSet(input.set);
 
-    // Each chunk is matched and turned into worklist entries before the next is
-    // read, so the query's rows are never accumulated into one array. Two
-    // reasons, and the first is a crash rather than a slowdown: `push(...rows)`
-    // spreads every row into a separate argument, which exceeds the call-stack
-    // limit somewhere past ~125k elements. The query is by CIK only — narrowing
-    // it by form as well would push a 900-CIK chunk's bound parameters toward
-    // SQLite's cap — so a chunk returns a candidate's ENTIRE filing history
-    // whichever set was asked for, and `everything` is not the only variant
-    // that gets near that bound. Second, the peak is now one chunk rather than
-    // every filing of every candidate, which for `registration` and `8k` is the
-    // difference between a handful of matches and hundreds of thousands of rows
-    // held only to be discarded.
+    // The scan never holds more than one page of `filings`, and asks the
+    // database for as few of them as it can.
+    //
+    // Two things do that. The form list goes into the QUERY rather than being
+    // applied to rows already in JS — `(form, cik)` is an index, so an `8k` run
+    // reads 8-Ks instead of reading a SPAC's whole history and discarding the
+    // 10-Qs, 10-Ks and Section 16 forms that dominate it. And the read is a
+    // cursor walk, so `everything` — which has no form to narrow by — is
+    // bounded by the page size rather than by how much history 900 candidates
+    // happen to have.
+    //
+    // `cik` leads the primary key, so both the `in` filter and the keyset
+    // predicate ride `(cik, accession_number)` order: no sort, no offset
+    // re-scan, and each page is one indexed range read.
     let matched = 0;
     const todo: CacheOneInput[] = [];
     // Three different situations, kept as three counters: "already have it" is
@@ -442,48 +447,68 @@ export class DownloadSpacCandidateDocsTask extends Task<
     let skippedCached = 0;
     let skippedNoFileName = 0;
     let skippedUnsafeName = 0;
-    for (let start = 0; start < ciks.length; start += MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY) {
-      const chunk = ciks.slice(start, start + MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY);
-      const rows = (await filingRepo.query({ cik: { value: chunk, operator: "in" } })) ?? [];
-      for (const row of rows) {
-        const form = row.form ?? "";
-        if (form.length === 0) continue;
-        if (formSet !== undefined && !formSet.has(form)) continue;
-        matched++;
-        const fileName = spacDocFetchFileName(form, row.accession_number, row.primary_doc);
-        if (fileName.trim().length === 0) {
-          skippedNoFileName++;
-          continue;
-        }
-        try {
-          sanitizePrimaryDoc(fileName);
-        } catch {
-          skippedUnsafeName++;
-          console.warn(
-            `Skipping unsafe document name for cik=${row.cik} accession=${row.accession_number}: ` +
-              JSON.stringify(fileName)
-          );
-          continue;
-        }
-        if (
-          !force &&
-          shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)
-        ) {
-          skippedCached++;
-          continue;
-        }
-        todo.push({
-          cik: row.cik,
-          accessionNumber: row.accession_number,
-          form,
-          fileName,
-          // `Filing.primary_doc` is nullable; the data port is not. Coalesce
-          // once here, at the worklist boundary, exactly as the accession-doc
-          // bootstrap does — a nullable does not belong in a task's input port.
-          primaryDoc: row.primary_doc ?? "",
-          force,
+    const forms = formSet === undefined ? undefined : [...formSet];
+    const chunkSize = spacDownloadCikChunkSize(forms?.length ?? 0);
+    for (let start = 0; start < ciks.length; start += chunkSize) {
+      const chunk = ciks.slice(start, start + chunkSize);
+      const criteria: SearchCriteria<Filing> = {
+        cik: { value: chunk, operator: "in" },
+        ...(forms === undefined ? {} : { form: { value: forms, operator: "in" as const } }),
+      };
+      let cursor: PageCursor | undefined;
+      do {
+        if (context.signal?.aborted) throw new TaskAbortedError();
+        const page = await filingRepo.queryPage(criteria, {
+          limit: SPAC_DOWNLOAD_FILING_PAGE_SIZE,
+          cursor,
         });
-      }
+        for (const row of page.items) {
+          const form = row.form ?? "";
+          if (form.length === 0) continue;
+          // The query already narrowed to these forms; this stays as the guard
+          // for `everything`, whose criteria carry no form at all.
+          if (formSet !== undefined && !formSet.has(form)) continue;
+          matched++;
+          const fileName = spacDocFetchFileName(form, row.accession_number, row.primary_doc);
+          if (fileName.trim().length === 0) {
+            skippedNoFileName++;
+            continue;
+          }
+          try {
+            sanitizePrimaryDoc(fileName);
+          } catch {
+            skippedUnsafeName++;
+            console.warn(
+              `Skipping unsafe document name for cik=${row.cik} accession=${row.accession_number}: ` +
+                JSON.stringify(fileName)
+            );
+            continue;
+          }
+          if (
+            !force &&
+            shouldSkipCached(raw, row.cik, row.accession_number, form, fileName, row.primary_doc)
+          ) {
+            skippedCached++;
+            continue;
+          }
+          todo.push({
+            cik: row.cik,
+            accessionNumber: row.accession_number,
+            form,
+            fileName,
+            // `Filing.primary_doc` is nullable; the data port is not. Coalesce
+            // once here, at the worklist boundary, exactly as the accession-doc
+            // bootstrap does — a nullable does not belong in a task's input port.
+            primaryDoc: row.primary_doc ?? "",
+            force,
+          });
+        }
+        // Terminate on an empty page as well as on a missing cursor: a defined
+        // `nextCursor` does not promise more rows, and a concurrent delete can
+        // empty a page mid-walk.
+        if (page.items.length === 0) break;
+        cursor = page.nextCursor;
+      } while (cursor !== undefined);
     }
 
     const skips = { skippedCached, skippedNoFileName, skippedUnsafeName };
