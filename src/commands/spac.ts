@@ -167,6 +167,19 @@ export function formatSpacProcessSummary(
   return `${row.cik}: ${parts.join("; ")}`;
 }
 
+/**
+ * Issuers whose replay actually failed — what the command's exit code reports.
+ *
+ * `partial` deliberately does not count. It is the documented NORMAL outcome of
+ * one AI section dead-lettering, and almost every real SPAC has at least one,
+ * so counting it made a non-zero exit the default for a healthy run and any
+ * script gating on the exit code read a clean replay as a failure. The warn
+ * line and `sec extractor dead-letters <id>` remain the surface for partials.
+ */
+export function spacProcessFailureCount(rows: readonly ProcessSpacTimelineTaskOutput[]): number {
+  return rows.filter((row) => row.error !== "" || row.failed > 0).length;
+}
+
 /** Parse a CLI CIK argument, returning null (after printing an error) when it is not a non-negative integer. */
 function parseCikArg(cikArg: string): number | null {
   const cik = Number(cikArg);
@@ -224,17 +237,14 @@ export function registerSpacCommands(program: Command): void {
           loop.endMap();
         });
         const rows = spacProcessRows(results);
-        let failed = 0;
         for (const row of rows) {
           if (row.error) {
-            failed++;
             console.error(`${row.cik}: ${row.error}`);
           } else if (row.matched === 0) {
             console.log(`${row.cik}: no processable filings`);
           } else {
             console.log(formatSpacProcessSummary(row, { dryRun: isDryRun() }));
             if (row.partial > 0 || row.failed > 0) {
-              failed++;
               console.error(
                 statusMessage(
                   "warn",
@@ -251,8 +261,9 @@ export function registerSpacCommands(program: Command): void {
             }
           }
         }
+        const failed = spacProcessFailureCount(rows);
         if (failed > 0) {
-          throw new Error(`${failed} of ${parsed.length} issuer(s) failed`);
+          throw new Error(`${failed} of ${parsed.length} issuer(s) had failed filings`);
         }
       });
     });

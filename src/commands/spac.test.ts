@@ -10,8 +10,16 @@ import { runWorkflowCli } from "../cli/runWorkflow";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
-import { ProcessSpacTimelineTask } from "../task/spac/ProcessSpacTimelineTask";
-import { assembleSpacReport, formatSpacProcessSummary, spacProcessRows } from "./spac";
+import {
+  ProcessSpacTimelineTask,
+  type ProcessSpacTimelineTaskOutput,
+} from "../task/spac/ProcessSpacTimelineTask";
+import {
+  assembleSpacReport,
+  formatSpacProcessSummary,
+  spacProcessFailureCount,
+  spacProcessRows,
+} from "./spac";
 
 describe("assembleSpacReport", () => {
   beforeEach(async () => {
@@ -190,5 +198,49 @@ describe("formatSpacProcessSummary", () => {
         { dryRun: true }
       )
     ).toBe("1822912: would replay 52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
+});
+
+describe("spacProcessFailureCount", () => {
+  const row = (p: Partial<ProcessSpacTimelineTaskOutput>): ProcessSpacTimelineTaskOutput => ({
+    cik: 1,
+    matched: 52,
+    processed: 52,
+    partial: 0,
+    failed: 0,
+    triage: 0,
+    firstDate: "2020-09-23",
+    lastDate: "2023-10-03",
+    error: "",
+    ...p,
+  });
+
+  it("does not count a partial-only issuer", () => {
+    // A partial run is the documented NORMAL outcome when one AI section
+    // dead-letters, so counting it made a non-zero exit the default for
+    // essentially every real SPAC.
+    expect(spacProcessFailureCount([row({ partial: 1, processed: 51 })])).toBe(0);
+  });
+
+  it("counts an issuer with failed filings", () => {
+    expect(spacProcessFailureCount([row({ failed: 2, processed: 50 })])).toBe(1);
+  });
+
+  it("counts an issuer whose replay errored", () => {
+    expect(spacProcessFailureCount([row({ error: "boom" })])).toBe(1);
+  });
+
+  it("counts a failed issuer once and excludes the partial ones", () => {
+    expect(
+      spacProcessFailureCount([
+        row({ cik: 1, partial: 3 }),
+        row({ cik: 2, failed: 1 }),
+        row({ cik: 3 }),
+      ])
+    ).toBe(1);
+  });
+
+  it("counts an issuer that is both partial and failed only once", () => {
+    expect(spacProcessFailureCount([row({ partial: 2, failed: 1 })])).toBe(1);
   });
 });
