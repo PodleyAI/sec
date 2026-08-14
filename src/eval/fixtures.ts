@@ -581,14 +581,16 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     name: "beneficial-ownership-spac-founder-table",
     extractor: "beneficial-ownership",
     text: SPAC_BENEFICIAL_OWNERSHIP,
-    // Only `name` is scored. The "as a group" subtotal is deliberately absent:
-    // emitting it costs precision, which is the behavior we want to measure.
+    // Only `name` is scored — `owner_kind` is the discriminator the scorer keys
+    // the name through, and a reference row that omits it aligns with nothing.
+    // The "as a group" subtotal is deliberately absent: emitting it costs
+    // precision, which is the behavior we want to measure.
     expected: [
-      { name: "Halyard Sponsor III LLC" },
-      { name: "Eleanor Vasquez" },
-      { name: "Desmond Achebe" },
-      { name: "Marta Lindqvist" },
-      { name: "Peter Sandoval-Reyes" },
+      { name: "Halyard Sponsor III LLC", owner_kind: "company" },
+      { name: "Eleanor Vasquez", owner_kind: "person" },
+      { name: "Desmond Achebe", owner_kind: "person" },
+      { name: "Marta Lindqvist", owner_kind: "person" },
+      { name: "Peter Sandoval-Reyes", owner_kind: "person" },
     ],
   },
   {
@@ -596,11 +598,11 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
     extractor: "beneficial-ownership",
     text: OPERATING_BENEFICIAL_OWNERSHIP,
     expected: [
-      { name: "Calder Ventures Fund II, L.P." },
-      { name: "Marcus T. Delgado" },
-      { name: "Priya Ramaswamy" },
-      { name: "Devin O'Leary" },
-      { name: "Susan Whitfield-Chen" },
+      { name: "Calder Ventures Fund II, L.P.", owner_kind: "company" },
+      { name: "Marcus T. Delgado", owner_kind: "person" },
+      { name: "Priya Ramaswamy", owner_kind: "person" },
+      { name: "Devin O'Leary", owner_kind: "person" },
+      { name: "Susan Whitfield-Chen", owner_kind: "person" },
     ],
   },
   {

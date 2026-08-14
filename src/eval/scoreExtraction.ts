@@ -217,11 +217,16 @@ function valuesAgree(
   field: string,
   nameKind: (row: Record<string, unknown>, field: string | undefined) => NameKind
 ): boolean {
-  // Each side is keyed in ITS OWN row, so a candidate that also got the
-  // discriminator wrong compares as the kind it claimed rather than silently
-  // borrowing the reference's. Disagreeing on kind then reads as a mismatch,
-  // which is what it is.
-  if (nameKind(expectedRow, field) !== "raw" || nameKind(candidateRow, field) !== "raw") {
+  // Each side is keyed in ITS OWN row, so the two kinds can differ — a candidate
+  // that got the discriminator wrong, or a reference row that carries none.
+  // Identity hashes are namespaced per kind, so comparing across kinds can only
+  // ever report a mismatch; the two rows are nevertheless aligned (the text
+  // fallback in `findMatch` puts them together), and reporting the field they
+  // aligned ON as a disagreement is a second penalty for one difference in a
+  // field that is not itself scored. Only a SHARED kind licenses hash equality.
+  const expectedKind = nameKind(expectedRow, field);
+  const candidateKind = nameKind(candidateRow, field);
+  if (expectedKind !== "raw" && expectedKind === candidateKind) {
     return (
       matchKey(expectedRow, expectedValue, field, nameKind) ===
       matchKey(candidateRow, candidateValue, field, nameKind)
@@ -301,9 +306,24 @@ function rowKey(row: Record<string, unknown>, index: number, keyField: string | 
   return raw === "" ? `#${index}` : raw;
 }
 
-/** Fields to compare for one expected row: explicit `fields`, else its own keys. */
+/**
+ * Fields to compare for one expected row: explicit `fields`, else its own keys
+ * minus {@link ScoreOptions.entityKindField}.
+ *
+ * The discriminator is **key material, not an answer**: it says which normalizer
+ * the name is read through, and the measured question ("does the model list the
+ * right owners") is about the name. It is also excluded for consistency between
+ * the two harnesses — `sec eval s1` passes an explicit `compareFields` that
+ * never names it, while `sec eval extract` passes no `fields` at all. Left in
+ * the default set, one harness would score it and the other would not, and the
+ * two would silently be measuring different questions. An explicit `fields`
+ * naming it is still honoured: that is a deliberate request.
+ */
 function fieldsFor(expectedRow: Record<string, unknown>, opts: ScoreOptions): string[] {
-  return opts.fields ? [...opts.fields] : Object.keys(expectedRow);
+  if (opts.fields) return [...opts.fields];
+  const kindField = opts.entityKindField;
+  const keys = Object.keys(expectedRow);
+  return kindField === undefined ? keys : keys.filter((key) => key !== kindField);
 }
 
 /**
@@ -346,15 +366,33 @@ export function scoreExtraction(
   );
   const used = new Array<boolean>(candidateRows.length).fill(false);
 
+  // Kind-agnostic key: the field value as exact normalized text, the key every
+  // row would have had before any name-kind dispatch existed.
+  const textKey = (row: Record<string, unknown>): string => `raw:${normalize(row[opts.keyField!])}`;
+
   const findMatch = (expectedRow: Record<string, unknown>, index: number): number => {
     if (!opts.keyField) {
       // Positional alignment.
       return index < candidateRows.length && !used[index] ? index : -1;
     }
     const target = matchKey(expectedRow, expectedRow[opts.keyField], opts.keyField, nameKind);
-    return candidateRows.findIndex(
+    const keyed = candidateRows.findIndex(
       (row, i) => !used[i] && matchKey(row, row[opts.keyField!], opts.keyField, nameKind) === target
     );
+    if (keyed >= 0) return keyed;
+    // Second pass, on exact normalized text. The kind-aware key is namespaced
+    // per kind, so two rows naming the same entity miss each other whenever one
+    // side omits the discriminator or the two disagree about it — reported as a
+    // missing entity AND an invented one, for a field that is not even scored.
+    //
+    // Safe precisely because it is STRICTER than either identity hash: the
+    // hashes drop parts (a legal form, a credential), this drops nothing but
+    // case and punctuation. It can therefore only recover a pair the kind-aware
+    // pass split; it can never merge two rows that pass kept apart, so
+    // `WAVE Equity Fund, L.P.` and `WAVE Equity Fund, LLC` stay two owners.
+    const textTarget = textKey(expectedRow);
+    if (textTarget === "raw:") return -1;
+    return candidateRows.findIndex((row, i) => !used[i] && textKey(row) === textTarget);
   };
 
   let matchedItems = 0;

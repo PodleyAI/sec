@@ -416,7 +416,27 @@ thinking model wraps the JSON in reasoning.
   `wave-equity-fund` and collapse into one row. `beneficial-ownership` — whose
   `name` is a person OR an entity, per its `owner_kind` — therefore declares
   none, and `fixtures.test.ts` fails any extractor that declares the flag while
-  carrying an `owner_kind` / `entity_kind` discriminator.
+  carrying an `owner_kind` / `entity_kind` discriminator. It names the field
+  under `entityNameFields` instead, and the row's own `entityKindField` picks the
+  parser per row.
+
+  That discriminator is **key material the reference side must carry**, not an
+  answer. `matchKey` namespaces a name by its row's kind, so a golden label or
+  fixture row that omits `owner_kind` keys as raw text while every candidate row
+  keys as `person:`/`company:` (the extractor's schema makes the field
+  required) — the two sides then align on nothing and a perfect model scores
+  0/0/0, with every owner reported as BOTH missing and hallucinated. Every
+  committed `beneficial-ownership` row therefore carries it, `O()` takes it as a
+  required argument (a default is how the two sides drift apart again), and two
+  guards hold the line: `fixtures.test.ts` fails a fixture row missing it, and
+  `goldenS1Labels.test.ts` requires `compareFields + entityKindField` on every
+  golden row. It is **excluded from the defaulted field set** — `eval s1` passes
+  an explicit `compareFields` that never names it while `eval extract` passes no
+  `fields` at all, so scoring it would have the two harnesses measuring different
+  questions. Belt-and-braces, alignment falls back to **exact normalized text**
+  when the kind-aware keys miss: strictly stricter than either identity hash, so
+  it recovers a one-sided or disagreeing kind without ever merging
+  `WAVE Equity Fund, L.P.` with `WAVE Equity Fund, LLC`.
 - **Cost** — the generation task exposes no token usage, so cost is **estimated**
   (`src/eval/modelPricing.ts`: ~4 chars/token × public per-M pricing; local models $0).
   Absolute dollars are approximate; the ranking is what matters.
