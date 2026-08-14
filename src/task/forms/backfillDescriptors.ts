@@ -6,6 +6,7 @@
 import { globalServiceRegistry } from "workglow";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
+import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -63,6 +64,25 @@ async function selectFilingsByForms(forms: readonly string[]): Promise<BackfillC
 }
 
 /**
+ * Known-SPAC filings of an extractor's routed forms, queried by `(form, cik)`
+ * so only each SPAC's rows load (the filings storage is indexed on it).
+ */
+async function selectKnownSpacFilings(extractorId: string): Promise<BackfillCandidate[]> {
+  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const spacs = await new SpacRepo().getAllSpacs();
+  const out: BackfillCandidate[] = [];
+  for (const spac of spacs) {
+    for (const form of formsForExtractor(extractorId)) {
+      const filings = (await filingRepo.query({ form, cik: spac.cik })) ?? [];
+      for (const f of filings) {
+        out.push({ cik: f.cik, accession_number: f.accession_number });
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Candidates for a known-SPAC 8-K sub-extractor: 8-K / 8-K/A filings of a CIK
  * with a spac row whose items string passes the trigger predicate. Loads the
  * full 8-K sets in two bulk queries and filters in memory (cheaper than
@@ -98,25 +118,44 @@ function spacTrigger8KSelector(
  */
 const mergerProxyDescriptor: BackfillDescriptor = {
   extractorId: "merger-proxy",
-  selectCandidates: async () => {
-    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    const spacs = await new SpacRepo().getAllSpacs();
-    const out: BackfillCandidate[] = [];
-    for (const spac of spacs) {
-      for (const form of formsForExtractor("merger-proxy")) {
-        const filings = (await filingRepo.query({ form, cik: spac.cik })) ?? [];
-        for (const f of filings) {
-          out.push({ cik: f.cik, accession_number: f.accession_number });
-        }
-      }
-    }
-    return out;
-  },
+  selectCandidates: () => selectKnownSpacFilings("merger-proxy"),
   filterTodo: async (candidates) => {
     const extractions = new SpacMergerExtractionRepo();
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
       if (!(await extractions.getByAccession(c.accession_number))) todo.push(c);
+    }
+    return todo;
+  },
+};
+
+/**
+ * Candidates for Form 25/15 recovery: known-SPAC listing-withdrawal and
+ * Exchange Act termination filings. `filterTodo` keeps those with no
+ * `deregistration` event: the known-SPAC gate records a `success: true` no-op
+ * when the spac row does not exist at ingestion, so the default extractor-runs
+ * anti-join would never revisit them after the S-1 lands.
+ */
+const deregistrationDescriptor: BackfillDescriptor = {
+  extractorId: "25-15",
+  selectCandidates: () => selectKnownSpacFilings("25-15"),
+  filterTodo: async (candidates) => {
+    const repo = new SpacRepo();
+    const eventsByCik = new Map<number, SpacEvent[]>();
+    const todo: BackfillCandidate[] = [];
+    for (const c of candidates) {
+      let events = eventsByCik.get(c.cik);
+      if (!events) {
+        events = await repo.getEvents(c.cik);
+        eventsByCik.set(c.cik, events);
+      }
+      if (
+        !events.some(
+          (e) => e.event_type === "deregistration" && e.accession_number === c.accession_number
+        )
+      ) {
+        todo.push(c);
+      }
     }
     return todo;
   },
@@ -133,6 +172,7 @@ const CUSTOM_DESCRIPTORS: Readonly<Record<string, BackfillDescriptor>> = {
     selectCandidates: spacTrigger8KSelector(hasLoiTriggerItem),
   },
   "merger-proxy": mergerProxyDescriptor,
+  "25-15": deregistrationDescriptor,
 };
 
 /**

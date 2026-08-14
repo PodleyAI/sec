@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
@@ -56,11 +57,12 @@ async function seedFiling(opts: {
 
 describe("backfill descriptor registry", () => {
   it("resolves a custom descriptor for the sub-extractors and merger-proxy", () => {
-    for (const id of ["redemption", "loi", "merger-proxy"]) {
+    for (const id of ["redemption", "loi", "merger-proxy", "25-15"]) {
       expect(getBackfillDescriptor(id)?.extractorId).toBe(id);
     }
-    // merger-proxy overrides the needing-work predicate; the 8-K sub-extractors don't.
+    // merger-proxy and 25-15 override the needing-work predicate; the 8-K sub-extractors don't.
     expect(getBackfillDescriptor("merger-proxy")?.filterTodo).toBeDefined();
+    expect(getBackfillDescriptor("25-15")?.filterTodo).toBeDefined();
     expect(getBackfillDescriptor("redemption")?.filterTodo).toBeUndefined();
   });
 
@@ -76,7 +78,7 @@ describe("backfill descriptor registry", () => {
 
   it("lists every backfillable id, including the sub-extractors", () => {
     const ids = listBackfillableExtractorIds();
-    for (const id of ["S-1", "8-K", "merger-proxy", "redemption", "loi"]) {
+    for (const id of ["S-1", "8-K", "merger-proxy", "redemption", "loi", "25-15"]) {
       expect(ids).toContain(id);
     }
   });
@@ -176,6 +178,35 @@ describe("merger-proxy descriptor", () => {
     });
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-prem"]);
+  });
+});
+
+describe("25-15 descriptor", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("selects known-SPAC Form 25/15 filings; filterTodo keeps those lacking a deregistration event", async () => {
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-nse", form: "25-NSE" });
+    await seedFiling({ cik: 5, accession_number: "acc-15", form: "15-12G" });
+    await seedFiling({ cik: 5, accession_number: "acc-8k", form: "8-K", items: "1.01" });
+    await seedFiling({ cik: 6, accession_number: "acc-nonspac", form: "15-12G" });
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const candidates = await descriptor.selectCandidates();
+    const accessions = new Set(candidates.map((c) => c.accession_number));
+    expect(accessions).toEqual(new Set(["acc-nse", "acc-15"]));
+
+    await processDeregistration({
+      cik: 5,
+      accession_number: "acc-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-20",
+    });
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-15"]);
   });
 });
 

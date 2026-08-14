@@ -13,8 +13,9 @@ import { TypeSecCik } from "../../util/TypeSecCik";
 /**
  * Lifecycle event vocabulary. `registration` / `ipo` come from S-1/424; the
  * de-SPAC milestones `definitive_agreement` / `terminated` / `completed` /
- * `vote` are written from 8-K item codes. The remaining types are reserved for
- * deferred extractors (S-4/DEFM14A, Form 425, Form 25/15).
+ * `vote` are written from 8-K item codes. `deregistration` is written from
+ * Form 25 / 25-NSE / Form 15 metadata. Remaining types are reserved for
+ * deferred extractors (S-4, Form 425, liquidation narrative).
  */
 export const SPAC_EVENT_TYPES = [
   "registration",

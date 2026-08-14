@@ -17,6 +17,7 @@ describe("extractorIds", () => {
       "1-K",
       "1-Z",
       "144",
+      "25-15",
       "3",
       "4",
       "424",
@@ -137,6 +138,31 @@ describe("extractorIds — DRS dispatch mapping", () => {
     expect(formToExtractorId("DRS")).toBe("S-1");
     expect(formToExtractorId("DRS/A")).toBe("S-1");
     expect(formToExtractorId("DRSLTR")).toBeUndefined();
+  });
+});
+
+describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
+  it("maps Form 25 / 25-NSE and the Form 15 family to extractor id '25-15'", () => {
+    for (const form of [
+      "25",
+      "25/A",
+      "25-NSE",
+      "25-NSE/A",
+      "15-12B",
+      "15-12B/A",
+      "15-12G",
+      "15-12G/A",
+      "15-15D",
+      "15-15D/A",
+      "15F-12B",
+      "15F-12B/A",
+      "15F-12G",
+      "15F-12G/A",
+      "15F-15D",
+      "15F-15D/A",
+    ]) {
+      expect(formToExtractorId(form)).toBe("25-15");
+    }
   });
 });
 

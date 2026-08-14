@@ -21,6 +21,7 @@ export const EXTRACTOR_IDS = [
   "merger-proxy",
   "redemption",
   "loi",
+  "25-15",
 ] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
@@ -117,6 +118,26 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "DEF 14C": "merger-proxy",
   "PRE 14C": "merger-proxy",
   PREA14C: "merger-proxy",
+  // Exchange listing withdrawal (Form 25 / 25-NSE) and Exchange Act
+  // deregistration (Form 15 / 15F family). Metadata-only: the filings table
+  // already carries cik / form / filing_date, and 25-NSE documents live under
+  // the exchange CIK so an issuer-CIK fetch 404s.
+  "25": "25-15",
+  "25/A": "25-15",
+  "25-NSE": "25-15",
+  "25-NSE/A": "25-15",
+  "15-12B": "25-15",
+  "15-12B/A": "25-15",
+  "15-12G": "25-15",
+  "15-12G/A": "25-15",
+  "15-15D": "25-15",
+  "15-15D/A": "25-15",
+  "15F-12B": "25-15",
+  "15F-12B/A": "25-15",
+  "15F-12G": "25-15",
+  "15F-12G/A": "25-15",
+  "15F-15D": "25-15",
+  "15F-15D/A": "25-15",
 };
 
 /**

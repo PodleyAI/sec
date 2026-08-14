@@ -306,6 +306,32 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record Exchange listing withdrawal (Form 25 / 25-NSE) or Exchange Act
+   * termination (Form 15 / 15F): append a `deregistration` event (idempotent
+   * by PK), recompute deals, then rebuild the row. Rollup treats that event as
+   * a failure unless a completed de-SPAC already exists.
+   */
+  async recordDeregistration(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "deregistration",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
    * Record a realized redemption: recompute deals from the event stream +
    * stored redemption extractions (correlation derives redemption_amount /
    * redemption_shares onto the matching deal), then rebuild the row. No event

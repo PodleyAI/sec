@@ -28,6 +28,7 @@ import { processForm144 } from "../../sec/forms/insider-trading/Form_144.storage
 import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.storage";
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
+import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -421,6 +422,59 @@ export class ProcessAccessionDocFormTask extends Task<
         );
       }
     };
+
+    // Form 25 / 15 never need the document body: 25-NSE files live under the
+    // exchange CIK (an issuer-CIK fetch 404s), and the event date is the
+    // filings-table `filing_date`. Skip fetch/parse before the missing-primary-doc
+    // guard so a 25-NSE with no `primary_doc` still records.
+    if (extractorId === "25-15") {
+      await context.updateProgress(80, `${label} · storing`);
+      try {
+        await processDeregistration({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form,
+          filing_date: filing_date ?? "",
+        });
+      } catch (err) {
+        if (err instanceof TaskAbortedError || context.signal?.aborted) {
+          throw err;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        const detail = `Store failed for form '${form}': ${message}`;
+        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
+        await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
+        await recordRunFailed(`STORE_ERROR: ${detail}`);
+        return { success: false };
+      }
+      try {
+        await deadLetters.markResolved(extractorId, accessionNumber, "");
+      } catch (dlErr) {
+        console.error(
+          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
+      try {
+        await runRepo.recordRun({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form: form!,
+          extractor_id: extractorId,
+          extractor_version: extractorVersion,
+          slot_at_run: slotAtRun,
+          success: true,
+          outcome: "success",
+          error: null,
+        });
+      } catch (recordErr) {
+        console.error(
+          `Failed to record extractor_runs row for ${cik}/${accessionNumber}@${extractorId}:${extractorVersion}:`,
+          recordErr
+        );
+      }
+      return { success: true };
+    }
 
     // --- Domain 1: primary-document resolution (filing-level) ---
     if (!fileName) {
