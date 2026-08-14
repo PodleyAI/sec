@@ -1111,13 +1111,47 @@ attributes one house's deals to another and leaves no trace, while an
 sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
 ```
 
-Two shapes the rule is measured against, both from real names in the committed
-golden labels: stripping is **token-exact**, so `Fundamental Global Inc.` is not
-gutted by the `Fund` prefix; and it never empties a name, so `Fund III` — all
-droppable tokens, naming no house — is kept rather than colliding with every
-other such name. `Citigroup Global Markets Inc.` does **not** unify with
-`Citigroup`, a known gap: stripping `Global` would fix it and corrupt
-`Fundamental Global Inc.`, which is the worse error.
+The legal form always goes. The **series marker** goes too — wherever it sits in
+the name, not only at the end — except when dropping it would leave a single
+generic vehicle word standing as the whole house name. `Fund II`, `Partners III`, `Ventures 2021` name no house at all, and
+the numeral is the only distinguishing token they have, so collapsing them to
+`fund` / `partners` / `ventures` merges every unrelated vehicle that shares the
+generic word. Those keep their numeral (`fund-ii` ≠ `fund-iii`); everything that
+still carries a house token after the strip does not
+(`Churchill Sponsor XIII LLC` → `churchill-sponsor`,
+`WAVE Equity Fund II, L.P.` → `wave-equity-fund`, `Curnes Fund 2001` →
+`curnes-fund`). `GENERIC_VEHICLE_WORDS` is the vocabulary that answers "would
+the surviving name still name a house" — a **floor, never a strip list**: no
+word in it is ever dropped.
+
+A marker in the **middle** of the name is stripped for the same reason it is at
+the end — sponsors serialize a vehicle wherever the name reads best, and
+`Southern Cross Acquisition I Sponsor Corp.` is the same house as its `II`. Both
+of those, plus `Osprey Acquisition III, Sponsor LLC` and
+`CGC III Sponsor DirectorCo LLC`, are real names in the committed golden labels
+that a tail-only strip split into one family each.
+
+Mid-name the rule is **stricter**, because position is no longer evidence. It
+takes only well-formed roman numerals, never a bare number: `civil`, `dim`,
+`mild` and `vivid` are all runs of `ivxlcdm` that the tail test would accept,
+and `Route 66 Ventures` would lose its `66`. The first and last tokens are also
+off limits — a leading numeral is the house's own name (`V Capital`), and the
+last position already answered to the tail rule and its generic-vehicle floor,
+so `Fund III` is not stripped by the back door.
+
+Two more shapes the rule is measured against, both from real names in the
+committed golden labels: stripping is **token-exact**, so `DirectorCo` is not
+gutted by the `co` it ends in (nor `Cambridge Quantum` by `ua`); and it never
+empties a name, so a name of nothing but droppable tokens (`III LLC`) is kept
+whole rather than colliding with every other such name.
+`Citigroup Global Markets Inc.` does **not** unify with `Citigroup`, a known gap:
+stripping `Global` would fix it and corrupt `Fundamental Global Inc.`, which is
+the worse error.
+
+> ⚠️ Changing this function **re-keys the family tier**. Family keys are derived
+> from the legal name every observation carries, so they are rebuildable in
+> principle — but no batch family `resolve` exists yet, so in practice a re-key
+> means re-extracting the affected S-1/424 filings.
 
 > ⚠️ It is **not** an identity key. It throws away exactly what separates two
 > vehicles of one sponsor, so using it to de-duplicate entities merges every SPV
@@ -1127,8 +1161,8 @@ other such name. `Citigroup Global Markets Inc.` does **not** unify with
 #### Diacritics in identity keys
 
 `foldDiacritics` (`src/util/dataCleaningUtils.ts`) folds accented Latin letters
-to their ASCII base, and both identity tiers use it — a filer writing
-`Jörg Müller` in one filing and `Jorg Muller` in the next names one person.
+to their ASCII base, so a filer writing `Jörg Müller` in one filing and
+`Jorg Muller` in the next names one person.
 
 Two passes, because one does not cover the alphabet: NFD splits a letter from
 its combining mark, and an explicit map handles `ø ł đ ð þ ß æ œ …`, which carry
@@ -1137,9 +1171,33 @@ those for the caller's `[^a-z]` filter, which turns `Søren` into `s ren` and
 **deletes** the `Ł` in `Łukasz` — a name silently missing a letter is a
 different name. Case is preserved; callers building a key lowercase themselves.
 
-For persons the fold is applied to the identity **parts**, not just the hash, so
-`person_hash_id` and the `normalized_*` columns `personKey` matches on cannot
-drift apart. The name as filed keeps its accents in `first_name` / `last_name`.
+**The person tier folds; the company tier does not.** For persons the fold is
+applied to the identity **parts**, not just the hash, so `person_hash_id` and the
+`normalized_*` columns `personKey` matches on cannot drift apart. The name as
+filed keeps its accents in `first_name` / `last_name`.
+
+On the company side only `generateCompanyHash` folds, and that is a **derived
+slug nothing persists** — no table stores `company_hash_id`, and its one in-repo
+consumer is the eval scorer's company match key. The key the company tier
+actually matches on is `company_observations.normalized_name`, written by
+`normalizeCompanyName` (which the resolver's name fallback and
+`canonical_company` are keyed on), and that function does not fold. So
+`Søren Skou Holdings LLC` and `Soren Skou Holdings LLC` still mint two canonical
+companies and two identity links. The remedy is an explicit alias:
+
+```sh
+sec canonical company alias "Soren Skou Holdings LLC" "Søren Skou Holdings LLC"
+```
+
+Closing the gap for real means folding inside `normalizeCompanyName`, which is a
+**re-key of every company observation ever written** — and the company tier has
+no rebuild path for one. `normalized_name` is produced only by the extraction
+path, and `sec resolve` re-resolves FROM that column rather than recomputing it,
+so a fold would take effect only by re-extracting every company-observing form
+and re-paying the AI cost of all of them. The prerequisite is teaching
+`ResolveObservationsTask` to re-normalize as it re-partitions. Until then the two
+keys are deliberately out of step, and `CompanyNormalization.test.ts` pins the
+gap so the fold cannot land as a one-line change with no migration.
 
 #### Re-keying without a version bump
 

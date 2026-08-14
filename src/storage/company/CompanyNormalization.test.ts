@@ -240,4 +240,38 @@ describe("CompanyNormalization", () => {
       expect(normalizeCompanyName("The “Acme” Group")).toBe(normalizeCompanyName('The "Acme" Group'));
     });
   });
+
+  describe("diacritics: the company tier does NOT fold", () => {
+    // Pinned deliberately, as a gap rather than a behavior anyone should like.
+    //
+    // `generateCompanyHash` folds accents; `normalizeCompanyName` does not — and
+    // the second one is the key that is PERSISTED, on
+    // `company_observations.normalized_name`, which the resolver's name fallback
+    // and `canonical_company` are keyed on. The hash is a derived slug stored
+    // nowhere.
+    //
+    // Making them agree is a re-key of every company observation ever written,
+    // and there is no rebuild path: `sec resolve` re-resolves FROM
+    // `normalized_name` instead of recomputing it, so the change would take
+    // effect only by re-extracting every company-observing form. This test
+    // exists so that fold cannot be added as a one-line change with no
+    // migration — if you are here because it failed, the accompanying work is a
+    // re-normalizing `ResolveObservationsTask` (or a full re-extraction), not a
+    // deleted assertion.
+    const accented = "Søren Skou Holdings LLC";
+    const plain = "Soren Skou Holdings LLC";
+
+    it("keeps two spellings of one company as two persisted keys", () => {
+      expect(normalizeCompanyName(accented)).not.toBe(normalizeCompanyName(plain));
+      expect(normalizeCompany(accented)!.company_name).not.toBe(
+        normalizeCompany(plain)!.company_name
+      );
+    });
+
+    it("folds them in the derived slug, which nothing persists", () => {
+      expect(normalizeCompany(accented)!.company_hash_id).toBe(
+        normalizeCompany(plain)!.company_hash_id
+      );
+    });
+  });
 });

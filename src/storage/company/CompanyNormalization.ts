@@ -212,12 +212,37 @@ export function normalizeCompanyName(name: string): string | null {
 }
 
 /**
- * Generates a hash ID for a company based on normalized name components
+ * A derived, hyphenated slug of an already-normalized company name.
+ *
+ * **Not persisted, and NOT the company identity key.** No table stores it: the
+ * column the company tier actually matches on is `company_observations.
+ * normalized_name`, written by {@link normalizeCompanyName}, which
+ * `CompanyResolver`'s name fallback and `canonical_company` are keyed on.
+ * This slug lives only in the {@link Company} value object, and its one
+ * in-repo consumer is the eval scorer's company match key.
+ *
+ * It therefore folds diacritics and the persisted key does not — a real gap, not
+ * an oversight. `Søren Skou Holdings LLC` and `Soren Skou Holdings LLC` still
+ * mint two `canonical_company` rows, and the remedy today is an explicit alias:
+ *
+ * ```sh
+ * sec canonical company alias "Soren Skou Holdings LLC" "Søren Skou Holdings LLC"
+ * ```
+ *
+ * Closing it means folding inside {@link normalizeCompanyName}, which is a
+ * **re-key** of every company observation ever written — and there is no rebuild
+ * path for one. `normalized_name` is written only by the extraction path, and
+ * `sec resolve` re-resolves FROM that column rather than recomputing it, so a
+ * fold would take effect only by re-extracting every company-observing form and
+ * re-paying the AI cost of all of them. The prerequisite is teaching
+ * `ResolveObservationsTask` to re-normalize as it re-partitions; until then the
+ * two keys stay deliberately out of step, pinned by a test so a "fix" cannot
+ * land as a silent re-key.
  */
 export function generateCompanyHash(company_name: string): string {
   // `foldDiacritics` rather than a bare NFD pass: NFD leaves `ø` and `ł`
   // untouched (their mark is inside the glyph, not a combining character), so
-  // the old code hashed `Søren` and `Soren` to two different companies.
+  // the old code slugged `Søren` and `Soren` differently.
   const hashString = foldDiacritics(company_name)
     .trim()
     .toLowerCase()

@@ -99,16 +99,87 @@ describe("companyFamilyName", () => {
     );
   });
 
-  it("is token-exact, so a name merely starting with a vehicle word survives", () => {
-    // `Fundamental` begins with `Fund`; a prefix rule would gut it.
+  it("is token-exact, so a name merely containing a legal form survives", () => {
+    // A substring rule would gut both of these real names: `DirectorCo` ends in
+    // `co` and `Quantum` ends in `ua`, and in neither case is that a legal form
+    // — it is the house name.
+    expect(companyFamilyName("DirectorCo")).toBe("directorco");
+    expect(companyFamilyName("Entities affiliated with Cambridge Quantum")).toBe(
+      "cambridge-quantum"
+    );
     expect(companyFamilyName("Fundamental Global Inc.")).toBe("fundamental-global");
   });
 
-  it("never strips a name down to nothing", () => {
-    // Every token is droppable and the name identifies no house, so it is kept
-    // whole rather than resolving to "" and colliding with every other such name.
-    expect(companyFamilyName("Fund III")).toBe("fund");
+  it("keeps the series marker when dropping it leaves a generic vehicle word", () => {
+    // `fund` names no house, so `fund` as a family key is a collision waiting to
+    // happen: EVERY sponsor's "Fund II" would land in it. The numeral is the
+    // only distinguishing token such a name has, so it is the one case where a
+    // series marker is kept — an under-merge (two families, one alias to join
+    // them) rather than an over-merge, which silently attributes one house's
+    // deals to another and leaves no trace.
+    expect(companyFamilyName("Fund III")).toBe("fund-iii");
+    expect(companyFamilyName("Fund II, L.P.")).toBe("fund-ii");
+    expect(companyFamilyName("Fund III")).not.toBe(companyFamilyName("Fund II, L.P."));
+    expect(companyFamilyName("Partners III LLC")).not.toBe(companyFamilyName("Partners IV LLC"));
+    expect(companyFamilyName("Ventures 2021")).not.toBe(companyFamilyName("Ventures 2022"));
+    // Single token, nothing to drop.
     expect(companyFamilyName("Holdings")).toBe("holdings");
+  });
+
+  it("still drops the series marker when a real house name survives it", () => {
+    // The floor is narrow on purpose: one generic word left standing, not two,
+    // and not a name that carries any house token at all. These are the joins
+    // the family tier exists to make, and they must keep working.
+    expect(companyFamilyName("Churchill Sponsor XIII LLC")).toBe("churchill-sponsor");
+    expect(companyFamilyName("Churchill Sponsor XIII LLC")).toBe(
+      companyFamilyName("Churchill Sponsor XIV LLC")
+    );
+    expect(companyFamilyName("WAVE Equity Fund II, L.P.")).toBe("wave-equity-fund");
+    expect(companyFamilyName("Curnes Fund 2001")).toBe("curnes-fund");
+  });
+
+  it("drops a series marker in the MIDDLE of the name, not only at the end", () => {
+    // All three are real names from the committed golden labels. A sponsor
+    // serializes a vehicle wherever the name reads best, and a tail-only strip
+    // leaves consecutive vehicles of one house in different families.
+    expect(companyFamilyName("Southern Cross Acquisition I Sponsor Corp.")).toBe(
+      "southern-cross-acquisition-sponsor"
+    );
+    expect(companyFamilyName("Southern Cross Acquisition I Sponsor Corp.")).toBe(
+      companyFamilyName("Southern Cross Acquisition II Sponsor Corp.")
+    );
+    expect(companyFamilyName("Osprey Acquisition III, Sponsor LLC")).toBe(
+      "osprey-acquisition-sponsor"
+    );
+    expect(companyFamilyName("CGC III Sponsor DirectorCo LLC")).toBe("cgc-sponsor-directorco");
+  });
+
+  it("does not mistake a real word for an interior series marker", () => {
+    // The tail rule accepts any run of `ivxlcdm` because a name almost never
+    // ENDS in one of these; mid-name that reasoning is gone, so the token has to
+    // be a well-formed numeral. Every word here passes the loose character test
+    // and would be deleted from the middle of the name by it.
+    expect(companyFamilyName("Blue Civil Holdings")).toBe("blue-civil-holdings");
+    expect(companyFamilyName("Vivid Mild Ventures")).toBe("vivid-mild-ventures");
+    expect(companyFamilyName("Acme Dim Partners")).toBe("acme-dim-partners");
+    // A bare interior NUMBER is part of the name, not a serialization of it —
+    // unlike a trailing year (`Curnes Fund 2001`), which still strips.
+    expect(companyFamilyName("Route 66 Ventures")).toBe("route-66-ventures");
+  });
+
+  it("leaves a numeral that is the house's own name alone", () => {
+    // First position is the name itself, and last position already answered to
+    // the tail rule (including the generic-vehicle floor), so neither is
+    // reachable by the interior strip.
+    expect(companyFamilyName("V Capital Partners")).toBe("v-capital-partners");
+    expect(companyFamilyName("Fund III")).toBe("fund-iii");
+    expect(companyFamilyName("III LLC")).toBe("iii-llc");
+  });
+
+  it("never strips a name down to nothing", () => {
+    expect(companyFamilyName("Fund III")).not.toBe("");
+    expect(companyFamilyName("Holdings")).not.toBe("");
+    expect(companyFamilyName("III LLC")).not.toBe("");
   });
 
   it("returns empty for empty input", () => {
