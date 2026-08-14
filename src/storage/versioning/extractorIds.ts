@@ -26,6 +26,45 @@ export const EXTRACTOR_IDS = [
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
 /**
+ * The extractors that call `EntityObserver.observePerson`, and so are the only
+ * ones a person-normalizer re-key makes stale.
+ *
+ * `scripts/sql/truncate-identity-tier*.sql` scopes its `extractor_runs` /
+ * `extraction_dead_letter` deletes to this set. Clearing those tables wholesale
+ * makes the forms sweep re-select EVERY filing, which re-runs the AI extractors
+ * that observe no person at all — `8-K` redemption/LOI detection, `merger-proxy`
+ * — and re-pays their model cost for nothing.
+ *
+ * Derived by inspection of the `observePerson` call sites, not from a type: the
+ * list is asserted against the SQL scripts by `truncateIdentityTier.test.ts`, so
+ * the two cannot drift.
+ *
+ * - `S-1` — management, executive compensation, beneficial ownership, related party
+ * - `D` — related persons
+ * - `C` — signatories and officers
+ * - `1-A` / `1-Z` — issuer signatories
+ * - `3` / `4` / `5` — Section 16 reporting owners
+ * - `144` — the selling person
+ * - `CFPORTAL` — portal contacts and owners
+ *
+ * Deliberately absent: `424` and `1-K` observe companies only, `25-15` is
+ * metadata-only, and `8-K` / `merger-proxy` / `redemption` / `loi` observe the
+ * de-SPAC target company rather than any person.
+ */
+export const PERSON_OBSERVING_EXTRACTOR_IDS: readonly ExtractorId[] = [
+  "D",
+  "C",
+  "CFPORTAL",
+  "1-A",
+  "1-Z",
+  "3",
+  "4",
+  "5",
+  "144",
+  "S-1",
+] as const;
+
+/**
  * Maps every supported SEC form symbol (including amendment / withdrawal
  * variants) to the canonical extractor id that handles it. The right-hand
  * values match component_versions.component_id rows seeded by

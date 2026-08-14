@@ -2,20 +2,31 @@
 --
 -- Same intent as `truncate-identity-tier.sql` (which is portable DELETE-based
 -- SQL that also runs on SQLite); this is the Postgres-native form. See that
--- file's header for WHY each group is here and what is deliberately spared.
+-- file's header for WHY each group is here, what is deliberately spared, and
+-- the ⚠️ EXPORT YOUR ALIASES FIRST warning — the alias tables below are
+-- hand-curated and keyed by canonical UUIDs this statement destroys.
 --
 -- Three things this does that the portable version cannot:
 --
---   * ONE `TRUNCATE` naming every table. Postgres truncates them as a single
---     unit, so foreign keys between them never see a half-empty state and the
---     statement does not have to be ordered by dependency — which also means a
---     table added to the list later cannot be put in the wrong place.
+--   * ONE `TRUNCATE` naming every whole-table target. Postgres truncates them
+--     as a single unit, so foreign keys between them never see a half-empty
+--     state and the statement does not have to be ordered by dependency —
+--     which also means a table added to the list later cannot be put in the
+--     wrong place.
 --   * `RESTART IDENTITY`, so a re-extraction starts sequences from 1 instead of
 --     continuing past ids that no longer exist.
 --   * Schema qualification to `current_schema()` via `search_path`. An
 --     unqualified name resolves through the search path, and on a deployment
 --     whose path lists a staging schema first this would truncate the OTHER
 --     schema's tables — the same hazard `resetAllDatabases` qualifies against.
+--     This is why the portable file's usage block names sqlite3 only: it cannot
+--     carry this statement, and Postgres users belong here.
+--
+-- Three tables are DELETEs rather than TRUNCATE targets because only part of
+-- each is stale: `observation_provenance` is shared with the company tier, and
+-- `extractor_runs` / `extraction_dead_letter` are scoped to the extractors that
+-- observe a person. They run inside the same transaction, so the whole thing is
+-- still one atomic ceremony.
 --
 -- Deliberately NOT `CASCADE`: cascade would silently truncate any table that
 -- references these and is not named below, including one a superset (embarc-
@@ -26,11 +37,10 @@
 -- Usage:
 --   psql "$SEC_PG_URL" -f scripts/sql/truncate-identity-tier.postgres.sql
 --
--- Then re-extract (no version bump — `extractor_runs` is empty, so the sweep
--- re-selects every filing at the SAME version):
---   sec extractor backfill S-1
---   sec extractor backfill 424
---   sec editorial import data/editorial/family-descriptions.csv
+-- Then re-extract every person-observing extractor and re-import the curated
+-- data — see the portable file's header for the full command list. No version
+-- bump: the cleared `extractor_runs` rows make those filings unprocessed again
+-- at the SAME version.
 
 BEGIN;
 
@@ -60,31 +70,40 @@ TRUNCATE TABLE
   canonical_person_alias,
   canonical_person,
 
-  -- Company canonical + link tier. Company OBSERVATIONS survive:
-  -- `normalizeCompanyName` did not change, so their `normalized_name` is still
-  -- valid — only the rows keyed by the folded `company_hash_id` are rebuilt.
-  company_identity_link,
-  canonical_company_address,
-  canonical_company_phone,
-  canonical_company_alias,
-  canonical_company,
-
   -- Person observations, and everything carrying an `observation_id` FK.
   -- These cannot outlive the observations they cite.
+  --
+  -- The COMPANY canonical tier is absent on purpose: `normalizeCompanyName` is
+  -- unchanged, so `company_observations.normalized_name` — the column
+  -- `canonical_company` is keyed on — is still valid. Nothing there was made
+  -- stale by a normalizer, and there is no rebuild path short of a full
+  -- re-extraction.
   beneficial_ownership,
   executive_compensation,
   related_party_transactions,
-  observation_provenance,
   person_observation_titles,
-  person_observations,
-
-  -- Re-extraction gates, and the reason no version bump is needed: the forms
-  -- sweep selects filings by anti-joining `extractor_runs` at the active
-  -- version, so an empty table makes every filing unprocessed again at that
-  -- same version. Dead letters go with it — they cite runs that no longer exist.
-  extraction_dead_letter,
-  extractor_runs
+  person_observations
 RESTART IDENTITY;
+
+-- Provenance is keyed by (kind, observation_id) and shared with the company
+-- tier, whose observations survive above. Only the person rows are orphaned.
+DELETE FROM observation_provenance WHERE kind = 'person';
+
+-- Re-extraction gates, and the reason no version bump is needed: the forms
+-- sweep selects filings by anti-joining `extractor_runs` at the active version,
+-- so a cleared row makes that filing unprocessed again at that same version.
+-- Dead letters go with it — they cite runs that no longer exist.
+--
+-- Scoped to the extractors that observe a person (`8-K`, `merger-proxy`, `424`
+-- and the rest are untouched). Clearing every row would re-run AI extraction
+-- for filings whose output this script did not delete, re-paying the model cost
+-- for nothing. Keep in step with PERSON_OBSERVING_EXTRACTOR_IDS in
+-- `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
+-- fails if they diverge.
+DELETE FROM extraction_dead_letter
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
+DELETE FROM extractor_runs
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
 
 COMMIT;
 

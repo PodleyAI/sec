@@ -85,8 +85,10 @@ sec resolve --kind company --resolver-version 1.0.0 --all
 # Alias management (person; same flags for company)
 sec canonical person alias "<from-name>" "<into-name>" --reason "merged duplicate"
 sec canonical person alias-remove "<name>"
-sec canonical person alias-list
-sec canonical person alias-list --orphans     # names whose target no longer exists
+sec canonical person alias-list                # display names + ids
+sec canonical person alias-list --orphans      # names whose target no longer exists
+sec canonical person alias-list --format tsv   # export (names, which survive a re-key wipe)
+sec canonical person alias-import <file.tsv>   # restore from that export
 
 # Coverage — person | company | sponsor-family | underwriter-family
 sec version coverage resolver person
@@ -840,7 +842,9 @@ sec underwriter by-family "Goldman Sachs"
 # Underwriter-family alias management
 sec canonical underwriter-family alias "<from>" "<into>" --reason "subsidiary"
 sec canonical underwriter-family alias-remove "<name>"
-sec canonical underwriter-family alias-list [--orphans]
+sec canonical underwriter-family alias-list [--orphans]        # display names + ids
+sec canonical underwriter-family alias-list --format tsv       # export
+sec canonical underwriter-family alias-import <file.tsv>       # restore from that export
 
 # Point-in-time ticker series for an issuer
 sec issuer tickers <cik>
@@ -1171,21 +1175,81 @@ two generations can be compared and rolled between. When the old rows are
 disposable, wiping is cheaper and more honest — `version coverage` would
 otherwise report against a generation nobody intends to keep.
 
-`scripts/sql/truncate-identity-tier.sql` clears the derived identity tier
-(canonical person/company/family rows, identity links, junctions, memberships,
-person observations and everything keyed to one) and finishes with
-`extractor_runs`, so the forms sweep's anti-join re-selects every filing at the
-**same** version. Raw EDGAR ingest is left alone — nothing in `entities`,
-`filings`, `cik_names`, `company_facts` or `xbrl_fact` is keyed by a normalizer,
-and re-downloading it costs hours against the rate limit. `family_description`
-is spared too: it is hand-curated and its `(family_kind, normalized_name)` key
-changed, so re-import it rather than lose it.
+**What is actually stale** is the PERSON identity generation and the FAMILY
+keys: `person_observations.normalized_*` and every `person_hash_id` derived from
+one (the fold went into the identity parts, and no SQL can recompute it — it is
+TypeScript on the extraction path), plus every
+`canonical_*_family.normalized_name` (now derived from the legal name via
+`companyFamilyName`). The scripts clear those, the person canonical tier keyed on
+them, and everything carrying a person `observation_id`.
+
+**The COMPANY canonical tier is deliberately untouched.** `normalizeCompanyName`
+is unchanged, so `company_observations.normalized_name` — the column
+`canonical_company` is keyed on — is still valid; and `company_hash_id`, which
+does fold, is stored in no table at all. Wiping `canonical_company`,
+`company_identity_link` and the company junctions would destroy rows nothing made
+stale, and the only rebuild would be a full re-extraction: `sec resolve --kind
+company --all` rebuilds identity links from the company observations, which are
+exactly what these scripts keep. `observation_provenance` is scoped
+`WHERE kind = 'person'` for the same reason — its company-kind rows (underwriter
+and issuer observations) cite observations that survive.
+
+`extractor_runs` / `extraction_dead_letter` are cleared only for the extractors
+that observe a person (`PERSON_OBSERVING_EXTRACTOR_IDS` in
+`src/storage/versioning/extractorIds.ts`), so the forms sweep's anti-join
+re-selects exactly those filings at the **same** version. Clearing every row
+would re-run `8-K` redemption/LOI detection and `merger-proxy` extraction —
+AI passes whose output the script never deleted — and re-pay their model cost for
+nothing. `truncateIdentityTier.test.ts` fails if the SQL and the constant drift.
+
+Raw EDGAR ingest is left alone — nothing in `entities`, `filings`, `cik_names`,
+`company_facts` or `xbrl_fact` is keyed by a normalizer, and re-downloading it
+costs hours against the rate limit. `family_description` is spared too: it is
+hand-curated and its `(family_kind, normalized_name)` key changed, so re-import it
+rather than lose it.
+
+**Two files, one per backend, and they are not interchangeable.**
+`truncate-identity-tier.sql` is portable DELETE-based SQL for **sqlite3** only;
+its table names are unqualified, so running it through `psql` on a deployment
+whose `search_path` lists a staging schema first would delete that schema's
+identity tier irreversibly. `truncate-identity-tier.postgres.sql` pins
+`SET LOCAL search_path TO current_schema()` (which sqlite3 rejects, hence the
+split) and adds `TRUNCATE ... RESTART IDENTITY`. The two name the same table set,
+enforced by test.
+
+> ⚠️ **Export your aliases first — they are wiped and cannot be reconstructed.**
+> Alias rows are hand-curated claims that two canonical rows are one entity, and
+> they are keyed by the canonical UUIDs the wipe destroys, so they cannot be
+> spared the way `family_description` is. `alias-list` prints display names
+> alongside the ids and `--format tsv` writes the export `alias-import` reads
+> back — TSV, not CSV, because canonical names routinely contain commas
+> (`Keefe, Bruyette & Woods, Inc.`).
 
 ```bash
+# 1. Export the hand-curated aliases (names, which survive the wipe)
+sec canonical person             alias-list --format tsv > aliases-person.tsv
+sec canonical company            alias-list --format tsv > aliases-company.tsv
+sec canonical sponsor-family     alias-list --format tsv > aliases-sponsor.tsv
+sec canonical underwriter-family alias-list --format tsv > aliases-underwriter.tsv
+
+# 2. Wipe (SQLite; on Postgres use the .postgres.sql variant)
 sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
-sec extractor backfill S-1
+
+# 3. Re-extract EVERY person-observing extractor, not just S-1
+for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144; do sec extractor backfill "$id"; done
+
+# 4. Restore the curated data
 sec editorial import data/editorial/family-descriptions.csv
+sec canonical person             alias-import aliases-person.tsv
+sec canonical company            alias-import aliases-company.tsv
+sec canonical sponsor-family     alias-import aliases-sponsor.tsv
+sec canonical underwriter-family alias-import aliases-underwriter.tsv
 ```
+
+`alias-import` resolves each pair by NAME (the ids in the export no longer
+resolve) and reports each pair it cannot place without abandoning the rest — a
+name whose canonical row has not been re-extracted yet is an expected partial
+failure, not a reason to lose the other forty.
 
 ### SPAC consolidated report
 

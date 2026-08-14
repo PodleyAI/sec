@@ -11,15 +11,12 @@ import {
   FamilyAliasAddTask,
   type FamilyAliasAddTaskOutput,
 } from "../task/canonical/FamilyAliasAddTask";
-import {
-  FamilyAliasListTask,
-  type FamilyAliasListTaskOutput,
-} from "../task/canonical/FamilyAliasListTask";
 import { issuerCiksByFamilyName } from "../task/canonical/familyTier";
 import {
   IssuersByFamilyTask,
   type IssuersByFamilyTaskOutput,
 } from "../task/canonical/IssuersByFamilyTask";
+import { registerFamilyAliasExchange } from "./familyAliasExchange";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
 
 /**
@@ -34,7 +31,8 @@ export async function spacIssuersByFamilyName(
 }
 
 /**
- * Registers `sec canonical sponsor-family alias|alias-list` and `sec spac by-family`.
+ * Registers `sec canonical sponsor-family alias|alias-list|alias-import` and
+ * `sec spac by-family`.
  * Must be called after {@link addCanonicalCommands} so that `program.commands`
  * already contains the `canonical` subcommand.
  */
@@ -77,17 +75,7 @@ export function registerSponsorFamilyCommands(program: Command): void {
       }
     );
 
-  fam
-    .command("alias-list")
-    .description("List all sponsor-family aliases")
-    .action(async () => {
-      const { aliases } = await runWorkflowCli<FamilyAliasListTaskOutput>([
-        new FamilyAliasListTask({ defaults: { family: "sponsor" } }),
-      ]);
-      for (const r of aliases) {
-        console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
-      }
-    });
+  registerFamilyAliasExchange(fam, "sponsor", "sponsor-family");
 
   registerFamilyDescribeCommands(fam, "sponsor-family", normalizeSponsorFamilyName);
 

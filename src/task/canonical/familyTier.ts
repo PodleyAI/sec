@@ -31,6 +31,39 @@ export interface FamilyTierDeps {
   readonly listIdsForResolverVersion: (resolverVersion: string) => Promise<string[]>;
   /** Issuer CIKs linked to one family id (link rows keep extraction-time ids). */
   readonly listIssuerCiksForFamily: (familyId: string) => Promise<number[]>;
+  /**
+   * Family id → display name, across every resolver version.
+   *
+   * An alias row holds only UUIDs, and the re-key ceremony an operator exports
+   * aliases BEFORE is exactly what destroys those ids — so a listing that
+   * prints ids alone cannot be used to restore anything. The name is the part
+   * that survives, and it is what `alias <fromName> <intoName>` takes back.
+   * Not version-scoped, because the alias listing is not either.
+   */
+  readonly displayNames: () => Promise<Map<string, string>>;
+}
+
+/**
+ * Family rows as id → name, preferring the display name as first emitted and
+ * falling back to the normalized key. The fallback matters: `display_name` is
+ * nullable, and a blank cell in an export is an alias no import can restore —
+ * the normalized key still resolves through the same `findIdByName` lookup.
+ */
+function familyDisplayNames(
+  rows: readonly {
+    readonly canonical_sponsor_family_id?: string;
+    readonly canonical_underwriter_family_id?: string;
+    readonly display_name: string | null;
+    readonly normalized_name: string;
+  }[]
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const row of rows) {
+    const id = row.canonical_sponsor_family_id ?? row.canonical_underwriter_family_id;
+    if (id === undefined) continue;
+    out.set(id, row.display_name ?? row.normalized_name);
+  }
+  return out;
 }
 
 export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
@@ -51,6 +84,7 @@ export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
         ),
       listIssuerCiksForFamily: (familyId) =>
         new SpacSponsorLinkRepo().listIssuerCiksForFamily(familyId),
+      displayNames: async () => familyDisplayNames(await new CanonicalSponsorFamilyRepo().listAll()),
     };
   }
   return {
@@ -69,6 +103,8 @@ export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
       ),
     listIssuerCiksForFamily: (familyId) =>
       new UnderwriterLinkRepo().listIssuerCiksForFamily(familyId),
+    displayNames: async () =>
+      familyDisplayNames(await new CanonicalUnderwriterFamilyRepo().listAll()),
   };
 }
 

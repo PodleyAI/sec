@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
+import { formatAliasLine, formatAliasTsv, parseAliasTsv } from "../../task/canonical/aliasTsv";
 import {
   CanonicalAliasAddTask,
   type CanonicalAliasAddTaskOutput,
@@ -33,7 +35,10 @@ function printError(message: string): void {
   process.exitCode = 1;
 }
 
-/** Registers `alias`, `alias-remove`, and `alias-list` on a person/company subgroup. */
+/**
+ * Registers `alias`, `alias-remove`, `alias-list` and `alias-import` on a
+ * person/company subgroup.
+ */
 function addAliasCommands(group: Command, kind: CanonicalEntityKind): void {
   group
     .command("alias <from> <into>")
@@ -68,13 +73,48 @@ function addAliasCommands(group: Command, kind: CanonicalEntityKind): void {
   group
     .command("alias-list")
     .option("--orphans", "show only aliases referencing missing canonicals", false)
-    .action(async (opts: { orphans: boolean }) => {
+    .option("--format <fmt>", "output format: text | tsv", "text")
+    .description(
+      "List aliases with their display names. `--format tsv` is the export " +
+        "`alias-import` reads — take one before any re-key ceremony."
+    )
+    .action(async (opts: { orphans: boolean; format: string }) => {
       const { aliases } = await runWorkflowCli<CanonicalAliasListTaskOutput>([
         new CanonicalAliasListTask({ defaults: { kind, orphans: opts.orphans } }),
       ]);
-      for (const a of aliases) {
-        console.log(`${a.alias_canonical_id}\t→\t${a.target_canonical_id}\t${a.reason ?? ""}`);
+      if (opts.format === "tsv") {
+        process.stdout.write(formatAliasTsv(aliases));
+        return;
       }
+      for (const a of aliases) console.log(formatAliasLine(a));
+    });
+
+  group
+    .command("alias-import <file>")
+    .description("Re-create aliases from an `alias-list --format tsv` export")
+    .action(async (file: string) => {
+      // Names, not ids: an import exists because the ids in the export no
+      // longer resolve. `CanonicalAliasAddTask` accepts either, and resolves a
+      // bare name against the canonical display names.
+      const { rows, errors } = parseAliasTsv(await readFile(file, "utf-8"));
+      for (const message of errors) printError(message);
+      let added = 0;
+      for (const row of rows) {
+        const out = await runWorkflowCli<CanonicalAliasAddTaskOutput>([
+          new CanonicalAliasAddTask({
+            defaults: { kind, from: row.from, into: row.into, reason: row.reason },
+          }),
+        ]);
+        if (out.error !== null) {
+          // One unresolvable pair must not abandon the rest: an import runs
+          // after a wipe, where a name that has not been re-extracted yet is an
+          // expected partial failure, not a reason to lose the other 40.
+          printError(`${row.from} → ${row.into}: ${out.error}`);
+          continue;
+        }
+        added += 1;
+      }
+      console.log(`imported ${added} of ${rows.length} aliases`);
     });
 }
 
