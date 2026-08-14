@@ -323,8 +323,9 @@ describe("deriveDeals — completion is terminal", () => {
   });
 
   it("still allows a second attempt after a terminated (non-terminal) first deal", () => {
-    // A terminated attempt does NOT end the SPAC — only `completed` does — so a
-    // later definitive agreement legitimately opens a second deal.
+    // A terminated attempt does NOT end the SPAC — only `completed` or a
+    // failure (liquidation / deregistration) does — so a later definitive
+    // agreement legitimately opens a second deal.
     const deals = deriveDeals(
       1,
       [
@@ -343,5 +344,57 @@ describe("deriveDeals — completion is terminal", () => {
     expect(deals[0].outcome).toBe("terminated");
     expect(deals[1].outcome).toBe("completed");
     expect(deals[1].outcome_date).toBe("2022-12-01");
+  });
+
+  it("closes a leftover pending deal when the SPAC deregisters (Form 25/15 fall-through)", () => {
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2021-06-08"),
+        ev("vote", "2021-09-01"),
+        ev("deregistration", "2023-09-25"),
+        // noise after the SPAC is dead must not open a second attempt
+        ev("definitive_agreement", "2024-01-01"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("terminated");
+    expect(deals[0].outcome_date).toBe("2023-09-25");
+    expect(deals[0].definitive_agreement_date).toBe("2021-06-08");
+    expect(deals[0].vote_date).toBe("2021-09-01");
+  });
+
+  it("closes a leftover pending deal on a liquidation event the same way", () => {
+    const deals = deriveDeals(
+      1,
+      [ev("definitive_agreement", "2021-03-01"), ev("liquidation", "2023-01-15")],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("terminated");
+    expect(deals[0].outcome_date).toBe("2023-01-15");
+  });
+
+  it("does not reopen an attempt after Item 1.02 already terminated it and the SPAC then fails", () => {
+    const deals = deriveDeals(
+      1,
+      [
+        ev("definitive_agreement", "2021-06-08"),
+        ev("terminated", "2022-11-01"),
+        ev("deregistration", "2023-09-25"),
+        ev("definitive_agreement", "2024-01-01"),
+      ],
+      [],
+      [],
+      []
+    );
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("terminated");
+    expect(deals[0].outcome_date).toBe("2022-11-01");
   });
 });

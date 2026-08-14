@@ -115,6 +115,35 @@ describe("processDeregistration", () => {
     expect(row?.failed_date).toBe("2023-09-25");
   });
 
+  it("closes a leftover pending DA so the spac row no longer shows an agreement", async () => {
+    await seedSpac(1822912);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1822912,
+      accession_number: "1822912-da",
+      filing_date: "2021-06-08",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-06-08" }],
+    });
+    expect((await repo.getSpac(1822912))?.definitive_agreement_date).toBe("2021-06-08");
+
+    await processDeregistration({
+      cik: 1822912,
+      accession_number: "0001354457-23-000698",
+      form: "25-NSE",
+      filing_date: "2023-09-25",
+    });
+
+    const row = await repo.getSpac(1822912);
+    expect(row?.status).toBe("liquidated");
+    expect(row?.definitive_agreement_date).toBeNull();
+    expect(row?.target_name).toBeNull();
+    const deals = await repo.getDeals(1822912);
+    expect(deals).toHaveLength(1);
+    expect(deals[0]?.outcome).toBe("terminated");
+    expect(deals[0]?.outcome_date).toBe("2023-09-25");
+  });
+
   it("keeps completed status when a de-SPAC already closed", async () => {
     await seedSpac(50);
     await new SpacReportWriter().recordDealMilestones({

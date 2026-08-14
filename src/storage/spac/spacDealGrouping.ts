@@ -34,6 +34,10 @@ const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
   "completed",
   "vote",
   "proxy",
+  // Fall-through close of a leftover pending deal when the SPAC itself dies
+  // without an Item 1.02 cancellation 8-K.
+  "liquidation",
+  "deregistration",
 ];
 
 interface DealSkeleton {
@@ -98,11 +102,11 @@ export function deriveDeals(
   // A completed business combination is terminal for the SPAC: the shell
   // becomes the operating company and keeps its CIK, so its *later* item-coded
   // 8-Ks (item 1.01 material agreements, 1.02 terminations, 5.07 annual-meeting
-  // votes) are ordinary corporate events, not de-SPAC milestones. Once a deal
-  // completes, stop the walk so those events cannot spawn phantom deals.
-  // (A *terminated* attempt is not terminal — the SPAC may still find another
-  // target — so only `completed` ends the walk.)
-  let completedTerminal = false;
+  // votes) are ordinary corporate events, not de-SPAC milestones. Liquidation
+  // / deregistration is also terminal: the vehicle is dead, so a later 1.01
+  // must not open a new attempt. (A *terminated* attempt from Item 1.02 is
+  // not terminal — the SPAC may still find another target.)
+  let walkTerminal = false;
 
   const openNew = (e: SpacEvent): DealSkeleton => {
     const d: DealSkeleton = {
@@ -166,7 +170,19 @@ export function deriveDeals(
         d.outcome_date = e.event_date;
         d.source_accession = e.accession_number;
         open = null;
-        completedTerminal = true;
+        walkTerminal = true;
+        break;
+      }
+      case "liquidation":
+      case "deregistration": {
+        // Same close as Item 1.02, then the walk ends: the SPAC itself failed.
+        if (open) {
+          open.outcome = "terminated";
+          open.outcome_date = e.event_date;
+          open.source_accession = e.accession_number;
+          open = null;
+        }
+        walkTerminal = true;
         break;
       }
       case "vote": {
@@ -189,8 +205,8 @@ export function deriveDeals(
         break;
       }
     }
-    // Post-completion events are operating-company noise; ignore them.
-    if (completedTerminal) break;
+    // Post-completion / post-failure events are not de-SPAC milestones.
+    if (walkTerminal) break;
   }
 
   // --- Correlate merger extractions onto deals by filing-date window ---
