@@ -13,6 +13,7 @@ import { Form_8_K_ITEMS } from "./Form_8_K";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { pendingDealBefore } from "../../../storage/spac/spacDealGrouping";
 import {
   parseEightKSubmission,
   parseSubmissionExhibits,
@@ -182,18 +183,23 @@ export async function processForm8K({
     const narrative = fullSubmissionText
       ? htmlToPlainText(parseEightKSubmission(form, fullSubmissionText).primaryHtml)
       : null;
-    const deals = await spacRepo.getDeals(cik);
-    const pending = deals.find((d) => d.outcome === "pending") ?? null;
+    // Classify from the events dated strictly BEFORE this filing, not from the
+    // current derived deal set. Reading the deal set makes this filing's
+    // classification depend on filings that came after it, so reprocessing it
+    // demotes a `vote` to `eight_k` (the deal has since completed) or a
+    // `terminated` to `material_agreement` (the deal is no longer pending) —
+    // and the replace-then-append write in `recordDealMilestones` then erases
+    // the lifecycle event the first pass recorded.
+    const priorEvents = eventDate ? await spacRepo.getEvents(cik) : [];
+    const pending = eventDate
+      ? pendingDealBefore(cik, priorEvents, { event_date: eventDate, accession_number })
+      : null;
     const spacEvents = eventDate
       ? mapItemCodesToSpacEvents(itemCodes, eventDate, {
           ipoDate: spacRow.ipo_date,
+          registrationDate: spacRow.registration_date,
           exhibits,
-          pendingDeal: pending
-            ? {
-                definitive_agreement_date: pending.definitive_agreement_date,
-                proxy_date: pending.proxy_date,
-              }
-            : null,
+          pendingDeal: pending,
           issuerName: spacRow.spac_name,
           narrative,
         })

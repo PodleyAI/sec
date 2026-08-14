@@ -40,6 +40,20 @@ const DEAL_RELEVANT_EVENT_TYPES: readonly SpacEventType[] = [
   "deregistration",
 ];
 
+/**
+ * Total order the deal walk reads events in: `event_date` then
+ * `accession_number`. Shared with {@link pendingDealBefore} so "the events
+ * before this filing" means exactly the prefix the walk would have seen.
+ */
+export function compareSpacEventOrder(
+  a: { readonly event_date: string; readonly accession_number: string },
+  b: { readonly event_date: string; readonly accession_number: string }
+): number {
+  return (
+    a.event_date.localeCompare(b.event_date) || a.accession_number.localeCompare(b.accession_number)
+  );
+}
+
 interface DealSkeleton {
   deal_index: number;
   loi_date: string | null;
@@ -90,11 +104,7 @@ export function deriveDeals(
 ): SpacDeal[] {
   const relevant = events
     .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type as SpacEventType))
-    .sort(
-      (a, b) =>
-        a.event_date.localeCompare(b.event_date) ||
-        a.accession_number.localeCompare(b.accession_number)
-    );
+    .sort(compareSpacEventOrder);
 
   const skeletons: DealSkeleton[] = [];
   let open: DealSkeleton | null = null;
@@ -303,4 +313,50 @@ export function deriveDeals(
     source_accession: s.source_accession,
     created_at: existingByIndex.get(s.deal_index)?.created_at ?? new Date().toISOString(),
   }));
+}
+
+/** The pending-deal facts an 8-K item classifier needs. */
+export interface PendingDealBefore {
+  readonly definitive_agreement_date: string | null;
+  readonly proxy_date: string | null;
+}
+
+/**
+ * The business-combination attempt still pending as of `boundary`, derived from
+ * the events ordered strictly before it.
+ *
+ * Classifying an 8-K's item codes needs to know whether a deal was on the table
+ * when that filing landed. Reading the CURRENT derived deal set answers a
+ * different question — whether one is on the table now — which makes the
+ * classification of filing N depend on filings AFTER N. Reprocessing N then
+ * reclassifies it (a 5.07 becomes `eight_k` once the deal has completed, a 1.02
+ * becomes `material_agreement` once the deal is terminated) and the replace-then-
+ * append write erases the lifecycle event the first pass recorded. Restricting
+ * the input to the prefix makes the stream a fixpoint under replay.
+ *
+ * The boundary accession's own events are excluded by ID, not just by order: an
+ * `loi` event is appended under the same accession later in the same 8-K
+ * processing pass, so an order-only cut would let the second pass see it.
+ */
+export function pendingDealBefore(
+  cik: number,
+  events: readonly SpacEvent[],
+  boundary: { readonly event_date: string; readonly accession_number: string }
+): PendingDealBefore | null {
+  const prefix = events.filter(
+    (e) =>
+      e.accession_number !== boundary.accession_number && compareSpacEventOrder(e, boundary) < 0
+  );
+  if (prefix.length === 0) return null;
+  const deals = deriveDeals(cik, prefix, [], [], []);
+  for (let i = deals.length - 1; i >= 0; i--) {
+    const d = deals[i];
+    if (d.outcome === "pending") {
+      return {
+        definitive_agreement_date: d.definitive_agreement_date,
+        proxy_date: d.proxy_date,
+      };
+    }
+  }
+  return null;
 }
