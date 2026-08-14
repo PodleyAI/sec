@@ -508,7 +508,7 @@ export class DownloadSpacCandidateDocsTask extends Task<
         // empty a page mid-walk.
         if (page.items.length === 0) break;
         cursor = page.nextCursor;
-      } while (cursor !== undefined);
+      } while (cursor);
     }
 
     const skips = { skippedCached, skippedNoFileName, skippedUnsafeName };
