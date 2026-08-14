@@ -114,6 +114,23 @@ export interface CanonicalTierDeps {
   readonly aliases: () => CanonicalAliasRepoLike;
   /** All canonical ids at this tier (orphan detection). */
   readonly listAllIds: () => Promise<Set<string>>;
+  /**
+   * Canonical id → display name, for every row at this tier.
+   *
+   * An alias row holds only UUIDs, and the re-key ceremony an operator exports
+   * aliases BEFORE is exactly what destroys those ids — so a listing that
+   * prints ids alone cannot be used to restore anything. The name is the part
+   * that survives, and it is what the `alias` command takes back.
+   */
+  readonly displayNames: () => Promise<Map<string, string>>;
+}
+
+/** Display name for a canonical person: `first last`, or whichever half exists. */
+function personDisplayName(row: {
+  display_first: string | null;
+  display_last: string | null;
+}): string {
+  return [row.display_first, row.display_last].filter((s): s is string => Boolean(s)).join(" ");
 }
 
 export function canonicalTierDeps(kind: CanonicalEntityKind): CanonicalTierDeps {
@@ -123,6 +140,12 @@ export function canonicalTierDeps(kind: CanonicalEntityKind): CanonicalTierDeps 
       aliases: () => new CanonicalPersonAliasRepo(),
       listAllIds: async () =>
         new Set((await new CanonicalPersonRepo().listAll()).map((r) => r.canonical_person_id)),
+      displayNames: async () =>
+        new Map(
+          (await new CanonicalPersonRepo().listAll())
+            .map((r) => [r.canonical_person_id, personDisplayName(r)] as const)
+            .filter(([, name]) => name !== "")
+        ),
     };
   }
   return {
@@ -130,5 +153,11 @@ export function canonicalTierDeps(kind: CanonicalEntityKind): CanonicalTierDeps 
     aliases: () => new CanonicalCompanyAliasRepo(),
     listAllIds: async () =>
       new Set((await new CanonicalCompanyRepo().listAll()).map((r) => r.canonical_company_id)),
+    displayNames: async () =>
+      new Map(
+        (await new CanonicalCompanyRepo().listAll())
+          .map((r) => [r.canonical_company_id, r.display_name ?? ""] as const)
+          .filter(([, name]) => name !== "")
+      ),
   };
 }

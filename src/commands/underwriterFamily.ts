@@ -13,10 +13,6 @@ import {
 } from "../task/canonical/FamilyAliasAddTask";
 import { issuerCiksByFamilyName } from "../task/canonical/familyTier";
 import {
-  FamilyAliasListTask,
-  type FamilyAliasListTaskOutput,
-} from "../task/canonical/FamilyAliasListTask";
-import {
   FamilyAliasRemoveTask,
   type FamilyAliasRemoveTaskOutput,
 } from "../task/canonical/FamilyAliasRemoveTask";
@@ -28,6 +24,7 @@ import {
   IssuerTickersTask,
   type IssuerTickersTaskOutput,
 } from "../task/offering/IssuerTickersTask";
+import { registerFamilyAliasExchange } from "./familyAliasExchange";
 import { registerFamilyDescribeCommands } from "./familyDescribe";
 import { registerIssuerDealCommand } from "./issuerDeal";
 
@@ -43,7 +40,8 @@ export async function ipoIssuersByUnderwriterFamilyName(
 }
 
 /**
- * Registers `sec canonical underwriter-family alias|alias-remove|alias-list`,
+ * Registers `sec canonical underwriter-family
+ * alias|alias-remove|alias-list|alias-import`,
  * `sec underwriter by-family`, and `sec issuer tickers`. Must be called after
  * the `canonical` subcommand is registered.
  */
@@ -106,31 +104,7 @@ export function registerUnderwriterFamilyCommands(program: Command): void {
       console.log(`removed alias for ${out.removedId}`);
     });
 
-  fam
-    .command("alias-list")
-    .description("List all underwriter-family aliases")
-    .option("--orphans", "show only aliases referencing missing canonicals", false)
-    .option("--resolver-version <v>", "resolver version", "1.0.0")
-    .action(async (opts: { orphans: boolean; resolverVersion: string }) => {
-      try {
-        const { aliases } = await runWorkflowCli<FamilyAliasListTaskOutput>([
-          new FamilyAliasListTask({
-            defaults: {
-              family: "underwriter",
-              orphans: opts.orphans,
-              resolverVersion: opts.resolverVersion,
-            },
-          }),
-        ]);
-        for (const r of aliases) {
-          console.log(`${r.alias_canonical_id}\t->\t${r.target_canonical_id}\t${r.reason ?? ""}`);
-        }
-      } catch (e) {
-        console.error(`error: ${(e as Error).message}`);
-        process.exitCode = 1;
-        return;
-      }
-    });
+  registerFamilyAliasExchange(fam, "underwriter", "underwriter-family");
 
   registerFamilyDescribeCommands(fam, "underwriter-family", normalizeUnderwriterFamilyName);
 

@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { cliEnv, runCliProcess } from "../testing/runCliProcess";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTabularStorage } from "workglow";
@@ -151,6 +151,29 @@ describe("sec canonical CLI", () => {
 
       const result = await runCli(["canonical", "person", "alias-list", "--orphans"], dir);
       expect(result.exitCode).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("alias-list --format tsv emits the header alias-import reads", async () => {
+    // The export/import pair is what makes the re-key ceremony survivable: the
+    // wipe destroys the canonical ids an alias row cites, so the file has to
+    // carry names. This checks the two agree on a header end to end.
+    const dir = mkdtempSync(join(tmpdir(), "sec-canonical-test-"));
+    try {
+      expect((await runCli(["db", "setup"], dir)).exitCode).toBe(0);
+      const result = await runCli(["canonical", "company", "alias-list", "--format", "tsv"], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.split("\n")[0]).toBe(
+        "alias_name\ttarget_name\treason\talias_id\ttarget_id"
+      );
+
+      const file = join(dir, "aliases.tsv");
+      writeFileSync(file, result.stdout);
+      const imported = await runCli(["canonical", "company", "alias-import", file], dir);
+      expect(imported.exitCode).toBe(0);
+      expect(imported.stdout).toContain("imported 0 of 0 aliases");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

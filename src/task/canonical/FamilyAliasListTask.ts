@@ -18,6 +18,14 @@ export type FamilyAliasListTaskInput = {
 export type FamilyAliasRow = {
   readonly alias_canonical_id: string;
   readonly target_canonical_id: string;
+  /**
+   * Display names for the two sides, resolved at listing time; null when the
+   * canonical family row is gone (an orphan). Carried because the ids alone
+   * cannot be used to restate an alias: the re-key ceremony that makes an
+   * operator export these is exactly what destroys the ids they reference.
+   */
+  readonly alias_name: string | null;
+  readonly target_name: string | null;
   readonly reason: string | null;
 };
 
@@ -50,6 +58,8 @@ export class FamilyAliasListTask extends Task<FamilyAliasListTaskInput, FamilyAl
         Type.Object({
           alias_canonical_id: Type.String(),
           target_canonical_id: Type.String(),
+          alias_name: Type.Union([Type.String(), Type.Null()]),
+          target_name: Type.Union([Type.String(), Type.Null()]),
           reason: Type.Union([Type.String(), Type.Null()]),
         })
       ),
@@ -70,10 +80,13 @@ export class FamilyAliasListTask extends Task<FamilyAliasListTaskInput, FamilyAl
     } else {
       list = await aliasRepo.list();
     }
+    const names = await deps.displayNames();
     return {
       aliases: list.map((a) => ({
         alias_canonical_id: a.alias_canonical_id,
         target_canonical_id: a.target_canonical_id,
+        alias_name: names.get(a.alias_canonical_id) ?? null,
+        target_name: names.get(a.target_canonical_id) ?? null,
         reason: a.reason,
       })),
     };
