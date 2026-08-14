@@ -107,6 +107,14 @@ describe("formatExhibitDetail", () => {
     ).toBe("EX-1.1 UNDERWRITING AGREEMENT\tex11.htm");
   });
 
+  it("omits a description that just restates TYPE", () => {
+    expect(
+      formatExhibitDetail([
+        { type: "EX-2.1", description: "EX-2.1", filename: "d137294dex21.htm" },
+      ])
+    ).toBe("EX-2.1\td137294dex21.htm");
+  });
+
   it("clips a long list at the last newline so it stays <= 1024", () => {
     const exhibits = Array.from({ length: 40 }, (_, i) => ({
       type: `EX-10.${i + 1}`,

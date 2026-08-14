@@ -15,7 +15,7 @@ import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { SubmissionExhibit } from "../registration-statements/s1/parseSubmission";
 import { Form_8_K } from "./Form_8_K";
 import { processForm8K } from "./Form_8_K.storage";
-import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
+import { extractMergerCounterparty, mapItemCodesToSpacEvents } from "./spac8kMilestones";
 
 const emptyCtx = {
   ipoDate: null as string | null,
@@ -35,14 +35,44 @@ const uwEx: SubmissionExhibit = {
 };
 
 describe("mapItemCodesToSpacEvents", () => {
-  it("maps a post-IPO EX-2 merger 1.01 to definitive_agreement", () => {
+  it("maps a post-IPO EX-2 merger 1.01 to definitive_agreement and stores exhibits", () => {
+    const events = mapItemCodesToSpacEvents(["1.01"], "2021-08-31", {
+      ipoDate: "2021-01-27",
+      exhibits: [mergerEx],
+      pendingDeal: null,
+    });
+    expect(events.map((e) => e.event_type)).toEqual(["definitive_agreement"]);
+    expect(events[0].detail).toContain("EX-2.1");
+    expect(events[0].detail).toContain("ex21.htm");
+  });
+
+  it("maps a post-IPO EX-2.1 whose description is just the type (Northern Star / Apex) to DA", () => {
     expect(
-      mapItemCodesToSpacEvents(["1.01"], "2021-08-31", {
+      mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
         ipoDate: "2021-01-27",
-        exhibits: [mergerEx],
+        exhibits: [
+          { type: "EX-2.1", description: "EX-2.1", filename: "d137294dex21.htm" },
+          { type: "EX-10.1", description: "EX-10.1", filename: "d137294dex101.htm" },
+        ],
         pendingDeal: null,
-      }).map((e) => e.event_type)
-    ).toEqual(["definitive_agreement"]);
+      })[0].event_type
+    ).toBe("definitive_agreement");
+  });
+
+  it("does not treat an informative non-merger EX-2 as a DA", () => {
+    expect(
+      mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
+        ipoDate: "2021-01-27",
+        exhibits: [
+          {
+            type: "EX-2.1",
+            description: "ASSET PURCHASE AGREEMENT, DATED FEBRUARY 21, 2021",
+            filename: "ex21.htm",
+          },
+        ],
+        pendingDeal: null,
+      })[0].event_type
+    ).toBe("material_agreement");
   });
 
   it("maps a pre-IPO 1.01 and a post-IPO underwriting 1.01 to material_agreement", () => {
@@ -108,6 +138,71 @@ describe("mapItemCodesToSpacEvents", () => {
 
   it("ignores non-milestone item codes", () => {
     expect(mapItemCodesToSpacEvents(["2.02", "9.01", "7.01"], "2021-03-01", emptyCtx)).toEqual([]);
+  });
+
+  it("prefixes the merger counterparty on a DA when the 8-K names it", () => {
+    const events = mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
+      ipoDate: "2021-01-27",
+      exhibits: [mergerEx],
+      pendingDeal: null,
+      issuerName: "Northern Star Investment Corp. II",
+      narrative:
+        "On February 21, 2021, Northern Star Investment Corp. II, a Delaware corporation " +
+        '("Northern Star"), entered into an Agreement and Plan of Reorganization ' +
+        '("Merger Agreement") by and among Northern Star, NISC II-A Merger LLC, a Delaware ' +
+        "limited liability company and wholly-owned subsidiary of Northern Star " +
+        '("Merger Sub I"), Apex Clearing Holdings LLC, a Delaware limited liability ' +
+        'company ("Apex") and, solely for the purposes of Section 5.21 therein, ' +
+        "PEAK6 Investments LLC, a Delaware limited liability company.",
+    });
+    expect(events[0].event_type).toBe("definitive_agreement");
+    expect(events[0].detail?.split("\n")[0]).toBe("# Apex Clearing Holdings LLC");
+    expect(events[0].detail).toContain("EX-2.1");
+  });
+});
+
+describe("extractMergerCounterparty", () => {
+  it("picks the operating company from a by-and-among merger 8-K", () => {
+    expect(
+      extractMergerCounterparty(
+        "entered into an Agreement and Plan of Reorganization (\"Merger Agreement\") " +
+          "by and among Northern Star, NISC II-A Merger LLC, a Delaware limited liability " +
+          "company and wholly-owned subsidiary of Northern Star (\"Merger Sub I\"), " +
+          "Apex Clearing Holdings LLC, a Delaware limited liability company (\"Apex\") " +
+          "and, solely for the purposes of Section 5.21 therein, PEAK6 Investments LLC.",
+        "Northern Star Investment Corp. II"
+      )
+    ).toBe("Apex Clearing Holdings LLC");
+  });
+
+  it("picks the company named after with in a business combination 8-K", () => {
+    expect(
+      extractMergerCounterparty(
+        "the Company entered into a Business Combination Agreement with Lucid Group, Inc., " +
+          "a Delaware corporation (\"Lucid\").",
+        "Churchill Capital Corp IV"
+      )
+    ).toBe("Lucid Group, Inc.");
+  });
+
+  it("does not stop the party list at the period in Inc.", () => {
+    expect(
+      extractMergerCounterparty(
+        "Test SPAC entered into an Agreement and Plan of Merger by and among Test SPAC, " +
+          "Test Merger Sub Inc., a Delaware corporation and wholly-owned subsidiary of " +
+          "Test SPAC, and Acme Robotics, Inc., a Delaware corporation.",
+        "Test SPAC"
+      )
+    ).toBe("Acme Robotics, Inc.");
+  });
+
+  it("returns null when the narrative is not a merger agreement", () => {
+    expect(
+      extractMergerCounterparty(
+        "the Company entered into an Underwriting Agreement with Goldman Sachs & Co. LLC.",
+        "Test SPAC"
+      )
+    ).toBeNull();
   });
 });
 
@@ -327,6 +422,26 @@ describe("processForm8K SPAC milestone wiring", () => {
     const events = await repo.getEvents(500);
     expect(events.some((e) => e.event_type === "definitive_agreement")).toBe(false);
     expect(await repo.getDeals(500)).toEqual([]);
+  });
+
+  it("stores DA exhibits and the named merger counterparty from the 8-K body", async () => {
+    await seedSpac(800);
+    await seedIpo(800);
+    const body =
+      `<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<FILENAME>d8k.htm\n<DESCRIPTION>CURRENT REPORT\n<TEXT>\n` +
+      `<html><body><p>Item 1.01 Entry into a Material Definitive Agreement.</p>` +
+      `<p>On March 1, 2021, Test SPAC entered into an Agreement and Plan of Merger ` +
+      `by and among Test SPAC, Test Merger Sub Inc., a Delaware corporation and ` +
+      `wholly-owned subsidiary of Test SPAC, and Acme Robotics, Inc., a Delaware ` +
+      `corporation ("Acme").</p></body></html>\n</TEXT>\n</DOCUMENT>\n` +
+      `<DOCUMENT>\n<TYPE>EX-2.1\n<SEQUENCE>2\n<FILENAME>ex21.htm\n` +
+      `<DESCRIPTION>AGREEMENT AND PLAN OF MERGER, DATED MARCH 1, 2021\n<TEXT>\n<html/>\n</TEXT>\n</DOCUMENT>\n`;
+    await run8K(800, "800-da", "1.01,9.01", "2021-03-01", body);
+
+    const da = (await repo.getEvents(800)).find((e) => e.event_type === "definitive_agreement");
+    expect(da?.detail?.split("\n")[0]).toBe("# Acme Robotics, Inc.");
+    expect(da?.detail).toContain("EX-2.1");
+    expect(da?.detail).toContain("ex21.htm");
   });
 
   it("writes a post-IPO underwriting 1.01 as material_agreement, not a DA", async () => {

@@ -146,13 +146,21 @@ export function parseSubmissionExhibits(txt: string): SubmissionExhibit[] {
   return out;
 }
 
+function compactExhibitToken(value: string): string {
+  return value.replace(/[\s._-]/g, "").toLowerCase();
+}
+
 export function formatExhibitDetail(exhibits: readonly SubmissionExhibit[]): string | null {
   if (exhibits.length === 0) return null;
   const lines = exhibits.map((e) => {
     const raw = e.description.trim();
+    const file = e.filename.trim();
+    const restatesType = raw === "" || compactExhibitToken(raw) === compactExhibitToken(e.type);
+    if (restatesType) {
+      return file === "" ? e.type : `${e.type}\t${file}`;
+    }
     const comma = raw.indexOf(",");
     const short = (comma === -1 ? raw : raw.slice(0, comma)).trim() || e.type;
-    const file = e.filename.trim();
     return file === "" ? `${e.type} ${short}` : `${e.type} ${short}\t${file}`;
   });
   let joined = lines.join("\n");

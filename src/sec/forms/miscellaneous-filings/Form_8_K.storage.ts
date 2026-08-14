@@ -13,8 +13,11 @@ import { Form_8_K_ITEMS } from "./Form_8_K";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
-import { parseSubmissionExhibits } from "../registration-statements/s1/parseSubmission";
-import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
+import {
+  parseEightKSubmission,
+  parseSubmissionExhibits,
+} from "../registration-statements/s1/parseSubmission";
+import { htmlToPlainText, mapItemCodesToSpacEvents } from "./spac8kMilestones";
 import { processRedemption8K } from "./redemption8k";
 import { processLoi8K } from "./loi8k";
 
@@ -176,6 +179,9 @@ export async function processForm8K({
     // filing-metadata row is absent (report_date null, filing_date "").
     const eventDate = effectiveReportDate || filing_date;
     const exhibits = fullSubmissionText ? parseSubmissionExhibits(fullSubmissionText) : [];
+    const narrative = fullSubmissionText
+      ? htmlToPlainText(parseEightKSubmission(form, fullSubmissionText).primaryHtml)
+      : null;
     const deals = await spacRepo.getDeals(cik);
     const pending = deals.find((d) => d.outcome === "pending") ?? null;
     const spacEvents = eventDate
@@ -188,6 +194,8 @@ export async function processForm8K({
                 proxy_date: pending.proxy_date,
               }
             : null,
+          issuerName: spacRow.spac_name,
+          narrative,
         })
       : [];
     if (spacEvents.length > 0) {
