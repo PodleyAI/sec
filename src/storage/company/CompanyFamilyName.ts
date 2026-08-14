@@ -134,6 +134,21 @@ const GENERIC_VEHICLE_WORDS = new Set([
 /** A roman numeral (series marker): `II`, `XIII`, `VG VI`'s `VI`. */
 const ROMAN = /^[ivxlcdm]+$/;
 
+/**
+ * A **well-formed** roman numeral, rather than merely a word spelled out of
+ * roman-numeral letters.
+ *
+ * {@link ROMAN} accepts any run of `ivxlcdm`, which is enough at the end of a
+ * name — a name almost never ENDS in `civil`, and the position is the evidence.
+ * Mid-name it is not: `civil`, `dim`, `mild`, `vivid` and `lid` all pass the
+ * character test, and dropping one of those from the middle of a name deletes a
+ * real word. This regex rejects every one of them, since none is a valid
+ * numeral. (`mix` and `xi` ARE valid numerals and would still be dropped; a
+ * house named with one of those mid-name is the residual risk, and it costs an
+ * alias rather than silently attributing anything.)
+ */
+const STRICT_ROMAN = /^(?=[ivxlcdm])m*(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/;
+
 /** A bare number or year a sponsor uses to serialize vehicles: `3`, `22`, `2017`. */
 const SERIES_NUMBER = /^\d{1,4}$/;
 
@@ -178,6 +193,37 @@ function wouldLeaveBareVehicleWord(tokens: readonly string[], end: number): bool
 }
 
 /**
+ * Drop series markers that sit INSIDE the name rather than at its end.
+ *
+ * Sponsors serialize a vehicle wherever the name reads best, and roughly as
+ * often that is mid-name: `Southern Cross Acquisition I Sponsor Corp.`,
+ * `Osprey Acquisition III, Sponsor LLC`, `CGC III Sponsor DirectorCo LLC`. A
+ * tail-only strip leaves the numeral in the key, so consecutive vehicles of one
+ * house land in different families — `southern-cross-acquisition-i-sponsor` and
+ * `southern-cross-acquisition-ii-sponsor` are the same sponsor, and both names
+ * are in the committed golden labels.
+ *
+ * Three conditions keep this from eating real words, and each is doing work:
+ *
+ * - **Roman numerals only** ({@link STRICT_ROMAN}), never a bare number. An
+ *   interior number is usually part of the name — `Route 66 Ventures` would
+ *   otherwise become `route-ventures` — while a TRAILING one is a vintage
+ *   (`Curnes Fund 2001`) and keeps its existing treatment.
+ * - **Never the first token.** A leading numeral is the house's own name
+ *   (`V Capital`, `X Holdings`), not a serialization of it.
+ * - **Never the last token.** The tail loop has already ruled on that position,
+ *   including the {@link wouldLeaveBareVehicleWord} floor — so `Fund III` keeps
+ *   its numeral here too rather than being stripped by the back door.
+ *
+ * Those last two also make the result safe by construction: an interior index
+ * has a token on each side, so a name can never be emptied or reduced to one.
+ */
+function dropInteriorSeriesMarkers(kept: readonly string[]): string[] {
+  if (kept.length < 3) return [...kept];
+  return kept.filter((token, i) => i === 0 || i === kept.length - 1 || !STRICT_ROMAN.test(token));
+}
+
+/**
  * Family slug for a company name, or `""` when the name yields none.
  *
  * Trailing legal forms and series markers are dropped repeatedly, so
@@ -190,6 +236,11 @@ function wouldLeaveBareVehicleWord(tokens: readonly string[], end: number): bool
  * leave a single generic vehicle word standing as the whole house name
  * ({@link wouldLeaveBareVehicleWord}). `Fund III` therefore keeps its numeral
  * rather than collapsing to `fund` alongside every other sponsor's third fund.
+ *
+ * A series marker is dropped wherever it sits, not only at the end —
+ * `Southern Cross Acquisition I Sponsor Corp.` is the same house as its `II`
+ * (see {@link dropInteriorSeriesMarkers}, which is stricter mid-name than the
+ * tail rule because position there is no longer evidence).
  *
  * Stripping never empties the result: a name of nothing but droppable tokens
  * (`III LLC`) is kept whole rather than returning nothing and colliding with
@@ -236,7 +287,7 @@ export function companyFamilyName(name: string | null | undefined): string {
   // inventing a family from the first word of a vehicle description.
   const kept = end > 1 || !isDroppableTail(tokens[0]) ? tokens.slice(0, end) : tokens;
 
-  return kept.join("-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return dropInteriorSeriesMarkers(kept).join("-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 
 /**
