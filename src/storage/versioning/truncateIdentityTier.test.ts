@@ -8,12 +8,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
-import { PERSON_OBSERVING_EXTRACTOR_IDS } from "./extractorIds";
+import { REKEY_REEXTRACT_EXTRACTOR_IDS } from "./extractorIds";
 
 /**
  * The two re-key scripts are plain SQL, so nothing else checks them: a table
  * renamed in the registry, an extractor id that drifts from
- * {@link PERSON_OBSERVING_EXTRACTOR_IDS}, or a group added to one variant and
+ * {@link REKEY_REEXTRACT_EXTRACTOR_IDS}, or a group added to one variant and
  * not the other all ship silently and are discovered by an operator running a
  * destructive ceremony against a production database.
  *
@@ -82,15 +82,29 @@ const VARIANTS: readonly (readonly [string, string])[] = [
 ];
 
 describe("truncate-identity-tier scripts", () => {
-  it.each(VARIANTS)("%s: scopes its gates to PERSON_OBSERVING_EXTRACTOR_IDS", (_name, sql) => {
-    // Clearing `extractor_runs` / `extraction_dead_letter` wholesale re-runs the
-    // AI extractors that observe no person at all (8-K redemption/LOI,
-    // merger-proxy), re-paying their model cost for output this script never
-    // deleted.
+  it.each(VARIANTS)("%s: scopes its gates to REKEY_REEXTRACT_EXTRACTOR_IDS", (_name, sql) => {
+    // Two ways to get this wrong, in opposite directions. Too wide (clearing
+    // the tables outright) re-runs the AI extractors that observe no person and
+    // whose output this script never deleted — 8-K redemption/LOI, merger-proxy
+    // — re-paying their model cost for nothing. Too narrow leaves an extractor
+    // whose output WAS deleted with no way back: `424` is the live case.
     const lists = scopedExtractorIds(sql);
     expect(lists).toHaveLength(2);
     for (const list of lists) {
-      expect([...list].sort()).toEqual([...PERSON_OBSERVING_EXTRACTOR_IDS].sort());
+      expect([...list].sort()).toEqual([...REKEY_REEXTRACT_EXTRACTOR_IDS].sort());
+    }
+  });
+
+  it.each(VARIANTS)("%s: re-extracts 424, whose family links it wipes", (_name, sql) => {
+    // `underwriter_link` / `underwriter_family_membership` carry rows written by
+    // the priced-424 path, and the family link row IS the attribution — batch
+    // `sec resolve` refuses the family kinds, so nothing rebuilds it. Wiping
+    // those tables while leaving `424` out of the gates destroys every
+    // 424-sourced underwriter attribution permanently.
+    const targeted = targetedTables(sql);
+    expect(targeted.has("underwriter_link")).toBe(true);
+    for (const list of scopedExtractorIds(sql)) {
+      expect(list).toContain("424");
     }
   });
 
@@ -126,12 +140,28 @@ describe("truncate-identity-tier scripts", () => {
   });
 
   it("keeps the portable variant portable", () => {
-    // `SET LOCAL search_path` is what makes the Postgres variant safe under a
-    // search path that lists another schema first — and sqlite3 rejects it, so
-    // the portable file cannot carry it. Its usage block therefore names sqlite3
-    // only, and must not invite a psql run against unqualified names.
-    expect(PORTABLE).not.toMatch(/SET\s+LOCAL\s+search_path/i);
-    expect(PORTABLE).not.toMatch(/^--.*\bpsql\s+"\$SEC_PG_URL"\s+-f\s+scripts\/sql\/truncate-identity-tier\.sql/m);
-    expect(POSTGRES).toMatch(/SET\s+LOCAL\s+search_path\s+TO\s+current_schema\(\)/i);
+    // Pinning `search_path` is what makes the Postgres variant safe under a
+    // search path that lists another schema first — and sqlite3 rejects the
+    // statement, so the portable file cannot carry it. Its usage block therefore
+    // names sqlite3 only, and must not invite a psql run against unqualified
+    // names.
+    expect(statements(PORTABLE)).not.toMatch(/search_path/i);
+    expect(PORTABLE).not.toMatch(
+      /^--.*\bpsql\s+"\$SEC_PG_URL"\s+-f\s+scripts\/sql\/truncate-identity-tier\.sql/m
+    );
+  });
+
+  it("pins the Postgres search_path with a statement Postgres accepts", () => {
+    // `SET ... TO current_schema()` parses as an identifier followed by `(`, so
+    // Postgres rejects it outright. Inside this script's transaction that aborts
+    // every following statement and the COMMIT rolls back — the ceremony reports
+    // errors and wipes nothing, which no test reading the file as text would
+    // notice. `set_config(name, value, is_local)` is the expression-context
+    // spelling, and `true` is what makes it LOCAL.
+    const body = statements(POSTGRES);
+    expect(body).not.toMatch(/SET\s+(LOCAL\s+)?search_path\s+TO\s+current_schema\s*\(/i);
+    expect(body).toMatch(
+      /SELECT\s+set_config\(\s*'search_path'\s*,\s*current_schema\(\)\s*,\s*true\s*\)/i
+    );
   });
 });

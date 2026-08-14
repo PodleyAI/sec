@@ -60,8 +60,11 @@
 -- rejects it) and portability is this file's only reason to exist, so the two
 -- stay separate rather than one growing a dialect-specific line.
 --
--- Then re-extract every person-observing extractor (see
--- PERSON_OBSERVING_EXTRACTOR_IDS) and re-import the curated data:
+-- Then re-extract every extractor whose output this script deleted (see
+-- REKEY_REEXTRACT_EXTRACTOR_IDS) and re-import the curated data. `424` is in
+-- the list for the FAMILY tier, not the person one: the priced-prospectus path
+-- writes `underwriter_link` rows that the family section below wipes, and
+-- nothing but a re-extraction can restore them.
 --   sec extractor backfill S-1
 --   sec extractor backfill D
 --   sec extractor backfill C
@@ -72,6 +75,7 @@
 --   sec extractor backfill 4
 --   sec extractor backfill 5
 --   sec extractor backfill 144
+--   sec extractor backfill 424
 --   sec editorial import data/editorial/family-descriptions.csv
 --   sec canonical person alias-import aliases-person.tsv
 --   sec canonical company alias-import aliases-company.tsv
@@ -127,15 +131,18 @@ DELETE FROM person_observations;
 -- row makes that filing unprocessed again at the SAME version. Dead letters go
 -- with it — they are keyed to runs that no longer exist.
 --
--- Scoped to the extractors that observe a person (`8-K`, `merger-proxy`, `424`
--- and the rest are untouched). Clearing every row would re-run AI extraction
--- for filings whose output this script did not delete, re-paying the model cost
--- for nothing. Keep in step with PERSON_OBSERVING_EXTRACTOR_IDS in
--- `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
+-- Scoped to the extractors whose output this script actually deletes: the
+-- person-observing ones, plus `424` for the family tier it wipes above (the
+-- priced-prospectus path writes `underwriter_link` / `underwriter_family_
+-- membership`, and a family link row IS the attribution — no observation
+-- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
+-- untouched: nothing of theirs is deleted here, and clearing their runs would
+-- re-pay AI cost for nothing. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
+-- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
 -- fails if they diverge.
 DELETE FROM extraction_dead_letter
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
 DELETE FROM extractor_runs
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
 
 COMMIT;

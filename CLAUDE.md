@@ -1195,12 +1195,23 @@ exactly what these scripts keep. `observation_provenance` is scoped
 and issuer observations) cite observations that survive.
 
 `extractor_runs` / `extraction_dead_letter` are cleared only for the extractors
-that observe a person (`PERSON_OBSERVING_EXTRACTOR_IDS` in
+whose output the scripts actually delete (`REKEY_REEXTRACT_EXTRACTOR_IDS` in
 `src/storage/versioning/extractorIds.ts`), so the forms sweep's anti-join
 re-selects exactly those filings at the **same** version. Clearing every row
 would re-run `8-K` redemption/LOI detection and `merger-proxy` extraction —
 AI passes whose output the script never deleted — and re-pay their model cost for
-nothing. `truncateIdentityTier.test.ts` fails if the SQL and the constant drift.
+nothing.
+
+That set is the person-observing extractors **plus `424`**, and the `424` is
+not an oversight to tidy away: the scripts wipe the FAMILY tier too, and the
+family tier is not person-scoped. `runOfferingSections` writes
+`underwriter_link` / `underwriter_family_membership` from the priced 424B1/424B4
+path under extractor id `424`, and a family link row **is** the attribution —
+there is no observation → link projection behind it and batch `sec resolve`
+refuses the family kinds, so leaving `424` out of the gates destroys every
+424-sourced underwriter attribution with nothing able to rebuild it.
+`truncateIdentityTier.test.ts` fails if the SQL and the constant drift, and
+separately asserts that a script wiping `underwriter_link` re-extracts `424`.
 
 Raw EDGAR ingest is left alone — nothing in `entities`, `filings`, `cik_names`,
 `company_facts` or `xbrl_fact` is keyed by a normalizer, and re-downloading it
@@ -1212,10 +1223,17 @@ rather than lose it.
 `truncate-identity-tier.sql` is portable DELETE-based SQL for **sqlite3** only;
 its table names are unqualified, so running it through `psql` on a deployment
 whose `search_path` lists a staging schema first would delete that schema's
-identity tier irreversibly. `truncate-identity-tier.postgres.sql` pins
-`SET LOCAL search_path TO current_schema()` (which sqlite3 rejects, hence the
-split) and adds `TRUNCATE ... RESTART IDENTITY`. The two name the same table set,
-enforced by test.
+identity tier irreversibly. `truncate-identity-tier.postgres.sql` pins the
+schema with `SELECT set_config('search_path', current_schema(), true)` (which
+sqlite3 rejects, hence the split) and adds `TRUNCATE ... RESTART IDENTITY`. The
+two name the same table set, enforced by test.
+
+The pin is `set_config`, **not** `SET LOCAL search_path TO current_schema()`:
+`SET` takes identifiers and string constants, never a function call, so that
+spelling is a Postgres syntax error. Inside the script's transaction it aborts
+every following statement and the `COMMIT` rolls back, so the ceremony prints
+errors and wipes nothing — a failure no test reading the file as text would
+catch, which is why one now pins the accepted spelling directly.
 
 > ⚠️ **Export your aliases first — they are wiped and cannot be reconstructed.**
 > Alias rows are hand-curated claims that two canonical rows are one entity, and
@@ -1235,8 +1253,9 @@ sec canonical underwriter-family alias-list --format tsv > aliases-underwriter.t
 # 2. Wipe (SQLite; on Postgres use the .postgres.sql variant)
 sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
 
-# 3. Re-extract EVERY person-observing extractor, not just S-1
-for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144; do sec extractor backfill "$id"; done
+# 3. Re-extract EVERY extractor whose output the wipe deleted, not just S-1.
+#    424 is in the list for the FAMILY tier (underwriter links), not persons.
+for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144 424; do sec extractor backfill "$id"; done
 
 # 4. Restore the curated data
 sec editorial import data/editorial/family-descriptions.csv

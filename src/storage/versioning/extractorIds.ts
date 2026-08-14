@@ -65,6 +65,28 @@ export const PERSON_OBSERVING_EXTRACTOR_IDS: readonly ExtractorId[] = [
 ] as const;
 
 /**
+ * The extractors a `truncate-identity-tier` run must re-extract: every one whose
+ * output those scripts delete.
+ *
+ * Wider than {@link PERSON_OBSERVING_EXTRACTOR_IDS} by exactly `424`, because
+ * the scripts wipe the FAMILY tier as well as the person one — and the family
+ * tier is not person-scoped. `runOfferingSections` writes `underwriter_link` /
+ * `underwriter_family_membership` from the priced 424B1/424B4 path under
+ * extractor id `424`, and those link rows ARE the attribution: there is no
+ * observation → link projection to rebuild them from, and batch `sec resolve`
+ * refuses the family kinds. Scoping the re-extraction gates to the person set
+ * alone therefore destroys every 424-sourced underwriter attribution and leaves
+ * nothing able to restore it short of `sec extractor backfill 424`.
+ *
+ * `8-K` / `merger-proxy` / `redemption` / `loi` stay out: the scripts delete no
+ * output of theirs, so clearing their runs would re-pay AI cost for nothing.
+ */
+export const REKEY_REEXTRACT_EXTRACTOR_IDS: readonly ExtractorId[] = [
+  ...PERSON_OBSERVING_EXTRACTOR_IDS,
+  "424",
+] as const;
+
+/**
  * Maps every supported SEC form symbol (including amendment / withdrawal
  * variants) to the canonical extractor id that handles it. The right-hand
  * values match component_versions.component_id rows seeded by
@@ -204,7 +226,6 @@ export const MERGER_PROXY_OPTIONAL_FORMS: ReadonlySet<string> = new Set([
   "PREA14C",
 ]);
 
-
 /**
  * Short-form registration statements that incorporate an already-filed
  * prospectus by reference (Securities Act Rule 462(b)).
@@ -215,10 +236,7 @@ export const MERGER_PROXY_OPTIONAL_FORMS: ReadonlySet<string> = new Set([
  * sections dead-letters every one as SECTION_NOT_FOUND and reports the filing
  * `partial`, which is noise: nothing is missing.
  */
-export const SECTIONLESS_REGISTRATION_FORMS: ReadonlySet<string> = new Set([
-  "S-1MEF",
-  "F-1MEF",
-]);
+export const SECTIONLESS_REGISTRATION_FORMS: ReadonlySet<string> = new Set(["S-1MEF", "F-1MEF"]);
 
 export function formToExtractorId(form: string): ExtractorId | undefined {
   return FORM_TO_EXTRACTOR_ID[form];

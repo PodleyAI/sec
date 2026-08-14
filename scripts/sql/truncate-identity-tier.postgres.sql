@@ -46,8 +46,13 @@ BEGIN;
 
 -- Pin the schema so every unqualified name below resolves to the one this
 -- connection is actually deployed into, not to whatever the search path finds
--- first. Set LOCAL, so it reverts at COMMIT.
-SET LOCAL search_path TO current_schema();
+-- first. The third argument is `is_local`, so it reverts at COMMIT.
+--
+-- `set_config(...)` rather than `SET LOCAL search_path TO current_schema()`:
+-- SET takes identifiers and string constants, never a function call, so that
+-- spelling is a syntax error. Inside this transaction it aborts every statement
+-- after it and the COMMIT rolls back — the ceremony silently does nothing.
+SELECT set_config('search_path', current_schema(), true);
 
 TRUNCATE TABLE
   -- Family tier. The link row IS the attribution here (there is no
@@ -94,16 +99,19 @@ DELETE FROM observation_provenance WHERE kind = 'person';
 -- so a cleared row makes that filing unprocessed again at that same version.
 -- Dead letters go with it — they cite runs that no longer exist.
 --
--- Scoped to the extractors that observe a person (`8-K`, `merger-proxy`, `424`
--- and the rest are untouched). Clearing every row would re-run AI extraction
--- for filings whose output this script did not delete, re-paying the model cost
--- for nothing. Keep in step with PERSON_OBSERVING_EXTRACTOR_IDS in
--- `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
+-- Scoped to the extractors whose output this script actually deletes: the
+-- person-observing ones, plus `424` for the family tier truncated above (the
+-- priced-prospectus path writes `underwriter_link` / `underwriter_family_
+-- membership`, and a family link row IS the attribution — no observation
+-- projection rebuilds it). `8-K`, `merger-proxy`, `redemption` and `loi` stay
+-- untouched: nothing of theirs is deleted here, and clearing their runs would
+-- re-pay AI cost for nothing. Keep in step with REKEY_REEXTRACT_EXTRACTOR_IDS
+-- in `src/storage/versioning/extractorIds.ts` — `truncateIdentityTier.test.ts`
 -- fails if they diverge.
 DELETE FROM extraction_dead_letter
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
 DELETE FROM extractor_runs
-WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1');
+WHERE extractor_id IN ('D', 'C', 'CFPORTAL', '1-A', '1-Z', '3', '4', '5', '144', 'S-1', '424');
 
 COMMIT;
 
