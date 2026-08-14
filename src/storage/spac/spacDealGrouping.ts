@@ -106,6 +106,15 @@ export function deriveDeals(
     .filter((e) => DEAL_RELEVANT_EVENT_TYPES.includes(e.event_type as SpacEventType))
     .sort(compareSpacEventOrder);
 
+  // A completion anywhere in the stream outranks a liquidation/deregistration.
+  // The `completed` event is dated by the 8-K's REPORT date while the Form
+  // 25/25-NSE event is dated by its FILING date, so the routine post-close
+  // delisting of a de-SPAC'd shell's units routinely collides with — or sorts
+  // ahead of — the closing it follows. Treating the delisting as terminal there
+  // ended the walk before the completion was ever read, turning a completed
+  // de-SPAC into a terminated deal and a `liquidated` spac row.
+  const hasCompleted = relevant.some((e) => e.event_type === "completed");
+
   const skeletons: DealSkeleton[] = [];
   let open: DealSkeleton | null = null;
   let nextIndex = 0;
@@ -186,13 +195,19 @@ export function deriveDeals(
       case "liquidation":
       case "deregistration": {
         // Same close as Item 1.02, then the walk ends: the SPAC itself failed.
-        if (open) {
-          open.outcome = "terminated";
-          open.outcome_date = e.event_date;
-          open.source_accession = e.accession_number;
-          open = null;
+        // Skipped entirely when the stream also carries a completion — the walk
+        // then continues to that event, which sets `walkTerminal` itself. A
+        // liquidation genuinely AFTER a completion is already unreachable
+        // (the completion breaks the walk first), so nothing real is lost.
+        if (!hasCompleted) {
+          if (open) {
+            open.outcome = "terminated";
+            open.outcome_date = e.event_date;
+            open.source_accession = e.accession_number;
+            open = null;
+          }
+          walkTerminal = true;
         }
-        walkTerminal = true;
         break;
       }
       case "vote": {

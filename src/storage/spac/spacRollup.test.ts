@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent } from "./SpacEventSchema";
+import { deriveDeals } from "./spacDealGrouping";
 import { buildSpacRow } from "./spacRollup";
 
 function ev(p: Pick<SpacEvent, "event_type" | "event_date"> & Partial<SpacEvent>): SpacEvent {
@@ -491,6 +492,35 @@ describe("buildSpacRow", () => {
       filingDate: "2022-09-01",
     });
     expect(row.target_name).toBe("Newer");
+  });
+
+  it("a post-close Form 25 leaves status completed with a null failed_date", () => {
+    // The delisting of a de-SPAC'd shell's units is routine housekeeping, not a
+    // failure of the vehicle.
+    const events = [
+      ev({ event_type: "ipo", event_date: "2021-01-15" }),
+      ev({ event_type: "definitive_agreement", event_date: "2022-01-10" }),
+      ev({ event_type: "deregistration", event_date: "2022-06-16" }),
+      ev({ event_type: "completed", event_date: "2022-06-21" }),
+    ];
+    // Derived, not hand-written: the rollup only reads `deals.some(completed)`,
+    // so the failure this guards is upstream in the event walk.
+    const deals = deriveDeals(1, events, [], [], []).map((d) => ({
+      ...d,
+      target_name: "Acme Robotics, Inc.",
+    }));
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals,
+      events,
+      patch: {},
+      filingDate: "2022-06-21",
+    });
+    expect(row.status).toBe("completed");
+    expect(row.failed_date).toBeNull();
+    expect(row.completed_date).toBe("2022-06-21");
+    expect(row.surviving_name).toBe("Acme Robotics, Inc.");
   });
 
   it("liquidation with no completed deal sets failed_date and liquidated status", () => {

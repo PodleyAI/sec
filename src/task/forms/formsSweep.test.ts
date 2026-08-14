@@ -101,6 +101,26 @@ describe("forms sweep wiring", () => {
     expect(out.fileName).toEqual(["a.xml", "b.xml"]);
   });
 
+  it("drains forms in sweep order, not object-key order", async () => {
+    // JS orders integer-like keys first, so `Object.keys(FORM_TO_EXTRACTOR_ID)`
+    // puts the bare "25" fourth — long before the S-1 that mints the spac row
+    // `processDeregistration` is gated on. A first-pass sweep therefore dropped
+    // every deregistration as a successful no-op.
+    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "25", primary_doc: "a.htm" });
+    await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "S-1", primary_doc: "b.htm" });
+
+    const producer = new ComputeFormsWorklistTask({ defaults: {} });
+    const emitted: string[] = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      emitted.push(...out.form);
+    }
+
+    expect(emitted).toContain("S-1");
+    expect(emitted).toContain("25");
+    expect(emitted.indexOf("S-1")).toBeLessThan(emitted.indexOf("25"));
+  });
+
   it("shards the worklist disjointly and completely across shardCount", async () => {
     const accessions: string[] = [];
     for (let i = 1; i <= 40; i++) {

@@ -184,3 +184,39 @@ export const SECTIONLESS_REGISTRATION_FORMS: ReadonlySet<string> = new Set([
 export function formToExtractorId(form: string): ExtractorId | undefined {
   return FORM_TO_EXTRACTOR_ID[form];
 }
+
+/**
+ * Order the forms sweep must drain its extractors in.
+ *
+ * The SPAC tier is a chain of gates: the registration statement mints the
+ * `spac` row, the prospectus records the IPO, and the 8-K, merger-proxy and
+ * 25/15 handlers are all known-SPAC gated on that row — each one recording a
+ * SUCCESSFUL run when it finds no row, so the ordinary `extractor_runs`
+ * anti-join never revisits it. A sweep that reaches them first therefore drops
+ * their events permanently rather than deferring them.
+ *
+ * Forms not listed here have no such dependency and run afterwards.
+ */
+const SWEEP_PRIORITY: readonly ExtractorId[] = ["S-1", "424", "8-K", "merger-proxy", "25-15"];
+
+/**
+ * Sort forms into {@link SWEEP_PRIORITY} order, stably.
+ *
+ * Not merely cosmetic: the default form list is `Object.keys(FORM_TO_EXTRACTOR_ID)`,
+ * and JS enumerates integer-like keys first in ascending numeric order — so the
+ * bare `"25"` came fourth, ahead of every registration statement. Ranks are
+ * assigned by extractor id, and unranked forms (including any with no
+ * registered extractor, which the caller filters and warns about separately)
+ * keep their declaration order at the end.
+ */
+export function sortFormsForSweep(forms: readonly string[]): string[] {
+  const rank = (form: string): number => {
+    const extractorId = FORM_TO_EXTRACTOR_ID[form];
+    const i = extractorId === undefined ? -1 : SWEEP_PRIORITY.indexOf(extractorId);
+    return i === -1 ? SWEEP_PRIORITY.length : i;
+  };
+  return [...forms]
+    .map((form, i) => ({ form, i, rank: rank(form) }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map((e) => e.form);
+}
