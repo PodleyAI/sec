@@ -34,6 +34,11 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*(our\s+)?management\s*$/i,
     /^\s*executive officers(,| and)? (and )?directors\s*$/i,
     /^\s*directors and executive officers\s*$/i,
+    // Item 6 of Form 20-F, which is the vocabulary a foreign private issuer's
+    // F-1 uses. `FORM_TO_EXTRACTOR_ID` routes F-1 here and
+    // `SPAC_REGISTRATION_FORMS` lists it ("many SPACs are Cayman"), but the
+    // heading list was domestic-only, so an F-1 yielded no roster at all.
+    /^\s*(board of )?directors,?( senior| and executive)? management( and employees)?\s*$/i,
     // SPAC prospectuses often brand this section rather than titling it
     // "Management" — Constellation Acquisition I's 2021 S-1 heads it "Our Team"
     // (anchored `<A NAME="OurTeam">`, followed by the officers-and-directors
@@ -48,6 +53,10 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*principal (and selling )?shareholders\s*$/i,
     /^\s*security ownership[^\n]*\s*$/i,
     /^\s*beneficial ownership[^\n]*\s*$/i,
+    // Item 7 of Form 20-F — the foreign private issuer's spelling of the same
+    // table. The optional tail is the combined Item 7 heading, whose body
+    // carries the ownership table first.
+    /^\s*major (share|stock)holders( and related party transactions)?\s*$/i,
   ],
   [S1_SECTIONS.RELATED_PARTY]: [
     // "Related Person Transactions" is the modern SEC Item 404 wording and is
@@ -55,8 +64,17 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*certain relationships and related (party |person |persons )?transactions\s*$/i,
     /^\s*related (part(y|ies)|persons?) transactions\s*$/i,
     /^\s*transactions with related persons\s*$/i,
+    // The older, shorter SPAC spelling of the same Item 404 heading. Measured
+    // across a 62-filing sample it appears in 3 and is the filing's only Item
+    // 404 section in every one, so its absence dropped the disclosure outright.
+    /^\s*certain transactions\s*$/i,
   ],
-  [S1_SECTIONS.THE_OFFERING]: [/^\s*the offering\s*$/i, /^\s*our offering\s*$/i],
+  [S1_SECTIONS.THE_OFFERING]: [
+    /^\s*the offering\s*$/i,
+    /^\s*our offering\s*$/i,
+    // An F-1 heads its offering block "Summary Terms of The Offering".
+    /^\s*summary (of )?(the )?(terms of (the )?)?offering\s*$/i,
+  ],
   [S1_SECTIONS.UNDERWRITING]: [
     /^\s*underwriting\s*$/i,
     /^\s*underwriting\s*\(conflicts of interest\)\s*$/i,

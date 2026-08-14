@@ -143,4 +143,52 @@ describe("DocumentTreeSegmenter", () => {
     const byName = new Map(new DocumentTreeSegmenter().segment(doc).map((s) => [s.name, s.text]));
     expect(byName.has(S1_SECTIONS.EXECUTIVE_COMPENSATION)).toBe(false);
   });
+
+  describe("a section that has swallowed another", () => {
+    // A converter that reads an all-caps heading as a higher level than the
+    // sentence-case ones after it nests the rest of the prospectus beneath it.
+    const swallowed = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:18pt">RISK FACTORS</p>
+        <p>Our business faces the following risks, which are material.</p>
+        <p style="font-weight:700;font-size:13pt">Use of proceeds</p>
+        <p>We will place the net proceeds in the trust account.</p>
+        <p style="font-weight:700;font-size:13pt">Underwriting</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+
+    it("stops the container where the nested section begins", () => {
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(swallowed, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      const risks = byName.get(S1_SECTIONS.RISK_FACTORS) ?? "";
+      expect(risks).toContain("material");
+      expect(risks).not.toContain("trust account");
+      expect(risks).not.toContain("agreed to purchase");
+    });
+
+    it("still resolves the swallowed sections in their own right", () => {
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(swallowed, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.USE_OF_PROCEEDS)).toContain("trust account");
+      expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("agreed to purchase");
+    });
+
+    it("leaves a containment a prospectus really has", () => {
+      // A summary carrying the offering table is not a swallow, and cutting
+      // there would leave a stub instead of a summary.
+      const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:18pt">SUMMARY</p>
+        <p>We are a blank check company newly incorporated in Delaware.</p>
+        <p style="font-weight:700;font-size:13pt">The offering</p>
+        <p>We are offering 20,000,000 units at $10.00 per unit.</p>
+        <p style="font-weight:700;font-size:13pt">Corporate information</p>
+        <p>Our executive offices are located at 123 Main Street.</p>
+      </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const summary = sections.find((s) => s.name === S1_SECTIONS.PROSPECTUS_SUMMARY)?.text ?? "";
+      expect(summary).toContain("blank check company");
+      expect(summary).toContain("123 Main Street");
+    });
+  });
 });
