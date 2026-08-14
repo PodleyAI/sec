@@ -1095,9 +1095,9 @@ attributes one house's deals to another and leaves no trace, while an
 sec canonical underwriter-family alias "Chardan Capital Markets" "Chardan"
 ```
 
-The legal form always goes. The **series marker** goes too — except when
-dropping it would leave a single generic vehicle word standing as the whole
-house name. `Fund II`, `Partners III`, `Ventures 2021` name no house at all, and
+The legal form always goes. The **series marker** goes too — wherever it sits in
+the name, not only at the end — except when dropping it would leave a single
+generic vehicle word standing as the whole house name. `Fund II`, `Partners III`, `Ventures 2021` name no house at all, and
 the numeral is the only distinguishing token they have, so collapsing them to
 `fund` / `partners` / `ventures` merges every unrelated vehicle that shares the
 generic word. Those keep their numeral (`fund-ii` ≠ `fund-iii`); everything that
@@ -1107,6 +1107,21 @@ still carries a house token after the strip does not
 `curnes-fund`). `GENERIC_VEHICLE_WORDS` is the vocabulary that answers "would
 the surviving name still name a house" — a **floor, never a strip list**: no
 word in it is ever dropped.
+
+A marker in the **middle** of the name is stripped for the same reason it is at
+the end — sponsors serialize a vehicle wherever the name reads best, and
+`Southern Cross Acquisition I Sponsor Corp.` is the same house as its `II`. Both
+of those, plus `Osprey Acquisition III, Sponsor LLC` and
+`CGC III Sponsor DirectorCo LLC`, are real names in the committed golden labels
+that a tail-only strip split into one family each.
+
+Mid-name the rule is **stricter**, because position is no longer evidence. It
+takes only well-formed roman numerals, never a bare number: `civil`, `dim`,
+`mild` and `vivid` are all runs of `ivxlcdm` that the tail test would accept,
+and `Route 66 Ventures` would lose its `66`. The first and last tokens are also
+off limits — a leading numeral is the house's own name (`V Capital`), and the
+last position already answered to the tail rule and its generic-vehicle floor,
+so `Fund III` is not stripped by the back door.
 
 Two more shapes the rule is measured against, both from real names in the
 committed golden labels: stripping is **token-exact**, so `DirectorCo` is not

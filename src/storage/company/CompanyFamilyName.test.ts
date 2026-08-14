@@ -138,6 +138,44 @@ describe("companyFamilyName", () => {
     expect(companyFamilyName("Curnes Fund 2001")).toBe("curnes-fund");
   });
 
+  it("drops a series marker in the MIDDLE of the name, not only at the end", () => {
+    // All three are real names from the committed golden labels. A sponsor
+    // serializes a vehicle wherever the name reads best, and a tail-only strip
+    // leaves consecutive vehicles of one house in different families.
+    expect(companyFamilyName("Southern Cross Acquisition I Sponsor Corp.")).toBe(
+      "southern-cross-acquisition-sponsor"
+    );
+    expect(companyFamilyName("Southern Cross Acquisition I Sponsor Corp.")).toBe(
+      companyFamilyName("Southern Cross Acquisition II Sponsor Corp.")
+    );
+    expect(companyFamilyName("Osprey Acquisition III, Sponsor LLC")).toBe(
+      "osprey-acquisition-sponsor"
+    );
+    expect(companyFamilyName("CGC III Sponsor DirectorCo LLC")).toBe("cgc-sponsor-directorco");
+  });
+
+  it("does not mistake a real word for an interior series marker", () => {
+    // The tail rule accepts any run of `ivxlcdm` because a name almost never
+    // ENDS in one of these; mid-name that reasoning is gone, so the token has to
+    // be a well-formed numeral. Every word here passes the loose character test
+    // and would be deleted from the middle of the name by it.
+    expect(companyFamilyName("Blue Civil Holdings")).toBe("blue-civil-holdings");
+    expect(companyFamilyName("Vivid Mild Ventures")).toBe("vivid-mild-ventures");
+    expect(companyFamilyName("Acme Dim Partners")).toBe("acme-dim-partners");
+    // A bare interior NUMBER is part of the name, not a serialization of it —
+    // unlike a trailing year (`Curnes Fund 2001`), which still strips.
+    expect(companyFamilyName("Route 66 Ventures")).toBe("route-66-ventures");
+  });
+
+  it("leaves a numeral that is the house's own name alone", () => {
+    // First position is the name itself, and last position already answered to
+    // the tail rule (including the generic-vehicle floor), so neither is
+    // reachable by the interior strip.
+    expect(companyFamilyName("V Capital Partners")).toBe("v-capital-partners");
+    expect(companyFamilyName("Fund III")).toBe("fund-iii");
+    expect(companyFamilyName("III LLC")).toBe("iii-llc");
+  });
+
   it("never strips a name down to nothing", () => {
     expect(companyFamilyName("Fund III")).not.toBe("");
     expect(companyFamilyName("Holdings")).not.toBe("");
