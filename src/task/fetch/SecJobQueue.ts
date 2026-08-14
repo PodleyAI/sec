@@ -145,6 +145,29 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
         }),
       ]),
       pollIntervalMs: 1,
+      // Drop each terminal row the moment its result has been handed to the
+      // client. `0` is the immediate-deletion sentinel — the server deletes on
+      // the terminal event, AFTER `forwardToClients` has resolved the waiting
+      // promise with the output value, so nothing can race the consumer.
+      //
+      // Without this the queue is append-only: `InMemoryQueueStorage.jobQueue`
+      // has no eviction of its own, and a completed row holds `output` — for
+      // this queue an ENTIRE filing document, routinely multi-MB for an 8-K
+      // full submission. A sweep like `sec spac download 8k` fetches one per
+      // filing at {@link SecFetchMaxPerSec}/s and never lets one go, so the
+      // heap grows by the whole downloaded corpus until the process dies.
+      // Deleting the row costs nothing: the durable copy is the on-disk
+      // accessiondocs cache written by {@link SecFetchFileOutputCache}, and no
+      // caller reads a row back after completion (`outputForInput` dedup is
+      // unused here).
+      //
+      // It is also what keeps claiming cheap. `next()` filters and sorts the
+      // whole array on every poll, at `pollIntervalMs: 1` — against a row set
+      // that grew with every filing ever fetched, that alone turns a long
+      // sweep quadratic well before it runs out of memory.
+      deleteAfterCompletionMs: 0,
+      deleteAfterFailureMs: 0,
+      deleteAfterDisabledMs: 0,
     }
   );
 
