@@ -100,6 +100,16 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly unverifiedAllDetail?: string;
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
+  /**
+   * Tried in order only when {@link extract} (and any earlier fallback) returns
+   * `[]`. Throws still fail the section on that model — this is not a retry of
+   * invalid JSON / nonce / rate-limit. Span-verification re-asks stay on the
+   * model that produced rows. Empty fallbacks do not consume
+   * {@link VERIFICATION_ATTEMPTS}.
+   */
+  readonly emptyExtracts?: readonly ((text: string) => Promise<TRow[]>)[];
+  /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
+  readonly modelIds?: readonly string[];
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
@@ -111,6 +121,8 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
  */
 export interface SectionPersistMeta {
   readonly complete: boolean;
+  /** 0 = primary {@link RunSectionArgs.extract}; 1+ = {@link RunSectionArgs.emptyExtracts} index + 1. */
+  readonly modelIndex: number;
 }
 
 export type RunSection = <TRow extends { confidence: number }>(
@@ -192,9 +204,26 @@ export function makeRunSection(opts: {
       // own, smaller budget, and an attempt spent on one question must not
       // spend the other's.
       let mixedShapeAttempts = 0;
+      let extractFn = sargs.extract;
+      let modelIndex = 0;
+      let triedEmptyFallbacks = false;
       for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
         try {
-          raw = await sargs.extract(text);
+          raw = await extractFn(text);
+          if (
+            raw.length === 0 &&
+            !triedEmptyFallbacks &&
+            sargs.emptyExtracts !== undefined &&
+            sargs.emptyExtracts.length > 0
+          ) {
+            triedEmptyFallbacks = true;
+            for (let i = 0; i < sargs.emptyExtracts.length; i++) {
+              extractFn = sargs.emptyExtracts[i]!;
+              modelIndex = i + 1;
+              raw = await extractFn(text);
+              if (raw.length > 0) break;
+            }
+          }
         } catch (e) {
           // A mixed caption shape is a property of ONE generation, not a verdict
           // about the section: the model echoed a category heading back as a
@@ -253,12 +282,17 @@ export function makeRunSection(opts: {
                 String(confident.length)
               )
           : raw.length === 0
-            ? sargs.emptyDetail
+            ? sargs.modelIds !== undefined && sargs.modelIds.length > 1
+              ? `${sargs.emptyDetail} (tried ${sargs.modelIds.join(", ")})`
+              : sargs.emptyDetail
             : sargs.lowConfidenceDetail;
         await record(reason, detail);
         return;
       }
-      const wrote = await sargs.persist(rows, { complete: rows.length === raw.length });
+      const wrote = await sargs.persist(rows, {
+        complete: rows.length === raw.length,
+        modelIndex,
+      });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
         return;

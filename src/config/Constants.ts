@@ -35,6 +35,12 @@ export const SecFetchMaxPerSec = ((): number => {
  * redemption) when its own env override (e.g. SEC_S1_MODEL) is unset. Override
  * for all extractors at once via the SEC_MODEL_DEFAULT environment variable.
  *
+ * Each of these variables is a CSV list, not a scalar: the first id is the
+ * primary model, and later ids run only when an extract returns no rows
+ * (`MODEL_EMPTY`). A single id is still a one-element list. Duplicate and
+ * blank entries are dropped. An unset per-extractor variable inherits this
+ * whole list; a set override replaces it.
+ *
  * The default stays on a provider whose `json-mode` is schema-enforced
  * server-side: a default that a deployment holding only ANTHROPIC_API_KEY
  * cannot resolve turns every AI section into a MODEL_RESOLUTION_ERROR dead
@@ -43,7 +49,43 @@ export const SecFetchMaxPerSec = ((): number => {
  * SEC_S1_RISK_FACTORS_MODEL, after ranking it with `sec eval s1`.
  */
 export const DEFAULT_SEC_MODEL = "claude-sonnet-5";
-export const SecModelDefault = process.env.SEC_MODEL_DEFAULT?.trim() || DEFAULT_SEC_MODEL;
+
+/**
+ * Split a model env value into distinct ids. A scalar is a one-element list.
+ * Empty / unset input falls back to `fallback` as a single id.
+ */
+export function parseModelIdList(raw: string | undefined, fallback: string): string[] {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed === "") return [fallback];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const part of trimmed.split(",")) {
+    const id = part.trim();
+    if (id === "" || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids.length === 0 ? [fallback] : ids;
+}
+
+/** `SEC_MODEL_DEFAULT` as a list, parsed at call time so tests can mutate env. */
+export function defaultModelIds(): string[] {
+  return parseModelIdList(process.env.SEC_MODEL_DEFAULT, DEFAULT_SEC_MODEL);
+}
+
+/**
+ * Per-extractor override: unset inherits {@link defaultModelIds}; a set value
+ * (scalar or CSV) replaces the whole list.
+ */
+export function modelIdsFromEnv(override: string | undefined): string[] {
+  const trimmed = (override ?? "").trim();
+  if (trimmed === "") return defaultModelIds();
+  return parseModelIdList(trimmed, DEFAULT_SEC_MODEL);
+}
+
+const parsedDefault = parseModelIdList(process.env.SEC_MODEL_DEFAULT, DEFAULT_SEC_MODEL);
+/** First id of {@link defaultModelIds} at module load — the scalar most callers want. */
+export const SecModelDefault = parsedDefault[0]!;
 
 /**
  * A local HuggingFace Transformers (ONNX) model, registered alongside the cloud

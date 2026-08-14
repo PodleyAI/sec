@@ -13,8 +13,10 @@ import { boundSourceSpan, classifySpan } from "../registration-statements/s1/ver
 import { extractRedemption } from "../registration-statements/s1/sectionExtractors";
 import type { RedemptionRow } from "../registration-statements/s1/redemptionSchema";
 import {
-  getRedemptionModel,
+  getRedemptionModels,
   getRedemptionConfidenceFloor,
+  modelExtractChain,
+  persistModelId,
   resolveModelId,
 } from "../registration-statements/s1/redemptionModel";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
@@ -120,11 +122,9 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
   // misconfigured SEC_REDEMPTION_MODEL must not regress the unrelated 8-K
   // path. Treat resolution failure like PARSE_ERROR: dead-letter the section,
   // record the failed run, return cleanly.
-  let model: ModelConfig;
-  let model_id: string | null;
+  let models: ModelConfig[];
   try {
-    model = args.model ?? (await getRedemptionModel());
-    model_id = resolveModelId(model);
+    models = args.model ? [args.model] : await getRedemptionModels();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
@@ -139,7 +139,12 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     await recordRedemptionRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
-  await prefetchModel(model_id, args.context);
+  const model = models[0];
+  if (!model) {
+    await recordRedemptionRun(false, "MODEL_RESOLUTION_ERROR: no model configured");
+    return;
+  }
+  for (const m of models) await prefetchModel(resolveModelId(m), args.context);
 
   // Parsing/rendering filer-supplied HTML must not abort the filing (its 8-K
   // events and milestone deals already wrote); a malformed body dead-letters the
@@ -229,11 +234,12 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       lowConfidenceDetail: "below confidence floor",
       verifyRow: (t, r) => classifySpan(t, r.source_span),
       unverifiedAllDetail: "redemption source_span not present in narrative text",
-      extract: async (t) => {
-        const row = await extractRedemption(t, model, args.context);
+      ...modelExtractChain(models, async (t, m) => {
+        const row = await extractRedemption(t, m, args.context);
         return row === null ? [] : [row];
-      },
-      persist: async (rows) => {
+      }),
+      persist: async (rows, meta) => {
+        const model_id = persistModelId(models, meta.modelIndex);
         const row = rows[0];
         await new SpacRedemptionExtractionRepo().save({
           accession_number,

@@ -13,6 +13,7 @@ import { Form_8_K_ITEMS } from "./Form_8_K";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { parseSubmissionExhibits } from "../registration-statements/s1/parseSubmission";
 import { mapItemCodesToSpacEvents } from "./spac8kMilestones";
 import { processRedemption8K } from "./redemption8k";
 import { processLoi8K } from "./loi8k";

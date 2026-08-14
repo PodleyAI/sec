@@ -6,7 +6,7 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { SecModelDefault } from "../../../../config/Constants";
+import { modelIdsFromEnv } from "../../../../config/Constants";
 import { resolveModelId } from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
@@ -14,8 +14,7 @@ export { resolveModelId };
 
 /** The model id used for LOI extraction; overridable via SEC_LOI_MODEL. */
 export function getLoiModelId(): string {
-  const id = (process.env.SEC_LOI_MODEL ?? "").trim();
-  return id === "" ? SecModelDefault : id;
+  return modelIdsFromEnv(process.env.SEC_LOI_MODEL)[0]!;
 }
 
 /** Resolves the configured LOI model into a ModelConfig. */

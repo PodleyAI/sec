@@ -7,7 +7,7 @@
 import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
-import { SecHftModelDefault, SecModelDefault } from "./Constants";
+import { defaultModelIds, parseModelIdList, SecHftModelDefault, DEFAULT_SEC_MODEL } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import { listPricingForModelId } from "./listPricing";
 
@@ -667,13 +667,13 @@ export function secModelRecord(modelId: string): ModelRecord {
 
 /**
  * The distinct model ids the SEC pipeline registers: the shared cloud default
- * ({@link SecModelDefault}), any per-extractor env override, and the local HFT
+ * ({@link defaultModelIds}), any per-extractor env override, and the local HFT
  * default ({@link SecHftModelDefault}, available for `sec eval` comparisons).
  * Reading the env directly (rather than importing the extractor getters) keeps
  * this config module decoupled from `src/sec/`.
  */
 function secModelIds(): string[] {
-  const ids = new Set<string>([SecModelDefault, SecHftModelDefault]);
+  const ids = new Set<string>([...defaultModelIds(), SecHftModelDefault]);
   for (const key of [
     "SEC_S1_MODEL",
     "SEC_S1_CLASSIFIER_MODEL",
@@ -682,8 +682,9 @@ function secModelIds(): string[] {
     "SEC_REDEMPTION_MODEL",
     "SEC_LOI_MODEL",
   ]) {
-    const id = process.env[key]?.trim();
-    if (id) ids.add(id);
+    const raw = process.env[key]?.trim();
+    if (!raw) continue;
+    for (const id of parseModelIdList(raw, DEFAULT_SEC_MODEL)) ids.add(id);
   }
   return [...ids];
 }

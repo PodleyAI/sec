@@ -5,29 +5,34 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository } from "workglow";
-import { SecModelDefault } from "../../../../config/Constants";
-import { resolveModelId } from "./s1Model";
+import { modelIdsFromEnv } from "../../../../config/Constants";
+import { persistModelId, resolveConfiguredModels, resolveModelId } from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
-export { resolveModelId };
+export { persistModelId, resolveModelId };
 
-/** The model id used for merger-proxy extraction; overridable via SEC_MERGER_PROXY_MODEL. */
-export function getMergerProxyModelId(): string {
-  const id = (process.env.SEC_MERGER_PROXY_MODEL ?? "").trim();
-  return id === "" ? SecModelDefault : id;
+/** The model ids used for merger-proxy extraction; overridable via SEC_MERGER_PROXY_MODEL. */
+export function getMergerProxyModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_MERGER_PROXY_MODEL);
 }
 
-/** Resolves the configured merger-proxy model into a ModelConfig. */
+export function getMergerProxyModelId(): string {
+  return getMergerProxyModelIds()[0]!;
+}
+
+/** Resolves the configured merger-proxy model list. */
+export async function getMergerProxyModels(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(
+    getMergerProxyModelIds(),
+    "Merger-proxy",
+    "SEC_MERGER_PROXY_MODEL"
+  );
+}
+
+/** Primary (first) configured merger-proxy model. */
 export async function getMergerProxyModel(): Promise<ModelConfig> {
-  const id = getMergerProxyModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `Merger-proxy model '${id}' is not registered. Register it or set SEC_MERGER_PROXY_MODEL to a known model id.`
-    );
-  }
-  return record as ModelConfig;
+  const [model] = await getMergerProxyModels();
+  return model!;
 }
 
 /**

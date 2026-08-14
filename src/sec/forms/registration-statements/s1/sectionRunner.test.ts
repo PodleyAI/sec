@@ -365,6 +365,89 @@ describe("makeRunSection confidenceFloor", () => {
     });
     expect(call).toBe(1);
   });
+
+  it("tries emptyExtracts when the primary extract returns [] and keeps the first non-empty", async () => {
+    const { repo, letters, resolved } = stubDeadLetters();
+    const calls: string[] = [];
+    const persisted: string[] = [];
+    let modelIndex = -1;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-empty-fallback",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "no underwriters returned",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        calls.push("primary");
+        return [];
+      },
+      emptyExtracts: [
+        async () => {
+          calls.push("fallback");
+          return [{ confidence: 0.9, span: "Citigroup Global Markets Inc." }];
+        },
+      ],
+      modelIds: ["claude-sonnet-5", "claude-haiku-4-5"],
+      persist: async (rows, meta) => {
+        persisted.push(...rows.map((r) => r.span));
+        modelIndex = meta.modelIndex;
+        return rows.length;
+      },
+    });
+
+    expect(calls).toEqual(["primary", "fallback"]);
+    expect(persisted).toEqual(["Citigroup Global Markets Inc."]);
+    expect(modelIndex).toBe(1);
+    expect(letters).toEqual([]);
+    expect(resolved).toContain("underwriters");
+  });
+
+  it("does not spend verification attempts on empty fallbacks, then dead-letters MODEL_EMPTY naming every tried id", async () => {
+    const { repo, letters, details } = stubDeadLetters();
+    let primary = 0;
+    let fallback = 0;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-empty-all",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "no underwriters returned",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: () => true,
+      extract: async () => {
+        primary++;
+        return [];
+      },
+      emptyExtracts: [
+        async () => {
+          fallback++;
+          return [];
+        },
+      ],
+      modelIds: ["claude-sonnet-5", "claude-haiku-4-5"],
+      persist: async () => 0,
+    });
+
+    expect(primary).toBe(1);
+    expect(fallback).toBe(1);
+    expect(letters).toHaveLength(1);
+    expect(letters[0]?.reason_code).toBe("MODEL_EMPTY");
+    expect(details[0]).toBe(
+      "no underwriters returned (tried claude-sonnet-5, claude-haiku-4-5)"
+    );
+  });
 });
 
 describe("makeRunSection configuration errors", () => {

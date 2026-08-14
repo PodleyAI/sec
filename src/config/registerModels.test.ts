@@ -239,6 +239,15 @@ describe("registerSecModels", () => {
     expect(secModelRecord("deepseek-v4-flash").provider).toBe("DEEPSEEK");
   });
 
+  it("registers every id in a CSV model env var, not the comma-joined string", async () => {
+    process.env.SEC_S1_MODEL = "claude-haiku-4-5,gpt-5.4-mini";
+    await registerSecModels();
+    const repo = getGlobalModelRepository();
+    expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
+    expect((await repo.findByName("gpt-5.4-mini"))?.provider).toBe("OPENAI");
+    expect(await repo.findByName("claude-haiku-4-5,gpt-5.4-mini")).toBeUndefined();
+  });
+
   it("registers the cloud default + local HFT default so findByName resolves them", async () => {
     await registerSecModels();
     const repo = getGlobalModelRepository();

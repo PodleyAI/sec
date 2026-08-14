@@ -26,8 +26,10 @@ import { boundSourceSpan, classifySpan } from "../registration-statements/s1/ver
 import { extractMergerDeal } from "../registration-statements/s1/sectionExtractors";
 import type { MergerDealRow } from "../registration-statements/s1/mergerDealSchema";
 import {
-  getMergerProxyModel,
+  getMergerProxyModels,
   getMergerProxyConfidenceFloor,
+  modelExtractChain,
+  persistModelId,
   resolveModelId,
 } from "../registration-statements/s1/mergerModel";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
@@ -93,16 +95,15 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   // A misconfigured/unregistered merger-proxy model must not abort the filing:
   // the deterministic proxy event (definitive statements) is still emitted below.
   // Resolve to null on failure and dead-letter the merger section.
-  let model: ModelConfig | null;
+  let models: ModelConfig[] = [];
   let modelError: string | null = null;
   try {
-    model = args.model ?? (await getMergerProxyModel());
+    models = args.model ? [args.model] : await getMergerProxyModels();
   } catch (err) {
-    model = null;
     modelError = err instanceof Error ? err.message : String(err);
   }
-  const model_id = model ? resolveModelId(model) : null;
-  await prefetchModel(model_id, args.context);
+  const model = models[0] ?? null;
+  for (const m of models) await prefetchModel(resolveModelId(m), args.context);
 
   const recordMergerProxyRun = async (success: boolean, error: string | null): Promise<void> => {
     try {
@@ -200,61 +201,62 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
         lowConfidenceDetail: "below confidence floor",
         verifyRow: (text, r) => classifySpan(text, r.source_span),
         unverifiedAllDetail: "merger deal source_span not present in section text",
-        extract: async (text) => {
-          const deal = await extractMergerDeal(text, model, args.context);
+        ...modelExtractChain(models, async (text, m) => {
+          const deal = await extractMergerDeal(text, m, args.context);
           return deal === null ? [] : [deal];
-        },
-        persist: async (rows) => {
-        const deal = rows[0];
-        const now = new Date().toISOString();
-        let target_observation_id: number | null = null;
-        let target_cik: number | null = null;
-        const targetName = deal.target_name?.trim() ?? "";
-        if (targetName !== "") {
-          const { observation_id, canonical_company_id } = await observer.observeCompany({
+        }),
+        persist: async (rows, meta) => {
+          const model_id = persistModelId(models, meta.modelIndex);
+          const deal = rows[0];
+          const now = new Date().toISOString();
+          let target_observation_id: number | null = null;
+          let target_cik: number | null = null;
+          const targetName = deal.target_name?.trim() ?? "";
+          if (targetName !== "") {
+            const { observation_id, canonical_company_id } = await observer.observeCompany({
+              accession_number,
+              extractor_id: EXTRACTOR_ID,
+              extractor_version,
+              observation_index: idx++,
+              name: targetName,
+              source_context: JSON.stringify({ relation: "merger-proxy:target" }),
+            });
+            target_observation_id = observation_id;
+            // target_cik only when the resolved canonical company already carries one.
+            const canon = await new CanonicalCompanyRepo().getById(canonical_company_id);
+            target_cik = canon?.cik ?? null;
+            await provenance.save({
+              kind: "company",
+              observation_id,
+              confidence: deal.confidence,
+              source_span: boundSourceSpan(deal.source_span),
+              section_name: MERGER_SECTION,
+              model_id,
+              prompt_version: extractor_version,
+              extra: null,
+            });
+          }
+          await new SpacMergerExtractionRepo().save({
             accession_number,
+            cik,
+            form,
+            filing_date,
             extractor_id: EXTRACTOR_ID,
             extractor_version,
-            observation_index: idx++,
-            name: targetName,
-            source_context: JSON.stringify({ relation: "merger-proxy:target" }),
-          });
-          target_observation_id = observation_id;
-          // target_cik only when the resolved canonical company already carries one.
-          const canon = await new CanonicalCompanyRepo().getById(canonical_company_id);
-          target_cik = canon?.cik ?? null;
-          await provenance.save({
-            kind: "company",
-            observation_id,
+            target_name: targetName === "" ? null : targetName,
+            target_cik,
+            target_observation_id,
+            target_description: deal.target_description ?? null,
+            pipe_amount: deal.pipe_amount,
+            merger_consideration: deal.merger_consideration,
             confidence: deal.confidence,
             source_span: boundSourceSpan(deal.source_span),
-            section_name: MERGER_SECTION,
             model_id,
-            prompt_version: extractor_version,
-            extra: null,
+            created_at: now,
           });
-        }
-        await new SpacMergerExtractionRepo().save({
-          accession_number,
-          cik,
-          form,
-          filing_date,
-          extractor_id: EXTRACTOR_ID,
-          extractor_version,
-          target_name: targetName === "" ? null : targetName,
-          target_cik,
-          target_observation_id,
-          target_description: deal.target_description ?? null,
-          pipe_amount: deal.pipe_amount,
-          merger_consideration: deal.merger_consideration,
-          confidence: deal.confidence,
-          source_span: boundSourceSpan(deal.source_span),
-          model_id,
-          created_at: now,
-        });
-        return 1;
-      },
-    });
+          return 1;
+        },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await recordMergerProxyRun(false, message);

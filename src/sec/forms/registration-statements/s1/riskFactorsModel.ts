@@ -5,34 +5,34 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository } from "workglow";
-import { SecModelDefault } from "../../../../config/Constants";
+import { modelIdsFromEnv } from "../../../../config/Constants";
+import { resolveConfiguredModels, resolveModelId } from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
-/**
- * The model id used for risk-factor extraction; overridable via
- * `SEC_S1_RISK_FACTORS_MODEL`. It gets its own knob because the risk-factor
- * section is by far the largest input in the S-1 pipeline and is chunked into
- * several calls, so it dominates per-filing extraction cost — pointing it at a
- * cheaper model while the rest of the filing stays on the default is the
- * reason to separate them.
- */
-export function getRiskFactorsModelId(): string {
-  const id = (process.env.SEC_S1_RISK_FACTORS_MODEL ?? "").trim();
-  return id === "" ? SecModelDefault : id;
+export { resolveModelId };
+
+/** The model ids used for risk-factor extraction; overridable via SEC_S1_RISK_FACTORS_MODEL. */
+export function getRiskFactorsModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_S1_RISK_FACTORS_MODEL);
 }
 
-/** Resolves the configured risk-factor model into a ModelConfig. */
+export function getRiskFactorsModelId(): string {
+  return getRiskFactorsModelIds()[0]!;
+}
+
+/** Resolves the configured risk-factor model list. */
+export async function getRiskFactorsModels(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(
+    getRiskFactorsModelIds(),
+    "Risk-factors",
+    "SEC_S1_RISK_FACTORS_MODEL"
+  );
+}
+
+/** Primary (first) configured risk-factor model. */
 export async function getRiskFactorsModel(): Promise<ModelConfig> {
-  const id = getRiskFactorsModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `Risk-factors model '${id}' is not registered. Register it or set ` +
-        `SEC_S1_RISK_FACTORS_MODEL to a known model id.`
-    );
-  }
-  return record as ModelConfig;
+  const [model] = await getRiskFactorsModels();
+  return model!;
 }
 
 /**

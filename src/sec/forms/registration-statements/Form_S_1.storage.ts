@@ -50,7 +50,7 @@ import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
-import { getRiskFactorsConfidenceFloor, getRiskFactorsModel } from "./s1/riskFactorsModel";
+import { getRiskFactorsConfidenceFloor, getRiskFactorsModels } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
 import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
 import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
@@ -58,7 +58,7 @@ import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
-import { getS1Model, resolveModelId } from "./s1/s1Model";
+import { getS1Models, modelExtractChain, persistModelId, resolveModelId } from "./s1/s1Model";
 import { splitPersonName } from "./s1/splitName";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
@@ -146,18 +146,18 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // work below (XBRL facts, issuer identity, the SPAC registration row). Resolve
   // to null on failure and dead-letter the AI sections, mirroring the PARSE_ERROR
   // containment further down (and the redemption 8-K path).
-  let model: ModelConfig | null;
+  let models: ModelConfig[] = [];
   let modelError: string | null = null;
   try {
-    model = args.model ?? (await getS1Model());
+    models = args.model ? [args.model] : await getS1Models();
   } catch (err) {
-    model = null;
     modelError = err instanceof Error ? err.message : String(err);
   }
+  const model = models[0] ?? null;
   const model_id = model ? resolveModelId(model) : null;
   // Fetch a local model's weights up front so the download's progress renders in
   // the CLI task UI before the (silent) per-section extraction begins.
-  await prefetchModel(model_id, args.context);
+  for (const m of models) await prefetchModel(resolveModelId(m), args.context);
 
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
@@ -532,10 +532,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       lowConfidenceDetail: "profile below confidence floor",
       verifyRow: (text, r) => classifySpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
-      extract: async (text) => {
-        const p = await extractSpacProfile(text, model, args.context);
+      ...modelExtractChain(models, async (text, m) => {
+        const p = await extractSpacProfile(text, m, args.context);
         return p === null ? [] : [p];
-      },
+      }),
       persist: async (rows) => {
         profileHolder.row = rows[0];
         return 1;
@@ -573,8 +573,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    extract: (text) => extractManagement(text, model, args.context),
+    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context)),
     persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
@@ -636,8 +637,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
-    extract: (text) => extractBeneficialOwnership(text, model, args.context),
-    persist: async (rows) => {
+    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context)),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         const observation_index = idx++;
         let observation_id: number;
@@ -703,8 +705,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
-    extract: (text) => extractRelatedParty(text, model, args.context),
-    persist: async (rows) => {
+    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context)),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       // Check every row against the storage schema's own declared bounds BEFORE
       // writing any of them. This persist spans three storages (observations,
       // provenance, transactions) and `withTransaction` is scoped to a single
@@ -824,8 +827,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "all $T confident compensation rows had source_span not present in section text",
       unverifiedPartialDetail:
         "$N of $T confident compensation rows had source_span not present in section text",
-      extract: (text) => extractExecutiveCompensation(text, model, args.context),
-      persist: async (rows) => {
+      ...modelExtractChain(models, (text, m) =>
+        extractExecutiveCompensation(text, m, args.context)
+      ),
+      persist: async (rows, meta) => {
+        const model_id = persistModelId(models, meta.modelIndex);
         // An officer shown for two fiscal years is two table rows but ONE
         // mention of that person, so the observation is minted once and reused;
         // the row key is positional and independent of it.
@@ -909,17 +915,17 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           `${MAX_RISK_FACTORS_CHARS} char cap`
       );
     } else {
-      let riskModel: ModelConfig | null = null;
+      let riskModels: ModelConfig[] = [];
       let riskModelError: string | null = null;
       try {
-        riskModel = args.model ?? (await getRiskFactorsModel());
+        riskModels = args.model ? [args.model] : await getRiskFactorsModels();
       } catch (err) {
         riskModelError = err instanceof Error ? err.message : String(err);
       }
-      if (riskModel === null) {
+      if (riskModels.length === 0) {
         await recordFail(RISK_FACTORS_SECTION, "MODEL_RESOLUTION_ERROR", riskModelError);
       } else {
-        const riskModelResolved = riskModel;
+        for (const m of riskModels) await prefetchModel(resolveModelId(m), args.context);
         // Headlines the extractor deleted as echoes of a heading the chunker
         // prefixed onto a chunk. Reset per extraction attempt so a re-ask's
         // verdict replaces the previous one rather than accumulating.
@@ -961,12 +967,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             "all $T confident risk factor rows had headline/source_span not present in section text",
           unverifiedPartialDetail:
             "$N of $T confident risk factor rows had headline/source_span not present in section text",
-          extract: (text) => {
+          ...modelExtractChain(riskModels, (text, m) => {
             droppedEchoes = [];
-            return extractRiskFactors(text, riskModelResolved, args.context, (headlines) => {
+            return extractRiskFactors(text, m, args.context, (headlines) => {
               droppedEchoes = headlines;
             });
-          },
+          }),
           persist: async (rows) => {
             const now = new Date().toISOString();
             let riskIndex = 0;
@@ -1031,6 +1037,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     filing_date: args.filing_date,
     isSpac,
     model,
+    models,
     model_id,
     activeUnderwriterFamilyVersion,
     byName,
@@ -1073,8 +1080,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident sponsor rows had source_span not present in section text",
-    extract: (text) => extractSpacSponsors(text, model, args.context),
-    persist: async (rows) => {
+    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context)),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
       const extractedNames = rows.map((r) => r.legal_name?.trim() ?? "");
       for (const r of rows) {

@@ -35,6 +35,10 @@ describe("getLoiModelId", () => {
     process.env[MODEL_ENV] = "claude-opus-5";
     expect(getLoiModelId()).toBe("claude-opus-5");
   });
+  it("returns the first id when SEC_LOI_MODEL is a CSV list", () => {
+    process.env[MODEL_ENV] = "claude-sonnet-5,claude-haiku-4-5";
+    expect(getLoiModelId()).toBe("claude-sonnet-5");
+  });
 });
 
 describe("getLoiConfidenceFloor", () => {

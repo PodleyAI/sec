@@ -27,6 +27,7 @@ import {
 } from "./sectionExtractors";
 import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 import type { RunSection } from "./sectionRunner";
+import { modelExtractChain, persistModelId } from "./s1Model";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
@@ -150,6 +151,7 @@ export interface OfferingSectionsArgs {
   readonly filing_date: string;
   readonly isSpac: boolean;
   readonly model: ModelConfig;
+  readonly models?: readonly ModelConfig[];
   readonly model_id: string | null;
   readonly activeUnderwriterFamilyVersion: string;
   readonly byName: ReadonlyMap<S1SectionName, string>;
@@ -177,11 +179,11 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     filing_date,
     isSpac,
     model,
-    model_id,
     activeUnderwriterFamilyVersion,
     byName,
     context,
   } = args;
+  const models = args.models ?? [model];
   const base = { accession_number, extractor_id, extractor_version };
   // Relation labels follow the issuer convention: "s1:issuer" / "424:issuer".
   const relationPrefix = extractor_id === "S-1" ? "s1" : extractor_id;
@@ -223,11 +225,12 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedAllDetail: `all $T confident offering-terms rows had source_span not present in section text${OFFERING_TERMS_LOSS}`,
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
-    extract: async (text) => {
-      const terms = await extractOfferingTerms(text, model, context);
+    ...modelExtractChain(models, async (text, m) => {
+      const terms = await extractOfferingTerms(text, m, context);
       return terms === null ? [] : [terms];
-    },
-    persist: async (rows) => {
+    }),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       const terms = rows[0];
       const now = new Date().toISOString();
       if (isSpac) {
@@ -364,11 +367,12 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
-    extract: async (text) => {
-      const promote = await extractSponsorPromote(text, model, context);
+    ...modelExtractChain(models, async (text, m) => {
+      const promote = await extractSponsorPromote(text, m, context);
       return promote === null ? [] : [promote];
-    },
-    persist: async (rows) => {
+    }),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       const promote = rows[0];
       await spacPromoteTermsRepo.save({
         extractor_id,
@@ -431,8 +435,9 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident underwriter rows had source_span not present in section text",
-    extract: (text) => extractUnderwriters(text, model, context),
-    persist: async (rows) => {
+    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
+    persist: async (rows, meta) => {
+      const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
       // One underwriter, one link row. The model repeats an underwriter across
       // rows more often than not — a sole-underwriter filing came back with the
@@ -510,7 +515,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-    extract: (text) => extractUseOfProceeds(text, model, context),
+    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),
     persist: async (rows) => {
       const now = new Date().toISOString();
       let lineIndex = 0;

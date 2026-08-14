@@ -21,7 +21,7 @@ import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
-import { getS1Model, resolveModelId } from "./s1/s1Model";
+import { getS1Models, resolveModelId } from "./s1/s1Model";
 import { makeRunSection } from "./s1/sectionRunner";
 import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 
@@ -173,9 +173,9 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   // Model resolution can throw when the configured model is not registered;
   // catch and dead-letter the AI sections so the deterministic SPAC IPO event
   // still records, mirroring the "XBRL failures never abort the filing" contract.
-  let model: ModelConfig;
+  let models: ModelConfig[] = [];
   try {
-    model = args.model ?? (await getS1Model());
+    models = args.model ? [args.model] : await getS1Models();
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     for (const section of offeringSectionNames(isSpac)) {
@@ -184,8 +184,13 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     await recordSpacIpoEventIfEligible();
     return;
   }
+  const model = models[0];
+  if (!model) {
+    await recordSpacIpoEventIfEligible();
+    return;
+  }
   const model_id = resolveModelId(model);
-  await prefetchModel(model_id, args.context);
+  for (const m of models) await prefetchModel(resolveModelId(m), args.context);
 
   // Mirror the S-1 PARSE_ERROR containment: a converter throw dead-letters the
   // offering sections so the filing stays on the retry worklist.
@@ -221,6 +226,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     filing_date: args.filing_date,
     isSpac,
     model,
+    models,
     model_id,
     activeUnderwriterFamilyVersion,
     byName,

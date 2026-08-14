@@ -6,28 +6,59 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { SecModelDefault } from "../../../../config/Constants";
+import { modelIdsFromEnv } from "../../../../config/Constants";
+import type { RunSectionArgs } from "./sectionRunner";
 
-/** The model id used for S-1 extraction; overridable via SEC_S1_MODEL. */
+/** The model ids used for S-1 extraction; overridable via SEC_S1_MODEL (CSV). */
+export function getS1ModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_S1_MODEL);
+}
+
+/** First id of {@link getS1ModelIds}. */
 export function getS1ModelId(): string {
-  const id = (process.env.SEC_S1_MODEL ?? "").trim();
-  return id === "" ? SecModelDefault : id;
+  return getS1ModelIds()[0]!;
 }
 
 /**
- * Resolves the configured S-1 model into a ModelConfig from the global model
- * repository. Throws a clear error if the id isn't registered, so an operator
- * knows to register the model before running extraction.
+ * Resolves a CSV model list. An unregistered first id throws (same as a scalar
+ * miss). Later unregistered ids are skipped with a warning so a typo'd fallback
+ * does not abort a section the primary already served.
  */
-export async function getS1Model(): Promise<ModelConfig> {
-  const id = getS1ModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `S-1 model '${id}' is not registered. Register it or set SEC_S1_MODEL to a known model id.`
-    );
+export async function resolveConfiguredModels(
+  ids: readonly string[],
+  kind: string,
+  hint: string
+): Promise<ModelConfig[]> {
+  const out: ModelConfig[] = [];
+  for (const id of ids) {
+    const record = await getGlobalModelRepository().findByName(id);
+    if (!record) {
+      if (out.length === 0) {
+        throw new Error(
+          `${kind} model '${id}' is not registered. Register it or set ${hint} to a known model id.`
+        );
+      }
+      console.warn(`${kind} model '${id}' is not registered; skipping`);
+      continue;
+    }
+    out.push(record as ModelConfig);
   }
-  return record as ModelConfig;
+  return out;
+}
+
+/**
+ * Resolves the configured S-1 model list into ModelConfigs from the global
+ * model repository. Throws a clear error if the primary id isn't registered,
+ * so an operator knows to register the model before running extraction.
+ */
+export async function getS1Models(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(getS1ModelIds(), "S-1", "SEC_S1_MODEL");
+}
+
+/** Primary (first) configured S-1 model. */
+export async function getS1Model(): Promise<ModelConfig> {
+  const [model] = await getS1Models();
+  return model!;
 }
 
 /**
@@ -42,4 +73,28 @@ export function resolveModelId(model: ModelConfig): string | null {
     : typeof ref.model === "string"
       ? ref.model
       : null;
+}
+
+/** Provenance id for the extract that produced the persisted rows. */
+export function persistModelId(models: readonly ModelConfig[], modelIndex: number): string | null {
+  return resolveModelId(models[modelIndex] ?? models[0]!);
+}
+
+/**
+ * Primary extract plus empty-only fallbacks for {@link makeRunSection}. Later
+ * models run only when the previous extract returned `[]`.
+ */
+export function modelExtractChain<TRow extends { confidence: number }>(
+  models: readonly ModelConfig[],
+  extract: (text: string, model: ModelConfig) => Promise<TRow[]>
+): Pick<RunSectionArgs<TRow>, "extract" | "emptyExtracts" | "modelIds"> {
+  const primary = models[0];
+  if (primary === undefined) {
+    throw new Error("modelExtractChain requires at least one model");
+  }
+  return {
+    extract: (text) => extract(text, primary),
+    emptyExtracts: models.slice(1).map((m) => (text: string) => extract(text, m)),
+    modelIds: models.map((m) => resolveModelId(m)).filter((id): id is string => id !== null),
+  };
 }
