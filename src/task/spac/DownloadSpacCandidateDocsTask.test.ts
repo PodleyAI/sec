@@ -26,7 +26,7 @@ import {
   type SpacCandidate,
   type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
-import { accessionDocCacheRelative } from "./spacCandidateDownload";
+import { accessionDocCacheRelative, SPAC_DOWNLOAD_FILING_PAGE_SIZE } from "./spacCandidateDownload";
 import {
   CacheOneSpacCandidateDocTask,
   DownloadSpacCandidateDocsTask,
@@ -640,5 +640,52 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(ownership.disowned).toEqual(["S-1 acc-abort"]);
     // Nothing was written for the filing the abort interrupted.
     expect(existsSync(cachePath(1, "acc-abort", "acc-abort.txt"))).toBe(false);
+  });
+
+  // The worklist scan reads `filings` a page at a time instead of pulling a CIK
+  // chunk's whole filing history into one array. A candidate with more filings
+  // than one page is what tells the two apart.
+  describe("worklist scan", () => {
+    it("walks past the first page instead of stopping at it", async () => {
+      const rows: Filing[] = [];
+      for (let i = 0; i < SPAC_DOWNLOAD_FILING_PAGE_SIZE + 250; i++) {
+        const acc = `0000000001-21-${String(i).padStart(6, "0")}`;
+        rows.push(filing({ cik: 1, accession_number: acc, form: "8-K" }));
+        TestCacheOne.docs.set(`1/${acc}/${acc}.txt`, EIGHT_K_HTML);
+      }
+      await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+      await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).putBulk(rows);
+
+      const out = await runDownload({ set: "8k" });
+
+      // Every filing, not just the first page's worth.
+      expect(out.matched).toBe(rows.length);
+      expect(out.downloaded).toBe(rows.length);
+      expect(out.failed).toBe(0);
+    });
+
+    // The form list goes into the QUERY, so an `8k` run reads 8-Ks rather than
+    // reading a SPAC's entire history and discarding the rest in JS. Asserted on
+    // the criteria because that is the difference — a JS-side filter produces
+    // exactly the same counts while reading everything.
+    it("narrows by form in the query, and omits the filter for `everything`", async () => {
+      const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+      const seen: Array<Record<string, unknown>> = [];
+      const realQueryPage = repo.queryPage.bind(repo);
+      repo.queryPage = ((criteria: Record<string, unknown>, request: unknown) => {
+        seen.push(criteria);
+        return realQueryPage(criteria as never, request as never);
+      }) as typeof repo.queryPage;
+
+      await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+      await repo.put(filing({ cik: 1, accession_number: "acc-1", form: "10-Q" }));
+
+      await runDownload({ set: "8k" });
+      expect(seen.at(0)).toMatchObject({ form: { value: ["8-K", "8-K/A"], operator: "in" } });
+
+      seen.length = 0;
+      await runDownload({ set: "all" });
+      expect(seen.at(0)).not.toHaveProperty("form");
+    });
   });
 });

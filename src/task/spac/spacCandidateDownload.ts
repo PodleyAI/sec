@@ -24,6 +24,43 @@ export const DEFAULT_SPAC_DOWNLOAD_CONFIDENCE: readonly SpacCandidateConfidence[
 /** Same bound as PersonObservationTitleRepo.listForObservations (SQLite variable cap). */
 export const MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY = 900;
 
+/**
+ * Rows read from `filings` per round trip.
+ *
+ * The worklist scan is a cursor walk rather than one `query()` per CIK chunk,
+ * so this — not the chunk size — is what bounds the rows held at once. A chunk
+ * is 900 candidates' filings, which for `everything` is a candidate's ENTIRE
+ * history times 900; materializing that only to keep the handful still needing
+ * a download is the largest allocation the command makes before it has fetched
+ * anything.
+ */
+export const SPAC_DOWNLOAD_FILING_PAGE_SIZE = 2_000;
+
+/**
+ * Bound parameters left for everything that is not a CIK, so a CIK chunk plus a
+ * form list plus the keyset predicate stays under SQLite's legacy
+ * `SQLITE_MAX_VARIABLE_NUMBER` of 999. The form list is the part that grows
+ * ({@link SPAC_REGISTRATION_FORMS} is 8 today), and the keyset predicate adds
+ * one per primary-key column per tier — hence a margin rather than an exact
+ * count. Postgres binds an `in` list as a single array parameter and is not
+ * subject to this at all.
+ */
+const NON_CIK_PARAMETER_BUDGET = 32;
+
+/**
+ * How many CIKs may go into one `in` list alongside `forms`.
+ *
+ * Derived rather than a flat constant: narrowing the scan by form is what stops
+ * the database returning a SPAC's whole filing history for an `8k` run, and it
+ * spends parameters to do it. Adding a form to
+ * {@link SPAC_REGISTRATION_FORMS} therefore shrinks the chunk instead of
+ * silently breaching the cap.
+ */
+export function spacDownloadCikChunkSize(formCount: number): number {
+  const budget = MAX_SPAC_DOWNLOAD_CIKS_PER_QUERY - formCount - NON_CIK_PARAMETER_BUDGET;
+  return Math.max(1, budget);
+}
+
 export type SpacDocFetchKind = "full-submission" | "primary-doc";
 
 export function formsForDownloadSet(set: SpacDownloadSet): ReadonlySet<string> | undefined {
