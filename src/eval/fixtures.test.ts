@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { EVAL_EXTRACTORS } from "./fixtures";
+import { EVAL_EXTRACTORS, EVAL_FIXTURES } from "./fixtures";
 
 /** Every property name anywhere in a JSON Schema, however deeply nested. */
 function schemaPropertyNames(node: unknown, seen = new Set<string>()): Set<string> {
@@ -104,5 +104,28 @@ describe("EVAL_EXTRACTORS personNameFields", () => {
         );
       }
     }
+  });
+});
+
+describe("EVAL_FIXTURES expected rows", () => {
+  it("carry the entity-kind discriminator their extractor keys on", () => {
+    // The discriminator is KEY MATERIAL, not an answer: `matchKey` namespaces a
+    // name by its row's own kind, so a reference row that omits it keys as raw
+    // text while every candidate row keys as person:/company: — the extractor's
+    // schema makes the field required. The two sides then never align, and a
+    // model that listed every owner correctly is scored 0 with each owner
+    // reported as BOTH missing and hallucinated.
+    const offenders: string[] = [];
+    for (const fixture of EVAL_FIXTURES) {
+      const spec = EVAL_EXTRACTORS[fixture.extractor];
+      const kindField = spec?.entityKindField;
+      if (!kindField) continue;
+      fixture.expected.forEach((row, i) => {
+        if (typeof row[kindField] !== "string") {
+          offenders.push(`${fixture.name} row ${i} has no "${kindField}"`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
   });
 });

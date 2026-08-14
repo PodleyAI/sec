@@ -41,8 +41,30 @@ export interface GoldenManagementRow {
  * percentages are formatted too variably to compare cleanly (see the
  * `beneficial-ownership` entry in EVAL_EXTRACTORS), so the measured question is
  * "does the model list the right owners".
+ *
+ * `owner_kind` is not scored either, and is still **required**: an ownership
+ * `name` is a person OR an organization, and the scorer reads each row's own
+ * discriminator to decide which normalizer keys it. A candidate row always
+ * carries it (the extractor's schema makes it required), so a reference row that
+ * omitted it keyed in a different namespace and matched nothing — every owner
+ * reported as both missing and hallucinated, scoring a perfect model 0. It is a
+ * required parameter of {@link O} rather than a defaulted one for the same
+ * reason: a default is how the two sides drift apart again.
  */
 export interface GoldenOwnerRow {
+  readonly name: string;
+  readonly owner_kind: "person" | "company";
+}
+
+/**
+ * A `related-party` entry: the counterparty's name, and nothing else.
+ *
+ * Deliberately NOT {@link GoldenOwnerRow}. That extractor declares no
+ * entity-kind discriminator, so a golden row carrying one would be an unscored
+ * field the label guard rejects — and inventing a kind for a party the prose
+ * names only in passing would be a judgement the filing does not support.
+ */
+export interface GoldenPartyRow {
   readonly name: string;
 }
 
@@ -63,7 +85,7 @@ export interface GoldenOwnerRow {
  */
 export type GoldenFieldRow = Readonly<Record<string, unknown>>;
 
-export type GoldenRow = GoldenManagementRow | GoldenOwnerRow | GoldenFieldRow;
+export type GoldenRow = GoldenManagementRow | GoldenOwnerRow | GoldenPartyRow | GoldenFieldRow;
 
 /** Narrow a golden row to the management shape (the only one carrying titles). */
 export function isGoldenManagementRow(row: GoldenRow): row is GoldenManagementRow {
@@ -80,8 +102,16 @@ const G = (full_name: string, titles: readonly string[]): GoldenManagementRow =>
   titles,
 });
 
-/** A beneficial-ownership row: the owner's name as the table prints it. */
-const O = (name: string): GoldenOwnerRow => ({ name });
+/**
+ * A beneficial-ownership row: the owner's name as the table prints it, plus the
+ * kind of thing that name denotes. A trust, a fund, an estate and an
+ * "Entities affiliated with …" bloc are all `"company"` — the schema offers only
+ * the two, and `"person"` means a natural person.
+ */
+const O = (name: string, owner_kind: "person" | "company"): GoldenOwnerRow => ({
+  name,
+  owner_kind,
+});
 
 /**
  * A related-party row. Same single scored field as {@link O}, kept separate
@@ -89,7 +119,7 @@ const O = (name: string): GoldenOwnerRow => ({ name });
  * an ownership row must be in the table, while a related party is whoever the
  * prose names as a counterparty.
  */
-const R = (name: string): GoldenOwnerRow => ({ name });
+const R = (name: string): GoldenPartyRow => ({ name });
 
 /**
  * The one and only positive `spac-classification` row. The extractor narrows
@@ -275,36 +305,36 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
 
   // 26 Capital Acquisition Corp. — sponsor + Ader hold all founder shares.
   [goldenLabelKey("s1_1822912_000121390021001475", "beneficial-ownership")]: [
-    O("26 Capital Holdings LLC"),
-    O("Jason Ader"),
-    O("John Lewis"),
-    O("Rafi Ashkenazi"),
-    O("Joseph Kaminkow"),
-    O("Gregory S. Lyss"),
+    O("26 Capital Holdings LLC", "company"),
+    O("Jason Ader", "person"),
+    O("John Lewis", "person"),
+    O("Rafi Ashkenazi", "person"),
+    O("Joseph Kaminkow", "person"),
+    O("Gregory S. Lyss", "person"),
   ],
   // BGPT / Martire founder vehicle. "Don Layden." carries a stray trailing period
   // in the filing; the scorer strips non-decimal periods, so either form aligns.
   [goldenLabelKey("s1_1848507_000119312521066104", "beneficial-ownership")]: [
-    O("BGPT 1.12 LP"),
-    O("Frank R. Martire, Jr."),
-    O("Frank Martire, III"),
-    O("Tanmay Kumar"),
-    O("Howard Chatzinoff"),
-    O("Frank D’Angelo"),
-    O("Rachel Landrum"),
-    O("Don Layden"),
-    O("Patricia A. Oelrich"),
-    O("Tom Shen"),
+    O("BGPT 1.12 LP", "company"),
+    O("Frank R. Martire, Jr.", "person"),
+    O("Frank Martire, III", "person"),
+    O("Tanmay Kumar", "person"),
+    O("Howard Chatzinoff", "person"),
+    O("Frank D’Angelo", "person"),
+    O("Rachel Landrum", "person"),
+    O("Don Layden", "person"),
+    O("Patricia A. Oelrich", "person"),
+    O("Tom Shen", "person"),
   ],
   // 1Sharpe real-estate SPAC.
   [goldenLabelKey("s1_1849470_000110465921035696", "beneficial-ownership")]: [
-    O("1Sharpe SPAC Sponsor LLC"),
-    O("Gregor Watson"),
-    O("Rob Bloemker"),
-    O("Charles E. Haldeman, Jr."),
-    O("Jacob Seid"),
-    O("Suzanne Klahr"),
-    O("Richard J Boyle, Jr."),
+    O("1Sharpe SPAC Sponsor LLC", "company"),
+    O("Gregor Watson", "person"),
+    O("Rob Bloemker", "person"),
+    O("Charles E. Haldeman, Jr.", "person"),
+    O("Jacob Seid", "person"),
+    O("Suzanne Klahr", "person"),
+    O("Richard J Boyle, Jr.", "person"),
   ],
   // Operating company (not a SPAC): a 5% holder block plus zero-share officers.
   // The 5% cell reads "V-Cube, Inc. and Naoaki Mashita" — a company AND a person,
@@ -314,78 +344,78 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // a name that is plainly two names into `name` — and the S-1 persist path would
   // resolve it into the canonical company tier as a single bogus company.
   [goldenLabelKey("s1_2030954_000149315226027129", "beneficial-ownership")]: [
-    O("Randolph Wilson Jones III"),
-    O("Christina Maldonado"),
-    O("Virgilio D. Torres"),
-    O("Yuji Ishida"),
-    O("Gan Yong Sheng"),
-    O("V-Cube, Inc."),
-    O("Naoaki Mashita"),
+    O("Randolph Wilson Jones III", "person"),
+    O("Christina Maldonado", "person"),
+    O("Virgilio D. Torres", "person"),
+    O("Yuji Ishida", "person"),
+    O("Gan Yong Sheng", "person"),
+    O("V-Cube, Inc.", "company"),
+    O("Naoaki Mashita", "person"),
   ],
   // Ideal Power Inc. — three 5% holders above the officer/director block. "AIGH"
   // is the table's own printed name for the group footnote 2 defines; the label
   // is the cell as printed, marker dropped.
   [goldenLabelKey("s1_1507957_000143774926010088", "beneficial-ownership")]: [
-    O("AWM Investment Company, Inc."),
-    O("AIGH"),
-    O("Laurence W. Lytton"),
-    O("David Somo"),
-    O("Timothy Burns"),
-    O("Drue Freeman"),
-    O("Gregory Knight"),
-    O("Ted Lesster"),
-    O("Michael C. Turmelle"),
+    O("AWM Investment Company, Inc.", "company"),
+    O("AIGH", "company"),
+    O("Laurence W. Lytton", "person"),
+    O("David Somo", "person"),
+    O("Timothy Burns", "person"),
+    O("Drue Freeman", "person"),
+    O("Gregory Knight", "person"),
+    O("Ted Lesster", "person"),
+    O("Michael C. Turmelle", "person"),
   ],
   // Gold Mountain. Excludes the "All executive officers, directors and director
   // nominees as a group (6 individuals)" subtotal. Four individuals hold nothing
   // (all-dash) and Qiang Zhang's cells are blank entirely — both still get rows,
   // since an officer is listed precisely to disclose that they hold none.
   [goldenLabelKey("s1_2105318_000149315226031978", "beneficial-ownership")]: [
-    O("Gaea Holding Group Limited"),
-    O("Gold Mountain Holding LP"),
-    O("Sanxin Yan"),
+    O("Gaea Holding Group Limited", "company"),
+    O("Gold Mountain Holding LP", "company"),
+    O("Sanxin Yan", "person"),
     // Kept as the table prints it. The parenthesized nickname is part of the
     // name, not an annotation like "(our sponsor)(3)": it is folded into
     // `middle` downstream and so is identity-bearing, which is what separates
     // two people sharing a common given name and surname.
-    O("Yong (David) Yan"),
-    O("Brian Hartzband"),
-    O("Joel Mayersohn"),
-    O("Qiang Zhang"),
-    O("EarlyBirdCapital, Inc."),
+    O("Yong (David) Yan", "person"),
+    O("Brian Hartzband", "person"),
+    O("Joel Mayersohn", "person"),
+    O("Qiang Zhang", "person"),
+    O("EarlyBirdCapital, Inc.", "company"),
   ],
   // Southern Cross II. This table carries TWO printed category labels —
   // "Principal Shareholders (5% or more)" and "Directors and Executive
   // Officers" — neither of which is an owner, plus the usual group subtotal.
   [goldenLabelKey("s1_2133239_000192998026000317", "beneficial-ownership")]: [
-    O("Southern Cross Acquisition II Sponsor Corp."),
-    O("Peizhong Yu"),
-    O("Ally Tong Zhang"),
-    O("Xin Wang"),
-    O("Hongmei Zhao"),
-    O("Zhiqiang Du"),
-    O("Wenhua Qian"),
+    O("Southern Cross Acquisition II Sponsor Corp.", "company"),
+    O("Peizhong Yu", "person"),
+    O("Ally Tong Zhang", "person"),
+    O("Xin Wang", "person"),
+    O("Hongmei Zhao", "person"),
+    O("Zhiqiang Du", "person"),
+    O("Wenhua Qian", "person"),
   ],
   // Albatross. Two cells carry inline role annotations — "Albatross Peak Limited
   // (our Sponsor)" and "Zihan Chen (CEO)" — dropped like any parenthetical.
   [goldenLabelKey("s1_2135163_000182912626006553", "beneficial-ownership")]: [
-    O("Albatross Peak Limited"),
-    O("Zihan Chen"),
-    O("Becky Fallon"),
-    O("Daniel M. McCabe"),
-    O("Ping Zhang"),
+    O("Albatross Peak Limited", "company"),
+    O("Zihan Chen", "person"),
+    O("Becky Fallon", "person"),
+    O("Daniel M. McCabe", "person"),
+    O("Ping Zhang", "person"),
   ],
   // Material Resource. The only fixture whose MANAGEMENT section the segmenter
   // fails to resolve at all, so this ownership table is the sole place its five
   // officers/nominees are labelled — see the KNOWN DEFECT note in
   // parseEdgarHtml.golden.test.ts.
   [goldenLabelKey("s1_2136360_000213636026000003", "beneficial-ownership")]: [
-    O("Material Resource Acquisition Sponsor LLC"),
-    O("Rick Bloom"),
-    O("Brian Kaufman"),
-    O("Jim Berklas"),
-    O("Brian Klemsz"),
-    O("David Linsley"),
+    O("Material Resource Acquisition Sponsor LLC", "company"),
+    O("Rick Bloom", "person"),
+    O("Brian Kaufman", "person"),
+    O("Jim Berklas", "person"),
+    O("Brian Klemsz", "person"),
+    O("David Linsley", "person"),
   ],
   // ── Operating companies: management + ownership ────────────────────────────
   // Virtuix Holdings — two roster tables ("Executive Officers", then
@@ -407,17 +437,17 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // Labelled once: `name` is the extractor's dedupe key, so a second row would
   // be scored as a duplicate the model is right not to produce.
   [goldenLabelKey("s1_1606242_000121390026054471", "beneficial-ownership")]: [
-    O("Jan Goetgeluk"),
-    O("David Allan"),
-    O("Parthkumar Jani"),
-    O("Ugo de Charette"),
-    O("Randolph Read"),
-    O("John Cunningham"),
-    O("Thomas McGinnis"),
-    O("Lauren Premo"),
-    O("Brett Moyer"),
-    O("Cameron Slayter"),
-    O("Streeterville Capital, LLC"),
+    O("Jan Goetgeluk", "person"),
+    O("David Allan", "person"),
+    O("Parthkumar Jani", "person"),
+    O("Ugo de Charette", "person"),
+    O("Randolph Read", "person"),
+    O("John Cunningham", "person"),
+    O("Thomas McGinnis", "person"),
+    O("Lauren Premo", "person"),
+    O("Brett Moyer", "person"),
+    O("Cameron Slayter", "person"),
+    O("Streeterville Capital, LLC", "company"),
   ],
   // Kodiak AI. KNOWN CONVERTER DEFECT: this roster's colspan cells collapse, so
   // the rendered table is the name repeated nine times with NO age or position
@@ -461,13 +491,13 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Mistelle Locke", ["Director"]),
   ],
   [goldenLabelKey("s1_1880613_000162828026005423", "beneficial-ownership")]: [
-    O("Direct Digital Management, LLC"),
-    O("Mark Walker"),
-    O("Keith Smith"),
-    O("Diana P. Diaz"),
-    O("Richard Cohen"),
-    O("Antoinette R. Leatherberry"),
-    O("Mistelle Locke"),
+    O("Direct Digital Management, LLC", "company"),
+    O("Mark Walker", "person"),
+    O("Keith Smith", "person"),
+    O("Diana P. Diaz", "person"),
+    O("Richard Cohen", "person"),
+    O("Antoinette R. Leatherberry", "person"),
+    O("Mistelle Locke", "person"),
   ],
   // Deep Fission. "Chair of the Board" canonicalizes to "Chair of the Board of
   // Directors" — the normalizer expands the board phrase without rewriting the
@@ -493,16 +523,16 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // Muller"/"Richard A. Muller"). The filing is inconsistent with itself; the
   // label follows the section the extractor is actually reading.
   [goldenLabelKey("s1_1918102_000110465926016226", "beneficial-ownership")]: [
-    O("Entities affiliated with 8VC"),
-    O("Mark Tompkins"),
-    O("EE Holdings Limited"),
-    O("Jonathan Angell"),
-    O("Michael Brasel"),
-    O("Thomas S. Glanville"),
-    O("Blake Janover"),
-    O("Elizabeth Muller"),
-    O("Richard Muller"),
-    O("Leslie Goldman Tepper"),
+    O("Entities affiliated with 8VC", "company"),
+    O("Mark Tompkins", "person"),
+    O("EE Holdings Limited", "company"),
+    O("Jonathan Angell", "person"),
+    O("Michael Brasel", "person"),
+    O("Thomas S. Glanville", "person"),
+    O("Blake Janover", "person"),
+    O("Elizabeth Muller", "person"),
+    O("Richard Muller", "person"),
+    O("Leslie Goldman Tepper", "person"),
   ],
   // Factorial Energy. "Executive Chairperson" is NOT expanded: the normalizer
   // only expands a BARE chair title, and the modifier is part of the role the
@@ -523,20 +553,20 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // filing's own defined shorthands; it never prints the Sponsor's legal name
   // in this section, so the shorthand is what the table actually shows.
   [goldenLabelKey("s1_2049662_000110465926079324", "beneficial-ownership")]: [
-    O("Siyu Huang"),
-    O("Alex Yu"),
-    O("Jason Duva"),
-    O("Joseph Taylor"),
-    O("Uwe Keller"),
-    O("Liad Meidar"),
-    O("Dieter Zetsche"),
-    O("Jon Nelson"),
-    O("WAVE Equity Fund, L.P."),
-    O("Mercedes-Benz Corporate Investments LLC"),
-    O("Stellantis Europe S.p.A"),
-    O("Sponsor"),
-    O("DirectorCo"),
-    O("Pangaea Three-B, LP"),
+    O("Siyu Huang", "person"),
+    O("Alex Yu", "person"),
+    O("Jason Duva", "person"),
+    O("Joseph Taylor", "person"),
+    O("Uwe Keller", "person"),
+    O("Liad Meidar", "person"),
+    O("Dieter Zetsche", "person"),
+    O("Jon Nelson", "person"),
+    O("WAVE Equity Fund, L.P.", "company"),
+    O("Mercedes-Benz Corporate Investments LLC", "company"),
+    O("Stellantis Europe S.p.A", "company"),
+    O("Sponsor", "company"),
+    O("DirectorCo", "company"),
+    O("Pangaea Three-B, LP", "company"),
   ],
   [goldenLabelKey("s1_2075109_000121390026073335", "management")]: [
     G("Andreas Raptopoulos", ["Director", "Chief Executive Officer"]),
@@ -550,29 +580,29 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // "Sanjay Kottee" here vs "Sanjay Kotte" in the roster above — a typo in the
   // filing, kept because the label must match the section being scored.
   [goldenLabelKey("s1_2075109_000121390026073335", "beneficial-ownership")]: [
-    O("Andreas Raptopoulos"),
-    O("Mark Tompkins"),
-    O("5G Ventures S.A."),
-    O("Entities affiliated with CerraCap"),
-    O("Alexander Norman-Elvenich"),
-    O("Jason Secore"),
-    O("Ian Jacobs"),
-    O("Chris Dawson"),
-    O("Sanjay Kottee"),
-    O("Laurence J. Marton, M.D."),
-    O("Saurabh Ranjan"),
+    O("Andreas Raptopoulos", "person"),
+    O("Mark Tompkins", "person"),
+    O("5G Ventures S.A.", "company"),
+    O("Entities affiliated with CerraCap", "company"),
+    O("Alexander Norman-Elvenich", "person"),
+    O("Jason Secore", "person"),
+    O("Ian Jacobs", "person"),
+    O("Chris Dawson", "person"),
+    O("Sanjay Kottee", "person"),
+    O("Laurence J. Marton, M.D.", "person"),
+    O("Saurabh Ranjan", "person"),
   ],
   // Karman Line. The sponsor is "Samara Acquisition Sponsor VI Ltd." — this
   // shell was drafted from a Samara template and mentions "Samara" more often
   // than "Karman"; the registrant on the cover is Karman Line Acquisition Corp.
   [goldenLabelKey("s1_2134856_000182912626007847", "beneficial-ownership")]: [
-    O("Samara Acquisition Sponsor VI Ltd."),
-    O("Richard Davis"),
-    O("Graeme Shaw"),
-    O("Vikas Mittal"),
-    O("Michael Leitner"),
-    O("Keith Masback"),
-    O("Beth Michelson"),
+    O("Samara Acquisition Sponsor VI Ltd.", "company"),
+    O("Richard Davis", "person"),
+    O("Graeme Shaw", "person"),
+    O("Vikas Mittal", "person"),
+    O("Michael Leitner", "person"),
+    O("Keith Masback", "person"),
+    O("Beth Michelson", "person"),
   ],
 
   // ── related-party ──────────────────────────────────────────────────────────
@@ -3057,183 +3087,183 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   ],
   // doubling set — beneficial-ownership
   [goldenLabelKey("s1_1489993_000162828026025811", "beneficial-ownership")]: [
-    { name: "Entities affiliated with U.S. Venture Partners" },
-    { name: "Entities affiliated with GPG Healthcare Opportunities Fund, LLC" },
-    { name: "Entities affiliated with Osage University Partners" },
-    { name: "Lyda Hunt – Bunker Trust – Elizabeth H Curnes" },
-    { name: "Synapse Investment, LP" },
-    { name: "Coöperatieve Gilde Healthcare VG VI U.A." },
-    { name: "Longitude Venture Partners V, L.P." },
-    { name: "Richard John Foust" },
-    { name: "Nelson Bunker Curnes" },
-    { name: "Douglas (Doug) Ellison" },
-    { name: "Prashant Rawat" },
-    { name: "Dana G. Mead, Jr." },
-    { name: "Maxwell Bikoff" },
-    { name: "Thomas Jordan Curnes II" },
-    { name: "Edward Hanlon" },
-    { name: "William (Bill) Harrington" },
-    { name: "Cynthia Lucchese" },
-    { name: "Casey Tansey" },
+    O("Entities affiliated with U.S. Venture Partners", "company"),
+    O("Entities affiliated with GPG Healthcare Opportunities Fund, LLC", "company"),
+    O("Entities affiliated with Osage University Partners", "company"),
+    O("Lyda Hunt – Bunker Trust – Elizabeth H Curnes", "company"),
+    O("Synapse Investment, LP", "company"),
+    O("Coöperatieve Gilde Healthcare VG VI U.A.", "company"),
+    O("Longitude Venture Partners V, L.P.", "company"),
+    O("Richard John Foust", "person"),
+    O("Nelson Bunker Curnes", "person"),
+    O("Douglas (Doug) Ellison", "person"),
+    O("Prashant Rawat", "person"),
+    O("Dana G. Mead, Jr.", "person"),
+    O("Maxwell Bikoff", "person"),
+    O("Thomas Jordan Curnes II", "person"),
+    O("Edward Hanlon", "person"),
+    O("William (Bill) Harrington", "person"),
+    O("Cynthia Lucchese", "person"),
+    O("Casey Tansey", "person"),
   ],
   [goldenLabelKey("s1_1602409_000152013826000232", "beneficial-ownership")]: [
-    { name: "Martin J. Shen" },
-    { name: "Yew Hon Lee" },
-    { name: "Yew Poh Leong" },
-    { name: "Hsien Loong Wong" },
-    { name: "Eng Ho Ng" },
-    { name: "Tuck Seng Low" },
-    { name: "Yang Yeat Choe" },
-    { name: "Li Li" },
-    { name: "Terren S. Peizer" },
-    { name: "Acuitas Group Holdings, LLC" },
-    { name: "Acuitas Capital LLC" },
-    { name: "Tommy Wang" },
-    { name: "Dorado Goose, LLC" },
-    { name: "Alto Opportunity Master Fund, SPC –Segregated Master Portfolio B" },
+    O("Martin J. Shen", "person"),
+    O("Yew Hon Lee", "person"),
+    O("Yew Poh Leong", "person"),
+    O("Hsien Loong Wong", "person"),
+    O("Eng Ho Ng", "person"),
+    O("Tuck Seng Low", "person"),
+    O("Yang Yeat Choe", "person"),
+    O("Li Li", "person"),
+    O("Terren S. Peizer", "person"),
+    O("Acuitas Group Holdings, LLC", "company"),
+    O("Acuitas Capital LLC", "company"),
+    O("Tommy Wang", "person"),
+    O("Dorado Goose, LLC", "company"),
+    O("Alto Opportunity Master Fund, SPC –Segregated Master Portfolio B", "company"),
   ],
   [goldenLabelKey("s1_1925283_000162828026027260", "beneficial-ownership")]: [
-    { name: "Lawrence James Lawson III" },
-    { name: "Robert T. Brown" },
-    { name: "Eric D. Malchow" },
-    { name: "Robert B. Barr" },
-    { name: "M. Christie Smith, Ph.D" },
-    { name: "John W. Oleniczak" },
-    { name: "Mary R. Weber" },
-    { name: "Dominique Lecendreux" },
-    { name: "Eric Wijs" },
+    O("Lawrence James Lawson III", "person"),
+    O("Robert T. Brown", "person"),
+    O("Eric D. Malchow", "person"),
+    O("Robert B. Barr", "person"),
+    O("M. Christie Smith, Ph.D", "person"),
+    O("John W. Oleniczak", "person"),
+    O("Mary R. Weber", "person"),
+    O("Dominique Lecendreux", "person"),
+    O("Eric Wijs", "person"),
   ],
   [goldenLabelKey("s1_2091349_000119312526214778", "beneficial-ownership")]: [
-    { name: "Daniel Faga" },
-    { name: "Ajim Tamboli, CFA" },
-    { name: "Paul Lizzul, M.D., Ph.D." },
-    { name: "Benjamin Stone" },
-    { name: "Dennis Fenton, Ph.D." },
-    { name: "Magda Marquet, Ph.D." },
-    { name: "John P. Schmid" },
-    { name: "J. Anthony Ware, M.D." },
-    { name: "Rita Jain, M.D." },
-    { name: "John Orwin" },
-    { name: "EcoR1 Capital LLC" },
-    { name: "TCG Crossover" },
-    { name: "BlackRock, Inc." },
+    O("Daniel Faga", "person"),
+    O("Ajim Tamboli, CFA", "person"),
+    O("Paul Lizzul, M.D., Ph.D.", "person"),
+    O("Benjamin Stone", "person"),
+    O("Dennis Fenton, Ph.D.", "person"),
+    O("Magda Marquet, Ph.D.", "person"),
+    O("John P. Schmid", "person"),
+    O("J. Anthony Ware, M.D.", "person"),
+    O("Rita Jain, M.D.", "person"),
+    O("John Orwin", "person"),
+    O("EcoR1 Capital LLC", "company"),
+    O("TCG Crossover", "company"),
+    O("BlackRock, Inc.", "company"),
   ],
   [goldenLabelKey("s1_2093507_000182912626003406", "beneficial-ownership")]: [
-    { name: "Robert Price" },
-    { name: "Ashiq Merchant" },
-    { name: "Larry G. Swets Jr." },
-    { name: "Melanie Furlan" },
-    { name: "Daniel M. McCabe" },
-    { name: "Roderick McIllree" },
-    { name: "Scott Wollney" },
-    { name: "Hassan R. Baqar" },
-    { name: "Pelican Sponsor LLC" },
-    { name: "FG Merchant Partners LP" },
+    O("Robert Price", "person"),
+    O("Ashiq Merchant", "person"),
+    O("Larry G. Swets Jr.", "person"),
+    O("Melanie Furlan", "person"),
+    O("Daniel M. McCabe", "person"),
+    O("Roderick McIllree", "person"),
+    O("Scott Wollney", "person"),
+    O("Hassan R. Baqar", "person"),
+    O("Pelican Sponsor LLC", "company"),
+    O("FG Merchant Partners LP", "company"),
   ],
   [goldenLabelKey("s1_2098410_000110465926086682", "beneficial-ownership")]: [
-    { name: "Bluerock Acquisition Holdings II, LLC" },
-    { name: "R. Ramin Kamfar" },
-    { name: "Christopher Vohs" },
-    { name: "Harrison Seideman" },
-    { name: "Christopher Bradley" },
-    { name: "Ziv Conen" },
-    { name: "Andrew Weksler" },
+    O("Bluerock Acquisition Holdings II, LLC", "company"),
+    O("R. Ramin Kamfar", "person"),
+    O("Christopher Vohs", "person"),
+    O("Harrison Seideman", "person"),
+    O("Christopher Bradley", "person"),
+    O("Ziv Conen", "person"),
+    O("Andrew Weksler", "person"),
   ],
   [goldenLabelKey("s1_2110105_000162828026032836", "beneficial-ownership")]: [
-    { name: "The Honeywell Entities" },
-    { name: "Entities affiliated with Cambridge Quantum" },
-    { name: "Dr. Rajeeb Hazra" },
-    { name: "Nitesh Sharan" },
-    { name: "Lawrence Stack" },
-    { name: "Kevin Dehoff" },
-    { name: "Dr. Harold Barron" },
-    { name: "Manish Bhatia" },
-    { name: "Eric Branderiz" },
-    { name: "Paul Daugherty" },
-    { name: "Kenneth Denman" },
-    { name: "Joseph Jimenez, Jr." },
-    { name: "Vimal Kapur" },
-    { name: "Dr. Prineha Narang" },
-    { name: "Michal Stepniak" },
+    O("The Honeywell Entities", "company"),
+    O("Entities affiliated with Cambridge Quantum", "company"),
+    O("Dr. Rajeeb Hazra", "person"),
+    O("Nitesh Sharan", "person"),
+    O("Lawrence Stack", "person"),
+    O("Kevin Dehoff", "person"),
+    O("Dr. Harold Barron", "person"),
+    O("Manish Bhatia", "person"),
+    O("Eric Branderiz", "person"),
+    O("Paul Daugherty", "person"),
+    O("Kenneth Denman", "person"),
+    O("Joseph Jimenez, Jr.", "person"),
+    O("Vimal Kapur", "person"),
+    O("Dr. Prineha Narang", "person"),
+    O("Michal Stepniak", "person"),
   ],
   [goldenLabelKey("s1_2110119_000121390026072712", "beneficial-ownership")]: [
-    { name: "AMR Resources Sponsors LLC" },
-    { name: "Frank Kristan" },
-    { name: "Matthew Fitzgerald" },
-    { name: "Morgan Fahimi" },
-    { name: "Andrew Childs" },
-    { name: "Michael Westerman" },
-    { name: "Karl Simich" },
+    O("AMR Resources Sponsors LLC", "company"),
+    O("Frank Kristan", "person"),
+    O("Matthew Fitzgerald", "person"),
+    O("Morgan Fahimi", "person"),
+    O("Andrew Childs", "person"),
+    O("Michael Westerman", "person"),
+    O("Karl Simich", "person"),
   ],
   [goldenLabelKey("s1_2113481_000121390026068811", "beneficial-ownership")]: [
-    { name: "Osprey Acquisition III, Sponsor LLC" },
-    { name: "David Heikkinen" },
-    { name: "Jonathan Z. Cohen" },
-    { name: "Edward E. Cohen" },
-    { name: "Daniel C. Herz" },
-    { name: "Jeffrey F. Brotman" },
-    { name: "Thomas C. Elliott" },
-    { name: "Jeffrey Clifford" },
-    { name: "Brian L. Frank" },
-    { name: "Atul Khanna" },
-    { name: "Jeffrey Kupfer" },
+    O("Osprey Acquisition III, Sponsor LLC", "company"),
+    O("David Heikkinen", "person"),
+    O("Jonathan Z. Cohen", "person"),
+    O("Edward E. Cohen", "person"),
+    O("Daniel C. Herz", "person"),
+    O("Jeffrey F. Brotman", "person"),
+    O("Thomas C. Elliott", "person"),
+    O("Jeffrey Clifford", "person"),
+    O("Brian L. Frank", "person"),
+    O("Atul Khanna", "person"),
+    O("Jeffrey Kupfer", "person"),
   ],
   [goldenLabelKey("s1_2114229_000121390026078277", "beneficial-ownership")]: [
-    { name: "Churchill Sponsor XIII LLC" },
-    { name: "Michael Klein" },
-    { name: "Jay Taragin" },
-    { name: "William Sherman" },
+    O("Churchill Sponsor XIII LLC", "company"),
+    O("Michael Klein", "person"),
+    O("Jay Taragin", "person"),
+    O("William Sherman", "person"),
   ],
   [goldenLabelKey("s1_2116230_000192998026000257", "beneficial-ownership")]: [
-    { name: "Southern Cross Acquisition I Sponsor Corp." },
-    { name: "Dong Chen" },
-    { name: "Ally Tong Zhang" },
-    { name: "Siu Wai Lam" },
-    { name: "Qian Xu" },
-    { name: "Zhuo Liang" },
-    { name: "Zhiqiang Du" },
+    O("Southern Cross Acquisition I Sponsor Corp.", "company"),
+    O("Dong Chen", "person"),
+    O("Ally Tong Zhang", "person"),
+    O("Siu Wai Lam", "person"),
+    O("Qian Xu", "person"),
+    O("Zhuo Liang", "person"),
+    O("Zhiqiang Du", "person"),
   ],
   [goldenLabelKey("s1_2123955_000121390026080433", "beneficial-ownership")]: [
-    { name: "PAC Sponsor, LLC" },
-    { name: "Steven K. Hudson" },
-    { name: "Jack Schneider" },
-    { name: "Paul Stoyan" },
-    { name: "Karen Martin" },
-    { name: "Andrew Rechtschaffen" },
+    O("PAC Sponsor, LLC", "company"),
+    O("Steven K. Hudson", "person"),
+    O("Jack Schneider", "person"),
+    O("Paul Stoyan", "person"),
+    O("Karen Martin", "person"),
+    O("Andrew Rechtschaffen", "person"),
   ],
   [goldenLabelKey("s1_2128045_000121390026070217", "beneficial-ownership")]: [
-    { name: "Bleichroeder Sponsor 3 LLC" },
-    { name: "Andrew Gundlach" },
-    { name: "Michel Combes" },
-    { name: "Robert Folino" },
-    { name: "Marcello Padula" },
-    { name: "Christopher Kellen" },
-    { name: "Clemence Rasigni" },
+    O("Bleichroeder Sponsor 3 LLC", "company"),
+    O("Andrew Gundlach", "person"),
+    O("Michel Combes", "person"),
+    O("Robert Folino", "person"),
+    O("Marcello Padula", "person"),
+    O("Christopher Kellen", "person"),
+    O("Clemence Rasigni", "person"),
   ],
   [goldenLabelKey("s1_2131350_000119312526294964", "beneficial-ownership")]: [
-    { name: "B&R Technology Sponsor LLC (Cayman)" },
-    { name: "David York" },
-    { name: "Clark N. Callander" },
-    { name: "Steven C. Fletcher" },
-    { name: "Jeff Clarke" },
-    { name: "Raymond Bingham" },
-    { name: "David Golden" },
-    { name: "Renée E. LaBran" },
+    O("B&R Technology Sponsor LLC (Cayman)", "company"),
+    O("David York", "person"),
+    O("Clark N. Callander", "person"),
+    O("Steven C. Fletcher", "person"),
+    O("Jeff Clarke", "person"),
+    O("Raymond Bingham", "person"),
+    O("David Golden", "person"),
+    O("Renée E. LaBran", "person"),
   ],
   [goldenLabelKey("s1_2137679_000182912626006500", "beneficial-ownership")]: [
-    { name: "OceanLight Capital Sponsor Ltd." },
-    { name: "Becky Fallon" },
-    { name: "Sean Michael Deegan" },
-    { name: "Daniel M. McCabe" },
-    { name: "Ping Zhang" },
+    O("OceanLight Capital Sponsor Ltd.", "company"),
+    O("Becky Fallon", "person"),
+    O("Sean Michael Deegan", "person"),
+    O("Daniel M. McCabe", "person"),
+    O("Ping Zhang", "person"),
   ],
   [goldenLabelKey("s1_2137965_000119312526308950", "beneficial-ownership")]: [
-    { name: "TCGX Sponsor, LLC" },
-    { name: "Chen Yu, M.D., M.B.A." },
-    { name: "Craig Skaling" },
-    { name: "Andrew Cheng, M.D., Ph.D." },
-    { name: "Ying Huang, Ph.D." },
-    { name: "Wei Lin, M.D." },
+    O("TCGX Sponsor, LLC", "company"),
+    O("Chen Yu, M.D., M.B.A.", "person"),
+    O("Craig Skaling", "person"),
+    O("Andrew Cheng, M.D., Ph.D.", "person"),
+    O("Ying Huang, Ph.D.", "person"),
+    O("Wei Lin, M.D.", "person"),
   ],
   // doubling set — related-party
   [goldenLabelKey("s1_1083743_000149315226025047", "related-party")]: [
@@ -5448,10 +5478,10 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // Churchill Capital Corp XII. The sponsor cell prints as
   // "Churchill Sponsor XII LLC(our sponsor)(3)" — annotation and marker dropped.
   [goldenLabelKey("s1_2114227_000121390026039320", "beneficial-ownership")]: [
-    O("Churchill Sponsor XII LLC"),
-    O("Michael Klein"),
-    O("Jay Taragin"),
-    O("William Sherman"),
+    O("Churchill Sponsor XII LLC", "company"),
+    O("Michael Klein", "person"),
+    O("Jay Taragin", "person"),
+    O("William Sherman", "person"),
   ],
   // Rainier Acquisition Corp. Four of the six rows show "—" in BOTH the share
   // and percentage columns: officers and nominees who hold nothing. They are
@@ -5464,12 +5494,12 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // dropped like Churchill's. The trailing "All officers, directors and
   // director nominees as a group (5 individuals)" is the subtotal, excluded.
   [goldenLabelKey("s1_2147219_000110465926092088", "beneficial-ownership")]: [
-    O("Ravenna 7 LLC"),
-    O("Gbola Amusa, M.D., CFA"),
-    O("Guy Barudin"),
-    O("Isaac Manke, Ph.D."),
-    O("Jonas Grossman"),
-    O("Andrew Lam, PharmD"),
+    O("Ravenna 7 LLC", "company"),
+    O("Gbola Amusa, M.D., CFA", "person"),
+    O("Guy Barudin", "person"),
+    O("Isaac Manke, Ph.D.", "person"),
+    O("Jonas Grossman", "person"),
+    O("Andrew Lam, PharmD", "person"),
   ],
   // KiNRG, Inc. The table opens with a printed category label —
   // "Names Executive Officers, Executive Officers and Directors:" — occupying a
@@ -5479,14 +5509,14 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   // job. The real subtotal ("All executive officers and directors as a group
   // (8 persons)") is excluded by the usual convention.
   [goldenLabelKey("s1_95572_000121390026086369", "beneficial-ownership")]: [
-    O("Ronald W. Pickett"),
-    O("Flip Wallen"),
-    O("Stephen Sadle"),
-    O("Robert P. Crabb"),
-    O("H. James Magnuson"),
-    O("Mossadaq Chughtai"),
-    O("Troy A. Hering CPA"),
-    O("Livian L. Jones"),
+    O("Ronald W. Pickett", "person"),
+    O("Flip Wallen", "person"),
+    O("Stephen Sadle", "person"),
+    O("Robert P. Crabb", "person"),
+    O("H. James Magnuson", "person"),
+    O("Mossadaq Chughtai", "person"),
+    O("Troy A. Hering CPA", "person"),
+    O("Livian L. Jones", "person"),
   ],
 };
 

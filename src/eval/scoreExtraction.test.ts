@@ -401,12 +401,22 @@ describe("scoreExtraction", () => {
       // Never guess a parser: each one corrupts identity in a different
       // direction, and plain normalization only costs alignment it could have
       // had. Two funds with no owner_kind stay two rows.
-      const owners = [
+      //
+      // The two sides are DIFFERENT arrays on purpose. Passing one array as both
+      // reference and candidate makes every row key itself, so the assertion
+      // holds for any keying rule whatsoever — which is how a scheme that keys
+      // the two sides differently shipped without this test noticing.
+      const expected = [
         { name: "WAVE Equity Fund, L.P." },
         { name: "WAVE Equity Fund, LLC" },
         { name: "Someone Else", owner_kind: "trust" },
       ];
-      const s = scoreExtraction(owners, owners, {
+      const candidate = [
+        { name: "WAVE  Equity Fund, L.P." },
+        { name: "WAVE Equity Fund LLC", owner_kind: "company" },
+        { name: "Someone Else" },
+      ];
+      const s = scoreExtraction(candidate, expected, {
         keyField: "name",
         fields: ["name"],
         entityNameFields: ["name"],
@@ -414,6 +424,87 @@ describe("scoreExtraction", () => {
       });
       expect(s.candidateDistinct).toBe(3);
       expect(s.matchedItems).toBe(3);
+      expect(s.diff.missing).toEqual([]);
+      expect(s.diff.extra).toEqual([]);
+    });
+
+    it("aligns a candidate carrying owner_kind to a reference row that omits it", () => {
+      // The shape every committed fixture and golden label had: the extractor's
+      // schema makes owner_kind required, so a candidate ALWAYS carries it,
+      // while a reference row that omits it keys as raw text. A one-sided
+      // absence must not convert an exact name match into a miss plus a
+      // hallucination — which scored a perfect model 0/0/0.
+      const expected = [{ name: "WAVE Equity Fund, L.P." }, { name: "Isaac Manke" }];
+      const candidate = [
+        { name: "WAVE Equity Fund, L.P.", owner_kind: "company" },
+        { name: "Isaac Manke", owner_kind: "person" },
+      ];
+      const s = scoreExtraction(candidate, expected, {
+        keyField: "name",
+        fields: ["name"],
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.matchedItems).toBe(2);
+      expect(s.entityRecall).toBe(1);
+      expect(s.precision).toBe(1);
+      expect(s.score).toBe(1);
+      expect(s.diff).toEqual({ missing: [], extra: [], mismatches: [] });
+    });
+
+    it("does not turn a kind disagreement into a miss plus a hallucination", () => {
+      // Two sides that agree on the name and disagree on its kind describe ONE
+      // owner. Scoring that as a missing owner AND an invented one double-counts
+      // a single disagreement about a field that is not even scored.
+      const expected = [{ name: "Delgado Family Trust", owner_kind: "company" }];
+      const candidate = [{ name: "Delgado Family Trust", owner_kind: "person" }];
+      const s = scoreExtraction(candidate, expected, {
+        keyField: "name",
+        fields: ["name"],
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.matchedItems).toBe(1);
+      expect(s.diff.missing).toEqual([]);
+      expect(s.diff.extra).toEqual([]);
+      expect(s.diff.mismatches).toEqual([]);
+    });
+
+    it("keeps two legal forms of one fund distinct under the text fallback", () => {
+      // The fallback is exact normalized TEXT, strictly stricter than either
+      // identity hash, so it can never merge what the kind-aware pass keeps
+      // apart: the two funds still align one-to-one rather than collapsing.
+      const expected = [{ name: "WAVE Equity Fund, L.P." }, { name: "WAVE Equity Fund, LLC" }];
+      const candidate = [
+        { name: "WAVE Equity Fund, L.P.", owner_kind: "company" },
+        { name: "WAVE Equity Fund, LLC", owner_kind: "company" },
+      ];
+      const s = scoreExtraction(candidate, expected, {
+        keyField: "name",
+        fields: ["name"],
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.expectedItems).toBe(2);
+      expect(s.candidateDistinct).toBe(2);
+      expect(s.matchedItems).toBe(2);
+      expect(s.diff.mismatches).toEqual([]);
+    });
+
+    it("does not score the entity-kind discriminator as a field value", () => {
+      // `sec eval extract` passes no explicit `fields`, so the scored set is the
+      // expected row's own keys. Left in, the discriminator would be scored as a
+      // value by that harness and not by `sec eval s1` (which passes
+      // compareFields) — two harnesses measuring different questions.
+      const rows = [{ name: "Halyard Sponsor III LLC", owner_kind: "company" }];
+      const s = scoreExtraction(rows, rows, {
+        keyField: "name",
+        entityNameFields: ["name"],
+        entityKindField: "owner_kind",
+      });
+      expect(s.expectedFieldValues).toBe(1);
+      expect(s.candidateFieldValues).toBe(1);
+      expect(s.score).toBe(1);
     });
 
     it("aligns an organization across a legal-form spelling via companyNameFields", () => {
