@@ -5,9 +5,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
-import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
 import { registerSecResolvers } from "../../config/registerResolvers";
+import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtensions";
+import { isRegisteredComponent, listRegisteredComponents } from "./componentRegistry";
 
 describe("componentRegistry", () => {
   beforeEach(() => {
@@ -53,6 +53,6 @@ describe("componentRegistry", () => {
   it("listRegisteredComponents returns one entry per extractor and resolver", () => {
     // 16 extractors + 4 resolvers (person, company, sponsor-family,
     // underwriter-family).
-    expect(listRegisteredComponents()).toHaveLength(20);
+    expect(listRegisteredComponents()).toHaveLength(21);
   });
 });
