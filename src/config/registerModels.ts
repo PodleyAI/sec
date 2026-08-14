@@ -7,7 +7,12 @@
 import { isAbsolute, join } from "node:path";
 import type { ModelRecord, ServiceRegistry } from "workglow";
 import { getGlobalModelRepository, globalServiceRegistry } from "workglow";
-import { defaultModelIds, parseModelIdList, SecHftModelDefault, DEFAULT_SEC_MODEL } from "./Constants";
+import {
+  defaultModelIds,
+  parseModelIdList,
+  SecHftModelDefault,
+  DEFAULT_SEC_MODEL,
+} from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import { listPricingForModelId } from "./listPricing";
 

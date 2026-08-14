@@ -93,6 +93,7 @@ interface DocBlock {
   readonly type: string | null;
   readonly sequence: number | null;
   readonly filename: string | null;
+  readonly description: string | null;
   readonly body: string;
 }
 
@@ -105,11 +106,63 @@ function parseDocuments(txt: string): DocBlock[] {
     const type = inner.match(/<TYPE>\s*([^\r\n<]+)/i)?.[1].trim() ?? null;
     const seq = inner.match(/<SEQUENCE>\s*(\d+)/i)?.[1];
     const filename = inner.match(/<FILENAME>\s*([^\r\n<]+)/i)?.[1].trim() ?? null;
+    const description = inner.match(/<DESCRIPTION>\s*([^\r\n<]+)/i)?.[1].trim() ?? null;
     const textMatch = inner.match(/<TEXT>\s*([\s\S]*?)\s*<\/TEXT>/i);
     const body = textMatch ? textMatch[1] : inner;
-    blocks.push({ type, sequence: seq ? Number(seq) : null, filename, body });
+    blocks.push({
+      type,
+      sequence: seq ? Number(seq) : null,
+      filename,
+      description,
+      body,
+    });
   }
   return blocks;
+}
+
+export interface SubmissionExhibit {
+  readonly type: string;
+  readonly description: string;
+  readonly filename: string;
+}
+
+const SKIP_EXHIBIT_TYPES = /^(8-K(\/A)?|GRAPHIC|XML)$/i;
+const SKIP_EXHIBIT_TYPE_PREFIX = /^EX-101\b/i;
+const EXHIBIT_DETAIL_MAX = 1024;
+
+export function parseSubmissionExhibits(txt: string): SubmissionExhibit[] {
+  const out: SubmissionExhibit[] = [];
+  for (const d of parseDocuments(txt)) {
+    if (d.type == null) continue;
+    const type = d.type.trim();
+    if (SKIP_EXHIBIT_TYPES.test(type) || SKIP_EXHIBIT_TYPE_PREFIX.test(type)) continue;
+    if (!/^EX-/i.test(type)) continue;
+    out.push({
+      type,
+      description: (d.description ?? "").trim(),
+      filename: (d.filename ?? "").trim(),
+    });
+  }
+  return out;
+}
+
+export function formatExhibitDetail(exhibits: readonly SubmissionExhibit[]): string | null {
+  if (exhibits.length === 0) return null;
+  const lines = exhibits.map((e) => {
+    const raw = e.description.trim();
+    const comma = raw.indexOf(",");
+    const short = (comma === -1 ? raw : raw.slice(0, comma)).trim() || e.type;
+    const file = e.filename.trim();
+    return file === "" ? `${e.type} ${short}` : `${e.type} ${short}\t${file}`;
+  });
+  let joined = lines.join("\n");
+  if (joined.length <= EXHIBIT_DETAIL_MAX) return joined;
+  while (joined.length > EXHIBIT_DETAIL_MAX) {
+    const cut = joined.lastIndexOf("\n");
+    if (cut <= 0) return joined.slice(0, EXHIBIT_DETAIL_MAX);
+    joined = joined.slice(0, cut);
+  }
+  return joined;
 }
 
 /**

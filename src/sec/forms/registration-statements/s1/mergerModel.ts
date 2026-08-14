@@ -6,10 +6,15 @@
 
 import type { ModelConfig } from "workglow";
 import { modelIdsFromEnv } from "../../../../config/Constants";
-import { persistModelId, resolveConfiguredModels, resolveModelId } from "./s1Model";
+import {
+  modelExtractChain,
+  persistModelId,
+  resolveConfiguredModels,
+  resolveModelId,
+} from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
-export { persistModelId, resolveModelId };
+export { modelExtractChain, persistModelId, resolveModelId };
 
 /** The model ids used for merger-proxy extraction; overridable via SEC_MERGER_PROXY_MODEL. */
 export function getMergerProxyModelIds(): string[] {

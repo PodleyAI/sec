@@ -22,10 +22,9 @@ describe("parseModelIdList", () => {
     expect(parseModelIdList("claude-opus-5", DEFAULT_SEC_MODEL)).toEqual(["claude-opus-5"]);
   });
   it("splits a CSV, trims, and drops duplicates and empty parts", () => {
-    expect(parseModelIdList(" claude-sonnet-5, , claude-haiku-4-5, claude-sonnet-5 ", DEFAULT_SEC_MODEL)).toEqual([
-      "claude-sonnet-5",
-      "claude-haiku-4-5",
-    ]);
+    expect(
+      parseModelIdList(" claude-sonnet-5, , claude-haiku-4-5, claude-sonnet-5 ", DEFAULT_SEC_MODEL)
+    ).toEqual(["claude-sonnet-5", "claude-haiku-4-5"]);
   });
   it("falls back when the value is unset or blank", () => {
     expect(parseModelIdList(undefined, DEFAULT_SEC_MODEL)).toEqual([DEFAULT_SEC_MODEL]);

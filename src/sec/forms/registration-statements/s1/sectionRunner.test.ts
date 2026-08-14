@@ -444,9 +444,7 @@ describe("makeRunSection confidenceFloor", () => {
     expect(fallback).toBe(1);
     expect(letters).toHaveLength(1);
     expect(letters[0]?.reason_code).toBe("MODEL_EMPTY");
-    expect(details[0]).toBe(
-      "no underwriters returned (tried claude-sonnet-5, claude-haiku-4-5)"
-    );
+    expect(details[0]).toBe("no underwriters returned (tried claude-sonnet-5, claude-haiku-4-5)");
   });
 });
 

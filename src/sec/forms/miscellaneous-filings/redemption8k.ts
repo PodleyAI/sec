@@ -139,8 +139,7 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
     await recordRedemptionRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
-  const model = models[0];
-  if (!model) {
+  if (models.length === 0) {
     await recordRedemptionRun(false, "MODEL_RESOLUTION_ERROR: no model configured");
     return;
   }

@@ -11,11 +11,13 @@ import { TypeNullable, TypeStringEnum } from "../../util/TypeBoxUtil";
 import { TypeSecCik } from "../../util/TypeSecCik";
 
 /**
- * Lifecycle event vocabulary. `registration` / `ipo` come from S-1/424; the
- * de-SPAC milestones `definitive_agreement` / `terminated` / `completed` /
- * `vote` are written from 8-K item codes. `deregistration` is written from
- * Form 25 / 25-NSE / Form 15 metadata. Remaining types are reserved for
- * deferred extractors (S-4, Form 425, liquidation narrative).
+ * Lifecycle event vocabulary. `registration` / `ipo` come from S-1/424.
+ * Item 1.01 / 1.02 / 5.07 are classified into a lifecycle type
+ * (`definitive_agreement` / `terminated` / `vote`) or a non-lifecycle type
+ * (`material_agreement` / `eight_k`); they are not 1:1 with item codes.
+ * `deregistration` is written from Form 25 / 25-NSE / Form 15 metadata.
+ * Remaining types are reserved for deferred extractors (S-4, Form 425,
+ * liquidation narrative).
  */
 export const SPAC_EVENT_TYPES = [
   "registration",
@@ -39,8 +41,22 @@ export const SPAC_EVENT_TYPES = [
   // An investor-presentation exhibit (e.g. 8-K Item 7.01 EX-99); carries the
   // deck URL in source_document_url. Reserved for a dedicated exhibit extractor.
   "investor_presentation",
+  // Non-merger Item 1.01 / 1.02 (underwriting, FPA, leases, etc.).
+  "material_agreement",
+  // Non-de-SPAC Item 5.07 (annual meeting, etc.).
+  "eight_k",
 ] as const;
 export type SpacEventType = (typeof SPAC_EVENT_TYPES)[number];
+
+/** Event types written from 8-K item codes (replaced as a set on reprocess). */
+export const ITEM_MAPPED_EVENT_TYPES = [
+  "definitive_agreement",
+  "terminated",
+  "completed",
+  "vote",
+  "material_agreement",
+  "eight_k",
+] as const satisfies readonly SpacEventType[];
 
 /** Append-only lifecycle event; one row per dated event tied to a filing. */
 export const SpacEventSchema = Type.Object({

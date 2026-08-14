@@ -5,29 +5,35 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository } from "workglow";
-import { SecModelDefault } from "../../../../config/Constants";
-import { resolveModelId } from "./s1Model";
+import { modelIdsFromEnv } from "../../../../config/Constants";
+import {
+  modelExtractChain,
+  persistModelId,
+  resolveConfiguredModels,
+  resolveModelId,
+} from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
-export { resolveModelId };
+export { modelExtractChain, persistModelId, resolveModelId };
 
-/** The model id used for redemption extraction; overridable via SEC_REDEMPTION_MODEL. */
-export function getRedemptionModelId(): string {
-  const id = (process.env.SEC_REDEMPTION_MODEL ?? "").trim();
-  return id === "" ? SecModelDefault : id;
+/** The model ids used for redemption extraction; overridable via SEC_REDEMPTION_MODEL. */
+export function getRedemptionModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_REDEMPTION_MODEL);
 }
 
-/** Resolves the configured redemption model into a ModelConfig. */
+export function getRedemptionModelId(): string {
+  return getRedemptionModelIds()[0]!;
+}
+
+/** Resolves the configured redemption model list. */
+export async function getRedemptionModels(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(getRedemptionModelIds(), "Redemption", "SEC_REDEMPTION_MODEL");
+}
+
+/** Primary (first) configured redemption model. */
 export async function getRedemptionModel(): Promise<ModelConfig> {
-  const id = getRedemptionModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `Redemption model '${id}' is not registered. Register it or set SEC_REDEMPTION_MODEL to a known model id.`
-    );
-  }
-  return record as ModelConfig;
+  const [model] = await getRedemptionModels();
+  return model!;
 }
 
 /**

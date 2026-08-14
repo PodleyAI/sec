@@ -13,6 +13,7 @@ import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
 import { SpacRedemptionExtractionRepo } from "./SpacRedemptionExtractionRepo";
 import type { Spac } from "./SpacSchema";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
+import { ITEM_MAPPED_EVENT_TYPES } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 import { EntityRepo } from "../entity/EntityRepo";
@@ -89,7 +90,11 @@ interface RecordDealMilestonesArgs {
   readonly form: string;
   readonly primary_document: string | null;
   /** event_date is pre-resolved by the caller (report_date ?? filing_date). */
-  readonly events: readonly { event_type: SpacEventType; event_date: string }[];
+  readonly events: readonly {
+    event_type: SpacEventType;
+    event_date: string;
+    detail?: string | null;
+  }[];
 }
 
 interface RecordMergerProxyArgs {
@@ -230,14 +235,17 @@ export class SpacReportWriter {
   }
 
   /**
-   * Record de-SPAC milestone events mapped from 8-K item codes: append each
-   * event (idempotent by PK), recompute the deal set from the full event
-   * stream + stored extractions (target/pipe/redemption derived by
-   * correlation, not merge-preserved), then rebuild the row.
+   * Record de-SPAC milestone events mapped from 8-K item codes: replace every
+   * item-mapped type for this accession (PK includes event_type, so a 1.01
+   * reclassified from definitive_agreement to material_agreement must drop
+   * the old row), then append, recompute deals, and rebuild the row.
    */
   async recordDealMilestones(args: RecordDealMilestonesArgs): Promise<void> {
     if (args.events.length === 0) return;
     await withCikLock(args.cik, async () => {
+      for (const event_type of ITEM_MAPPED_EVENT_TYPES) {
+        await this.repo.deleteEvent(args.cik, args.accession_number, event_type);
+      }
       for (const e of args.events) {
         await this.appendEvent({
           cik: args.cik,
@@ -246,6 +254,7 @@ export class SpacReportWriter {
           event_date: e.event_date,
           form: args.form,
           primary_document: args.primary_document,
+          detail: e.detail ?? null,
         });
       }
       await this.recomputeAndSaveDeals(args.cik);

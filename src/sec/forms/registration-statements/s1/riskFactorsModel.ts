@@ -11,7 +11,14 @@ import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
 export { resolveModelId };
 
-/** The model ids used for risk-factor extraction; overridable via SEC_S1_RISK_FACTORS_MODEL. */
+/**
+ * The model ids used for risk-factor extraction; overridable via
+ * `SEC_S1_RISK_FACTORS_MODEL` (CSV). It gets its own knob because the
+ * risk-factor section is by far the largest input in the S-1 pipeline and is
+ * chunked into several calls, so it dominates per-filing extraction cost —
+ * pointing it at a cheaper model (or a cheaper fallback list) while the rest
+ * of the filing stays on the default is the reason to separate them.
+ */
 export function getRiskFactorsModelIds(): string[] {
   return modelIdsFromEnv(process.env.SEC_S1_RISK_FACTORS_MODEL);
 }

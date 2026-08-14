@@ -72,6 +72,14 @@ export class SpacRepo {
     await this.eventRepository.put(event);
   }
 
+  async deleteEvent(
+    cik: number,
+    accession_number: string,
+    event_type: SpacEvent["event_type"]
+  ): Promise<void> {
+    await this.eventRepository.delete({ cik, accession_number, event_type });
+  }
+
   /** Events for a CIK, ascending by event_date then created_at. */
   async getEvents(cik: number): Promise<SpacEvent[]> {
     const rows = (await this.eventRepository.query({ cik })) || [];

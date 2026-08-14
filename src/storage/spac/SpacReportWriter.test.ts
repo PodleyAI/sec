@@ -253,6 +253,46 @@ describe("SpacReportWriter", () => {
     expect(deals.length).toBe(1);
   });
 
+  it("replaces a prior item-mapped type on the same accession and stores detail", async () => {
+    await writer.recordRegistration({
+      cik: 13,
+      accession_number: "0000-reg",
+      filing_date: "2020-12-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Reclass SPAC",
+      spac_sic: 6770,
+    });
+    await writer.recordDealMilestones({
+      cik: 13,
+      accession_number: "0000-101",
+      filing_date: "2021-01-14",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-01-14" }],
+    });
+    await writer.recordDealMilestones({
+      cik: 13,
+      accession_number: "0000-101",
+      filing_date: "2021-01-14",
+      form: "8-K",
+      primary_document: null,
+      events: [
+        {
+          event_type: "material_agreement",
+          event_date: "2021-01-14",
+          detail: "EX-1.1 UNDERWRITING AGREEMENT\tex11.htm",
+        },
+      ],
+    });
+
+    const events = await repo.getEvents(13);
+    expect(events.filter((e) => e.event_type === "definitive_agreement")).toEqual([]);
+    const misc = events.find((e) => e.event_type === "material_agreement");
+    expect(misc?.detail).toBe("EX-1.1 UNDERWRITING AGREEMENT\tex11.htm");
+    expect(await repo.getDeals(13)).toEqual([]);
+  });
+
   it("does nothing when given no events", async () => {
     await writer.recordDealMilestones({
       cik: 12,

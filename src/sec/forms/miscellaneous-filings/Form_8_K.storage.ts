@@ -54,6 +54,8 @@ function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K
   return [...itemSet].sort();
 }
 
+const MILESTONE_ITEM_CODES = new Set(["1.01", "1.02", "2.01", "5.07"]);
+
 /**
  * Whether the submissions-only SPAC screen has flagged this CIK. Read
  * defensively: the table is optional in a consumer's schema, and a missing
@@ -130,7 +132,8 @@ export async function processForm8K({
     events
   );
 
-  const spacRow = await new SpacRepo().getSpac(cik);
+  const spacRepo = new SpacRepo();
+  const spacRow = await spacRepo.getSpac(cik);
   if (!spacRow) {
     // ORDER DEPENDENCE, made visible on purpose.
     //
@@ -154,12 +157,15 @@ export async function processForm8K({
     // exactly this question, so require a row there before speaking. An issuer
     // the screen misses (94% recall overall, 86% on completed de-SPACs) loses
     // its warning — the right trade for one that is findable at volume.
-    const eventDate = effectiveReportDate || filing_date;
-    const wouldHaveRecorded = eventDate ? mapItemCodesToSpacEvents(itemCodes, eventDate) : [];
-    if (wouldHaveRecorded.length > 0 && (await isSpacCandidate(cik))) {
+    //
+    // Warn from item-code presence, not the classified event type: without a
+    // spac row there is no IPO date or pending deal, so the classifier would
+    // call every 1.01 a material_agreement and the warning would never fire.
+    const dropped = itemCodes.filter((c) => MILESTONE_ITEM_CODES.has(c));
+    if (dropped.length > 0 && (await isSpacCandidate(cik))) {
       console.warn(
         `[8-K ${accession_number}] CIK ${cik} has no SPAC row, so ` +
-          `${wouldHaveRecorded.length} de-SPAC milestone event(s) were dropped. ` +
+          `${dropped.length} de-SPAC milestone event(s) were dropped. ` +
           `Process the S-1 / 424 for this issuer first, then re-run its 8-Ks.`
       );
     }
@@ -169,7 +175,21 @@ export async function processForm8K({
     // onto the deal/row. Reachable only on the best-effort path where the
     // filing-metadata row is absent (report_date null, filing_date "").
     const eventDate = effectiveReportDate || filing_date;
-    const spacEvents = eventDate ? mapItemCodesToSpacEvents(itemCodes, eventDate) : [];
+    const exhibits = fullSubmissionText ? parseSubmissionExhibits(fullSubmissionText) : [];
+    const deals = await spacRepo.getDeals(cik);
+    const pending = deals.find((d) => d.outcome === "pending") ?? null;
+    const spacEvents = eventDate
+      ? mapItemCodesToSpacEvents(itemCodes, eventDate, {
+          ipoDate: spacRow.ipo_date,
+          exhibits,
+          pendingDeal: pending
+            ? {
+                definitive_agreement_date: pending.definitive_agreement_date,
+                proxy_date: pending.proxy_date,
+              }
+            : null,
+        })
+      : [];
     if (spacEvents.length > 0) {
       await new SpacReportWriter().recordDealMilestones({
         cik,
