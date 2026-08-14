@@ -88,6 +88,23 @@ export const SpacSchema = Type.Object({
   trust_amount: TypeNullable(
     Type.Number({ description: "Initial trust amount (redeemable cash)" })
   ),
+  current_trust_amount: TypeNullable(
+    Type.Number({
+      description: "Latest 10-Q/10-K assets held in trust (includes accrued interest)",
+    })
+  ),
+  current_trust_as_of: TypeNullable(
+    Type.String({
+      format: "date",
+      description: "Period-end date of current_trust_amount",
+    })
+  ),
+  current_trust_filed: TypeNullable(
+    Type.String({
+      format: "date",
+      description: "Filed date of the company-facts snapshot behind current_trust_amount",
+    })
+  ),
   pipe_amount: TypeNullable(Type.Number({ description: "PIPE financing on the active deal" })),
   total_redemption_amount: TypeNullable(
     Type.Number({ description: "Cumulative redemptions across all votes" })

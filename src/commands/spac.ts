@@ -38,6 +38,7 @@ import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/Underwri
 import type { ExtractorBackfillResult } from "../task/forms/BackfillExtractorTask";
 import { BackfillExtractorTask } from "../task/forms/BackfillExtractorTask";
 import { BackfillDespacTask, type BackfillDespacTaskOutput } from "../task/spac/BackfillDespacTask";
+import { BackfillTrustTask, type BackfillTrustTaskOutput } from "../task/spac/BackfillTrustTask";
 import { SpacHistoryTask, type SpacHistoryTaskOutput } from "../task/spac/SpacHistoryTask";
 import { SpacReportTask } from "../task/spac/SpacReportTask";
 
@@ -276,6 +277,11 @@ export function registerSpacCommands(program: Command): void {
       console.log(`SPAC ${cik}: ${s.spac_name ?? "(unknown)"} [${s.status}]`);
       console.log(`  registration: ${s.registration_date ?? "-"}  ipo: ${s.ipo_date ?? "-"}`);
       console.log(`  ipo proceeds: ${s.ipo_proceeds ?? "-"}  trust: ${s.trust_amount ?? "-"}`);
+      if (s.current_trust_amount != null) {
+        console.log(
+          `  current trust: ${s.current_trust_amount}  as of ${s.current_trust_as_of ?? "-"}`
+        );
+      }
       console.log(`  deals: ${report.deals.length}  events: ${report.events.length}`);
       console.log(`  sponsors: ${report.sponsorCount}  underwriters: ${report.underwriterCount}`);
     });
@@ -419,6 +425,23 @@ export function registerSpacCommands(program: Command): void {
       ]);
       console.log(
         `selected ${out.selected} completed SPAC(s); ${dry ? "dry-run" : `updated ${out.updated}`}`
+      );
+    });
+
+  spacCmd
+    .command("backfill-trust")
+    .description(
+      "Refresh current trust balances for known SPACs from 10-Q/10-K company facts " +
+        "(does not overwrite the IPO trust amount)"
+    )
+    .option("--dry-run", "Report how many rows would change without writing", false)
+    .action(async (opts: { dryRun?: boolean }) => {
+      const dry = opts.dryRun === true || isDryRun();
+      const out = await runWorkflowCli<BackfillTrustTaskOutput>([
+        new BackfillTrustTask({ defaults: { dryRun: dry } }),
+      ]);
+      console.log(
+        `selected ${out.selected} SPAC(s); ${dry ? "dry-run would update" : "updated"} ${out.updated}`
       );
     });
 

@@ -736,7 +736,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // kind, so a model that has never heard of the distinction cannot get
         // it wrong. On one live filing this was every single related-party
         // person: four rows, no actual individuals.
-        const isCollective = r.party_kind === "person" && isCollectivePartyName(r.name);
+        // A blank name is the same class of degenerate model output the
+        // sponsor persist already skips: observeCompany throws in the
+        // resolver ("no CIK, CRD, or name") and aborts every other valid
+        // party in this section. Keep the disclosure as a group row with
+        // no observation, matching the officer/director-class path below.
+        const isUnnamed = (r.name ?? "").trim() === "";
+        const isCollective =
+          isUnnamed || (r.party_kind === "person" && isCollectivePartyName(r.name));
         const partyKind = isCollective ? ("group" as const) : r.party_kind;
         let observation_id: number | null = null;
         if (!isCollective) {
@@ -780,7 +787,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             transaction_index: txIndex++,
             party_kind: partyKind,
             observation_id,
-            party_label: isCollective ? r.name : null,
+            party_label: isCollective && !isUnnamed ? r.name : null,
             counterparty: t.counterparty,
             nature: t.nature,
             amount: t.amount,

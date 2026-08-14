@@ -7,6 +7,7 @@
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { SpacRepo } from "./SpacRepo";
 import { recomputeSpacDeals } from "./SpacDealReplace";
+import { isNewerTrustSnapshot } from "./pickLatestTrustFact";
 import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
 import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
@@ -137,6 +138,9 @@ const TRACKED_FIELDS: readonly (keyof Spac)[] = [
   "current_tickers",
   "ipo_proceeds",
   "trust_amount",
+  "current_trust_amount",
+  "current_trust_as_of",
+  "current_trust_filed",
   "pipe_amount",
   "total_redemption_amount",
   "focus",
@@ -474,6 +478,38 @@ export class SpacReportWriter {
   }
 
   /**
+   * Lift a company-facts trust balance onto the spac row without moving the
+   * filing `as_of` anchor. No-ops when there is no spac row (does not mint a
+   * known-SPAC) or when the incoming snapshot is not newer than the one already
+   * stored. IPO `trust_amount` is left untouched.
+   */
+  async recordCurrentTrust(args: {
+    readonly cik: number;
+    readonly amount: number;
+    readonly asOf: string;
+    readonly filed: string;
+  }): Promise<boolean> {
+    return await withCikLock(args.cik, async () => {
+      const existing = await this.repo.getSpac(args.cik);
+      if (existing == null) return false;
+      if (
+        !isNewerTrustSnapshot(
+          { asOf: args.asOf, filed: args.filed },
+          { asOf: existing.current_trust_as_of, filed: existing.current_trust_filed }
+        )
+      ) {
+        return false;
+      }
+      await this.rebuild(args.cik, existing.as_of ?? "", "companyfacts", {
+        current_trust_amount: args.amount,
+        current_trust_as_of: args.asOf,
+        current_trust_filed: args.filed,
+      });
+      return true;
+    });
+  }
+
+  /**
    * Rebuild the deal set from the CIK's full event stream + merger extractions
    * (the single derivation path shared by the 8-K and merger-proxy writers).
    *
@@ -630,6 +666,9 @@ export class SpacReportWriter {
       current_tickers: row.current_tickers,
       ipo_proceeds: row.ipo_proceeds,
       trust_amount: row.trust_amount,
+      current_trust_amount: row.current_trust_amount,
+      current_trust_as_of: row.current_trust_as_of,
+      current_trust_filed: row.current_trust_filed,
       pipe_amount: row.pipe_amount,
       total_redemption_amount: row.total_redemption_amount,
       focus: row.focus,

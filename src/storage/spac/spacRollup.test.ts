@@ -296,6 +296,46 @@ describe("buildSpacRow", () => {
     expect(later.ipo_proceeds).toBe(100);
   });
 
+  it("merges current trust from a patch and does not clobber it on a later filing without it", () => {
+    const existing = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      patch: { trust_amount: 200_000_000 },
+      filingDate: "2021-01-15",
+    });
+    const withTrust = buildSpacRow({
+      existing,
+      cik: 1,
+      deals: [],
+      events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      patch: {
+        current_trust_amount: 204_000_000,
+        current_trust_as_of: "2024-06-30",
+        current_trust_filed: "2024-08-14",
+      },
+      filingDate: "2021-01-15",
+    });
+    expect(withTrust.trust_amount).toBe(200_000_000);
+    expect(withTrust.current_trust_amount).toBe(204_000_000);
+    expect(withTrust.current_trust_as_of).toBe("2024-06-30");
+    expect(withTrust.current_trust_filed).toBe("2024-08-14");
+    expect(withTrust.as_of).toBe("2021-01-15");
+
+    const laterIpo = buildSpacRow({
+      existing: withTrust,
+      cik: 1,
+      deals: [],
+      events: [ev({ event_type: "ipo", event_date: "2021-01-15" })],
+      patch: { ipo_proceeds: 200_000_000 },
+      filingDate: "2021-02-01",
+    });
+    expect(laterIpo.current_trust_amount).toBe(204_000_000);
+    expect(laterIpo.current_trust_as_of).toBe("2024-06-30");
+    expect(laterIpo.trust_amount).toBe(200_000_000);
+  });
+
   it("derives investorpres_url/date from the latest investor_presentation event", () => {
     const row = buildSpacRow({
       existing: undefined,

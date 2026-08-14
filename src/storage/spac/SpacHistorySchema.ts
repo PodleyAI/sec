@@ -29,6 +29,9 @@ export const SpacHistorySchema = Type.Object({
   current_tickers: TypeNullable(Type.String()),
   ipo_proceeds: TypeNullable(Type.Number()),
   trust_amount: TypeNullable(Type.Number()),
+  current_trust_amount: TypeNullable(Type.Number()),
+  current_trust_as_of: TypeNullable(Type.String({ format: "date" })),
+  current_trust_filed: TypeNullable(Type.String({ format: "date" })),
   pipe_amount: TypeNullable(Type.Number()),
   total_redemption_amount: TypeNullable(Type.Number()),
   // Narrative / enrichment (mirrors SpacSchema).

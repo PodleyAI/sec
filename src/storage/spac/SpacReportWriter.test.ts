@@ -651,4 +651,68 @@ describe("SpacReportWriter", () => {
       expect(closed.valid_from < open.valid_from).toBe(true);
     }
   });
+
+  it("records current trust from company facts without moving as_of or IPO trust", async () => {
+    await writer.recordIpo({
+      cik: 80,
+      accession_number: "0000-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 200_000_000,
+      trust_amount: 200_000_000,
+      spac_tickers: ["TRU.U"],
+    });
+    const applied = await writer.recordCurrentTrust({
+      cik: 80,
+      amount: 204_000_000,
+      asOf: "2024-06-30",
+      filed: "2024-08-14",
+    });
+    expect(applied).toBe(true);
+    const row = await repo.getSpac(80);
+    expect(row?.trust_amount).toBe(200_000_000);
+    expect(row?.current_trust_amount).toBe(204_000_000);
+    expect(row?.current_trust_as_of).toBe("2024-06-30");
+    expect(row?.current_trust_filed).toBe("2024-08-14");
+    expect(row?.as_of).toBe("2021-01-15");
+  });
+
+  it("does not mint a spac row from a trust snapshot and rejects an older quarter", async () => {
+    expect(
+      await writer.recordCurrentTrust({
+        cik: 81,
+        amount: 1,
+        asOf: "2024-03-31",
+        filed: "2024-05-15",
+      })
+    ).toBe(false);
+    expect(await repo.getSpac(81)).toBeUndefined();
+
+    await writer.recordIpo({
+      cik: 82,
+      accession_number: "0000-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["OLD.U"],
+    });
+    await writer.recordCurrentTrust({
+      cik: 82,
+      amount: 104_000_000,
+      asOf: "2024-06-30",
+      filed: "2024-08-14",
+    });
+    expect(
+      await writer.recordCurrentTrust({
+        cik: 82,
+        amount: 101_000_000,
+        asOf: "2024-03-31",
+        filed: "2024-05-15",
+      })
+    ).toBe(false);
+    expect((await repo.getSpac(82))?.current_trust_amount).toBe(104_000_000);
+  });
 });

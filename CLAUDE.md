@@ -1148,7 +1148,7 @@ sec editorial import data/editorial/family-descriptions.csv
 
 A CIK-keyed `spac` row consolidates the SPAC lifecycle for a quick report:
 status, three-era names/SIC/tickers (`spac_*` / `post_merger_*` / `current_*`),
-amounts (`ipo_proceeds`, `trust_amount`, `pipe_amount`, `total_redemption_amount`),
+amounts (`ipo_proceeds`, `trust_amount`, `current_trust_amount`, `pipe_amount`, `total_redemption_amount`),
 and rolled-up key dates. It is **derived** from two append-only tables — `spac_deal`
 (one row per business-combination attempt) and `spac_event` (the dated timeline) —
 so replays are idempotent; an `as_of` guard protects filing-sourced scalar fields
@@ -1176,6 +1176,13 @@ the renamed entity (each set only when it diverges from the SPAC-era value, so
 replays are order-safe). Entity metadata usually refreshes _after_ the 2.01 8-K,
 so `sec spac backfill-despac` re-runs the linkage over every completed SPAC to
 fill the still-null slots from now-current entity data.
+
+**Current trust.** `trust_amount` is the IPO-day deposit. The live balance
+(interest, extension deposits, redemptions) is `current_trust_amount` /
+`current_trust_as_of`, lifted from company facts tagged `AssetsHeldInTrust*`
+on 10-Q/10-K. `sec update facts` refreshes a CIK as it stores; `sec spac
+backfill-trust` sweeps every known SPAC. The filing `as_of` anchor is not
+moved, so IPO scalars stay order-safe.
 
 **Merger proxies** (`DEFM14A`/`PREM14A`, the `DEFM14C`/`PREM14C` consent statements,
 and the `DEFR14A`/`PRER14A` revised proxies; extractor id `merger-proxy`) run
@@ -1263,6 +1270,7 @@ sec eval extract --extractor loi --models "claude-sonnet-5,claude-haiku-4-5"
 sec spac report <cik> [--format json]   # consolidated report
 sec spac history <cik> [--format json]  # state-change history
 sec spac backfill-despac [--dry-run]    # refresh post-merger identity for completed SPACs
+sec spac backfill-trust [--dry-run]     # refresh current trust from 10-Q/10-K company facts
 ```
 
 ### SPAC identification from submissions (`spac_candidate`)

@@ -106,6 +106,7 @@ import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-p
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
+import { getPgPool } from "../util/pg";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
@@ -254,6 +255,7 @@ export async function setupAllDatabases(): Promise<void> {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
+    ensureSpacCurrentTrustColumnsSqlite(db);
   }
   // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
   // seed component-version rows: bootstrapComponentVersions() enumerates the
@@ -268,6 +270,7 @@ export async function setupAllDatabases(): Promise<void> {
   // budget across processes without each process racing to create the DDL.
   if (dbType === "postgres" && !isDryRun()) {
     await setupSecFetchRateLimiter();
+    await ensureSpacCurrentTrustColumnsPostgres();
   }
 }
 
@@ -285,4 +288,38 @@ function backfillExtractorRunsOutcome(db: Sqlite.Database): void {
   db.exec(
     `UPDATE \`extractor_runs\` SET outcome = CASE WHEN success = 1 OR success = 'true' THEN 'success' ELSE 'failure' END`
   );
+}
+
+const SPAC_TRUST_COLUMNS: ReadonlyArray<{
+  readonly name: string;
+  readonly sqlite: string;
+  readonly postgres: string;
+}> = [
+  { name: "current_trust_amount", sqlite: "REAL", postgres: "NUMERIC" },
+  { name: "current_trust_as_of", sqlite: "TEXT", postgres: "DATE" },
+  { name: "current_trust_filed", sqlite: "TEXT", postgres: "DATE" },
+];
+
+/** Existing DBs were created before current_trust_*; CREATE TABLE IF NOT EXISTS is a no-op. */
+function ensureSpacCurrentTrustColumnsSqlite(db: Sqlite.Database): void {
+  for (const table of ["spac", "spac_history"]) {
+    const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`${table}\`)`).all();
+    if (cols.length === 0) continue;
+    const have = new Set(cols.map((c) => c.name));
+    for (const col of SPAC_TRUST_COLUMNS) {
+      if (have.has(col.name)) continue;
+      db.exec(`ALTER TABLE \`${table}\` ADD COLUMN ${col.name} ${col.sqlite}`);
+    }
+  }
+}
+
+async function ensureSpacCurrentTrustColumnsPostgres(): Promise<void> {
+  const pool = getPgPool();
+  for (const table of ["spac", "spac_history"]) {
+    for (const col of SPAC_TRUST_COLUMNS) {
+      await pool.query(
+        `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.postgres}`
+      );
+    }
+  }
 }

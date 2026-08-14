@@ -333,4 +333,76 @@ describe("processFormS1", () => {
     const people = await new PersonObservationRepo().listByAccession(accession);
     expect(people.map((p) => `${p.first_name} ${p.last_name}`)).toEqual(["Michael Klein"]);
   });
+
+  it("keeps a blank-name related-party company without aborting the section", async () => {
+    // Degenerate model output: a company row with no name. observeCompany used
+    // to throw in the resolver ("no CIK, CRD, or name") and abort every other
+    // valid party in the same persist — a live S-1/A hit exactly this.
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      {
+        parties: [
+          {
+            name: "",
+            party_kind: "company",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: "the Company",
+                nature: "lease",
+                amount: 50000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+          {
+            name: "Acme Holdings",
+            party_kind: "company",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: "the Company",
+                nature: "consulting",
+                amount: 120000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    const accession = "0000000000-26-blank-rp-co";
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: accession,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const tx = await new RelatedPartyTransactionRepo().queryByAccession(accession);
+    expect(tx.map((t) => t.amount).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([50000, 120000]);
+    const unnamed = tx.find((t) => t.amount === 50000);
+    expect(unnamed?.party_kind).toBe("group");
+    expect(unnamed?.observation_id).toBeNull();
+    const named = tx.find((t) => t.amount === 120000);
+    expect(named?.party_kind).toBe("company");
+    expect(named?.observation_id).not.toBeNull();
+    const companies = await new CompanyObservationRepo().listByAccession(accession);
+    expect(companies.some((c) => c.name === "Acme Holdings")).toBe(true);
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    expect(
+      dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)
+    ).toEqual([]);
+  });
 });

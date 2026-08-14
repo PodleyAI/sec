@@ -7,6 +7,7 @@
 import { IExecuteContext, TaskAbortedError } from "workglow";
 import type { FactsReasonCode } from "../../storage/processing/ProcessedFactsSchema";
 import { recordFactsOutcome } from "../../storage/processing/recordFactsOutcome";
+import { refreshCurrentTrustFromFacts } from "../../storage/spac/refreshCurrentTrust";
 import { todayYYYYdMMdDD } from "../../util/dataCleaningUtils";
 import { classifyFactsFetchError } from "./classifyFactsFetchError";
 import { FetchCompanyFactsTask, FetchCompanyFactsTaskOutput } from "./FetchCompanyFactsTask";
@@ -103,5 +104,12 @@ export async function fetchAndStoreCompanyFactsWithDeps(
     reason_code: null,
     detail: null,
   });
+  try {
+    await refreshCurrentTrustFromFacts(input.cik);
+  } catch (e) {
+    if (e instanceof TaskAbortedError) throw e;
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`Failed to refresh current trust for CIK ${input.cik}: ${message}`);
+  }
   return { success: true };
 }
