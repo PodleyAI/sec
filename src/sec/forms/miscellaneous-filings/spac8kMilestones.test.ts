@@ -19,6 +19,7 @@ import { extractMergerCounterparty, mapItemCodesToSpacEvents } from "./spac8kMil
 
 const emptyCtx = {
   ipoDate: null as string | null,
+  registrationDate: null as string | null,
   exhibits: [] as SubmissionExhibit[],
   pendingDeal: null,
 };
@@ -38,6 +39,7 @@ describe("mapItemCodesToSpacEvents", () => {
   it("maps a post-IPO EX-2 merger 1.01 to definitive_agreement and stores exhibits", () => {
     const events = mapItemCodesToSpacEvents(["1.01"], "2021-08-31", {
       ipoDate: "2021-01-27",
+      registrationDate: null,
       exhibits: [mergerEx],
       pendingDeal: null,
     });
@@ -50,6 +52,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [
           { type: "EX-2.1", description: "EX-2.1", filename: "d137294dex21.htm" },
           { type: "EX-10.1", description: "EX-10.1", filename: "d137294dex101.htm" },
@@ -63,6 +66,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [
           {
             type: "EX-2.1",
@@ -79,6 +83,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.01"], "2021-01-25", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [uwEx],
         pendingDeal: null,
       })[0].event_type
@@ -86,6 +91,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [uwEx],
         pendingDeal: { definitive_agreement_date: null, proxy_date: null },
       })[0].event_type
@@ -96,6 +102,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.02"], "2021-11-30", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [],
         pendingDeal: { definitive_agreement_date: "2021-08-31", proxy_date: null },
       })[0].event_type
@@ -103,6 +110,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["1.02"], "2021-02-01", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [uwEx],
         pendingDeal: null,
       })[0].event_type
@@ -113,6 +121,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["5.07"], "2021-06-01", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [],
         pendingDeal: { definitive_agreement_date: "2021-03-01", proxy_date: null },
       })[0].event_type
@@ -120,6 +129,7 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["5.07"], "2021-06-01", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [],
         pendingDeal: null,
       })[0].event_type
@@ -130,10 +140,48 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(
       mapItemCodesToSpacEvents(["2.01"], "2021-06-15", {
         ipoDate: "2021-01-27",
+        registrationDate: null,
         exhibits: [],
         pendingDeal: { definitive_agreement_date: "2021-03-01", proxy_date: null },
       })[0].event_type
     ).toBe("completed");
+  });
+
+  it("maps a merger 1.01 to definitive_agreement when ipo_date is unknown", () => {
+    // A SPAC row minted by the S-1 AI content classifier (SIC-miscoded filer)
+    // never gets an `ipo` event, so ipo_date stays null. Absence of the date is
+    // not evidence that the filing predates the IPO — only a known earlier
+    // anchor is.
+    expect(
+      mapItemCodesToSpacEvents(["1.01"], "2021-08-31", {
+        ipoDate: null,
+        registrationDate: "2020-11-01",
+        exhibits: [mergerEx],
+        pendingDeal: null,
+      })[0].event_type
+    ).toBe("definitive_agreement");
+  });
+
+  it("maps a merger 1.01 to definitive_agreement when no date anchor is known at all", () => {
+    expect(
+      mapItemCodesToSpacEvents(["1.01"], "2021-08-31", {
+        ipoDate: null,
+        registrationDate: null,
+        exhibits: [mergerEx],
+        pendingDeal: null,
+      })[0].event_type
+    ).toBe("definitive_agreement");
+  });
+
+  it("still demotes a merger-shaped 1.01 dated before the registration date", () => {
+    expect(
+      mapItemCodesToSpacEvents(["1.01"], "2020-06-01", {
+        ipoDate: null,
+        registrationDate: "2021-01-01",
+        exhibits: [mergerEx],
+        pendingDeal: null,
+      })[0].event_type
+    ).toBe("material_agreement");
   });
 
   it("ignores non-milestone item codes", () => {
@@ -143,6 +191,7 @@ describe("mapItemCodesToSpacEvents", () => {
   it("prefixes the merger counterparty on a DA when the 8-K names it", () => {
     const events = mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
       ipoDate: "2021-01-27",
+      registrationDate: null,
       exhibits: [mergerEx],
       pendingDeal: null,
       issuerName: "Northern Star Investment Corp. II",
@@ -457,5 +506,93 @@ describe("processForm8K SPAC milestone wiring", () => {
     expect(misc?.detail).toContain("ex11.htm");
     expect((await repo.getSpac(600))?.definitive_agreement_date).toBeNull();
     expect(await repo.getDeals(600)).toEqual([]);
+  });
+
+  it("replaying DA -> vote -> completion twice yields identical events, deals and row", async () => {
+    // `sec spac process` re-runs every filing on every invocation, so the second
+    // pass classifies each 8-K again. Classification must depend only on the
+    // events dated before the filing, never on the deal set the LATER filings
+    // already produced.
+    await seedSpac(900);
+    await seedIpo(900);
+    const replay = async (): Promise<void> => {
+      await run8K(900, "900-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+      await run8K(900, "900-vote", "5.07", "2021-06-01");
+      await run8K(900, "900-close", "2.01,5.01", "2021-06-15");
+    };
+    await replay();
+    await replay();
+
+    const events = await repo.getEvents(900);
+    expect(events.filter((e) => e.event_type === "vote").length).toBe(1);
+    expect(events.find((e) => e.event_type === "vote")?.event_date).toBe("2021-06-01");
+    expect(events.some((e) => e.event_type === "eight_k")).toBe(false);
+
+    const deals = await repo.getDeals(900);
+    expect(deals.length).toBe(1);
+    expect(deals[0].outcome).toBe("completed");
+
+    const row = await repo.getSpac(900);
+    expect(row?.vote_date).toBe("2021-06-01");
+    expect(row?.status).toBe("completed");
+  });
+
+  it("replaying DA -> termination twice keeps the deal terminated", async () => {
+    await seedSpac(910);
+    await seedIpo(910);
+    const replay = async (): Promise<void> => {
+      await run8K(910, "910-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+      await run8K(910, "910-term", "1.02", "2021-11-30");
+    };
+    await replay();
+    await replay();
+
+    const events = await repo.getEvents(910);
+    expect(events.filter((e) => e.event_type === "terminated").length).toBe(1);
+    expect(
+      events.some((e) => e.accession_number === "910-term" && e.event_type === "material_agreement")
+    ).toBe(false);
+
+    const deals = await repo.getDeals(910);
+    expect(deals.length).toBe(1);
+    expect(deals[0].outcome).toBe("terminated");
+    expect((await repo.getSpac(910))?.status).not.toBe("deal_announced");
+  });
+
+  it("classifies a 5.07 from the events dated before it, not the current deal set", async () => {
+    await seedSpac(920);
+    await seedIpo(920);
+    await run8K(920, "920-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+    await run8K(920, "920-close", "2.01", "2021-06-15");
+    // Out-of-order arrival: the vote 8-K is processed last but dated between.
+    await run8K(920, "920-vote", "5.07", "2021-06-01");
+
+    const events = await repo.getEvents(920);
+    expect(events.find((e) => e.accession_number === "920-vote")?.event_type).toBe("vote");
+    expect((await repo.getSpac(920))?.vote_date).toBe("2021-06-01");
+  });
+
+  it("maps a post-completion annual-meeting 5.07 to eight_k", async () => {
+    await seedSpac(930);
+    await seedIpo(930);
+    await run8K(930, "930-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+    await run8K(930, "930-close", "2.01", "2021-06-15");
+    await run8K(930, "930-annual", "5.07", "2022-05-01");
+
+    const events = await repo.getEvents(930);
+    expect(events.find((e) => e.accession_number === "930-annual")?.event_type).toBe("eight_k");
+  });
+
+  it("classifies a merger 1.01 as a DA for a SPAC with no recorded IPO date", async () => {
+    // The AI content classifier mints known-SPAC rows for SIC-miscoded filers,
+    // whose 424 never records an `ipo` event.
+    await seedSpac(940); // registration only — no seedIpo
+    await run8K(940, "940-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+
+    const events = await repo.getEvents(940);
+    expect(events.find((e) => e.accession_number === "940-da")?.event_type).toBe(
+      "definitive_agreement"
+    );
+    expect((await repo.getSpac(940))?.definitive_agreement_date).toBe("2021-03-01");
   });
 });

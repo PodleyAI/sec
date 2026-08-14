@@ -17,7 +17,19 @@ export interface PendingDealHint {
 
 export interface MilestoneMapContext {
   readonly ipoDate: string | null;
+  /**
+   * S-1/DRS registration date, the fallback floor when `ipoDate` is unknown.
+   * `ipo_date` is only ever written from a 424B1/424B4 whose SGML header codes
+   * SIC 6770, so a SPAC row minted by the S-1 AI content classifier (a
+   * SIC-miscoded filer) legitimately has none.
+   */
+  readonly registrationDate: string | null;
   readonly exhibits: readonly SubmissionExhibit[];
+  /**
+   * The attempt pending as of THIS filing, derived from the events dated
+   * strictly before it — never from the current derived deal set, which later
+   * filings have already moved (see `pendingDealBefore`).
+   */
   readonly pendingDeal: PendingDealHint | null;
   /** Registrant name, used to skip the SPAC when picking the merger target. */
   readonly issuerName?: string | null;
@@ -160,7 +172,14 @@ export function mapItemCodesToSpacEvents(
 ): SpacMilestoneEvent[] {
   const events: SpacMilestoneEvent[] = [];
   const mergerExhibits = isMergerShaped(ctx.exhibits);
-  const postIpo = ctx.ipoDate != null && eventDate >= ctx.ipoDate;
+  // The date gate exists to reject the SPAC's own pre-IPO underwriting and
+  // formation agreements, so only a KNOWN earlier anchor demotes a
+  // merger-shaped 1.01. An unknown floor is not evidence of a pre-IPO filing:
+  // treating it as one demoted every de-SPAC milestone of a SIC-miscoded SPAC
+  // to `material_agreement`, which opens no deal at all. The real
+  // discriminator is the merger-shaped EX-2 exhibit.
+  const floor = ctx.ipoDate ?? ctx.registrationDate;
+  const preIpo = floor != null && eventDate < floor;
   const pending = ctx.pendingDeal;
   const pendingMerger =
     pending != null &&
@@ -170,7 +189,7 @@ export function mapItemCodesToSpacEvents(
     let event_type: SpacEventType | null = null;
     switch (code) {
       case "1.01":
-        event_type = postIpo && mergerExhibits ? "definitive_agreement" : "material_agreement";
+        event_type = !preIpo && mergerExhibits ? "definitive_agreement" : "material_agreement";
         break;
       case "1.02":
         event_type = pending != null || mergerExhibits ? "terminated" : "material_agreement";
