@@ -31,6 +31,10 @@ import { modelExtractChain, persistModelId } from "./s1Model";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
+import {
+  parentClauseSourceContext,
+  splitParentClause,
+} from "../../../../storage/company/splitParentClause";
 import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
@@ -449,23 +453,25 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       // Markets Limited" are two entities that share one family, and collapsing
       // on the family would silently drop the second.
       const seenLegalNames = new Set<string>();
-      const extractedNames = rows.map((r) => r.legal_name?.trim() ?? "");
-      for (const r of rows) {
-        const legalName = r.legal_name?.trim() ?? "";
-        if (legalName === "") continue;
+      const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
+      const extractedNames = splits.map((s) => s.observationName);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]!;
+        const split = splits[i]!;
+        if (split.observationName === "") continue;
         // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
         // & Co.") is one house, not two. Inc vs Limited of the same house are
         // equal-length family keys and are not dropped.
-        if (isCompanyFamilyPrefixEcho(legalName, extractedNames)) continue;
-        const dedupeKey = normalizeEntityName(legalName);
+        if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
+        const dedupeKey = normalizeEntityName(split.observationName);
         if (seenLegalNames.has(dedupeKey)) continue;
         seenLegalNames.add(dedupeKey);
         const observation_index = nextIndex();
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
           observation_index,
-          name: legalName,
-          source_context: JSON.stringify({ relation: `${relationPrefix}:underwriter` }),
+          name: split.observationName,
+          source_context: parentClauseSourceContext(`${relationPrefix}:underwriter`, split),
         });
         await provenance.save({
           kind: "company",
@@ -477,7 +483,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           prompt_version: extractor_version,
           extra: null,
         });
-        const underwriter_family_id = await underwriterFamilyResolver.resolve(legalName);
+        const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
         await underwriterMembershipRepo.record({
           resolver_version: activeUnderwriterFamilyVersion,
           canonical_company_id,

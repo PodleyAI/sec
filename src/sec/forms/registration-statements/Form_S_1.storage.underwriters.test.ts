@@ -25,6 +25,29 @@ const NULL_HEADER = {
   filingDate: null,
 };
 
+const emptyTerms = {
+  security_type: null,
+  shares_offered: null,
+  price: null,
+  price_low: null,
+  price_high: null,
+  gross_proceeds: null,
+  net_proceeds: null,
+  over_allotment_shares: null,
+  units_offered: null,
+  price_per_unit: null,
+  unit_composition: null,
+  warrant_fraction_per_unit: null,
+  right_fraction_per_unit: null,
+  trust_per_unit: null,
+  over_allotment_units: null,
+  exchange: null,
+  par_value: null,
+  confidence: 0.5,
+  source_span: "x",
+  tickers: [],
+};
+
 let cleanup: (() => void) | undefined;
 
 describe("processFormS1 underwriters", () => {
@@ -214,28 +237,6 @@ describe("processFormS1 underwriters", () => {
   it("drops a brand-only short name when the full legal name is also present", async () => {
     // Live 1822912: S-1 extractors returned both "Cantor Fitzgerald & Co." and
     // "Cantor", which keyed two families and showed as duplicate underwriters.
-    const emptyTerms = {
-      security_type: null,
-      shares_offered: null,
-      price: null,
-      price_low: null,
-      price_high: null,
-      gross_proceeds: null,
-      net_proceeds: null,
-      over_allotment_shares: null,
-      units_offered: null,
-      price_per_unit: null,
-      unit_composition: null,
-      warrant_fraction_per_unit: null,
-      right_fraction_per_unit: null,
-      trust_per_unit: null,
-      over_allotment_units: null,
-      exchange: null,
-      par_value: null,
-      confidence: 0.5,
-      source_span: "x",
-      tickers: [],
-    };
     const { unregister } = registerFakeStructuredProvider([
       emptyTerms,
       {
@@ -282,5 +283,62 @@ describe("processFormS1 underwriters", () => {
     ).toBe(1);
     const families = await new CanonicalUnderwriterFamilyRepo().listForResolverVersion("1.0.0");
     expect(families.map((f) => f.normalized_name).sort()).toEqual(["CANTOR-FITZGERALD"]);
+  });
+
+  it("splits a division-of underwriter onto X with family Y", async () => {
+    const asFiled = "Kingswood Capital Markets, division of Benchmark Investments, Inc.";
+    const { unregister } = registerFakeStructuredProvider([
+      emptyTerms,
+      {
+        underwriters: [
+          {
+            legal_name: asFiled,
+            role: "lead",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: asFiled,
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1863460,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000004",
+      filing_date: "2021-08-12",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: `<h1>UNDERWRITING</h1><p>${asFiled} is the underwriter.</p>`,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const companies = await new CompanyObservationRepo().listAll();
+    const kw = companies.find((c) => c.name === "Kingswood Capital Markets Inc");
+    expect(kw).toBeDefined();
+    expect(JSON.parse(kw!.source_context!)).toEqual({
+      relation: "s1:underwriter",
+      as_filed: asFiled,
+      family_name: "Benchmark Investments, Inc.",
+    });
+
+    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
+      "1.0.0",
+      normalizeUnderwriterFamilyName("Benchmark Investments, Inc.")
+    );
+    expect(family).toBeDefined();
+    expect(family!.normalized_name).toBe("BENCHMARK-INVESTMENTS");
+    const members = await new UnderwriterFamilyMembershipRepo().listCompaniesForFamily(
+      "1.0.0",
+      family!.canonical_underwriter_family_id
+    );
+    expect(members).toHaveLength(1);
   });
 });
