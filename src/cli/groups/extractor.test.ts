@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
-import { countEligibleDeadLetters } from "./extractor";
+import { addExtractorCommands, countEligibleDeadLetters } from "./extractor";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 
 describe("countEligibleDeadLetters", () => {
@@ -29,5 +30,21 @@ describe("countEligibleDeadLetters", () => {
       source_run_id: null,
     });
     expect(await countEligibleDeadLetters("S-1")).toBe(1);
+  });
+});
+
+describe("extractor dead-letters CLI", () => {
+  it("accepts an optional extractor id and a --cik filter", () => {
+    const program = new Command("sec");
+    addExtractorCommands(program);
+    const extractor = program.commands.find((command) => command.name() === "extractor");
+    const deadLetters = extractor?.commands.find((command) => command.name() === "dead-letters");
+    expect(deadLetters).toBeDefined();
+    expect(deadLetters!.registeredArguments[0]?.required).toBe(false);
+    const cikOption = deadLetters!.options.find((option) => option.long === "--cik");
+    expect(cikOption?.parseArg).toBeTypeOf("function");
+    expect(() => cikOption!.parseArg!("", undefined)).toThrow(
+      '"" is not a non-negative integer.'
+    );
   });
 });

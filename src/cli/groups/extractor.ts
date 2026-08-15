@@ -8,6 +8,7 @@ import type { Command } from "commander";
 import { runCommand } from "../runCommand";
 import { runWorkflowCli } from "../runWorkflow";
 import { isDryRun } from "../isDryRun";
+import { parseIntOption } from "../GlobalOptions";
 import { RetryDeadLettersTask } from "../../task/forms/RetryDeadLettersTask";
 import { BackfillExtractorTask } from "../../task/forms/BackfillExtractorTask";
 import {
@@ -26,24 +27,50 @@ export function addExtractorCommands(program: Command): void {
     .description("Extractor dead-letters and generalized backfill");
 
   cmd
-    .command("dead-letters <extractorId>")
-    .description("List dead-letter entries for an extractor")
-    .option("--eligible", "only show the count eligible for retry under the current version", false)
-    .action(async (extractorId: string, opts: { eligible: boolean }) => {
+    .command("dead-letters [extractorId]")
+    .description(
+      "List dead-letter entries for an extractor, or for one issuer with --cik"
+    )
+    .option(
+      "--eligible",
+      "count entries eligible for retry under each extractor's current version",
+      false
+    )
+    .option(
+      "--cik <cik>",
+      "Only entries whose accession belongs to this issuer (joins through filings)",
+      parseIntOption
+    )
+    .action(async (extractorId: string | undefined, opts: { eligible: boolean; cik?: number }) => {
       await runCommand(async () => {
-        const { pending, eligibleCount } = await runWorkflowCli<ListDeadLettersTaskOutput>([
-          new ListDeadLettersTask({
-            defaults: { extractorId, eligible: opts.eligible === true },
-          }),
-        ]);
+        const id = extractorId === undefined || extractorId === "" ? undefined : extractorId;
+        if (id === undefined && opts.cik === undefined) {
+          throw new Error("Provide an extractor id or --cik.");
+        }
+        const { pending, eligibleCount, eligibleByExtractor } =
+          await runWorkflowCli<ListDeadLettersTaskOutput>([
+            new ListDeadLettersTask({
+              defaults: {
+                extractorId: id,
+                cik: opts.cik,
+                eligible: opts.eligible === true,
+              },
+            }),
+          ]);
         if (opts.eligible) {
+          if (id === undefined) {
+            for (const row of eligibleByExtractor ?? []) {
+              console.log(`${row.extractor_id}\t${row.count}`);
+            }
+          }
           const n = eligibleCount ?? 0;
           console.log(`${n} dead-letter entr${n === 1 ? "y" : "ies"} eligible for retry`);
           return;
         }
         for (const e of pending) {
+          const extractorCol = id === undefined ? `${e.extractor_id}\t` : "";
           console.log(
-            `${e.accession_number}\t${e.section_name || "(filing)"}\t${e.reason_code}\t` +
+            `${extractorCol}${e.accession_number}\t${e.section_name || "(filing)"}\t${e.reason_code}\t` +
               `v${e.failed_extractor_version}\tattempts=${e.attempts}`
           );
         }

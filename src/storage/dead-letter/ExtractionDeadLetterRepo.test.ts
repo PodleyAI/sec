@@ -218,4 +218,71 @@ describe("ExtractionDeadLetterRepo", () => {
     // Still recoverable the version-gated way.
     expect(await repo.countEligible("S-1", "1.1.0")).toBe(1);
   });
+
+  it("lists pending rows for a set of accessions across extractors", async () => {
+    // Dead letters have no CIK column. Accession numbers are often the filing
+    // agent's, not the issuer's, so the listing filters by accession set (from
+    // `filings`) rather than grepping the CIK out of the accession string.
+    const record = async (
+      extractor_id: string,
+      accession_number: string,
+      section_name: string
+    ): Promise<void> =>
+      repo.record({
+        extractor_id,
+        accession_number,
+        section_name,
+        reason_code: "MODEL_EMPTY",
+        detail: null,
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+
+    await record("S-1", "ours", "Management");
+    await record("424", "ours", "offering-terms");
+    await record("S-1", "theirs", "Management");
+    await repo.markResolved("S-1", "ours", "Management");
+
+    const rows = await repo.listPendingByAccessions(["ours", "missing"]);
+    expect(rows.map((r) => `${r.extractor_id}:${r.section_name}`).sort()).toEqual([
+      "424:offering-terms",
+    ]);
+  });
+
+  it("narrows an accession listing to one extractor when given", async () => {
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "ours",
+      section_name: "Management",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "424",
+      accession_number: "ours",
+      section_name: "offering-terms",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const rows = await repo.listPendingByAccessions(["ours"], "S-1");
+    expect(rows.map((r) => r.extractor_id)).toEqual(["S-1"]);
+  });
+
+  it("returns no rows for an empty accession list rather than querying IN ()", async () => {
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "ours",
+      section_name: "Management",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    expect(await repo.listPendingByAccessions([])).toEqual([]);
+  });
 });

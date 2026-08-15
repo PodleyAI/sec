@@ -18,6 +18,21 @@ import {
 const MODEL_ERROR_REASONS: ReadonlySet<string> = new Set(MODEL_ERROR_REASON_CODES);
 const NONDETERMINISTIC_REASONS: ReadonlySet<string> = new Set(NONDETERMINISTIC_REASON_CODES);
 
+/** Ids per `in`-list query. SQLite binds one parameter per value. */
+const MAX_IDS_PER_QUERY = 900;
+
+export function isEligibleDeadLetter(
+  row: ExtractionDeadLetter,
+  currentVersion: string
+): boolean {
+  return (
+    row.failed_extractor_version !== currentVersion ||
+    MODEL_ERROR_REASONS.has(row.reason_code) ||
+    (NONDETERMINISTIC_REASONS.has(row.reason_code) &&
+      row.attempts < NONDETERMINISTIC_RETRY_ATTEMPTS)
+  );
+}
+
 export interface DeadLetterInput {
   readonly extractor_id: string;
   readonly accession_number: string;
@@ -114,6 +129,33 @@ export class ExtractionDeadLetterRepo {
   }
 
   /**
+   * Pending entries whose accession is in `accession_numbers`. Used to scope a
+   * listing to one issuer: dead letters have no CIK, and EDGAR accessions are
+   * often the filing agent's, so the caller joins `filings` first.
+   *
+   * An empty list returns immediately — `IN ()` is invalid SQL.
+   */
+  async listPendingByAccessions(
+    accession_numbers: readonly string[],
+    extractor_id: string | undefined = undefined
+  ): Promise<ExtractionDeadLetter[]> {
+    if (accession_numbers.length === 0) return [];
+    const distinct = [...new Set(accession_numbers)];
+    const out: ExtractionDeadLetter[] = [];
+    for (let start = 0; start < distinct.length; start += MAX_IDS_PER_QUERY) {
+      const chunk = distinct.slice(start, start + MAX_IDS_PER_QUERY);
+      const rows =
+        (await this.storage.query({
+          accession_number: { value: chunk, operator: "in" },
+          status: "pending",
+          ...(extractor_id !== undefined ? { extractor_id } : {}),
+        })) ?? [];
+      out.push(...rows);
+    }
+    return out;
+  }
+
+  /**
    * Pending entries eligible for retry. Three ways in:
    *
    * - the failing version differs from the current version — the usual
@@ -131,12 +173,8 @@ export class ExtractionDeadLetterRepo {
     extractor_id: string,
     currentVersion: string
   ): Promise<ExtractionDeadLetter[]> {
-    return (await this.listPending(extractor_id)).filter(
-      (r) =>
-        r.failed_extractor_version !== currentVersion ||
-        MODEL_ERROR_REASONS.has(r.reason_code) ||
-        (NONDETERMINISTIC_REASONS.has(r.reason_code) &&
-          r.attempts < NONDETERMINISTIC_RETRY_ATTEMPTS)
+    return (await this.listPending(extractor_id)).filter((r) =>
+      isEligibleDeadLetter(r, currentVersion)
     );
   }
 
