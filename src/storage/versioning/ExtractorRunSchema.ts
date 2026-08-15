@@ -19,7 +19,7 @@ export const ExtractorRunSchema = Type.Object({
     description: "SEC accession number",
   }),
   form: Type.String({
-    maxLength: 8,
+    maxLength: 32,
     description: "Form type (e.g. 'D', '1-A')",
   }),
   extractor_id: Type.String({
