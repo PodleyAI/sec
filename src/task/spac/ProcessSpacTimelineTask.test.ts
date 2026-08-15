@@ -189,7 +189,63 @@ describe("ProcessSpacTimelineTask", () => {
       expect(out.partial).toBe(1);
       expect(out.failed).toBe(0);
       expect(out.triage).toBe(1);
+      expect(out.triageExtractors).toBe("D");
       expect(out.error).toBe("");
+    } finally {
+      proto.execute = real;
+    }
+  });
+
+  it("names every extractor that wrote a pending dead-letter, including 8-K sub-extractors", async () => {
+    // The inspect hint is `sec extractor dead-letters <id>`, and an 8-K can
+    // dead-letter under `redemption` / `loi` as well as `8-K`. Counting triage
+    // without naming those ids left the operator with a placeholder.
+    await seedFiling("0000000000-26-000001", "8-K", "2021-01-04", "d8k.htm");
+
+    const proto = ProcessAccessionDocFormTask.prototype;
+    const real = proto.execute;
+    proto.execute = async (input) => {
+      const runRepo = new ExtractorRunRepo(
+        globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+      );
+      await runRepo.recordRun({
+        cik: CIK,
+        accession_number: input.accessionNumber!,
+        form: "8-K",
+        extractor_id: "8-K",
+        extractor_version: "1.0.0",
+        slot_at_run: "current",
+        success: false,
+        outcome: "partial",
+        error: null,
+      });
+      const deadLetters = new ExtractionDeadLetterRepo();
+      await deadLetters.record({
+        extractor_id: "redemption",
+        accession_number: input.accessionNumber!,
+        section_name: "redemption",
+        reason_code: "MODEL_EMPTY",
+        detail: null,
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+      await deadLetters.record({
+        extractor_id: "loi",
+        accession_number: input.accessionNumber!,
+        section_name: "loi",
+        reason_code: "MODEL_EMPTY",
+        detail: null,
+        failed_extractor_version: "1.0.0",
+        source_run_id: null,
+      });
+      return { success: true };
+    };
+
+    try {
+      const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+      expect(out.partial).toBe(1);
+      expect(out.triage).toBe(2);
+      expect(out.triageExtractors).toBe("loi,redemption");
     } finally {
       proto.execute = real;
     }

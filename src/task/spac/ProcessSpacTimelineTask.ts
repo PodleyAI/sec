@@ -53,6 +53,13 @@ const OutputSchema = () =>
       title: "Triage entries",
       description: "Pending dead-letter entries across the replayed filings.",
     }),
+    // Scalar (comma-separated) rather than an array: the `spac process` fan-out
+    // merges each port into an index-aligned column, and an array would nest.
+    triageExtractors: Type.String({
+      title: "Triage extractors",
+      description:
+        "Sorted unique extractor ids with pending dead-letters on this issuer, comma-separated.",
+    }),
     firstDate: Type.String({ title: "First", description: "Earliest filing_date processed." }),
     lastDate: Type.String({ title: "Last", description: "Latest filing_date processed." }),
     error: Type.String({
@@ -178,6 +185,7 @@ export class ProcessSpacTimelineTask extends Task<
         partial: 0,
         failed: 0,
         triage: 0,
+        triageExtractors: "",
         firstDate,
         lastDate,
         error: "",
@@ -214,6 +222,7 @@ export class ProcessSpacTimelineTask extends Task<
       partial: counts.partial,
       failed: counts.failed,
       triage: counts.triage,
+      triageExtractors: counts.triageExtractors,
       firstDate,
       lastDate,
       error: "",
@@ -229,6 +238,7 @@ function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput
     partial: 0,
     failed: 0,
     triage: 0,
+    triageExtractors: "",
     firstDate: "",
     lastDate: "",
     error,
@@ -249,6 +259,7 @@ async function countTimelineOutcomes(
   readonly partial: number;
   readonly failed: number;
   readonly triage: number;
+  readonly triageExtractors: string;
 }> {
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   const deadLetterRepo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
@@ -256,6 +267,7 @@ async function countTimelineOutcomes(
   let partial = 0;
   let failed = 0;
   let triage = 0;
+  const extractorIds = new Set<string>();
   for (const filing of timeline) {
     const extractorId = filing.form !== null ? formToExtractorId(filing.form) : undefined;
     if (extractorId === undefined) {
@@ -273,6 +285,15 @@ async function countTimelineOutcomes(
         status: "pending",
       })) ?? [];
     triage += pending.length;
+    for (const row of pending) {
+      extractorIds.add(row.extractor_id);
+    }
   }
-  return { succeeded, partial, failed, triage };
+  return {
+    succeeded,
+    partial,
+    failed,
+    triage,
+    triageExtractors: [...extractorIds].sort().join(","),
+  };
 }

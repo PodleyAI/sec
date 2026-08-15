@@ -125,6 +125,7 @@ export function spacProcessRows(
   const partial = column("partial");
   const failed = column("failed");
   const triage = column("triage");
+  const triageExtractors = column("triageExtractors");
   const firstDate = column("firstDate");
   const lastDate = column("lastDate");
   const error = column("error");
@@ -139,6 +140,7 @@ export function spacProcessRows(
       partial: partial[i] ?? 0,
       failed: failed[i] ?? 0,
       triage: triage[i] ?? 0,
+      triageExtractors: triageExtractors[i] ?? "",
       firstDate: firstDate[i] ?? "",
       lastDate: lastDate[i] ?? "",
       error: error[i] ?? "",
@@ -168,13 +170,34 @@ export function formatSpacProcessSummary(
 }
 
 /**
+ * Inspect hint after a replay that left pending dead-letters. The ids are the
+ * ones that actually wrote entries — a SPAC timeline mixes S-1 / 424 / 8-K
+ * sub-extractors, so a placeholder `<extractor-id>` is not copy-pasteable.
+ */
+export function formatSpacProcessDeadLetterHint(
+  triageExtractors: string,
+  kind: "partial" | "dropped"
+): string {
+  const ids = triageExtractors === "" ? [] : triageExtractors.split(",");
+  const inspect =
+    ids.length === 0
+      ? "sec extractor dead-letters <extractor-id>"
+      : ids.map((id) => `sec extractor dead-letters ${id}`).join("; ");
+  if (kind === "dropped") {
+    return `Some rows were dropped from otherwise-successful sections. Inspect: ${inspect}`;
+  }
+  return `Some sections did not extract. Inspect them with: ${inspect}`;
+}
+
+/**
  * Issuers whose replay actually failed — what the command's exit code reports.
  *
  * `partial` deliberately does not count. It is the documented NORMAL outcome of
  * one AI section dead-lettering, and almost every real SPAC has at least one,
  * so counting it made a non-zero exit the default for a healthy run and any
  * script gating on the exit code read a clean replay as a failure. The warn
- * line and `sec extractor dead-letters <id>` remain the surface for partials.
+ * line and `sec extractor dead-letters <id>` (named from the pending entries)
+ * remain the surface for partials.
  */
 export function spacProcessFailureCount(rows: readonly ProcessSpacTimelineTaskOutput[]): number {
   return rows.filter((row) => row.error !== "" || row.failed > 0).length;
@@ -248,14 +271,14 @@ export function registerSpacCommands(program: Command): void {
               console.error(
                 statusMessage(
                   "warn",
-                  "Some sections did not extract. Inspect them with: sec extractor dead-letters <extractor-id>"
+                  formatSpacProcessDeadLetterHint(row.triageExtractors, "partial")
                 )
               );
             } else if (row.triage > 0) {
               console.error(
                 statusMessage(
                   "info",
-                  "Some rows were dropped from otherwise-successful sections. Inspect: sec extractor dead-letters <extractor-id>"
+                  formatSpacProcessDeadLetterHint(row.triageExtractors, "dropped")
                 )
               );
             }

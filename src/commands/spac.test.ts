@@ -16,6 +16,7 @@ import {
 } from "../task/spac/ProcessSpacTimelineTask";
 import {
   assembleSpacReport,
+  formatSpacProcessDeadLetterHint,
   formatSpacProcessSummary,
   spacProcessFailureCount,
   spacProcessRows,
@@ -64,6 +65,7 @@ describe("spacProcessRows", () => {
         partial: [0, 0, 0],
         failed: [0, 0, 0],
         triage: [0, 0, 0],
+        triageExtractors: ["", "", ""],
         firstDate: ["2021-01-01", "", "2022-01-01"],
         lastDate: ["2021-12-31", "", "2022-06-30"],
         error: ["", "", "filing store unavailable"],
@@ -76,6 +78,7 @@ describe("spacProcessRows", () => {
         partial: 0,
         failed: 0,
         triage: 0,
+        triageExtractors: "",
         firstDate: "2021-01-01",
         lastDate: "2021-12-31",
         error: "",
@@ -87,6 +90,7 @@ describe("spacProcessRows", () => {
         partial: 0,
         failed: 0,
         triage: 0,
+        triageExtractors: "",
         firstDate: "",
         lastDate: "",
         error: "",
@@ -98,6 +102,7 @@ describe("spacProcessRows", () => {
         partial: 0,
         failed: 0,
         triage: 0,
+        triageExtractors: "",
         firstDate: "2022-01-01",
         lastDate: "2022-06-30",
         error: "filing store unavailable",
@@ -137,6 +142,7 @@ describe("spacProcessRows", () => {
           partial: 0,
           failed: 0,
           triage: 0,
+          triageExtractors: "",
           firstDate: "",
           lastDate: "",
           error: "",
@@ -156,6 +162,7 @@ describe("formatSpacProcessSummary", () => {
         partial: 0,
         failed: 0,
         triage: 0,
+        triageExtractors: "",
         firstDate: "2020-09-23",
         lastDate: "2023-10-03",
         error: "",
@@ -172,6 +179,7 @@ describe("formatSpacProcessSummary", () => {
         partial: 1,
         failed: 0,
         triage: 11,
+        triageExtractors: "S-1,424",
         firstDate: "2020-09-23",
         lastDate: "2023-10-03",
         error: "",
@@ -191,6 +199,7 @@ describe("formatSpacProcessSummary", () => {
           partial: 0,
           failed: 0,
           triage: 0,
+          triageExtractors: "",
           firstDate: "2020-09-23",
           lastDate: "2023-10-03",
           error: "",
@@ -198,6 +207,27 @@ describe("formatSpacProcessSummary", () => {
         { dryRun: true }
       )
     ).toBe("1822912: would replay 52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
+});
+
+describe("formatSpacProcessDeadLetterHint", () => {
+  it("names each extractor that dead-lettered as a copy-pasteable inspect command", () => {
+    // `sec spac process` walks every form on the issuer, so a placeholder
+    // `<extractor-id>` left the operator guessing which of S-1 / 424 /
+    // redemption / loi / merger-proxy actually wrote the pending entries.
+    expect(formatSpacProcessDeadLetterHint("424,S-1,redemption", "partial")).toBe(
+      "Some sections did not extract. Inspect them with: " +
+        "sec extractor dead-letters 424; " +
+        "sec extractor dead-letters S-1; " +
+        "sec extractor dead-letters redemption"
+    );
+  });
+
+  it("uses the same inspect commands when only dropped-row triage remains", () => {
+    expect(formatSpacProcessDeadLetterHint("S-1", "dropped")).toBe(
+      "Some rows were dropped from otherwise-successful sections. Inspect: " +
+        "sec extractor dead-letters S-1"
+    );
   });
 });
 
@@ -209,6 +239,7 @@ describe("spacProcessFailureCount", () => {
     partial: 0,
     failed: 0,
     triage: 0,
+    triageExtractors: "",
     firstDate: "2020-09-23",
     lastDate: "2023-10-03",
     error: "",
