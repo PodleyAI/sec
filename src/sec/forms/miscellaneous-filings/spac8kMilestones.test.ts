@@ -280,6 +280,72 @@ describe("extractMergerCounterparty", () => {
     }
   });
 
+  it("names the operating counterparty, not the jurisdiction clause", () => {
+    // The regressed sentence, verbatim. With a fully case-folded legal-form
+    // alternation the party scan matched "Delaware corporation" as if it were
+    // a company name, and — appearing before the real second party — that
+    // string was returned and persisted as the definitive_agreement event's
+    // `detail`.
+    expect(
+      extractMergerCounterparty(
+        "Agreement and Plan of Merger, by and among Acme Acquisition Corp., a Delaware " +
+          'corporation ("Company"), and Target Holdings, Inc., a Delaware corporation.',
+        "Acme Acquisition Corp."
+      )
+    ).toBe("Target Holdings, Inc.");
+  });
+
+  it("does not read a word prefix as a two-letter legal form", () => {
+    // "Business Combination Agreement" opens the merger window, and a folded
+    // `AG` matched the "Ag" of "Agreement", so the party scan produced
+    // "Business Combination Ag" before the real counterparty was reached.
+    expect(
+      extractMergerCounterparty(
+        "Test SPAC entered into a Business Combination Agreement, by and among Test SPAC " +
+          "and Target Holdings, Inc., a Delaware corporation.",
+        "Test SPAC"
+      )
+    ).toBe("Target Holdings, Inc.");
+  });
+
+  it("reads an ALL-CAPS party list the way filers shout it in exhibits", () => {
+    // Word-shaped forms keep the filing's capitalisation, so an all-caps
+    // exhibit needs its own alternative: without it "TARGET HOLDINGS, INC."
+    // is still found (INC is short enough to stay folded) but a party whose
+    // only form is "CORP." or "CORPORATION" is not.
+    expect(
+      extractMergerCounterparty(
+        "Agreement and Plan of Merger, by and among BIG SPAC CORP., MERGER SUB INC., and " +
+          "TARGET HOLDINGS, INC., a Delaware corporation",
+        "Big Spac Corp."
+      )
+    ).toBe("TARGET HOLDINGS, INC.");
+  });
+
+  it("still matches a lowercase plc, which filers really do write", () => {
+    expect(
+      extractMergerCounterparty(
+        "Agreement and Plan of Merger, by and among Foo Acquisition Corp. and Rockley " +
+          "Photonics Holdings plc, an English public limited company.",
+        "Foo Acquisition Corp."
+      )
+    ).toBe("Rockley Photonics Holdings plc");
+  });
+
+  it("keeps the trailing dot of a dotted form (L.P.)", () => {
+    // This is exactly why each alternative is closed with a negative lookahead
+    // rather than `\b`: a word boundary after the optional dot would refuse to
+    // consume it, truncating "Blackstone Holdings L.P." to
+    // "Blackstone Holdings L.P" — a name that was never filed.
+    expect(
+      extractMergerCounterparty(
+        "the Company entered into a Business Combination Agreement with Blackstone " +
+          "Holdings L.P., a Delaware limited partnership.",
+        "Test SPAC"
+      )
+    ).toBe("Blackstone Holdings L.P.");
+  });
+
   it("returns null when the narrative is not a merger agreement", () => {
     expect(
       extractMergerCounterparty(
