@@ -5,6 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { globalServiceRegistry } from "workglow";
 import { withSqliteDb } from "../../config/testing/withSqliteDb";
 import { getDb } from "../../util/db";
@@ -19,6 +21,8 @@ const deal = (cik: number, deal_index: number, overrides: Partial<SpacDeal> = {}
   deal_index,
   target_name: null,
   target_cik: null,
+  target_description: null,
+  loi_date: null,
   announced_date: null,
   definitive_agreement_date: null,
   proxy_date: null,
@@ -98,5 +102,45 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
       >(`SELECT redemption_amount FROM spac_deal WHERE cik = ? AND deal_index = ?`)
       .get(320193, 0);
     expect(seededRedemption?.redemption_amount ?? null).toBeNull();
+  });
+
+  it("persists loi_date and target_description through the raw SQL upsert", async () => {
+    // Live: Blue Water Acquisition IV (CIK 2082847) extracted an LOI (Maha
+    // Capital AB, 2026-04-28) and appendEvent wrote the `loi` event, but
+    // deriveDeals' loi_date never reached the row — the SQLite/Postgres
+    // INSERT lists predated those columns. Status stayed `ipo`.
+    const dealRepo = globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN);
+    await recomputeSpacDeals({
+      dealRepo,
+      cik: 2082847,
+      toDelete: [],
+      toUpsert: [
+        deal(2082847, 0, {
+          loi_date: "2026-04-28",
+          target_description: "Maha Capital AB subsidiaries",
+          source_accession: "0001493152-26-019396",
+        }),
+      ],
+    });
+    const row = await dealRepo.get({ cik: 2082847, deal_index: 0 });
+    expect(row?.loi_date).toBe("2026-04-28");
+    expect(row?.target_description).toBe("Maha Capital AB subsidiaries");
+  });
+});
+
+describe("recomputeSpacDeals SQL lists every deal column", () => {
+  it("both backend INSERTs write loi_date and target_description", () => {
+    const src = readFileSync(
+      fileURLToPath(new URL("./SpacDealReplace.ts", import.meta.url)),
+      "utf8"
+    );
+    const inserts = [...src.matchAll(/INSERT(?: OR REPLACE)? INTO "spac_deal"[\s\S]*?VALUES/g)].map(
+      (m) => m[0]
+    );
+    expect(inserts).toHaveLength(2);
+    for (const sql of inserts) {
+      expect(sql).toContain('"loi_date"');
+      expect(sql).toContain('"target_description"');
+    }
   });
 });

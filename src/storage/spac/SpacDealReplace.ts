@@ -65,6 +65,8 @@ function replaceSqlite(
       string | null,
       string | null,
       string | null,
+      string | null,
+      string | null,
       number | null,
       number | null,
       number | null,
@@ -76,11 +78,11 @@ function replaceSqlite(
     unknown
   >(
     `INSERT OR REPLACE INTO "spac_deal"
-      ("cik", "deal_index", "target_name", "target_cik", "announced_date",
-       "definitive_agreement_date", "proxy_date", "vote_date", "pipe_amount",
-       "redemption_amount", "redemption_shares", "outcome", "outcome_date",
-       "source_accession", "created_at")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ("cik", "deal_index", "target_name", "target_cik", "target_description",
+       "loi_date", "announced_date", "definitive_agreement_date", "proxy_date",
+       "vote_date", "pipe_amount", "redemption_amount", "redemption_shares",
+       "outcome", "outcome_date", "source_accession", "created_at")
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const tx = db.transaction(
     (del: ReadonlyArray<SpacDeal>, ups: ReadonlyArray<SpacDeal>) => {
@@ -93,6 +95,8 @@ function replaceSqlite(
           d.deal_index,
           d.target_name,
           d.target_cik,
+          d.target_description,
+          d.loi_date,
           d.announced_date,
           d.definitive_agreement_date,
           d.proxy_date,
@@ -152,14 +156,16 @@ async function runPostgresOps(
   for (const d of toUpsert) {
     await client.query(
       `INSERT INTO "spac_deal"
-        ("cik", "deal_index", "target_name", "target_cik", "announced_date",
-         "definitive_agreement_date", "proxy_date", "vote_date", "pipe_amount",
-         "redemption_amount", "redemption_shares", "outcome", "outcome_date",
-         "source_accession", "created_at")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        ("cik", "deal_index", "target_name", "target_cik", "target_description",
+         "loi_date", "announced_date", "definitive_agreement_date", "proxy_date",
+         "vote_date", "pipe_amount", "redemption_amount", "redemption_shares",
+         "outcome", "outcome_date", "source_accession", "created_at")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT ("cik", "deal_index") DO UPDATE SET
          "target_name" = EXCLUDED."target_name",
          "target_cik" = EXCLUDED."target_cik",
+         "target_description" = EXCLUDED."target_description",
+         "loi_date" = EXCLUDED."loi_date",
          "announced_date" = EXCLUDED."announced_date",
          "definitive_agreement_date" = EXCLUDED."definitive_agreement_date",
          "proxy_date" = EXCLUDED."proxy_date",
@@ -176,6 +182,8 @@ async function runPostgresOps(
         d.deal_index,
         d.target_name,
         d.target_cik,
+        d.target_description,
+        d.loi_date,
         d.announced_date,
         d.definitive_agreement_date,
         d.proxy_date,
