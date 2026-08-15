@@ -54,5 +54,9 @@ describe("componentRegistry", () => {
     // 16 extractors + 4 resolvers (person, company, sponsor-family,
     // underwriter-family).
     expect(listRegisteredComponents()).toHaveLength(21);
+    // 18 extractors (D, C, CFPORTAL, 1-A, 1-K, 1-Z, 3, 4, 5, 144, S-1, 424,
+    // 8-K, merger-proxy, redemption, loi, 25-15, RW) + 4 resolvers (person,
+    // company, sponsor-family, underwriter-family).
+    expect(listRegisteredComponents()).toHaveLength(22);
   });
 });
