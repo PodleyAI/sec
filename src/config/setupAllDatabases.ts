@@ -83,6 +83,11 @@ import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KE
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
 import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
+import {
+  addMissingColumnsPostgres,
+  addMissingColumnsSqlite,
+  shouldAddMissingColumns,
+} from "./addMissingColumns";
 import { CANONICAL_COMPANY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalCompanySchema";
 import {
   CANONICAL_COMPANY_ADDRESS_REPOSITORY_TOKEN,
@@ -106,7 +111,6 @@ import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-p
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../storage/classification/S1ClassificationSchema";
 import { getDb } from "../util/db";
-import { getPgPool } from "../util/pg";
 import { setupSecFetchRateLimiter } from "../task/fetch/SecJobQueue";
 import { bootstrapComponentVersions } from "../storage/versioning/bootstrapComponentVersions";
 import { registerSecResolvers } from "./registerResolvers";
@@ -235,11 +239,17 @@ export async function setupAllDatabases(): Promise<void> {
   for (const token of listDatabaseExtensionTokens()) {
     await globalServiceRegistry.get(token).setupDatabase();
   }
-  // Widen / relax any column an existing Postgres database still has at a
-  // narrower or stricter shape than the current schema declares. Runs after the
-  // extension loop because the table registry is only fully populated once every
-  // superset has built its repos through createStorage. A no-op on a fresh DB
-  // (the DDL above already uses the current shape) and on non-Postgres backends.
+  // Add any column an existing database is missing outright, then widen / relax
+  // any it still has at a narrower or stricter shape than the schema declares.
+  // Both run after the extension loop, because the table registry is only fully
+  // populated once every superset has built its repos through createStorage.
+  //
+  // Order matters: a column added by the first pass is then eligible for the
+  // second in the same `db setup`, rather than waiting for the next one. Both
+  // are no-ops on a fresh database, whose DDL already uses the current shape.
+  if (shouldAddMissingColumns("postgres")) {
+    await addMissingColumnsPostgres();
+  }
   await alignPostgresColumnTypes();
   // View DDL is created here only on the SQLite path; the Postgres backend
   // owns its own view bootstrap (and getDb() now throws when SEC_DB_TYPE
@@ -255,7 +265,13 @@ export async function setupAllDatabases(): Promise<void> {
       db.exec(ddl);
     }
     backfillExtractorRunsOutcome(db);
-    ensureSpacCurrentTrustColumnsSqlite(db);
+    // Generic, and it subsumes the hand-written `spac.current_trust_*` pass
+    // that used to sit here: every one of those columns is nullable, so the
+    // planner emits exactly the same three ALTERs for each of `spac` and
+    // `spac_history`. `backfillExtractorRunsOutcome` stays hand-rolled — it
+    // seeds `outcome` from the existing `success` flag, which no generic
+    // add-column pass can express.
+    addMissingColumnsSqlite(db);
   }
   // Ensure sec's resolver kinds are in the ResolverExtensionRegistry before we
   // seed component-version rows: bootstrapComponentVersions() enumerates the
@@ -270,7 +286,6 @@ export async function setupAllDatabases(): Promise<void> {
   // budget across processes without each process racing to create the DDL.
   if (dbType === "postgres" && !isDryRun()) {
     await setupSecFetchRateLimiter();
-    await ensureSpacCurrentTrustColumnsPostgres();
   }
 }
 
@@ -288,38 +303,4 @@ function backfillExtractorRunsOutcome(db: Sqlite.Database): void {
   db.exec(
     `UPDATE \`extractor_runs\` SET outcome = CASE WHEN success = 1 OR success = 'true' THEN 'success' ELSE 'failure' END`
   );
-}
-
-const SPAC_TRUST_COLUMNS: ReadonlyArray<{
-  readonly name: string;
-  readonly sqlite: string;
-  readonly postgres: string;
-}> = [
-  { name: "current_trust_amount", sqlite: "REAL", postgres: "NUMERIC" },
-  { name: "current_trust_as_of", sqlite: "TEXT", postgres: "DATE" },
-  { name: "current_trust_filed", sqlite: "TEXT", postgres: "DATE" },
-];
-
-/** Existing DBs were created before current_trust_*; CREATE TABLE IF NOT EXISTS is a no-op. */
-function ensureSpacCurrentTrustColumnsSqlite(db: Sqlite.Database): void {
-  for (const table of ["spac", "spac_history"]) {
-    const cols = db.prepare<[], { name: string }>(`PRAGMA table_info(\`${table}\`)`).all();
-    if (cols.length === 0) continue;
-    const have = new Set(cols.map((c) => c.name));
-    for (const col of SPAC_TRUST_COLUMNS) {
-      if (have.has(col.name)) continue;
-      db.exec(`ALTER TABLE \`${table}\` ADD COLUMN ${col.name} ${col.sqlite}`);
-    }
-  }
-}
-
-async function ensureSpacCurrentTrustColumnsPostgres(): Promise<void> {
-  const pool = getPgPool();
-  for (const table of ["spac", "spac_history"]) {
-    for (const col of SPAC_TRUST_COLUMNS) {
-      await pool.query(
-        `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.postgres}`
-      );
-    }
-  }
 }

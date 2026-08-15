@@ -10,6 +10,7 @@ import { secFetchRateLimiterLedgerComponents } from "../task/fetch/SecJobQueue";
 import { secFetchRateLimiterTableNames } from "../task/fetch/secFetchRateLimiterConfig";
 import { getDb } from "../util/db";
 import { getPgPool } from "../util/pg";
+import { currentSchemaName, quote } from "../util/pgIdentifiers";
 import { listDatabaseExtensionTokens, runDatabaseSetupHooks } from "./databaseExtensions";
 import { listRegisteredTables } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
@@ -204,18 +205,6 @@ export function ownedTableNames(): ReadonlyArray<string> {
   return [...listRegisteredTables().map((t) => t.table), ...secFetchRateLimiterTableNames()];
 }
 
-/** The schema sec's tables live in, i.e. the one `CREATE TABLE` writes to. */
-async function currentSchemaName(client: {
-  query: (sql: string) => Promise<{ rows: { name: string }[] }>;
-}): Promise<string> {
-  const result = await client.query("SELECT current_schema() AS name");
-  const name = result.rows[0]?.name;
-  if (!name) {
-    throw new Error("db reset: the connection has no current schema (empty search_path).");
-  }
-  return name;
-}
-
 async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
   const pool = getPgPool();
   const client = await pool.connect();
@@ -226,7 +215,7 @@ async function resetPostgres(options: ResetAllDatabasesOptions): Promise<void> {
     // path. That is exactly the unowned-object destruction this reset exists to
     // avoid, and it is the common shape: sec in its own schema with `public`
     // still on the path.
-    const schema = await currentSchemaName(client);
+    const schema = await currentSchemaName(client, "db reset");
     const qualify = (object: string): string => `"${quote(schema)}"."${quote(object)}"`;
 
     if (options.dropSchema) {
@@ -355,10 +344,6 @@ function resetSqlite(options: ResetAllDatabasesOptions): void {
   } finally {
     db.exec("PRAGMA foreign_keys = ON");
   }
-}
-
-function quote(identifier: string): string {
-  return identifier.replace(/"/g, '""');
 }
 
 /**

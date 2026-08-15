@@ -86,7 +86,11 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     // the ones `db setup` actually applies — an empty plan IS "the live schema
     // matches every declared column".
     const live = await liveColumns();
-    expect(planColumnAlignment(listRegisteredTables(), live).map((s) => s.sql)).toEqual([]);
+    // The schema is only used to qualify the statements; an empty plan has
+    // none, so any name does.
+    expect(planColumnAlignment(listRegisteredTables(), live, "public").map((s) => s.sql)).toEqual(
+      []
+    );
     expect(
       live.find((c) => c.table === "addresses" && c.column === "state_or_country")?.isNullable
     ).toBe(true);
