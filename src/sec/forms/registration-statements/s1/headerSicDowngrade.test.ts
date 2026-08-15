@@ -96,4 +96,25 @@ describe("header-SIC downgrade", () => {
     const pending = await new ExtractionDeadLetterRepo().listPending("S-1");
     expect(pending.some((e) => e.section_name === "converter")).toBe(false);
   });
+
+  it("keeps a small blank-check shell whose summary says so only once", () => {
+    // `Lucent, Inc.` (CIK 1778343), a Montana shell registering a $30,000
+    // offering. Its summary states outright that it is a blank check company —
+    // but that phrase is its ONLY signal, because a shell of this size has no
+    // trust account, no founder shares and no sponsor. Demoting it deletes the
+    // spac row for a filing that self-identifies as a blank check.
+    const summary = pad(
+      "The Company has been in the developmental stage since inception and has no " +
+        "operations to date. The Company can be defined as a shell company, whose sole " +
+        "purpose at this time is to locate and consummate a merger or acquisition with a " +
+        "private entity. The proposed business activities described herein classify the " +
+        "Company as a blank check company.",
+      8
+    );
+    return processFormS1(runArgs(1778343, "0000000000-26-000005", summary)).then(async () => {
+      const row = await new S1ClassificationRepo().get("S-1", "0000000000-26-000005");
+      expect(row?.is_spac).toBe(true);
+      expect(row?.classifier_source).toBe("sgml-header");
+    });
+  });
 });

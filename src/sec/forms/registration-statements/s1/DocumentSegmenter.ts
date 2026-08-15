@@ -34,6 +34,10 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*(our\s+)?management\s*$/i,
     /^\s*executive officers(,| and)? (and )?directors\s*$/i,
     /^\s*directors and executive officers\s*$/i,
+    // The Item 401 heading a smaller reporting company uses, which adds the
+    // "promoters and control persons" clause the larger form omits. It is the
+    // same roster, and without it a shell registrant's S-1 yields no people.
+    /^\s*directors,? (and )?executive officers,? promoters and control persons\s*$/i,
     // Item 6 of Form 20-F, which is the vocabulary a foreign private issuer's
     // F-1 uses. `FORM_TO_EXTRACTOR_ID` routes F-1 here and
     // `SPAC_REGISTRATION_FORMS` lists it ("many SPACs are Cayman"), but the

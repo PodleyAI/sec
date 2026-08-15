@@ -79,6 +79,26 @@ const CONVERTER_SECTION = "converter";
  * language can demote a 6770 header SIC. See the downgrade block below.
  */
 const MIN_SUMMARY_CHARS_TO_DEMOTE = 2_000;
+/**
+ * Blank-check signals a summary needs before the 6770 header stands — i.e. the
+ * header is demoted only on a summary carrying **none**.
+ *
+ * Deliberately looser than `looksLikeBlankCheck`'s default of 2, because the two
+ * callers ask the same question with opposite error costs. As the AI pre-filter,
+ * a false negative skips a model call. Here, a false negative deletes the
+ * `spac` row and with it the whole 8-K / merger-proxy / Form 25-15 tier.
+ *
+ * At 2 it demoted `Lucent, Inc.` — a Montana shell whose summary states "the
+ * proposed business activities described herein classify the Company as a
+ * 'blank check' company" — because the phrase is its ONLY signal: a small
+ * blank-check shell has no trust account, no founder shares and no sponsor, so
+ * it never reaches the SPAC-IPO vocabulary the list is built from. Measured over
+ * the committed corpus, all 20 labelled SPAC summaries carry ≥2 signals and
+ * every non-SPAC with a 6770 header (Ionetix, Moolec, Zhong Yuan) carries zero,
+ * so demoting only at zero separates every observed case and keeps the
+ * borderline ones on today's behavior.
+ */
+const DEMOTE_MIN_BLANK_CHECK_SIGNALS = 1;
 // Stays 1.0.0: there is no persisted data to re-extract, so the version-bump
 // ceremony — which exists only to make old dead-letters retry-eligible after a
 // prompt/schema change — is moot (and the runtime version is bootstrap-seeded
@@ -488,7 +508,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // real one while still excluding a fragment.
   if (isSpac) {
     const summary = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
-    if (summary.length >= MIN_SUMMARY_CHARS_TO_DEMOTE && !looksLikeBlankCheck(summary)) {
+    if (
+      summary.length >= MIN_SUMMARY_CHARS_TO_DEMOTE &&
+      !looksLikeBlankCheck(summary, DEMOTE_MIN_BLANK_CHECK_SIGNALS)
+    ) {
       isSpac = false;
       await new S1ClassificationRepo().save({
         extractor_id: EXTRACTOR_ID,
