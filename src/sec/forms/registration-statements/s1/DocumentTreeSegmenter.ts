@@ -13,12 +13,30 @@ import {
   SECTION_HEADING_PATTERNS,
 } from "./DocumentSegmenter";
 
-function matchTarget(title: string): S1SectionName | null {
-  const line = title.replace(/\s+/g, " ").trim();
+function matchPatterns(line: string): S1SectionName | null {
   for (const name of Object.keys(SECTION_HEADING_PATTERNS) as S1SectionName[]) {
     if (SECTION_HEADING_PATTERNS[name].some((re) => re.test(line))) return name;
   }
   return null;
+}
+
+/**
+ * A page number or footnote marker a converter fuses onto the end of a heading.
+ *
+ * `BurTech Acquisition Corp.` renders its ownership heading as
+ * `PRINCIPAL STOCKHOLDERS3` — the anchor's superscript reference glued straight
+ * on — and the whole table was lost to it. Bounded to three digits (page
+ * numbers run to the hundreds) and only tried when the heading did not match as
+ * printed, so it can never change what an unambiguous heading resolves to.
+ */
+const TRAILING_PAGE_MARKER = /\s*\d{1,3}$/;
+
+function matchTarget(title: string): S1SectionName | null {
+  const line = title.replace(/\s+/g, " ").trim();
+  const direct = matchPatterns(line);
+  if (direct !== null) return direct;
+  const trimmed = line.replace(TRAILING_PAGE_MARKER, "");
+  return trimmed === line ? null : matchPatterns(trimmed);
 }
 
 /**

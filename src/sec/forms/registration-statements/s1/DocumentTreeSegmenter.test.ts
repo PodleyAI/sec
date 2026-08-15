@@ -288,6 +288,34 @@ describe("DocumentTreeSegmenter", () => {
     expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
   });
 
+  describe("a heading a converter fused a page marker onto", () => {
+    // `BurTech Acquisition Corp.` renders `PRINCIPAL STOCKHOLDERS3`, the
+    // anchor's superscript glued on, and the whole ownership table was lost.
+    it("matches through the trailing marker", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PRINCIPAL STOCKHOLDERS3</p>
+          <p>The following table sets forth beneficial ownership of our shares.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const owners = sections.find((s) => s.name === S1_SECTIONS.BENEFICIAL_OWNERSHIP)?.text ?? "";
+      expect(owners).toContain("beneficial ownership");
+    });
+
+    it("does not let the marker change an unambiguous heading", () => {
+      // The heading as printed matches, so the trimmed retry never runs.
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">USE OF PROCEEDS</p>
+          <p>We will receive gross proceeds of $100,000,000.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      expect(sections.find((s) => s.name === S1_SECTIONS.USE_OF_PROCEEDS)?.text).toContain(
+        "gross proceeds"
+      );
+    });
+  });
+
   describe("the nesting fallback is general, minus the restating container", () => {
     // A pair nothing declares: `Harvard Ave Acquistion Corp` (CIK 2042460) bolds
     // its sponsor block inside MANAGEMENT, which no list of (target, container)

@@ -41,8 +41,11 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     // Item 6 of Form 20-F, which is the vocabulary a foreign private issuer's
     // F-1 uses. `FORM_TO_EXTRACTOR_ID` routes F-1 here and
     // `SPAC_REGISTRATION_FORMS` lists it ("many SPACs are Cayman"), but the
-    // heading list was domestic-only, so an F-1 yielded no roster at all.
-    /^\s*(board of )?directors,?( senior| and executive)? management( and employees)?\s*$/i,
+    // heading list was domestic-only, so an F-1 yielded no roster at all. The
+    // conjunction stands alone as well as qualifying a word — `Fusion Fuel
+    // Green PLC` heads its roster `DIRECTORS AND MANAGEMENT`, which an
+    // alternation of only " senior" / " and executive" does not reach.
+    /^\s*(board of )?directors,?( senior| and( executive)?)? management( and employees)?\s*$/i,
     // SPAC prospectuses often brand this section rather than titling it
     // "Management" — Constellation Acquisition I's 2021 S-1 heads it "Our Team"
     // (anchored `<A NAME="OurTeam">`, followed by the officers-and-directors
@@ -81,7 +84,11 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
   ],
   [S1_SECTIONS.UNDERWRITING]: [
     /^\s*underwriting\s*$/i,
-    /^\s*underwriting\s*\(conflicts of interest\)\s*$/i,
+    // The FINRA Rule 5121 qualifier, which filers punctuate as a parenthetical
+    // or as a dash clause. `TPG Pace Beneficial Finance Corp.` heads it
+    // `UNDERWRITING—CONFLICTS OF INTEREST` with an em dash and no spaces, and
+    // the parenthesized form alone lost the whole underwriter list.
+    /^\s*underwriting\s*(\(conflicts of interest\)|[-–—:]\s*conflicts of interest)\s*$/i,
     /^\s*plan of distribution\s*$/i,
   ],
   [S1_SECTIONS.USE_OF_PROCEEDS]: [/^\s*use of proceeds\s*$/i],
