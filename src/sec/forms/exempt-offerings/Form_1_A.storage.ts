@@ -47,10 +47,7 @@ import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
 import type { RegAFinancialData } from "../../../storage/reg-a/RegAFinancialDataSchema";
 import type { RegAEquityClass } from "../../../storage/reg-a/RegAEquityClassSchema";
-import {
-  extractServiceProviders,
-  RELATION_TYPE_REGA_SERVICE_PROVIDER,
-} from "./RegA_shared";
+import { extractServiceProviders, RELATION_TYPE_REGA_SERVICE_PROVIDER } from "./RegA_shared";
 import type { Form1A } from "./Form_1_A.schema";
 import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
@@ -81,7 +78,11 @@ interface Form1AStorageContext {
   readonly observer: EntityObserver;
 }
 
-async function processIssuer(cik: number, form1A: Form1A, ctx: Form1AStorageContext): Promise<void> {
+async function processIssuer(
+  cik: number,
+  form1A: Form1A,
+  ctx: Form1AStorageContext
+): Promise<void> {
   const addressRepo = new AddressRepo();
   const phoneRepo = new PhoneRepo();
 
@@ -98,10 +99,7 @@ async function processIssuer(cik: number, form1A: Form1A, ctx: Form1AStorageCont
       zipCode: issuerInfo.zipCode,
     });
   } catch (error) {
-    console.warn(
-      `Failed to save address for Form 1-A issuer ${employeesInfo.issuerName}:`,
-      error
-    );
+    console.warn(`Failed to save address for Form 1-A issuer ${employeesInfo.issuerName}:`, error);
   }
 
   let phone: Awaited<ReturnType<typeof phoneRepo.savePhone>> | null = null;
@@ -130,7 +128,11 @@ async function processIssuer(cik: number, form1A: Form1A, ctx: Form1AStorageCont
   });
 }
 
-async function processConnection(cik: number, form1A: Form1A, ctx: Form1AStorageContext): Promise<void> {
+async function processConnection(
+  cik: number,
+  form1A: Form1A,
+  ctx: Form1AStorageContext
+): Promise<void> {
   const issuerInfo = form1A.formData.issuerInfo;
   if (!issuerInfo.connectionName) return;
 
@@ -301,32 +303,58 @@ async function processFinancialData(
  */
 const EQUITY_CLASS_NAME_PLACEHOLDERS = new Set(["", "N/A", "NA", "NONE", "0", "-", "--"]);
 
+/** The single spelling every placeholder above is stored as. */
+const EQUITY_CLASS_NAME_SENTINEL = "N/A";
+
+/** True when the filer wrote nothing usable in the class-name field. */
+function isPlaceholderEquityClassName(className: string | null | undefined): boolean {
+  if (className == null) return true;
+  return EQUITY_CLASS_NAME_PLACEHOLDERS.has(className.trim().toUpperCase());
+}
+
 /**
- * An equity block the filer left blank is an absence, not a class.
+ * The name to store, collapsing every "not applicable" spelling onto one.
  *
- * `class_name` is a component of `rega_equity_classes`' primary key, so
- * PostgreSQL forces it NOT NULL — a row written with a null name fails the
- * whole filing. (The typebox schema declares the column nullable, which is the
- * contradiction; the key is the half that is right.) Form 1-A always carries
- * all three blocks, and an issuer with no debt securities simply leaves the debt
- * one empty, so writing a row per block also puts a phantom "debt" class in
- * front of every such issuer in the UI.
+ * `class_name` is the fifth component of `rega_equity_classes`' primary key, so
+ * PostgreSQL forces it NOT NULL — a row written with a null name fails the whole
+ * filing. Normalizing rather than dropping is what keeps a real disclosure whose
+ * name field happens to be blank: filers routinely report a class with millions
+ * of shares outstanding and write `N/A` in the name, and that class is the only
+ * common-equity disclosure the filing carries.
  *
- * Both halves of that matter, because the null is only the crashing case and it
- * is not the common one. Across the committed fixtures filers spell the same
- * "not applicable" ten different ways — the element omitted entirely (Vortex
- * Brands, which is what crashed), `N/A` / `NA` / `n/a`, `None` / `NONE`, `0`
- * and `-`. Filtering only the null would fix the crash and still store the
- * other nine as if they were real securities, so the placeholder set is
- * rejected as a whole. Storing `None` as a debt class is not a smaller error
- * than crashing on the absent one; it is the same error, silently.
- *
- * Anything with a real name is stored as filed, including a zero `outstanding`:
- * a class that exists but is currently unissued is a disclosure, not a blank.
+ * Collapsing the ten observed spellings onto one sentinel also keeps the key
+ * stable: `NONE` and `None` and `-` would otherwise be three distinct rows for
+ * one absent class, and a filer who changes spelling between amendments would
+ * mint a new row instead of updating the old one.
  */
-function hasEquityClassName(className: string | null | undefined): boolean {
-  if (className == null) return false;
-  return !EQUITY_CLASS_NAME_PLACEHOLDERS.has(className.trim().toUpperCase());
+function equityClassNameForStorage(className: string | null | undefined): string {
+  if (isPlaceholderEquityClassName(className)) return EQUITY_CLASS_NAME_SENTINEL;
+  return className!.trim();
+}
+
+/**
+ * An equity block the filer left entirely blank is an absence, not a class.
+ *
+ * Form 1-A always carries all three blocks, so an issuer with no debt securities
+ * simply leaves the debt one empty. Storing those would put a phantom "debt"
+ * class in front of every such issuer. The test is substance, not name: a block
+ * is skipped only when it has a placeholder name AND reports nothing at all.
+ *
+ * A named class with zero `outstanding` is still stored — a class that exists
+ * but is currently unissued is a disclosure, not a blank — and so is an unnamed
+ * class that reports real figures, which is the case normalization exists for.
+ */
+function hasEquityClassSubstance(
+  className: string | null | undefined,
+  outstanding: number | null | undefined,
+  cusip: string | null | undefined,
+  publiclyTraded: string | null | undefined
+): boolean {
+  if (!isPlaceholderEquityClassName(className)) return true;
+  if (outstanding != null && outstanding > 0) return true;
+  if (cusip != null && cusip.trim() !== "") return true;
+  if (publiclyTraded != null && publiclyTraded.trim() !== "") return true;
+  return false;
 }
 
 async function processEquityClasses(
@@ -338,13 +366,21 @@ async function processEquityClasses(
   const regARepo = new RegAOfferingRepo();
 
   for (const eq of form1A.formData.commonEquity) {
-    if (!hasEquityClassName(eq.commonEquityClassName)) continue;
+    if (
+      !hasEquityClassSubstance(
+        eq.commonEquityClassName,
+        eq.outstandingCommonEquity,
+        eq.commonCusipEquity,
+        eq.publiclyTradedCommonEquity
+      )
+    )
+      continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
       accession_number,
       equity_type: "common",
-      class_name: eq.commonEquityClassName ?? null,
+      class_name: equityClassNameForStorage(eq.commonEquityClassName),
       outstanding: eq.outstandingCommonEquity,
       cusip: eq.commonCusipEquity ?? null,
       publicly_traded: eq.publiclyTradedCommonEquity ?? null,
@@ -353,13 +389,21 @@ async function processEquityClasses(
   }
 
   for (const eq of form1A.formData.preferredEquity) {
-    if (!hasEquityClassName(eq.preferredEquityClassName)) continue;
+    if (
+      !hasEquityClassSubstance(
+        eq.preferredEquityClassName,
+        eq.outstandingPreferredEquity,
+        eq.preferredCusipEquity,
+        eq.publiclyTradedPreferredEquity
+      )
+    )
+      continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
       accession_number,
       equity_type: "preferred",
-      class_name: eq.preferredEquityClassName ?? null,
+      class_name: equityClassNameForStorage(eq.preferredEquityClassName),
       outstanding: eq.outstandingPreferredEquity,
       cusip: eq.preferredCusipEquity ?? null,
       publicly_traded: eq.publiclyTradedPreferredEquity ?? null,
@@ -368,13 +412,21 @@ async function processEquityClasses(
   }
 
   for (const eq of form1A.formData.debtSecurities) {
-    if (!hasEquityClassName(eq.debtSecuritiesClassName)) continue;
+    if (
+      !hasEquityClassSubstance(
+        eq.debtSecuritiesClassName,
+        eq.outstandingDebtSecurities,
+        eq.cusipDebtSecurities,
+        eq.publiclyTradedDebtSecurities
+      )
+    )
+      continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
       accession_number,
       equity_type: "debt",
-      class_name: eq.debtSecuritiesClassName ?? null,
+      class_name: equityClassNameForStorage(eq.debtSecuritiesClassName),
       outstanding: eq.outstandingDebtSecurities,
       cusip: eq.cusipDebtSecurities ?? null,
       publicly_traded: eq.publiclyTradedDebtSecurities ?? null,

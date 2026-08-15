@@ -228,13 +228,15 @@ describe("Form_1_A storage test", () => {
         const stored = await regARepo.getEquityClassesByFiling(cik, fileNumber, accessionNumber);
 
         // No stored row may carry a null/blank name — that is the row Postgres
-        // rejects — and none may carry a placeholder, which would render as a
-        // debt class named "None" on the public Reg A page.
+        // rejects. Every other "not applicable" spelling is normalized onto the
+        // single "N/A" sentinel, so those must not survive either: "None", "0"
+        // and "-" would each render as a debt class by that name on the public
+        // Reg A page, and as separate primary keys for one absent class.
         for (const row of stored) {
           expect(row.class_name, `${file} stored a null class_name`).not.toBeNull();
           expect(
-            ["N/A", "NA", "NONE", "0", "-", ""],
-            `${file} stored placeholder class_name ${JSON.stringify(row.class_name)}`
+            ["NA", "NONE", "0", "-", "--", ""],
+            `${file} stored un-normalized placeholder ${JSON.stringify(row.class_name)}`
           ).not.toContain((row.class_name ?? "").trim().toUpperCase());
         }
 
