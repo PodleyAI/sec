@@ -59,6 +59,17 @@ export const DEAD_LETTER_REASON_CODES = [
   // quota window, then retry". Merging them would make the worklist counts
   // unreadable during exactly the outage an operator would be triaging.
   "RATE_LIMITED",
+  // The HTML converter produced a document with essentially no structure, so
+  // the tree walk found no sections to extract from. Distinct from
+  // SECTION_NOT_FOUND, which says "this filing has no such section" — a true and
+  // ordinary answer for an incorporation-by-reference S-1. This says "we could
+  // not read the prospectus", and only the second is a bug report. Recorded
+  // under its own `converter` section name — the filing-level `""` key belongs
+  // to ProcessAccessionDocFormTask's fetch/parse/store staging, which resolves
+  // it after a successful store and would clear this entry on the run that
+  // recorded it — alongside whatever the line-scan fallback recovered, because
+  // recovering a filing is not the same as the converter having worked.
+  "CONVERTER_NO_STRUCTURE",
 ] as const;
 export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 

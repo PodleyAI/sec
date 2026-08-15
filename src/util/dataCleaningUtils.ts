@@ -121,6 +121,38 @@ export function foldDiacritics(s: string): string {
 }
 
 /**
+ * A trailing `/XX` state-of-incorporation marker EDGAR appends to a conformed
+ * name when it needs to disambiguate one: `Churchill Capital Corp IX/Cayman`,
+ * `Gores Holdings X, Inc. / CI`, `Ionetix Corp / DE /`.
+ *
+ * Alphabetic and short, anchored at end of string, with an optional trailing
+ * slash. Bounded that tightly because it deletes a token: a name that genuinely
+ * ends in `/ Something` is indistinguishable from EDGAR's marker, so the rule
+ * only fires where the marker's own shape holds.
+ */
+const EDGAR_JURISDICTION_SUFFIX = /\s*\/\s*[A-Za-z]{2,8}\s*\/?\s*$/;
+
+/**
+ * Drops that marker, so the identity and family tiers see the name the filer
+ * actually uses.
+ *
+ * It is not cosmetic on either tier. `companyFamilyName` keeps the marker as a
+ * token, which splits one sponsor's vehicles into two families
+ * (`churchill-capital` vs `churchill-capital-corp-cayman`); and
+ * `normalizeCompanyName` cannot strip the legal form behind it, because
+ * `\bCORP\b$` does not reach past the attached `/Cayman` — so
+ * `Blue Acquisition Corp/Cayman` and `Blue Acquisition Corp` mint two canonical
+ * companies.
+ *
+ * Never empties the name: a bare `/DE` keeps its own text rather than
+ * collapsing to `""` alongside every other such string.
+ */
+export function stripEdgarJurisdictionSuffix(name: string): string {
+  const stripped = name.replace(EDGAR_JURISDICTION_SUFFIX, "").trim();
+  return stripped === "" ? name.trim() : stripped;
+}
+
+/**
  * Returns today's date in YYYY-MM-DD format
  */
 export function todayYYYYdMMdDD(): string {

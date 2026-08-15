@@ -17,6 +17,7 @@ const facts = (over: Partial<SpacCandidateFacts>): SpacCandidateFacts => ({
   cik: 1,
   name: null,
   current_sic: null,
+  filed_sic_6770: null,
   first_reg_form: null,
   first_reg_date: null,
   renamed_from: null,
@@ -333,5 +334,62 @@ describe("classifySpacCandidate", () => {
       AT
     );
     expect(row).toMatchObject({ confidence: "medium", reg_while_spac_named: true });
+  });
+});
+
+describe("the as-filed header SIC signal", () => {
+  // Every one of these is a real completed de-SPAC that recoded AND renamed, so
+  // the current SIC and both name signals are gone at once. Their registration
+  // statements still read 6770, which is the only thing that remembers.
+  const deSpacs = [
+    { cik: 1819848, name: "Joby Aviation, Inc.", current_sic: 3721 },
+    { cik: 1801169, name: "Opendoor Technologies Inc.", current_sic: 6531 },
+    { cik: 1828105, name: "Hippo Holdings Inc.", current_sic: 6331 },
+    { cik: 1800347, name: "E2open Parent Holdings, Inc.", current_sic: 7374 },
+    { cik: 1816613, name: "Markforged Holding Corp", current_sic: 3577 },
+    { cik: 1826011, name: "Banzai International, Inc.", current_sic: 7372 },
+  ];
+
+  it("drops a completed de-SPAC when nothing remembers it was one", () => {
+    for (const d of deSpacs) {
+      const row = classifySpacCandidate(
+        facts({ ...d, first_reg_form: "S-1", first_reg_date: "2020-08-31" }),
+        AT
+      );
+      expect(row, `${d.name} without the header signal`).toBeNull();
+    }
+  });
+
+  it("keeps it at high when its registration was filed under a 6770 header", () => {
+    for (const d of deSpacs) {
+      const row = classifySpacCandidate(
+        facts({
+          ...d,
+          filed_sic_6770: true,
+          first_reg_form: "S-1",
+          first_reg_date: "2020-08-31",
+        }),
+        AT
+      );
+      expect(row?.confidence, d.name).toBe("high");
+      expect(row?.signal_sic_6770, d.name).toBe(false);
+      expect(row?.signal_filed_sic_6770, d.name).toBe(true);
+    }
+  });
+
+  it("treats an unparsed registration as unknown, not as a negative", () => {
+    // `null` means the forms pipeline has not read the filing yet, which must
+    // not read as "its header said something other than 6770".
+    const row = classifySpacCandidate(
+      facts({
+        name: "Some Acquisition Corp",
+        filed_sic_6770: null,
+        first_reg_form: "S-1",
+        first_reg_date: "2021-01-01",
+      }),
+      AT
+    );
+    expect(row?.confidence).toBe("high");
+    expect(row?.signal_filed_sic_6770).toBeNull();
   });
 });

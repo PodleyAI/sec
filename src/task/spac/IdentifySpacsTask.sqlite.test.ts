@@ -11,6 +11,7 @@ import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../../storage/entity/EntityHist
 import { ENTITY_REPOSITORY_TOKEN } from "../../storage/entity/EntitySchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../storage/spac/SpacCandidateSchema";
 import { IdentifySpacsTask } from "./IdentifySpacsTask";
 
@@ -33,6 +34,7 @@ describe("IdentifySpacsTask pruning (sqlite)", () => {
     ENTITY_HISTORY_REPOSITORY_TOKEN,
     FILING_REPOSITORY_TOKEN,
     PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+    S1_CLASSIFICATION_REPOSITORY_TOKEN,
     SPAC_CANDIDATE_REPOSITORY_TOKEN,
   ]);
 

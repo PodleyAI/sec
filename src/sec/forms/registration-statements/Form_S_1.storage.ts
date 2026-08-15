@@ -26,6 +26,7 @@ import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/Cano
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
 import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
+import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
@@ -69,6 +70,36 @@ import { extractAndStoreXbrl } from "./s1/xbrlEnrichment";
 const EXTRACTOR_ID = "S-1";
 /** Dead-letter section name for the risk-factor list. */
 const RISK_FACTORS_SECTION = "risk-factors";
+/**
+ * Dead-letter section name for the converter itself, rather than any one
+ * section: the tree carried no usable structure and the line scan stood in.
+ */
+const CONVERTER_SECTION = "converter";
+/**
+ * Characters of prospectus summary required before its silence about blank-check
+ * language can demote a 6770 header SIC. See the downgrade block below.
+ */
+const MIN_SUMMARY_CHARS_TO_DEMOTE = 2_000;
+/**
+ * Blank-check signals a summary needs before the 6770 header stands — i.e. the
+ * header is demoted only on a summary carrying **none**.
+ *
+ * Deliberately looser than `looksLikeBlankCheck`'s default of 2, because the two
+ * callers ask the same question with opposite error costs. As the AI pre-filter,
+ * a false negative skips a model call. Here, a false negative deletes the
+ * `spac` row and with it the whole 8-K / merger-proxy / Form 25-15 tier.
+ *
+ * At 2 it demoted `Lucent, Inc.` — a Montana shell whose summary states "the
+ * proposed business activities described herein classify the Company as a
+ * 'blank check' company" — because the phrase is its ONLY signal: a small
+ * blank-check shell has no trust account, no founder shares and no sponsor, so
+ * it never reaches the SPAC-IPO vocabulary the list is built from. Measured over
+ * the committed corpus, all 20 labelled SPAC summaries carry ≥2 signals and
+ * every non-SPAC with a 6770 header (Ionetix, Moolec, Zhong Yuan) carries zero,
+ * so demoting only at zero separates every observed case and keeps the
+ * borderline ones on today's behavior.
+ */
+const DEMOTE_MIN_BLANK_CHECK_SIGNALS = 1;
 // Stays 1.0.0: there is no persisted data to re-extract, so the version-bump
 // ceremony — which exists only to make old dead-letters retry-eligible after a
 // prompt/schema change — is moot (and the runtime version is bootstrap-seeded
@@ -103,6 +134,7 @@ export function sectionlessResolvableSections(): readonly string[] {
     "spac-profile",
     "spac-sponsors",
     "spac-classification",
+    CONVERTER_SECTION,
   ];
   return [...base, ...base.map((s) => `${s}-partial`)];
 }
@@ -363,10 +395,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // here would abort the whole filing with no record; instead dead-letter every
   // target section as PARSE_ERROR so the filing stays on the retry worklist.
   let byName: Map<S1SectionName, string>;
+  let usedLineScan = false;
   try {
     const doc = parseEdgarHtml(formS1.html, `S-1 ${accession_number}`);
-    const sections = new DocumentTreeSegmenter().segment(doc);
-    byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
+    const segmented = new DocumentTreeSegmenter().segmentDocument(doc);
+    usedLineScan = segmented.usedLineScan;
+    byName = new Map<S1SectionName, string>(segmented.sections.map((s) => [s.name, s.text]));
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     // The HTML failed to convert, so no profile can be extracted — still create
@@ -412,6 +446,27 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     return;
   }
 
+  // The converter produced a document with no usable structure and the line
+  // scan stood in for it. Whatever it recovered still gets extracted below —
+  // but a filing whose prospectus we could not read is a defect worth counting,
+  // and it is invisible otherwise: on the tree-walk path such a filing reported
+  // nothing but SECTION_NOT_FOUND, which is also what a legitimate
+  // incorporation-by-reference S-1 reports.
+  //
+  // Under its own section name rather than the filing-level `""`, which belongs
+  // to `ProcessAccessionDocFormTask`'s fetch/parse/store staging — that task
+  // resolves `""` after a successful store, which would clear this entry on the
+  // very run that recorded it.
+  if (usedLineScan) {
+    await recordFail(
+      CONVERTER_SECTION,
+      "CONVERTER_NO_STRUCTURE",
+      `tree walk resolved no usable sections; recovered ${byName.size} by line scan`
+    );
+  } else {
+    await deadLetters.markResolved(EXTRACTOR_ID, accession_number, CONVERTER_SECTION);
+  }
+
   const recordOk = (section: S1SectionName) =>
     deadLetters.markResolved(EXTRACTOR_ID, accession_number, section);
 
@@ -428,6 +483,62 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // but the original entity blocks only checked `=== undefined`. Section text
   // sourced directly from `byName` is never the empty string (the segmenter
   // emits non-empty section bodies), so the two checks coincide in practice.
+
+  // --- Header-SIC downgrade (post-de-SPAC filings) ---
+  // The header SIC is stale on a registration statement filed AFTER the
+  // combination closed: the surviving operating company keeps the shell's CIK,
+  // and EDGAR keeps coding the filer 6770 long afterwards. Ionetix Corp — filed
+  // as JDEV Acquisition Corp — filed a 2026 S-1 under a `BLANK CHECKS [6770]`
+  // header carrying 1,844 XBRL facts of real operating financials. Minting a
+  // known-SPAC row for it gates the whole 8-K / merger-proxy / Form 25-15 tier
+  // onto a company that already de-SPAC'd, and nothing downstream could overturn
+  // it: the AI content classifier below only runs when the deterministic path
+  // did NOT flag the filing.
+  //
+  // So the header SIC has to agree with the prospectus. The gate reads the
+  // SUMMARY, not the whole document — a de-SPAC prospectus recounts its own SPAC
+  // history at length, so the raw-HTML heuristic passes filings this is meant to
+  // catch. Downgrading here (rather than dropping the filing) leaves the AI
+  // classifier below as the second chance, exactly as for a miscoded SIC.
+  //
+  // Only a SUBSTANTIAL summary can demote. Silence is evidence only where there
+  // was room to speak: a blank-check company's summary says what it is many
+  // times over, but a stub says nothing about anything, and demoting on it would
+  // turn a segmentation shortfall into a classification. The smallest summary in
+  // the committed corpus is ~13.6k characters, so this bar is well beneath every
+  // real one while still excluding a fragment.
+  //
+  // And it never demotes a CIK that is ALREADY a known SPAC. A CIK that once
+  // registered as a blank check stays a SPAC CIK for good: the shell keeps its
+  // CIK through the combination and renames, which is precisely what the spac
+  // row's three eras (`spac_*` / `post_merger_*` / `current_*`) exist to model.
+  // A post-combination registration statement therefore reads like the operating
+  // company it now is — that is the normal, expected shape, not evidence that
+  // the vehicle was never a SPAC — so judging it afresh on its prose would
+  // detach a filing from the very lifecycle row it belongs to. The content gate
+  // is for a CIK nothing knows about yet, where the only question is whether to
+  // MINT a row on the strength of a stale header.
+  if (isSpac) {
+    const summary = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
+    const alreadyKnownSpac = (await new SpacRepo().getSpac(cik)) !== undefined;
+    if (
+      !alreadyKnownSpac &&
+      summary.length >= MIN_SUMMARY_CHARS_TO_DEMOTE &&
+      !looksLikeBlankCheck(summary, DEMOTE_MIN_BLANK_CHECK_SIGNALS)
+    ) {
+      isSpac = false;
+      await new S1ClassificationRepo().save({
+        extractor_id: EXTRACTOR_ID,
+        accession_number,
+        cik,
+        sic: headerSic,
+        sic_description: formS1.header?.sicDescription ?? null,
+        is_spac: false,
+        classifier_source: "sgml-header-rejected",
+        created_at: new Date().toISOString(),
+      });
+    }
+  }
 
   // --- AI SPAC content classification (SIC-miscoded upgrade path) ---
   // The deterministic classifier above only flags SIC == 6770. A SPAC filed

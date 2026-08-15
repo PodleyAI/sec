@@ -11,6 +11,7 @@ import {
   type EntityRepositoryStorage,
 } from "../../storage/entity/EntitySchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { getDb } from "../../util/db";
 import { getPgPool } from "../../util/pg";
@@ -110,6 +111,19 @@ function buildScanSql(
   const firstRegForm = `(SELECT f.${q("form")} FROM ${q("filings")} f
         WHERE f.${q("cik")} = e.${q("cik")} AND f.${q("form")} IN (${regForms2})
         ORDER BY f.${q("filing_date")}, f.${q("form")} LIMIT 1)`;
+  // 1 / 0 / NULL: whether any registration of this filer that the forms pipeline
+  // has PARSED carried a 6770 header SIC, or NULL when none has been parsed.
+  // Null is not false — it means the question has not been asked yet.
+  //
+  // Read from `s1_classification`, which is where the as-filed header SIC
+  // already lands: `processFormS1` writes the value it parsed out of the SGML
+  // header to `sic` on every registration it processes. No second copy, and no
+  // column on `filings` for ingest to overwrite with null on the next
+  // submissions refresh.
+  const filedSic6770 = `(SELECT max(CASE WHEN c.${q("sic")} = ${bind(BLANK_CHECK_SIC)}
+          THEN 1 ELSE 0 END)
+        FROM ${q("s1_classification")} c
+        WHERE c.${q("cik")} = e.${q("cik")} AND c.${q("sic")} IS NOT NULL)`;
   const renamedFrom = `(SELECT h2.${q("name")} FROM ${q("entities_history")} h2
         WHERE h2.${q("cik")} = e.${q("cik")} AND (${nameLike(`h2.${q("name")}`)})
         ORDER BY h2.${q("valid_from")} LIMIT 1)`;
@@ -131,14 +145,20 @@ function buildScanSql(
       : `AND EXISTS (SELECT 1 FROM ${q("processed_submissions")} ps
         WHERE ps.${q("cik")} = e.${q("cik")} AND ps.${q("last_processed")} >= ${bind(options.since)})`;
 
+  // A completed de-SPAC matches none of the other three predicates — it recoded
+  // and renamed — so the as-filed header is the only thing left that remembers.
+  const filedSicMatch = `EXISTS (SELECT 1 FROM ${q("s1_classification")} c2
+        WHERE c2.${q("cik")} = e.${q("cik")} AND c2.${q("sic")} = ${bind(BLANK_CHECK_SIC)})`;
+
   const sql = `
     SELECT e.${q("cik")} AS cik, e.${q("name")} AS name, e.${q("sic")} AS sic,
       ${firstRegDate} AS first_reg_date,
       ${firstRegForm} AS first_reg_form,
       ${renamedFrom} AS renamed_from,
+      ${filedSic6770} AS filed_sic_6770,
       ${spacNameEnded} AS spac_name_ended
     FROM ${q("entities")} e
-    WHERE (${sicMatch} OR (${entityNameMatch}) OR ${historyNameMatch})
+    WHERE (${sicMatch} OR (${entityNameMatch}) OR ${historyNameMatch} OR ${filedSicMatch})
     ${sinceClause}
   `;
   return { sql, params };
@@ -152,6 +172,7 @@ function rowToFacts(row: Record<string, unknown>): SpacCandidateFacts {
     first_reg_form: toTextOrNull(row.first_reg_form),
     first_reg_date: toTextOrNull(row.first_reg_date),
     renamed_from: toTextOrNull(row.renamed_from),
+    filed_sic_6770: row.filed_sic_6770 == null ? null : Number(row.filed_sic_6770) === 1,
     spac_name_ended: toIsoOrNull(row.spac_name_ended),
   };
 }
@@ -206,6 +227,16 @@ export async function scanSpacCandidates(options: ScanOptions = {}): Promise<Spa
  * {@link buildScanSql} against: the two must agree row for row on the same
  * seeded data, which is what keeps the hand-written SQL honest.
  */
+/**
+ * Whether any PARSED registration carried a 6770 header SIC — null when none
+ * has been parsed, which is a different answer from false.
+ */
+function filedSic6770(classifications: readonly { sic: number | null }[]): boolean | null {
+  const parsed = classifications.filter((c) => c.sic !== null);
+  if (parsed.length === 0) return null;
+  return parsed.some((c) => c.sic === BLANK_CHECK_SIC);
+}
+
 export async function scanRepository(
   options: ScanOptions,
   repo?: EntityRepositoryStorage
@@ -213,6 +244,7 @@ export async function scanRepository(
   const entityRepo = repo ?? globalServiceRegistry.get(ENTITY_REPOSITORY_TOKEN);
   const historyRepo = globalServiceRegistry.get(ENTITY_HISTORY_REPOSITORY_TOKEN);
   const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const classificationRepo = globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN);
   const processedRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
   const registrationForms = new Set<string>(SPAC_REGISTRATION_FORMS);
 
@@ -220,10 +252,13 @@ export async function scanRepository(
   for await (const entity of entityRepo.records(1000)) {
     const history = (await historyRepo.query({ cik: entity.cik })) ?? [];
     const blankCheckHistory = history.filter((h) => looksLikeSpacName(h.name));
+    const classifications = (await classificationRepo.query({ cik: entity.cik })) ?? [];
+    const filedSic = filedSic6770(classifications);
     const isCandidate =
       entity.sic === BLANK_CHECK_SIC ||
       looksLikeSpacName(entity.name) ||
-      blankCheckHistory.length > 0;
+      blankCheckHistory.length > 0 ||
+      filedSic === true;
     if (!isCandidate) continue;
 
     if (options.since !== undefined) {
@@ -254,6 +289,7 @@ export async function scanRepository(
       first_reg_form: registrations[0]?.form ?? null,
       first_reg_date: registrations[0]?.filing_date ?? null,
       renamed_from: renamedFrom?.name ?? null,
+      filed_sic_6770: filedSic,
       spac_name_ended: endings.length > 0 ? endings[endings.length - 1] : null,
     });
   }

@@ -14,6 +14,7 @@ import { ENTITY_HISTORY_REPOSITORY_TOKEN } from "../../storage/entity/EntityHist
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
 import { classifySpacCandidate, type SpacCandidateFacts } from "./classifySpacCandidate";
 import { scanRepository, scanSpacCandidates } from "./spacCandidateScan";
 
@@ -99,6 +100,7 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     ENTITY_HISTORY_REPOSITORY_TOKEN,
     FILING_REPOSITORY_TOKEN,
     PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN,
+    S1_CLASSIFICATION_REPOSITORY_TOKEN,
   ]);
 
   async function seed(): Promise<void> {

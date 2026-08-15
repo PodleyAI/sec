@@ -5,7 +5,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizeCompany, normalizeCompanyName, CompanyImport } from "./CompanyNormalization";
+import {
+  normalizeCompany,
+  normalizeCompanyName,
+  hasCompanyEnding,
+  hasCompanyAnywhere,
+  isCompanyEnding,
+  CompanyImport,
+} from "./CompanyNormalization";
 
 describe("CompanyNormalization", () => {
   describe("normalizeCompany", () => {
@@ -272,6 +279,69 @@ describe("CompanyNormalization", () => {
       expect(normalizeCompany(accented)!.company_hash_id).toBe(
         normalizeCompany(plain)!.company_hash_id
       );
+    });
+  });
+
+  describe("endings are matched as literals, not as patterns", () => {
+    // `[related person is an entity]` was interpolated straight into
+    // `new RegExp("\\b" + ending + "\\b$")`, where its brackets are a CHARACTER
+    // CLASS. `\b[related person is an entity]\b$` matched — and deleted — the
+    // final single-letter word of any name drawn from {r,e,l,a,t,d,p,s,o,n,i,y}.
+    it("keeps a trailing series marker on the name", () => {
+      expect(normalizeCompanyName("Churchill Capital Corp I")).toBe("Churchill Capital Corp I");
+      expect(normalizeCompanyName("Ajax I")).toBe("Ajax I");
+      expect(normalizeCompanyName("CF Acquisition Corp. A")).toBe("CF Acquisition Corp A");
+    });
+
+    it("keeps two SPACs of one series apart", () => {
+      // Two real, distinct registrants: CIK 1819848 (de-SPACed into Joby) and
+      // CIK 1828108 (into Hippo). They shared one canonical identity key.
+      expect(normalizeCompanyName("Reinvent Technology Partners")).not.toBe(
+        normalizeCompanyName("Reinvent Technology Partners Y")
+      );
+      // `Z` is absent from the accidental class, so this pair never collided —
+      // which is what showed the class was the cause rather than the numeral.
+      expect(normalizeCompanyName("Reinvent Technology Partners Z")).toBe(
+        "Reinvent Technology Partners Z"
+      );
+    });
+
+    it("still strips the literal placeholder it was there to strip", () => {
+      expect(normalizeCompanyName("[related person is an entity]")).toBe("");
+      expect(hasCompanyEnding("[related person is an entity]")).toBe(true);
+      expect(isCompanyEnding("[related person is an entity]")).toBe(true);
+    });
+
+    it("reads a person with a middle initial as a person", () => {
+      // hasCompanyEnding is the person-vs-company discriminator on Forms D / C /
+      // 1-A / 1-Z / 3 / 4 / 5 / 144, and EDGAR writes Section 16 owners as
+      // `LASTNAME FIRSTNAME INITIAL`.
+      for (const person of ["Klein Michael S", "Sloan Harry E", "Foley William P"]) {
+        expect(hasCompanyEnding(person)).toBe(false);
+      }
+      expect(hasCompanyEnding("Acme Holdings Inc")).toBe(true);
+    });
+
+    it("does not report a company ending inside every multi-word string", () => {
+      // The character class contained a literal space, so `\b[ ]\b` matched any
+      // string with a space in it.
+      expect(hasCompanyAnywhere("Palihapitiya Chamath")).toBe(false);
+      expect(hasCompanyAnywhere("Acme Holdings Inc")).toBe(true);
+    });
+  });
+
+  describe("EDGAR's state-of-incorporation suffix", () => {
+    it("does not block the legal-form strip behind it", () => {
+      // `\bCORP\b$` cannot reach past an attached `/Cayman`, so the name kept
+      // its legal form and minted a second canonical company.
+      expect(normalizeCompanyName("Blue Acquisition Corp/Cayman")).toBe(
+        normalizeCompanyName("Blue Acquisition Corp")
+      );
+      expect(normalizeCompanyName("Ionetix Corp / DE /")).toBe("Ionetix");
+    });
+
+    it("leaves a slash that is part of the name", () => {
+      expect(normalizeCompanyName("A/B Holdings")).toBe("A/B Holdings");
     });
   });
 });

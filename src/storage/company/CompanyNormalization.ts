@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import {
+  foldDiacritics,
+  foldTypographicPunctuation,
+  stripEdgarJurisdictionSuffix,
+} from "../../util/dataCleaningUtils";
 import { legalFormIdentityCanonical, legalFormIdentityStrip } from "../../util/legalForms";
 
 export type CompanyImport = {
@@ -57,19 +61,64 @@ const COMPANY_ENDINGS_NO_STRIP = [
   "AMERICAN",
 ];
 
-const COMPANY_ENDINGS_TO_STRIP = [
-  ...legalFormIdentityStrip,
+/**
+ * Word-shaped legal forms, stripped from the end of a name as whole words.
+ *
+ * Every entry here is a LITERAL and is escaped before it reaches a `RegExp`
+ * ({@link escapeRegExp}). Phrase and placeholder suffixes live in
+ * {@link LITERAL_SUFFIXES_TO_STRIP} instead, and regex SOURCE lives only in
+ * {@link CANONICAL_ENDINGS} — keeping the three apart is what stops a literal
+ * from being read as a pattern.
+ */
+const COMPANY_ENDINGS_TO_STRIP = [...legalFormIdentityStrip];
+
+/**
+ * Suffixes matched as literal text rather than as a pattern, because their
+ * characters mean something to a regex engine and nothing to a company name.
+ *
+ * `[related person is an entity]` is a placeholder Form D puts where a name
+ * would go. Interpolated into `\b${ending}\b$` its brackets became a CHARACTER
+ * CLASS — `\b[related person is an entity]\b$` matches any name ending in a
+ * single-letter word drawn from `{r,e,l,a,t,d,p,s,o,n,i,y}` and deleted it. So
+ * `Churchill Capital Corp I` normalized to `Churchill Capital`, `Reinvent
+ * Technology Partners Y` collided with `Reinvent Technology Partners` (two
+ * distinct SPACs, one canonical company), and `hasCompanyEnding` — the
+ * person-vs-company discriminator on Forms D / C / 1-A / 1-Z / 3 / 4 / 5 / 144 —
+ * read `Klein Michael S` as a company. The class contains a literal space too,
+ * which made `hasCompanyAnywhere` true for every multi-word string.
+ */
+const LITERAL_SUFFIXES_TO_STRIP = [
   "a Delaware limited liability company",
   "[related person is an entity]",
 ];
 
+/** Escapes a literal so it matches itself inside a `RegExp`. */
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Strips one {@link LITERAL_SUFFIXES_TO_STRIP} entry, or returns null. */
+function stripLiteralSuffix(name: string): string | null {
+  const lower = name.toLowerCase();
+  for (const suffix of LITERAL_SUFFIXES_TO_STRIP) {
+    if (lower.endsWith(suffix.toLowerCase())) {
+      return name.slice(0, name.length - suffix.length).trim();
+    }
+  }
+  return null;
+}
+
 const CANONICAL_ENDINGS = legalFormIdentityCanonical;
 
+/**
+ * The word-shaped endings as one alternation. Literal entries are escaped; only
+ * {@link CANONICAL_ENDINGS} contributes regex source, and it does so
+ * deliberately. {@link LITERAL_SUFFIXES_TO_STRIP} is NOT here — its entries are
+ * matched by text compare, since a `\b` anchor cannot close on a `]`.
+ */
 const COMPANY_ENDINGS_LIST =
   "(?<companyending>" +
-  COMPANY_ENDINGS_NO_STRIP.join("|") +
-  "|" +
-  COMPANY_ENDINGS_TO_STRIP.join("|") +
+  [...COMPANY_ENDINGS_NO_STRIP, ...COMPANY_ENDINGS_TO_STRIP].map(escapeRegExp).join("|") +
   "|" +
   CANONICAL_ENDINGS.map(([regexp]) => regexp).join("|") +
   ")";
@@ -78,24 +127,30 @@ const companyEndingsAnywhereRegExp = new RegExp("\\b" + COMPANY_ENDINGS_LIST + "
 const companyEndingsRegExp = new RegExp("\\b" + COMPANY_ENDINGS_LIST + "$", "i"); // ends with
 const companyEndingsOnlyRegExp = new RegExp("^" + COMPANY_ENDINGS_LIST + "$", "i");
 
+function containsLiteralSuffix(name: string): boolean {
+  const lower = name.toLowerCase();
+  return LITERAL_SUFFIXES_TO_STRIP.some((s) => lower.includes(s.toLowerCase()));
+}
+
 export function hasCompanyEnding(name: string) {
-  return companyEndingsRegExp.test(name?.trim() || "");
+  const trimmed = name?.trim() || "";
+  return companyEndingsRegExp.test(trimmed) || stripLiteralSuffix(trimmed) !== null;
 }
 
 export function isCompanyEnding(name: string) {
-  return companyEndingsOnlyRegExp.test(name?.trim() || "");
+  const trimmed = name?.trim() || "";
+  return (
+    companyEndingsOnlyRegExp.test(trimmed) ||
+    LITERAL_SUFFIXES_TO_STRIP.some((s) => s.toLowerCase() === trimmed.toLowerCase())
+  );
 }
 
 export function hasCompanyAnywhere(name: string) {
-  return companyEndingsAnywhereRegExp.test(name?.trim() || "");
+  const trimmed = name?.trim() || "";
+  return companyEndingsAnywhereRegExp.test(trimmed) || containsLiteralSuffix(trimmed);
 }
 
 export function stripCompanyAllEndings(name: string): string {
-  let suffix: string | null = null;
-
-  // Store original for suffix detection
-  let original = name;
-
   // Remove punctuation and extra whitespace for normalization
   let normalized = name
     .replace(/[\.,;:!\?]/g, "")
@@ -106,28 +161,18 @@ export function stripCompanyAllEndings(name: string): string {
   let foundSuffix = true;
   while (foundSuffix) {
     foundSuffix = false;
+    const literal = stripLiteralSuffix(normalized);
+    if (literal !== null && literal !== normalized) {
+      normalized = literal;
+      foundSuffix = true;
+      continue;
+    }
     for (const ending of COMPANY_ENDINGS_TO_STRIP) {
-      // For patterns with escaped dots, we need to handle them differently
-      if (ending.includes("\\.")) {
-        const pattern = new RegExp(`\\s*${ending}\\s*$`, "i");
-        if (pattern.test(original)) {
-          suffix = original.match(pattern)?.[0]?.trim() || null;
-          normalized = original.replace(pattern, "").trim();
-          // Clean the normalized version after removing suffix
-          normalized = normalized.replace(/\s+/g, " ").trim();
-          // Update original for next iteration
-          original = normalized;
-          foundSuffix = true;
-          break;
-        }
-      } else {
-        const pattern = new RegExp(`\\b${ending}\\b$`, "i");
-        if (pattern.test(normalized)) {
-          suffix = normalized.match(pattern)?.[0] || null;
-          normalized = normalized.replace(pattern, "").trim();
-          foundSuffix = true;
-          break;
-        }
+      const pattern = new RegExp(`\\b${escapeRegExp(ending)}\\b$`, "i");
+      if (pattern.test(normalized)) {
+        normalized = normalized.replace(pattern, "").trim();
+        foundSuffix = true;
+        break;
       }
     }
   }
@@ -179,7 +224,11 @@ const companyRenamings = (name: string) => {
 export function normalizeCompanyName(name: string): string | null {
   if (name === null || name === undefined || name === "") return null;
 
-  let normalized = foldTypographicPunctuation(name)
+  // Before anything else: EDGAR's `/DE`, `/CI`, `/Cayman` marker. It has to go
+  // first because the legal-form strip cannot reach past it — `\bCORP\b$` does
+  // not match `Blue Acquisition Corp/Cayman`, so the name kept its `Corp` and
+  // minted a second canonical company beside `Blue Acquisition Corp`.
+  let normalized = foldTypographicPunctuation(stripEdgarJurisdictionSuffix(name))
     .replace(/[\.,;:!\?]/g, "")
     .replace(/\s+/g, " ")
     .trim();

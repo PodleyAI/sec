@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import {
+  foldDiacritics,
+  foldTypographicPunctuation,
+  stripEdgarJurisdictionSuffix,
+} from "../../util/dataCleaningUtils";
 import { legalFormFoldedTokens } from "../../util/legalForms";
 
 /**
@@ -212,7 +216,11 @@ function dropInteriorSeriesMarkers(kept: readonly string[]): string[] {
  */
 export function companyFamilyName(name: string | null | undefined): string {
   if (!name) return "";
-  const folded = foldTypographicPunctuation(String(name))
+  // EDGAR's state-of-incorporation marker is not part of the house name, and
+  // keeping it as a token splits one sponsor's vehicles across two families:
+  // `Churchill Capital Corp XII` keys `churchill-capital` while its own
+  // `Churchill Capital Corp IX/Cayman` keys `churchill-capital-corp-cayman`.
+  const folded = foldTypographicPunctuation(stripEdgarJurisdictionSuffix(String(name)))
     .replace(BLOC_PREFIX, "")
     // A parenthetical is a jurisdiction or disambiguator, never the house:
     // `Credit Suisse Securities (USA) LLC`, `B&R Technology Sponsor LLC (Cayman)`.

@@ -60,6 +60,18 @@ export const SpacCandidateSchema = Type.Object({
 
   /** `entities.sic` reads 6770 (Blank Checks) right now. */
   signal_sic_6770: Type.Boolean(),
+  /**
+   * A registration statement's own SGML header coded the filer 6770 when it was
+   * filed.
+   *
+   * The signal `entities.sic` cannot give: a completed de-SPAC recodes to its
+   * operating business and renames, erasing both of the other signals at once —
+   * Joby, Opendoor, Hippo, E2open, Markforged and Banzai all fall out of the
+   * screen entirely — while the registration's own header still reads 6770.
+   * Null when no registration of this filer has been parsed yet, which is not
+   * the same as false.
+   */
+  signal_filed_sic_6770: TypeNullable(Type.Boolean()),
   /** The entity's *current* name looks like a blank check. */
   signal_name_match: Type.Boolean(),
   /** A *former* name looked like a blank check; carries that name. */

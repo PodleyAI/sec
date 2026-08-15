@@ -82,6 +82,14 @@ sec bootstrap --download-docs [--docs-from YYYY-MM-DD] [--docs-to YYYY-MM-DD]
 sec resolve --kind person --resolver-version 1.0.0 --all
 sec resolve --kind company --resolver-version 1.0.0 --all
 
+# Recompute the derived identity columns from the name as filed before
+# resolving, so a normalizer change takes effect without re-extracting
+sec resolve --kind company --resolver-version 1.0.0 --all --renormalize
+
+# Suggest aliases for filers EDGAR has carried under two spellings of one name
+sec canonical suggest-aliases --kind company
+sec canonical suggest-aliases --kind underwriter-family --format tsv > aliases.tsv
+
 # Alias management (person; same flags for company)
 sec canonical person alias "<from-name>" "<into-name>" --reason "merged duplicate"
 sec canonical person alias-remove "<name>"
@@ -211,12 +219,24 @@ The vocabulary is `DEAD_LETTER_REASON_CODES` in
 `MODEL_EMPTY`, `MODEL_RESOLUTION_ERROR`, `LOW_CONFIDENCE_ALL`,
 `PRIMARY_DOC_UNRESOLVED`, `FETCH_ERROR`, `PARSE_ERROR`, `STORE_ERROR`,
 `OVERSIZED_INPUT`, `UNVERIFIED_SOURCE_SPAN`, `SOURCE_SPAN_TOO_LONG`,
-`MIXED_CAPTION_SHAPE`, `NONCE_MISMATCH`, `RATE_LIMITED`. The stored column is a
+`MIXED_CAPTION_SHAPE`, `NONCE_MISMATCH`, `RATE_LIMITED`,
+`CONVERTER_NO_STRUCTURE`. The stored column is a
 plain string, so `DeadLetterInput.reason_code` is typed to that union — a code
 written but never declared used to persist silently (which is how
 `UNVERIFIED_SOURCE_SPAN` and `SOURCE_SPAN_TOO_LONG` were both written for some
 time without appearing in the list an operator reads); adding one is now a
 compile error until it is declared.
+
+`CONVERTER_NO_STRUCTURE` is the S-1 extractor's own diagnostic, recorded under
+the section name `converter`: the HTML converter produced a document with no
+usable structure, so the tree walk found nothing and the line-scan fallback stood
+in (see the segmenter note below). It is deliberately NOT the filing-level `""`
+key — `ProcessAccessionDocFormTask` resolves that one after a successful store,
+which would clear the entry on the run that recorded it — and it is deliberately
+recorded even though the fallback usually recovers the filing: eight
+`SECTION_NOT_FOUND` entries are indistinguishable from a legitimately
+incorporation-by-reference S-1, so without it "we could not read a 3.2 MB
+prospectus" and "this filing has no such section" report identically.
 
 #### Filing-level dead-letters (every form, not just the AI ones)
 
@@ -290,7 +310,41 @@ load-directly local file, unchanged.
 ### AI SPAC content classifier (SIC-miscoded SPACs)
 
 Deterministic SPAC classification keys off the SGML-header SIC (`6770` →
-`is_spac`, `classifier_source = "sgml-header"`). A SPAC filed under a miscoded or
+`is_spac`, `classifier_source = "sgml-header"`), but the header alone is no
+longer sufficient: a **post-de-SPAC** registration statement carries a stale
+6770 because the surviving operating company keeps the shell's CIK and EDGAR
+keeps coding the filer for years. `Ionetix Corp / DE /` — filed as `JDEV
+Acquisition Corp` — filed a 2026 S-1 under a `BLANK CHECKS [6770]` header
+carrying 1,844 XBRL facts of real operating financials, and minting a known-SPAC
+row for it gates the entire 8-K / merger-proxy / Form 25-15 tier onto a company
+that already completed its combination. So a 6770 header is **downgraded**
+(`classifier_source = "sgml-header-rejected"`) when the prospectus summary does
+not read like a blank check, and the AI content classifier below is then its
+second chance. The gate reads the SUMMARY rather than the whole document — a
+de-SPAC prospectus recounts its own SPAC history at length, so the raw-HTML
+heuristic passes exactly the filings this is meant to catch — and only a
+**substantial** summary can demote (2k characters; the smallest in the committed
+corpus is ~13.6k). Silence is evidence only where there was room to speak: a
+summary stub says nothing about anything, and demoting on it would turn a
+segmentation shortfall into a classification.
+
+Two more limits keep the demotion from eating real blank checks. It **never
+demotes a CIK that already has a `spac` row**: a CIK that once registered as a
+blank check stays a SPAC CIK for good — the shell keeps its CIK through the
+combination and renames, which is precisely what the row's three eras exist to
+model — so a post-combination filing must attach to the vehicle it belongs to
+rather than be judged afresh on prose that now describes an operating company.
+The content gate is only for a CIK nothing knows about yet, where the question
+is whether to MINT a row on the strength of a stale header. And it demotes only
+on a summary carrying **zero** blank-check signals, not the two
+`looksLikeBlankCheck` defaults to: the two callers ask the same question with
+opposite error costs (a false negative in the AI pre-filter skips a model call;
+here it deletes the `spac` row), and at 2 it demoted `Lucent, Inc.` — a shell
+whose summary states outright that it is a blank check company, that phrase
+being its only signal because a shell that size has no trust account, no founder
+shares and no sponsor. Across the committed corpus all 20 labelled SPAC
+summaries carry ≥2 signals and every non-SPAC filed under a 6770 header carries
+zero. A SPAC filed under a miscoded or
 absent SIC would be missed, so `processFormS1` runs an **AI content classifier**
 behind the `S1Classification.classifier_source = "ai"` seam. It is gated twice to
 stay cheap: it only runs when the deterministic path did **not** already flag the
@@ -1016,6 +1070,87 @@ failure (the prospectus body collapsed under one heading), not a real
 disclosure, and dead-letters `OVERSIZED_INPUT` instead of fanning out into dozens
 of calls — mirroring the redemption/LOI 8-K input caps.
 
+#### Segmentation: swallowed sections and structureless documents
+
+`DocumentTreeSegmenter` runs two passes. The first keeps, per target, the
+occurrence with the most body text; the second truncates each chosen section
+where it has **swallowed another chosen section's body**. A converter that
+mis-levels a heading — `RISK FACTORS` in all caps at the top level, every
+following sentence-case heading nested beneath it — makes that section's subtree
+the rest of the prospectus: committed fixtures rendered "prospectus summaries" of
+966k and 1,008k characters, and one filing's risk factors reached 586k and blew
+past `MAX_RISK_FACTORS_CHARS` so the disclosure was never extracted at all.
+
+The stop condition is narrow in two ways, and both are load-bearing. The nested
+node must be another target's **chosen** body — a summary also contains a
+management paragraph and an offering blurb, but those lose to the filing's real
+sections and so stop nothing — and the containment must not be one prospectuses
+really have (`LEGITIMATE_CONTAINMENTS`: summary ⊃ offering, summary ⊃ sponsor,
+management ⊃ Item 402 compensation). A summary's own Item 105(b) risk list is
+deliberately absent from that list: the segmenter accepts it as a Risk Factors
+heading variant, so allowing it let three fixtures keep summaries carrying the
+entire risk section verbatim.
+
+Targets a filer bolds rather than heads are recovered from inside whichever
+resolved section carries them, by `findNestedSection` — which scans the
+container's rendered lines with the same heading patterns. Item 402 compensation
+sits inside `Management` that way, and so does the ownership table (`TCG Growth
+Opportunities Corp.`, where `Principal stockholders` follows the roster with no
+heading of its own). It fires only when the tree walk found no section for the
+target, so a filing with a real heading is untouched, and the **tightest**
+enclosing body is tried first — section bodies overlap only where
+`LEGITIMATE_CONTAINMENTS` says they may, and there the inner one bounds the slice
+to the block that really encloses the line.
+
+The rule is general with **one container excluded**: `RESTATING_CONTAINERS` —
+today just `Prospectus Summary`. A summary's job is to restate the whole
+prospectus by name, so every bolded label in it opens a slice for a section the
+filing may not disclose at all. That is the entire measured cost of
+generalizing: 6 wrong sections across the 42 committed fixtures, and **all 6**
+come out of a summary (a 208k `The Sponsor` carved from a 217k summary, a 136k
+`Management` for a filing whose roster is documented as bolded paragraphs with
+no section at all). Excluding it leaves **zero** additions on the corpus, so the
+generalization costs nothing and covers pairs nobody enumerated — on a real
+filing outside the corpus (`Harvard Ave Acquistion Corp`, CIK 2042460) it
+recovers a genuine 20k `The Sponsor` block from inside `Management`, a pair no
+hand-written list predicted.
+
+A real block inside a restating container is still reachable, by naming it in
+`NESTED_SECTION_FALLBACKS`. There is exactly one: the offering table inside the
+summary, which `LEGITIMATE_CONTAINMENTS` already expects to be there and which
+`Mammon Omicron Acquisition Corp` bolds rather than heads, hiding 90k characters
+of unit terms. Declared pairs are consulted **after** the general containers — a
+real body section donating a target is the better claim.
+
+**A slice-size guard was measured as the alternative and does not separate
+them.** Five of the six summary slices run 68-96% of their container, but the
+trusted compensation-inside-`Management` recovery runs 7-81% across 18 committed
+fixtures, 14 of them above 68% — the bands sit on top of each other, and the
+sixth summary slice is 14%, below all of them. Which section is donating
+separates the good recoveries from the bad; how much of it does not.
+
+Guessing the remaining pairs from **document order** does not work either: the
+container is the nearest _resolved_ predecessor, not the immediate one. Ranking
+each section's observed predecessor across the corpus predicts the compensation
+and offering pairs correctly and gets the ownership one wrong — it names
+`Executive Compensation`, which is the truth about a headed filing and not about
+`TCG`, where that section is itself unheaded so the container moves up to
+`Management`. The pair you cannot enumerate is exactly the one the general rule
+covers for free.
+
+When the tree walk resolves **fewer than two** targets on a document rendering at
+least 50k characters, a **line-scan fallback** takes over: the rendered text is
+scanned with the same heading patterns and each hit sliced to the next hit of a
+_different_ target (a typeset prospectus repeats its section name as a page
+header, which is furniture rather than a boundary). Bridgetown Holdings' 3.2 MB
+prospectus is typeset inside 295 tables, so the converter emits 4 heading nodes
+and the filing extracted **nothing**; it now recovers all ten target sections.
+Both thresholds are deliberately tight — a line scan has no structural evidence
+and cannot tell a table-of-contents entry from the heading it points at, and "the
+converter produced no structure" is only a claim you can make about a document
+big enough to have some. The filing is still recorded (`CONVERTER_NO_STRUCTURE`
+above).
+
 The segmenter's `Risk Factors` section also accepts the filer's own Item 105(b)
 "Summary of Risk Factors" bullet list as a heading variant: it enumerates the
 same captions in compressed form, and since the segmenter keeps the longest body
@@ -1100,7 +1235,8 @@ sec version coverage resolver underwriter-family
 `companyFamilyName` (`src/storage/company/CompanyFamilyName.ts`) answers "are
 these the same house", where `normalizeCompany` answers "are these the same
 legal entity". It strips the trailing legal form, series marker (roman numeral
-or year), parenthetical jurisdiction, `Entities affiliated with` bloc prefix,
+or year), parenthetical jurisdiction, EDGAR's own state-of-incorporation marker
+(`/DE`, `/CI`, `/Cayman`), `Entities affiliated with` bloc prefix,
 and a conjunction stranded by an `& Co.` — so `Churchill Sponsor XIII LLC` and
 `Churchill Sponsor XIV LLC` are one family, and `Morgan Stanley` needs no alias
 to meet `Morgan Stanley & Co.`
@@ -1163,6 +1299,41 @@ the worse error.
 > a sponsor ever formed. `CompanyFamilyName.test.ts` pins the contract: two funds
 > of one family are ONE family and TWO companies.
 
+#### Endings are matched as literals, not as patterns
+
+`COMPANY_ENDINGS_TO_STRIP` holds word-shaped legal forms (`INC`, `CORP`, …) and
+is escaped before it reaches a `RegExp`; phrase and placeholder suffixes live in
+`LITERAL_SUFFIXES_TO_STRIP` and are matched by text compare. Keeping the two
+apart — and both apart from `CANONICAL_ENDINGS`, which really is regex source —
+is what stops a literal being read as a pattern. It was not: the placeholder
+`[related person is an entity]` was interpolated into
+`new RegExp("\\b" + ending + "\\b$")`, where its brackets are a **character
+class**, so any name ending in a single-letter word drawn from
+`{r,e,l,a,t,d,p,s,o,n,i,y}` had that word deleted. `Churchill Capital Corp I`
+normalized to `Churchill Capital`; 44 of the 816 SIC-6770 registrants lost their
+series marker; and `Reinvent Technology Partners` (CIK 1819848, now Joby) and
+`Reinvent Technology Partners Y` (CIK 1828108, now Hippo) — two distinct
+companies — collided on one canonical identity. The same list backs
+`hasCompanyEnding`, the **person-vs-company discriminator** on Forms D / C /
+1-A / 1-Z / 3 / 4 / 5 / 144, which read `Klein Michael S` as a company; and the
+class contained a literal space, so `hasCompanyAnywhere` returned true for every
+multi-word string.
+
+#### EDGAR's state-of-incorporation suffix
+
+EDGAR appends `/DE`, `/CI` or `/Cayman` to a conformed name when it needs to
+disambiguate one, and `stripEdgarJurisdictionSuffix`
+(`src/util/dataCleaningUtils.ts`) drops it before **both** normalizers tokenize.
+It is not cosmetic on either tier: the family key kept the marker as a token, so
+`Churchill Capital Corp XII` keyed `churchill-capital` while its own
+`Churchill Capital Corp IX/Cayman` keyed `churchill-capital-corp-cayman` — one
+sponsor, two families — and `normalizeCompanyName` could not reach the legal form
+behind it, since `\bCORP\b$` does not match `Blue Acquisition Corp/Cayman`, so
+that name minted a second canonical company beside `Blue Acquisition Corp`. The
+rule fires only on a trailing `/<alphabetic token ≤ 8>` with an optional trailing
+slash, and never empties a name; across the 816 SIC-6770 registrants it matches
+exactly 10 names, all of them EDGAR's convention.
+
 #### Diacritics in identity keys
 
 `foldDiacritics` (`src/util/dataCleaningUtils.ts`) folds accented Latin letters
@@ -1195,14 +1366,15 @@ sec canonical company alias "Soren Skou Holdings LLC" "Søren Skou Holdings LLC"
 ```
 
 Closing the gap for real means folding inside `normalizeCompanyName`, which is a
-**re-key of every company observation ever written** — and the company tier has
-no rebuild path for one. `normalized_name` is produced only by the extraction
-path, and `sec resolve` re-resolves FROM that column rather than recomputing it,
-so a fold would take effect only by re-extracting every company-observing form
-and re-paying the AI cost of all of them. The prerequisite is teaching
-`ResolveObservationsTask` to re-normalize as it re-partitions. Until then the two
-keys are deliberately out of step, and `CompanyNormalization.test.ts` pins the
-gap so the fold cannot land as a one-line change with no migration.
+**re-key of every company observation ever written**. That is now affordable:
+`sec resolve --kind company --all --renormalize` recomputes `normalized_name`
+from the `name` each observation already carries, then resolves, so a normalizer
+change no longer costs a full re-extraction and its AI bill. The recompute calls
+the same helpers the extraction path writes with (`normalizePersonNameParts`,
+`normalizeCompanyName`) precisely so a second implementation cannot drift and
+re-key half the tier to a generation nothing else produces. The fold itself is
+still not applied — `CompanyNormalization.test.ts` pins the gap so it cannot land
+as a one-line change with no migration — but the migration is now one command.
 
 #### Re-keying without a version bump
 
@@ -1529,13 +1701,26 @@ filing, and tallied by reason at the end. Skips are reported three ways —
 already-cached, no filename on the filing, and a filer-authored name that could
 not be made path-safe — because only the first is a healthy steady state.
 
-Three signals, each kept as its own column so a consumer can re-derive its own
-rule: `entities.sic = 6770`, a blank-check-shaped current name, and a
-blank-check-shaped _former_ name. Graded into `confidence`:
+Four signals, each kept as its own column so a consumer can re-derive its own
+rule: `entities.sic = 6770`, a blank-check-shaped current name, a
+blank-check-shaped _former_ name, and — `signal_filed_sic_6770` — whether a
+registration this filer filed carried a **6770 header SIC as filed**. That last
+one is the only signal a completed de-SPAC cannot erase: it recodes AND renames,
+so the other three vanish together (Joby, Opendoor, Hippo, E2open, Markforged
+and Banzai each fell out of the screen entirely), while the registration
+statement's own header still reads 6770 forever. It is read from
+`s1_classification.sic`, where `processFormS1` already writes the value it
+parsed out of the SGML header — no second copy, and no column on `filings` for
+the next submissions refresh to overwrite with null. `null` means no
+registration of this filer has been parsed yet, which is not the same as false.
+Graded into `confidence`:
 
 - **high** — an S-1-family registration (`S-1`/`F-1`/`DRS` + amendments) plus
-  either a blank-check name (current or former) or EDGAR's 6770 coding, with
-  nothing arguing against it. The name half survives the de-SPAC, which is
+  either a blank-check name (current or former), EDGAR's 6770 coding, or a
+  registration filed under a 6770 header, with nothing arguing against it. The
+  as-filed header sits on this rung because a registration filed under it IS a
+  blank-check IPO by construction — a stronger claim than the current-SIC
+  signal, which only says the filer reads 6770 today. The name half survives the de-SPAC, which is
   exactly where `sic = 6770` fails: DraftKings reads 7990 today, Lucid 3711.
   6770-plus-registration sits here on measurement (150 of 168 such 2019-2024
   registrants appear in embarc's curated list, 89%).

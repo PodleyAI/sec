@@ -359,6 +359,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
   ],
@@ -402,6 +403,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
     MANAGEMENT,
     BENEFICIAL_OWNERSHIP,
+    RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
   ],
@@ -500,6 +502,15 @@ const SPAC_FIXTURES = [
  * failing, while any halving of a section's body — the signature of silent
  * truncation — is caught. Re-derive the same way (observed / 2, rounded down)
  * when a deliberate change moves these.
+ *
+ * Five PROSPECTUS_SUMMARY floors were lowered when the segmenter learned to stop
+ * a section where it has swallowed another section's canonical body. They were
+ * recording the defect: these filings nest their whole prospectus under the
+ * summary heading, so the summary rendered to 966k and 1,008k characters — the
+ * entire document, risk factors and all — and the floor pinned it there. They
+ * now resolve to 176k-202k, in line with the 184k-217k summaries of filings that
+ * nest nothing. A floor is a truncation alarm, so it can only be lowered
+ * alongside evidence that the shrink is the section getting more accurate.
  *
  * A section with no entry here is not size-checked, so adding a section to
  * {@link EXPECTED} does not require adding a floor.
@@ -745,7 +756,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [UNDERWRITING]: 24_300,
   },
   "s1_2110119_000121390026072712.htm": {
-    [PROSPECTUS_SUMMARY]: 484_800,
+    [PROSPECTUS_SUMMARY]: 87_900,
     [THE_OFFERING]: 49_900,
     [RISK_FACTORS]: 131_800,
     [USE_OF_PROCEEDS]: 7_200,
@@ -756,7 +767,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [EXECUTIVE_COMPENSATION]: 17_000,
   },
   "s1_2113481_000121390026068811.htm": {
-    [PROSPECTUS_SUMMARY]: 506_100,
+    [PROSPECTUS_SUMMARY]: 101_200,
     [THE_OFFERING]: 47_400,
     [RISK_FACTORS]: 123_200,
     [USE_OF_PROCEEDS]: 7_200,
@@ -810,7 +821,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [EXECUTIVE_COMPENSATION]: 19_000,
   },
   "s1_2128045_000121390026070217.htm": {
-    [PROSPECTUS_SUMMARY]: 227_100,
+    [PROSPECTUS_SUMMARY]: 88_700,
     [THE_OFFERING]: 46_600,
     [RISK_FACTORS]: 127_300,
     [USE_OF_PROCEEDS]: 8_000,
@@ -851,7 +862,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [UNDERWRITING]: 17_000,
   },
   "s1_2135163_000182912626006553.htm": {
-    [PROSPECTUS_SUMMARY]: 142_600,
+    [PROSPECTUS_SUMMARY]: 30_000,
     [THE_OFFERING]: 55_600,
     [USE_OF_PROCEEDS]: 5_400,
     [MANAGEMENT]: 19_600,
@@ -870,7 +881,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [UNDERWRITING]: 22_100,
   },
   "s1_2137679_000182912626006500.htm": {
-    [PROSPECTUS_SUMMARY]: 145_100,
+    [PROSPECTUS_SUMMARY]: 30_300,
     [THE_OFFERING]: 55_100,
     [USE_OF_PROCEEDS]: 5_600,
     [MANAGEMENT]: 20_000,

@@ -220,3 +220,30 @@ describe("isCompanyFamilyPrefix", () => {
     expect(isCompanyFamilyPrefix("Goldman Sachs LLC", "Goldman Sachs & Co. LLC")).toBe(false);
   });
 });
+
+describe("EDGAR's state-of-incorporation suffix", () => {
+  it("keeps one sponsor's vehicles in one family", () => {
+    // EDGAR appends the marker only to the vehicles it needs to disambiguate,
+    // so the suffixed and unsuffixed names of one house split in two.
+    const churchill = [
+      "Churchill Capital Corp XII",
+      "Churchill Capital Corp IX/Cayman",
+      "Churchill Capital Corp X/Cayman",
+      "Churchill Capital Corp V",
+    ].map(companyFamilyName);
+    expect(new Set(churchill).size).toBe(1);
+    expect(churchill[0]).toBe("churchill-capital");
+  });
+
+  it("handles the spaced and doubled-slash spellings", () => {
+    expect(companyFamilyName("Gores Holdings X, Inc. / CI")).toBe(
+      companyFamilyName("Gores Holdings IX, Inc.")
+    );
+    expect(companyFamilyName("Ionetix Corp / DE /")).toBe("ionetix");
+    expect(companyFamilyName("Melar Acquisition Corp. I/Cayman")).toBe("melar-acquisition");
+  });
+
+  it("never empties a name that is nothing but the marker", () => {
+    expect(companyFamilyName("/DE")).not.toBe("");
+  });
+});

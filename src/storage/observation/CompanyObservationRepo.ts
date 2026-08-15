@@ -147,6 +147,18 @@ export class CompanyObservationRepo {
   }
 
   /**
+   * Rewrites only `normalized_name`, leaving the name as filed untouched. Used
+   * by the batch re-normalizer so a change to `normalizeCompanyName` can take
+   * effect without re-extracting the filing that produced the row.
+   */
+  async updateNormalizedName(
+    row: CompanyObservation,
+    normalized_name: string | null
+  ): Promise<void> {
+    await this.repo.put({ ...row, normalized_name });
+  }
+
+  /**
    * Pass-through to the underlying tabular storage's COUNT path. Callers
    * (e.g. `ResolverCoverage`) must prefer this over `(await listAll()).length`
    * at Form D / Section 16 scale to avoid materializing the full table.

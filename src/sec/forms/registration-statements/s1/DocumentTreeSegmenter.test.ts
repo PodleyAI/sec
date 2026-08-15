@@ -143,4 +143,251 @@ describe("DocumentTreeSegmenter", () => {
     const byName = new Map(new DocumentTreeSegmenter().segment(doc).map((s) => [s.name, s.text]));
     expect(byName.has(S1_SECTIONS.EXECUTIVE_COMPENSATION)).toBe(false);
   });
+
+  describe("a section that has swallowed another", () => {
+    // A converter that reads an all-caps heading as a higher level than the
+    // sentence-case ones after it nests the rest of the prospectus beneath it.
+    const swallowed = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:18pt">RISK FACTORS</p>
+        <p>Our business faces the following risks, which are material.</p>
+        <p style="font-weight:700;font-size:13pt">Use of proceeds</p>
+        <p>We will place the net proceeds in the trust account.</p>
+        <p style="font-weight:700;font-size:13pt">Underwriting</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+
+    it("stops the container where the nested section begins", () => {
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(swallowed, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      const risks = byName.get(S1_SECTIONS.RISK_FACTORS) ?? "";
+      expect(risks).toContain("material");
+      expect(risks).not.toContain("trust account");
+      expect(risks).not.toContain("agreed to purchase");
+    });
+
+    it("still resolves the swallowed sections in their own right", () => {
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(swallowed, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.USE_OF_PROCEEDS)).toContain("trust account");
+      expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("agreed to purchase");
+    });
+
+    it("leaves a containment a prospectus really has", () => {
+      // A summary carrying the offering table is not a swallow, and cutting
+      // there would leave a stub instead of a summary.
+      const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:18pt">SUMMARY</p>
+        <p>We are a blank check company newly incorporated in Delaware.</p>
+        <p style="font-weight:700;font-size:13pt">The offering</p>
+        <p>We are offering 20,000,000 units at $10.00 per unit.</p>
+        <p style="font-weight:700;font-size:13pt">Corporate information</p>
+        <p>Our executive offices are located at 123 Main Street.</p>
+      </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const summary = sections.find((s) => s.name === S1_SECTIONS.PROSPECTUS_SUMMARY)?.text ?? "";
+      expect(summary).toContain("blank check company");
+      expect(summary).toContain("123 Main Street");
+    });
+  });
+
+  describe("line-scan fallback", () => {
+    // A converter can produce text with no structure: an InDesign export
+    // typesets the prospectus inside hundreds of tables, so the tree carries
+    // paragraphs and tables but almost no headings.
+    // Padded past MIN_DOC_CHARS_FOR_LINE_SCAN: the fallback only fires on a
+    // document big enough for "no structure" to be a converter failure rather
+    // than simply a short filing.
+    const filler = `<table><tr><td><p>${"Risk disclosure prose. ".repeat(40)}</p></td></tr></table>`;
+    const noHeadingMarkup = `
+      <html><body>
+        <table><tr><td><p>Summary</p></td></tr></table>
+        <table><tr><td><p>We are a blank check company incorporated in Delaware.</p></td></tr></table>
+        ${filler.repeat(60)}
+        <table><tr><td><p>Management</p></td></tr></table>
+        <table><tr><td><p>Our officers and directors are listed below.</p></td></tr></table>
+        <table><tr><td><p>Underwriting</p></td></tr></table>
+        <table><tr><td><p>The underwriters have agreed to purchase the units.</p></td></tr></table>
+      </body></html>`;
+
+    it("recovers sections the tree walk could not see", () => {
+      const result = new DocumentTreeSegmenter().segmentDocument(
+        parseEdgarHtml(noHeadingMarkup, "S-1")
+      );
+      expect(result.usedLineScan).toBe(true);
+      const byName = new Map(result.sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+      expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("agreed to purchase");
+    });
+
+    it("stays out of the way when the tree works", () => {
+      const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+        <p>Directors and officers.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+      const result = new DocumentTreeSegmenter().segmentDocument(parseEdgarHtml(html, "S-1"));
+      expect(result.usedLineScan).toBe(false);
+    });
+  });
+
+  it("recovers an offering block the filer bolded inside the summary", () => {
+    // Same shape as the Item 402 disclosure nested in MANAGEMENT: the line is a
+    // bolded paragraph, not a heading, so the tree walk never sees it and the
+    // offering-terms extractor gets nothing.
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+        <p>We are a blank check company incorporated in the Cayman Islands.</p>
+        <p><b>The Offering</b></p>
+        <p>We are offering 20,000,000 units at $10.00 per unit, each unit consisting
+           of one Class A ordinary share and one-half of one redeemable warrant.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">RISK FACTORS</p>
+        <p>Our business faces the following risks.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const byName = new Map(sections.map((s) => [s.name, s.text]));
+    expect(byName.get(S1_SECTIONS.THE_OFFERING)).toContain("$10.00 per unit");
+    // The summary keeps it too — a summary really does carry its offering table,
+    // which is why LEGITIMATE_CONTAINMENTS does not truncate there.
+    expect(byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY)).toContain("blank check company");
+  });
+
+  it("prefers a real offering section over the one nested in the summary", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+        <p>We are a blank check company.</p>
+        <p><b>The Offering</b></p>
+        <p>Summary offering blurb.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">THE OFFERING</p>
+        <p>The full offering table with every unit term stated at length.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING)?.text ?? "";
+    expect(offering).toContain("every unit term");
+  });
+
+  it("recovers an ownership table that follows the roster unheaded", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+        <p>Our officers and directors are listed below.</p>
+        <p><b>Principal stockholders</b></p>
+        <p>The following table sets forth information regarding beneficial ownership
+           of our shares by each person known to own more than 5%.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const byName = new Map(sections.map((s) => [s.name, s.text]));
+    expect(byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP)).toContain("more than 5%");
+    expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+  });
+
+  describe("a heading a converter fused a page marker onto", () => {
+    // `BurTech Acquisition Corp.` renders `PRINCIPAL STOCKHOLDERS3`, the
+    // anchor's superscript glued on, and the whole ownership table was lost.
+    it("matches through the trailing marker", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PRINCIPAL STOCKHOLDERS3</p>
+          <p>The following table sets forth beneficial ownership of our shares.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const owners = sections.find((s) => s.name === S1_SECTIONS.BENEFICIAL_OWNERSHIP)?.text ?? "";
+      expect(owners).toContain("beneficial ownership");
+    });
+
+    it("does not let the marker change an unambiguous heading", () => {
+      // The heading as printed matches, so the trimmed retry never runs.
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">USE OF PROCEEDS</p>
+          <p>We will receive gross proceeds of $100,000,000.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      expect(sections.find((s) => s.name === S1_SECTIONS.USE_OF_PROCEEDS)?.text).toContain(
+        "gross proceeds"
+      );
+    });
+  });
+
+  describe("the nesting fallback is general, minus the restating container", () => {
+    // A pair nothing declares: `Harvard Ave Acquistion Corp` (CIK 2042460) bolds
+    // its sponsor block inside MANAGEMENT, which no list of (target, container)
+    // pairs written from the corpus would have predicted.
+    it("recovers a target from a container no declared pair names", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+          <p>Our officers and directors are listed below.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor, Copley Square Sponsor Limited, is a Cayman Islands exempted
+             company holding 6,967,500 insider shares.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.THE_SPONSOR)).toContain("Copley Square Sponsor Limited");
+      expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+    });
+
+    // The summary names every section of the prospectus, so a heading-shaped
+    // line in it is a cross-reference. Reading it as a block donated a 208k
+    // "The Sponsor" carved out of a 217k summary on real filings.
+    it("never donates a section out of the prospectus summary", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+          <p>We are a blank check company.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor is an affiliate of our chief executive officer.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      expect(sections.some((s) => s.name === S1_SECTIONS.THE_SPONSOR)).toBe(false);
+    });
+
+    // The one declared exception to the rule above, and the reason the declared
+    // list still exists.
+    it("still recovers the offering table declared inside the summary", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+          <p>We are a blank check company.</p>
+          <p><b>The Offering</b></p>
+          <p>Each unit consists of one share and one-half of one redeemable warrant.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING)?.text ?? "";
+      expect(offering).toContain("one-half of one redeemable warrant");
+    });
+
+    // Both bodies carry the line (MANAGEMENT ⊃ the resolved Item 402 block is a
+    // legitimate containment), and the inner one bounds the slice to the block
+    // that really encloses it.
+    it("prefers the tightest enclosing container", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+          <p>Our officers and directors are listed below.</p>
+          <p style="font-weight:700;font-size:14pt">Executive Compensation</p>
+          <p>No compensation has been paid.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor holds the founder shares.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const sponsor = sections.find((s) => s.name === S1_SECTIONS.THE_SPONSOR)?.text ?? "";
+      expect(sponsor).toContain("founder shares");
+      expect(sponsor).not.toContain("officers and directors");
+    });
+  });
 });
