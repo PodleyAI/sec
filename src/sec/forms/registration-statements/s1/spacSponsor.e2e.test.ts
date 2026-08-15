@@ -14,6 +14,8 @@ import { SpacSponsorLinkRepo } from "../../../../storage/canonical/SpacSponsorLi
 import { CanonicalSponsorFamilyRepo } from "../../../../storage/canonical/CanonicalSponsorFamilyRepo";
 import { SponsorFamilyMembershipRepo } from "../../../../storage/canonical/SponsorFamilyMembershipRepo";
 import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { CompanyObservationRepo } from "../../../../storage/observation/CompanyObservationRepo";
+import { normalizeSponsorFamilyName } from "../../../../resolver/SponsorFamilyResolver";
 
 // Body with the three target headings so the section extractors run in a fixed
 // order (management, ownership, related); sponsor extraction runs last when SPAC.
@@ -26,7 +28,7 @@ const BODY = [
   "<h1>MANAGEMENT</h1><p>x</p>",
   "<h1>PRINCIPAL AND SELLING STOCKHOLDERS</h1><p>x</p>",
   "<h1>CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</h1>",
-  "<p>The Sponsor backs this SPAC. Acme Sponsor 2, LLC and Acme Sponsor, LLC are the sponsors. 26 Capital Holdings LLC is the sponsor of 26 Capital Acquisition Corp.</p>",
+  "<p>The Sponsor backs this SPAC. Acme Sponsor 2, LLC and Acme Sponsor, LLC are the sponsors. 26 Capital Holdings LLC is the sponsor of 26 Capital Acquisition Corp. Acme Sponsor LLC, a wholly-owned subsidiary of Big Bank Inc. backs this SPAC.</p>",
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
@@ -257,5 +259,41 @@ describe("SPAC sponsor end-to-end", () => {
     expect(families.length).toBe(1); // the valid sponsor still resolved a family
     const famId = families[0].canonical_sponsor_family_id;
     expect(await new SpacSponsorLinkRepo().listIssuerCiksForFamily(famId)).toEqual([444]);
+  });
+
+  it("splits a wholly-owned-subsidiary sponsor onto X with family Y", async () => {
+    const asFiled = "Acme Sponsor LLC, a wholly-owned subsidiary of Big Bank Inc.";
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      {
+        sponsors: [
+          {
+            legal_name: asFiled,
+            confidence: 0.95,
+            source_span: asFiled,
+          },
+        ],
+      },
+    ]));
+
+    await processFormS1(runArgs(1848507, "0000000000-26-000901", 6770));
+
+    const companies = await new CompanyObservationRepo().listAll();
+    const sponsor = companies.find(
+      (c) => c.accession_number === "0000000000-26-000901" && c.name === "Acme Sponsor LLC"
+    );
+    expect(sponsor).toBeDefined();
+    expect(JSON.parse(sponsor!.source_context!)).toEqual({
+      relation: "s1:spac-sponsor",
+      as_filed: asFiled,
+      family_name: "Big Bank Inc.",
+    });
+
+    const family = await new CanonicalSponsorFamilyRepo().findByResolverAndName(
+      "1.0.0",
+      normalizeSponsorFamilyName("Big Bank Inc.")
+    );
+    expect(family).toBeDefined();
+    expect(family!.normalized_name).toBe("BIG-BANK");
   });
 });

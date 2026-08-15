@@ -49,6 +49,10 @@ import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
+import {
+  parentClauseSourceContext,
+  splitParentClause,
+} from "../../../storage/company/splitParentClause";
 import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModels } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
@@ -1091,20 +1095,22 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
-      const extractedNames = rows.map((r) => r.legal_name?.trim() ?? "");
-      for (const r of rows) {
+      const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
+      const extractedNames = splits.map((s) => s.observationName);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]!;
+        const split = splits[i]!;
         // A row whose legal name is blank (degenerate model output)
         // is skipped rather than allowed to throw inside the resolver and abort
         // every other valid sponsor in this filing.
-        const legalName = r.legal_name?.trim() ?? "";
-        if (legalName === "") continue;
-        if (isCompanyFamilyPrefixEcho(legalName, extractedNames)) continue;
+        if (split.observationName === "") continue;
+        if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
         const observation_index = idx++;
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
           observation_index,
-          name: legalName,
-          source_context: JSON.stringify({ relation: "s1:spac-sponsor" }),
+          name: split.observationName,
+          source_context: parentClauseSourceContext("s1:spac-sponsor", split),
         });
         await provenance.save({
           kind: "company",
@@ -1116,7 +1122,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           prompt_version: extractor_version,
           extra: null,
         });
-        const sponsor_family_id = await sponsorFamilyResolver.resolve(legalName);
+        const sponsor_family_id = await sponsorFamilyResolver.resolve(split.familyName);
         await membershipRepo.record({
           resolver_version: activeSponsorFamilyVersion,
           canonical_company_id,
