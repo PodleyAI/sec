@@ -52,7 +52,15 @@ BEGIN;
 -- SET takes identifiers and string constants, never a function call, so that
 -- spelling is a syntax error. Inside this transaction it aborts every statement
 -- after it and the COMMIT rolls back — the ceremony silently does nothing.
-SELECT set_config('search_path', current_schema(), true);
+--
+-- `quote_ident` because `search_path` is parsed as a list of IDENTIFIERS, so an
+-- unquoted element is case-folded to lower case. A schema named `Staging`
+-- (which `current_schema()` returns verbatim) would be written into the path as
+-- `Staging`, resolved as `staging`, and the pin would fail open — falling back
+-- to whatever the surrounding path finds first, which is the exact hazard this
+-- line exists to close. `quote_ident` wraps it as `"Staging"` only when it
+-- needs wrapping, so an ordinary lower-case schema is unaffected.
+SELECT set_config('search_path', quote_ident(current_schema()), true);
 
 TRUNCATE TABLE
   -- Family tier. The link row IS the attribution here (there is no
@@ -78,11 +86,20 @@ TRUNCATE TABLE
   -- Person observations, and everything carrying an `observation_id` FK.
   -- These cannot outlive the observations they cite.
   --
-  -- The COMPANY canonical tier is absent on purpose: `normalizeCompanyName` is
-  -- unchanged, so `company_observations.normalized_name` — the column
-  -- `canonical_company` is keyed on — is still valid. Nothing there was made
-  -- stale by a normalizer, and there is no rebuild path short of a full
-  -- re-extraction.
+  -- The COMPANY canonical tier is absent on purpose — but it is NOT untouched.
+  -- `normalizeCompanyName` DID change in this release, so
+  -- `company_observations.normalized_name` (the column `canonical_company` is
+  -- keyed on) is stale wherever the new rules key a name differently —
+  -- `Churchill Capital Corp I` no longer collapses onto `Churchill Capital`,
+  -- and `Reinvent Technology Partners Y` no longer collides with `Reinvent
+  -- Technology Partners`. Those rows are rebuildable rather than disposable:
+  -- `normalized_name` is derived from the `name` each observation already
+  -- carries, so `sec resolve --kind company --all --renormalize` recomputes and
+  -- re-partitions in place with no re-extraction. ⚠️ That pass is REQUIRED
+  -- after this script and nothing errors if it is skipped — the merged
+  -- canonical identities simply survive. See the portable file
+  -- (`truncate-identity-tier.sql`) for the full ordered command list, the
+  -- before/after examples, and the zero-link residue to expect.
   beneficial_ownership,
   executive_compensation,
   related_party_transactions,

@@ -40,6 +40,27 @@ function printError(message: string): void {
   process.exitCode = 1;
 }
 
+/** The two renderings every alias-listing command in this group supports. */
+const ALIAS_OUTPUT_FORMATS = ["text", "tsv"] as const;
+
+/**
+ * Reports an unsupported `--format` instead of falling through to the text
+ * branch. Returns true when the caller should stop.
+ *
+ * Silently degrading matters more here than almost anywhere else in the CLI:
+ * these exports are taken immediately BEFORE a destructive re-key, and
+ * `--format json` — a format neither command has ever supported, but one every
+ * other `sec` command does — would emit a human-readable dump that
+ * `alias-import` cannot parse. Nothing says so at the time; the operator finds
+ * out after the wipe, by which point the hand-curated alias rows the file was
+ * supposed to preserve are gone.
+ */
+function rejectUnsupportedFormat(format: string): boolean {
+  if ((ALIAS_OUTPUT_FORMATS as readonly string[]).includes(format)) return false;
+  printError(`--format must be one of ${ALIAS_OUTPUT_FORMATS.join("|")}`);
+  return true;
+}
+
 /**
  * Registers `alias`, `alias-remove`, `alias-list` and `alias-import` on a
  * person/company subgroup.
@@ -84,6 +105,10 @@ function addAliasCommands(group: Command, kind: CanonicalEntityKind): void {
         "`alias-import` reads — take one before any re-key ceremony."
     )
     .action(async (opts: { orphans: boolean; format: string }) => {
+      // Checked before the query runs, so a rejected format emits no listing at
+      // all — a partial one on stdout beside an error on stderr is exactly the
+      // file an operator would redirect and keep.
+      if (rejectUnsupportedFormat(opts.format)) return;
       const { aliases } = await runWorkflowCli<CanonicalAliasListTaskOutput>([
         new CanonicalAliasListTask({ defaults: { kind, orphans: opts.orphans } }),
       ]);
@@ -147,6 +172,7 @@ export function addCanonicalCommands(program: Command): void {
         printError(`--kind must be one of ${ALIAS_SUGGESTION_KINDS.join("|")}`);
         return;
       }
+      if (rejectUnsupportedFormat(opts.format)) return;
       const { suggestions, scanned } = await runWorkflowCli<SuggestAliasesTaskOutput>([
         new SuggestAliasesTask({ defaults: { kind: opts.kind } }),
       ]);

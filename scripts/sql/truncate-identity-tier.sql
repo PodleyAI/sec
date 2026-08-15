@@ -18,16 +18,51 @@
 --     key from the legal name via `companyFamilyName`, so every family key is
 --     different and every family id minted under the old one is orphaned.
 --
--- The COMPANY canonical tier is deliberately NOT here. `normalizeCompanyName`
--- is unchanged, `company_observations.normalized_name` is still valid, and
--- `canonical_company` is keyed on that column plus a UUID — nothing in it is
--- keyed by a normalizer that moved. (`generateCompanyHash` does fold, but no
--- table stores `company_hash_id`; it is a derived slug, not the company
--- identity key.) Wiping it would destroy `canonical_company`,
--- `company_identity_link` and both company junction tables for no reason, and
--- the only rebuild would be a full re-extraction: `sec resolve --kind company`
--- rebuilds identity links, but the company observations it reads are exactly
--- what this script keeps.
+-- The COMPANY canonical tier is NOT wiped here — but it is NOT untouched
+-- either, and that difference is why step 3b below is mandatory.
+--
+-- `normalizeCompanyName` DID change in this same release, so
+-- `company_observations.normalized_name` — the column `canonical_company` is
+-- keyed on, and the one `CompanyResolver`'s name fallback matches against — is
+-- stale for every observation the new rules key differently. Three real
+-- before/after pairs:
+--
+--   Churchill Capital Corp I        "Churchill Capital"             → "Churchill Capital Corp I"
+--   Reinvent Technology Partners Y  "Reinvent Technology Partners"  → stays distinct from the plain name
+--   Blue Acquisition Corp/Cayman    unchanged (kept "/Cayman")      → "Blue Acquisition"
+--
+-- The first two are the point of the release: a placeholder suffix
+-- interpolated into a `RegExp` was read as a character class and deleted
+-- single-letter words, so `Churchill Capital Corp I` collided with plain
+-- `Churchill Capital`, and the two unrelated filers `Reinvent Technology
+-- Partners` (CIK 1819848) and `Reinvent Technology Partners Y` (CIK 1828108)
+-- shared ONE canonical identity.
+--
+-- Those rows are stale but they are also REBUILDABLE, which is exactly why
+-- wiping is the wrong tool here: `normalized_name` is derived from the `name`
+-- every company observation already carries, so one command recomputes it in
+-- place — no re-extraction, no AI cost:
+--
+--   sec resolve --kind company --all --renormalize
+--
+-- ⚠️ THAT PASS IS REQUIRED, not optional, and nothing errors if you skip it.
+-- The stale keys keep resolving, `version coverage` keeps reporting full
+-- coverage, and the merged canonical identities this release exists to SPLIT
+-- survive silently. It is step 3b in the list further down: after the
+-- backfills, and before the alias imports — aliases are matched by canonical
+-- DISPLAY NAME, so they must be imported against the re-resolved tier.
+--
+-- Expected residue afterwards: `canonical_company` rows minted under the
+-- PREVIOUS normalized names survive the re-partition with zero identity links
+-- pointing at them. They are inert, not corruption — nothing reads a canonical
+-- row no link cites — and they are left in place because removing them needs a
+-- reachability sweep this ceremony does not do. The visible fallout is
+-- aliases: one whose target was such a row now points at an orphan, which
+-- `sec canonical company alias-list --orphans` lists.
+--
+-- (`generateCompanyHash` does fold diacritics where `normalizeCompanyName`
+-- does not, but no table stores `company_hash_id`; it is a derived slug, not
+-- the company identity key, so it is no part of this.)
 --
 -- `observation_provenance` is scoped to `kind = 'person'` for the same reason.
 -- Its person rows cannot outlive the person observations they cite; its
@@ -60,11 +95,13 @@
 -- rejects it) and portability is this file's only reason to exist, so the two
 -- stay separate rather than one growing a dialect-specific line.
 --
--- Then re-extract every extractor whose output this script deleted (see
--- REKEY_REEXTRACT_EXTRACTOR_IDS) and re-import the curated data. `424` is in
--- the list for the FAMILY tier, not the person one: the priced-prospectus path
--- writes `underwriter_link` rows that the family section below wipes, and
--- nothing but a re-extraction can restore them.
+-- Then, in this order:
+--
+-- 3a. Re-extract every extractor whose output this script deleted (see
+--     REKEY_REEXTRACT_EXTRACTOR_IDS). `424` is in the list for the FAMILY
+--     tier, not the person one: the priced-prospectus path writes
+--     `underwriter_link` rows that the family section below wipes, and nothing
+--     but a re-extraction can restore them.
 --   sec extractor backfill S-1
 --   sec extractor backfill D
 --   sec extractor backfill C
@@ -76,6 +113,15 @@
 --   sec extractor backfill 5
 --   sec extractor backfill 144
 --   sec extractor backfill 424
+--
+-- 3b. Re-key the COMPANY canonical tier, which this script deliberately does
+--     NOT wipe but which `normalizeCompanyName` made stale. Required, cheap
+--     (recomputes from stored names — no fetches, no model calls), and silent
+--     if skipped. See the COMPANY paragraph above.
+--   sec resolve --kind company --all --renormalize
+--
+-- 3c. Restore the curated data. The alias imports come LAST because they match
+--     on canonical display names and must land against the re-resolved tier.
 --   sec editorial import data/editorial/family-descriptions.csv
 --   sec canonical person alias-import aliases-person.tsv
 --   sec canonical company alias-import aliases-company.tsv

@@ -178,6 +178,55 @@ describe("sec canonical CLI", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("alias-list rejects an unsupported --format instead of dumping text", async () => {
+    // `--format json` is supported across most of the `sec` CLI and by neither
+    // of these two commands, so it is the format an operator most plausibly
+    // reaches for. Falling through to the text branch is worst precisely here:
+    // this export is taken immediately before a destructive re-key, and a text
+    // dump is not something `alias-import` can read back. The failure would
+    // surface only after the wipe, with the hand-curated alias rows already
+    // gone — so the command must refuse, and must emit NO listing that could be
+    // redirected into a file and mistaken for the export.
+    const dir = mkdtempSync(join(tmpdir(), "sec-canonical-test-"));
+    try {
+      expect((await runCli(["db", "setup"], dir)).exitCode).toBe(0);
+
+      // Seed one alias so a fall-through would have something to print. Without
+      // this, an empty stdout would prove nothing — the table would be empty
+      // either way.
+      await runCli(["canonical", "company", "alias", UUID_A, UUID_B, "--reason", "test"], dir);
+      const listing = await runCli(["canonical", "company", "alias-list"], dir);
+      expect(listing.stdout.trim()).not.toBe("");
+
+      const result = await runCli(["canonical", "company", "alias-list", "--format", "json"], dir);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("--format must be one of text|tsv");
+      expect(result.stdout.trim()).toBe("");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("suggest-aliases rejects an unsupported --format", async () => {
+    // Same guard, same reason — its `--format tsv` output feeds the same
+    // `alias-import`. This command already validated `--kind` exactly this way,
+    // so a typo in one flag failed loudly while a typo one flag over degraded
+    // silently.
+    const dir = mkdtempSync(join(tmpdir(), "sec-canonical-test-"));
+    try {
+      expect((await runCli(["db", "setup"], dir)).exitCode).toBe(0);
+      const result = await runCli(
+        ["canonical", "suggest-aliases", "--kind", "company", "--format", "json"],
+        dir
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("--format must be one of text|tsv");
+      expect(result.stdout.trim()).toBe("");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 // Direct unit tests for the canonical-reference resolver helpers. The CLI docs
