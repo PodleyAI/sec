@@ -321,7 +321,10 @@ describe("processFormS1 underwriters", () => {
     });
 
     const companies = await new CompanyObservationRepo().listAll();
-    const kw = companies.find((c) => c.name === "Kingswood Capital Markets Inc");
+    // The observation carries X exactly as filed — the parent's `Inc.` is not
+    // grafted onto it. The parent is still recorded, in
+    // source_context.family_name and in the canonical family row asserted below.
+    const kw = companies.find((c) => c.name === "Kingswood Capital Markets");
     expect(kw).toBeDefined();
     expect(JSON.parse(kw!.source_context!)).toEqual({
       relation: "s1:underwriter",

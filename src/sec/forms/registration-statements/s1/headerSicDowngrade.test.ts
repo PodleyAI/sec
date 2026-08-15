@@ -135,6 +135,53 @@ describe("header-SIC downgrade", () => {
     expect(await new SpacRepo().getSpac(cik)).toBeDefined();
   });
 
+  it("demotes on a retry even though its own earlier pass minted the row", async () => {
+    // The two-run shape is the only one that reproduces this. FOUR paths in
+    // processFormS1 record the registration before segmentation ever runs — no
+    // model, S-1MEF, parse error, and the Part-II-only amendment — and
+    // recordRegistration appends an event and rebuilds the spac row. So by the
+    // time a `retry-dead-letters` run can finally read the prospectus, a spac
+    // row for this CIK exists; a guard reading `getSpac(cik)` then treats the
+    // filing's OWN earlier pass as prior evidence about itself and the
+    // demotion never fires.
+    const cik = 2108122;
+    const accession = "0000000000-26-000020";
+
+    // Pass 1: no model available. The deterministic header SIC stands and the
+    // early path mints the spac row.
+    const { model: _model, ...noModelArgs } = runArgs(cik, accession, OPERATING_SUMMARY);
+    await processFormS1(noModelArgs);
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+    const first = await new S1ClassificationRepo().get("S-1", accession);
+    expect(first?.is_spac).toBe(true);
+    expect(first?.classifier_source).toBe("sgml-header");
+
+    // Pass 2: the SAME accession, now with a model. The prospectus is readable,
+    // reads as an operating company, and the only spac event on file is the one
+    // this accession wrote — so it is not evidence, and the demotion fires.
+    await processFormS1(runArgs(cik, accession, OPERATING_SUMMARY));
+    const row = await new S1ClassificationRepo().get("S-1", accession);
+    expect(row?.is_spac).toBe(false);
+    expect(row?.classifier_source).toBe("sgml-header-rejected");
+  });
+
+  it("still refuses to demote when the prior event came from another accession", async () => {
+    // The control for the narrowing above: evidence from a DIFFERENT accession
+    // is real evidence, and the "once a blank check, always a SPAC CIK"
+    // invariant must survive. Here a genuine earlier registration minted the
+    // row, so the later operating-company prose is the expected post-de-SPAC
+    // shape rather than grounds to detach the filing from its lifecycle row.
+    const cik = 2108123;
+    await processFormS1(runArgs(cik, "0000000000-26-000021", BLANK_CHECK_SUMMARY));
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+
+    await processFormS1(runArgs(cik, "0000000000-26-000022", OPERATING_SUMMARY));
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-26-000022");
+    expect(row?.is_spac).toBe(true);
+    expect(row?.classifier_source).toBe("sgml-header");
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+  });
+
   it("still declines to mint a row for a CIK nothing knows about", async () => {
     // Same prose, no prior spac row: here the only question is whether a stale
     // header should MINT one, and it should not.
