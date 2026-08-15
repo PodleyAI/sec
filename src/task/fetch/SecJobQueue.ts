@@ -6,6 +6,7 @@
 
 import {
   CompositeLimiter,
+  ConcurrencyLimiter,
   EvenlySpacedRateLimiter,
   FetchUrlTaskInput,
   FetchUrlTaskOutput,
@@ -21,7 +22,7 @@ import {
   wrapQueueStorage,
 } from "workglow";
 
-import { SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
+import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
 import { SEC_DB_TYPE } from "../../config/tokens";
 import { getPgPool } from "../../util/pg";
 import { SecFetchJob } from "./SecFetchJob";
@@ -138,6 +139,17 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
       messageQueue,
       jobStore,
       limiter: new CompositeLimiter([
+        // FIRST, ahead of the rate limiters, and holding its token until the
+        // job reaches a terminal state — which is what makes it a concurrency
+        // bound rather than a second rate cap. The two rate limiters below
+        // meter STARTS over a time window, so neither can see how many fetches
+        // are still running; without this a slow EDGAR admits `rate x latency`
+        // requests at once and the descriptor table runs dry. Ordering matters
+        // for cost as much as correctness: this counter is in-process, so a
+        // rejected claim under saturation costs nothing, while acquiring the
+        // cluster limiter first would spend a reserve/release round trip
+        // against Postgres on every claim it then has to roll back.
+        new ConcurrencyLimiter(SecFetchMaxConcurrent),
         limiter,
         new EvenlySpacedRateLimiter({
           maxExecutions: SecFetchMaxPerSec,
