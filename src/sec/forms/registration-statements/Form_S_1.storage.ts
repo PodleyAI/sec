@@ -518,9 +518,25 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // detach a filing from the very lifecycle row it belongs to. The content gate
   // is for a CIK nothing knows about yet, where the only question is whether to
   // MINT a row on the strength of a stale header.
+  //
+  // "Already known" therefore has to mean evidence from a DIFFERENT accession.
+  // Four earlier paths (no model, MEF, parse error, Part-II-only amendment)
+  // record the registration before segmentation, and that appends an event and
+  // rebuilds the spac row — so `getSpac(cik)` is already defined on the retry
+  // that finally CAN read the prospectus, and this filing would be reading its
+  // own earlier pass as prior evidence about itself. Reading the event log is a
+  // faithful narrowing rather than a change of subject: the row is derived from
+  // the append-only log, so a spac row always carries at least one event.
+  //
+  // Residual, and unavoidable: a de-SPAC filer whose first seen filing was a
+  // MEF under a stale 6770 header still mints a row and still gates its later
+  // filings. A MEF is a cover page — there is nothing in it to judge.
   if (isSpac) {
     const summary = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
-    const alreadyKnownSpac = (await new SpacRepo().getSpac(cik)) !== undefined;
+    const priorEvents = await new SpacRepo().getEvents(cik);
+    const alreadyKnownSpac = priorEvents.some(
+      (event) => event.accession_number !== accession_number
+    );
     if (
       !alreadyKnownSpac &&
       summary.length >= MIN_SUMMARY_CHARS_TO_DEMOTE &&

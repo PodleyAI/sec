@@ -52,8 +52,9 @@ function compareTrustFacts(a: CompanyFact, b: CompanyFact): number {
 
 /**
  * Whether an incoming company-facts snapshot should replace the one already
- * on the spac row. Equal period-end with a later (or equal) filed date wins
- * so a 10-Q/A restatement applies; an older quarter never regresses.
+ * on the spac row. At an equal period-end a strictly later filed date wins, so
+ * a 10-Q/A restatement applies while an identical re-read of the same filing
+ * does not re-write the row. An older quarter never regresses.
  */
 export function isNewerTrustSnapshot(
   incoming: { readonly asOf: string; readonly filed: string },
