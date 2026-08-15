@@ -26,6 +26,7 @@ import { CanonicalSponsorFamilyAliasRepo } from "../../../storage/canonical/Cano
 import { SponsorFamilyResolver } from "../../../resolver/SponsorFamilyResolver";
 import { SponsorFamilyMembershipRepo } from "../../../storage/canonical/SponsorFamilyMembershipRepo";
 import { SpacSponsorLinkRepo } from "../../../storage/canonical/SpacSponsorLinkRepo";
+import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { FormS1Parsed } from "./Form_S_1";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
@@ -506,9 +507,22 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // turn a segmentation shortfall into a classification. The smallest summary in
   // the committed corpus is ~13.6k characters, so this bar is well beneath every
   // real one while still excluding a fragment.
+  //
+  // And it never demotes a CIK that is ALREADY a known SPAC. A CIK that once
+  // registered as a blank check stays a SPAC CIK for good: the shell keeps its
+  // CIK through the combination and renames, which is precisely what the spac
+  // row's three eras (`spac_*` / `post_merger_*` / `current_*`) exist to model.
+  // A post-combination registration statement therefore reads like the operating
+  // company it now is — that is the normal, expected shape, not evidence that
+  // the vehicle was never a SPAC — so judging it afresh on its prose would
+  // detach a filing from the very lifecycle row it belongs to. The content gate
+  // is for a CIK nothing knows about yet, where the only question is whether to
+  // MINT a row on the strength of a stale header.
   if (isSpac) {
     const summary = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
+    const alreadyKnownSpac = (await new SpacRepo().getSpac(cik)) !== undefined;
     if (
+      !alreadyKnownSpac &&
       summary.length >= MIN_SUMMARY_CHARS_TO_DEMOTE &&
       !looksLikeBlankCheck(summary, DEMOTE_MIN_BLANK_CHECK_SIGNALS)
     ) {

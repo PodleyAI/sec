@@ -326,7 +326,25 @@ heuristic passes exactly the filings this is meant to catch — and only a
 **substantial** summary can demote (2k characters; the smallest in the committed
 corpus is ~13.6k). Silence is evidence only where there was room to speak: a
 summary stub says nothing about anything, and demoting on it would turn a
-segmentation shortfall into a classification. A SPAC filed under a miscoded or
+segmentation shortfall into a classification.
+
+Two more limits keep the demotion from eating real blank checks. It **never
+demotes a CIK that already has a `spac` row**: a CIK that once registered as a
+blank check stays a SPAC CIK for good — the shell keeps its CIK through the
+combination and renames, which is precisely what the row's three eras exist to
+model — so a post-combination filing must attach to the vehicle it belongs to
+rather than be judged afresh on prose that now describes an operating company.
+The content gate is only for a CIK nothing knows about yet, where the question
+is whether to MINT a row on the strength of a stale header. And it demotes only
+on a summary carrying **zero** blank-check signals, not the two
+`looksLikeBlankCheck` defaults to: the two callers ask the same question with
+opposite error costs (a false negative in the AI pre-filter skips a model call;
+here it deletes the `spac` row), and at 2 it demoted `Lucent, Inc.` — a shell
+whose summary states outright that it is a blank check company, that phrase
+being its only signal because a shell that size has no trust account, no founder
+shares and no sponsor. Across the committed corpus all 20 labelled SPAC
+summaries carry ≥2 signals and every non-SPAC filed under a 6770 header carries
+zero. A SPAC filed under a miscoded or
 absent SIC would be missed, so `processFormS1` runs an **AI content classifier**
 behind the `S1Classification.classifier_source = "ai"` seam. It is gated twice to
 stay cheap: it only runs when the deterministic path did **not** already flag the

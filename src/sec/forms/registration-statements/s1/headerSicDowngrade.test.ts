@@ -117,4 +117,31 @@ describe("header-SIC downgrade", () => {
       expect(row?.classifier_source).toBe("sgml-header");
     });
   });
+
+  it("never demotes a CIK that is already a known SPAC", async () => {
+    // The shell keeps its CIK through the combination and renames, so a
+    // post-combination registration statement reads like the operating company
+    // it now is. That is the expected shape, not evidence the vehicle was never
+    // a SPAC — and the spac row's three eras exist to carry exactly this.
+    const cik = 2108121;
+    await processFormS1(runArgs(cik, "0000000000-26-000010", BLANK_CHECK_SUMMARY));
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+
+    // A later filing on the same CIK whose prose is pure operating company.
+    await processFormS1(runArgs(cik, "0000000000-26-000011", OPERATING_SUMMARY));
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-26-000011");
+    expect(row?.is_spac).toBe(true);
+    expect(row?.classifier_source).toBe("sgml-header");
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+  });
+
+  it("still declines to mint a row for a CIK nothing knows about", async () => {
+    // Same prose, no prior spac row: here the only question is whether a stale
+    // header should MINT one, and it should not.
+    await processFormS1(runArgs(2109999, "0000000000-26-000012", OPERATING_SUMMARY));
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-26-000012");
+    expect(row?.is_spac).toBe(false);
+    expect(row?.classifier_source).toBe("sgml-header-rejected");
+    expect(await new SpacRepo().getSpac(2109999)).toBeUndefined();
+  });
 });
