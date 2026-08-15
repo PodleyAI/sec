@@ -15,17 +15,19 @@ function firstIndexOf(order: readonly string[], extractorId: string): number {
 }
 
 describe("sortFormsForSweep", () => {
-  it("runs S-1 before 424 before 8-K before proxies before 25/15", () => {
+  it("runs S-1 before RW before 424 before 8-K before proxies before 25/15", () => {
     // Object key order puts the integer-like "25" fourth overall, so a first-pass
     // sweep processed every issuer-filed Form 25 before its S-1 had minted the
-    // spac row the deregistration handler is gated on.
+    // spac row the deregistration handler is gated on. Form RW is the same gate.
     const order = sortFormsForSweep(Object.keys(FORM_TO_EXTRACTOR_ID));
     const s1 = firstIndexOf(order, "S-1");
+    const rw = firstIndexOf(order, "RW");
     const p424 = firstIndexOf(order, "424");
     const eightK = firstIndexOf(order, "8-K");
     const proxy = firstIndexOf(order, "merger-proxy");
     const dereg = firstIndexOf(order, "25-15");
-    expect(s1).toBeLessThan(p424);
+    expect(s1).toBeLessThan(rw);
+    expect(rw).toBeLessThan(p424);
     expect(p424).toBeLessThan(eightK);
     expect(eightK).toBeLessThan(proxy);
     expect(proxy).toBeLessThan(dereg);
@@ -33,7 +35,7 @@ describe("sortFormsForSweep", () => {
 
   it("puts every ranked form ahead of every unranked one", () => {
     const order = sortFormsForSweep(Object.keys(FORM_TO_EXTRACTOR_ID));
-    const ranked = new Set(["S-1", "424", "8-K", "merger-proxy", "25-15"]);
+    const ranked = new Set(["S-1", "RW", "424", "8-K", "merger-proxy", "25-15"]);
     const lastRanked = order.reduce(
       (acc, form, i) => (ranked.has(FORM_TO_EXTRACTOR_ID[form]) ? i : acc),
       -1

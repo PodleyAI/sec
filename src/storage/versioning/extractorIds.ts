@@ -22,6 +22,7 @@ export const EXTRACTOR_IDS = [
   "redemption",
   "loi",
   "25-15",
+  "RW",
 ] as const;
 export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
 
@@ -47,8 +48,8 @@ export type ExtractorId = (typeof EXTRACTOR_IDS)[number];
  * - `144` — the selling person
  * - `CFPORTAL` — portal contacts and owners
  *
- * Deliberately absent: `424` and `1-K` observe companies only, `25-15` is
- * metadata-only, and `8-K` / `merger-proxy` / `redemption` / `loi` observe the
+ * Deliberately absent: `424` and `1-K` observe companies only, `25-15` and `RW`
+ * are metadata-only, and `8-K` / `merger-proxy` / `redemption` / `loi` observe the
  * de-SPAC target company rather than any person.
  */
 export const PERSON_OBSERVING_EXTRACTOR_IDS: readonly ExtractorId[] = [
@@ -199,6 +200,10 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "15F-12G/A": "25-15",
   "15F-15D": "25-15",
   "15F-15D/A": "25-15",
+  // Form RW (registration withdrawal). Metadata-only: the filings table already
+  // carries cik / form / filing_date. RW WD (undo of a withdrawal) is catalogued
+  // but not extracted — reversing a withdrawal is not the same event.
+  RW: "RW",
 };
 
 /**
@@ -254,7 +259,7 @@ export function formToExtractorId(form: string): ExtractorId | undefined {
  *
  * Forms not listed here have no such dependency and run afterwards.
  */
-const SWEEP_PRIORITY: readonly ExtractorId[] = ["S-1", "424", "8-K", "merger-proxy", "25-15"];
+const SWEEP_PRIORITY: readonly ExtractorId[] = ["S-1", "RW", "424", "8-K", "merger-proxy", "25-15"];
 
 /**
  * Sort forms into {@link SWEEP_PRIORITY} order, stably.

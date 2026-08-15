@@ -18,6 +18,7 @@ import { Form_8_B12G } from "./Form_8_B12G";
 import { Form_8A12BEF } from "./Form_8A12BEF";
 import { Form_8A12BT } from "./Form_8A12BT";
 import { Form_RW } from "./Form_RW";
+import { Form_RW_WD } from "./Form_RW_WD";
 import { Form_AW } from "./Form_AW";
 
 export const REGISTRATION_WITHDRAWAL_TERMINATION_FORMS_MAP = [
@@ -35,6 +36,7 @@ export const REGISTRATION_WITHDRAWAL_TERMINATION_FORMS_MAP = [
   ...Form_8A12BEF.forms.map((form) => [form, Form_8A12BEF] as const),
   ...Form_8A12BT.forms.map((form) => [form, Form_8A12BT] as const),
   ...Form_RW.forms.map((form) => [form, Form_RW] as const),
+  ...Form_RW_WD.forms.map((form) => [form, Form_RW_WD] as const),
   ...Form_AW.forms.map((form) => [form, Form_AW] as const),
 ] as const;
 

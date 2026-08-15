@@ -345,6 +345,32 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record Form RW (registration withdrawal): append a `withdrawal` event
+   * (idempotent by PK), recompute deals, then rebuild the row. Rollup treats
+   * that event as `withdrawn` only when the vehicle never IPOd — an IPO already
+   * on the stream stays `ipo`.
+   */
+  async recordWithdrawal(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "withdrawal",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
    * Record a realized redemption: recompute deals from the event stream +
    * stored redemption extractions (correlation derives redemption_amount /
    * redemption_shares onto the matching deal), then rebuild the row. No event

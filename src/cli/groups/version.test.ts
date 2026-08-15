@@ -54,6 +54,7 @@ describe("sec version CLI", () => {
         "C",
         "CFPORTAL",
         "D",
+        "RW",
         "S-1",
         "loi",
         "merger-proxy",

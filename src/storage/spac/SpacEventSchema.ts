@@ -16,6 +16,7 @@ import { TypeSecCik } from "../../util/TypeSecCik";
  * (`definitive_agreement` / `terminated` / `vote`) or a non-lifecycle type
  * (`material_agreement` / `eight_k`); they are not 1:1 with item codes.
  * `deregistration` is written from Form 25 / 25-NSE / Form 15 metadata.
+ * `withdrawal` is written from Form RW (registration withdrawal) metadata.
  * Remaining types are reserved for deferred extractors (S-4, Form 425,
  * liquidation narrative).
  */
@@ -36,6 +37,7 @@ export const SPAC_EVENT_TYPES = [
   "terminated",
   "liquidation",
   "deregistration",
+  "withdrawal",
   "name_change",
   "ticker_change",
   // An investor-presentation exhibit (e.g. 8-K Item 7.01 EX-99); carries the

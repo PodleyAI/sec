@@ -29,6 +29,7 @@ import { processFormS1 } from "../../sec/forms/registration-statements/Form_S_1.
 import { processForm424 } from "../../sec/forms/registration-statements/Form_424.storage";
 import { processForm8K } from "../../sec/forms/miscellaneous-filings/Form_8_K.storage";
 import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { TypeAccessionNumber } from "../../sec/edgar/accessionNumber";
 import { processMergerProxy } from "../../sec/forms/proxies-information-statements/Form_DEFM14A.storage";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -425,12 +426,19 @@ export class ProcessAccessionDocFormTask extends Task<
 
     // Form 25 / 15 never need the document body: 25-NSE files live under the
     // exchange CIK (an issuer-CIK fetch 404s), and the event date is the
-    // filings-table `filing_date`. Skip fetch/parse before the missing-primary-doc
-    // guard so a 25-NSE with no `primary_doc` still records.
-    if (extractorId === "25-15") {
+    // filings-table `filing_date`. Form RW is the same shape — metadata only.
+    // Skip fetch/parse before the missing-primary-doc guard so a 25-NSE with
+    // no `primary_doc` still records.
+    const metadataOnly =
+      extractorId === "25-15"
+        ? processDeregistration
+        : extractorId === "RW"
+          ? processWithdrawal
+          : undefined;
+    if (metadataOnly) {
       await context.updateProgress(80, `${label} · storing`);
       try {
-        await processDeregistration({
+        await metadataOnly({
           cik: cik!,
           accession_number: accessionNumber,
           form,

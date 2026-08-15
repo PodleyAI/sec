@@ -161,6 +161,38 @@ const deregistrationDescriptor: BackfillDescriptor = {
   },
 };
 
+/**
+ * Candidates for Form RW recovery: known-SPAC registration-withdrawal filings.
+ * `filterTodo` keeps those with no `withdrawal` event: the known-SPAC gate
+ * records a `success: true` no-op when the spac row does not exist at
+ * ingestion, so the default extractor-runs anti-join would never revisit them
+ * after the S-1 lands.
+ */
+const withdrawalDescriptor: BackfillDescriptor = {
+  extractorId: "RW",
+  selectCandidates: () => selectKnownSpacFilings("RW"),
+  filterTodo: async (candidates) => {
+    const repo = new SpacRepo();
+    const eventsByCik = new Map<number, SpacEvent[]>();
+    const todo: BackfillCandidate[] = [];
+    for (const c of candidates) {
+      let events = eventsByCik.get(c.cik);
+      if (!events) {
+        events = await repo.getEvents(c.cik);
+        eventsByCik.set(c.cik, events);
+      }
+      if (
+        !events.some(
+          (e) => e.event_type === "withdrawal" && e.accession_number === c.accession_number
+        )
+      ) {
+        todo.push(c);
+      }
+    }
+    return todo;
+  },
+};
+
 /** Sub-extractors and gated extractors whose candidate set is not form-derived. */
 const CUSTOM_DESCRIPTORS: Readonly<Record<string, BackfillDescriptor>> = {
   redemption: {
@@ -173,6 +205,7 @@ const CUSTOM_DESCRIPTORS: Readonly<Record<string, BackfillDescriptor>> = {
   },
   "merger-proxy": mergerProxyDescriptor,
   "25-15": deregistrationDescriptor,
+  RW: withdrawalDescriptor,
 };
 
 /**

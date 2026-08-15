@@ -539,6 +539,76 @@ describe("buildSpacRow", () => {
     expect(row.status).toBe("liquidated");
   });
 
+  it("registration plus a withdrawal event is withdrawn, not leftover registered", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "registration", event_date: "2021-02-16" }),
+        ev({ event_type: "withdrawal", event_date: "2022-01-04" }),
+      ],
+      patch: {},
+      filingDate: "2022-01-04",
+    });
+    expect(row.status).toBe("withdrawn");
+  });
+
+  it("an IPO then a withdrawal stays ipo — RW after pricing is not a never-priced shell", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "registration", event_date: "2021-01-01" }),
+        ev({ event_type: "ipo", event_date: "2021-06-01" }),
+        ev({ event_type: "withdrawal", event_date: "2022-01-04" }),
+      ],
+      patch: {},
+      filingDate: "2022-01-04",
+    });
+    expect(row.status).toBe("ipo");
+  });
+
+  it("completed still wins over a withdrawal event", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [
+        deal({
+          deal_index: 0,
+          outcome: "completed",
+          target_name: "Acme Robotics, Inc.",
+          outcome_date: "2022-06-21",
+        }),
+      ],
+      events: [
+        ev({ event_type: "ipo", event_date: "2021-01-15" }),
+        ev({ event_type: "completed", event_date: "2022-06-21" }),
+        ev({ event_type: "withdrawal", event_date: "2022-07-01" }),
+      ],
+      patch: {},
+      filingDate: "2022-07-01",
+    });
+    expect(row.status).toBe("completed");
+  });
+
+  it("liquidation still wins over a withdrawal event", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "ipo", event_date: "2021-01-15" }),
+        ev({ event_type: "withdrawal", event_date: "2022-01-04" }),
+        ev({ event_type: "deregistration", event_date: "2023-09-25" }),
+      ],
+      patch: {},
+      filingDate: "2023-09-25",
+    });
+    expect(row.status).toBe("liquidated");
+  });
+
   it("sums redemptions only from the deal column (events are not double-counted)", () => {
     const row = buildSpacRow({
       existing: undefined,

@@ -8,6 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
@@ -57,12 +58,13 @@ async function seedFiling(opts: {
 
 describe("backfill descriptor registry", () => {
   it("resolves a custom descriptor for the sub-extractors and merger-proxy", () => {
-    for (const id of ["redemption", "loi", "merger-proxy", "25-15"]) {
+    for (const id of ["redemption", "loi", "merger-proxy", "25-15", "RW"]) {
       expect(getBackfillDescriptor(id)?.extractorId).toBe(id);
     }
-    // merger-proxy and 25-15 override the needing-work predicate; the 8-K sub-extractors don't.
+    // merger-proxy, 25-15, and RW override the needing-work predicate; the 8-K sub-extractors don't.
     expect(getBackfillDescriptor("merger-proxy")?.filterTodo).toBeDefined();
     expect(getBackfillDescriptor("25-15")?.filterTodo).toBeDefined();
+    expect(getBackfillDescriptor("RW")?.filterTodo).toBeDefined();
     expect(getBackfillDescriptor("redemption")?.filterTodo).toBeUndefined();
   });
 
@@ -78,7 +80,7 @@ describe("backfill descriptor registry", () => {
 
   it("lists every backfillable id, including the sub-extractors", () => {
     const ids = listBackfillableExtractorIds();
-    for (const id of ["S-1", "8-K", "merger-proxy", "redemption", "loi", "25-15"]) {
+    for (const id of ["S-1", "8-K", "merger-proxy", "redemption", "loi", "25-15", "RW"]) {
       expect(ids).toContain(id);
     }
   });
@@ -207,6 +209,35 @@ describe("25-15 descriptor", () => {
     });
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-15"]);
+  });
+});
+
+describe("RW descriptor", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("selects known-SPAC Form RW filings; filterTodo keeps those lacking a withdrawal event", async () => {
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-rw", form: "RW" });
+    await seedFiling({ cik: 5, accession_number: "acc-rw2", form: "RW" });
+    await seedFiling({ cik: 5, accession_number: "acc-8k", form: "8-K", items: "1.01" });
+    await seedFiling({ cik: 6, accession_number: "acc-nonspac", form: "RW" });
+
+    const descriptor = getBackfillDescriptor("RW")!;
+    const candidates = await descriptor.selectCandidates();
+    const accessions = new Set(candidates.map((c) => c.accession_number));
+    expect(accessions).toEqual(new Set(["acc-rw", "acc-rw2"]));
+
+    await processWithdrawal({
+      cik: 5,
+      accession_number: "acc-rw",
+      form: "RW",
+      filing_date: "2022-01-04",
+    });
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-rw2"]);
   });
 });
 

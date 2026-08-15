@@ -26,6 +26,7 @@ describe("extractorIds", () => {
       "C",
       "CFPORTAL",
       "D",
+      "RW",
       "S-1",
       "loi",
       "merger-proxy",
@@ -138,6 +139,13 @@ describe("extractorIds — DRS dispatch mapping", () => {
     expect(formToExtractorId("DRS")).toBe("S-1");
     expect(formToExtractorId("DRS/A")).toBe("S-1");
     expect(formToExtractorId("DRSLTR")).toBeUndefined();
+  });
+});
+
+describe("extractorIds — Form RW registration-withdrawal dispatch mapping", () => {
+  it("maps Form RW to extractor id 'RW' and does not route RW WD", () => {
+    expect(formToExtractorId("RW")).toBe("RW");
+    expect(formToExtractorId("RW WD")).toBeUndefined();
   });
 });
 

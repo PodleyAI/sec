@@ -121,6 +121,9 @@ function deriveStatus(
     if (active.loi_date) return "loi";
   }
   if (hasIpo) return events.some((e) => e.event_type === "unit_split") ? "searching" : "ipo";
+  // Form RW: the registration was pulled before it priced. An IPO already
+  // recorded above stays ipo — withdrawing a later S-3 does not un-IPO the shell.
+  if (events.some((e) => e.event_type === "withdrawal")) return "withdrawn";
   return "registered";
 }
 
