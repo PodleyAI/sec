@@ -81,8 +81,9 @@ export function persistModelId(models: readonly ModelConfig[], modelIndex: numbe
 }
 
 /**
- * Primary extract plus empty-only fallbacks for {@link makeRunSection}. Later
- * models run only when the previous extract returned `[]`.
+ * Primary extract plus fallbacks for {@link makeRunSection}. Later models run
+ * when the previous extract returned `[]` **or threw** a provider/extraction
+ * error (abort, config, and mixed-shape re-asks stay on the throwing model).
  */
 export function modelExtractChain<TRow extends { confidence: number }>(
   models: readonly ModelConfig[],

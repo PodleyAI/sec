@@ -101,11 +101,12 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
   /**
-   * Tried in order only when {@link extract} (and any earlier fallback) returns
-   * `[]`. Throws still fail the section on that model — this is not a retry of
-   * invalid JSON / nonce / rate-limit. Span-verification re-asks stay on the
-   * model that produced rows. Empty fallbacks do not consume
-   * {@link VERIFICATION_ATTEMPTS}.
+   * Tried in order when {@link extract} (and any earlier fallback) returns `[]`
+   * **or throws** a provider/extraction error. Abort, an already-aborted
+   * signal, {@link SecCliConfigurationError}, and {@link MixedRiskCaptionShapeError}
+   * still fail immediately — mixed-shape re-asks stay on the model that threw.
+   * Span-verification re-asks stay on the model that produced rows. Fallbacks
+   * do not consume {@link VERIFICATION_ATTEMPTS}.
    */
   readonly emptyExtracts?: readonly ((text: string) => Promise<TRow[]>)[];
   /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
@@ -207,21 +208,53 @@ export function makeRunSection(opts: {
       let extractFn = sargs.extract;
       let modelIndex = 0;
       let triedEmptyFallbacks = false;
+      const fallbacks = sargs.emptyExtracts;
+      const isImmediateExtractFailure = (e: unknown): boolean =>
+        e instanceof TaskAbortedError ||
+        e instanceof SecCliConfigurationError ||
+        e instanceof MixedRiskCaptionShapeError ||
+        opts.signal?.aborted === true;
+      const runEmptyFallbacks = async (priorError: unknown | undefined): Promise<TRow[]> => {
+        triedEmptyFallbacks = true;
+        let lastError: unknown = priorError;
+        let lastRaw: TRow[] = [];
+        for (let i = 0; i < fallbacks!.length; i++) {
+          extractFn = fallbacks[i]!;
+          modelIndex = i + 1;
+          try {
+            lastRaw = await extractFn(text);
+            lastError = undefined;
+            if (lastRaw.length > 0) return lastRaw;
+          } catch (fe) {
+            if (isImmediateExtractFailure(fe)) throw fe;
+            lastError = fe;
+          }
+        }
+        if (lastError !== undefined) throw lastError;
+        return lastRaw;
+      };
       for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
         try {
-          raw = await extractFn(text);
-          if (
-            raw.length === 0 &&
-            !triedEmptyFallbacks &&
-            sargs.emptyExtracts !== undefined &&
-            sargs.emptyExtracts.length > 0
-          ) {
-            triedEmptyFallbacks = true;
-            for (let i = 0; i < sargs.emptyExtracts.length; i++) {
-              extractFn = sargs.emptyExtracts[i]!;
-              modelIndex = i + 1;
-              raw = await extractFn(text);
-              if (raw.length > 0) break;
+          try {
+            raw = await extractFn(text);
+            if (
+              raw.length === 0 &&
+              !triedEmptyFallbacks &&
+              fallbacks !== undefined &&
+              fallbacks.length > 0
+            ) {
+              raw = await runEmptyFallbacks(undefined);
+            }
+          } catch (e) {
+            if (isImmediateExtractFailure(e)) throw e;
+            if (
+              !triedEmptyFallbacks &&
+              fallbacks !== undefined &&
+              fallbacks.length > 0
+            ) {
+              raw = await runEmptyFallbacks(e);
+            } else {
+              throw e;
             }
           }
         } catch (e) {

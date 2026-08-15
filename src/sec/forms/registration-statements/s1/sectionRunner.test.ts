@@ -446,6 +446,111 @@ describe("makeRunSection confidenceFloor", () => {
     expect(letters[0]?.reason_code).toBe("MODEL_EMPTY");
     expect(details[0]).toBe("no underwriters returned (tried claude-sonnet-5, claude-haiku-4-5)");
   });
+
+  it("tries emptyExtracts when the primary extract throws a provider error", async () => {
+    const { repo, letters, resolved } = stubDeadLetters();
+    const calls: string[] = [];
+    const persisted: string[] = [];
+    let modelIndex = -1;
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-throw-fallback",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "no underwriters returned",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.span),
+      extract: async () => {
+        calls.push("primary");
+        throw new Error("Provider OPENAI failed: 400 no credits remaining");
+      },
+      emptyExtracts: [
+        async () => {
+          calls.push("fallback");
+          return [{ confidence: 0.9, span: "Citigroup Global Markets Inc." }];
+        },
+      ],
+      modelIds: ["gpt-5.6-luna", "grok-4.6"],
+      persist: async (rows, meta) => {
+        persisted.push(...rows.map((r) => r.span));
+        modelIndex = meta.modelIndex;
+        return rows.length;
+      },
+    });
+
+    expect(calls).toEqual(["primary", "fallback"]);
+    expect(persisted).toEqual(["Citigroup Global Markets Inc."]);
+    expect(modelIndex).toBe(1);
+    expect(letters).toEqual([]);
+    expect(resolved).toContain("underwriters");
+  });
+
+  it("does not try emptyExtracts when the primary extract is aborted", async () => {
+    const { repo, letters } = stubDeadLetters();
+    const calls: string[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-abort-fallback",
+    });
+
+    await expect(
+      runSection<{ confidence: number; span: string }>({
+        sectionName: "underwriters",
+        text: "Citigroup Global Markets Inc. is the underwriter.",
+        emptyDetail: "none",
+        lowConfidenceDetail: "low",
+        extract: async () => {
+          calls.push("primary");
+          throw new TaskAbortedError();
+        },
+        emptyExtracts: [
+          async () => {
+            calls.push("fallback");
+            return [{ confidence: 0.9, span: "Citigroup Global Markets Inc." }];
+          },
+        ],
+        persist: async () => 0,
+      })
+    ).rejects.toBeInstanceOf(TaskAbortedError);
+
+    expect(calls).toEqual(["primary"]);
+    expect(letters).toEqual([]);
+  });
+
+  it("dead-letters the last fallback error when every extract throws", async () => {
+    const { repo, letters, details } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      accession_number: "acc-all-throw",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "underwriters",
+      text: "Citigroup Global Markets Inc. is the underwriter.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      extract: async () => {
+        throw new Error("primary: no credits remaining");
+      },
+      emptyExtracts: [
+        async () => {
+          throw new Error("fallback: provider unavailable");
+        },
+      ],
+      persist: async () => 0,
+    });
+
+    expect(letters).toEqual([{ section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" }]);
+    expect(details[0]).toBe("fallback: provider unavailable");
+  });
 });
 
 describe("makeRunSection configuration errors", () => {
