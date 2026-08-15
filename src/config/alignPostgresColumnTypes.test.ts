@@ -24,6 +24,14 @@ import {
 } from "../storage/facts/CompanyFactsSchema";
 import { XbrlFactPrimaryKeyNames, XbrlFactRowSchema } from "../storage/xbrl/XbrlFactSchema";
 
+/**
+ * The schema every planned statement is qualified with. Ordinary lower-case,
+ * because these tests are about the widening RULES; the qualification itself —
+ * and the `quote()` that keeps it correct for a mixed-case schema — is pinned
+ * in `addMissingColumns.postgres.test.ts`, which shares the same helper.
+ */
+const SCHEMA = "public";
+
 function table(
   name: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test fixtures pass raw TypeBox schemas
@@ -48,28 +56,32 @@ describe("planColumnAlignment", () => {
         "international_number",
       ]),
     ];
-    const plan = planColumnAlignment(declared, [varchar("phones", "international_number", 20)]);
+    const plan = planColumnAlignment(
+      declared,
+      [varchar("phones", "international_number", 20)],
+      SCHEMA
+    );
     expect(plan).toEqual([
       {
         table: "phones",
         column: "international_number",
         kind: "widen",
         width: 64,
-        sql: 'ALTER TABLE "phones" ALTER COLUMN "international_number" TYPE varchar(64)',
+        sql: 'ALTER TABLE "public"."phones" ALTER COLUMN "international_number" TYPE varchar(64)',
       },
     ]);
   });
 
   it("is a no-op when the live column is already at the declared width", () => {
     const declared = [table("phones", Type.Object({ n: Type.String({ maxLength: 64 }) }), ["n"])];
-    expect(planColumnAlignment(declared, [varchar("phones", "n", 64)])).toEqual([]);
+    expect(planColumnAlignment(declared, [varchar("phones", "n", 64)], SCHEMA)).toEqual([]);
   });
 
   it("never narrows a column that is already wider than declared", () => {
     const declared = [table("phones", Type.Object({ n: Type.String({ maxLength: 64 }) }), ["n"])];
-    expect(planColumnAlignment(declared, [varchar("phones", "n", 128)])).toEqual([]);
+    expect(planColumnAlignment(declared, [varchar("phones", "n", 128)], SCHEMA)).toEqual([]);
     // An unbounded TEXT column has no length at all — also never narrowed.
-    expect(planColumnAlignment(declared, [text("phones", "n")])).toEqual([]);
+    expect(planColumnAlignment(declared, [text("phones", "n")], SCHEMA)).toEqual([]);
   });
 
   it("never re-tightens a live-nullable column that the schema declares required", () => {
@@ -78,7 +90,11 @@ describe("planColumnAlignment", () => {
       // A PK column is always NOT NULL in the DDL, so a nullable live PK is
       // still never re-tightened.
     ];
-    const plan = planColumnAlignment(declared, [text("t", "id", true), text("t", "v", true)]);
+    const plan = planColumnAlignment(
+      declared,
+      [text("t", "id", true), text("t", "v", true)],
+      SCHEMA
+    );
     expect(plan).toEqual([]);
   });
 
@@ -93,17 +109,18 @@ describe("planColumnAlignment", () => {
         ["address_hash_id"]
       ),
     ];
-    const plan = planColumnAlignment(declared, [
-      text("addresses", "address_hash_id"),
-      text("addresses", "state_or_country"),
-    ]);
+    const plan = planColumnAlignment(
+      declared,
+      [text("addresses", "address_hash_id"), text("addresses", "state_or_country")],
+      SCHEMA
+    );
     expect(plan).toEqual([
       {
         table: "addresses",
         column: "state_or_country",
         kind: "drop-not-null",
         width: undefined,
-        sql: 'ALTER TABLE "addresses" ALTER COLUMN "state_or_country" DROP NOT NULL',
+        sql: 'ALTER TABLE "public"."addresses" ALTER COLUMN "state_or_country" DROP NOT NULL',
       },
     ]);
   });
@@ -113,18 +130,18 @@ describe("planColumnAlignment", () => {
     // unbounded TEXT, so there is no width to compare against and the column
     // would otherwise keep rejecting values the schema allows.
     const declared = [table("t", Type.Object({ id: Type.String(), v: Type.String() }), ["id"])];
-    const plan = planColumnAlignment(declared, [text("t", "id"), varchar("t", "v", 20)]);
+    const plan = planColumnAlignment(declared, [text("t", "id"), varchar("t", "v", 20)], SCHEMA);
     expect(plan).toEqual([
       {
         table: "t",
         column: "v",
         kind: "unbound",
         width: undefined,
-        sql: 'ALTER TABLE "t" ALTER COLUMN "v" TYPE text',
+        sql: 'ALTER TABLE "public"."t" ALTER COLUMN "v" TYPE text',
       },
     ]);
     // Idempotent: nothing left to do once the column is already text.
-    expect(planColumnAlignment(declared, [text("t", "id"), text("t", "v")])).toEqual([]);
+    expect(planColumnAlignment(declared, [text("t", "id"), text("t", "v")], SCHEMA)).toEqual([]);
   });
 
   it("treats a null branch on `oneOf` as nullable, like the DDL does", () => {
@@ -142,7 +159,7 @@ describe("planColumnAlignment", () => {
         ["id"]
       ),
     ];
-    const plan = planColumnAlignment(declared, [text("t", "id"), text("t", "v")]);
+    const plan = planColumnAlignment(declared, [text("t", "id"), text("t", "v")], SCHEMA);
     expect(plan.map((s) => s.kind)).toEqual(["drop-not-null"]);
   });
 
@@ -159,14 +176,14 @@ describe("planColumnAlignment", () => {
     ];
     // Only `id` exists live (and already at its declared width); the new column
     // is created by setupDatabase(), not altered.
-    expect(planColumnAlignment(declared, [varchar("t", "id", 10)])).toEqual([]);
+    expect(planColumnAlignment(declared, [varchar("t", "id", 10)], SCHEMA)).toEqual([]);
   });
 
   it("returns no width for a nullable enum column (TEXT, only the NOT NULL matters)", () => {
     const declared = [
       table("addresses", AddressSchema, AddressPrimaryKeyNames as ReadonlyArray<string>),
     ];
-    const plan = planColumnAlignment(declared, [text("addresses", "state_or_country")]);
+    const plan = planColumnAlignment(declared, [text("addresses", "state_or_country")], SCHEMA);
     expect(plan).toHaveLength(1);
     expect(plan[0]!.kind).toBe("drop-not-null");
     expect(plan[0]!.width).toBeUndefined();
@@ -213,26 +230,39 @@ describe("planColumnAlignment", () => {
       varchar("xbrl_fact", "context_ref", 255, true),
     ];
 
-    expect(planColumnAlignment(declared, live).map((s) => `${s.sql};`)).toEqual([
-      'ALTER TABLE "addresses" ALTER COLUMN "state_or_country" DROP NOT NULL;',
-      'ALTER TABLE "phones" ALTER COLUMN "international_number" TYPE varchar(64);',
-      'ALTER TABLE "filings" ALTER COLUMN "form" TYPE varchar(32);',
-      'ALTER TABLE "filings" ALTER COLUMN "file_number" TYPE varchar(255);',
-      'ALTER TABLE "filings" ALTER COLUMN "film_number" TYPE varchar(255);',
-      'ALTER TABLE "filings" ALTER COLUMN "primary_doc" TYPE varchar(128);',
+    expect(planColumnAlignment(declared, live, SCHEMA).map((s) => `${s.sql};`)).toEqual([
+      'ALTER TABLE "public"."addresses" ALTER COLUMN "state_or_country" DROP NOT NULL;',
+      'ALTER TABLE "public"."phones" ALTER COLUMN "international_number" TYPE varchar(64);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "form" TYPE varchar(32);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "file_number" TYPE varchar(255);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "film_number" TYPE varchar(255);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "primary_doc" TYPE varchar(128);',
       // Both halves for one column: `primary_doc` was widened AND relaxed, and
       // a legacy database needs each. This is the whole reason the relaxation
       // ships without a bespoke migration — `db setup` reaches Postgres on its
       // own (a pre-existing SQLite file keeps the NOT NULL, and so keeps
       // today's behavior).
-      'ALTER TABLE "filings" ALTER COLUMN "primary_doc" DROP NOT NULL;',
-      'ALTER TABLE "filings" ALTER COLUMN "primary_doc_description" TYPE varchar(255);',
-      'ALTER TABLE "filings" ALTER COLUMN "act" TYPE varchar(16);',
-      'ALTER TABLE "company_facts" ALTER COLUMN "grouping" TYPE varchar(20);',
-      'ALTER TABLE "company_facts" ALTER COLUMN "val_unit" TYPE varchar(32);',
-      'ALTER TABLE "canonical_person_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
-      'ALTER TABLE "canonical_company_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
-      'ALTER TABLE "xbrl_fact" ALTER COLUMN "context_ref" TYPE varchar(512);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "primary_doc" DROP NOT NULL;',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "primary_doc_description" TYPE varchar(255);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "act" TYPE varchar(16);',
+      'ALTER TABLE "public"."company_facts" ALTER COLUMN "grouping" TYPE varchar(20);',
+      'ALTER TABLE "public"."company_facts" ALTER COLUMN "val_unit" TYPE varchar(32);',
+      'ALTER TABLE "public"."canonical_person_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
+      'ALTER TABLE "public"."canonical_company_phone" ALTER COLUMN "international_number" TYPE varchar(64);',
+      'ALTER TABLE "public"."xbrl_fact" ALTER COLUMN "context_ref" TYPE varchar(512);',
+    ]);
+  });
+
+  it("quotes the schema it qualifies with, so a mixed-case one survives", () => {
+    // Postgres folds an unquoted identifier to lower case, so a statement built
+    // as `ALTER TABLE Staging.t ...` reaches `staging` — a schema that may not
+    // exist, or worse, may. The catalog these plans are computed from is read
+    // `WHERE table_schema = current_schema()`, so an ALTER landing anywhere else
+    // is altering a table nothing measured.
+    const declared = [table("t", Type.Object({ id: Type.String({ maxLength: 20 }) }), ["id"])];
+    const plan = planColumnAlignment(declared, [varchar("t", "id", 10)], "Staging");
+    expect(plan.map((s) => s.sql)).toEqual([
+      'ALTER TABLE "Staging"."t" ALTER COLUMN "id" TYPE varchar(20)',
     ]);
   });
 
@@ -245,6 +275,6 @@ describe("planColumnAlignment", () => {
       varchar("phones", "international_number", 64),
       text("addresses", "state_or_country", true),
     ];
-    expect(planColumnAlignment(declared, aligned)).toEqual([]);
+    expect(planColumnAlignment(declared, aligned, SCHEMA)).toEqual([]);
   });
 });

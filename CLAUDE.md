@@ -1952,9 +1952,42 @@ sec exposes the general downstream seams embarc-data (and future features) build
     real count. Zero now means "no statistics yet"; a genuinely empty table pays
     one cheap `COUNT(*)` for that.
 
-  `db setup` finishes with a **column-alignment pass**
-  (`alignPostgresColumnTypes`, run after the extension loop so a superset's
-  tables are registered first). `CREATE TABLE IF NOT EXISTS` never alters an
+  `db setup` finishes with two schema-catch-up passes, in this order (both run
+  after the extension loop, so a superset's tables are registered first).
+
+  First, an **add-missing-column pass** (`addMissingColumns.ts`): a pure
+  `planMissingColumns` plus a thin executor per backend. `CREATE TABLE IF NOT
+  EXISTS` is a no-op on an existing table and `createStorage` declares no
+  `tabularMigrations`, so a column added to a schema after a database was
+  created never appears in it — and nothing else closes that gap, since the
+  alignment pass below deliberately skips a column the live schema lacks. Every
+  write goes through `putBulk` with the full row, so the first write after the
+  schema change fails outright: `spac_candidate.signal_filed_sic_6770` broke
+  `sec update spacs` on every pre-existing database that way. It runs before
+  the alignment pass so a freshly-added column is eligible for widening in the
+  same `db setup`, and it subsumes the hand-written `spac.current_trust_*`
+  migration that used to sit beside it. `backfillExtractorRunsOutcome` stays
+  hand-rolled — it seeds `outcome` from `success`, which no generic pass can
+  express.
+
+  Two rails, both load-bearing. Only **nullable** columns are planned: SQLite
+  rejects `ADD COLUMN NOT NULL` without a default, and there is no honest
+  default for a signal nobody has computed for the existing rows. And an
+  **unmappable declared type is skipped with a warning, never guessed** — a
+  missing column fails loudly on the next write, whereas a column created at
+  the wrong type is accepted and mismatches silently until some value does not
+  fit. Non-goals, all deliberate: NOT NULL columns, type changes, drops,
+  renames, backfills. Stating a type means carrying a JSON-Schema → DDL mirror
+  of a `workglow` emitter this repo does not own, so
+  `schemaTypeMirror.sqlite.test.ts` creates every registered table on real
+  SQLite and requires the mirror to have predicted each emitted type; a column
+  the mirror declines must be in a short explicit allowlist there. Two are:
+  `investment_offerings.exemptions` (an array, where the two backends genuinely
+  differ) and `underwriter_link.role_detail` (declared `type: ["string",
+  "null"]`, which the emitter itself does not recognize).
+
+  Second, a **column-alignment pass**
+  (`alignPostgresColumnTypes`). `CREATE TABLE IF NOT EXISTS` never alters an
   existing table and the declarative migration op set has no `alterColumn`, so
   a database created before a column was widened or relaxed would otherwise
   keep the old shape forever and keep rejecting real EDGAR values. The pass
@@ -1975,6 +2008,15 @@ sec exposes the general downstream seams embarc-data (and future features) build
   window. A **type** change on a column a view reads is skipped with a warning
   naming the view and the exact DDL, rather than failing the whole setup; a
   `DROP NOT NULL` is never view-gated, because Postgres does not refuse it.
+
+  Every statement either pass emits is **schema-qualified to
+  `current_schema()`**, resolved once per run (`quote` / `currentSchemaName` in
+  `src/util/pgIdentifiers.ts`, shared with `db reset`). Both read their catalog
+  `WHERE table_schema = current_schema()`, so an unqualified `ALTER TABLE` would
+  alter a different table than the one the catalog measured whenever the
+  `search_path` lists another schema first — and the identifier is quoted, since
+  Postgres folds an unquoted one to lower case and `current_schema()` returns a
+  mixed-case name verbatim.
 
   `db reset` drops only what sec owns: every table built through
   `createStorage` (recorded in `src/config/tableRegistry.ts`, supersets

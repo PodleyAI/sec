@@ -7,6 +7,7 @@
 import { globalServiceRegistry } from "workglow";
 import { isDryRun } from "../cli/isDryRun";
 import { getPgPool } from "../util/pg";
+import { currentSchemaName, quote } from "../util/pgIdentifiers";
 import { listRegisteredTables, type RegisteredTable } from "./tableRegistry";
 import { SEC_DB_TYPE } from "./tokens";
 
@@ -37,16 +38,22 @@ export interface ColumnAlignment {
 }
 
 /** Minimal structural view of a JSON-Schema property, enough to mirror the DDL rules. */
-interface PropertySchema {
+export interface PropertySchema {
   readonly type?: string | ReadonlyArray<string>;
   readonly format?: string;
   readonly contentEncoding?: string;
   readonly maxLength?: number;
+  // Numeric keywords. The widening rules here never read them (a number has no
+  // varchar width to widen), but `addMissingColumns` does — it shares this
+  // shape so the two passes cannot drift onto different views of one schema.
+  readonly multipleOf?: number;
+  readonly minimum?: number;
+  readonly maximum?: number;
   readonly anyOf?: ReadonlyArray<PropertySchema>;
   readonly oneOf?: ReadonlyArray<PropertySchema>;
 }
 
-interface ObjectSchema {
+export interface ObjectSchema {
   readonly properties?: Record<string, PropertySchema>;
   readonly required?: ReadonlyArray<string>;
 }
@@ -62,7 +69,7 @@ function columnKey(ref: { readonly table: string; readonly column: string }): st
 }
 
 /** Extracts the non-null branch of a `T | null` union, mirroring the storage layer. */
-function nonNullType(typeDef: PropertySchema): PropertySchema {
+export function nonNullType(typeDef: PropertySchema): PropertySchema {
   // `anyOf` then `oneOf`, probed independently — the storage layer's
   // `getNonNullType` falls through from one to the other rather than
   // committing to whichever is present.
@@ -74,7 +81,7 @@ function nonNullType(typeDef: PropertySchema): PropertySchema {
 }
 
 /** Whether the schema admits null, mirroring the storage layer's nullability probe. */
-function admitsNull(typeDef: PropertySchema): boolean {
+export function admitsNull(typeDef: PropertySchema): boolean {
   if (typeDef.type === "null") return true;
   if (Array.isArray(typeDef.type)) return typeDef.type.includes("null");
   // `anyOf` and `oneOf` are probed independently, as the storage layer does: an
@@ -104,7 +111,7 @@ export function declaredVarcharWidth(typeDef: PropertySchema): number | undefine
  * The declared column type, to the extent it matters here: a bounded
  * `varchar(n)`, an unbounded `text`, or anything else (nothing to align).
  */
-function declaredStringType(
+export function declaredStringType(
   typeDef: PropertySchema
 ): { kind: "varchar"; width: number } | { kind: "text" } | { kind: "other" } {
   const actual = nonNullType(typeDef);
@@ -137,7 +144,7 @@ function declaredStringType(
  * storage layer: primary-key columns are always NOT NULL, and a value column
  * is nullable when it is absent from `required` or its schema admits null.
  */
-function declaredNullable(
+export function declaredNullable(
   schema: ObjectSchema,
   column: string,
   primaryKeyNames: ReadonlyArray<string>
@@ -163,13 +170,22 @@ function declaredNullable(
  * on a freshly created database, every column is already at or beyond the
  * declared shape and the plan is empty.
  *
- * A column the live schema does not have yet is skipped: `setupDatabase()`
- * creates new tables and there is nothing to alter.
+ * A column the live schema does not have yet is skipped: this pass aligns the
+ * TYPES of columns that exist. `setupDatabase()` creates a new table whole, and
+ * `addMissingColumns` adds a nullable column to a table that already exists.
+ *
+ * @param schema The schema every statement is qualified with — required, and
+ * required to be the one the catalog was read from. An unqualified `ALTER TABLE`
+ * resolves through the `search_path`, so on a deployment listing another schema
+ * first it would alter a different schema's same-named table than the one whose
+ * catalog said the column was narrow. The caller resolves it once per run.
  */
 export function planColumnAlignment(
   declared: ReadonlyArray<RegisteredTable>,
-  live: ReadonlyArray<LiveColumn>
+  live: ReadonlyArray<LiveColumn>,
+  schema: string
 ): ReadonlyArray<ColumnAlignment> {
+  const qualified = `"${quote(schema)}"`;
   const liveByKey = new Map<string, LiveColumn>();
   for (const col of live) {
     liveByKey.set(columnKey(col), col);
@@ -194,7 +210,7 @@ export function planColumnAlignment(
           column,
           kind: "widen",
           width: declaredType.width,
-          sql: `ALTER TABLE "${entry.table}" ALTER COLUMN "${column}" TYPE varchar(${declaredType.width})`,
+          sql: `ALTER TABLE ${qualified}."${quote(entry.table)}" ALTER COLUMN "${quote(column)}" TYPE varchar(${declaredType.width})`,
         });
       }
 
@@ -208,7 +224,7 @@ export function planColumnAlignment(
           column,
           kind: "unbound",
           width: undefined,
-          sql: `ALTER TABLE "${entry.table}" ALTER COLUMN "${column}" TYPE text`,
+          sql: `ALTER TABLE ${qualified}."${quote(entry.table)}" ALTER COLUMN "${quote(column)}" TYPE text`,
         });
       }
 
@@ -218,7 +234,7 @@ export function planColumnAlignment(
           column,
           kind: "drop-not-null",
           width: undefined,
-          sql: `ALTER TABLE "${entry.table}" ALTER COLUMN "${column}" DROP NOT NULL`,
+          sql: `ALTER TABLE ${qualified}."${quote(entry.table)}" ALTER COLUMN "${quote(column)}" DROP NOT NULL`,
         });
       }
     }
@@ -263,6 +279,11 @@ export async function alignPostgresColumnTypes(): Promise<void> {
   const pool = getPgPool();
   const client = await pool.connect();
   try {
+    // Resolved once per run and threaded into every statement below. The
+    // catalog query already scopes itself to `current_schema()`; an unqualified
+    // ALTER would not, and the mismatch is invisible until the day someone puts
+    // a staging schema ahead of sec's on the search path.
+    const schema = await currentSchemaName(client, "db setup");
     const catalog = await client.query(
       `SELECT table_name, column_name, character_maximum_length, is_nullable
          FROM information_schema.columns
@@ -284,7 +305,7 @@ export async function alignPostgresColumnTypes(): Promise<void> {
       })
     );
 
-    const plan = planColumnAlignment(declared, live);
+    const plan = planColumnAlignment(declared, live, schema);
     // One catalog probe for the whole plan rather than one per step, and only
     // when a type change is actually planned: `DROP NOT NULL` flips
     // `pg_attribute.attnotnull` and Postgres never refuses it over a dependent
