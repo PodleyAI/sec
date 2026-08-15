@@ -50,6 +50,8 @@ import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
+import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
+import { normalizeCompanyName } from "../../../storage/company/CompanyNormalization";
 import {
   parentClauseSourceContext,
   splitParentClause,
@@ -856,9 +858,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // resolver ("no CIK, CRD, or name") and aborts every other valid
         // party in this section. Keep the disclosure as a group row with
         // no observation, matching the officer/director-class path below.
-        const isUnnamed = (r.name ?? "").trim() === "";
+        // A name that is only a legal-form ending ("Company", "Inc.", "LLC")
+        // is not blank, but normalizeCompanyName strips it to empty and the
+        // resolver throws the same way — treat it as unnamed too, keeping
+        // the filing's wording on party_label.
+        const trimmedName = (r.name ?? "").trim();
+        const isUnnamed = trimmedName === "";
+        const isLegalFormOnlyCompany =
+          r.party_kind === "company" &&
+          !isUnnamed &&
+          (normalizeCompanyName(trimmedName) ?? "") === "";
         const isCollective =
-          isUnnamed || (r.party_kind === "person" && isCollectivePartyName(r.name));
+          isUnnamed ||
+          isLegalFormOnlyCompany ||
+          (r.party_kind === "person" && isCollectivePartyName(r.name));
         const partyKind = isCollective ? ("group" as const) : r.party_kind;
         let observation_id: number | null = null;
         if (!isCollective) {
@@ -1216,6 +1229,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // every other valid sponsor in this filing.
         if (split.observationName === "") continue;
         if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
+        // Same skip as underwriter persist: a letterless placeholder ("[●]")
+        // is not an entity; a CJK name is observed without a family rather
+        // than aborting the rest of the table via FamilyResolver.
+        const familyKey = normalizeFamilyName(split.familyName);
+        if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
         const observation_index = idx++;
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
@@ -1233,6 +1251,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           prompt_version: extractor_version,
           extra: null,
         });
+        if (!familyKey) {
+          wrote++;
+          continue;
+        }
         const sponsor_family_id = await sponsorFamilyResolver.resolve(split.familyName);
         await membershipRepo.record({
           resolver_version: activeSponsorFamilyVersion,

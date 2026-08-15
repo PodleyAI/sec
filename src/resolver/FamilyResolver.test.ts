@@ -47,4 +47,11 @@ describe("normalizeFamilyName", () => {
     expect(normalizeFamilyName("")).toBe("");
     expect(normalizeFamilyName("   ")).toBe("");
   });
+
+  it("returns '' for a CJK-only name (family keys are ASCII slugs)", () => {
+    // companyFamilyName drops non-ASCII, so a Chinese underwriter/sponsor legal
+    // name that observeCompany accepts has no family key. Persist must skip
+    // resolve rather than throw "empty name" and abort the rest of the section.
+    expect(normalizeFamilyName("中信证券股份有限公司")).toBe("");
+  });
 });

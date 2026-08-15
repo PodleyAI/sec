@@ -261,6 +261,56 @@ describe("SPAC sponsor end-to-end", () => {
     expect(await new SpacSponsorLinkRepo().listIssuerCiksForFamily(famId)).toEqual([444]);
   });
 
+  it("does not abort sponsors when a CJK-only name has no ASCII family key", async () => {
+    // Same shape as the underwriter persist skip: observeCompany keeps CJK,
+    // companyFamilyName returns "", and throwing from FamilyResolver used to
+    // drop every other sponsor on the filing.
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      {
+        sponsors: [
+          {
+            legal_name: "中信证券股份有限公司",
+            confidence: 0.9,
+            source_span: "中信证券股份有限公司",
+          },
+          {
+            legal_name: "Acme Sponsor, LLC",
+            confidence: 0.9,
+            source_span: "Acme Sponsor, LLC",
+          },
+        ],
+      },
+    ]));
+    await processFormS1({
+      ...runArgs(2122516, "0000000000-26-000502", 6770),
+      formS1: {
+        header: {
+          sic: 6770,
+          sicDescription: "BLANK CHECKS",
+          cik: null,
+          companyName: null,
+          filingDate: null,
+        },
+        html: BODY.replace(
+          "Big Bank Inc. backs this SPAC.</p>",
+          "Big Bank Inc. backs this SPAC. 中信证券股份有限公司 is also a sponsor.</p>"
+        ),
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+    });
+
+    const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
+    expect(families.map((f) => f.normalized_name).sort()).toEqual(["ACME-SPONSOR"]);
+    const companies = await new CompanyObservationRepo().listAll();
+    expect(
+      companies.some(
+        (c) => c.accession_number === "0000000000-26-000502" && c.name === "中信证券股份有限公司"
+      )
+    ).toBe(true);
+  });
+
   it("splits a wholly-owned-subsidiary sponsor onto X with family Y", async () => {
     const asFiled = "Acme Sponsor LLC, a wholly-owned subsidiary of Big Bank Inc.";
     ({ unregister } = registerFakeStructuredProvider([

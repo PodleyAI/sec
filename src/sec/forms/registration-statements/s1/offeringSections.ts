@@ -31,6 +31,7 @@ import { modelExtractChain, persistModelId } from "./s1Model";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
+import { normalizeFamilyName } from "../../../../resolver/FamilyResolver";
 import {
   parentClauseSourceContext,
   splitParentClause,
@@ -466,6 +467,14 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
         const dedupeKey = normalizeEntityName(split.observationName);
         if (seenLegalNames.has(dedupeKey)) continue;
         seenLegalNames.add(dedupeKey);
+        // companyFamilyName wipes non-ASCII and punctuation, so "[●]" (a
+        // still-blank F-1 table cell) and a CJK legal name both have no family
+        // key. A letterless placeholder is not an entity — skip it before
+        // observeCompany. A name that still has letters (CJK) is observed
+        // without a family rather than throwing "empty name" and aborting the
+        // rest of the table.
+        const familyKey = normalizeFamilyName(split.familyName);
+        if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
         const observation_index = nextIndex();
         const { observation_id, canonical_company_id } = await observer.observeCompany({
           ...base,
@@ -483,6 +492,10 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           prompt_version: extractor_version,
           extra: null,
         });
+        if (!familyKey) {
+          wrote++;
+          continue;
+        }
         const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
         await underwriterMembershipRepo.record({
           resolver_version: activeUnderwriterFamilyVersion,

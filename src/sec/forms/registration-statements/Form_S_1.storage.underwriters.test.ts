@@ -341,4 +341,131 @@ describe("processFormS1 underwriters", () => {
     );
     expect(members).toHaveLength(1);
   });
+
+  it("does not abort the section when a CJK-only underwriter has no ASCII family key", async () => {
+    // Live 2122516: the model returned a Chinese underwriter legal name.
+    // observeCompany keeps CJK (normalizeCompanyName does not strip it), but
+    // companyFamilyName wipes non-ASCII and returns "", so FamilyResolver threw
+    // "empty name" and aborted the rest of the underwriting table — including
+    // ASCII houses that would have resolved.
+    const { unregister } = registerFakeStructuredProvider([
+      emptyTerms,
+      {
+        underwriters: [
+          {
+            legal_name: "中信证券股份有限公司",
+            role: "underwriter",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: "中信证券股份有限公司",
+          },
+          {
+            legal_name: "Goldman Sachs & Co. LLC",
+            role: "lead",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: "Goldman Sachs & Co. LLC",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 2122516,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000005",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: "<h1>UNDERWRITING</h1><p>中信证券股份有限公司 and Goldman Sachs &amp; Co. LLC.</p>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new UnderwriterLinkRepo().count({ accession_number: "0000000000-26-000005" })
+    ).toBe(1);
+    const family = await new CanonicalUnderwriterFamilyRepo().findByResolverAndName(
+      "1.0.0",
+      normalizeUnderwriterFamilyName("Goldman Sachs & Co. LLC")
+    );
+    expect(family).toBeDefined();
+    const companies = await new CompanyObservationRepo().listAll();
+    expect(
+      companies.some(
+        (c) => c.accession_number === "0000000000-26-000005" && c.name === "中信证券股份有限公司"
+      )
+    ).toBe(true);
+    expect(
+      companies.some(
+        (c) => c.accession_number === "0000000000-26-000005" && c.name === "Goldman Sachs & Co. LLC"
+      )
+    ).toBe(true);
+  });
+
+  it("skips a letterless placeholder underwriter name rather than observing it", async () => {
+    // Live 2122516: the F-1 underwriting table still had "[●]" as the bank
+    // name. That survives observeCompany but companyFamilyName wipes it to "",
+    // which used to abort the section. A placeholder is not an entity.
+    const { unregister } = registerFakeStructuredProvider([
+      emptyTerms,
+      {
+        underwriters: [
+          {
+            legal_name: "[●]",
+            role: "underwriter",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: "[●]",
+          },
+          {
+            legal_name: "Goldman Sachs & Co. LLC",
+            role: "lead",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.95,
+            source_span: "Goldman Sachs & Co. LLC",
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 2122516,
+      file_number: "333-1",
+      accession_number: "0000000000-26-000006",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: NULL_HEADER,
+        html: "<h1>UNDERWRITING</h1><p>[●] and Goldman Sachs &amp; Co. LLC.</p>",
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new UnderwriterLinkRepo().count({ accession_number: "0000000000-26-000006" })
+    ).toBe(1);
+    const companies = await new CompanyObservationRepo().listAll();
+    expect(
+      companies.some((c) => c.accession_number === "0000000000-26-000006" && c.name === "[●]")
+    ).toBe(false);
+    expect(
+      companies.some(
+        (c) => c.accession_number === "0000000000-26-000006" && c.name === "Goldman Sachs & Co. LLC"
+      )
+    ).toBe(true);
+  });
 });
