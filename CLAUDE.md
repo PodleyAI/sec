@@ -1091,13 +1091,25 @@ deliberately absent from that list: the segmenter accepts it as a Risk Factors
 heading variant, so allowing it let three fixtures keep summaries carrying the
 entire risk section verbatim.
 
-Two targets a filer commonly bolds rather than heading are recovered from
-inside their container by `NESTED_SECTION_FALLBACKS` + `findNestedSection`,
-which scans the container's rendered lines with the same patterns: Item 402
-compensation inside `Management`, and the offering table inside
-`Prospectus Summary` (`Mammon Omicron Acquisition Corp` hides 90k characters of
-unit terms that way). Each fires only when the tree walk found no section for
-the target, so a filing with a real heading is untouched.
+Targets a filer bolds rather than heads are recovered from inside their
+container by `NESTED_SECTION_FALLBACKS` + `findNestedSection`, which scans the
+container's rendered lines with the same patterns: Item 402 compensation inside
+`Management`, the offering table inside `Prospectus Summary` (`Mammon Omicron
+Acquisition Corp` hides 90k characters of unit terms that way), and the
+ownership table inside `Management` (`TCG Growth Opportunities Corp.`, where
+`Principal stockholders` follows the roster with no heading of its own). Each
+fires only when the tree walk found no section for the target, so a filing with
+a real heading is untouched.
+
+These are **specific pairs, not a general rule**, and the difference is
+measured. `findNestedSection` slices to the next line that is itself a known
+heading, which is the right boundary only where the block really runs that far.
+Trying every missing target against every resolved container instead adds a
+section to 6 of the 45 committed fixtures with wrong slices — a 208k
+"The Sponsor" carved out of a summary, a 135k "Management" for a filing whose
+roster is documented as bolded paragraphs with no section at all. Add a pair on
+evidence that a real filing hides that target in that container, and after
+checking the committed corpus gains nothing from it.
 
 When the tree walk resolves **fewer than two** targets on a document rendering at
 least 50k characters, a **line-scan fallback** takes over: the rendered text is

@@ -38,7 +38,20 @@ function matchTarget(title: string): S1SectionName | null {
  * `LEGITIMATE_CONTAINMENTS` already expects the summary to carry, and when the
  * filer bolds `The Offering` rather than giving it a structural heading the
  * whole block — 90k characters of unit terms in `Mammon Omicron Acquisition
- * Corp` — is invisible to the offering-terms extractor.
+ * Corp` — is invisible to the offering-terms extractor. So does the ownership
+ * table, which follows the roster without a heading of its own in
+ * `TCG Growth Opportunities Corp.`
+ *
+ * These are **specific pairs, not a general rule**, and the difference is
+ * measurable. `findNestedSection` slices from the matched line to the next line
+ * that is itself a known heading, which is the right boundary only where the
+ * block really does run that far. Trying every missing target against every
+ * resolved container instead adds a section to 6 of the 45 committed fixtures,
+ * and the slices are wrong: a 208k "The Sponsor" carved out of a summary, and a
+ * 135k "Management" for a filing whose roster is documented as plain bolded
+ * paragraphs with no section at all. Each pair here is added on evidence that a
+ * real filing hides that target in that container, and on measuring that the
+ * committed corpus gains nothing from it.
  */
 const NESTED_SECTION_FALLBACKS: ReadonlyArray<{
   readonly target: S1SectionName;
@@ -46,6 +59,7 @@ const NESTED_SECTION_FALLBACKS: ReadonlyArray<{
 }> = [
   { target: S1_SECTIONS.EXECUTIVE_COMPENSATION, container: S1_SECTIONS.MANAGEMENT },
   { target: S1_SECTIONS.THE_OFFERING, container: S1_SECTIONS.PROSPECTUS_SUMMARY },
+  { target: S1_SECTIONS.BENEFICIAL_OWNERSHIP, container: S1_SECTIONS.MANAGEMENT },
 ];
 
 /**

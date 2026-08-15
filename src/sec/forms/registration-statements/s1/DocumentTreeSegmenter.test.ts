@@ -270,4 +270,21 @@ describe("DocumentTreeSegmenter", () => {
     const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING)?.text ?? "";
     expect(offering).toContain("every unit term");
   });
+
+  it("recovers an ownership table that follows the roster unheaded", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+        <p>Our officers and directors are listed below.</p>
+        <p><b>Principal stockholders</b></p>
+        <p>The following table sets forth information regarding beneficial ownership
+           of our shares by each person known to own more than 5%.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const byName = new Map(sections.map((s) => [s.name, s.text]));
+    expect(byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP)).toContain("more than 5%");
+    expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+  });
 });
