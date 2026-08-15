@@ -73,10 +73,32 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Prose matcher for one spelling, case-folded only where filers really do vary.
+ *
+ * An ordinary English-word spelling (Corporation, Company, Limited,
+ * Incorporated, Trust) keeps the filing's capitalisation, plus an ALL-CAPS
+ * variant for filers who shout their exhibit prose. Lowercased, those words are
+ * not part of a party name at all — they are the jurisdiction clause that
+ * follows it ("a Delaware corporation", "a German company"), so folding them
+ * made "Delaware corporation" itself the extracted counterparty. Short
+ * abbreviations (Plc, Inc, Ltd, LLC, N.V.) stay fully case-folded: filers write
+ * "Barclays plc" and "TARGET HOLDINGS, INC." alike.
+ *
+ * Each alternative is closed with `(?![A-Za-z])`, never `\b`: a trailing word
+ * boundary would refuse the dot of "Corp." and silently truncate the name to
+ * "Corp". The leading `\b` also stops a short form matching inside a longer
+ * word ("Business Combination **Ag**reement" as the AG spelling).
+ */
 function spellingToProsePattern(spelling: string): string {
   const trimmed = spelling.trim();
   const body = trimmed.endsWith(".") ? trimmed.slice(0, -1) : trimmed;
-  return `${caseInsensitiveLetters(escapeRegex(body))}\\.?`;
+  const letters = body.replace(/[^A-Za-z]/g, "");
+  const core =
+    letters.length > 3 && /[a-z]/.test(letters)
+      ? `(?:${escapeRegex(body)}|${escapeRegex(body.toUpperCase())})`
+      : caseInsensitiveLetters(escapeRegex(body));
+  return `\\b${core}\\.?(?![A-Za-z])`;
 }
 
 function allSpellings(): readonly string[] {
