@@ -113,8 +113,19 @@ export abstract class SecCachedFetchTask<
     }
   }
 
-  async execute(input: I & FetchUrlTaskInput, executeConfig: IExecuteContext): Promise<O> {
-    const url = this.inputToUrl(input);
+  /**
+   * The task input is a domain key (a CIK, a date, an accession), never a URL,
+   * so the request has to be built here. This is the seam every dispatch path
+   * runs through — `execute()` is not: a streamable task is dispatched to
+   * `executeStream()`, which never calls it, so an override there would leave
+   * the fetch pointed at the unresolved input.
+   */
+  protected override async resolveFetchInput(
+    input: FetchUrlTaskInput,
+    _context: IExecuteContext
+  ): Promise<FetchUrlTaskInput> {
+    const domainInput = input as I & FetchUrlTaskInput;
+    const url = this.inputToUrl(domainInput);
     const response_type = guessResponseType(url, input);
 
     const fetchInput: FetchUrlTaskInput = {
@@ -130,6 +141,6 @@ export abstract class SecCachedFetchTask<
       fetchInput.headers = input.headers;
     }
 
-    return (await super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig)) as O;
+    return fetchInput;
   }
 }
