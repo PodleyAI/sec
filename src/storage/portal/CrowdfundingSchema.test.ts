@@ -7,7 +7,9 @@
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { CrowdfundingReportsSchema } from "./CrowdfundingSchema";
+import { CrowdfundingReportsSchema, CrowdfundingSchema } from "./CrowdfundingSchema";
+import { determineStatus } from "../../sec/forms/exempt-offerings/Form_C.storage";
+import { EXEMPT_OFFERING_FORM_CODES } from "../../sec/forms/exempt-offerings/form-slugs";
 
 /**
  * `crowdfunding_reports.disclosure_value` must carry no lower bound.
@@ -42,6 +44,88 @@ describe("CrowdfundingReportsSchema.disclosure_value", () => {
         `disclosure_value branch declares exclusiveMinimum: ${branch.exclusiveMinimum}`
       ).toBe(undefined);
     }
+  });
+});
+
+/**
+ * The narrative fields must match EDGAR's declared width, read from the XSD
+ * rather than pinned to a literal — so if EDGAR restates the type, this fails
+ * instead of silently disagreeing with the source of truth.
+ *
+ * `progress_update` and `nature_of_amendment` were 255 against EDGAR's
+ * STRING_256_TYPE. That one character cost the WHOLE filing: a filer using the
+ * last character EDGAR allows hit a STORE_ERROR and the parent `crowdfunding`
+ * row never landed. It was found only by a live sweep, because in-memory test
+ * storage enforces no varchar width — the same blind spot that hid the
+ * disclosure_value bound above.
+ */
+describe("Form C narrative widths match the EDGAR XSD", () => {
+  const xsd = readFileSync(
+    join(__dirname, "..", "..", "sec", "forms", "exempt-offerings", "Form_C.definition.filer.xsd"),
+    "utf-8"
+  );
+
+  const declaredWidth = (element: string): number => {
+    const m = new RegExp(
+      `<xs:element\\s+name="${element}"\\s+type="(?:ns1:)?STRING_(\\d+)_TYPE`
+    ).exec(xsd);
+    if (!m) throw new Error(`XSD declares no STRING_n_TYPE for <${element}>`);
+    return Number(m[1]);
+  };
+
+  const schemaWidth = (field: "progress_update" | "nature_of_amendment"): number => {
+    const prop = CrowdfundingSchema.properties[field];
+    const branches = ("anyOf" in prop ? prop.anyOf : [prop]) as Array<Record<string, unknown>>;
+    const widths = branches
+      .map((b) => b.maxLength)
+      .filter((n): n is number => typeof n === "number");
+    if (widths.length === 0) throw new Error(`${field} declares no maxLength`);
+    return Math.min(...widths);
+  };
+
+  it.each([
+    ["progress_update", "progressUpdate"],
+    ["nature_of_amendment", "natureOfAmendment"],
+  ] as const)("%s matches <%s>", (field, element) => {
+    expect(schemaWidth(field)).toBe(declaredWidth(element));
+  });
+});
+
+/**
+ * Every status `determineStatus` can return must fit the column that stores it.
+ *
+ * This is the one bound that had nothing to do with EDGAR: the overflowing
+ * value is a constant this repo generates, so the failure was total rather than
+ * long-tail — `C-U-W`, `C-AR-W`, `C-AR/A-W` and `C-TR-W` could never store a
+ * single filing between them, because their status is always 21-25 characters
+ * against a `varchar(20)`.
+ *
+ * Driven off `EXEMPT_OFFERING_FORM_CODES` rather than a hand-written list, so a
+ * new Form C variant is covered the moment it is registered, and asserted
+ * against the schema's own `maxLength` rather than a literal, so widening the
+ * column cannot leave this test pinned to the old width.
+ */
+describe("determineStatus output fits crowdfunding.status", () => {
+  const maxLength = CrowdfundingSchema.properties.status.maxLength as number;
+  const formCodes = EXEMPT_OFFERING_FORM_CODES.filter((f) => f.startsWith("C"));
+
+  it("declares a maxLength", () => {
+    expect(typeof maxLength).toBe("number");
+  });
+
+  it("covers the whole Form C family", () => {
+    // Guards the guard: if the filter above ever selects nothing, every
+    // assertion below passes vacuously.
+    expect(formCodes.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it.each(formCodes)("%s", (form) => {
+    const status = determineStatus(form);
+    expect(
+      status.length,
+      `determineStatus(${JSON.stringify(form)}) = ${JSON.stringify(status)} is ` +
+        `${status.length} chars, over the ${maxLength}-char column`
+    ).toBeLessThanOrEqual(maxLength);
   });
 });
 
