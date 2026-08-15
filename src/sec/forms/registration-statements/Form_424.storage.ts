@@ -20,6 +20,7 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
+import { parsePricedProspectusCover } from "./pricedProspectusCover";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
 import { getS1Models, resolveModelId } from "./s1/s1Model";
@@ -58,6 +59,24 @@ export function ipoTrustAmount(args: {
     return args.trust_per_unit * args.units_offered;
   }
   return args.trust_total ?? null;
+}
+
+/**
+ * IPO gross proceeds. Prefer a stated figure, then units × price (the cover
+ * size is usually not inside "The Offering"), then the prospectus-cover
+ * headline (`$200,000,000` / `20,000,000 Units`) when the AI row was wiped.
+ */
+export function ipoProceeds(args: {
+  readonly gross_proceeds: number | null | undefined;
+  readonly price_per_unit: number | null | undefined;
+  readonly units_offered: number | null | undefined;
+  readonly cover_proceeds: number | null | undefined;
+}): number | null {
+  if (args.gross_proceeds != null) return args.gross_proceeds;
+  if (args.price_per_unit != null && args.units_offered != null) {
+    return args.price_per_unit * args.units_offered;
+  }
+  return args.cover_proceeds ?? null;
 }
 
 export interface ProcessForm424Args {
@@ -158,6 +177,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       (t) => t.accession_number === accession_number
     );
     const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
+    const cover = parsePricedProspectusCover(form424.html);
     await new SpacReportWriter().recordIpo({
       cik,
       accession_number,
@@ -175,11 +195,14 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       // `trust_amount` below is already computed exactly this way — that is why
       // trust was right while proceeds was empty. Prefer a stated figure when
       // there is one, since it accounts for anything the arithmetic misses.
-      ipo_proceeds:
-        unitTerms?.gross_proceeds ??
-        (unitTerms?.price_per_unit != null && unitTerms?.units_offered != null
-          ? unitTerms.price_per_unit * unitTerms.units_offered
-          : null),
+      // When the whole unit-terms row is wiped (source_span failed), the cover
+      // headline is the same number the arithmetic would have produced.
+      ipo_proceeds: ipoProceeds({
+        gross_proceeds: unitTerms?.gross_proceeds,
+        price_per_unit: unitTerms?.price_per_unit,
+        units_offered: unitTerms?.units_offered,
+        cover_proceeds: cover?.gross_proceeds,
+      }),
       trust_amount: ipoTrustAmount({
         trust_per_unit: unitTerms?.trust_per_unit,
         units_offered: unitTerms?.units_offered,
