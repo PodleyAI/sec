@@ -294,6 +294,27 @@ async function processFinancialData(
 }
 
 /**
+ * Normalizes `securitiesOfferedTypes` to the array the column now stores.
+ *
+ * Form 1-A declares the element `minOccurs="1" maxOccurs="6"`, and the XML
+ * parser follows the document: one selection arrives as a scalar, several as an
+ * array. The storage column is `text[]` either way, so the scalar case has to
+ * be wrapped here rather than left to whatever the backend does with a bare
+ * string — which is exactly how the multi-select case came to be stringified
+ * into a Postgres array literal and truncated at varchar(100).
+ *
+ * Exported for the unit test that pins both arities.
+ */
+export function toSecuritiesOfferedTypes(value: unknown): string[] | null {
+  if (value == null) return null;
+  const list = (Array.isArray(value) ? value : [value])
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v !== "");
+  return list.length === 0 ? null : list;
+}
+
+/**
  * The ways a 1-A filer says "this equity block does not apply".
  *
  * Compared after trimming and upper-casing, so `n/a` / `N/A` and
@@ -534,7 +555,7 @@ export async function processForm1A({
     sic_code: employeesInfo.sicCode,
     tier: summaryInfo.indicateTier1Tier2Offering,
     financial_statement_audit_status: summaryInfo.financialStatementAuditStatus,
-    securities_offered_type: summaryInfo.securitiesOfferedTypes,
+    securities_offered_type: toSecuritiesOfferedTypes(summaryInfo.securitiesOfferedTypes),
     industry_group: form1A.formData.issuerInfo.industryGroup,
     status: existing?.status ?? "pending",
     as_of: filing_date || existing?.as_of || null,

@@ -50,10 +50,29 @@ export const RegAOfferingSchema = Type.Object({
       description: "Audit status of financial statements (Audited/Unaudited)",
     })
   ),
+  /**
+   * An ARRAY because the form is a multi-select, not because a list is tidier.
+   * Form 1-A declares `securitiesOfferedTypes` as
+   * `minOccurs="1" maxOccurs="6"` over a six-value enumeration, so a filer
+   * offering both equity and warrants selects both and the parser yields two
+   * values.
+   *
+   * Declaring it a single `String({ maxLength: 100 })` was wrong on both counts.
+   * The longest single enum value ("Security to be acquired upon exercise of
+   * option, warrant or other right to acquire security") is 90 characters and
+   * fits; it was only ever COMBINATIONS that overflowed, and all six would run
+   * past 250. So the width was a symptom and the cardinality was the bug: a
+   * multi-select was stringified into a Postgres array literal
+   * (`{"Equity (common or preferred stock)","Debt"}`) and stored as text, which
+   * both truncated at 100 — losing 57 filings outright to STORE_ERROR — and
+   * left every surviving multi-select unqueryable as the list it actually is.
+   *
+   * `investment_offerings.exemptions` is the same shape and the precedent for
+   * this: `Type.Array(Type.String())` emits `text[]` on Postgres.
+   */
   securities_offered_type: TypeNullable(
-    Type.String({
-      maxLength: 100,
-      description: "Type of securities offered",
+    Type.Array(Type.String(), {
+      description: "Types of securities offered (Form 1-A multi-select, up to 6)",
     })
   ),
   industry_group: TypeNullable(
