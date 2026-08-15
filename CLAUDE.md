@@ -1091,6 +1091,14 @@ deliberately absent from that list: the segmenter accepts it as a Risk Factors
 heading variant, so allowing it let three fixtures keep summaries carrying the
 entire risk section verbatim.
 
+Two targets a filer commonly bolds rather than heading are recovered from
+inside their container by `NESTED_SECTION_FALLBACKS` + `findNestedSection`,
+which scans the container's rendered lines with the same patterns: Item 402
+compensation inside `Management`, and the offering table inside
+`Prospectus Summary` (`Mammon Omicron Acquisition Corp` hides 90k characters of
+unit terms that way). Each fires only when the tree walk found no section for
+the target, so a filing with a real heading is untouched.
+
 When the tree walk resolves **fewer than two** targets on a document rendering at
 least 50k characters, a **line-scan fallback** takes over: the rendered text is
 scanned with the same heading patterns and each hit sliced to the next hit of a

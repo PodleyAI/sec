@@ -233,4 +233,41 @@ describe("DocumentTreeSegmenter", () => {
       expect(result.usedLineScan).toBe(false);
     });
   });
+
+  it("recovers an offering block the filer bolded inside the summary", () => {
+    // Same shape as the Item 402 disclosure nested in MANAGEMENT: the line is a
+    // bolded paragraph, not a heading, so the tree walk never sees it and the
+    // offering-terms extractor gets nothing.
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+        <p>We are a blank check company incorporated in the Cayman Islands.</p>
+        <p><b>The Offering</b></p>
+        <p>We are offering 20,000,000 units at $10.00 per unit, each unit consisting
+           of one Class A ordinary share and one-half of one redeemable warrant.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">RISK FACTORS</p>
+        <p>Our business faces the following risks.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const byName = new Map(sections.map((s) => [s.name, s.text]));
+    expect(byName.get(S1_SECTIONS.THE_OFFERING)).toContain("$10.00 per unit");
+    // The summary keeps it too — a summary really does carry its offering table,
+    // which is why LEGITIMATE_CONTAINMENTS does not truncate there.
+    expect(byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY)).toContain("blank check company");
+  });
+
+  it("prefers a real offering section over the one nested in the summary", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+        <p>We are a blank check company.</p>
+        <p><b>The Offering</b></p>
+        <p>Summary offering blurb.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">THE OFFERING</p>
+        <p>The full offering table with every unit term stated at length.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING)?.text ?? "";
+    expect(offering).toContain("every unit term");
+  });
 });

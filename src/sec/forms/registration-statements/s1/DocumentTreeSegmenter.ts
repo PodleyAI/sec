@@ -33,11 +33,20 @@ function matchTarget(title: string): S1SectionName | null {
  * SECTION_NOT_FOUND — which is meant to flag a heading-pattern coverage hole,
  * and here fires on a filing whose heading the patterns already match. The
  * heading never reaches them because it is not a section in the tree.
+ *
+ * The offering table sits the same way inside a prospectus summary: it is what
+ * `LEGITIMATE_CONTAINMENTS` already expects the summary to carry, and when the
+ * filer bolds `The Offering` rather than giving it a structural heading the
+ * whole block — 90k characters of unit terms in `Mammon Omicron Acquisition
+ * Corp` — is invisible to the offering-terms extractor.
  */
 const NESTED_SECTION_FALLBACKS: ReadonlyArray<{
   readonly target: S1SectionName;
   readonly container: S1SectionName;
-}> = [{ target: S1_SECTIONS.EXECUTIVE_COMPENSATION, container: S1_SECTIONS.MANAGEMENT }];
+}> = [
+  { target: S1_SECTIONS.EXECUTIVE_COMPENSATION, container: S1_SECTIONS.MANAGEMENT },
+  { target: S1_SECTIONS.THE_OFFERING, container: S1_SECTIONS.PROSPECTUS_SUMMARY },
+];
 
 /**
  * Recovers `target` from the rendered body of `container` by scanning its lines
