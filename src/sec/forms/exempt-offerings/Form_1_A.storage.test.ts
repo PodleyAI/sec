@@ -180,6 +180,115 @@ describe("Form_1_A storage test", () => {
       expect(equityTypes).toContain("common");
     });
 
+    // Regression: rega_equity_classes.class_name is a component of the table's
+    // primary key, so PostgreSQL forces it NOT NULL and a row written with a
+    // null name fails the WHOLE filing — the parent rega_offerings row commits
+    // and the equity classes after the blank one are lost.
+    //
+    // None of that is reachable through this suite's storage: it runs on
+    // InMemoryTabularStorage, which enforces neither the NOT NULL nor the key,
+    // so the null round-tripped cleanly here while real Postgres rejected it.
+    // These assert on the ROWS PRODUCED rather than on a store failure, which is
+    // what makes them meaningful under an in-memory backend.
+    //
+    // The fixtures were never the gap — 30+ committed 1-A files omit the debt
+    // class name entirely. The gap was that nothing looked at what got written.
+    it("skips equity classes the filer left blank", async () => {
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+
+      let checkedAbsent = 0;
+      let checkedPlaceholder = 0;
+
+      for (const file of xmlFiles) {
+        const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
+        const form1A = await Form_1_A.parse("1-A", xmlContent);
+        if (form1A.formData.employeesInfo.length === 0) continue;
+
+        const declared = form1A.formData.debtSecurities.map((d) => d.debtSecuritiesClassName);
+        const isAbsent = declared.some((n) => n == null);
+        const isPlaceholder = declared.some(
+          (n) => n != null && ["N/A", "NA", "NONE", "0", "-", ""].includes(n.trim().toUpperCase())
+        );
+        if (!isAbsent && !isPlaceholder) continue;
+
+        const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+        const fileNumber = "024-00002";
+        const accessionNumber = `blank-class-${file.slice(0, 18)}`;
+
+        await processForm1A({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+          filing_date: "2024-03-15",
+          primary_doc: file,
+          form1A,
+        });
+
+        const stored = await regARepo.getEquityClassesByFiling(cik, fileNumber, accessionNumber);
+
+        // No stored row may carry a null/blank name — that is the row Postgres
+        // rejects — and none may carry a placeholder, which would render as a
+        // debt class named "None" on the public Reg A page.
+        for (const row of stored) {
+          expect(row.class_name, `${file} stored a null class_name`).not.toBeNull();
+          expect(
+            ["N/A", "NA", "NONE", "0", "-", ""],
+            `${file} stored placeholder class_name ${JSON.stringify(row.class_name)}`
+          ).not.toContain((row.class_name ?? "").trim().toUpperCase());
+        }
+
+        if (isAbsent) checkedAbsent++;
+        if (isPlaceholder) checkedPlaceholder++;
+      }
+
+      // Both shapes must actually be present in the corpus, or the loop above
+      // proved nothing by passing over an empty set.
+      expect(checkedAbsent, "no fixture omits debtSecuritiesClassName").toBeGreaterThan(0);
+      expect(checkedPlaceholder, "no fixture uses a placeholder class name").toBeGreaterThan(0);
+    });
+
+    it("keeps a real debt class that reports zero outstanding", async () => {
+      // The complement of the rule above: an unissued class is a disclosure, not
+      // a blank, so a named class survives even with outstanding = 0. Without
+      // this, "skip the empty ones" quietly grows into "skip the zero ones".
+      const mockDataDir = join(__dirname, "mock_data", "form-1-a");
+      const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
+
+      let checked = 0;
+      for (const file of xmlFiles) {
+        const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
+        const form1A = await Form_1_A.parse("1-A", xmlContent);
+        if (form1A.formData.employeesInfo.length === 0) continue;
+
+        const named = form1A.formData.debtSecurities.filter((d) => {
+          const n = d.debtSecuritiesClassName;
+          return n != null && !["N/A", "NA", "NONE", "0", "-", ""].includes(n.trim().toUpperCase());
+        });
+        if (named.length === 0) continue;
+
+        const cik = parseInt(form1A.formData.employeesInfo[0].cik);
+        const fileNumber = "024-00003";
+        const accessionNumber = `named-class-${file.slice(0, 18)}`;
+
+        await processForm1A({
+          cik,
+          file_number: fileNumber,
+          accession_number: accessionNumber,
+          filing_date: "2024-03-15",
+          primary_doc: file,
+          form1A,
+        });
+
+        const stored = await regARepo.getEquityClassesByFiling(cik, fileNumber, accessionNumber);
+        const debt = stored.filter((e) => e.equity_type === "debt");
+        expect(debt.length, `${file} dropped a named debt class`).toBe(named.length);
+        checked++;
+      }
+
+      expect(checked, "no fixture declares a named debt class").toBeGreaterThan(0);
+    });
+
     it("should store service providers", async () => {
       const mockDataDir = join(__dirname, "mock_data", "form-1-a");
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));

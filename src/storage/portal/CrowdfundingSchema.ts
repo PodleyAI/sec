@@ -202,8 +202,20 @@ export const CrowdfundingReportsSchema = Type.Object({
   }),
   disclosure_value: TypeNullable(
     Type.Number({
-      minimum: 0,
-      description: "Disclosure value",
+      // Deliberately unbounded below. Four of the eighteen Reg CF disclosures
+      // are routinely negative — netIncome/taxPaid for both fiscal years — and
+      // a Reg CF issuer is an early-stage company, so a loss is the common case
+      // rather than the exception.
+      //
+      // A `minimum: 0` here emitted a CHECK constraint whose failure mode was a
+      // PARTIAL write, not a clean rejection: the parent `crowdfunding` row
+      // committed and looked healthy while the disclosure insert aborted at the
+      // first negative value, dropping that field and every one after it. FAFCO
+      // stored 15 of 18 disclosures that way, missing exactly the four above.
+      //
+      // rega_financial_data is the same name/value financial-disclosure table
+      // for Reg A and has never carried such a bound.
+      description: "Disclosure value (may be negative — e.g. net income, tax paid)",
     })
   ),
 });

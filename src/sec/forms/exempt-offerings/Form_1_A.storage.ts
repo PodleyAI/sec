@@ -291,6 +291,44 @@ async function processFinancialData(
   }
 }
 
+/**
+ * The ways a 1-A filer says "this equity block does not apply".
+ *
+ * Compared after trimming and upper-casing, so `n/a` / `N/A` and
+ * `none` / `None` / `NONE` each need one entry. Every value here appears in the
+ * committed fixtures under `mock_data/form-1-a*`; the vocabulary is a census of
+ * that corpus rather than a guess.
+ */
+const EQUITY_CLASS_NAME_PLACEHOLDERS = new Set(["", "N/A", "NA", "NONE", "0", "-", "--"]);
+
+/**
+ * An equity block the filer left blank is an absence, not a class.
+ *
+ * `class_name` is a component of `rega_equity_classes`' primary key, so
+ * PostgreSQL forces it NOT NULL — a row written with a null name fails the
+ * whole filing. (The typebox schema declares the column nullable, which is the
+ * contradiction; the key is the half that is right.) Form 1-A always carries
+ * all three blocks, and an issuer with no debt securities simply leaves the debt
+ * one empty, so writing a row per block also puts a phantom "debt" class in
+ * front of every such issuer in the UI.
+ *
+ * Both halves of that matter, because the null is only the crashing case and it
+ * is not the common one. Across the committed fixtures filers spell the same
+ * "not applicable" ten different ways — the element omitted entirely (Vortex
+ * Brands, which is what crashed), `N/A` / `NA` / `n/a`, `None` / `NONE`, `0`
+ * and `-`. Filtering only the null would fix the crash and still store the
+ * other nine as if they were real securities, so the placeholder set is
+ * rejected as a whole. Storing `None` as a debt class is not a smaller error
+ * than crashing on the absent one; it is the same error, silently.
+ *
+ * Anything with a real name is stored as filed, including a zero `outstanding`:
+ * a class that exists but is currently unissued is a disclosure, not a blank.
+ */
+function hasEquityClassName(className: string | null | undefined): boolean {
+  if (className == null) return false;
+  return !EQUITY_CLASS_NAME_PLACEHOLDERS.has(className.trim().toUpperCase());
+}
+
 async function processEquityClasses(
   cik: number,
   file_number: string,
@@ -300,6 +338,7 @@ async function processEquityClasses(
   const regARepo = new RegAOfferingRepo();
 
   for (const eq of form1A.formData.commonEquity) {
+    if (!hasEquityClassName(eq.commonEquityClassName)) continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
@@ -314,6 +353,7 @@ async function processEquityClasses(
   }
 
   for (const eq of form1A.formData.preferredEquity) {
+    if (!hasEquityClassName(eq.preferredEquityClassName)) continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
@@ -328,6 +368,7 @@ async function processEquityClasses(
   }
 
   for (const eq of form1A.formData.debtSecurities) {
+    if (!hasEquityClassName(eq.debtSecuritiesClassName)) continue;
     const entry: RegAEquityClass = {
       cik,
       file_number,
