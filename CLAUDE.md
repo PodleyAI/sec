@@ -1391,16 +1391,39 @@ TypeScript on the extraction path), plus every
 `companyFamilyName`). The scripts clear those, the person canonical tier keyed on
 them, and everything carrying a person `observation_id`.
 
-**The COMPANY canonical tier is deliberately untouched.** `normalizeCompanyName`
-is unchanged, so `company_observations.normalized_name` — the column
-`canonical_company` is keyed on — is still valid; and `company_hash_id`, which
-does fold, is stored in no table at all. Wiping `canonical_company`,
-`company_identity_link` and the company junctions would destroy rows nothing made
-stale, and the only rebuild would be a full re-extraction: `sec resolve --kind
-company --all` rebuilds identity links from the company observations, which are
-exactly what these scripts keep. `observation_provenance` is scoped
-`WHERE kind = 'person'` for the same reason — its company-kind rows (underwriter
-and issuer observations) cite observations that survive.
+**The COMPANY canonical tier is spared from the wipe — but it is not untouched.**
+`normalizeCompanyName` changed in the same release, so
+`company_observations.normalized_name` — the column `canonical_company` is keyed
+on, and the one `CompanyResolver`'s name fallback matches against — is stale
+wherever the new rules key a name differently: `Churchill Capital Corp I`
+normalized to `Churchill Capital` and now keys distinctly, `Reinvent Technology
+Partners Y` no longer collides with `Reinvent Technology Partners`, and
+`Blue Acquisition Corp/Cayman` now reaches the legal form behind EDGAR's
+jurisdiction suffix. Those are the merged canonical identities the release
+exists to split.
+
+It is spared anyway because those rows are **rebuildable, not disposable**:
+`normalized_name` derives from the `name` every company observation already
+carries, so `sec resolve --kind company --all --renormalize` recomputes it and
+re-partitions the tier in place — no re-extraction, no AI cost. Wiping instead
+would destroy `canonical_company`, `company_identity_link` and the company
+junctions and leave a full re-extraction as the only rebuild, since the
+observations `sec resolve` reads are exactly what these scripts keep.
+
+⚠️ **The renormalize pass is required, and nothing errors if it is skipped.**
+The stale keys keep resolving, `version coverage` keeps reporting full coverage,
+and the merged identities survive silently — so it is step 3b in the ceremony
+below, after the backfills and before the alias imports (aliases match on
+canonical display names, so they must land against the re-resolved tier).
+Expect residue: canonical rows minted under the previous normalized names
+survive with zero identity links pointing at them. They are inert, not
+corruption; the visible fallout is aliases whose target became one of them,
+listed by `sec canonical company alias-list --orphans`.
+
+`observation_provenance` is scoped `WHERE kind = 'person'` because its
+company-kind rows (underwriter and issuer observations) cite observations that
+survive — and, being keyed by observation id rather than by any normalized
+value, they are unaffected by the re-key.
 
 `extractor_runs` / `extraction_dead_letter` are cleared only for the extractors
 whose output the scripts actually delete (`REKEY_REEXTRACT_EXTRACTOR_IDS` in
@@ -1461,9 +1484,14 @@ sec canonical underwriter-family alias-list --format tsv > aliases-underwriter.t
 # 2. Wipe (SQLite; on Postgres use the .postgres.sql variant)
 sqlite3 "$SEC_DB_FOLDER/$SEC_DB_NAME.sqlite" < scripts/sql/truncate-identity-tier.sql
 
-# 3. Re-extract EVERY extractor whose output the wipe deleted, not just S-1.
-#    424 is in the list for the FAMILY tier (underwriter links), not persons.
+# 3a. Re-extract EVERY extractor whose output the wipe deleted, not just S-1.
+#     424 is in the list for the FAMILY tier (underwriter links), not persons.
 for id in S-1 D C CFPORTAL 1-A 1-Z 3 4 5 144 424; do sec extractor backfill "$id"; done
+
+# 3b. Re-key the COMPANY tier the wipe deliberately spared but the normalizer
+#     made stale. Required; cheap (recomputes from stored names); silent if
+#     skipped. Must precede the alias imports, which match on display names.
+sec resolve --kind company --all --renormalize
 
 # 4. Restore the curated data
 sec editorial import data/editorial/family-descriptions.csv

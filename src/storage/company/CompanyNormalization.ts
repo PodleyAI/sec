@@ -261,14 +261,19 @@ export function normalizeCompanyName(name: string): string | null {
  * ```
  *
  * Closing it means folding inside {@link normalizeCompanyName}, which is a
- * **re-key** of every company observation ever written — and there is no rebuild
- * path for one. `normalized_name` is written only by the extraction path, and
- * `sec resolve` re-resolves FROM that column rather than recomputing it, so a
- * fold would take effect only by re-extracting every company-observing form and
- * re-paying the AI cost of all of them. The prerequisite is teaching
- * `ResolveObservationsTask` to re-normalize as it re-partitions; until then the
- * two keys stay deliberately out of step, pinned by a test so a "fix" cannot
- * land as a silent re-key.
+ * **re-key** of every company observation ever written. The prerequisite for
+ * that has since shipped: `ResolveObservationsTask` re-normalizes as it
+ * re-partitions, so `sec resolve --kind company --all --renormalize` recomputes
+ * `normalized_name` from the `name` each observation already carries and then
+ * resolves — no re-extraction, no AI bill.
+ *
+ * The fold is still deliberately NOT applied, because the command existing is
+ * not the same as an operator having run it. Turning it on re-keys the tier on
+ * the next extraction whether or not anyone re-partitioned what is already
+ * stored, and half a tier keyed to a generation nothing else produces is worse
+ * than a documented gap. It lands paired with a ceremony that runs the pass.
+ * `CompanyNormalization.test.ts` pins the gap so a "fix" cannot arrive as a
+ * one-line change with no migration behind it.
  */
 export function generateCompanyHash(company_name: string): string {
   // `foldDiacritics` rather than a bare NFD pass: NFD leaves `ø` and `ł`

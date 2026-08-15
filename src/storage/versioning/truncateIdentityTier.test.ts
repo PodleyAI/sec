@@ -60,12 +60,16 @@ function scopedExtractorIds(sql: string): string[][] {
 }
 
 /**
- * The company canonical / link / junction group. Not stale after a person or
- * family normalizer change — `normalizeCompanyName` is unchanged, so
- * `company_observations.normalized_name` (the column `canonical_company` is
- * keyed on) still holds — and there is no rebuild path short of re-extracting
- * every company-observing filing, since `sec resolve --kind company` reads
- * those very observations.
+ * The company canonical / link / junction group. Still spared by both scripts —
+ * but NOT because it is untouched. `normalizeCompanyName` changed in the same
+ * release, so `company_observations.normalized_name` (the column
+ * `canonical_company` is keyed on) is stale wherever the new rules key a name
+ * differently. It is spared because those rows are REBUILDABLE rather than
+ * disposable: `normalized_name` derives from the `name` each observation
+ * already carries, so `sec resolve --kind company --all --renormalize`
+ * recomputes and re-partitions in place. Wiping them instead would cost a full
+ * re-extraction and its AI bill for a value one command can recompute — which
+ * is why the scripts must PRESCRIBE that command, asserted below.
  */
 const COMPANY_TIER_TABLES = [
   "canonical_company",
@@ -158,10 +162,57 @@ describe("truncate-identity-tier scripts", () => {
     // errors and wipes nothing, which no test reading the file as text would
     // notice. `set_config(name, value, is_local)` is the expression-context
     // spelling, and `true` is what makes it LOCAL.
+    //
+    // The value is allowed to be wrapped (today: `quote_ident(...)`), because
+    // `search_path` is a list of IDENTIFIERS and an unquoted element is
+    // case-folded — a schema named `Staging` would be written as `Staging`,
+    // resolved as `staging`, and the pin would fail open. What is pinned is
+    // that `current_schema()` supplies the value and that the whole thing is a
+    // `set_config` expression, not a `SET`.
     const body = statements(POSTGRES);
     expect(body).not.toMatch(/SET\s+(LOCAL\s+)?search_path\s+TO\s+current_schema\s*\(/i);
     expect(body).toMatch(
-      /SELECT\s+set_config\(\s*'search_path'\s*,\s*current_schema\(\)\s*,\s*true\s*\)/i
+      /SELECT\s+set_config\(\s*'search_path'\s*,\s*[\s\S]*?current_schema\(\)[\s\S]*?,\s*true\s*\)/i
     );
+  });
+
+  it("quotes the schema identifier it pins the search_path to", () => {
+    // `current_schema()` returns the name verbatim, but `search_path` parses
+    // its elements as identifiers and case-folds anything unquoted. On a
+    // deployment whose schema is `Staging`, the unquoted form writes `Staging`,
+    // Postgres resolves it as `staging`, the pin matches nothing, and every
+    // unqualified name below falls back to whatever the surrounding search path
+    // finds first — silently, since an unresolvable path element is not an
+    // error. That is the exact hazard the pin exists to close.
+    expect(statements(POSTGRES)).toMatch(
+      /set_config\(\s*'search_path'\s*,\s*quote_ident\(\s*current_schema\(\)\s*\)\s*,\s*true\s*\)/i
+    );
+  });
+
+  it.each(VARIANTS)("%s: prescribes the company renormalize pass", (_name, sql) => {
+    // The company tier is spared from the wipe, but `normalizeCompanyName`
+    // changed in the same release, so `company_observations.normalized_name` is
+    // stale. `Churchill Capital Corp I` used to normalize to `Churchill
+    // Capital` — colliding with the plain name — and now keys distinctly; the
+    // release exists to SPLIT those merged canonical identities.
+    //
+    // An operator who skips `--renormalize` keeps every one of them. Nothing
+    // errors: the stale keys still resolve, `version coverage` still reports
+    // full coverage, and the two unrelated Reinvent Technology Partners filers
+    // stay one canonical company forever. The scripts are the only place that
+    // instruction can live, so it has to be in both — which is what this pins.
+    //
+    // Read the RAW file, not `statements()`: the instruction is prose in a `--`
+    // comment, which that helper strips by design.
+    expect(sql).toMatch(/sec resolve --kind company --all --renormalize/);
+  });
+
+  it.each(VARIANTS)("%s: no longer claims normalizeCompanyName is unchanged", (_name, sql) => {
+    // The claim that justified sparing the tier ("`normalizeCompanyName` is
+    // unchanged, so `normalized_name` is still valid") was false as of the very
+    // merge that shipped these scripts. Sparing the tier is still right — the
+    // rows are rebuildable — but on the opposite reasoning, and an operator who
+    // reads the old sentence concludes there is nothing left to do.
+    expect(sql).not.toMatch(/normalizeCompanyName`? is unchanged/i);
   });
 });
