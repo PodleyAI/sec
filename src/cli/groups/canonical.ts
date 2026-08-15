@@ -20,6 +20,11 @@ import {
   CanonicalAliasRemoveTask,
   type CanonicalAliasRemoveTaskOutput,
 } from "../../task/canonical/CanonicalAliasRemoveTask";
+import {
+  SuggestAliasesTask,
+  type SuggestAliasesTaskOutput,
+} from "../../task/canonical/SuggestAliasesTask";
+import { ALIAS_SUGGESTION_KINDS, isAliasSuggestionKind } from "../../task/canonical/suggestAliases";
 import { runWorkflowCli } from "../runWorkflow";
 
 // Resolution lives with the canonical tier tasks; re-exported here for the
@@ -124,4 +129,46 @@ export function addCanonicalCommands(program: Command): void {
 
   addAliasCommands(cmd.command("person"), "person");
   addAliasCommands(cmd.command("company"), "company");
+
+  // Registered once for all three company-keyed kinds rather than per subgroup:
+  // the scan is over EDGAR's entity name history, which is the same table
+  // whichever tier the split landed in.
+  cmd
+    .command("suggest-aliases")
+    .description(
+      "Suggest aliases for filers EDGAR has carried under two spellings of one " +
+        "name (its own typo corrections split them into two canonical rows). " +
+        "`--format tsv` is the export `alias-import` reads."
+    )
+    .requiredOption("--kind <kind>", ALIAS_SUGGESTION_KINDS.join(" | "))
+    .option("--format <fmt>", "output format: text | tsv", "text")
+    .action(async (opts: { kind: string; format: string }) => {
+      if (!isAliasSuggestionKind(opts.kind)) {
+        printError(`--kind must be one of ${ALIAS_SUGGESTION_KINDS.join("|")}`);
+        return;
+      }
+      const { suggestions, scanned } = await runWorkflowCli<SuggestAliasesTaskOutput>([
+        new SuggestAliasesTask({ defaults: { kind: opts.kind } }),
+      ]);
+      if (opts.format === "tsv") {
+        process.stdout.write(
+          formatAliasTsv(
+            suggestions.map((s) => ({
+              alias_name: s.from,
+              target_name: s.into,
+              reason: s.reason,
+              alias_canonical_id: "",
+              target_canonical_id: "",
+            }))
+          )
+        );
+        return;
+      }
+      // Suggestions, not decisions: an operator reads them against the filings
+      // before piping the export into `alias-import`.
+      for (const s of suggestions) {
+        console.log(`${s.from}\t-> ${s.into}\t(${s.reason})`);
+      }
+      console.log(`${suggestions.length} suggestion(s) across ${scanned} filer(s)`);
+    });
 }

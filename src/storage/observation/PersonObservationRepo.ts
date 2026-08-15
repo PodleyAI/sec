@@ -166,6 +166,22 @@ export class PersonObservationRepo {
   }
 
   /**
+   * Rewrites only the derived identity columns of an existing row, leaving the
+   * name as filed untouched. Used by the batch re-normalizer so a change to
+   * `normalizePerson` can take effect without re-extracting the filing that
+   * produced the row.
+   */
+  async updateNormalizedParts(
+    row: PersonObservation,
+    parts: Pick<
+      PersonObservation,
+      "normalized_first" | "normalized_middle" | "normalized_last" | "normalized_suffix"
+    >
+  ): Promise<void> {
+    await this.repo.put({ ...row, ...parts });
+  }
+
+  /**
    * Pass-through to the underlying tabular storage's COUNT path. Callers
    * (e.g. `ResolverCoverage`) must prefer this over `(await listAll()).length`
    * at Form D / Section 16 scale to avoid materializing the full table.

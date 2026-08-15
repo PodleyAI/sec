@@ -60,7 +60,10 @@ export function findNestedSection(containerText: string, target: S1SectionName):
       break;
     }
   }
-  const body = lines.slice(start + 1, end).join("\n").trim();
+  const body = lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trim();
   return body.length > 0 ? body : null;
 }
 
@@ -178,6 +181,19 @@ function bodyUpToSwallowedSection(
 const MIN_TREE_SECTIONS = 2;
 
 /**
+ * Rendered characters a document must carry before its lack of structure counts
+ * as a converter failure rather than as a small document.
+ *
+ * "The converter produced no structure" is only a claim you can make about a
+ * document that had structure to produce. A short body with one heading is
+ * answering correctly, and firing the fallback there would also record a
+ * `CONVERTER_NO_STRUCTURE` dead-letter on a filing with nothing wrong with it.
+ * Every real prospectus in the committed corpus renders well past this; the
+ * filing that motivated the fallback renders 817k characters into 4 headings.
+ */
+const MIN_DOC_CHARS_FOR_LINE_SCAN = 50_000;
+
+/**
  * Segments the rendered document by scanning its lines with the same heading
  * patterns the tree walk uses, slicing each hit to the next one.
  *
@@ -203,7 +219,19 @@ function segmentByLineScan(text: string): Section[] {
 
   const best = new Map<S1SectionName, Section>();
   hits.forEach((hit, i) => {
-    const end = i + 1 < hits.length ? hits[i + 1]!.line : lines.length;
+    // To the next hit of a DIFFERENT target, as `findNestedSection` does. A
+    // typeset prospectus repeats its section name as a page header on every
+    // page, so slicing to the next hit of ANY target chops the section into
+    // one-page fragments — Bridgetown's risk factors came out as 5k of a 177k
+    // section that way. A repeat of the same name is page furniture, not a
+    // boundary.
+    let end = lines.length;
+    for (let j = i + 1; j < hits.length; j++) {
+      if (hits[j]!.name !== hit.name) {
+        end = hits[j]!.line;
+        break;
+      }
+    }
     const body = lines
       .slice(hit.line + 1, end)
       .join("\n")
@@ -282,9 +310,11 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
 
     // The tree carried no usable structure. Fall back to scanning the rendered
     // text, which is all a converter-defeating filing leaves to work with.
-    const usedLineScan = best.size < MIN_TREE_SECTIONS;
+    const rendered = best.size < MIN_TREE_SECTIONS ? renderMarkdown(doc) : "";
+    const usedLineScan =
+      best.size < MIN_TREE_SECTIONS && rendered.length >= MIN_DOC_CHARS_FOR_LINE_SCAN;
     if (usedLineScan) {
-      for (const section of segmentByLineScan(renderMarkdown(doc))) {
+      for (const section of segmentByLineScan(rendered)) {
         const prev = best.get(section.name);
         if (!prev || section.text.length > prev.text.length) best.set(section.name, section);
       }

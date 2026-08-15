@@ -3358,6 +3358,34 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { name: "M. Klein Associates Inc." },
   ],
   [goldenLabelKey("s1_2123955_000121390026080433", "related-party")]: [],
+  // These two sections are headed `CERTAIN TRANSACTIONS`, which the segmenter
+  // did not match until that spelling was added — so the filings carried an
+  // Item 404 disclosure that nothing read. Both are the same filer agent and
+  // the same Chairwoman, and both name the incorporation agent that received
+  // the first share before transferring it to the sponsor.
+  //
+  // The transfer agent each names (Continental / Vstock) is deliberately NOT a
+  // row: the prose names it to say where the private-placement money sits until
+  // closing, which makes it a vendor rather than a related party. Nor is "our
+  // sponsor" — a role phrase is not a name, per the empty labels above.
+  [goldenLabelKey("s1_2116230_000192998026000257", "related-party")]: [
+    R("McGrath Tonner Corporate Services Limited"),
+    R("Ally Tong Zhang"),
+    R("Siu Wai Lam"),
+    R("Qian Xu"),
+    R("Zhuo Liang"),
+    R("Zhiqiang Du"),
+  ],
+  // The founder-share transfer is stated twice here, once naming this director
+  // "Du Zhiqiang" and once "Zhiqiang Du". One person, one row.
+  [goldenLabelKey("s1_2133239_000192998026000317", "related-party")]: [
+    R("Mapcal Limited"),
+    R("Ally Tong Zhang"),
+    R("Xin Wang"),
+    R("Hongmei Zhao"),
+    R("Wenhua Qian"),
+    R("Zhiqiang Du"),
+  ],
   [goldenLabelKey("s1_2128045_000121390026070217", "related-party")]: [
     { name: "CCM" },
     { name: "MJP Advisory" },

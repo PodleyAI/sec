@@ -196,10 +196,15 @@ describe("DocumentTreeSegmenter", () => {
     // A converter can produce text with no structure: an InDesign export
     // typesets the prospectus inside hundreds of tables, so the tree carries
     // paragraphs and tables but almost no headings.
+    // Padded past MIN_DOC_CHARS_FOR_LINE_SCAN: the fallback only fires on a
+    // document big enough for "no structure" to be a converter failure rather
+    // than simply a short filing.
+    const filler = `<table><tr><td><p>${"Risk disclosure prose. ".repeat(40)}</p></td></tr></table>`;
     const noHeadingMarkup = `
       <html><body>
         <table><tr><td><p>Summary</p></td></tr></table>
         <table><tr><td><p>We are a blank check company incorporated in Delaware.</p></td></tr></table>
+        ${filler.repeat(60)}
         <table><tr><td><p>Management</p></td></tr></table>
         <table><tr><td><p>Our officers and directors are listed below.</p></td></tr></table>
         <table><tr><td><p>Underwriting</p></td></tr></table>

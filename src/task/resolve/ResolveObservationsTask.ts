@@ -6,6 +6,7 @@
 
 import { Type } from "typebox";
 import { Task } from "workglow";
+import { normalizePersonNameParts } from "../../resolver/EntityObserver";
 import { CompanyResolver } from "../../resolver/CompanyResolver";
 import { PersonResolver } from "../../resolver/PersonResolver";
 import { CanonicalCompanyAliasRepo } from "../../storage/canonical/CanonicalCompanyAliasRepo";
@@ -16,6 +17,7 @@ import { CompanyIdentityLinkRepo } from "../../storage/canonical/CompanyIdentity
 import { PersonIdentityLinkRepo } from "../../storage/canonical/PersonIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../storage/observation/PersonObservationRepo";
+import { normalizeCompanyName } from "../../storage/company/CompanyNormalization";
 
 /**
  * The resolver kinds this batch pass implements. A kind qualifies only when its
@@ -32,6 +34,11 @@ export function isBatchResolvableKind(kind: string): kind is BatchResolvableKind
 export type ResolveObservationsTaskInput = {
   readonly kind: BatchResolvableKind;
   readonly resolverVersion: string;
+  /**
+   * Recompute each observation's derived identity columns from the name as
+   * filed before resolving. See {@link renormalizePersons}.
+   */
+  readonly renormalize?: boolean;
 };
 
 /**
@@ -43,7 +50,7 @@ async function resolveAll<Obs extends { readonly observation_id: number }>(
   observations: readonly Obs[],
   resolveOne: (obs: Obs) => Promise<string>,
   writeLink: (observationId: number, canonicalId: string) => Promise<unknown>
-): Promise<ResolveObservationsTaskOutput> {
+): Promise<Omit<ResolveObservationsTaskOutput, "renormalized">> {
   let count = 0;
   let skipped = 0;
   for (const obs of observations) {
@@ -63,7 +70,56 @@ export type ResolveObservationsTaskOutput = {
   readonly count: number;
   /** Observations skipped by the per-row failure isolation (also logged to stderr). */
   readonly skipped: number;
+  /** Rows whose derived identity columns changed under `renormalize`. */
+  readonly renormalized: number;
 };
+
+/**
+ * Recomputes `normalized_first/middle/last/suffix` from the name as filed.
+ *
+ * Without this, a change to `normalizePerson` reaches the database only by
+ * re-extracting every person-observing filing: the columns are written on the
+ * extraction path, and this task otherwise resolves FROM them rather than
+ * recomputing them. That made every normalizer fix a full re-extraction and its
+ * AI cost, which is why several sat unfixed.
+ *
+ * Off by default. A resolve pass that silently rewrote its own input would give
+ * the operator who asked to re-partition a generation something they did not
+ * ask for.
+ */
+async function renormalizePersons(repo: PersonObservationRepo): Promise<number> {
+  let changed = 0;
+  for (const row of await repo.listAll()) {
+    const { normalized } = normalizePersonNameParts(row);
+    const next = {
+      normalized_first: normalized?.first ?? null,
+      normalized_middle: normalized?.middle ?? null,
+      normalized_last: normalized?.last ?? null,
+      normalized_suffix: normalized?.suffix ?? null,
+    };
+    const same =
+      next.normalized_first === row.normalized_first &&
+      next.normalized_middle === row.normalized_middle &&
+      next.normalized_last === row.normalized_last &&
+      next.normalized_suffix === row.normalized_suffix;
+    if (same) continue;
+    await repo.updateNormalizedParts(row, next);
+    changed++;
+  }
+  return changed;
+}
+
+/** The company twin of {@link renormalizePersons}, over `normalized_name`. */
+async function renormalizeCompanies(repo: CompanyObservationRepo): Promise<number> {
+  let changed = 0;
+  for (const row of await repo.listAll()) {
+    const next = row.name ? normalizeCompanyName(row.name) : null;
+    if (next === row.normalized_name) continue;
+    await repo.updateNormalizedName(row, next);
+    changed++;
+  }
+  return changed;
+}
 
 /**
  * Re-resolves every observation of a kind into identity-link rows at the
@@ -83,6 +139,7 @@ export class ResolveObservationsTask extends Task<
     return Type.Object({
       kind: Type.Union([Type.Literal("person"), Type.Literal("company")]),
       resolverVersion: Type.String(),
+      renormalize: Type.Optional(Type.Boolean()),
     });
   }
 
@@ -90,33 +147,47 @@ export class ResolveObservationsTask extends Task<
     return Type.Object({
       count: Type.Number(),
       skipped: Type.Number(),
+      renormalized: Type.Number(),
     });
   }
 
   async execute(input: ResolveObservationsTaskInput): Promise<ResolveObservationsTaskOutput> {
     if (input.kind === "person") {
+      const observations = new PersonObservationRepo();
+      // Before resolving, not after: the resolver matches on these columns, so
+      // recomputing them afterwards would leave the links keyed to the previous
+      // generation and report a coverage the data does not have.
+      const renormalized = input.renormalize ? await renormalizePersons(observations) : 0;
       const resolver = new PersonResolver({
         canonicalPersonRepo: new CanonicalPersonRepo(),
         canonicalPersonAliasRepo: new CanonicalPersonAliasRepo(),
         activeResolverVersion: input.resolverVersion,
       });
       const linkRepo = new PersonIdentityLinkRepo();
-      return resolveAll(
-        await new PersonObservationRepo().listAll(),
-        (obs) => resolver.resolve(obs),
-        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-      );
+      return {
+        ...(await resolveAll(
+          await observations.listAll(),
+          (obs) => resolver.resolve(obs),
+          (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+        )),
+        renormalized,
+      };
     }
+    const observations = new CompanyObservationRepo();
+    const renormalized = input.renormalize ? await renormalizeCompanies(observations) : 0;
     const resolver = new CompanyResolver({
       canonicalCompanyRepo: new CanonicalCompanyRepo(),
       canonicalCompanyAliasRepo: new CanonicalCompanyAliasRepo(),
       activeResolverVersion: input.resolverVersion,
     });
     const linkRepo = new CompanyIdentityLinkRepo();
-    return resolveAll(
-      await new CompanyObservationRepo().listAll(),
-      (obs) => resolver.resolve(obs),
-      (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
-    );
+    return {
+      ...(await resolveAll(
+        await observations.listAll(),
+        (obs) => resolver.resolve(obs),
+        (obsId, id) => linkRepo.upsert(obsId, input.resolverVersion, id)
+      )),
+      renormalized,
+    };
   }
 }

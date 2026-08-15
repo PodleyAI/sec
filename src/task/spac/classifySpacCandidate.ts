@@ -173,6 +173,11 @@ export interface SpacCandidateFacts {
   readonly cik: number;
   readonly name: string | null;
   readonly current_sic: number | null;
+  /**
+   * Whether a PARSED registration of this filer carried a 6770 header SIC.
+   * Null when none has been parsed — not the same as false.
+   */
+  readonly filed_sic_6770: boolean | null;
   /** Earliest {@link SPAC_REGISTRATION_FORMS} filing, if any. */
   readonly first_reg_form: string | null;
   readonly first_reg_date: string | null;
@@ -228,6 +233,11 @@ export function classifySpacCandidate(
   identifiedAt: string
 ): SpacCandidate | null {
   const signal_sic_6770 = facts.current_sic === BLANK_CHECK_SIC;
+  // The header the filing itself carried, which — unlike `entities.sic` — never
+  // drifts. This is what reaches a completed de-SPAC: Joby, Opendoor, Hippo,
+  // E2open, Markforged and Banzai all recoded AND renamed, so every other signal
+  // is gone while their registration statements still read 6770.
+  const signal_filed_sic_6770 = facts.filed_sic_6770;
   const signal_name_match = looksLikeBlankCheckName(facts.name);
   const signal_renamed_from = facts.renamed_from;
   const hasRegistration = facts.first_reg_date !== null;
@@ -239,14 +249,14 @@ export function classifySpacCandidate(
   const weakName =
     looksLikeModernSpacName(facts.name) || looksLikeModernSpacName(signal_renamed_from);
 
-  if (!signal_sic_6770 && !strongName && !weakName) return null;
+  if (!signal_sic_6770 && signal_filed_sic_6770 !== true && !strongName && !weakName) return null;
 
   // A blank-check-shaped *name* on its own is not evidence. EDGAR is full of
   // private acquisition vehicles and dormant shells ("TRAVELPORT UK ACQUISITION
   // CORP", "SINCLAIR ACQUISITION VIII INC") that never registered securities
   // and never will. Require either a registration on file or EDGAR's own
   // blank-check coding before the company counts as a candidate at all.
-  if (!hasRegistration && !signal_sic_6770) return null;
+  if (!hasRegistration && !signal_sic_6770 && signal_filed_sic_6770 !== true) return null;
 
   // Whether the earliest registration predates the loss of the blank-check
   // name. Only answerable when the company renamed away from one; a company
@@ -274,7 +284,14 @@ export function classifySpacCandidate(
   const contradicted = reg_while_spac_named === false;
 
   let confidence: SpacCandidateConfidence;
-  if (hasRegistration && !contradicted && (strongName || signal_sic_6770)) {
+  // A registration filed under a 6770 header IS a blank-check IPO by
+  // construction — a stronger claim than today's current-SIC signal, which only
+  // says the filer reads 6770 now — so it carries `high` on the same footing.
+  if (
+    hasRegistration &&
+    !contradicted &&
+    (strongName || signal_sic_6770 || signal_filed_sic_6770 === true)
+  ) {
     confidence = "high";
   } else if (hasRegistration && (signal_sic_6770 || weakName)) {
     confidence = "medium";
@@ -287,6 +304,7 @@ export function classifySpacCandidate(
     name: facts.name,
     current_sic: facts.current_sic,
     signal_sic_6770,
+    signal_filed_sic_6770,
     signal_name_match,
     signal_renamed_from,
     first_reg_form: facts.first_reg_form,

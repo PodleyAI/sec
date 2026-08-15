@@ -139,6 +139,44 @@ function expandBoardSeatDirector(titles: readonly string[]): string[] {
  * and link person and company observations. Centralizes the observe→resolve→link
  * pipeline so each form storage module doesn't repeat it.
  */
+/** The name parts a person observation is identified by, as filed. */
+export interface PersonNameParts {
+  readonly first_name?: string | null;
+  readonly middle_name?: string | null;
+  readonly last_name?: string | null;
+  readonly suffix?: string | null;
+  readonly cik?: number | null;
+}
+
+/**
+ * Derives a person's normalized identity parts from the name as filed.
+ *
+ * Extracted so the batch re-normalizer (`ResolveObservationsTask` with
+ * `renormalize`) recomputes the columns by calling the SAME code that wrote
+ * them. A second implementation that drifts from this one would silently
+ * re-key half the tier to a generation nothing else produces.
+ */
+export function normalizePersonNameParts(parts: PersonNameParts): {
+  readonly normalized: ReturnType<typeof normalizePerson> | undefined;
+  readonly parsedSuffixDisplay: string | null;
+} {
+  const fullName = [parts.first_name, parts.middle_name, parts.last_name, parts.suffix]
+    .filter(Boolean)
+    .join(" ");
+  const normalized = fullName
+    ? normalizePerson({ name: fullName, cik: parts.cik ?? undefined })
+    : undefined;
+
+  // Empty string, not null, is what `join` yields for a name carrying neither
+  // kind of suffix — so it is normalized back to null rather than stored as a
+  // blank that reads like "the filing wrote an empty suffix".
+  const parsedSuffixParts = [normalized?.suffix, normalized?.credentials].filter(Boolean);
+  return {
+    normalized,
+    parsedSuffixDisplay: parsedSuffixParts.length > 0 ? parsedSuffixParts.join(", ") : null,
+  };
+}
+
 export class EntityObserver {
   /**
    * Role-assertion keys accumulated per filing+population, so a roster
@@ -165,19 +203,7 @@ export class EntityObserver {
     // so a replay nets out to the same count (idempotent) instead of inflating.
     await this.removePriorPersonJunctions(claim);
 
-    // Normalize name parts into normalized fields
-    const fullName = [claim.first_name, claim.middle_name, claim.last_name, claim.suffix]
-      .filter(Boolean)
-      .join(" ");
-    const normalized = fullName
-      ? normalizePerson({ name: fullName, cik: claim.cik ?? undefined })
-      : undefined;
-
-    // Empty string, not null, is what `join` yields for a name carrying neither
-    // kind of suffix — so it is normalized back to null rather than stored as a
-    // blank that reads like "the filing wrote an empty suffix".
-    const parsedSuffixParts = [normalized?.suffix, normalized?.credentials].filter(Boolean);
-    const parsedSuffixDisplay = parsedSuffixParts.length > 0 ? parsedSuffixParts.join(", ") : null;
+    const { normalized, parsedSuffixDisplay } = normalizePersonNameParts(claim);
 
     const now = new Date().toISOString();
 
