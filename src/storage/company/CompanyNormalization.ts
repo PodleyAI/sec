@@ -151,11 +151,6 @@ export function hasCompanyAnywhere(name: string) {
 }
 
 export function stripCompanyAllEndings(name: string): string {
-  let suffix: string | null = null;
-
-  // Store original for suffix detection
-  let original = name;
-
   // Remove punctuation and extra whitespace for normalization
   let normalized = name
     .replace(/[\.,;:!\?]/g, "")
@@ -168,16 +163,13 @@ export function stripCompanyAllEndings(name: string): string {
     foundSuffix = false;
     const literal = stripLiteralSuffix(normalized);
     if (literal !== null && literal !== normalized) {
-      suffix = normalized.slice(literal.length).trim() || null;
       normalized = literal;
-      original = normalized;
       foundSuffix = true;
       continue;
     }
     for (const ending of COMPANY_ENDINGS_TO_STRIP) {
       const pattern = new RegExp(`\\b${escapeRegExp(ending)}\\b$`, "i");
       if (pattern.test(normalized)) {
-        suffix = normalized.match(pattern)?.[0] || null;
         normalized = normalized.replace(pattern, "").trim();
         foundSuffix = true;
         break;
