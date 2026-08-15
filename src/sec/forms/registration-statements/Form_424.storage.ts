@@ -11,6 +11,7 @@ import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/Extractio
 import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
+import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
@@ -41,6 +42,23 @@ const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
  * Shelf takedowns and supplements (424B2/B3/B5, 424A) stay deterministic-only.
  */
 const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
+
+/**
+ * IPO-day trust deposit. Prefer units × trust-per-unit (the same arithmetic
+ * as gross proceeds). When the offering table omits a unit count — a live
+ * 424B4 extracted `trust_per_unit` and `gross_proceeds` but left
+ * `units_offered` null — fall back to the sponsor-promote `trust_total`.
+ */
+export function ipoTrustAmount(args: {
+  readonly trust_per_unit: number | null | undefined;
+  readonly units_offered: number | null | undefined;
+  readonly trust_total: number | null | undefined;
+}): number | null {
+  if (args.trust_per_unit != null && args.units_offered != null) {
+    return args.trust_per_unit * args.units_offered;
+  }
+  return args.trust_total ?? null;
+}
 
 export interface ProcessForm424Args {
   readonly cik: number;
@@ -135,6 +153,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   const recordSpacIpoEventIfEligible = async (): Promise<void> => {
     if (!isSpac) return;
     const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
+    const promoteTerms = await new SpacPromoteTermsRepo().get(EXTRACTOR_ID, accession_number);
     const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
       (t) => t.accession_number === accession_number
     );
@@ -161,10 +180,11 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
         (unitTerms?.price_per_unit != null && unitTerms?.units_offered != null
           ? unitTerms.price_per_unit * unitTerms.units_offered
           : null),
-      trust_amount:
-        unitTerms?.trust_per_unit != null && unitTerms?.units_offered != null
-          ? unitTerms.trust_per_unit * unitTerms.units_offered
-          : null,
+      trust_amount: ipoTrustAmount({
+        trust_per_unit: unitTerms?.trust_per_unit,
+        units_offered: unitTerms?.units_offered,
+        trust_total: promoteTerms?.trust_total,
+      }),
       spac_tickers: tickers.length > 0 ? tickers : null,
     });
   };

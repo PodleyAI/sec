@@ -12,7 +12,7 @@ import { CompanyObservationRepo } from "../../../storage/observation/CompanyObse
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { processForm424 } from "./Form_424.storage";
+import { ipoTrustAmount, processForm424 } from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
@@ -382,5 +382,40 @@ describe("processForm424", () => {
     expect(issuer.cik).toBe(CIK);
     expect(issuer.name).toBeNull();
     expect(JSON.parse(issuer.source_context!)).toEqual({ relation: "424:issuer" });
+  });
+});
+
+describe("ipoTrustAmount", () => {
+  it("multiplies trust_per_unit by units_offered when both are present", () => {
+    expect(
+      ipoTrustAmount({
+        trust_per_unit: 10,
+        units_offered: 20_000_000,
+        trust_total: 250_000_000,
+      })
+    ).toBe(200_000_000);
+  });
+
+  it("falls back to promote trust_total when units_offered is missing", () => {
+    // Live: Fortress Value Acquisition V 424B4 (CIK 1850733) extracted
+    // trust_per_unit=$10 and trust_total=$250M but left units_offered null,
+    // so the IPO row got proceeds and a null trust.
+    expect(
+      ipoTrustAmount({
+        trust_per_unit: 10,
+        units_offered: null,
+        trust_total: 250_000_000,
+      })
+    ).toBe(250_000_000);
+  });
+
+  it("returns null when neither the product nor trust_total is available", () => {
+    expect(
+      ipoTrustAmount({
+        trust_per_unit: 10,
+        units_offered: null,
+        trust_total: null,
+      })
+    ).toBeNull();
   });
 });
