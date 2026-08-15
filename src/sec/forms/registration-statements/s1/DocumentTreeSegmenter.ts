@@ -22,45 +22,47 @@ function matchTarget(title: string): S1SectionName | null {
 }
 
 /**
- * Targets a filing may nest as a plain bolded line inside a larger section
- * instead of giving them their own structural heading, with the section they
- * are nested in.
+ * A section a heading-shaped line inside cannot be trusted to introduce, because
+ * the section's job is to restate the rest of the prospectus by name.
  *
- * Churchill Capital Corp XII is the case in point: its Item 402 disclosure
- * ("Officer and Director Compensation — None of our executive officers or
- * directors have received any cash compensation…") sits inside MANAGEMENT, so
- * the tree walk finds no SectionNode for it and the caller records
- * SECTION_NOT_FOUND — which is meant to flag a heading-pattern coverage hole,
- * and here fires on a filing whose heading the patterns already match. The
- * heading never reaches them because it is not a section in the tree.
+ * A prospectus summary walks the whole document: it names the offering, the
+ * sponsor, the management team and the risks, each as a bolded label. Read as a
+ * nesting fallback (below) every one of those labels opens a slice running to
+ * the next label, so the summary donates a section for a target the filing may
+ * not disclose at all. That is not a hypothetical — it is the entire measured
+ * cost of generalizing the fallback over the committed corpus: 6 wrong sections
+ * in 42 fixtures, and **all 6** come out of a summary. A 208k "The Sponsor"
+ * carved out of a 217k summary, a 136k "Management" for a filing whose roster is
+ * documented as bolded paragraphs with no section at all.
  *
- * The offering table sits the same way inside a prospectus summary: it is what
- * `LEGITIMATE_CONTAINMENTS` already expects the summary to carry, and when the
- * filer bolds `The Offering` rather than giving it a structural heading the
- * whole block — 90k characters of unit terms in `Mammon Omicron Acquisition
- * Corp` — is invisible to the offering-terms extractor. So does the ownership
- * table, which follows the roster without a heading of its own in
- * `TCG Growth Opportunities Corp.`
+ * The summary's own offering table is the one real block inside it, and it stays
+ * reachable through {@link NESTED_SECTION_FALLBACKS}.
  *
- * These are **specific pairs, not a general rule**, and the difference is
- * measurable. `findNestedSection` slices from the matched line to the next line
- * that is itself a known heading, which is the right boundary only where the
- * block really does run that far. Trying every missing target against every
- * resolved container instead adds a section to 6 of the 45 committed fixtures,
- * and the slices are wrong: a 208k "The Sponsor" carved out of a summary, and a
- * 135k "Management" for a filing whose roster is documented as plain bolded
- * paragraphs with no section at all. Each pair here is added on evidence that a
- * real filing hides that target in that container, and on measuring that the
- * committed corpus gains nothing from it.
+ * A slice-size guard was measured as the alternative and does not work. Five of
+ * those six summary slices run 68-96% of their container — but the trusted
+ * compensation-inside-management recovery runs 7-81% across 18 committed
+ * fixtures, 14 of them above 68%. The two bands sit on top of each other, so a
+ * threshold rejecting the summary slices deletes most of the recoveries that are
+ * right, and the sixth summary slice is 14%, under everything. Which section is
+ * donating separates them; how much of it does not.
+ */
+const RESTATING_CONTAINERS: readonly S1SectionName[] = [S1_SECTIONS.PROSPECTUS_SUMMARY];
+
+/**
+ * Targets a filing nests inside a {@link RESTATING_CONTAINERS} section as a
+ * plain bolded line, on evidence that the block really is there.
+ *
+ * The general rule below cannot reach into a restating container, so a real
+ * block inside one is named here. There is exactly one: the offering table,
+ * which is what `LEGITIMATE_CONTAINMENTS` already expects a summary to carry,
+ * and which `Mammon Omicron Acquisition Corp` bolds rather than heads — hiding
+ * 90k characters of unit terms from the offering-terms extractor. It fires on 11
+ * committed fixtures, at 13-59% of the summary.
  */
 const NESTED_SECTION_FALLBACKS: ReadonlyArray<{
   readonly target: S1SectionName;
   readonly container: S1SectionName;
-}> = [
-  { target: S1_SECTIONS.EXECUTIVE_COMPENSATION, container: S1_SECTIONS.MANAGEMENT },
-  { target: S1_SECTIONS.THE_OFFERING, container: S1_SECTIONS.PROSPECTUS_SUMMARY },
-  { target: S1_SECTIONS.BENEFICIAL_OWNERSHIP, container: S1_SECTIONS.MANAGEMENT },
-];
+}> = [{ target: S1_SECTIONS.THE_OFFERING, container: S1_SECTIONS.PROSPECTUS_SUMMARY }];
 
 /**
  * Recovers `target` from the rendered body of `container` by scanning its lines
@@ -345,18 +347,33 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
 
     // Only after the tree walk: a real SectionNode always wins over a slice of
     // another section's body.
-    for (const { target, container } of NESTED_SECTION_FALLBACKS) {
+    for (const target of Object.keys(SECTION_HEADING_PATTERNS) as S1SectionName[]) {
       if (best.has(target)) continue;
-      const parent = best.get(container);
-      if (!parent) continue;
-      const text = findNestedSection(parent.text, target);
-      if (text === null) continue;
-      best.set(target, {
-        name: target,
-        text,
-        startOffset: parent.startOffset,
-        endOffset: parent.endOffset,
-      });
+      // Tightest enclosing body first. Section bodies overlap only where
+      // `LEGITIMATE_CONTAINMENTS` says they may (a resolved Item 402 block sits
+      // inside Management), and there the inner one bounds the slice to the
+      // block that actually encloses the line rather than to whatever follows
+      // its outer section.
+      const containers = [...best.values()]
+        .filter((s) => !RESTATING_CONTAINERS.includes(s.name))
+        .sort((a, b) => a.text.length - b.text.length);
+      // A pair declared against a restating container is evidence about that
+      // container specifically, so it is consulted last: a real body section
+      // donating the same target is the better claim.
+      const declared = NESTED_SECTION_FALLBACKS.filter((f) => f.target === target)
+        .map((f) => best.get(f.container))
+        .filter((s): s is Section => s !== undefined);
+      for (const parent of [...containers, ...declared]) {
+        const text = findNestedSection(parent.text, target);
+        if (text === null) continue;
+        best.set(target, {
+          name: target,
+          text,
+          startOffset: parent.startOffset,
+          endOffset: parent.endOffset,
+        });
+        break;
+      }
     }
 
     return { sections: [...best.values()], usedLineScan };

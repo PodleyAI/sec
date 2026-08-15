@@ -287,4 +287,79 @@ describe("DocumentTreeSegmenter", () => {
     expect(byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP)).toContain("more than 5%");
     expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
   });
+
+  describe("the nesting fallback is general, minus the restating container", () => {
+    // A pair nothing declares: `Harvard Ave Acquistion Corp` (CIK 2042460) bolds
+    // its sponsor block inside MANAGEMENT, which no list of (target, container)
+    // pairs written from the corpus would have predicted.
+    it("recovers a target from a container no declared pair names", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+          <p>Our officers and directors are listed below.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor, Copley Square Sponsor Limited, is a Cayman Islands exempted
+             company holding 6,967,500 insider shares.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const byName = new Map(sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.THE_SPONSOR)).toContain("Copley Square Sponsor Limited");
+      expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+    });
+
+    // The summary names every section of the prospectus, so a heading-shaped
+    // line in it is a cross-reference. Reading it as a block donated a 208k
+    // "The Sponsor" carved out of a 217k summary on real filings.
+    it("never donates a section out of the prospectus summary", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+          <p>We are a blank check company.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor is an affiliate of our chief executive officer.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      expect(sections.some((s) => s.name === S1_SECTIONS.THE_SPONSOR)).toBe(false);
+    });
+
+    // The one declared exception to the rule above, and the reason the declared
+    // list still exists.
+    it("still recovers the offering table declared inside the summary", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">PROSPECTUS SUMMARY</p>
+          <p>We are a blank check company.</p>
+          <p><b>The Offering</b></p>
+          <p>Each unit consists of one share and one-half of one redeemable warrant.</p>
+          <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+          <p>The underwriters have agreed to purchase the units.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING)?.text ?? "";
+      expect(offering).toContain("one-half of one redeemable warrant");
+    });
+
+    // Both bodies carry the line (MANAGEMENT ⊃ the resolved Item 402 block is a
+    // legitimate containment), and the inner one bounds the slice to the block
+    // that really encloses it.
+    it("prefers the tightest enclosing container", () => {
+      const html = `
+        <html><body>
+          <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+          <p>Our officers and directors are listed below.</p>
+          <p style="font-weight:700;font-size:14pt">Executive Compensation</p>
+          <p>No compensation has been paid.</p>
+          <p><b>Our Sponsor</b></p>
+          <p>Our sponsor holds the founder shares.</p>
+        </body></html>`;
+      const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+      const sponsor = sections.find((s) => s.name === S1_SECTIONS.THE_SPONSOR)?.text ?? "";
+      expect(sponsor).toContain("founder shares");
+      expect(sponsor).not.toContain("officers and directors");
+    });
+  });
 });

@@ -1091,25 +1091,52 @@ deliberately absent from that list: the segmenter accepts it as a Risk Factors
 heading variant, so allowing it let three fixtures keep summaries carrying the
 entire risk section verbatim.
 
-Targets a filer bolds rather than heads are recovered from inside their
-container by `NESTED_SECTION_FALLBACKS` + `findNestedSection`, which scans the
-container's rendered lines with the same patterns: Item 402 compensation inside
-`Management`, the offering table inside `Prospectus Summary` (`Mammon Omicron
-Acquisition Corp` hides 90k characters of unit terms that way), and the
-ownership table inside `Management` (`TCG Growth Opportunities Corp.`, where
-`Principal stockholders` follows the roster with no heading of its own). Each
-fires only when the tree walk found no section for the target, so a filing with
-a real heading is untouched.
+Targets a filer bolds rather than heads are recovered from inside whichever
+resolved section carries them, by `findNestedSection` — which scans the
+container's rendered lines with the same heading patterns. Item 402 compensation
+sits inside `Management` that way, and so does the ownership table (`TCG Growth
+Opportunities Corp.`, where `Principal stockholders` follows the roster with no
+heading of its own). It fires only when the tree walk found no section for the
+target, so a filing with a real heading is untouched, and the **tightest**
+enclosing body is tried first — section bodies overlap only where
+`LEGITIMATE_CONTAINMENTS` says they may, and there the inner one bounds the slice
+to the block that really encloses the line.
 
-These are **specific pairs, not a general rule**, and the difference is
-measured. `findNestedSection` slices to the next line that is itself a known
-heading, which is the right boundary only where the block really runs that far.
-Trying every missing target against every resolved container instead adds a
-section to 6 of the 45 committed fixtures with wrong slices — a 208k
-"The Sponsor" carved out of a summary, a 135k "Management" for a filing whose
-roster is documented as bolded paragraphs with no section at all. Add a pair on
-evidence that a real filing hides that target in that container, and after
-checking the committed corpus gains nothing from it.
+The rule is general with **one container excluded**: `RESTATING_CONTAINERS` —
+today just `Prospectus Summary`. A summary's job is to restate the whole
+prospectus by name, so every bolded label in it opens a slice for a section the
+filing may not disclose at all. That is the entire measured cost of
+generalizing: 6 wrong sections across the 42 committed fixtures, and **all 6**
+come out of a summary (a 208k `The Sponsor` carved from a 217k summary, a 136k
+`Management` for a filing whose roster is documented as bolded paragraphs with
+no section at all). Excluding it leaves **zero** additions on the corpus, so the
+generalization costs nothing and covers pairs nobody enumerated — on a real
+filing outside the corpus (`Harvard Ave Acquistion Corp`, CIK 2042460) it
+recovers a genuine 20k `The Sponsor` block from inside `Management`, a pair no
+hand-written list predicted.
+
+A real block inside a restating container is still reachable, by naming it in
+`NESTED_SECTION_FALLBACKS`. There is exactly one: the offering table inside the
+summary, which `LEGITIMATE_CONTAINMENTS` already expects to be there and which
+`Mammon Omicron Acquisition Corp` bolds rather than heads, hiding 90k characters
+of unit terms. Declared pairs are consulted **after** the general containers — a
+real body section donating a target is the better claim.
+
+**A slice-size guard was measured as the alternative and does not separate
+them.** Five of the six summary slices run 68-96% of their container, but the
+trusted compensation-inside-`Management` recovery runs 7-81% across 18 committed
+fixtures, 14 of them above 68% — the bands sit on top of each other, and the
+sixth summary slice is 14%, below all of them. Which section is donating
+separates the good recoveries from the bad; how much of it does not.
+
+Guessing the remaining pairs from **document order** does not work either: the
+container is the nearest _resolved_ predecessor, not the immediate one. Ranking
+each section's observed predecessor across the corpus predicts the compensation
+and offering pairs correctly and gets the ownership one wrong — it names
+`Executive Compensation`, which is the truth about a headed filing and not about
+`TCG`, where that section is itself unheaded so the container moves up to
+`Management`. The pair you cannot enumerate is exactly the one the general rule
+covers for free.
 
 When the tree walk resolves **fewer than two** targets on a document rendering at
 least 50k characters, a **line-scan fallback** takes over: the rendered text is
