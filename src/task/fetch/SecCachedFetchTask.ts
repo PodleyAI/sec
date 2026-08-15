@@ -25,46 +25,48 @@ export interface SecCachedFetchTaskInput {
   response_type?: response_type;
 }
 
+/**
+ * File-cacheable fetch types. FetchUrlTask also accepts `"stream"`, which
+ * materializes no derived port — SecFetchFileOutputCache cannot persist that.
+ */
+function isMaterializingResponseType(value: unknown): value is response_type {
+  return value === "text" || value === "json" || value === "blob" || value === "arraybuffer";
+}
+
 function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_type {
+  if (isMaterializingResponseType(input.response_type)) {
+    return input.response_type;
+  }
   const url = new URL(urlstr);
   const ext = url.pathname.split(".").pop() ?? "json";
-  let response_type = input.response_type;
-
-  if (!response_type) {
-    switch (ext) {
-      case "idx":
-      case "txt":
-      case "xml":
-      case "xbrl":
-      case "csv":
-      case "html":
-      case "htm":
-        response_type = "text";
-        break;
-      case "json":
-        response_type = "json";
-        break;
-      case "pdf":
-      case "doc":
-      case "docx":
-      case "xls":
-      case "xlsx":
-      case "ppt":
-      case "pptx":
-      case "gif":
-      case "jpg":
-      case "jpeg":
-      case "png":
-      case "ico":
-      case "webp":
-        response_type = "blob";
-        break;
-      default:
-        response_type = "blob";
-        break;
-    }
+  switch (ext) {
+    case "idx":
+    case "txt":
+    case "xml":
+    case "xbrl":
+    case "csv":
+    case "html":
+    case "htm":
+      return "text";
+    case "json":
+      return "json";
+    case "pdf":
+    case "doc":
+    case "docx":
+    case "xls":
+    case "xlsx":
+    case "ppt":
+    case "pptx":
+    case "gif":
+    case "jpg":
+    case "jpeg":
+    case "png":
+    case "ico":
+    case "webp":
+      return "blob";
+    default:
+      return "blob";
   }
-  return response_type;
 }
 
 export abstract class SecCachedFetchTask<
@@ -95,7 +97,7 @@ export abstract class SecCachedFetchTask<
     // `defaults`/`runInputData`, so that downstream `execute()` calls and
     // any cache lookups see a consistent value.
     const fetchInput = this.defaults as FetchUrlTaskInput & I;
-    if (!fetchInput.response_type) {
+    if (!isMaterializingResponseType(fetchInput.response_type)) {
       const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
       fetchInput.response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
@@ -113,8 +115,19 @@ export abstract class SecCachedFetchTask<
     }
   }
 
-  async execute(input: I & FetchUrlTaskInput, executeConfig: IExecuteContext): Promise<O> {
-    const url = this.inputToUrl(input);
+  /**
+   * The task input is a domain key (a CIK, a date, an accession), never a URL,
+   * so the request has to be built here. This is the seam every dispatch path
+   * runs through — `execute()` is not: a streamable task is dispatched to
+   * `executeStream()`, which never calls it, so an override there would leave
+   * the fetch pointed at the unresolved input.
+   */
+  protected override async resolveFetchInput(
+    input: FetchUrlTaskInput,
+    _context: IExecuteContext
+  ): Promise<FetchUrlTaskInput> {
+    const domainInput = input as I & FetchUrlTaskInput;
+    const url = this.inputToUrl(domainInput);
     const response_type = guessResponseType(url, input);
 
     const fetchInput: FetchUrlTaskInput = {
@@ -130,6 +143,6 @@ export abstract class SecCachedFetchTask<
       fetchInput.headers = input.headers;
     }
 
-    return (await super.execute(fetchInput as I & FetchUrlTaskInput, executeConfig)) as O;
+    return fetchInput;
   }
 }

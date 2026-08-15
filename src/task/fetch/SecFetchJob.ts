@@ -224,6 +224,23 @@ export class SecFetchJob<
 
   async execute(input: Input, context: IJobExecuteContext): Promise<Output> {
     let lastError: unknown;
+    // Latched the moment a chunk is handed to a stream receiver, and before
+    // that emit resolves: from there on this job's bytes are unrepeatable. The
+    // receiver's subscription outlives an attempt, so a re-issue starts again
+    // at byte 0 and concatenates a second body onto the first. Any delta
+    // counts, not just the body port's binary ones — what makes bytes
+    // unrepeatable is that something received them.
+    let deliveredToReceiver = false;
+    const emitStreamEvent = context.emitStreamEvent;
+    const watched: IJobExecuteContext = emitStreamEvent
+      ? {
+          ...context,
+          emitStreamEvent: async (event) => {
+            if (event.type.endsWith("-delta")) deliveredToReceiver = true;
+            await emitStreamEvent(event);
+          },
+        }
+      : context;
     for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
       // Per-attempt timeout. Use an AbortController + setTimeout so we can
       // clearTimeout() on success: AbortSignal.timeout() leaves an
@@ -241,7 +258,7 @@ export class SecFetchJob<
       const { signal, cleanup } = combineSignals([context.signal, timeoutController?.signal]);
 
       try {
-        return (await super.execute(input, { ...context, signal })) as Output;
+        return (await super.execute(input, { ...watched, signal })) as Output;
       } catch (error) {
         lastError = error;
         if (context.signal.aborted) throw error;
@@ -249,8 +266,18 @@ export class SecFetchJob<
         // to absorb, but the abort surfaces as a bare Error/AbortError whose
         // shape isRetriableError can't recognise — so key off the timeout
         // controller directly rather than the (lossy) error message.
+        //
+        // That bypass is why the delivery check leads. Every other mid-body
+        // failure arrives already re-classified as a terminal BODY_TRUNCATED
+        // once bytes have gone out, so isRetriableError refuses it; a timeout
+        // arrives as an abort, which keeps its own shape through that
+        // classification and would otherwise drive straight through the ban.
         const timedOut = timeoutController?.signal.aborted === true;
-        if ((!timedOut && !isRetriableError(error)) || attempt === MAX_FETCH_ATTEMPTS - 1) {
+        if (
+          deliveredToReceiver ||
+          (!timedOut && !isRetriableError(error)) ||
+          attempt === MAX_FETCH_ATTEMPTS - 1
+        ) {
           throw error;
         }
         const retryAfter = getRetryAfterMs(error as MaybeHttpError);

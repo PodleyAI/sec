@@ -12,7 +12,7 @@ import { CompanyObservationRepo } from "../../../storage/observation/CompanyObse
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { ipoTrustAmount, processForm424 } from "./Form_424.storage";
+import { ipoProceeds, ipoTrustAmount, processForm424 } from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
@@ -241,6 +241,43 @@ describe("processForm424", () => {
       filingDate: "20260428",
     };
 
+    it("fills ipo_proceeds from the prospectus cover when unit terms are missing (424B4)", async () => {
+      // Live: Cambridge Acquisition Corp. 424B4 0001104659-26-011571 (CIK
+      // 2100125). The cover prints "$200,000,000 / 20,000,000 Units"; "The
+      // Offering" span check wiped the AI unit-terms row, so arithmetic from
+      // units × price never ran and ipo_proceeds stayed null while trust
+      // filled from promote. The cover is deterministic SPAC-IPO bookkeeping
+      // — same class of fact as recording the ipo event itself.
+      await processForm424({
+        cik: CIK,
+        file_number: "333-292147",
+        accession_number: B4_ACCESSION,
+        filing_date: "2026-02-06",
+        primary_doc: "none-20260129x424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: `<html><body>
+<p>PROSPECTUS</p>
+<p>Filed Pursuant to Rule 424(b)(4)</p>
+<p>Registration No. 333-292147</p>
+<p>$200,000,000</p>
+<p>Cambridge Acquisition Corp.</p>
+<p>20,000,000 Units</p>
+<p>Cambridge Acquisition Corp. is a blank check company.</p>
+<p>This is an initial public offering of our securities. Each unit has an
+offering price of $10.00.</p>
+</body></html>`,
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac?.ipo_date).toBe("2026-02-06");
+      expect(spac?.ipo_proceeds).toBe(200_000_000);
+    });
+
     it("records the IPO event + deal even when the AI model fails to resolve (424B4)", async () => {
       // No fake provider registered; getS1Model() throws with the configured
       // model unregistered, which used to abort the whole filing before it
@@ -382,6 +419,54 @@ describe("processForm424", () => {
     expect(issuer.cik).toBe(CIK);
     expect(issuer.name).toBeNull();
     expect(JSON.parse(issuer.source_context!)).toEqual({ relation: "424:issuer" });
+  });
+});
+
+describe("ipoProceeds", () => {
+  it("prefers a stated gross_proceeds figure", () => {
+    expect(
+      ipoProceeds({
+        gross_proceeds: 201_000_000,
+        price_per_unit: 10,
+        units_offered: 20_000_000,
+        cover_proceeds: 200_000_000,
+      })
+    ).toBe(201_000_000);
+  });
+
+  it("multiplies price × units when gross_proceeds is missing", () => {
+    expect(
+      ipoProceeds({
+        gross_proceeds: null,
+        price_per_unit: 10,
+        units_offered: 20_000_000,
+        cover_proceeds: 200_000_000,
+      })
+    ).toBe(200_000_000);
+  });
+
+  it("falls back to the cover headline when the unit-terms row is missing", () => {
+    // Live: Cambridge Acquisition Corp. 424B4 (CIK 2100125) — offering-terms
+    // wiped by UNVERIFIED_SOURCE_SPAN, cover still prints $200,000,000.
+    expect(
+      ipoProceeds({
+        gross_proceeds: null,
+        price_per_unit: null,
+        units_offered: null,
+        cover_proceeds: 200_000_000,
+      })
+    ).toBe(200_000_000);
+  });
+
+  it("returns null when nothing is available", () => {
+    expect(
+      ipoProceeds({
+        gross_proceeds: null,
+        price_per_unit: 10,
+        units_offered: null,
+        cover_proceeds: null,
+      })
+    ).toBeNull();
   });
 });
 

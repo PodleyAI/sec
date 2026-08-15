@@ -219,7 +219,7 @@ export function makeRunSection(opts: {
         let lastError: unknown = priorError;
         let lastRaw: TRow[] = [];
         for (let i = 0; i < fallbacks!.length; i++) {
-          extractFn = fallbacks[i]!;
+          extractFn = fallbacks![i]!;
           modelIndex = i + 1;
           try {
             lastRaw = await extractFn(text);
