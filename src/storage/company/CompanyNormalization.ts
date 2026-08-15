@@ -5,6 +5,7 @@
  */
 
 import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import { legalFormIdentityCanonical, legalFormIdentityStrip } from "../../util/legalForms";
 
 export type CompanyImport = {
   company_name: string;
@@ -57,31 +58,12 @@ const COMPANY_ENDINGS_NO_STRIP = [
 ];
 
 const COMPANY_ENDINGS_TO_STRIP = [
-  "INC",
-  "INCORPORATED",
-  "CORPORATION",
-  "CORP",
-  "COMPANY",
-  "CO",
-  "PTE",
-  "LTD",
-  "LIMITED",
+  ...legalFormIdentityStrip,
   "a Delaware limited liability company",
   "[related person is an entity]",
 ];
 
-const CANONICAL_ENDINGS = [
-  ["S[\\., ]{0,2}A[\\., ]{0,2}R[\\., ]{0,2}L[\\., ]{0,2}", "SARL"],
-  ["L[\\., ]{0,2}L[\\., ]{0,2}C[\\., ]{0,2}", "LLC"],
-  ["Limited Liability Company", "LLC"],
-  ["Limited Liability Partnership", "LLP"],
-  ["L[\\., ]{0,2}L[\\., ]{0,2}P\\.", "LLP"],
-  ["P[\\., ]{0,2}L[\\., ]{0,2}L[\\., ]{0,2}C\\.", "PLLC"],
-  ["L[\\., ]{0,2}P[\\., ]{0,2}", "LP"],
-  ["G[\\., ]{0,2}P[\\., ]{0,2}", "GP"],
-  ["P[\\., ]{0,2}C[\\., ]{0,2}", "PC"],
-  ["P[\\., ]{0,2}A[\\., ]{0,2}", "PA"],
-];
+const CANONICAL_ENDINGS = legalFormIdentityCanonical;
 
 const COMPANY_ENDINGS_LIST =
   "(?<companyending>" +

@@ -5,6 +5,7 @@
  */
 
 import type { SpacEventType } from "../../../storage/spac/SpacEventSchema";
+import { legalFormProseSuffixAlternation } from "../../../util/legalForms";
 import type { SubmissionExhibit } from "../registration-statements/s1/parseSubmission";
 import { formatExhibitDetail } from "../registration-statements/s1/parseSubmission";
 
@@ -89,8 +90,14 @@ function exhibitDetail(
 const MERGER_AGREEMENT =
   /Agreement and Plan of (?:Merger|Reorganization)|Business Combination Agreement/i;
 
-const LEGAL_NAME =
-  /[A-Z][A-Za-z0-9.&'’\-]*(?:\s+[A-Z0-9][A-Za-z0-9.&'’\-]*)*,?\s+(?:Inc\.?|Corp\.?|Corporation|Ltd\.?|L\.L\.C\.?|LLC|L\.P\.?|LP|Limited|plc|N\.V\.?)/g;
+const LEGAL_NAME = new RegExp(
+  `[A-Z][A-Za-z0-9.&'’\\-]*(?:\\s+[A-Z0-9][A-Za-z0-9.&'’\\-]*)*,?\\s+(?:${legalFormProseSuffixAlternation})`,
+  "g"
+);
+
+const WITH_NAMED = new RegExp(
+  `\\bwith\\s+([A-Z][A-Za-z0-9.&'’\\-]*(?:\\s+[A-Z0-9][A-Za-z0-9.&'’\\-]*)*,?\\s+(?:${legalFormProseSuffixAlternation}))\\s*,\\s*a\\s+`
+);
 
 function foldName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -141,9 +148,7 @@ export function extractMergerCounterparty(
     if (picked) return picked;
   }
 
-  const withNamed = window.match(
-    /\bwith\s+([A-Z][A-Za-z0-9.&'’\-]*(?:\s+[A-Z0-9][A-Za-z0-9.&'’\-]*)*,?\s+(?:Inc\.?|Corp\.?|Corporation|Ltd\.?|L\.L\.C\.?|LLC|L\.P\.?|LP))\s*,\s*a\s+/
-  );
+  const withNamed = window.match(WITH_NAMED);
   if (withNamed) {
     const name = tidyName(withNamed[1]);
     if (!isIssuerName(name, issuerName) && !/merger\s+sub/i.test(name)) return name;

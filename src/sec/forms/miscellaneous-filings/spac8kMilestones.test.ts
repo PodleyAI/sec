@@ -224,6 +224,20 @@ describe("extractMergerCounterparty", () => {
     ).toBe("Apex Clearing Holdings LLC");
   });
 
+  it("picks a UK Plc named after with (PHP Ventures / Modulex)", () => {
+    expect(
+      extractMergerCounterparty(
+        'PHP Ventures Acquisition Corp., a Delaware corporation ("PHP") entered into a ' +
+          'definitive Business Combination Agreement (the "Business Combination Agreement") ' +
+          "with Modulex Modular Buildings Plc, a company registered in England and Wales " +
+          'with company number 07291662 ("Modulex") and Modulex Merger Sub, a to-be-formed ' +
+          "Cayman Islands exempted company and wholly-owned subsidiary of Modulex " +
+          '("Merger Sub").',
+        "PHP Ventures Acquisition Corp."
+      )
+    ).toBe("Modulex Modular Buildings Plc");
+  });
+
   it("picks the company named after with in a business combination 8-K", () => {
     expect(
       extractMergerCounterparty(
@@ -243,6 +257,27 @@ describe("extractMergerCounterparty", () => {
         "Test SPAC"
       )
     ).toBe("Acme Robotics, Inc.");
+  });
+
+  it("treats legal-form suffixes as case-insensitive, including dotted LP and GP", () => {
+    const narrative = (suffix: string): string =>
+      `the Company entered into a Business Combination Agreement with Acme Robotics ${suffix}, ` +
+      `a Delaware limited liability company ("Acme").`;
+    for (const suffix of [
+      "inc.",
+      "Incorporated",
+      "L.L.C.",
+      "l.l.c.",
+      "L.P.",
+      "lp",
+      "G.P.",
+      "gp",
+      "Plc",
+    ] as const) {
+      expect(extractMergerCounterparty(narrative(suffix), "Test SPAC")).toBe(
+        `Acme Robotics ${suffix}`
+      );
+    }
   });
 
   it("returns null when the narrative is not a merger agreement", () => {

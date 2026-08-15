@@ -5,6 +5,7 @@
  */
 
 import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataCleaningUtils";
+import { legalFormFoldedTokens } from "../../util/legalForms";
 
 /**
  * The *family* a company name belongs to — the sponsor or underwriter behind a
@@ -22,42 +23,6 @@ import { foldDiacritics, foldTypographicPunctuation } from "../../util/dataClean
  * rebuildable: a re-partition is a re-computation, not a re-extraction of a
  * model-emitted common name that never reached the observation row.
  */
-
-/**
- * Legal forms, stripped wherever they trail. Written without punctuation
- * because the caller has already folded it — `L.P.` arrives as `lp`.
- */
-const LEGAL_FORMS = new Set([
-  "llc",
-  "lllp",
-  "llp",
-  "lp",
-  "inc",
-  "incorporated",
-  "corp",
-  "corporation",
-  "co",
-  "company",
-  "ltd",
-  "limited",
-  "plc",
-  "sa",
-  "nv",
-  "bv",
-  "ua",
-  "spc",
-  "ag",
-  "gmbh",
-  "kg",
-  "ab",
-  "as",
-  "oy",
-  "pte",
-  "pty",
-  "aps",
-  "sarl",
-  "trust",
-]);
 
 /**
  * Business-line words are deliberately NOT stripped.
@@ -165,7 +130,7 @@ const BLOC_PREFIX = /^entit(?:y|ies)\s+(?:affiliated\s+with|of)\s+/i;
  * no identity in any name.
  */
 function isLegalTail(token: string): boolean {
-  return LEGAL_FORMS.has(token) || token === "and";
+  return legalFormFoldedTokens.has(token) || token === "and";
 }
 
 /** A series marker separating one vehicle of a house from the next. */
@@ -228,9 +193,8 @@ function dropInteriorSeriesMarkers(kept: readonly string[]): string[] {
  *
  * Trailing legal forms and series markers are dropped repeatedly, so
  * `Churchill Sponsor XIII LLC` loses `llc`, then `xiii`, and keeps
- * `churchill-sponsor`. Business-line words stay (see {@link LEGAL_FORMS}'s
- * neighbouring note) — joining `Chardan Capital Markets` to `Chardan` is an
- * alias's job, not a normalizer's.
+ * `churchill-sponsor`. Business-line words stay — joining `Chardan Capital Markets`
+ * to `Chardan` is an alias's job, not a normalizer's.
  *
  * The legal form always goes; the series marker goes UNLESS dropping it would
  * leave a single generic vehicle word standing as the whole house name

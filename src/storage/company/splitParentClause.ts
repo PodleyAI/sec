@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { legalFormTrailingCanonical } from "../../util/legalForms";
+
 /**
  * Split an as-filed underwriter/sponsor legal name that names a parent house
  * via a division or subsidiary clause. Observation name is X; family name is Y.
@@ -28,34 +30,13 @@ const COMMA_CLAUSE = new RegExp(`^(.*?),\\s*${CLAUSE}\\s+(.+)$`, "i");
 /**
  * Trailing legal-form tokens we are willing to copy from Y onto X.
  *
- * Ordered longest-first so `Limited Liability Company` wins over `Limited`,
- * `LLC` over `LP`, `Incorporated` over `Inc`. Deliberately excludes
- * Partners / Holdings / Group (`COMPANY_ENDINGS_NO_STRIP`) — those are
- * business-line words, not legal forms.
+ * Longest-first matchers from the shared legal-form list. Deliberately
+ * excludes Partners / Holdings / Group — those are business-line words, not
+ * legal forms.
  */
-const LEGAL_FORM_CANONICAL: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\blimited liability company\s*$/i, "LLC"],
-  [/\blimited liability partnership\s*$/i, "LLP"],
-  [/\bincorporated\s*$/i, "Inc"],
-  [/\bcorporation\s*$/i, "Corp"],
-  [/\bp\.?l\.?l\.?c\.?\s*$/i, "PLLC"],
-  [/\bl\.?l\.?l\.?p\.?\s*$/i, "LLLP"],
-  [/\bl\.?l\.?c\.?\s*$/i, "LLC"],
-  [/\bl\.?l\.?p\.?\s*$/i, "LLP"],
-  [/\binc\.?\s*$/i, "Inc"],
-  [/\bcorp\.?\s*$/i, "Corp"],
-  [/\bltd\.?\s*$/i, "Ltd"],
-  [/\blimited\s*$/i, "Ltd"],
-  [/\bplc\.?\s*$/i, "Plc"],
-  [/\bpte\.?\s*$/i, "Pte"],
-  [/\bl\.?p\.?\s*$/i, "LP"],
-  [/\bcompany\s*$/i, "Co"],
-  [/\bco\.?\s*$/i, "Co"],
-];
-
 function trailingLegalForm(name: string): string | undefined {
   const trimmed = name.trim();
-  for (const [re, canonical] of LEGAL_FORM_CANONICAL) {
+  for (const [re, canonical] of legalFormTrailingCanonical) {
     if (re.test(trimmed)) return canonical;
   }
   return undefined;

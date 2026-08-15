@@ -63,6 +63,8 @@ describe("companyFamilyName", () => {
     );
     expect(companyFamilyName("Curnes Fund 2001")).toBe("curnes-fund");
     expect(companyFamilyName("CQ Invest I LLC")).toBe("cq-invest");
+    expect(companyFamilyName("Acme Sponsor G.P.")).toBe("acme-sponsor");
+    expect(companyFamilyName("Acme Sponsor GP")).toBe("acme-sponsor");
   });
 
   it("keeps an ampersand's words and drops the conjunction it strands", () => {

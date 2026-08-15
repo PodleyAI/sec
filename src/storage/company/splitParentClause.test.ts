@@ -88,6 +88,12 @@ describe("splitParentClause", () => {
     ).toBe("Acme Sponsor LLC");
   });
 
+  it("copies GP the same way it copies LLC", () => {
+    expect(splitParentClause("Foo, a division of Bar G.P.")).toEqual(
+      splitOf("Foo, a division of Bar G.P.", "Foo GP", "Bar G.P.")
+    );
+  });
+
   it("does not treat Partners/Holdings as a legal form (not hasCompanyEnding)", () => {
     expect(
       splitParentClause("Polaris Advisory Partners, a division of Kingswood Capital LLC")
