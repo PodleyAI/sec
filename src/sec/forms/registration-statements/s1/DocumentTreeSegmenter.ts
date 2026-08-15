@@ -164,6 +164,59 @@ function bodyUpToSwallowedSection(
 }
 
 /**
+ * Below this many resolved targets, the tree carries no usable structure and the
+ * line scan takes over.
+ *
+ * Deliberately tiny. A line scan has no structural evidence — it matches heading
+ * patterns against rendered text, so a table-of-contents entry looks exactly
+ * like the heading it points at — and is therefore a last resort, not a
+ * supplement. Across a 62-filing sample and the committed corpus, only one
+ * filing (Bridgetown Holdings, whose 3.2 MB prospectus is typeset entirely
+ * inside tables) falls below it, so the fallback cannot regress a filing that
+ * currently works.
+ */
+const MIN_TREE_SECTIONS = 2;
+
+/**
+ * Segments the rendered document by scanning its lines with the same heading
+ * patterns the tree walk uses, slicing each hit to the next one.
+ *
+ * This is {@link findNestedSection} widened from one container to the whole
+ * document. It exists because a converter can produce a document with text but
+ * no structure: an InDesign export typesets the prospectus inside hundreds of
+ * tables, and Bridgetown Holdings' S-1 yields 4 heading nodes where a comparable
+ * filing yields 70-140 — so every section is missing and the filing extracts
+ * nothing at all, while 97% of its text sits right there in the tree.
+ */
+function segmentByLineScan(text: string): Section[] {
+  const lines = text.split("\n");
+  const hits: Array<{ name: S1SectionName; line: number }> = [];
+  lines.forEach((line, index) => {
+    // Rendered markdown carries heading and emphasis markers the patterns,
+    // which are whole-line anchored, would not otherwise match through — and
+    // the outer pipes of a one-cell table row, which is exactly the shape a
+    // table-typeset prospectus renders its headings as. A genuine multi-column
+    // row keeps its interior pipes and so still matches nothing.
+    const name = matchTarget(line.replace(/^[#*|\s]+/, "").replace(/[*|\s]+$/, ""));
+    if (name !== null) hits.push({ name, line: index });
+  });
+
+  const best = new Map<S1SectionName, Section>();
+  hits.forEach((hit, i) => {
+    const end = i + 1 < hits.length ? hits[i + 1]!.line : lines.length;
+    const body = lines
+      .slice(hit.line + 1, end)
+      .join("\n")
+      .trim();
+    if (body.length === 0) return;
+    const prev = best.get(hit.name);
+    if (prev && prev.text.length >= body.length) return;
+    best.set(hit.name, { name: hit.name, text: body, startOffset: 0, endOffset: 0 });
+  });
+  return [...best.values()];
+}
+
+/**
  * Walks a Document tree: for every SectionNode whose title matches a target S-1
  * heading, renders that section's subtree (minus the heading itself) to markdown.
  * When a heading appears more than once (e.g. a Table-of-Contents stub), keeps
@@ -175,8 +228,19 @@ function bodyUpToSwallowedSection(
  * occurrence of each target won, which is only settled once the whole tree has
  * been walked.
  */
+export interface SegmentationResult {
+  readonly sections: readonly Section[];
+  /**
+   * The tree yielded almost nothing and {@link segmentByLineScan} was used.
+   * Callers record it as a filing-level `CONVERTER_NO_STRUCTURE` dead-letter:
+   * the sections may well have been recovered, but the converter still failed
+   * on this filing and that is worth counting.
+   */
+  readonly usedLineScan: boolean;
+}
+
 export class DocumentTreeSegmenter implements DocumentSegmenter {
-  segment(doc: DocumentRootNode): readonly Section[] {
+  segmentDocument(doc: DocumentRootNode): SegmentationResult {
     const best = new Map<S1SectionName, Section>();
     const bestNode = new Map<S1SectionName, SectionNode>();
 
@@ -216,6 +280,16 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       best.set(name, { ...best.get(name)!, text: truncated });
     }
 
+    // The tree carried no usable structure. Fall back to scanning the rendered
+    // text, which is all a converter-defeating filing leaves to work with.
+    const usedLineScan = best.size < MIN_TREE_SECTIONS;
+    if (usedLineScan) {
+      for (const section of segmentByLineScan(renderMarkdown(doc))) {
+        const prev = best.get(section.name);
+        if (!prev || section.text.length > prev.text.length) best.set(section.name, section);
+      }
+    }
+
     // Only after the tree walk: a real SectionNode always wins over a slice of
     // another section's body.
     for (const { target, container } of NESTED_SECTION_FALLBACKS) {
@@ -232,6 +306,10 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       });
     }
 
-    return [...best.values()];
+    return { sections: [...best.values()], usedLineScan };
+  }
+
+  segment(doc: DocumentRootNode): readonly Section[] {
+    return this.segmentDocument(doc).sections;
   }
 }

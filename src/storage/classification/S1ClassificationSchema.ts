@@ -18,7 +18,10 @@ export const S1ClassificationSchema = Type.Object({
   sic: TypeNullable(Type.Integer({ minimum: 0, maximum: 9999 })),
   sic_description: TypeNullable(Type.String({ maxLength: 256 })),
   is_spac: Type.Boolean(),
-  classifier_source: Type.String({ maxLength: 32, description: "sgml-header | sic-unknown | ai" }),
+  classifier_source: Type.String({
+    maxLength: 32,
+    description: "sgml-header | sgml-header-rejected | sic-unknown | ai",
+  }),
   created_at: Type.String({ description: "ISO 8601 timestamp" }),
 });
 export type S1Classification = Static<typeof S1ClassificationSchema>;

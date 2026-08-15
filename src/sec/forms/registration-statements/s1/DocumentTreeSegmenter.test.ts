@@ -191,4 +191,41 @@ describe("DocumentTreeSegmenter", () => {
       expect(summary).toContain("123 Main Street");
     });
   });
+
+  describe("line-scan fallback", () => {
+    // A converter can produce text with no structure: an InDesign export
+    // typesets the prospectus inside hundreds of tables, so the tree carries
+    // paragraphs and tables but almost no headings.
+    const noHeadingMarkup = `
+      <html><body>
+        <table><tr><td><p>Summary</p></td></tr></table>
+        <table><tr><td><p>We are a blank check company incorporated in Delaware.</p></td></tr></table>
+        <table><tr><td><p>Management</p></td></tr></table>
+        <table><tr><td><p>Our officers and directors are listed below.</p></td></tr></table>
+        <table><tr><td><p>Underwriting</p></td></tr></table>
+        <table><tr><td><p>The underwriters have agreed to purchase the units.</p></td></tr></table>
+      </body></html>`;
+
+    it("recovers sections the tree walk could not see", () => {
+      const result = new DocumentTreeSegmenter().segmentDocument(
+        parseEdgarHtml(noHeadingMarkup, "S-1")
+      );
+      expect(result.usedLineScan).toBe(true);
+      const byName = new Map(result.sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.MANAGEMENT)).toContain("officers and directors");
+      expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("agreed to purchase");
+    });
+
+    it("stays out of the way when the tree works", () => {
+      const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">MANAGEMENT</p>
+        <p>Directors and officers.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">UNDERWRITING</p>
+        <p>The underwriters have agreed to purchase the units.</p>
+      </body></html>`;
+      const result = new DocumentTreeSegmenter().segmentDocument(parseEdgarHtml(html, "S-1"));
+      expect(result.usedLineScan).toBe(false);
+    });
+  });
 });
