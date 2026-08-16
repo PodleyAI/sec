@@ -47,15 +47,38 @@ export const FilingSchema = Type.Object({
       description: "Form type (e.g., 10-K, 10-Q, 8-K, SEC STAFF ACTION)",
     })
   ),
+  // These two are UNBOUNDED where the widths above are merely generous, and the
+  // difference is not stylistic. The note above sized them from a 20k-CIK scan
+  // that found file_number topping out at 107; across the full 27M-filing corpus
+  // the real maximum is 450 (film_number 368). Sampling cannot find the tail of
+  // a list whose length scales with co-registrant count — the note says so
+  // itself ("has no natural bound") — so any n is a bet that the next filer
+  // stays under it, and varchar(255) had already lost that bet before the scan
+  // was taken.
+  //
+  // The filers concerned are insurance SEPARATE ACCOUNTS, which register one
+  // offering covering dozens of underlying contracts and so carry a file number
+  // per contract. It is a structural property of that filer type, not a freak
+  // value, which is why the seven affected CIKs are all the same kind of entity.
+  //
+  // The cost was not a truncated column but SEVEN MISSING COMPANIES. One
+  // over-long filing aborts the whole StoreSubmissionsTask graph, so the CIK's
+  // entire filing history, entity row, tickers and addresses are never written —
+  // and `fetchAndStoreSubmission` catches the throw, warns, and marks the CIK
+  // failed, so the sweep continues and nothing surfaces in `db stats` or a dead
+  // letter. Those seven had been absent from a 27M-row corpus since the original
+  // bootstrap.
+  //
+  // Dropping maxLength is enough to fix existing deployments: unlike an array
+  // conversion, `alignPostgresColumnTypes` DOES widen varchar -> unbounded text
+  // when the schema drops its bound, so the next `db setup` converts them.
   file_number: TypeNullable(
     Type.String({
-      maxLength: 255,
       description: "File number(s) assigned by the SEC, comma-joined when several apply",
     })
   ),
   film_number: TypeNullable(
     Type.String({
-      maxLength: 255,
       description: "Film number(s) assigned by the SEC, comma-joined when several apply",
     })
   ),

@@ -214,7 +214,10 @@ describe("Form_1_A storage test", () => {
 
         const cik = parseInt(form1A.formData.employeesInfo[0].cik);
         const fileNumber = "024-00002";
-        const accessionNumber = `blank-class-${file.slice(0, 18)}`;
+        // Real accessions are 20 chars and the column is varchar(25), so the
+        // synthetic one has to fit too — InMemoryTabularStorage now enforces
+        // column widths, which is what makes these suites meaningful at all.
+        const accessionNumber = `b-${file.slice(0, 18)}`;
 
         await processForm1A({
           cik,
@@ -271,7 +274,7 @@ describe("Form_1_A storage test", () => {
 
         const cik = parseInt(form1A.formData.employeesInfo[0].cik);
         const fileNumber = "024-00003";
-        const accessionNumber = `named-class-${file.slice(0, 18)}`;
+        const accessionNumber = `n-${file.slice(0, 18)}`;
 
         await processForm1A({
           cik,

@@ -10,7 +10,10 @@ import {
   COUNTRY_STATE_CODE_ARRAY,
   US_STATE_CODE_ARRAY,
 } from "../../../storage/address/AddressSchemaCodes";
-import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
+import {
+  hasCompanyEnding,
+  normalizeCompanyName,
+} from "../../../storage/company/CompanyNormalization";
 import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 
 const US_STATE_CODE_SET = new Set<string>(US_STATE_CODE_ARRAY.map(([code]) => code));
@@ -223,7 +226,14 @@ async function processServiceProviders(
       crd: provider.crd,
     });
 
-    if (provider.name) {
+    // Guard on the NORMALIZED name, not the raw one. `CompanyResolver` keys on
+    // cik -> crd -> normalized_name, so a name that survives this check but
+    // normalizes away (a bare legal form like "Inc.", which EDGAR emits when its
+    // filer software comma-splits a firm name across repeated elements) resolves
+    // to no key at all and THROWS, taking the whole filing down with it.
+    // rejoinCommaSplitNames repairs the split upstream; this is the backstop for
+    // any other name that cannot identify a company.
+    if (provider.name && normalizeCompanyName(provider.name)) {
       await ctx.observer.observeCompany({
         accession_number: ctx.accession_number,
         extractor_id: ctx.extractor_id,
