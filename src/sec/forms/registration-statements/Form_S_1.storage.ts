@@ -48,6 +48,7 @@ import {
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
+import { issuerHasCombinationListing } from "./s1/newcoListing";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
@@ -303,6 +304,32 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     classifier_source: headerSic === null ? "sic-unknown" : "sgml-header",
     created_at: new Date().toISOString(),
   });
+
+  // A de-SPAC newco (S-4/F-4 + 8-A12B/8-A12G on this CIK) keeps SIC 6770 on
+  // later resale S-1s, and the summary often still reads like a blank check
+  // because it recounts the combination. That pair of filings is the listing
+  // of the surviving company, not a SPAC IPO — do not mint. A CIK that already
+  // has a spac row from a different accession is a real SPAC that later filed
+  // an S-4; leave it alone.
+  const priorEventsForNewco = await new SpacRepo().getEvents(cik);
+  const alreadyKnownForNewco = priorEventsForNewco.some(
+    (event) => event.accession_number !== accession_number
+  );
+  let newcoListingRejected = false;
+  if (isSpac && !alreadyKnownForNewco && (await issuerHasCombinationListing(cik))) {
+    isSpac = false;
+    newcoListingRejected = true;
+    await new S1ClassificationRepo().save({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      cik,
+      sic: headerSic,
+      sic_description: formS1.header?.sicDescription ?? null,
+      is_spac: false,
+      classifier_source: "newco-listing",
+      created_at: new Date().toISOString(),
+    });
+  }
 
   // Consolidated SPAC report: the registration event + row is recorded below,
   // AFTER segmentation, so the AI-extracted profile (focus / description / team
@@ -567,7 +594,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   // "ai"` seam. A confident SPAC verdict upgrades the local flag AND overwrites
   // the classification row, so the registration / profile / offering blocks
   // below treat it as a known SPAC and its de-SPAC 8-K milestones can attach.
-  if (!isSpac) {
+  if (!isSpac && !newcoListingRejected) {
     const classifyText = byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY) ?? "";
     if (!looksLikeBlankCheck(classifyText)) {
       // The error paths above dead-letter spac-classification on the looser

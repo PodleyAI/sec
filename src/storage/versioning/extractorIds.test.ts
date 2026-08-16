@@ -155,6 +155,17 @@ describe("extractorIds — DRS dispatch mapping", () => {
   });
 });
 
+describe("extractorIds — SEC STAFF ACTION is not a withdrawal", () => {
+  it("does not route SEC STAFF ACTION to an extractor", () => {
+    // Staff action is not Form RW. Mapping it would mark shells withdrawn
+    // without a filer request (live: 1849470 1Sharpe, 2061918 MSM Frontier).
+    expect(formToExtractorId("SEC STAFF ACTION")).toBeUndefined();
+    expect(isFormParsingSupported("SEC STAFF ACTION")).toBe(false);
+    expect(formToExtractorId("EFFECT")).toBeUndefined();
+    expect(formToExtractorId("SEC ACTION")).toBeUndefined();
+  });
+});
+
 describe("extractorIds — Form RW registration-withdrawal dispatch mapping", () => {
   it("maps Form RW to extractor id 'RW' and does not route RW WD", () => {
     expect(formToExtractorId("RW")).toBe("RW");

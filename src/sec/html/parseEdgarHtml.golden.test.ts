@@ -41,11 +41,10 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
   // diff:
   //   2135163 Albatross, 2137679 OceanLight — RISK_FACTORS collapses to a ~1k
   //     stub because the agent emits the risk sub-headings as SIBLING sections,
-  //     leaving the parent with only its preamble. Both are agent 0001829126,
-  //     as is 2134856 Karman, which loses MANAGEMENT the same way.
-  //   2134856 Karman, 2136360 Material Resource — no MANAGEMENT section at all,
-  //     so these filings extract ZERO people. The roster is a plain bolded
-  //     paragraph inside 'Proposed Business', styled like body text.
+  //     leaving the parent with only its preamble. Both are agent 0001829126.
+  //   2136360 Material Resource — no MANAGEMENT section at all, so this filing
+  //     extracts ZERO people. The roster is a plain bolded paragraph inside
+  //     'Proposed Business', styled like body text.
   "s1_1083743_000149315226025047.htm": [
     PROSPECTUS_SUMMARY,
     THE_OFFERING,
@@ -412,6 +411,8 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     THE_OFFERING,
     RISK_FACTORS,
     USE_OF_PROCEEDS,
+    MANAGEMENT,
+    EXECUTIVE_COMPENSATION,
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
     UNDERWRITING,
@@ -857,6 +858,8 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [THE_OFFERING]: 75_400,
     [RISK_FACTORS]: 164_900,
     [USE_OF_PROCEEDS]: 6_700,
+    [MANAGEMENT]: 28_500,
+    [EXECUTIVE_COMPENSATION]: 20_000,
     [BENEFICIAL_OWNERSHIP]: 8_400,
     [RELATED_PARTY]: 8_700,
     [UNDERWRITING]: 17_000,

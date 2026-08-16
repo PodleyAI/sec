@@ -54,6 +54,13 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     // most body when a heading repeats in the summary.
     /^\s*our team\s*$/i,
     /^\s*(our\s+)?management team\s*$/i,
+    // Same FINRA-style conflicts qualifier the underwriting heading already
+    // accepts. Live 2134856 Karman Line heads the roster
+    // `Management — Conflicts of Interest` (em dash or glued em dash).
+    /^\s*(our\s+)?management\s*(\(conflicts of interest\)|[-–—:]\s*conflicts of interest)\s*$/i,
+    // Karman's actual SectionNode title. The conflicts qualifier above is a
+    // cross-ref spelling; the converter emits `MANAGEMENT AND ADVISORS`.
+    /^\s*(our\s+)?management and advisors?\s*$/i,
   ],
   [S1_SECTIONS.BENEFICIAL_OWNERSHIP]: [
     /^\s*principal (and selling )?stockholders\s*$/i,

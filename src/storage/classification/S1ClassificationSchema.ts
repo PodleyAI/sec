@@ -20,7 +20,7 @@ export const S1ClassificationSchema = Type.Object({
   is_spac: Type.Boolean(),
   classifier_source: Type.String({
     maxLength: 32,
-    description: "sgml-header | sgml-header-rejected | sic-unknown | ai",
+    description: "sgml-header | sgml-header-rejected | sic-unknown | ai | newco-listing",
   }),
   created_at: Type.String({ description: "ISO 8601 timestamp" }),
 });

@@ -247,3 +247,12 @@ describe("EDGAR's state-of-incorporation suffix", () => {
     expect(companyFamilyName("/DE")).not.toBe("");
   });
 });
+
+describe("CJK names are not folded into a family key", () => {
+  it("wipes a letterless-to-ASCII Chinese legal name rather than inventing a romanization", () => {
+    // Persist already observes CJK without a family (Q13). Folding CJK into a
+    // pinyin key would re-key the family tier; leaving it empty is the skip.
+    expect(companyFamilyName("中信证券股份有限公司")).toBe("");
+    expect(companyFamilyName("[●]")).toBe("");
+  });
+});

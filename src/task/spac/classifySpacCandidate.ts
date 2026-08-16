@@ -94,6 +94,11 @@ export const BLANK_CHECK_NAME_EXCLUSIONS = [
   "% llp%",
   "% lllp%",
   "% llc%",
+  // Transaction merger subsidiaries ("Bleichroeder Acquisition France Merger
+  // Sub 2", "AECOM Merger Subsidiary") are not SPACs. `%merger corp%` stays a
+  // positive pattern — Legato Merger Corp. and its series are blank checks.
+  "%merger sub%",
+  "%merger subsidiary%",
 ] as const;
 
 /**
