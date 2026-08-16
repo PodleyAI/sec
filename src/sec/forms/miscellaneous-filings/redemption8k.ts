@@ -233,10 +233,14 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
       lowConfidenceDetail: "below confidence floor",
       verifyRow: (t, r) => classifySpan(t, r.source_span),
       unverifiedAllDetail: "redemption source_span not present in narrative text",
-      ...modelExtractChain(models, async (t, m) => {
-        const row = await extractRedemption(t, m, args.context);
-        return row === null ? [] : [row];
-      }),
+      ...modelExtractChain(
+        models,
+        async (t, m) => {
+          const row = await extractRedemption(t, m, args.context);
+          return row === null ? [] : [row];
+        },
+        { fallbackOnEmpty: false }
+      ),
       persist: async (rows, meta) => {
         const model_id = persistModelId(models, meta.modelIndex);
         const row = rows[0];

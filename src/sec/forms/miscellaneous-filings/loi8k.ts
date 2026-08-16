@@ -13,8 +13,10 @@ import { boundSourceSpan, classifySpan } from "../registration-statements/s1/ver
 import { extractLoi } from "../registration-statements/s1/sectionExtractors";
 import type { LoiRow } from "../registration-statements/s1/loiSchema";
 import {
-  getLoiModel,
+  getLoiModels,
   getLoiConfidenceFloor,
+  modelExtractChain,
+  persistModelId,
   resolveModelId,
 } from "../registration-statements/s1/loiModel";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
@@ -114,11 +116,9 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
 
   // Model resolution must not abort the surrounding 8-K processing (its events
   // and milestone deals are already written). Mirrors the redemption path.
-  let model: ModelConfig;
-  let model_id: string | null;
+  let models: ModelConfig[];
   try {
-    model = args.model ?? (await getLoiModel());
-    model_id = resolveModelId(model);
+    models = args.model ? [args.model] : await getLoiModels();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
@@ -133,7 +133,11 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
     await recordLoiRun(false, `MODEL_RESOLUTION_ERROR: ${message}`);
     return;
   }
-  await prefetchModel(model_id, args.context);
+  if (models.length === 0) {
+    await recordLoiRun(false, "MODEL_RESOLUTION_ERROR: no model configured");
+    return;
+  }
+  for (const m of models) await prefetchModel(resolveModelId(m), args.context);
 
   let text: string;
   let dropped = 0;
@@ -215,11 +219,16 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
       lowConfidenceDetail: "below confidence floor",
       verifyRow: (t, r) => classifySpan(t, r.source_span),
       unverifiedAllDetail: "LOI source_span not present in narrative text",
-      extract: async (t) => {
-        const row = await extractLoi(t, model, args.context);
-        return row === null ? [] : [row];
-      },
-      persist: async (rows) => {
+      ...modelExtractChain(
+        models,
+        async (t, m) => {
+          const row = await extractLoi(t, m, args.context);
+          return row === null ? [] : [row];
+        },
+        { fallbackOnEmpty: false }
+      ),
+      persist: async (rows, meta) => {
+        const model_id = persistModelId(models, meta.modelIndex);
         const row = rows[0];
         await new SpacLoiExtractionRepo().save({
           accession_number,

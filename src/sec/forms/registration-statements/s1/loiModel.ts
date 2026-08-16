@@ -5,28 +5,36 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository } from "workglow";
 import { modelIdsFromEnv } from "../../../../config/Constants";
-import { resolveModelId } from "./s1Model";
+import {
+  modelExtractChain,
+  persistModelId,
+  resolveConfiguredModels,
+  resolveModelId,
+} from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
-export { resolveModelId };
+export { modelExtractChain, persistModelId, resolveModelId };
 
-/** The model id used for LOI extraction; overridable via SEC_LOI_MODEL. */
-export function getLoiModelId(): string {
-  return modelIdsFromEnv(process.env.SEC_LOI_MODEL)[0]!;
+/** The model ids used for LOI extraction; overridable via SEC_LOI_MODEL. */
+export function getLoiModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_LOI_MODEL, { appendDefaultFallbacks: true });
 }
 
-/** Resolves the configured LOI model into a ModelConfig. */
+/** First id of {@link getLoiModelIds}. */
+export function getLoiModelId(): string {
+  return getLoiModelIds()[0]!;
+}
+
+/** Resolves the configured LOI model list. */
+export async function getLoiModels(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(getLoiModelIds(), "LOI", "SEC_LOI_MODEL");
+}
+
+/** Primary (first) configured LOI model. */
 export async function getLoiModel(): Promise<ModelConfig> {
-  const id = getLoiModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `LOI model '${id}' is not registered. Register it or set SEC_LOI_MODEL to a known model id.`
-    );
-  }
-  return record as ModelConfig;
+  const [model] = await getLoiModels();
+  return model!;
 }
 
 /**

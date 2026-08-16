@@ -6,23 +6,28 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SecModelDefault } from "../../../../config/Constants";
-import { getLoiConfidenceFloor, getLoiModelId } from "./loiModel";
+import { getLoiConfidenceFloor, getLoiModelId, getLoiModelIds } from "./loiModel";
 import { CONFIDENCE_FLOOR } from "./sectionRunner";
 
 const FLOOR_ENV = "SEC_LOI_CONFIDENCE_FLOOR";
 const MODEL_ENV = "SEC_LOI_MODEL";
+const DEFAULT_ENV = "SEC_MODEL_DEFAULT";
 
 let originalFloor: string | undefined;
 let originalModel: string | undefined;
+let originalDefault: string | undefined;
 beforeEach(() => {
   originalFloor = process.env[FLOOR_ENV];
   originalModel = process.env[MODEL_ENV];
+  originalDefault = process.env[DEFAULT_ENV];
 });
 afterEach(() => {
   if (originalFloor === undefined) delete process.env[FLOOR_ENV];
   else process.env[FLOOR_ENV] = originalFloor;
   if (originalModel === undefined) delete process.env[MODEL_ENV];
   else process.env[MODEL_ENV] = originalModel;
+  if (originalDefault === undefined) delete process.env[DEFAULT_ENV];
+  else process.env[DEFAULT_ENV] = originalDefault;
 });
 
 describe("getLoiModelId", () => {
@@ -38,6 +43,14 @@ describe("getLoiModelId", () => {
   it("returns the first id when SEC_LOI_MODEL is a CSV list", () => {
     process.env[MODEL_ENV] = "claude-sonnet-5,claude-haiku-4-5";
     expect(getLoiModelId()).toBe("claude-sonnet-5");
+  });
+});
+
+describe("getLoiModelIds", () => {
+  it("keeps a set override first and appends remaining default ids as fallbacks", () => {
+    process.env[MODEL_ENV] = "gpt-5.6-luna";
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6";
+    expect(getLoiModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
   });
 });
 

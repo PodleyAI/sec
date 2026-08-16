@@ -107,13 +107,27 @@ export function defaultModelIds(): string[] {
 }
 
 /**
- * Per-extractor override: unset inherits {@link defaultModelIds}; a set value
- * (scalar or CSV) replaces the whole list.
+ * Per-extractor override: unset inherits {@link defaultModelIds}. A set value
+ * (scalar or CSV) replaces the whole list unless `appendDefaultFallbacks` is
+ * set — then the override is tried first and any default ids not already in
+ * it are appended, so a scalar `SEC_REDEMPTION_MODEL` cannot cut off the
+ * shared grok/haiku fallbacks.
  */
-export function modelIdsFromEnv(override: string | undefined): string[] {
+export function modelIdsFromEnv(
+  override: string | undefined,
+  options?: { readonly appendDefaultFallbacks?: boolean }
+): string[] {
   const trimmed = (override ?? "").trim();
-  if (trimmed === "") return defaultModelIds();
-  return parseModelIdList(trimmed, DEFAULT_SEC_MODEL);
+  const primary = trimmed === "" ? defaultModelIds() : parseModelIdList(trimmed, DEFAULT_SEC_MODEL);
+  if (trimmed === "" || options?.appendDefaultFallbacks !== true) return primary;
+  const seen = new Set(primary);
+  const out = [...primary];
+  for (const id of defaultModelIds()) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }
 
 const parsedDefault = parseModelIdList(process.env.SEC_MODEL_DEFAULT, DEFAULT_SEC_MODEL);

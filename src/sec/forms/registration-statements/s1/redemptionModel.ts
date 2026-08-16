@@ -18,7 +18,7 @@ export { modelExtractChain, persistModelId, resolveModelId };
 
 /** The model ids used for redemption extraction; overridable via SEC_REDEMPTION_MODEL. */
 export function getRedemptionModelIds(): string[] {
-  return modelIdsFromEnv(process.env.SEC_REDEMPTION_MODEL);
+  return modelIdsFromEnv(process.env.SEC_REDEMPTION_MODEL, { appendDefaultFallbacks: true });
 }
 
 export function getRedemptionModelId(): string {

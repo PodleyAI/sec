@@ -109,6 +109,14 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
    * do not consume {@link VERIFICATION_ATTEMPTS}.
    */
   readonly emptyExtracts?: readonly ((text: string) => Promise<TRow[]>)[];
+  /**
+   * When false, {@link emptyExtracts} run only if {@link extract} throws — not
+   * when it returns `[]`. 8-K detectors (redemption / LOI) use this: empty is
+   * the expected negative, and falling through would re-pay a second model on
+   * every non-event 8-K (and can turn a clean MODEL_EMPTY into grok
+   * MODEL_INVALID_OUTPUT). Default true: S-1 empty is a miss worth retrying.
+   */
+  readonly fallbackOnEmpty?: boolean;
   /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
   readonly modelIds?: readonly string[];
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
@@ -209,6 +217,7 @@ export function makeRunSection(opts: {
       let modelIndex = 0;
       let triedEmptyFallbacks = false;
       const fallbacks = sargs.emptyExtracts;
+      const fallbackOnEmpty = sargs.fallbackOnEmpty !== false;
       const isImmediateExtractFailure = (e: unknown): boolean =>
         e instanceof TaskAbortedError ||
         e instanceof SecCliConfigurationError ||
@@ -239,6 +248,7 @@ export function makeRunSection(opts: {
             raw = await extractFn(text);
             if (
               raw.length === 0 &&
+              fallbackOnEmpty &&
               !triedEmptyFallbacks &&
               fallbacks !== undefined &&
               fallbacks.length > 0
