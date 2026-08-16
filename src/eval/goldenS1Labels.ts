@@ -208,6 +208,17 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     G("Wenhua Qian", ["Director"]),
     G("Zhiqiang Du", ["Director"]),
   ],
+  // Karman Line Acquisition Corp. Roster table lists five; the CTO is named
+  // only in the bio ("Dr. Graeme Shaw, our Chief Technology Officer") and is
+  // included on the union-of-table-and-bio rule.
+  [goldenLabelKey("s1_2134856_000182912626007847", "management")]: [
+    G("Richard Davis", ["Chief Executive Officer", "Director"]),
+    G("Graeme Shaw", ["Chief Technology Officer"]),
+    G("Vikas Mittal", ["Chief Financial Officer", "Director"]),
+    G("Michael Leitner", ["Director Nominee"]),
+    G("Keith Masback", ["Director Nominee"]),
+    G("Beth Michelson", ["Director Nominee"]),
+  ],
   // Albatross Acquisition Corp — one seated officer holding four roles at once,
   // plus three independent director nominees.
   [goldenLabelKey("s1_2135163_000182912626006553", "management")]: [
@@ -1167,6 +1178,8 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
   [goldenLabelKey("s1_2105318_000149315226031978", "executive-compensation")]: [],
   [goldenLabelKey("s1_2114227_000121390026039320", "executive-compensation")]: [],
   [goldenLabelKey("s1_2133239_000192998026000317", "executive-compensation")]: [],
+  // Karman Line — SPAC "no compensation will be paid"; no Summary Compensation Table.
+  [goldenLabelKey("s1_2134856_000182912626007847", "executive-compensation")]: [],
   [goldenLabelKey("s1_2135163_000182912626006553", "executive-compensation")]: [],
   [goldenLabelKey("s1_2147219_000110465926092088", "executive-compensation")]: [],
   [goldenLabelKey("s1_95572_000121390026086369", "executive-compensation")]: [
