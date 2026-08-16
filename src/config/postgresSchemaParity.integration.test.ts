@@ -10,12 +10,17 @@ import { DefaultDI } from "./DefaultDI";
 import { planColumnAlignment, type LiveColumn } from "./alignPostgresColumnTypes";
 import { resetAllDatabases } from "./resetAllDatabases";
 import { setupAllDatabases } from "./setupAllDatabases";
-import { LONG_FILE_NUMBER, LONG_PHONE_INTERNATIONAL } from "./schemaRoundTripFixtures";
+import {
+  ALL_SECURITIES_OFFERED_TYPES,
+  LONG_FILE_NUMBER,
+  LONG_PHONE_INTERNATIONAL,
+} from "./schemaRoundTripFixtures";
 import { listRegisteredTables } from "./tableRegistry";
 import { resetDependencyInjectionsForTesting } from "./TestingDI";
 import { SEC_DB_TYPE, SEC_PG_URL } from "./tokens";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
 import { PHONE_REPOSITORY_TOKEN } from "../storage/phone/PhoneSchema";
+import { REGA_OFFERING_REPOSITORY_TOKEN } from "../storage/reg-a/RegAOfferingSchema";
 import { getPgPool } from "../util/pg";
 
 /**
@@ -128,6 +133,24 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
       .get(FILING_REPOSITORY_TOKEN)
       .get({ cik: 320193, accession_number: "0001193125-24-000001" });
     expect(filing?.file_number).toBe(LONG_FILE_NUMBER);
+
+    await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).put({
+      cik: 1750,
+      file_number: "024-11111",
+      issuer_name: "Multi Select Inc",
+      jurisdiction: "DE",
+      sic_code: 7372,
+      tier: "Tier2",
+      financial_statement_audit_status: "Audited",
+      securities_offered_type: ALL_SECURITIES_OFFERED_TYPES,
+      industry_group: "Other",
+      status: "pending",
+      as_of: "2024-02-02",
+    });
+    const offering = await globalServiceRegistry
+      .get(REGA_OFFERING_REPOSITORY_TOKEN)
+      .get({ cik: 1750, file_number: "024-11111" });
+    expect(offering?.securities_offered_type).toEqual(ALL_SECURITIES_OFFERED_TYPES);
   });
 
   it("leaves tables sec does not own in place", async () => {

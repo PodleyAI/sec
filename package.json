@@ -28,7 +28,8 @@
     "use-dist": "bun ./scripts/bunsrc.ts dist",
     "link": "bun link",
     "link-workglow": "bun ./scripts/link-workglow-packages.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck-tests": "tsc -p tsconfig.test.json"
   },
   "bin": "./dist/sec.js",
   "exports": {
