@@ -240,6 +240,39 @@ describe("25-15 descriptor", () => {
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-nse"]);
   });
 
+  it("re-selects a null-ipo_date 25-NSE recorded as deregistration, then stops once split", async () => {
+    // The recovery path for the unknown-floor rule. `seedSpac` records only a
+    // registration, so ipo_date is null — the AI-content-classifier shape. A
+    // deregistration recorded under the old rule is now the wrong kind, so
+    // `sec extractor backfill 25-15` must re-queue it (no --force), and must
+    // stop re-queueing once the corrected unit_split exists.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-nse", form: "25-NSE" });
+    await new SpacReportWriter().recordDeregistration({
+      cik: 5,
+      accession_number: "acc-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-20",
+    });
+    expect((await new SpacRepo().getSpac(5))?.ipo_date).toBeNull();
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    expect(
+      (await descriptor.filterTodo!(await descriptor.selectCandidates())).map(
+        (c) => c.accession_number
+      )
+    ).toEqual(["acc-nse"]);
+
+    await processDeregistration({
+      cik: 5,
+      accession_number: "acc-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-20",
+    });
+
+    expect(await descriptor.filterTodo!(await descriptor.selectCandidates())).toEqual([]);
+  });
+
   it("re-selects a second 25-NSE recorded as deregistration while an earlier split exists", async () => {
     await seedSpac(5);
     await new SpacReportWriter().recordIpo({

@@ -58,24 +58,56 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
  * Priority:
  * 1. A pending deal that has reached proxy or vote — the listing removal is
  *    post-close housekeeping (newco/FPI closes have no Item 2.01).
- * 2. Exchange 25-NSE shortly after IPO — units unbundle; the vehicle keeps
- *    searching (a second 25-NSE in that window is still a split).
+ * 2. Exchange 25-NSE shortly after a KNOWN IPO — units unbundle; the vehicle
+ *    keeps searching (a second 25-NSE in that window is still a split).
  * 3. Exchange 25-NSE with a nearby Form 20-F — FPI close (the 20-F is the
  *    8-K 2.01 equivalent).
- * 4. Otherwise issuer Form 25 / Form 15 / a later 25-NSE fail the vehicle.
+ * 4. Exchange 25-NSE with an UNKNOWN IPO floor — units unbundle. See below.
+ * 5. Otherwise issuer Form 25 / Form 15 / a later 25-NSE fail the vehicle.
+ *
+ * **An unknown IPO floor does not demote**, matching the 8-K item-1.01 rule
+ * where `ipo_date` (falling back to `registration_date`) bounds the
+ * definitive-agreement window. `ipo_date` is written only from a 424B1/424B4
+ * whose SGML header codes SIC 6770, so a SPAC minted by the S-1 AI content
+ * classifier — the SIC-miscoded filer that path exists to catch — structurally
+ * never has one. Demoting on its absence turned that vehicle's routine
+ * post-IPO unit separation into a permanent `liquidated`.
+ *
+ * The allowance sits at step 4 rather than inside step 2, and the ordering is
+ * load-bearing: an FPI close carries no `ipo_date` either, so granting the
+ * unknown floor a `unit_split` before the 20-F check would misfile every
+ * miscoded FPI close as a unit separation — trading one wrong answer for
+ * another. Step 3 gets first refusal on the same filings.
+ *
+ * Two things make the allowance safe. It is **self-correcting**: once the 424
+ * lands and `ipo_date` appears, the 25-15 backfill descriptor's `filterTodo`
+ * re-derives the kind and re-queues the accession, and `recordDeregistration`
+ * deletes the sibling `unit_split` on that accession before appending — the
+ * correction runs in both directions. And with no `ipo` event on the stream the
+ * rollup impact is **inert**: `deriveStatus` reads `unit_split` only inside its
+ * `hasIpo` branch, so status stays `registered`, `unit_split_date` is filled,
+ * and no IPO is claimed that no filing supports.
+ *
+ * The allowance is exchange-only. Issuer Form 25 and the whole Form 15 family
+ * still deregister whatever the floor, because a real wind-up files exactly
+ * those — so the conservative branch loses very little.
  */
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
   if (pendingReachedApproval(args.pendingDeal)) {
     return "completed";
   }
-  if (isExchangeNse(args.form) && args.ipoDate != null && args.ipoDate !== "") {
-    const days = calendarDaysBetween(args.ipoDate, args.filingDate);
+  const floorKnown = args.ipoDate != null && args.ipoDate !== "";
+  if (isExchangeNse(args.form) && floorKnown) {
+    const days = calendarDaysBetween(args.ipoDate as string, args.filingDate);
     if (days >= 0 && days <= UNIT_SEPARATION_MAX_DAYS_AFTER_IPO) {
       return "unit_split";
     }
   }
   if (args.hasNearby20F === true && isExchangeNse(args.form)) {
     return "completed";
+  }
+  if (isExchangeNse(args.form) && !floorKnown) {
+    return "unit_split";
   }
   return "deregistration";
 }

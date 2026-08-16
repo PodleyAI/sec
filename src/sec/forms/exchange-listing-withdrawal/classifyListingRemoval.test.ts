@@ -50,14 +50,36 @@ describe("classifyListingRemoval", () => {
     ).toBe("deregistration");
   });
 
-  it("does not treat a 25-NSE as unit separation when the vehicle never IPO'd", () => {
-    expect(
-      classifyListingRemoval({
-        form: "25-NSE",
-        ipoDate: null,
-        filingDate: "2026-06-09",
-      })
-    ).toBe("deregistration");
+  it("does not demote a 25-NSE when the IPO floor is unknown", () => {
+    // A SPAC minted by the S-1 AI content classifier (a SIC-miscoded filer)
+    // structurally never gets an ipo_date, so demoting on an absent floor
+    // marked a live searching vehicle liquidated.
+    for (const ipoDate of [null, ""]) {
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE",
+          ipoDate,
+          filingDate: "2026-06-09",
+        })
+      ).toBe("unit_split");
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE/A",
+          ipoDate,
+          filingDate: "2026-06-09",
+        })
+      ).toBe("unit_split");
+    }
+  });
+
+  it("still deregisters an issuer Form 25 / Form 15 with an unknown IPO floor", () => {
+    // The unknown-floor allowance is exchange-only: a real wind-up files one of
+    // these, so the conservative branch loses very little.
+    for (const form of ["25", "25/A", "15-12G", "15-12B", "15F-12G"]) {
+      expect(classifyListingRemoval({ form, ipoDate: null, filingDate: "2026-06-09" })).toBe(
+        "deregistration"
+      );
+    }
   });
 
   it("treats issuer Form 25 as deregistration even right after IPO", () => {
@@ -147,6 +169,39 @@ describe("classifyListingRemoval", () => {
         form: "25-NSE",
         pendingDeal: null,
         hasNearby20F: true,
+      })
+    ).toBe("unit_split");
+  });
+
+  it("lets a nearby 20-F win over the unknown-floor allowance", () => {
+    // Both branches accept this filing, and the FPI close is the truthful one:
+    // an FPI close carries no ipo_date either, so granting the unknown floor a
+    // unit_split first would misfile every miscoded FPI close as a separation.
+    // This is why the allowance sits after the 20-F check rather than inside
+    // the post-IPO window test.
+    for (const ipoDate of [null, ""]) {
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE",
+          ipoDate,
+          filingDate: "2026-07-10",
+          pendingDeal: null,
+          hasNearby20F: true,
+        })
+      ).toBe("completed");
+    }
+  });
+
+  it("keeps the unknown-floor allowance when no 20-F is nearby", () => {
+    // The negative twin of the case above: with the 20-F absent the allowance
+    // is reachable, so the ordering costs the SIC-miscoded SPAC nothing.
+    expect(
+      classifyListingRemoval({
+        form: "25-NSE",
+        ipoDate: null,
+        filingDate: "2026-07-10",
+        pendingDeal: null,
+        hasNearby20F: false,
       })
     ).toBe("unit_split");
   });
