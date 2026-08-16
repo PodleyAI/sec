@@ -1501,6 +1501,11 @@ sec canonical sponsor-family     alias-import aliases-sponsor.tsv
 sec canonical underwriter-family alias-import aliases-underwriter.tsv
 ```
 
+Step 3b takes no `--resolver-version`: it defaults to the **active slot** ("next
+if a dev cycle exists, else current"), the same rule `version coverage` reads, so
+the ceremony never asks an operator to look up a semver mid-run. Pass the flag
+to target a different version.
+
 `alias-import` resolves each pair by NAME (the ids in the export no longer
 resolve) and reports each pair it cannot place without abandoning the rest — a
 name whose canonical row has not been re-extracted yet is an expected partial

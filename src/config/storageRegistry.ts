@@ -875,6 +875,11 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "s1_classification",
     schema: S1ClassificationSchema,
     primaryKeyNames: S1ClassificationPrimaryKeyNames,
+    // The SPAC candidate scan groups this table by `cik` and reads only `sic`.
+    // The PK is `(extractor_id, accession_number)`, so nothing else covers it —
+    // and `setupDatabase()` re-emits `CREATE INDEX IF NOT EXISTS` on every run,
+    // so an existing database picks this up without a migration.
+    indexes: [["cik", "sic"]],
   }),
   defineStorage({
     token: CANONICAL_PERSON_REPOSITORY_TOKEN,

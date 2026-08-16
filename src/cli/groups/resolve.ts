@@ -5,8 +5,11 @@
  */
 
 import type { Command } from "commander";
+import { globalServiceRegistry } from "workglow";
 import { resolverIds, isFamilyResolverId } from "../../resolver/resolverIds";
-import { isValidSemver } from "../../storage/versioning/VersionRegistry";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { isValidSemver, VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import {
   BATCH_RESOLVABLE_KINDS,
   isBatchResolvableKind,
@@ -21,7 +24,7 @@ export function addResolveCommands(program: Command): void {
   cmd
     .description("Re-resolve observations into identity-link rows at a target resolver version.")
     .requiredOption("--kind <kind>", "person | company")
-    .requiredOption("--resolver-version <semver>", "target resolver semver")
+    .option("--resolver-version <semver>", "target resolver semver (default: the active slot)")
     .option("--all", "process all observations of the kind", false)
     .option(
       "--renormalize",
@@ -32,7 +35,7 @@ export function addResolveCommands(program: Command): void {
     .action(
       async (opts: {
         kind: string;
-        resolverVersion: string;
+        resolverVersion?: string;
         all: boolean;
         renormalize: boolean;
       }) => {
@@ -63,25 +66,39 @@ export function addResolveCommands(program: Command): void {
           if (!opts.all) {
             throw new Error("--all is required (no other mode supported in v1)");
           }
-          if (!isValidSemver(opts.resolverVersion)) {
-            throw new Error(
-              `--resolver-version must be a valid semver (got '${opts.resolverVersion}')`
+          // Default to the ACTIVE slot ("next if a dev cycle exists, else
+          // current"), as `version coverage` and the role query already do.
+          // The re-key ceremony's renormalize step is documented as required
+          // and is silent when skipped, so making an operator look up a semver
+          // mid-ceremony is exactly the failure the doc warns about. An
+          // explicitly supplied value is still validated; a registry-sourced
+          // one already was when it was written.
+          let resolverVersion = opts.resolverVersion;
+          if (resolverVersion === undefined) {
+            const active = await getActiveSlot(
+              new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)),
+              "resolver",
+              kind
             );
+            if (!active) {
+              throw new Error(
+                `No active slot for resolver '${kind}'. Run 'sec db setup' to bootstrap.`
+              );
+            }
+            resolverVersion = active.semver;
+          } else if (!isValidSemver(resolverVersion)) {
+            throw new Error(`--resolver-version must be a valid semver (got '${resolverVersion}')`);
           }
 
           const { count, renormalized } = await runWorkflowCli<ResolveObservationsTaskOutput>([
             new ResolveObservationsTask({
-              defaults: {
-                kind,
-                resolverVersion: opts.resolverVersion,
-                renormalize: opts.renormalize,
-              },
+              defaults: { kind, resolverVersion, renormalize: opts.renormalize },
             }),
           ]);
           if (opts.renormalize) {
             console.log(`re-normalized ${renormalized} ${kind} observation(s)`);
           }
-          console.log(`resolved ${count} ${kind} observation(s) at v${opts.resolverVersion}`);
+          console.log(`resolved ${count} ${kind} observation(s) at v${resolverVersion}`);
         });
       }
     );

@@ -72,12 +72,18 @@ function toTextOrNull(value: unknown): string | null {
  * Builds the scan statement for one SQL dialect.
  *
  * Fragments are appended to `params` in the order they appear in the finished
- * statement, because SQLite binds `?` positionally — so the SELECT-list
- * subqueries must contribute their parameters before the WHERE clause does.
+ * statement, because SQLite binds `?` positionally. The order is therefore
+ * SELECT-list subqueries → the derived table in the FROM clause → the WHERE
+ * predicates, and it has to be read off the `sql` template at the bottom, not
+ * off convenience. A slip here yields a silently WRONG scan rather than an
+ * error: every `?` still gets a value, just the wrong one. (Postgres is
+ * immune — `$n` is numbered by bind order — so a mismatch shows up on one
+ * backend only.)
+ *
  * Name patterns and form names are always bound, never interpolated: they are
  * compared against filer-controlled columns.
  */
-function buildScanSql(
+export function buildScanSql(
   options: ScanOptions,
   quote: (identifier: string) => string,
   placeholder: (index: number) => string
@@ -111,19 +117,6 @@ function buildScanSql(
   const firstRegForm = `(SELECT f.${q("form")} FROM ${q("filings")} f
         WHERE f.${q("cik")} = e.${q("cik")} AND f.${q("form")} IN (${regForms2})
         ORDER BY f.${q("filing_date")}, f.${q("form")} LIMIT 1)`;
-  // 1 / 0 / NULL: whether any registration of this filer that the forms pipeline
-  // has PARSED carried a 6770 header SIC, or NULL when none has been parsed.
-  // Null is not false — it means the question has not been asked yet.
-  //
-  // Read from `s1_classification`, which is where the as-filed header SIC
-  // already lands: `processFormS1` writes the value it parsed out of the SGML
-  // header to `sic` on every registration it processes. No second copy, and no
-  // column on `filings` for ingest to overwrite with null on the next
-  // submissions refresh.
-  const filedSic6770 = `(SELECT max(CASE WHEN c.${q("sic")} = ${bind(BLANK_CHECK_SIC)}
-          THEN 1 ELSE 0 END)
-        FROM ${q("s1_classification")} c
-        WHERE c.${q("cik")} = e.${q("cik")} AND c.${q("sic")} IS NOT NULL)`;
   const renamedFrom = `(SELECT h2.${q("name")} FROM ${q("entities_history")} h2
         WHERE h2.${q("cik")} = e.${q("cik")} AND (${nameLike(`h2.${q("name")}`)})
         ORDER BY h2.${q("valid_from")} LIMIT 1)`;
@@ -134,30 +127,53 @@ function buildScanSql(
         WHERE h3.${q("cik")} = e.${q("cik")} AND (${nameLike(`h3.${q("name")}`)})
           AND h3.${q("valid_to")} IS NOT NULL)`;
 
+  // --- FROM clause ---
+  // 1 / 0 / NULL: whether any registration of this filer that the forms pipeline
+  // has PARSED carried a 6770 header SIC, or NULL when none has been parsed.
+  // Null is not false — it means the question has not been asked yet, and a
+  // LEFT JOIN with no matching group yields exactly that.
+  //
+  // Read from `s1_classification`, which is where the as-filed header SIC
+  // already lands: `processFormS1` writes the value it parsed out of the SGML
+  // header to `sic` on every registration it processes. No second copy, and no
+  // column on `filings` for ingest to overwrite with null on the next
+  // submissions refresh.
+  //
+  // One pre-aggregated pass over the table, joined once — the SELECT-list
+  // projection and the WHERE predicate both read the same column. As two
+  // correlated subqueries this was two full passes over `s1_classification`
+  // PER candidate entity.
+  const filedSicJoin = `LEFT JOIN (
+        SELECT ${q("cik")} AS cik,
+          max(CASE WHEN ${q("sic")} = ${bind(BLANK_CHECK_SIC)} THEN 1 ELSE 0 END) AS filed_sic_6770
+        FROM ${q("s1_classification")}
+        WHERE ${q("sic")} IS NOT NULL
+        GROUP BY ${q("cik")}
+      ) c ON c.cik = e.${q("cik")}`;
+
   // --- WHERE clause ---
   const sicMatch = `e.${q("sic")} = ${bind(BLANK_CHECK_SIC)}`;
   const entityNameMatch = nameLike(`e.${q("name")}`);
   const historyNameMatch = `EXISTS (SELECT 1 FROM ${q("entities_history")} h
         WHERE h.${q("cik")} = e.${q("cik")} AND (${nameLike(`h.${q("name")}`)}))`;
+  // A completed de-SPAC matches none of the other three predicates — it recoded
+  // and renamed — so the as-filed header is the only thing left that remembers.
+  const filedSicMatch = `c.filed_sic_6770 = 1`;
   const sinceClause =
     options.since === undefined
       ? ""
       : `AND EXISTS (SELECT 1 FROM ${q("processed_submissions")} ps
         WHERE ps.${q("cik")} = e.${q("cik")} AND ps.${q("last_processed")} >= ${bind(options.since)})`;
 
-  // A completed de-SPAC matches none of the other three predicates — it recoded
-  // and renamed — so the as-filed header is the only thing left that remembers.
-  const filedSicMatch = `EXISTS (SELECT 1 FROM ${q("s1_classification")} c2
-        WHERE c2.${q("cik")} = e.${q("cik")} AND c2.${q("sic")} = ${bind(BLANK_CHECK_SIC)})`;
-
   const sql = `
     SELECT e.${q("cik")} AS cik, e.${q("name")} AS name, e.${q("sic")} AS sic,
       ${firstRegDate} AS first_reg_date,
       ${firstRegForm} AS first_reg_form,
       ${renamedFrom} AS renamed_from,
-      ${filedSic6770} AS filed_sic_6770,
-      ${spacNameEnded} AS spac_name_ended
+      ${spacNameEnded} AS spac_name_ended,
+      c.filed_sic_6770 AS filed_sic_6770
     FROM ${q("entities")} e
+    ${filedSicJoin}
     WHERE (${sicMatch} OR (${entityNameMatch}) OR ${historyNameMatch} OR ${filedSicMatch})
     ${sinceClause}
   `;
