@@ -269,6 +269,17 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
         }
       }
 
+      // `outputDeserializer` answers `{}` for a stream without looking at the
+      // bytes, so reading them would pull an arbitrarily large document into
+      // memory only to discard it — the one thing this response type exists to
+      // avoid. `stat` settles the only remaining question (is the entry there),
+      // and raises the same ENOENT miss the read would have.
+      if ((inputs.response_type as string) === "stream") {
+        await stat(filePath);
+        this.emit("output_retrieved", taskType);
+        return {};
+      }
+
       const data = await readFile(filePath);
       if (data) {
         const deserialized = this.outputDeserializer(data, inputs.response_type as string);

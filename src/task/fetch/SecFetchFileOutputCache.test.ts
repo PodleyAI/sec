@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -191,5 +191,20 @@ describe("SecFetchFileOutputCache path safety", () => {
     const cache = makeCache(() => "cik/present.txt");
     await cache.saveOutput("T", { response_type: "text" }, { text: "body" });
     expect(await cache.getOutput("T", { response_type: "stream" })).toEqual({});
+  });
+
+  it("answers a stream read without reading the file", async () => {
+    // A directory is stat-able but not readable, so it separates the two: with
+    // a readFile in the path this raises EISDIR, which is not the ENOENT the
+    // miss branch swallows. Materializing the bytes here would defeat the one
+    // thing "stream" is for — the deserializer answers {} without them.
+    const cache = makeCache(() => "cik/statonly");
+    mkdirSync(path.join(tmpRoot, "cik/statonly"), { recursive: true });
+    expect(await cache.getOutput("T", { response_type: "stream" })).toEqual({});
+  });
+
+  it("reports a cache MISS for a stream read when the entry is absent", async () => {
+    const cache = makeCache(() => "cik/never-written.txt");
+    expect(await cache.getOutput("T", { response_type: "stream" })).toBeUndefined();
   });
 });
