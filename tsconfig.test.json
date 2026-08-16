@@ -1,0 +1,22 @@
+{
+  // Type-checks the TEST files too. The base config emits declarations for the
+  // published package, so it narrows to `files: ["src/sec.ts"]` and excludes
+  // `**/*.test.ts` — and vitest does not typecheck. Nothing else in the repo
+  // would catch a test that assigns the wrong type to a schema field.
+  //
+  // `files`/`exclude` are inherited through `extends`, so both are cleared here
+  // rather than merely left unstated. The emit options are cleared for the same
+  // reason: the base is a composite declaration-emitting project, and this one
+  // only checks.
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*"],
+  "files": [],
+  "exclude": [],
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false
+  }
+}

@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
-import { REGA_OFFERING_REPOSITORY_TOKEN } from "../../storage/reg-a/RegAOfferingSchema";
+import {
+  REGA_OFFERING_REPOSITORY_TOKEN,
+  type RegAOffering,
+  type RegAOfferingRepositoryStorage,
+} from "../../storage/reg-a/RegAOfferingSchema";
 import { queryRegAOfferings } from "./RegAQuery";
 
-function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
+function makeOffering(overrides: Partial<RegAOffering> = {}): RegAOffering {
   return {
     cik: 1318605,
     file_number: "024-12345",
@@ -13,7 +17,7 @@ function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
     sic_code: null,
     tier: "Tier2",
     financial_statement_audit_status: "Audited",
-    securities_offered_type: "Common Stock",
+    securities_offered_type: ["Common Stock"],
     industry_group: "Real Estate",
     status: "reporting",
     as_of: null,
@@ -21,7 +25,7 @@ function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
   };
 }
 
-let repo: ReturnType<typeof globalServiceRegistry.get<typeof REGA_OFFERING_REPOSITORY_TOKEN>>;
+let repo: RegAOfferingRepositoryStorage;
 
 describe("queryRegAOfferings", () => {
   beforeEach(() => {
@@ -36,8 +40,12 @@ describe("queryRegAOfferings", () => {
   });
 
   it("filters by CIK, tier, and status", async () => {
-    await repo.put(makeOffering({ cik: 1, file_number: "024-001", tier: "Tier1", status: "pending" }));
-    await repo.put(makeOffering({ cik: 2, file_number: "024-002", tier: "Tier2", status: "reporting" }));
+    await repo.put(
+      makeOffering({ cik: 1, file_number: "024-001", tier: "Tier1", status: "pending" })
+    );
+    await repo.put(
+      makeOffering({ cik: 2, file_number: "024-002", tier: "Tier2", status: "reporting" })
+    );
 
     expect((await queryRegAOfferings({ cik: 1 })).rows.length).toBe(1);
     expect((await queryRegAOfferings({ tier: "Tier2" })).rows[0].cik).toBe(2);
