@@ -267,6 +267,19 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
 
   await recordRedemptionRun(true, null);
 
+  // "No redemption reported" is the expected outcome for most trigger-item
+  // 8-Ks (5.07/2.01/8.01 carry votes, closes, and ordinary updates). Leaving
+  // the MODEL_EMPTY entry pending floods the retry worklist with confident
+  // negatives, so auto-resolve it — matching the LOI detector. Genuine
+  // problems (MODEL_INVALID_OUTPUT, LOW_CONFIDENCE_ALL, UNVERIFIED_SOURCE_SPAN)
+  // stay pending.
+  if (persisted === 0) {
+    const entry = await deadLetters.get(EXTRACTOR_ID, accession_number, REDEMPTION_SECTION);
+    if (entry?.reason_code === "MODEL_EMPTY") {
+      await deadLetters.markResolved(EXTRACTOR_ID, accession_number, REDEMPTION_SECTION);
+    }
+  }
+
   if (persisted > 0) {
     await new SpacReportWriter().recordRedemption({ cik, accession_number, filing_date, form });
   }

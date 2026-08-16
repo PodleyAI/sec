@@ -51,7 +51,7 @@ import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
 import { isCompanyFamilyPrefixEcho } from "../../../storage/company/CompanyFamilyName";
 import { normalizeFamilyName } from "../../../resolver/FamilyResolver";
-import { normalizeCompanyName } from "../../../storage/company/CompanyNormalization";
+import { isUnnamedCompanyName } from "../../../storage/company/CompanyNormalization";
 import {
   parentClauseSourceContext,
   splitParentClause,
@@ -774,6 +774,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
+        if (r.owner_kind === "company" && isUnnamedCompanyName(r.name)) continue;
         const observation_index = idx++;
         let observation_id: number;
         if (r.owner_kind === "person") {
@@ -870,23 +871,15 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // it wrong. On one live filing this was every single related-party
         // person: four rows, no actual individuals.
         // A blank name is the same class of degenerate model output the
-        // sponsor persist already skips: observeCompany throws in the
-        // resolver ("no CIK, CRD, or name") and aborts every other valid
-        // party in this section. Keep the disclosure as a group row with
-        // no observation, matching the officer/director-class path below.
-        // A name that is only a legal-form ending ("Company", "Inc.", "LLC")
-        // is not blank, but normalizeCompanyName strips it to empty and the
-        // resolver throws the same way — treat it as unnamed too, keeping
-        // the filing's wording on party_label.
+        // sponsor persist already skips. A name that is only a legal-form
+        // ending ("Company") or an issuer self-reference ("the Company")
+        // normalizes to empty or a stranded article ("the") and would mint a
+        // canonical company — treat it as unnamed, keeping the filing's wording
+        // on party_label.
         const trimmedName = (r.name ?? "").trim();
-        const isUnnamed = trimmedName === "";
-        const isLegalFormOnlyCompany =
-          r.party_kind === "company" &&
-          !isUnnamed &&
-          (normalizeCompanyName(trimmedName) ?? "") === "";
         const isCollective =
-          isUnnamed ||
-          isLegalFormOnlyCompany ||
+          trimmedName === "" ||
+          (r.party_kind === "company" && isUnnamedCompanyName(trimmedName)) ||
           (r.party_kind === "person" && isCollectivePartyName(r.name));
         const partyKind = isCollective ? ("group" as const) : r.party_kind;
         let observation_id: number | null = null;
@@ -931,7 +924,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             transaction_index: txIndex++,
             party_kind: partyKind,
             observation_id,
-            party_label: isCollective && !isUnnamed ? r.name : null,
+            party_label: isCollective && trimmedName !== "" ? r.name : null,
             counterparty: t.counterparty,
             nature: t.nature,
             amount: t.amount,
@@ -1244,6 +1237,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         // is skipped rather than allowed to throw inside the resolver and abort
         // every other valid sponsor in this filing.
         if (split.observationName === "") continue;
+        if (isUnnamedCompanyName(split.observationName)) continue;
         if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
         // Same skip as underwriter persist: a letterless placeholder ("[●]")
         // is not an entity; a CJK name is observed without a family rather

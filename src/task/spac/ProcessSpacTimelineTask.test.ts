@@ -130,6 +130,34 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.error).toBe("");
   });
 
+  it("does not count a Form 4 fetch miss as a fatal failed filing", async () => {
+    // Ownership forms are off the SPAC timeline's critical path. A missing
+    // Form 4 used to increment `failed` and fail the issuer's `spac process`
+    // exit even when every S-1/424/8-K succeeded.
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04", "primary_doc.xml");
+    cacheDoc("0000000000-26-000001", "primary_doc.xml", GOOD_FORM_D);
+    await seedFiling("0000000000-26-000002", "4", "2021-02-04");
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(out.matched).toBe(2);
+    expect(out.processed).toBe(1);
+    expect(out.failed).toBe(0);
+    expect(out.nonfatal).toBe(1);
+    expect(out.error).toBe("");
+  });
+
+  it("still counts a Form D failure as fatal when a Form 4 also failed", async () => {
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "4", "2021-02-04");
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(out.matched).toBe(2);
+    expect(out.failed).toBe(1);
+    expect(out.nonfatal).toBe(1);
+  });
+
   it("reports an issuer-level failure on the error port instead of throwing", async () => {
     // The isolation the batch depends on. Thrown from a task, this reached the
     // CLI workflow renderer, which answers a thrown error with

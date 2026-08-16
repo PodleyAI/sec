@@ -137,12 +137,8 @@ async function processReportingOwners(
     let address_id: string | null = null;
     const addrImport = buildOwnerAddress(owner.reportingOwnerAddress);
     if (addrImport) {
-      try {
-        const saved = await addressRepo.saveAddress(addrImport);
-        address_id = saved.address_hash_id;
-      } catch (error) {
-        console.warn(`Failed to save address for reporting owner ${name}:`, error);
-      }
+      const saved = await addressRepo.saveAddressIfUsable(addrImport);
+      if (saved) address_id = saved.address_hash_id;
     }
 
     const observation_index = i + 1; // 0 reserved for the issuer

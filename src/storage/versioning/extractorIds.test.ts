@@ -8,7 +8,12 @@ import { describe, expect, it } from "vitest";
 import { ALL_FORMS_MAP, isFormParsingSupported } from "../../sec/forms/all-forms";
 import { Form_DRS } from "../../sec/forms/registration-statements/Form_DRS";
 import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR";
-import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID, formToExtractorId } from "./extractorIds";
+import {
+  EXTRACTOR_IDS,
+  FORM_TO_EXTRACTOR_ID,
+  formToExtractorId,
+  isNonfatalTimelineExtractor,
+} from "./extractorIds";
 
 describe("extractorIds", () => {
   it("exposes the canonical extractor ids", () => {
@@ -32,6 +37,14 @@ describe("extractorIds", () => {
       "merger-proxy",
       "redemption",
     ]);
+  });
+
+  it("treats ownership forms as nonfatal on the SPAC timeline", () => {
+    for (const form of ["3", "3/A", "4", "4/A", "5", "5/A", "144", "144/A"]) {
+      expect(isNonfatalTimelineExtractor(formToExtractorId(form)!)).toBe(true);
+    }
+    expect(isNonfatalTimelineExtractor("D")).toBe(false);
+    expect(isNonfatalTimelineExtractor("S-1")).toBe(false);
   });
 
   it("maps the merger proxies to extractor id 'merger-proxy'", () => {

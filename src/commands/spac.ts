@@ -124,6 +124,7 @@ export function spacProcessRows(
   const processed = column("processed");
   const partial = column("partial");
   const failed = column("failed");
+  const nonfatal = column("nonfatal");
   const triage = column("triage");
   const triageExtractors = column("triageExtractors");
   const firstDate = column("firstDate");
@@ -139,6 +140,7 @@ export function spacProcessRows(
       processed: processed[i] ?? 0,
       partial: partial[i] ?? 0,
       failed: failed[i] ?? 0,
+      nonfatal: nonfatal[i] ?? 0,
       triage: triage[i] ?? 0,
       triageExtractors: triageExtractors[i] ?? "",
       firstDate: firstDate[i] ?? "",
@@ -165,6 +167,7 @@ export function formatSpacProcessSummary(
   ];
   if (row.partial > 0) parts.push(`${row.partial} partial`);
   if (row.failed > 0) parts.push(`${row.failed} failed`);
+  if (row.nonfatal > 0) parts.push(`${row.nonfatal} nonfatal`);
   if (row.triage > 0) parts.push(`${row.triage} section(s) pending triage`);
   return `${row.cik}: ${parts.join("; ")}`;
 }
@@ -195,9 +198,10 @@ export function formatSpacProcessDeadLetterHint(
  * `partial` deliberately does not count. It is the documented NORMAL outcome of
  * one AI section dead-lettering, and almost every real SPAC has at least one,
  * so counting it made a non-zero exit the default for a healthy run and any
- * script gating on the exit code read a clean replay as a failure. The warn
- * line and `sec extractor dead-letters <id>` (named from the pending entries)
- * remain the surface for partials.
+ * script gating on the exit code read a clean replay as a failure. Ownership
+ * form misses (`nonfatal`) also do not count — they are off the SPAC timeline's
+ * critical path. The warn line and `sec extractor dead-letters <id>` (named
+ * from the pending entries) remain the surface for partials.
  */
 export function spacProcessFailureCount(rows: readonly ProcessSpacTimelineTaskOutput[]): number {
   return rows.filter((row) => row.error !== "" || row.failed > 0).length;

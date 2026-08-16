@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { Form_3 } from "./Form_3";
@@ -14,6 +15,7 @@ import { processOwnershipForm } from "./OwnershipDocument.storage";
 import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { PersonObservationRepo } from "../../../storage/observation/PersonObservationRepo";
+import { ADDRESS_REPOSITORY_TOKEN } from "../../../storage/address/AddressSchema";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { accessionFromFixtureName } from "../../../util/accession";
@@ -433,5 +435,70 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     expect(deriv.underlying_security_shares).toBeNull();
     // A populated sibling field still coerces to its real number.
     expect(deriv.conversion_or_exercise_price).toBe(1.28);
+  });
+
+  it("keeps a reporting owner whose foreign address has no city", async () => {
+    // EDGAR codes UK/HK/BVI in stateOrCountry (X0/K3/D8) with a null city.
+    // saveAddress throws; the owner must still be observed.
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    const addr = doc.reportingOwner![0]!.reportingOwnerAddress!;
+    addr.rptOwnerCity = undefined;
+    addr.rptOwnerState = undefined;
+    addr.rptOwnerNonUSAddressFlag = "true";
+    addr.rptOwnerCountry = "X0";
+
+    await processOwnershipForm({
+      cik: 1828673,
+      file_number: "",
+      accession_number: accession,
+      filing_date: "2026-05-27",
+      primary_doc: "x.xml",
+      form: "4",
+      doc,
+    });
+
+    const persons = (await new PersonObservationRepo().listByAccession(accession)).map(
+      (p) => p.last_name
+    );
+    expect(persons).toContain("GARRETT SCOTT T");
+    const owner = (await new PersonObservationRepo().listByAccession(accession)).find(
+      (p) => p.last_name === "GARRETT SCOTT T"
+    );
+    expect(owner?.raw_address_id).toBeNull();
+  });
+
+  it("propagates a real address-store failure instead of swallowing it", async () => {
+    const addrStore = globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN);
+    const originalPut = addrStore.put.bind(addrStore);
+    addrStore.put = (async () => {
+      throw new Error("db down");
+    }) as typeof addrStore.put;
+
+    const accession = "0001493152-26-025476";
+    const xml = readFileSync(
+      join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
+      "utf-8"
+    );
+    const doc = await Form_4.parse("4", xml);
+    try {
+      await expect(
+        processOwnershipForm({
+          cik: 1828673,
+          file_number: "",
+          accession_number: accession,
+          filing_date: "2026-05-27",
+          primary_doc: "x.xml",
+          form: "4",
+          doc,
+        })
+      ).rejects.toThrow("db down");
+    } finally {
+      addrStore.put = originalPut;
+    }
   });
 });
