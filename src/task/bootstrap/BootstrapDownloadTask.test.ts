@@ -473,11 +473,10 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
   }
 
   /** Records the headers each request carried, and replies with `status`. */
-  function stubFetch(opts: {
-    status?: number;
-    etag?: string;
-    lastModified?: string;
-  }): { seen: Record<string, string>[]; restore: () => void } {
+  function stubFetch(opts: { status?: number; etag?: string; lastModified?: string }): {
+    seen: Record<string, string>[];
+    restore: () => void;
+  } {
     const seen: Record<string, string>[] = [];
     const oldFetch = global.fetch;
     (global as any).fetch = vi.fn(async (_url: string, init?: RequestInit) => {

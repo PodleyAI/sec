@@ -9,8 +9,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, type IExecuteContext } from "workglow";
+import {
+  globalServiceRegistry,
+  Task,
+  type DataPortSchema,
+  type IExecuteContext,
+  type ITask,
+  type StreamEvent,
+} from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
+import type { TaskPorts } from "../taskPorts";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { FILING_REPOSITORY_TOKEN, type Filing } from "../../storage/filing/FilingSchema";
 import {
@@ -51,18 +59,62 @@ function makeTarGz(entries: ReadonlyArray<{ name: string; body: string }>): Buff
   return gzipSync(Buffer.concat(parts));
 }
 
-function webStream(buf: Buffer): ReadableStream<Uint8Array> {
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buf));
-      controller.close();
-    },
-  });
+// --- A test producer whose Feed source is a canned per-date tarball ---------
+
+type FeedFixture = Buffer | "missing" | Error;
+
+/**
+ * Stands in for `SecFetchTask` with `response_type: "stream"`: same `body`
+ * port, same binary deltas. Everything downstream — the graph edge, the
+ * passthrough, the sink, the tar walk, the cache writes — is production code.
+ */
+class CannedFeedFetchTask extends Task<TaskPorts<{ url?: string }>, TaskPorts<{ body?: unknown }>> {
+  static readonly type = "CannedFeedFetchTask";
+  static readonly category = "SEC";
+  static readonly title = "Canned feed download";
+  static readonly cacheable = false;
+
+  public fixture: FeedFixture = "missing";
+  /** Chunk size, so a test can prove the sink is fed incrementally. */
+  public chunkSize = 64 * 1024;
+
+  public static inputSchema(): DataPortSchema {
+    return {
+      type: "object",
+      properties: { url: { type: "string", title: "URL" } },
+      additionalProperties: false,
+    } as const satisfies DataPortSchema;
+  }
+
+  public static outputSchema(): DataPortSchema {
+    return {
+      type: "object",
+      properties: { body: { title: "Body", "x-stream": "binary", format: "blob" } },
+      additionalProperties: false,
+    } as const satisfies DataPortSchema;
+  }
+
+  async *executeStream(): AsyncIterable<StreamEvent<{ body?: unknown }>> {
+    const fx = this.fixture;
+    if (fx === "missing") {
+      // The shape a 404 arrives in — SecFetchJob throws before any byte.
+      throw Object.assign(new Error("Fetch failed: 404 Not Found"), { status: 404 });
+    }
+    if (fx instanceof Error) throw fx;
+    for (let at = 0; at < fx.length; at += this.chunkSize) {
+      yield {
+        type: "binary-delta",
+        port: "body",
+        binaryDelta: new Uint8Array(fx.subarray(at, at + this.chunkSize)),
+      };
+    }
+    yield { type: "finish", data: {} };
+  }
+
+  async execute(): Promise<{ body?: unknown }> {
+    throw new Error("CannedFeedFetchTask only streams");
+  }
 }
-
-// --- A test task whose Feed source is a canned per-date tarball -------------
-
-type FeedFixture = Buffer | "missing";
 
 class TestBootstrapAccessionDocsTask extends BootstrapAccessionDocsTask {
   public readonly requested: string[] = [];
@@ -72,20 +124,20 @@ class TestBootstrapAccessionDocsTask extends BootstrapAccessionDocsTask {
   ) {
     super(opts);
   }
-  protected override async openFeedStream(
-    date: string
-  ): Promise<{ status: "ok"; body: ReadableStream<Uint8Array> } | { status: "missing" }> {
+  protected override createFeedFetchTask(date: string): ITask {
     this.requested.push(date);
-    const fx = this.fixtures.get(date);
-    if (fx === undefined || fx === "missing") return { status: "missing" };
-    return { status: "ok", body: webStream(fx) };
+    const task = new CannedFeedFetchTask({ title: `Download ${date}` });
+    task.fixture = this.fixtures.get(date) ?? "missing";
+    return task as unknown as ITask;
   }
 }
 
-function ctx(): IExecuteContext {
+function ctx(controller: AbortController = new AbortController()): IExecuteContext {
   return {
-    signal: new AbortController().signal,
+    signal: controller.signal,
     updateProgress: () => {},
+    own: <T>(value: T) => value,
+    disown: () => {},
   } as unknown as IExecuteContext;
 }
 
@@ -177,7 +229,8 @@ describe("BootstrapAccessionDocsTask", () => {
         filing_date: "2000-01-03",
       }),
     ]);
-    const submission = "<SUBMISSION>\n<ACCESSION-NUMBER>0000912057-00-000076\n<TYPE>SC 13D\n<DOCUMENT>\n<TYPE>SC 13D\n<TEXT>\nSCHEDULE 13D text\n</TEXT>\n</DOCUMENT>\n</SUBMISSION>";
+    const submission =
+      "<SUBMISSION>\n<ACCESSION-NUMBER>0000912057-00-000076\n<TYPE>SC 13D\n<DOCUMENT>\n<TYPE>SC 13D\n<TEXT>\nSCHEDULE 13D text\n</TEXT>\n</DOCUMENT>\n</SUBMISSION>";
     const gz = makeTarGz([{ name: `${acc}.nc`, body: submission }]);
 
     const task = new TestBootstrapAccessionDocsTask(new Map([["2000-01-03", gz]]));
@@ -216,10 +269,20 @@ describe("BootstrapAccessionDocsTask", () => {
     expect(out.docsWritten).toBe(1);
     expect(
       existsSync(
-        path.join(raw, "accessiondocs", "0000085399", "000008539900000030-0000085399-00-000030-d1.html")
+        path.join(
+          raw,
+          "accessiondocs",
+          "0000085399",
+          "000008539900000030-0000085399-00-000030-d1.html"
+        )
       )
     ).toBe(false);
-    const fullSubPath = path.join(raw, "accessiondocs", "0000085399", `000008539900000030-${acc}.txt`);
+    const fullSubPath = path.join(
+      raw,
+      "accessiondocs",
+      "0000085399",
+      `000008539900000030-${acc}.txt`
+    );
     expect(readFileSync(fullSubPath, "utf-8")).toBe(submission);
   });
 
@@ -228,7 +291,8 @@ describe("BootstrapAccessionDocsTask", () => {
     await seedFilings([
       filing({ cik: 1193125, accession_number: acc, form: "S-1", primary_doc: "d123.htm" }),
     ]);
-    const submission = "<SEC-HEADER>\n</SEC-HEADER>\n<DOCUMENT>\n<TYPE>S-1\n<FILENAME>d123.htm\n<TEXT>\n<html/>\n</TEXT>\n</DOCUMENT>";
+    const submission =
+      "<SEC-HEADER>\n</SEC-HEADER>\n<DOCUMENT>\n<TYPE>S-1\n<FILENAME>d123.htm\n<TEXT>\n<html/>\n</TEXT>\n</DOCUMENT>";
     const gz = makeTarGz([{ name: `${acc}.nc`, body: submission }]);
 
     const task = new TestBootstrapAccessionDocsTask(new Map([["2021-03-05", gz]]));
@@ -254,7 +318,8 @@ describe("BootstrapAccessionDocsTask", () => {
       filing({ cik: 1102174, accession_number: acc, form: "SC 13D", primary_doc: "" }),
       filing({ cik: 1097588, accession_number: acc, form: "SC 13D", primary_doc: "" }),
     ]);
-    const submission = "<SUBMISSION>\n<DOCUMENT>\n<TYPE>SC 13D\n<TEXT>\n13D\n</TEXT>\n</DOCUMENT>\n</SUBMISSION>";
+    const submission =
+      "<SUBMISSION>\n<DOCUMENT>\n<TYPE>SC 13D\n<TEXT>\n13D\n</TEXT>\n</DOCUMENT>\n</SUBMISSION>";
     const gz = makeTarGz([{ name: `${acc}.nc`, body: submission }]);
 
     const task = new TestBootstrapAccessionDocsTask(new Map([["2021-03-05", gz]]));
@@ -282,7 +347,35 @@ describe("BootstrapAccessionDocsTask", () => {
     const out = await task.execute({}, ctx());
 
     expect(out.daysProcessed).toBe(0);
+    expect(out.failed).toBe(0);
     expect(existsSync(path.join(raw, "accessiondocs", ".feed-done", "20260724"))).toBe(false);
+  });
+
+  it("counts a failed day, leaves it unmarked, and finishes the rest of the sweep", async () => {
+    // A range can be thousands of days, and the ones already extracted are
+    // worth keeping — so one 403, 429 or truncated archive is tallied rather
+    // than aborting. The marker is not written, so a re-run retries it.
+    const bad = "0001193125-21-000001";
+    const good = "0001193125-21-000002";
+    await seedFilings([
+      filing({ cik: 1, accession_number: bad, form: "8-K", filing_date: "2021-03-05" }),
+      filing({ cik: 2, accession_number: good, form: "8-K", filing_date: "2021-03-08" }),
+    ]);
+    const gz = makeTarGz([{ name: `${good}.nc`, body: "<SUBMISSION>ok</SUBMISSION>" }]);
+
+    const task = new TestBootstrapAccessionDocsTask(
+      new Map<string, FeedFixture>([
+        ["2021-03-05", new Error("HTTP 403 Forbidden")],
+        ["2021-03-08", gz],
+      ])
+    );
+    const out = await task.execute({}, ctx());
+
+    expect(out.failed).toBe(1);
+    expect(out.daysProcessed).toBe(1);
+    expect(out.docsWritten).toBe(1);
+    expect(existsSync(path.join(raw, "accessiondocs", ".feed-done", "20210305"))).toBe(false);
+    expect(existsSync(path.join(raw, "accessiondocs", ".feed-done", "20210308"))).toBe(true);
   });
 
   it("skips days already marked done unless --force", async () => {
@@ -372,9 +465,27 @@ describe("BootstrapAccessionDocsTask", () => {
 
   it("honours the [from, to] date range", async () => {
     await seedFilings([
-      filing({ cik: 1, accession_number: "0000000001-21-000001", form: "4", primary_doc: "a.xml", filing_date: "2021-03-01" }),
-      filing({ cik: 2, accession_number: "0000000002-21-000002", form: "4", primary_doc: "b.xml", filing_date: "2021-03-05" }),
-      filing({ cik: 3, accession_number: "0000000003-21-000003", form: "4", primary_doc: "c.xml", filing_date: "2021-03-10" }),
+      filing({
+        cik: 1,
+        accession_number: "0000000001-21-000001",
+        form: "4",
+        primary_doc: "a.xml",
+        filing_date: "2021-03-01",
+      }),
+      filing({
+        cik: 2,
+        accession_number: "0000000002-21-000002",
+        form: "4",
+        primary_doc: "b.xml",
+        filing_date: "2021-03-05",
+      }),
+      filing({
+        cik: 3,
+        accession_number: "0000000003-21-000003",
+        form: "4",
+        primary_doc: "c.xml",
+        filing_date: "2021-03-10",
+      }),
     ]);
     const gz = makeTarGz([{ name: "x.nc", body: "<DOCUMENT/>" }]);
     const task = new TestBootstrapAccessionDocsTask(

@@ -7,14 +7,20 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
+import type { FetchUrlTaskConfig, ITask } from "workglow";
+import { Dataflow, globalServiceRegistry, IExecuteContext, Task, TaskGraph } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
-import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "../../util/accessionDocPath";
 import { parseDate } from "../../util/parseDate";
+import { getHttpErrorStatus } from "../fetch/SecFetchJob";
+import { SecFetchTask } from "../fetch/SecFetchTask";
 import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
-import { extractPrimaryDocFromSubmission, streamFeedTarball } from "./feedTarball";
+import { extractPrimaryDocFromSubmission } from "./feedTarball";
+import {
+  FeedTarballExtractTask,
+  type FeedTarballExtractTaskOutput,
+} from "./FeedTarballExtractTask";
 import { filingsForDate, listFilingDates, type FeedFiling } from "./feedFilings";
 
 export type BootstrapAccessionDocsTaskInput = {
@@ -32,11 +38,26 @@ export type BootstrapAccessionDocsTaskOutput = {
   readonly daysProcessed: number;
   /** Accession documents written to the on-disk cache this run. */
   readonly docsWritten: number;
+  /**
+   * Days whose download or extraction threw. Counted rather than fatal — a
+   * sweep can span thousands of days — and left unmarked, so a re-run retries
+   * them. Distinct from `missing`, which is EDGAR not having published a day.
+   */
+  readonly failed: number;
 };
 
-type FeedStream =
-  | { readonly status: "ok"; readonly body: ReadableStream<Uint8Array> }
-  | { readonly status: "missing" };
+/** Longest failure phrase kept per day, so one HTML error page cannot flood the log. */
+const MAX_FEED_REASON_LENGTH = 200;
+
+/** One short phrase naming why a day failed, so a 403, a 429 and a truncated archive stay distinguishable. */
+function describeFeedFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const collapsed = message.replace(/\s+/g, " ").trim();
+  if (collapsed.length === 0) return "unknown error";
+  return collapsed.length > MAX_FEED_REASON_LENGTH
+    ? `${collapsed.slice(0, MAX_FEED_REASON_LENGTH - 1)}…`
+    : collapsed;
+}
 
 /**
  * Result of a day's Feed download derived from the tarball members. Used to
@@ -45,6 +66,13 @@ type FeedStream =
 interface DayResult {
   readonly filingsMatched: number;
   readonly docsWritten: number;
+}
+
+/** EDGAR's daily Feed archive for one filing day. */
+export function feedTarballUrl(date: string): string {
+  const { year, month, day } = parseDate(date);
+  const quarter = Math.ceil(parseInt(month, 10) / 3);
+  return `https://www.sec.gov/Archives/edgar/Feed/${year}/QTR${quarter}/${year}${month}${day}.nc.tar.gz`;
 }
 
 /**
@@ -90,6 +118,7 @@ export class BootstrapAccessionDocsTask extends Task<
       success: Type.Boolean(),
       daysProcessed: Type.Integer(),
       docsWritten: Type.Integer(),
+      failed: Type.Integer(),
     });
   }
 
@@ -97,28 +126,16 @@ export class BootstrapAccessionDocsTask extends Task<
   private readonly createdDirs = new Set<string>();
 
   /**
-   * Opens the Feed tarball stream for a day. Isolated as a protected seam so
-   * the extract/write path is unit-testable without the network. Returns
-   * `missing` on a 404 (a day EDGAR has no Feed archive for yet).
+   * The day's byte producer. A protected seam so the extract/write path is
+   * unit-testable without the network — production returns the real
+   * rate-limited fetch, tests return a task that yields a canned tarball, and
+   * everything downstream of it (the graph edge, the sink, the walk, the
+   * writes) is the same code in both.
    */
-  protected async openFeedStream(date: string, signal?: AbortSignal): Promise<FeedStream> {
-    const { year, month, day } = parseDate(date);
-    const quarter = Math.ceil(parseInt(month, 10) / 3);
-    const url = `https://www.sec.gov/Archives/edgar/Feed/${year}/QTR${quarter}/${year}${month}${day}.nc.tar.gz`;
-    const response = await fetch(url, {
-      headers: { "User-Agent": SecUserAgent },
-      signal,
-    });
-    if (response.status === 404) return { status: "missing" };
-    if (!response.ok) {
-      throw new Error(
-        `Feed download failed: HTTP ${response.status} ${response.statusText} for ${url}`
-      );
-    }
-    if (response.body === null) {
-      throw new Error(`Feed download returned no body for ${url}`);
-    }
-    return { status: "ok", body: response.body };
+  protected createFeedFetchTask(date: string): ITask {
+    return new SecFetchTask({ url: feedTarballUrl(date), response_type: "stream" }, {
+      title: `Download ${date}`,
+    } as FetchUrlTaskConfig);
   }
 
   private ensureDir(dir: string): void {
@@ -234,26 +251,52 @@ export class BootstrapAccessionDocsTask extends Task<
       else byAccession.set(f.accession_number, [f]);
     }
 
-    const stream = await this.openFeedStream(date, context.signal);
-    if (stream.status === "missing") return "missing";
+    // Two nodes: the fetch produces `body`, the sink consumes it. Nothing in
+    // between materializes the day, and the download regains SafeFetch's
+    // redirect checks, the SEC rate limiter, SecFetchJob's retry/backoff and
+    // the 429 cluster-throttle signal that the raw fetch() bypass gave up.
+    const fetchTask = this.createFeedFetchTask(date);
+    const extractTask = new FeedTarballExtractTask({
+      defaults: { byAccession },
+      title: `Extract ${date}`,
+    });
+    extractTask.writeFiling = (filing, submissionText) =>
+      this.writeFiling(rawDataFolder, filing, submissionText, force);
 
-    let filingsMatched = 0;
-    let docsWritten = 0;
-    await streamFeedTarball(
-      stream.body,
-      (accession) => byAccession.has(accession),
-      (entry) => {
-        const rows = byAccession.get(entry.accession);
-        if (!rows) return;
-        for (const filing of rows) {
-          filingsMatched++;
-          docsWritten += this.writeFiling(rawDataFolder, filing, entry.text, force);
+    const graph = context.own(new TaskGraph(), { title: `Feed ${date}` });
+    graph.addTask(fetchTask);
+    graph.addTask(extractTask);
+    graph.addDataflow(new Dataflow(fetchTask.config.id, "body", extractTask.config.id, "body"));
+
+    try {
+      // `noAccumulation` is not a tuning knob here, it is the whole point:
+      // without it `awaitStreamInputs` drains the edge to a value before the
+      // sink starts, which is the ~1.5 GB day in memory. It also has to be an
+      // explicitly named port edge with a single consumer, or the passthrough
+      // check declines and the drain comes back.
+      await graph.run(
+        {},
+        {
+          noAccumulation: true,
+          accumulateLeafOutputs: false,
+          parentSignal: context.signal,
         }
-      },
-      context.signal
-    );
+      );
+    } catch (error) {
+      // A day EDGAR has not published a Feed archive for yet answers 404. That
+      // is an expected outcome, not a failure: the caller leaves the day
+      // unmarked so a later run retries it.
+      if (getHttpErrorStatus(error) === 404) return "missing";
+      throw error;
+    } finally {
+      context.disown(graph);
+    }
 
-    return { filingsMatched, docsWritten };
+    const summary = extractTask.runOutputData as Partial<FeedTarballExtractTaskOutput>;
+    return {
+      filingsMatched: summary.filingsMatched ?? 0,
+      docsWritten: summary.docsWritten ?? 0,
+    };
   }
 
   async execute(
@@ -271,7 +314,7 @@ export class BootstrapAccessionDocsTask extends Task<
       console.log(
         `Would download Feed tarballs for ${dates.length} filing day(s)${range} and extract accession documents into ${join(rawDataFolder, "accessiondocs")}`
       );
-      return { success: true, daysProcessed: 0, docsWritten: 0 };
+      return { success: true, daysProcessed: 0, docsWritten: 0, failed: 0 };
     }
 
     const doneDir = join(rawDataFolder, "accessiondocs", ".feed-done");
@@ -281,6 +324,7 @@ export class BootstrapAccessionDocsTask extends Task<
     let docsWritten = 0;
     let skipped = 0;
     let missing = 0;
+    let failed = 0;
 
     for (let i = 0; i < dates.length; i++) {
       if (context.signal?.aborted) break;
@@ -298,7 +342,18 @@ export class BootstrapAccessionDocsTask extends Task<
         `${date} · ${daysProcessed} days, ${docsWritten} docs`
       );
 
-      const result = await this.processDate(rawDataFolder, date, force, context);
+      let result: DayResult | "missing";
+      try {
+        result = await this.processDate(rawDataFolder, date, force, context);
+      } catch (err) {
+        if (context.signal?.aborted) throw err;
+        // One bad day must not abort a multi-day sweep — a range can be
+        // thousands of days and the ones already extracted are still worth
+        // keeping. The marker is not written, so the next run retries it.
+        failed++;
+        console.warn(`Feed extraction failed for ${date}: ${describeFeedFailure(err)}`);
+        continue;
+      }
       if (result === "missing") {
         // No Feed archive for this day yet (e.g. very recent). Do NOT mark it
         // done, so a later run retries once EDGAR publishes it.
@@ -318,9 +373,10 @@ export class BootstrapAccessionDocsTask extends Task<
       `Accession-doc bootstrap complete: ${daysProcessed} day(s) processed, ${docsWritten} document(s) written` +
         (skipped ? `, ${skipped} day(s) already done` : "") +
         (missing ? `, ${missing} day(s) not yet published` : "") +
+        (failed ? `, ${failed} day(s) failed` : "") +
         `.`
     );
 
-    return { success: true, daysProcessed, docsWritten };
+    return { success: true, daysProcessed, docsWritten, failed };
   }
 }
