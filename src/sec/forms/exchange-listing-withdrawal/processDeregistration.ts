@@ -7,7 +7,7 @@
 import { globalServiceRegistry } from "workglow";
 import { EntityRepo } from "../../../storage/entity/EntityRepo";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
-import { pendingDealBefore } from "../../../storage/spac/spacDealGrouping";
+import { pendingDealBefore, compareSpacEventOrder } from "../../../storage/spac/spacDealGrouping";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import {
@@ -72,16 +72,21 @@ export async function processDeregistration(args: ProcessDeregistrationArgs): Pr
   }
   if (!args.filing_date) return;
   const events = await repo.getEvents(args.cik);
-  const pending = pendingDealBefore(args.cik, events, {
-    event_date: args.filing_date,
-    accession_number: args.accession_number,
-  });
+  const boundary = { event_date: args.filing_date, accession_number: args.accession_number };
+  const pending = pendingDealBefore(args.cik, events, boundary);
+  const hasPriorCompleted = events.some(
+    (e) =>
+      e.event_type === "completed" &&
+      e.accession_number !== args.accession_number &&
+      compareSpacEventOrder(e, boundary) < 0
+  );
   const kind = classifyListingRemoval({
     form: args.form,
     ipoDate: spacRow.ipo_date,
     filingDate: args.filing_date,
     pendingDeal: pending,
     hasNearby20F: await hasNearby20F(args.cik, args.filing_date),
+    hasPriorCompleted,
   });
   const writer = new SpacReportWriter();
   if (kind === "unit_split") {

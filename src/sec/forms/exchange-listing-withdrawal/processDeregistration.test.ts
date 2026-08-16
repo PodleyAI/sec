@@ -53,6 +53,7 @@ describe("processDeregistration", () => {
       signal_sic_6770: true,
       signal_name_match: true,
       signal_renamed_from: null,
+      signal_filed_sic_6770: true,
       first_reg_form: "S-1",
       first_reg_date: "2020-11-01",
       reg_while_spac_named: true,
@@ -321,7 +322,10 @@ describe("processDeregistration", () => {
     });
 
     const events = await repo.getEvents(50);
-    expect(events.some((e) => e.event_type === "deregistration")).toBe(true);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(
+      events.filter((e) => e.event_type === "completed").map((e) => e.form).toSorted()
+    ).toEqual(["25", "8-K"]);
     const row = await repo.getSpac(50);
     expect(row?.status).toBe("completed");
     expect(row?.failed_date).toBeNull();
@@ -412,6 +416,49 @@ describe("processDeregistration", () => {
     expect(deals).toHaveLength(1);
     expect(deals[0]?.outcome).toBe("completed");
     expect(deals[0]?.outcome_date).toBe("2025-12-22");
+  });
+
+  it("records Form 15 after an earlier completed 25-NSE as housekeeping, not liquidation", async () => {
+    await seedSpac(2032379);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2032379,
+      accession_number: "2032379-da",
+      filing_date: "2025-09-15",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2025-09-15" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2032379,
+      accession_number: "2032379-vote",
+      filing_date: "2026-04-30",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2026-04-30" }],
+    });
+    await processDeregistration({
+      cik: 2032379,
+      accession_number: "2032379-nse",
+      form: "25-NSE",
+      filing_date: "2026-05-08",
+    });
+    expect((await repo.getSpac(2032379))?.status).toBe("completed");
+
+    await processDeregistration({
+      cik: 2032379,
+      accession_number: "2032379-15",
+      form: "15-12G",
+      filing_date: "2026-06-09",
+    });
+
+    const events = await repo.getEvents(2032379);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form).sort()).toEqual([
+      "15-12G",
+      "25-NSE",
+    ]);
+    expect((await repo.getSpac(2032379))?.status).toBe("completed");
+    expect((await repo.getSpac(2032379))?.failed_date).toBeNull();
   });
 
   it("replays a previously recorded deregistration as completed once a vote exists", async () => {

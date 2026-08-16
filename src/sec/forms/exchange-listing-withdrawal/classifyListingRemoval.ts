@@ -32,6 +32,8 @@ export interface ClassifyListingRemovalArgs {
   readonly filingDate: string;
   readonly pendingDeal?: ListingRemovalPendingDeal | null;
   readonly hasNearby20F?: boolean;
+  /** A `completed` event already exists on an earlier accession. */
+  readonly hasPriorCompleted?: boolean;
 }
 
 function isExchangeNse(form: string): boolean {
@@ -56,8 +58,10 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
  * same lifecycle event.
  *
  * Priority:
- * 1. A pending deal that has reached proxy or vote — the listing removal is
- *    post-close housekeeping (newco/FPI closes have no Item 2.01).
+ * 1. A pending deal that has reached proxy or vote, or a `completed` event
+ *    already on an earlier accession — the listing removal is post-close
+ *    housekeeping (newco/FPI closes have no Item 2.01; Form 15 after the
+ *    close-day 25-NSE is the same paperwork).
  * 2. Exchange 25-NSE shortly after a KNOWN IPO — units unbundle; the vehicle
  *    keeps searching (a second 25-NSE in that window is still a split).
  * 3. Exchange 25-NSE with a nearby Form 20-F — FPI close (the 20-F is the
@@ -93,7 +97,7 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
  * those — so the conservative branch loses very little.
  */
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
-  if (pendingReachedApproval(args.pendingDeal)) {
+  if (pendingReachedApproval(args.pendingDeal) || args.hasPriorCompleted === true) {
     return "completed";
   }
   const floorKnown = args.ipoDate != null && args.ipoDate !== "";

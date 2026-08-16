@@ -105,6 +105,20 @@ describe("classifyListingRemoval", () => {
     expect(classifyListingRemoval({ ...base, form: "25-NSE/A" })).toBe("unit_split");
   });
 
+  it("treats Form 15 after an earlier completed close as housekeeping, not a new liquidation", () => {
+    // Replay order: 25-NSE becomes `completed` first, so Form 15 no longer sees
+    // a pending deal. The listing removal is still post-close paperwork.
+    expect(
+      classifyListingRemoval({
+        form: "15-12G",
+        ipoDate: "2024-11-08",
+        filingDate: "2026-06-09",
+        pendingDeal: null,
+        hasPriorCompleted: true,
+      })
+    ).toBe("completed");
+  });
+
   it("treats Form 15 after a vote as completed close, not liquidation (Columbus Circle)", () => {
     expect(
       classifyListingRemoval({
