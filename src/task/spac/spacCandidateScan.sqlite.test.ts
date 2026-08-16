@@ -15,8 +15,10 @@ import type { Filing } from "../../storage/filing/FilingSchema";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
 import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
+import type { S1Classification } from "../../storage/classification/S1ClassificationSchema";
+import { getDb } from "../../util/db";
 import { classifySpacCandidate, type SpacCandidateFacts } from "./classifySpacCandidate";
-import { scanRepository, scanSpacCandidates } from "./spacCandidateScan";
+import { buildScanSql, scanRepository, scanSpacCandidates } from "./spacCandidateScan";
 
 const TEST_DB_NAME = "spac_candidate_scan_sqlite_test";
 const AT = "2026-08-02T12:00:00.000Z";
@@ -76,6 +78,17 @@ const filing = (cik: number, form: string, filing_date: string, seq: number): Fi
   is_inline_xbrl: null,
   items: null,
   act: null,
+});
+
+const classification = (cik: number, seq: number, sic: number | null): S1Classification => ({
+  extractor_id: "S-1",
+  accession_number: `0000000000-99-${String(seq).padStart(6, "0")}`,
+  cik,
+  sic,
+  sic_description: null,
+  is_spac: sic === 6770,
+  classifier_source: "sgml-header",
+  created_at: AT,
 });
 
 function byCik(facts: SpacCandidateFacts[]): SpacCandidateFacts[] {
@@ -152,6 +165,28 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     await entities.put(entity(7, "Beta Acquisition Corp", 6770));
     await filings.put(filing(7, "S-1", "2021-05-01", 7));
     await processed.put({ cik: 7, last_processed: "2020-01-01", success: true });
+
+    const classifications = globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN);
+
+    // 8 — the as-filed header SIC is the ONLY signal: a completed de-SPAC that
+    // renamed and recoded, so nothing else in the screen remembers it. This is
+    // the row the `filedSicMatch` predicate exists for.
+    await entities.put(entity(8, "Joby Aviation, Inc.", 3721));
+    await filings.put(filing(8, "S-1", "2020-08-01", 8));
+    await classifications.put(classification(8, 8, 6770));
+
+    // 9 — a parsed registration whose header carried NO SIC. `filed_sic_6770`
+    // must stay null ("not asked yet"), never false: the LEFT JOIN's non-match
+    // and the `WHERE sic IS NOT NULL` filter both have to hold for that.
+    await entities.put(entity(9, "Gamma Acquisition Corp", 6770));
+    await classifications.put(classification(9, 9, null));
+
+    // 10 — several parsed registrations, one of them 6770. The aggregate has
+    // to see the whole group, not whichever row it meets first.
+    await entities.put(entity(10, "Delta Acquisition Corp", 6770));
+    await classifications.put(classification(10, 100, 6199));
+    await classifications.put(classification(10, 101, 6770));
+    await classifications.put(classification(10, 102, null));
   }
 
   it("agrees with the repository twin on a full scan", async () => {
@@ -205,6 +240,44 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
 
     expect(facts.map((f) => f.cik)).not.toContain(4);
     expect(facts.map((f) => f.cik)).not.toContain(5);
+
+    // The as-filed header is the only signal that survives a completed de-SPAC.
+    expect(at(8)).toMatchObject({ current_sic: 3721, filed_sic_6770: true });
+    // Parsed, but the header carried no SIC — "not asked" is not "no".
+    expect(at(9).filed_sic_6770).toBeNull();
+    // One 6770 among several parsed registrations still answers true.
+    expect(at(10).filed_sic_6770).toBe(true);
+    // Nothing parsed at all is also null.
+    expect(at(1).filed_sic_6770).toBeNull();
+  });
+
+  it("reads s1_classification once, through the covering index", async () => {
+    await seed();
+    const { sql, params } = buildScanSql(
+      {},
+      (id) => `\`${id}\``,
+      () => "?"
+    );
+    const plan = getDb()
+      .prepare<(string | number)[], { id: number; parent: number; detail: string }>(
+        `EXPLAIN QUERY PLAN ${sql}`
+      )
+      .all(...params);
+
+    // Exactly one read of the table for the whole scan. The two correlated
+    // fragments this replaced (a SELECT-list scalar subquery and a WHERE
+    // EXISTS) each re-read `s1_classification` per candidate entity, and would
+    // show up here as two rows — including for a version that adds the index
+    // but keeps them correlated, which is why the count is the assertion and
+    // the index is only half of it.
+    const reads = plan.filter((r) => /\bs1_classification\b/.test(r.detail));
+    expect(reads.map((r) => r.detail)).toHaveLength(1);
+    expect(reads[0]!.detail).toMatch(/COVERING INDEX/);
+
+    // ...and it is materialized once rather than re-evaluated per outer row,
+    // which is what a `CORRELATED ... SUBQUERY` parent would mean.
+    const parent = plan.find((r) => r.id === reads[0]!.parent);
+    expect(parent?.detail).toMatch(/^MATERIALIZE/);
   });
 
   it("grades the scanned facts into the expected tiers", async () => {

@@ -23,11 +23,14 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
-    SEC_DB_TYPE: "sqlite",
-    SEC_DB_FOLDER: dbFolder,
-    SEC_DB_NAME: "edgar",
-  }));
+  return runCliProcess(
+    ["bun", "src/sec.ts", ...args],
+    cliEnv({
+      SEC_DB_TYPE: "sqlite",
+      SEC_DB_FOLDER: dbFolder,
+      SEC_DB_NAME: "edgar",
+    })
+  );
 }
 
 describe("resolve in-process with seeded data", () => {
@@ -219,6 +222,41 @@ describe("sec resolve CLI", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("runs the documented re-key ceremony step with no --resolver-version", async () => {
+    // CLAUDE.md's re-key ceremony step 3b, verbatim. It is the one step the
+    // docs mark REQUIRED and silent-if-skipped, so it must not require the
+    // operator to look up a semver mid-ceremony.
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(["resolve", "--kind", "company", "--all", "--renormalize"], dir);
+      expect(result.exitCode).toBe(0);
+      // The bootstrapped active slot, echoed so the operator sees which ran.
+      expect(result.stdout).toContain("resolved 0 company observation(s) at v1.0.0");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
+
+  it("an explicit --resolver-version still wins over the active slot", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
+    try {
+      const setup = await runCli(["db", "setup"], dir);
+      expect(setup.exitCode).toBe(0);
+
+      const result = await runCli(
+        ["resolve", "--kind", "company", "--resolver-version", "2.3.4", "--all"],
+        dir
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("resolved 0 company observation(s) at v2.3.4");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15000);
 
   it("resolve rejects nonsense --resolver-version 'not-a-version'", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-resolve-test-"));
