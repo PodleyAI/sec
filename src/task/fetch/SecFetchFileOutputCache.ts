@@ -5,9 +5,17 @@
  */
 
 import { mkdirSync } from "node:fs";
-import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { FetchUrlTaskOutput, TaskInput, TaskOutput, TaskOutputRepository } from "workglow";
+import type { CacheRef, StreamMode } from "workglow";
+import {
+  FetchUrlTaskOutput,
+  isCacheRef,
+  makeCacheRef,
+  TaskInput,
+  TaskOutput,
+  TaskOutputRepository,
+} from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { secDate, YYYYdMMdDD } from "../../util/parseDate";
 
@@ -45,6 +53,18 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
 
+/**
+ * Sibling path a write lands on before it is renamed into place. Unique per
+ * writer so two concurrent writers targeting one key cannot interleave bytes,
+ * and so a crashed writer's leftovers are never mistaken for a cache entry
+ * (nothing reads a `.tmp.` name).
+ */
+function tmpPathFor(filePath: string): string {
+  return `${filePath}.tmp.${process.pid}.${Date.now().toString(36)}.${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+}
+
 interface SecFetchFileOutputCacheOptions {
   folderPath: string;
   outputCompression?: boolean;
@@ -65,6 +85,75 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     mkdirSync(this.folderPath, { recursive: true });
   }
 
+  /**
+   * Streaming counterpart of {@link saveOutput}, and the probe
+   * `supportsStreaming()` keys on. Writes the bytes to the same path
+   * {@link inputToFileName} yields for a materializing fetch of the same
+   * document, so `sec spac download`'s `"stream"` fill and a later `"text"`
+   * read address one cache entry — and the streamed copy is the more faithful
+   * of the two, being the origin's bytes rather than a UTF-8 re-encode.
+   *
+   * Keeps saveOutput's tmp-then-rename discipline: a stream that errors
+   * mid-body must not rename a truncated file into place, where the next run
+   * would read the stump as a complete document with nothing marking it short.
+   */
+  async saveOutputStreamPort(
+    taskType: string,
+    inputs: TaskInput,
+    port: string,
+    mode: StreamMode,
+    chunks: AsyncIterable<Uint8Array>,
+    _metadata: Record<string, unknown>
+  ): Promise<CacheRef> {
+    const filePath = safeJoinWithinFolder(this.folderPath, this.inputToFileName(inputs));
+    if (isDryRun()) {
+      // No bytes are written, but the stream must still be drained: the
+      // producer is blocked on backpressure until someone reads it, and an
+      // abandoned fetch body would hang the run rather than no-op it.
+      let dryBytes = 0;
+      for await (const chunk of chunks) dryBytes += chunk.byteLength;
+      return makeCacheRef({ $ref: filePath, port, mode, size: dryBytes });
+    }
+    await mkdir(path.dirname(filePath), { recursive: true });
+    const tmpPath = tmpPathFor(filePath);
+
+    let size = 0;
+    // `fs/promises` rather than `Bun.file().writer()`: this repo's tests run
+    // under vitest on Node, where the Bun global does not exist.
+    const handle = await open(tmpPath, "w");
+    try {
+      for await (const chunk of chunks) {
+        await handle.write(chunk);
+        size += chunk.byteLength;
+      }
+      await handle.close();
+      await rename(tmpPath, filePath);
+    } catch (error) {
+      // Close before unlinking: on Windows a file with a live handle cannot be
+      // deleted, and a failed close must not mask the stream error.
+      await handle.close().catch(() => undefined);
+      await unlink(tmpPath).catch(() => undefined);
+      throw error;
+    }
+    this.emit("output_saved", taskType);
+    return makeCacheRef({ $ref: filePath, port, mode, size });
+  }
+
+  /**
+   * Reader counterpart of {@link saveOutputStreamPort}: resolves a ref this
+   * repo minted back to its bytes, so the runner can rehydrate a below-
+   * threshold body into an inline value.
+   */
+  async getOutputByRef(ref: CacheRef): Promise<Blob | undefined> {
+    const target = safeJoinWithinFolder(this.folderPath, path.relative(this.folderPath, ref.$ref));
+    try {
+      return new Blob([await readFile(target)]);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") return undefined;
+      throw error;
+    }
+  }
+
   outputSerializer(output: FetchUrlTaskOutput, response_type: string): any {
     if (response_type === "json") {
       return JSON.stringify(output.json);
@@ -83,7 +172,13 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     }
   }
 
-  outputDeserializer(data: any, response_type: string): FetchUrlTaskOutput {
+  outputDeserializer(data: any, response_type: string): FetchUrlTaskOutput | undefined {
+    if (response_type === "stream") {
+      // A "stream" fetch materializes no derived port — the file on disk IS
+      // the result and callers read it by path. The entry exists, so this is a
+      // hit carrying nothing, not a miss.
+      return {};
+    }
     const result: FetchUrlTaskOutput = {};
     if (response_type === "json") {
       result.json = JSON.parse(data as string);
@@ -102,6 +197,13 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
       const buf = data as Buffer;
       result.arraybuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     }
+    if (Object.keys(result).length === 0) {
+      // An unrecognized response_type filled no field. Handing back the empty
+      // object made getOutput report a cache HIT holding nothing, which reads
+      // downstream as "the document was empty" rather than "no entry" — the
+      // fetch is then skipped and the caller parses nothing.
+      return undefined;
+    }
     return result;
   }
 
@@ -117,14 +219,26 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     }
     const responseType = input.response_type as string;
     const filePath = safeJoinWithinFolder(this.folderPath, this.inputToFileName(input));
+
+    // The row save runs after the streaming sink, and both target this one
+    // path — so re-serializing here would overwrite the bytes the sink just
+    // committed. For "stream" there is no derived value to write at all and
+    // the overwrite would be an empty file; for the materializing types it
+    // would replace the origin's bytes with a re-encode of the value derived
+    // from them. Either way the streamed copy is the artifact, and the file
+    // the sink renamed into place is already the entry a later getOutput
+    // reads. `body` carrying a CacheRef is the evidence the sink ran.
+    if (responseType === "stream" || isCacheRef((output as FetchUrlTaskOutput).body)) {
+      this.emit("output_saved", taskType);
+      return;
+    }
+
     await mkdir(path.dirname(filePath), { recursive: true });
 
     // Write to a unique tmp file then atomically rename so an interrupted
     // write never produces a truncated cache entry, and so two concurrent
     // writers cannot interleave bytes targeting the same key.
-    const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now().toString(36)}.${Math.random()
-      .toString(36)
-      .slice(2, 10)}`;
+    const tmpPath = tmpPathFor(filePath);
     const isBinary = responseType === "blob" || responseType === "arraybuffer";
     let serialized = this.outputSerializer(output, responseType);
     if (responseType === "blob" && serialized instanceof Blob) {
@@ -169,8 +283,10 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
 
       const data = await readFile(filePath);
       if (data) {
+        const deserialized = this.outputDeserializer(data, inputs.response_type as string);
+        if (deserialized === undefined) return undefined;
         this.emit("output_retrieved", taskType);
-        return this.outputDeserializer(data, inputs.response_type as string);
+        return deserialized;
       }
     } catch (error) {
       // ENOENT is the expected "cache miss" path; surface anything else so

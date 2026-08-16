@@ -18,7 +18,9 @@ import { YYYYdMMdDD } from "../../util/parseDate";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 import { SecFetchTask } from "./SecFetchTask";
 
-export type response_type = "text" | "json" | "blob" | "arraybuffer";
+const RESPONSE_TYPES = ["stream", "text", "json", "blob", "arraybuffer"] as const;
+
+export type response_type = (typeof RESPONSE_TYPES)[number];
 export interface SecCachedFetchTaskInput {
   cik: number;
   date?: YYYYdMMdDD;
@@ -26,15 +28,25 @@ export interface SecCachedFetchTaskInput {
 }
 
 /**
- * File-cacheable fetch types. FetchUrlTask also accepts `"stream"`, which
- * materializes no derived port — SecFetchFileOutputCache cannot persist that.
+ * True for any type FetchUrlTask accepts. `"stream"` is included: it
+ * materializes no derived port, and {@link SecFetchFileOutputCache} sinks it
+ * through `saveOutputStreamPort` to the same path a materializing fetch of the
+ * same document would write — so a caller that only wants the bytes on disk
+ * (`sec spac download`) can ask for it and the cache still fills.
  */
-function isMaterializingResponseType(value: unknown): value is response_type {
-  return value === "text" || value === "json" || value === "blob" || value === "arraybuffer";
+function isResponseType(value: unknown): value is response_type {
+  return (RESPONSE_TYPES as readonly unknown[]).includes(value);
 }
 
+/**
+ * Resolves the response type for a request. A caller-supplied type is always
+ * honored — including `"stream"` — and the URL extension only decides for a
+ * caller that did not state one. `"stream"` is therefore never *guessed*:
+ * materializing is the safe default for a parser-facing fetch, and asking for
+ * bytes-only is an explicit decision about who reads the result.
+ */
 function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_type {
-  if (isMaterializingResponseType(input.response_type)) {
+  if (isResponseType(input.response_type)) {
     return input.response_type;
   }
   const url = new URL(urlstr);
@@ -97,7 +109,7 @@ export abstract class SecCachedFetchTask<
     // `defaults`/`runInputData`, so that downstream `execute()` calls and
     // any cache lookups see a consistent value.
     const fetchInput = this.defaults as FetchUrlTaskInput & I;
-    if (!isMaterializingResponseType(fetchInput.response_type)) {
+    if (!isResponseType(fetchInput.response_type)) {
       const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
       fetchInput.response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
