@@ -84,11 +84,14 @@ export function persistModelId(models: readonly ModelConfig[], modelIndex: numbe
  * Primary extract plus fallbacks for {@link makeRunSection}. Later models run
  * when the previous extract returned `[]` **or threw** a provider/extraction
  * error (abort, config, and mixed-shape re-asks stay on the throwing model).
+ * Pass `{ fallbackOnEmpty: false }` for detectors where `[]` is the expected
+ * negative (redemption / LOI) so a later model only runs on a throw.
  */
 export function modelExtractChain<TRow extends { confidence: number }>(
   models: readonly ModelConfig[],
-  extract: (text: string, model: ModelConfig) => Promise<TRow[]>
-): Pick<RunSectionArgs<TRow>, "extract" | "emptyExtracts" | "modelIds"> {
+  extract: (text: string, model: ModelConfig) => Promise<TRow[]>,
+  options?: { readonly fallbackOnEmpty?: boolean }
+): Pick<RunSectionArgs<TRow>, "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty"> {
   const primary = models[0];
   if (primary === undefined) {
     throw new Error("modelExtractChain requires at least one model");
@@ -97,5 +100,6 @@ export function modelExtractChain<TRow extends { confidence: number }>(
     extract: (text) => extract(text, primary),
     emptyExtracts: models.slice(1).map((m) => (text: string) => extract(text, m)),
     modelIds: models.map((m) => resolveModelId(m)).filter((id): id is string => id !== null),
+    ...(options?.fallbackOnEmpty === false ? { fallbackOnEmpty: false as const } : {}),
   };
 }

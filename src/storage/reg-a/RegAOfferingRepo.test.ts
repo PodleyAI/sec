@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { ALL_SECURITIES_OFFERED_TYPES } from "../../config/schemaRoundTripFixtures";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import type { RegAEquityClass } from "./RegAEquityClassSchema";
 import type { RegAFinancialData } from "./RegAFinancialDataSchema";
@@ -31,7 +32,7 @@ describe("RegAOfferingRepo", () => {
         sic_code: 7372,
         tier: "Tier1",
         financial_statement_audit_status: "Audited",
-        securities_offered_type: "Equity (common or preferred stock)",
+        securities_offered_type: ["Equity (common or preferred stock)"],
         industry_group: "Other",
         status: "pending",
         as_of: null,
@@ -55,7 +56,7 @@ describe("RegAOfferingRepo", () => {
         sic_code: 7372,
         tier: "Tier1",
         financial_statement_audit_status: "Audited",
-        securities_offered_type: "Equity (common or preferred stock)",
+        securities_offered_type: ["Equity (common or preferred stock)"],
         industry_group: "Other",
         status: "pending",
         as_of: null,
@@ -152,7 +153,7 @@ describe("RegAOfferingRepo", () => {
         sic_code: 7372,
         tier: "Tier2",
         financial_statement_audit_status: "Audited",
-        securities_offered_type: "Equity (common or preferred stock)",
+        securities_offered_type: ["Equity (common or preferred stock)"],
         industry_group: "Other",
         status: existing?.status ?? "pending",
         as_of: filing_date || existing?.as_of || null,
@@ -198,6 +199,39 @@ describe("RegAOfferingRepo", () => {
         expect(final?.as_of).toBe("2024-06-01");
         expect(final?.status).toBe("reporting");
       }
+    });
+
+    it("carries a multi-value securities_offered_type through a same-date replay", async () => {
+      // A 1-A filer selecting several securities is the case the column was
+      // widened AND re-typed for. `isStaleByAsOf` admits an equal date (an
+      // amendment filed the same day), so a replay re-runs `build` — the list
+      // has to survive that, element for element, not just the first write.
+      const multi = [...ALL_SECURITIES_OFFERED_TYPES];
+      const save = () =>
+        repo.saveOfferingAsOf(CIK, FN, "2024-02-02", (existing) => ({
+          cik: CIK,
+          file_number: FN,
+          issuer_name: "Multi Select Inc",
+          jurisdiction: "DE",
+          sic_code: null,
+          tier: "Tier2",
+          financial_statement_audit_status: null,
+          securities_offered_type: existing?.securities_offered_type ?? multi,
+          industry_group: null,
+          status: "pending",
+          as_of: "2024-02-02",
+        }));
+
+      await save();
+      await save();
+
+      const stored = (await repo.getOffering(CIK, FN))?.securities_offered_type;
+      expect(Array.isArray(stored)).toBe(true);
+      expect(stored).toHaveLength(multi.length);
+      multi.forEach((value, i) => expect(stored?.[i]).toBe(value));
+      // The very failure the re-type exists to prevent: a stringified literal
+      // truncated at the old 100-char width.
+      expect(multi.join(",").length).toBeGreaterThan(100);
     });
   });
 
@@ -351,7 +385,7 @@ describe("RegAOfferingRepo", () => {
         sic_code: 7372,
         tier: "Tier1",
         financial_statement_audit_status: "Audited",
-        securities_offered_type: "Equity (common or preferred stock)",
+        securities_offered_type: ["Equity (common or preferred stock)"],
         industry_group: "Other",
         status: "pending",
         as_of: null,

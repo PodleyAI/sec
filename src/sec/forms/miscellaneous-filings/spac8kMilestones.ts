@@ -20,9 +20,10 @@ export interface MilestoneMapContext {
   readonly ipoDate: string | null;
   /**
    * S-1/DRS registration date, the fallback floor when `ipoDate` is unknown.
-   * `ipo_date` is only ever written from a 424B1/424B4 whose SGML header codes
-   * SIC 6770, so a SPAC row minted by the S-1 AI content classifier (a
-   * SIC-miscoded filer) legitimately has none.
+   * `ipo_date` is written from a priced prospectus (424B1/B4, or a 424B3 for a
+   * known SPAC that has not already IPOed). A SPAC row minted by the S-1 AI
+   * content classifier (a SIC-miscoded filer) legitimately has none until that
+   * prospectus is processed.
    */
   readonly registrationDate: string | null;
   readonly exhibits: readonly SubmissionExhibit[];

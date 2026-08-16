@@ -61,6 +61,26 @@ const REAL_HEADINGS: ReadonlyArray<{
   { heading: "Summary Terms of The Offering", expect: S1_SECTIONS.THE_OFFERING, cik: "-" },
   // A SPAC that brands its roster rather than titling it.
   { heading: "Our Team", expect: S1_SECTIONS.MANAGEMENT, cik: "1828108" },
+  // Live 2134856 Karman Line: the roster sits under a FINRA-style conflicts
+  // qualifier, same dash family as UNDERWRITING—CONFLICTS OF INTEREST.
+  {
+    heading: "Management — Conflicts of Interest",
+    expect: S1_SECTIONS.MANAGEMENT,
+    cik: "2134856",
+  },
+  {
+    heading: "MANAGEMENT—CONFLICTS OF INTEREST",
+    expect: S1_SECTIONS.MANAGEMENT,
+    cik: "2134856",
+  },
+  // The actual Karman SectionNode title — converter emits this, not the
+  // "Management — Conflicts of Interest" cross-refs in body prose.
+  {
+    heading: "MANAGEMENT AND ADVISORS",
+    expect: S1_SECTIONS.MANAGEMENT,
+    cik: "2134856",
+  },
+  { heading: "Management and Advisors", expect: S1_SECTIONS.MANAGEMENT, cik: "2134856" },
 ];
 
 /**
@@ -74,6 +94,7 @@ const NOT_HEADINGS: readonly string[] = [
   "See “Certain Transactions” for a description of these arrangements.",
   "Summary of the Offering Terms and Conditions of the Units Being Offered",
   "Our team has completed six acquisitions.",
+  "See Management — Conflicts of Interest for a discussion of these arrangements.",
 ];
 
 describe("S-1 section heading patterns", () => {

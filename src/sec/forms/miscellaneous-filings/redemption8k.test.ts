@@ -98,6 +98,76 @@ describe("processRedemption8K", () => {
     expect(deals[0].redemption_shares).toBe(1234567);
   });
 
+  it("a confident negative writes nothing and auto-resolves the MODEL_EMPTY dead-letter", async () => {
+    await seedSpacWithOpenDeal(70);
+    const registration = registerFakeStructuredProvider([
+      {
+        redemption_shares: null,
+        redemption_amount: null,
+        price_per_share: null,
+        confidence: 0.95,
+        source_span: null,
+      },
+    ]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 70,
+      accession_number: "0000000000-26-000070",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000070")
+    ).toBeUndefined();
+
+    const dl = await new ExtractionDeadLetterRepo().get(
+      "redemption",
+      "0000000000-26-000070",
+      "redemption"
+    );
+    expect(dl?.reason_code).toBe("MODEL_EMPTY");
+    expect(dl?.status).toBe("resolved");
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const run = await runRepo.findRun(70, "0000000000-26-000070", "redemption", "1.0.0");
+    expect(run?.success).toBe(true);
+  });
+
+  it("leaves MODEL_INVALID_OUTPUT pending — grok schema failures are not expected negatives", async () => {
+    await seedSpacWithOpenDeal(71);
+    const registration = registerFakeStructuredProvider([
+      new Error("response did not match schema"),
+    ]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 71,
+      accession_number: "0000000000-26-000071",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000071")
+    ).toBeUndefined();
+
+    const dl = await new ExtractionDeadLetterRepo().get(
+      "redemption",
+      "0000000000-26-000071",
+      "redemption"
+    );
+    expect(dl?.reason_code).toBe("MODEL_INVALID_OUTPUT");
+    expect(dl?.status).toBe("pending");
+  });
+
   it("writes nothing without a trigger item", async () => {
     await seedSpacWithOpenDeal(43);
     const registration = registerFakeStructuredProvider([

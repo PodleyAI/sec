@@ -15,6 +15,8 @@ import {
   newFormsWorklistTask,
   parseShardOption,
 } from "../../task/forms/formsSweep";
+import { FetchQuarterlyIndexRangeTask } from "../../task/index/FetchQuarterlyIndexRangeTask";
+import { StoreCikLastUpdatedTask } from "../../task/index/StoreCikLastUpdatedTask";
 import { BackfillNameHistoryTask } from "../../task/submissions/BackfillNameHistoryTask";
 import { BootstrapSubmissionsTask } from "../../task/submissions/BootstrapSubmissionsTask";
 import { runCommand } from "../runCommand";
@@ -151,6 +153,50 @@ export function addBootstrapCommands(program: Command): void {
         );
       });
     });
+
+  bootstrap
+    .command("quarterly-index <startYear> [startQuarter] [endYear] [endQuarter]")
+    .description(
+      "Seed cik_last_update from EDGAR quarterly master indexes — the watermark `update submissions` / `update facts` select on"
+    )
+    .action(
+      async (
+        startYear: string,
+        startQuarter: string | undefined,
+        endYear: string | undefined,
+        endQuarter: string | undefined
+      ) => {
+        await runCommand(async () => {
+          const num = (label: string, raw: string | undefined, lo: number, hi: number) => {
+            if (raw === undefined) return undefined;
+            const n = Number(raw);
+            if (!Number.isInteger(n) || n < lo || n > hi) {
+              throw new Error(`Invalid ${label} "${raw}": expected an integer in ${lo}..${hi}.`);
+            }
+            return n;
+          };
+          // Bound the year at the current one rather than an open range: a
+          // typo'd 2206 would otherwise sweep 180 quarters of 404s against the
+          // rate limiter before anyone noticed.
+          const thisYear = new Date().getFullYear();
+          const defaults = {
+            startYear: num("start year", startYear, 1993, thisYear)!,
+            startQuarter: num("start quarter", startQuarter, 1, 4),
+            endYear: num("end year", endYear, 1993, thisYear),
+            endQuarter: num("end quarter", endQuarter, 1, 4),
+          };
+
+          // The range task only EMITS the (cik, last_filing_date) pairs; the
+          // store task is what persists them. They are separate tasks because
+          // the daily-index path in `sync` reuses the same writer, so the two
+          // index cadences cannot drift on how the watermark is written.
+          await runWorkflowCli([
+            new FetchQuarterlyIndexRangeTask({ defaults }),
+            new StoreCikLastUpdatedTask(),
+          ]);
+        });
+      }
+    );
 
   bootstrap
     .command("name-history")

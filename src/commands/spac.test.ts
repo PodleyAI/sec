@@ -64,6 +64,7 @@ describe("spacProcessRows", () => {
         processed: [5, 0, 0],
         partial: [0, 0, 0],
         failed: [0, 0, 0],
+        nonfatal: [0, 0, 0],
         triage: [0, 0, 0],
         triageExtractors: ["", "", ""],
         firstDate: ["2021-01-01", "", "2022-01-01"],
@@ -77,6 +78,7 @@ describe("spacProcessRows", () => {
         processed: 5,
         partial: 0,
         failed: 0,
+        nonfatal: 0,
         triage: 0,
         triageExtractors: "",
         firstDate: "2021-01-01",
@@ -89,6 +91,7 @@ describe("spacProcessRows", () => {
         processed: 0,
         partial: 0,
         failed: 0,
+        nonfatal: 0,
         triage: 0,
         triageExtractors: "",
         firstDate: "",
@@ -101,6 +104,7 @@ describe("spacProcessRows", () => {
         processed: 0,
         partial: 0,
         failed: 0,
+        nonfatal: 0,
         triage: 0,
         triageExtractors: "",
         firstDate: "2022-01-01",
@@ -141,6 +145,7 @@ describe("spacProcessRows", () => {
           processed: 0,
           partial: 0,
           failed: 0,
+          nonfatal: 0,
           triage: 0,
           triageExtractors: "",
           firstDate: "",
@@ -161,6 +166,7 @@ describe("formatSpacProcessSummary", () => {
         processed: 52,
         partial: 0,
         failed: 0,
+        nonfatal: 0,
         triage: 0,
         triageExtractors: "",
         firstDate: "2020-09-23",
@@ -178,6 +184,7 @@ describe("formatSpacProcessSummary", () => {
         processed: 51,
         partial: 1,
         failed: 0,
+        nonfatal: 0,
         triage: 11,
         triageExtractors: "S-1,424",
         firstDate: "2020-09-23",
@@ -198,6 +205,7 @@ describe("formatSpacProcessSummary", () => {
           processed: 0,
           partial: 0,
           failed: 0,
+          nonfatal: 0,
           triage: 0,
           triageExtractors: "",
           firstDate: "2020-09-23",
@@ -207,6 +215,24 @@ describe("formatSpacProcessSummary", () => {
         { dryRun: true }
       )
     ).toBe("1822912: would replay 52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
+
+  it("names ownership-form misses as nonfatal so they cannot read as failed", () => {
+    expect(
+      formatSpacProcessSummary({
+        cik: 1822912,
+        matched: 52,
+        processed: 50,
+        partial: 0,
+        failed: 0,
+        nonfatal: 2,
+        triage: 0,
+        triageExtractors: "",
+        firstDate: "2020-09-23",
+        lastDate: "2023-10-03",
+        error: "",
+      })
+    ).toBe("1822912: 50/52 filings (2020-09-23 \u2192 2023-10-03); 2 nonfatal");
   });
 });
 
@@ -238,6 +264,7 @@ describe("spacProcessFailureCount", () => {
     processed: 52,
     partial: 0,
     failed: 0,
+    nonfatal: 0,
     triage: 0,
     triageExtractors: "",
     firstDate: "2020-09-23",
@@ -251,6 +278,10 @@ describe("spacProcessFailureCount", () => {
     // dead-letters, so counting it made a non-zero exit the default for
     // essentially every real SPAC.
     expect(spacProcessFailureCount([row({ partial: 1, processed: 51 })])).toBe(0);
+  });
+
+  it("does not count a nonfatal-only issuer", () => {
+    expect(spacProcessFailureCount([row({ nonfatal: 3, processed: 49 })])).toBe(0);
   });
 
   it("counts an issuer with failed filings", () => {

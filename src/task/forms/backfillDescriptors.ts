@@ -10,6 +10,8 @@ import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
 import { classifyListingRemoval } from "../../sec/forms/exchange-listing-withdrawal/classifyListingRemoval";
+import { hasNearby20F } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { pendingDealBefore } from "../../storage/spac/spacDealGrouping";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 
@@ -140,11 +142,14 @@ const mergerProxyDescriptor: BackfillDescriptor = {
 /**
  * Candidates for Form 25/15 recovery: known-SPAC listing-withdrawal and
  * Exchange Act termination filings. `filterTodo` keeps those with no
- * `deregistration` or `unit_split` event for the accession: the known-SPAC
- * gate records a `success: true` no-op when the spac row does not exist at
- * ingestion, so the default extractor-runs anti-join would never revisit them
- * after the S-1 lands. A 25-NSE shortly after IPO writes `unit_split` rather
- * than `deregistration`.
+ * `deregistration`, `unit_split`, or `completed` event matching how the
+ * classifier would label the filing today: the known-SPAC gate records a
+ * `success: true` no-op when the spac row does not exist at ingestion, so the
+ * default extractor-runs anti-join would never revisit them after the S-1
+ * lands. A 25-NSE shortly after IPO writes `unit_split`; a close-day 25-NSE
+ * or Form 15 after a vote/proxy writes `completed`. A previously recorded
+ * `deregistration` that would now classify as `unit_split` or `completed`
+ * is re-selected so replay can reclassify.
  */
 const deregistrationDescriptor: BackfillDescriptor = {
   extractorId: "25-15",
@@ -153,6 +158,7 @@ const deregistrationDescriptor: BackfillDescriptor = {
     const repo = new SpacRepo();
     const eventsByCik = new Map<number, SpacEvent[]>();
     const ipoByCik = new Map<number, string | null>();
+    const nearby20FByKey = new Map<string, boolean>();
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
       let events = eventsByCik.get(c.cik);
@@ -166,20 +172,38 @@ const deregistrationDescriptor: BackfillDescriptor = {
       const hasUnitSplit = events.some(
         (e) => e.event_type === "unit_split" && e.accession_number === c.accession_number
       );
+      const hasCompleted = events.some(
+        (e) => e.event_type === "completed" && e.accession_number === c.accession_number
+      );
       if (c.form && c.filing_date) {
         if (!ipoByCik.has(c.cik)) {
           ipoByCik.set(c.cik, (await repo.getSpac(c.cik))?.ipo_date ?? null);
+        }
+        const nearbyKey = `${c.cik}:${c.filing_date}`;
+        if (!nearby20FByKey.has(nearbyKey)) {
+          nearby20FByKey.set(nearbyKey, await hasNearby20F(c.cik, c.filing_date));
         }
         const kind = classifyListingRemoval({
           form: c.form,
           ipoDate: ipoByCik.get(c.cik) ?? null,
           filingDate: c.filing_date,
+          pendingDeal: pendingDealBefore(c.cik, events, {
+            event_date: c.filing_date,
+            accession_number: c.accession_number,
+          }),
+          hasNearby20F: nearby20FByKey.get(nearbyKey) === true,
         });
-        if (kind === "unit_split" ? hasUnitSplit : hasDeregistration) continue;
+        const alreadyRecorded =
+          kind === "unit_split"
+            ? hasUnitSplit
+            : kind === "completed"
+              ? hasCompleted
+              : hasDeregistration;
+        if (alreadyRecorded) continue;
         todo.push(c);
         continue;
       }
-      if (!hasDeregistration && !hasUnitSplit) todo.push(c);
+      if (!hasDeregistration && !hasUnitSplit && !hasCompleted) todo.push(c);
     }
     return todo;
   },

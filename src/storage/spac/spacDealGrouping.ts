@@ -220,13 +220,15 @@ export function deriveDeals(
         break;
       }
       case "proxy": {
-        if (open) {
-          if (open.proxy_date == null || e.event_date > open.proxy_date) {
-            open.proxy_date = e.event_date;
-          }
-          open.source_accession = e.accession_number;
+        // A definitive merger proxy is itself a combination attempt. SPACs
+        // that skip a merger-shaped Item 1.01 (no EX-2, or the DA lived on a
+        // 6-K) still file DEFM14A; leaving that event timeline-only kept
+        // status at `ipo` with a null proxy_date.
+        if (!open) open = openNew(e);
+        if (open.proxy_date == null || e.event_date > open.proxy_date) {
+          open.proxy_date = e.event_date;
         }
-        // No open deal -> proxy with no announced deal: timeline-only.
+        open.source_accession = e.accession_number;
         break;
       }
     }
@@ -330,10 +332,11 @@ export function deriveDeals(
   }));
 }
 
-/** The pending-deal facts an 8-K item classifier needs. */
+/** The pending-deal facts an 8-K item classifier and listing-removal need. */
 export interface PendingDealBefore {
   readonly definitive_agreement_date: string | null;
   readonly proxy_date: string | null;
+  readonly vote_date: string | null;
 }
 
 /**
@@ -370,6 +373,7 @@ export function pendingDealBefore(
       return {
         definitive_agreement_date: d.definitive_agreement_date,
         proxy_date: d.proxy_date,
+        vote_date: d.vote_date,
       };
     }
   }

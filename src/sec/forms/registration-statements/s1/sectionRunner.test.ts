@@ -447,6 +447,80 @@ describe("makeRunSection confidenceFloor", () => {
     expect(details[0]).toBe("no underwriters returned (tried claude-sonnet-5, claude-haiku-4-5)");
   });
 
+  it("does not try emptyExtracts on [] when fallbackOnEmpty is false", async () => {
+    const { repo, letters } = stubDeadLetters();
+    const calls: string[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "redemption",
+      extractor_version: "1.1.0",
+      accession_number: "acc-empty-no-fallback",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "redemption",
+      text: "The Company announced the closing of its initial business combination.",
+      emptyDetail: "no redemption returned",
+      lowConfidenceDetail: "low",
+      fallbackOnEmpty: false,
+      extract: async () => {
+        calls.push("primary");
+        return [];
+      },
+      emptyExtracts: [
+        async () => {
+          calls.push("fallback");
+          return [{ confidence: 0.9, span: "closing of its initial business combination" }];
+        },
+      ],
+      modelIds: ["gpt-5.6-luna", "grok-4.6"],
+      persist: async () => 0,
+    });
+
+    expect(calls).toEqual(["primary"]);
+    expect(letters).toEqual([{ section_name: "redemption", reason_code: "MODEL_EMPTY" }]);
+  });
+
+  it("tries emptyExtracts on throw even when fallbackOnEmpty is false", async () => {
+    const { repo, letters, resolved } = stubDeadLetters();
+    const calls: string[] = [];
+    const persisted: string[] = [];
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "redemption",
+      extractor_version: "1.1.0",
+      accession_number: "acc-throw-still-fallback",
+    });
+    await runSection<{ confidence: number; span: string }>({
+      sectionName: "redemption",
+      text: "Holders of 1,000,000 shares exercised their redemption rights.",
+      emptyDetail: "no redemption returned",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.span),
+      fallbackOnEmpty: false,
+      extract: async () => {
+        calls.push("primary");
+        throw new Error("Provider OPENAI failed: 400 no credits remaining");
+      },
+      emptyExtracts: [
+        async () => {
+          calls.push("fallback");
+          return [{ confidence: 0.9, span: "1,000,000 shares" }];
+        },
+      ],
+      modelIds: ["gpt-5.6-luna", "grok-4.6"],
+      persist: async (rows) => {
+        persisted.push(...rows.map((r) => r.span));
+        return rows.length;
+      },
+    });
+
+    expect(calls).toEqual(["primary", "fallback"]);
+    expect(persisted).toEqual(["1,000,000 shares"]);
+    expect(letters).toEqual([]);
+    expect(resolved).toContain("redemption");
+  });
+
   it("tries emptyExtracts when the primary extract throws a provider error", async () => {
     const { repo, letters, resolved } = stubDeadLetters();
     const calls: string[] = [];

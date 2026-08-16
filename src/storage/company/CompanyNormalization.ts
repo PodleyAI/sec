@@ -243,6 +243,21 @@ export function normalizeCompanyName(name: string): string | null {
 }
 
 /**
+ * Names that are not a legal entity: blank, legal-form-only ("Company", "Inc."),
+ * or an issuer self-reference ("the Company" / "a Company") that the legal-form
+ * strip leaves as a stranded article ("the" / "a" / "an").
+ *
+ * Related-party / underwriter persist treats these as unnamed group rows rather
+ * than minting a canonical company.
+ */
+export function isUnnamedCompanyName(name: string | null | undefined): boolean {
+  const trimmed = (name ?? "").trim();
+  if (trimmed === "") return true;
+  const n = (normalizeCompanyName(trimmed) ?? "").trim().toLowerCase();
+  return n === "" || n === "the" || n === "a" || n === "an";
+}
+
+/**
  * A derived, hyphenated slug of an already-normalized company name.
  *
  * **Not persisted, and NOT the company identity key.** No table stores it: the

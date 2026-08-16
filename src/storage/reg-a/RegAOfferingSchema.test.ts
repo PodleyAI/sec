@@ -27,7 +27,15 @@ import { RegAOfferingSchema } from "./RegAOfferingSchema";
  */
 describe("RegAOfferingSchema.securities_offered_type", () => {
   const xsd = readFileSync(
-    join(__dirname, "..", "..", "sec", "forms", "exempt-offerings", "Form_1_A.definition.filer.xsd"),
+    join(
+      __dirname,
+      "..",
+      "..",
+      "sec",
+      "forms",
+      "exempt-offerings",
+      "Form_1_A.definition.filer.xsd"
+    ),
     "utf-8"
   );
 
@@ -38,7 +46,10 @@ describe("RegAOfferingSchema.securities_offered_type", () => {
   });
 
   it("is an array type in the storage schema", () => {
-    const prop = RegAOfferingSchema.properties.securities_offered_type as Record<string, unknown>;
+    const prop = RegAOfferingSchema.properties.securities_offered_type as unknown as Record<
+      string,
+      unknown
+    >;
     const branches = (Array.isArray(prop.anyOf) ? prop.anyOf : [prop]) as Array<
       Record<string, unknown>
     >;
@@ -51,7 +62,10 @@ describe("RegAOfferingSchema.securities_offered_type", () => {
   it("declares no maxLength", () => {
     // A length bound here would be the old bug wearing a different hat: the
     // constraint that matters is the enumeration, not a character count.
-    const prop = RegAOfferingSchema.properties.securities_offered_type as Record<string, unknown>;
+    const prop = RegAOfferingSchema.properties.securities_offered_type as unknown as Record<
+      string,
+      unknown
+    >;
     const branches = (Array.isArray(prop.anyOf) ? prop.anyOf : [prop]) as Array<
       Record<string, unknown>
     >;
@@ -69,9 +83,10 @@ describe("toSecuritiesOfferedTypes", () => {
   });
 
   it("passes a multi-selection through", () => {
-    expect(
-      toSecuritiesOfferedTypes(["Equity (common or preferred stock)", "Debt"])
-    ).toEqual(["Equity (common or preferred stock)", "Debt"]);
+    expect(toSecuritiesOfferedTypes(["Equity (common or preferred stock)", "Debt"])).toEqual([
+      "Equity (common or preferred stock)",
+      "Debt",
+    ]);
   });
 
   it("holds the longest real combination without truncating", () => {

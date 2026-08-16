@@ -30,8 +30,9 @@ import type { RunSection } from "./sectionRunner";
 import { modelExtractChain, persistModelId } from "./s1Model";
 import type { UnderwriterRowOut } from "./underwriterSchema";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
-import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
 import { normalizeFamilyName } from "../../../../resolver/FamilyResolver";
+import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
+import { isUnnamedCompanyName } from "../../../../storage/company/CompanyNormalization";
 import {
   parentClauseSourceContext,
   splitParentClause,
@@ -460,6 +461,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
         const r = rows[i]!;
         const split = splits[i]!;
         if (split.observationName === "") continue;
+        if (isUnnamedCompanyName(split.observationName)) continue;
         // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
         // & Co.") is one house, not two. Inc vs Limited of the same house are
         // equal-length family keys and are not dropped.

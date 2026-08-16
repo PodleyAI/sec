@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeCompany,
   normalizeCompanyName,
+  isUnnamedCompanyName,
   hasCompanyEnding,
   hasCompanyAnywhere,
   isCompanyEnding,
@@ -342,6 +343,21 @@ describe("CompanyNormalization", () => {
 
     it("leaves a slash that is part of the name", () => {
       expect(normalizeCompanyName("A/B Holdings")).toBe("A/B Holdings");
+    });
+  });
+
+  describe("isUnnamedCompanyName", () => {
+    it("treats issuer self-references as unnamed after the legal-form strip", () => {
+      expect(isUnnamedCompanyName("the Company")).toBe(true);
+      expect(isUnnamedCompanyName("The Company")).toBe(true);
+      expect(isUnnamedCompanyName("a Company")).toBe(true);
+      expect(isUnnamedCompanyName("Company")).toBe(true);
+      expect(isUnnamedCompanyName("the")).toBe(true);
+    });
+
+    it("does not treat a real house name as unnamed", () => {
+      expect(isUnnamedCompanyName("Acme Holdings")).toBe(false);
+      expect(isUnnamedCompanyName("The Acme Company")).toBe(false);
     });
   });
 });

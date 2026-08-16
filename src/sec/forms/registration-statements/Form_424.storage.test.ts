@@ -12,10 +12,11 @@ import { CompanyObservationRepo } from "../../../storage/observation/CompanyObse
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { ipoProceeds, ipoTrustAmount, processForm424 } from "./Form_424.storage";
+import { ipoProceeds, ipoTrustAmount, isPricedIpoProspectus, processForm424 } from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { offeringSectionNames } from "./s1/offeringSections";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
@@ -390,6 +391,79 @@ offering price of $10.00.</p>
       // No spac row (this filing didn't create one).
       expect(await new SpacRepo().getSpac(CIK)).toBeUndefined();
     });
+
+    it("records an IPO from a 424B3 when a spac row exists and ipo_date is still null", async () => {
+      // Aimfinity / Spring Valley III: the IPO prospectus is a 424B3, not B1/B4.
+      await new SpacReportWriter().recordRegistration({
+        cik: CIK,
+        accession_number: S1_ACCESSION,
+        filing_date: "2025-08-01",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Synthetic SPAC Corp",
+        spac_sic: 6770,
+      });
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_date).toBeNull();
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2025-09-04",
+        primary_doc: "424b3.htm",
+        form: "424B3",
+        form424: {
+          header: NULL_HEADER,
+          html: "<h1>PROSPECTUS</h1><p>$80,500,000</p><p>8,050,000 Units</p>",
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac?.ipo_date).toBe("2025-09-04");
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+    });
+
+    it("does NOT record a second IPO from a later 424B3 once ipo_date is set", async () => {
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2026-04-28",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_date).toBe("2026-04-28");
+
+      const later = "0000000000-26-000803";
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: later,
+        filing_date: "2026-05-15",
+        primary_doc: "424b3.htm",
+        form: "424B3",
+        form424: {
+          header: SPAC_HEADER,
+          html: "<h1>PROSPECTUS SUPPLEMENT</h1><p>Additional shares.</p>",
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+      const dl = await new ExtractionDeadLetterRepo().listPending("424");
+      expect(dl.filter((d) => d.accession_number === later)).toEqual([]);
+    });
   });
 
   it("handles a 424 with no XBRL anywhere (fees prepaid at registration)", async () => {
@@ -502,5 +576,37 @@ describe("ipoTrustAmount", () => {
         trust_total: null,
       })
     ).toBeNull();
+  });
+});
+
+describe("isPricedIpoProspectus", () => {
+  const noIpo = { knownSpac: false, ipoDate: null, headerSic: null };
+
+  it("treats 424B1 and 424B4 as priced regardless of SPAC state", () => {
+    expect(isPricedIpoProspectus("424B4", noIpo)).toBe(true);
+    expect(isPricedIpoProspectus("424B1", noIpo)).toBe(true);
+  });
+
+  it("does not treat shelf takedowns as priced", () => {
+    expect(isPricedIpoProspectus("424B2", { ...noIpo, headerSic: 6770 })).toBe(false);
+    expect(isPricedIpoProspectus("424B5", { ...noIpo, knownSpac: true })).toBe(false);
+  });
+
+  it("treats 424B3 as priced for a known SPAC that has not IPOed", () => {
+    expect(isPricedIpoProspectus("424B3", { knownSpac: true, ipoDate: null, headerSic: null })).toBe(
+      true
+    );
+  });
+
+  it("treats 424B3 as priced when the header is SIC 6770 even without a spac row", () => {
+    expect(isPricedIpoProspectus("424B3", { knownSpac: false, ipoDate: null, headerSic: 6770 })).toBe(
+      true
+    );
+  });
+
+  it("does not treat a later 424B3 as priced once ipo_date is set", () => {
+    expect(
+      isPricedIpoProspectus("424B3", { knownSpac: true, ipoDate: "2025-09-04", headerSic: 6770 })
+    ).toBe(false);
   });
 });

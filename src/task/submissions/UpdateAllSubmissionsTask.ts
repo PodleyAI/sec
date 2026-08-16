@@ -55,11 +55,20 @@ export class UpdateAllSubmissionsTask extends Task<
       PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
     );
 
+    // getAll() rather than query({}, …): the tabular backend rejects an empty
+    // criteria object ("Query criteria must not be empty. Use getAll()"), which
+    // is exactly the all-rows read we want here.
+    //
+    // The `query({}, …)` form threw unconditionally — it is the criteria that is
+    // rejected, not the result — so this command could never complete, and
+    // neither could the `sync` pipeline that runs it third. It went unnoticed
+    // because `cik_last_update` was empty on every database anyone ran it
+    // against, so the command looked like a no-op rather than a failure.
+    // UpdateAllCompanyFactsTask already carried this fix; the two had drifted.
     const allCikUpdates =
-      (await cikLastUpdateRepo.query(
-        {},
-        { orderBy: [{ column: "last_update", direction: "DESC" }] }
-      )) ?? [];
+      (await cikLastUpdateRepo.getAll({
+        orderBy: [{ column: "last_update", direction: "DESC" }],
+      })) ?? [];
 
     const needsUpdating: { cik: number; last_update: string }[] = [];
     const needsInitialProcessing: { cik: number; last_update: string }[] = [];

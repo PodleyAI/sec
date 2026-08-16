@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -52,6 +53,7 @@ describe("processDeregistration", () => {
       signal_sic_6770: true,
       signal_name_match: true,
       signal_renamed_from: null,
+      signal_filed_sic_6770: true,
       first_reg_form: "S-1",
       first_reg_date: "2020-11-01",
       reg_while_spac_named: true,
@@ -119,6 +121,65 @@ describe("processDeregistration", () => {
     expect(row?.status).toBe("searching");
     expect(row?.unit_split_date).toBe("2021-03-01");
     expect(row?.failed_date).toBeNull();
+  });
+
+  it("does not liquidate a SPAC whose ipo_date is unknown", async () => {
+    // The AI-content-classifier shape: `recordIpo` is gated on a 424B1/424B4
+    // whose SGML header codes SIC 6770, so a SIC-miscoded SPAC minted from its
+    // S-1 has a registration and no ipo_date at all. Its routine unit
+    // separation must not read as a wind-up.
+    await new SpacReportWriter().recordRegistration({
+      cik: 2100001,
+      accession_number: "2100001-reg",
+      filing_date: "2026-01-05",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Miscoded Acquisition Corp",
+      spac_sic: 7389,
+    });
+    expect((await repo.getSpac(2100001))?.ipo_date).toBeNull();
+
+    await processDeregistration({
+      cik: 2100001,
+      accession_number: "2100001-nse",
+      form: "25-NSE",
+      filing_date: "2026-06-09",
+    });
+
+    const events = await repo.getEvents(2100001);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    const split = events.filter((e) => e.event_type === "unit_split");
+    expect(split).toHaveLength(1);
+    expect(split[0]?.accession_number).toBe("2100001-nse");
+
+    const row = await repo.getSpac(2100001);
+    expect(row?.status).not.toBe("liquidated");
+    expect(row?.failed_date).toBeNull();
+    expect(row?.unit_split_date).toBe("2026-06-09");
+  });
+
+  it("still liquidates on an issuer Form 25 when ipo_date is unknown", async () => {
+    // The allowance is exchange-only — a real wind-up files one of these.
+    await new SpacReportWriter().recordRegistration({
+      cik: 2100002,
+      accession_number: "2100002-reg",
+      filing_date: "2026-01-05",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Miscoded Acquisition Corp II",
+      spac_sic: 7389,
+    });
+
+    await processDeregistration({
+      cik: 2100002,
+      accession_number: "2100002-25",
+      form: "25",
+      filing_date: "2026-06-09",
+    });
+
+    const row = await repo.getSpac(2100002);
+    expect(row?.status).toBe("liquidated");
+    expect(row?.failed_date).toBe("2026-06-09");
   });
 
   it("records a unit_split for a 25-NSE shortly after IPO and does not liquidate", async () => {
@@ -261,7 +322,10 @@ describe("processDeregistration", () => {
     });
 
     const events = await repo.getEvents(50);
-    expect(events.some((e) => e.event_type === "deregistration")).toBe(true);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(
+      events.filter((e) => e.event_type === "completed").map((e) => e.form).toSorted()
+    ).toEqual(["25", "8-K"]);
     const row = await repo.getSpac(50);
     expect(row?.status).toBe("completed");
     expect(row?.failed_date).toBeNull();
@@ -311,8 +375,164 @@ describe("processDeregistration", () => {
       form: "25-NSE",
       filing_date: "",
     });
-    expect(await repo.getEvents(53).then((e) => e.filter((x) => x.event_type === "deregistration"))).toEqual(
-      []
+    expect(
+      await repo.getEvents(53).then((e) => e.filter((x) => x.event_type === "deregistration"))
+    ).toEqual([]);
+  });
+
+  it("records Form 15 after a vote as completed, not liquidation (Columbus Circle)", async () => {
+    await seedSpac(2056263);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2056263,
+      accession_number: "2056263-da",
+      filing_date: "2025-06-23",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2025-06-23" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2056263,
+      accession_number: "2056263-vote",
+      filing_date: "2025-12-03",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2025-12-03" }],
+    });
+
+    await processDeregistration({
+      cik: 2056263,
+      accession_number: "2056263-15",
+      form: "15-12G",
+      filing_date: "2025-12-22",
+    });
+
+    const events = await repo.getEvents(2056263);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form)).toEqual(["15-12G"]);
+    const row = await repo.getSpac(2056263);
+    expect(row?.status).toBe("completed");
+    expect(row?.failed_date).toBeNull();
+    const deals = await repo.getDeals(2056263);
+    expect(deals).toHaveLength(1);
+    expect(deals[0]?.outcome).toBe("completed");
+    expect(deals[0]?.outcome_date).toBe("2025-12-22");
+  });
+
+  it("records Form 15 after an earlier completed 25-NSE as housekeeping, not liquidation", async () => {
+    await seedSpac(2032379);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2032379,
+      accession_number: "2032379-da",
+      filing_date: "2025-09-15",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2025-09-15" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2032379,
+      accession_number: "2032379-vote",
+      filing_date: "2026-04-30",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2026-04-30" }],
+    });
+    await processDeregistration({
+      cik: 2032379,
+      accession_number: "2032379-nse",
+      form: "25-NSE",
+      filing_date: "2026-05-08",
+    });
+    expect((await repo.getSpac(2032379))?.status).toBe("completed");
+
+    await processDeregistration({
+      cik: 2032379,
+      accession_number: "2032379-15",
+      form: "15-12G",
+      filing_date: "2026-06-09",
+    });
+
+    const events = await repo.getEvents(2032379);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form).sort()).toEqual([
+      "15-12G",
+      "25-NSE",
+    ]);
+    expect((await repo.getSpac(2032379))?.status).toBe("completed");
+    expect((await repo.getSpac(2032379))?.failed_date).toBeNull();
+  });
+
+  it("replays a previously recorded deregistration as completed once a vote exists", async () => {
+    await seedSpac(2054174);
+    await new SpacReportWriter().recordDeregistration({
+      cik: 2054174,
+      accession_number: "2054174-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-26",
+    });
+    expect((await repo.getSpac(2054174))?.status).toBe("liquidated");
+
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2054174,
+      accession_number: "2054174-da",
+      filing_date: "2025-10-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2025-10-01" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2054174,
+      accession_number: "2054174-vote",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2026-03-20" }],
+    });
+
+    await processDeregistration({
+      cik: 2054174,
+      accession_number: "2054174-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-26",
+    });
+
+    const events = await repo.getEvents(2054174);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.some((e) => e.event_type === "completed" && e.accession_number === "2054174-nse")).toBe(
+      true
     );
+    expect((await repo.getSpac(2054174))?.status).toBe("completed");
+  });
+
+  it("records a 25-NSE with a nearby 20-F as FPI close (Spring Valley III)", async () => {
+    await seedSpac(2074850);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 2074850,
+      accession_number: "2074850-20f",
+      form: "20-F",
+      primary_doc: "20f.htm",
+      file_number: "",
+      filing_date: "2026-07-16",
+      acceptance_date: "2026-07-16T00:00:00.000Z",
+      report_date: "2026-07-10",
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+
+    await processDeregistration({
+      cik: 2074850,
+      accession_number: "2074850-nse",
+      form: "25-NSE",
+      filing_date: "2026-07-10",
+    });
+
+    const events = await repo.getEvents(2074850);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "completed")).toHaveLength(1);
+    expect((await repo.getSpac(2074850))?.status).toBe("completed");
   });
 });

@@ -40,6 +40,15 @@ describe("looksLikeBlankCheckName", () => {
     expect(looksLikeBlankCheckName("Inergy Acquisition Company, LLC")).toBe(false);
   });
 
+  it("does not match a merger subsidiary that merely contains 'acquisition'", () => {
+    // Live 2119292: "Bleichroeder Acquisition France Merger Sub 2" is a
+    // transaction vehicle (SIC 7374), not a SPAC. `%acquisition%` matches it;
+    // `%merger corp%` is a real SPAC pattern (Legato) and must stay.
+    expect(looksLikeBlankCheckName("Bleichroeder Acquisition France Merger Sub 2")).toBe(false);
+    expect(looksLikeBlankCheckName("AECOM Merger Subsidiary, Inc.")).toBe(false);
+    expect(looksLikeBlankCheckName("Legato Merger Corp.")).toBe(true);
+  });
+
   it("keeps a sponsor-branded 'Partners' SPAC — only the LP/LLC legal forms are excluded", () => {
     // 12 of the 13 registrants matching "acquisition" + "partners" without an
     // LP/LLC suffix are coded 6770, so a bare "partners" must not disqualify.
@@ -74,6 +83,21 @@ describe("looksLikeBlankCheckName", () => {
 describe("classifySpacCandidate", () => {
   it("returns null when no signal fires", () => {
     expect(classifySpacCandidate(facts({ name: "Apple Inc.", current_sic: 3571 }), AT)).toBeNull();
+  });
+
+  it("does not grade a merger sub high just because it filed a registration", () => {
+    expect(
+      classifySpacCandidate(
+        facts({
+          cik: 2119292,
+          name: "Bleichroeder Acquisition France Merger Sub 2",
+          current_sic: 7374,
+          first_reg_form: "DRS",
+          first_reg_date: "2025-12-01",
+        }),
+        AT
+      )
+    ).toBeNull();
   });
 
   it("grades a weak-named SPAC high when EDGAR also codes it a blank check", () => {

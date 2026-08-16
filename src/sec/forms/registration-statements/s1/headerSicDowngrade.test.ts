@@ -5,10 +5,12 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../../config/TestingDI";
 import { setupAllDatabases } from "../../../../config/setupAllDatabases";
 import { S1ClassificationRepo } from "../../../../storage/classification/S1ClassificationRepo";
 import { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { FILING_REPOSITORY_TOKEN } from "../../../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../../../storage/spac/SpacRepo";
 import { processFormS1 } from "../Form_S_1.storage";
 import { fakeS1Model } from "./testing/fakeStructuredProvider";
@@ -57,6 +59,31 @@ function runArgs(cik: number, accession: string, summary: string) {
     } as never,
     model: fakeS1Model(),
   };
+}
+
+async function seedFiling(
+  cik: number,
+  accession: string,
+  form: string,
+  filingDate: string
+): Promise<void> {
+  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+    cik,
+    accession_number: accession,
+    form,
+    primary_doc: `${form}.htm`,
+    file_number: "",
+    filing_date: filingDate,
+    acceptance_date: `${filingDate}T00:00:00.000Z`,
+    report_date: null,
+    film_number: null,
+    primary_doc_description: null,
+    size: null,
+    is_xbrl: null,
+    is_inline_xbrl: null,
+    items: null,
+    act: null,
+  } as never);
 }
 
 describe("header-SIC downgrade", () => {
@@ -190,5 +217,39 @@ describe("header-SIC downgrade", () => {
     expect(row?.is_spac).toBe(false);
     expect(row?.classifier_source).toBe("sgml-header-rejected");
     expect(await new SpacRepo().getSpac(2109999)).toBeUndefined();
+  });
+
+  it("does not mint a spac row on a newco that already listed via S-4 + 8-A12B", async () => {
+    // Live 2001557 Innventure: the pubco CIK keeps SIC 6770 on a later S-1,
+    // and the summary still talks like a blank check because it recounts the
+    // combination. The S-4 + 8-A12B already on file mean this CIK is the
+    // surviving listed company, not a SPAC IPO.
+    const cik = 2001557;
+    await seedFiling(cik, "0000000000-24-000010", "S-4", "2024-09-01");
+    await seedFiling(cik, "0000000000-24-000011", "8-A12B", "2024-10-02");
+    await processFormS1(runArgs(cik, "0000000000-24-000012", BLANK_CHECK_SUMMARY));
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-24-000012");
+    expect(row?.is_spac).toBe(false);
+    expect(row?.classifier_source).toBe("newco-listing");
+    expect(await new SpacRepo().getSpac(cik)).toBeUndefined();
+  });
+
+  it("still mints when the CIK has only an 8-A12B (SPAC IPO listing)", async () => {
+    const cik = 2001558;
+    await seedFiling(cik, "0000000000-24-000020", "8-A12B", "2024-10-02");
+    await processFormS1(runArgs(cik, "0000000000-24-000021", BLANK_CHECK_SUMMARY));
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+  });
+
+  it("does not un-mint a CIK that is already a known SPAC after its S-4", async () => {
+    const cik = 2001559;
+    await processFormS1(runArgs(cik, "0000000000-24-000030", BLANK_CHECK_SUMMARY));
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+    await seedFiling(cik, "0000000000-24-000031", "S-4", "2025-01-01");
+    await seedFiling(cik, "0000000000-24-000032", "8-A12B", "2024-06-01");
+    await processFormS1(runArgs(cik, "0000000000-24-000033", BLANK_CHECK_SUMMARY));
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-24-000033");
+    expect(row?.is_spac).toBe(true);
   });
 });

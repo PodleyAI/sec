@@ -481,4 +481,71 @@ describe("processFormS1", () => {
       dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)
     ).toEqual([]);
   });
+
+  it("treats 'the Company' as an unnamed group row, not a canonical identity", async () => {
+    // After the legal-form-only skip, a live S-1 (CIK 2140589) still observed
+    // "the Company", which normalizeCompanyName strips to "the" and mints a
+    // canonical company. Issuer self-references are the same unnamed class.
+    const { unregister } = registerFakeStructuredProvider([
+      { people: [] },
+      { owners: [] },
+      {
+        parties: [
+          {
+            name: "the Company",
+            party_kind: "company",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: "the Company",
+                nature: "lease",
+                amount: 50000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+          {
+            name: "Acme Holdings",
+            party_kind: "company",
+            confidence: 0.9,
+            source_span: "We pay rent to an entity controlled by our CEO.",
+            transactions: [
+              {
+                counterparty: "the Company",
+                nature: "consulting",
+                amount: 120000,
+                period: null,
+                footnote: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    cleanup = unregister;
+
+    const accession = "0000000000-26-the-co";
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: accession,
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: { header: NULL_HEADER, html: HTML, xbrlInstanceXml: null, feeExhibitHtml: null },
+      model: fakeS1Model(),
+    });
+
+    const tx = await new RelatedPartyTransactionRepo().queryByAccession(accession);
+    const unnamed = tx.find((t) => t.amount === 50000);
+    expect(unnamed?.party_kind).toBe("group");
+    expect(unnamed?.observation_id).toBeNull();
+    expect(unnamed?.party_label).toBe("the Company");
+    const companies = await new CompanyObservationRepo().listByAccession(accession);
+    expect(companies.some((c) => c.name === "the Company")).toBe(false);
+    expect(companies.some((c) => (c.normalized_name ?? "").toLowerCase() === "the")).toBe(false);
+    expect(companies.some((c) => c.name === "Acme Holdings")).toBe(true);
+  });
 });

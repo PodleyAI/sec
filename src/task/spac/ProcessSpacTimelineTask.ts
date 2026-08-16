@@ -20,7 +20,10 @@ import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-lett
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { formToExtractorId } from "../../storage/versioning/extractorIds";
+import {
+  formToExtractorId,
+  isNonfatalTimelineExtractor,
+} from "../../storage/versioning/extractorIds";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
 
@@ -47,7 +50,13 @@ const OutputSchema = () =>
     }),
     failed: Type.Number({
       title: "Failed",
-      description: "Filings whose latest run was `failure`, or that wrote no run row.",
+      description:
+        "Filings whose latest run was `failure`, or that wrote no run row — excluding ownership forms (3/4/5/144), which are counted as `nonfatal`.",
+    }),
+    nonfatal: Type.Number({
+      title: "Nonfatal",
+      description:
+        "Ownership-form filings (3/4/5/144) whose latest run was `failure` or that wrote no run row. Off the SPAC timeline's critical path; does not fail `spac process`.",
     }),
     triage: Type.Number({
       title: "Triage entries",
@@ -184,6 +193,7 @@ export class ProcessSpacTimelineTask extends Task<
         processed: 0,
         partial: 0,
         failed: 0,
+        nonfatal: 0,
         triage: 0,
         triageExtractors: "",
         firstDate,
@@ -221,6 +231,7 @@ export class ProcessSpacTimelineTask extends Task<
       processed: counts.succeeded,
       partial: counts.partial,
       failed: counts.failed,
+      nonfatal: counts.nonfatal,
       triage: counts.triage,
       triageExtractors: counts.triageExtractors,
       firstDate,
@@ -237,6 +248,7 @@ function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput
     processed: 0,
     partial: 0,
     failed: 0,
+    nonfatal: 0,
     triage: 0,
     triageExtractors: "",
     firstDate: "",
@@ -249,7 +261,8 @@ function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput
  * Per-filing outcomes for one issuer's replay, matching the form-fetch
  * counter: the form's own extractor, newest run by `ran_at`, and every
  * pending dead-letter on those accessions (including sub-extractors). A
- * filing with no run row for its extractor counts as failed.
+ * filing with no run row for its extractor counts as failed, except ownership
+ * forms (3/4/5/144) which count as `nonfatal`.
  */
 async function countTimelineOutcomes(
   cik: number,
@@ -258,6 +271,7 @@ async function countTimelineOutcomes(
   readonly succeeded: number;
   readonly partial: number;
   readonly failed: number;
+  readonly nonfatal: number;
   readonly triage: number;
   readonly triageExtractors: string;
 }> {
@@ -266,6 +280,7 @@ async function countTimelineOutcomes(
   let succeeded = 0;
   let partial = 0;
   let failed = 0;
+  let nonfatal = 0;
   let triage = 0;
   const extractorIds = new Set<string>();
   for (const filing of timeline) {
@@ -277,6 +292,7 @@ async function countTimelineOutcomes(
     const latest = await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
     if (latest?.outcome === "success") succeeded++;
     else if (latest?.outcome === "partial") partial++;
+    else if (isNonfatalTimelineExtractor(extractorId)) nonfatal++;
     else failed++;
 
     const pending =
@@ -293,6 +309,7 @@ async function countTimelineOutcomes(
     succeeded,
     partial,
     failed,
+    nonfatal,
     triage,
     triageExtractors: [...extractorIds].sort().join(","),
   };
