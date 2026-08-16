@@ -121,6 +121,65 @@ describe("processDeregistration", () => {
     expect(row?.failed_date).toBeNull();
   });
 
+  it("does not liquidate a SPAC whose ipo_date is unknown", async () => {
+    // The AI-content-classifier shape: `recordIpo` is gated on a 424B1/424B4
+    // whose SGML header codes SIC 6770, so a SIC-miscoded SPAC minted from its
+    // S-1 has a registration and no ipo_date at all. Its routine unit
+    // separation must not read as a wind-up.
+    await new SpacReportWriter().recordRegistration({
+      cik: 2100001,
+      accession_number: "2100001-reg",
+      filing_date: "2026-01-05",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Miscoded Acquisition Corp",
+      spac_sic: 7389,
+    });
+    expect((await repo.getSpac(2100001))?.ipo_date).toBeNull();
+
+    await processDeregistration({
+      cik: 2100001,
+      accession_number: "2100001-nse",
+      form: "25-NSE",
+      filing_date: "2026-06-09",
+    });
+
+    const events = await repo.getEvents(2100001);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    const split = events.filter((e) => e.event_type === "unit_split");
+    expect(split).toHaveLength(1);
+    expect(split[0]?.accession_number).toBe("2100001-nse");
+
+    const row = await repo.getSpac(2100001);
+    expect(row?.status).not.toBe("liquidated");
+    expect(row?.failed_date).toBeNull();
+    expect(row?.unit_split_date).toBe("2026-06-09");
+  });
+
+  it("still liquidates on an issuer Form 25 when ipo_date is unknown", async () => {
+    // The allowance is exchange-only — a real wind-up files one of these.
+    await new SpacReportWriter().recordRegistration({
+      cik: 2100002,
+      accession_number: "2100002-reg",
+      filing_date: "2026-01-05",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Miscoded Acquisition Corp II",
+      spac_sic: 7389,
+    });
+
+    await processDeregistration({
+      cik: 2100002,
+      accession_number: "2100002-25",
+      form: "25",
+      filing_date: "2026-06-09",
+    });
+
+    const row = await repo.getSpac(2100002);
+    expect(row?.status).toBe("liquidated");
+    expect(row?.failed_date).toBe("2026-06-09");
+  });
+
   it("records a unit_split for a 25-NSE shortly after IPO and does not liquidate", async () => {
     await seedSpac(1822912);
     await processDeregistration({
@@ -311,8 +370,8 @@ describe("processDeregistration", () => {
       form: "25-NSE",
       filing_date: "",
     });
-    expect(await repo.getEvents(53).then((e) => e.filter((x) => x.event_type === "deregistration"))).toEqual(
-      []
-    );
+    expect(
+      await repo.getEvents(53).then((e) => e.filter((x) => x.event_type === "deregistration"))
+    ).toEqual([]);
   });
 });

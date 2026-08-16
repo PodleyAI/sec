@@ -38,9 +38,31 @@ function calendarDaysBetween(from: string, to: string): number {
  * unbundling into shares and warrants/rights — including a second 25-NSE in
  * that window (Nasdaq often files one per class). Issuer Form 25 and the
  * Form 15 family terminate the listing / Exchange Act registration.
+ *
+ * **An unknown IPO floor does not demote**, matching the 8-K item-1.01 rule
+ * where `ipo_date` (falling back to `registration_date`) bounds the
+ * definitive-agreement window. `ipo_date` is written only from a 424B1/424B4
+ * whose SGML header codes SIC 6770, so a SPAC minted by the S-1 AI content
+ * classifier — the SIC-miscoded filer that path exists to catch — structurally
+ * never has one. Demoting on its absence turned that vehicle's routine
+ * post-IPO unit separation into a permanent `liquidated`.
+ *
+ * Two things make the allowance safe. It is **self-correcting**: once the 424
+ * lands and `ipo_date` appears, the 25-15 backfill descriptor's `filterTodo`
+ * re-derives the kind and re-queues the accession, and `recordDeregistration`
+ * deletes the sibling `unit_split` on that accession before appending — the
+ * correction runs in both directions. And with no `ipo` event on the stream the
+ * rollup impact is **inert**: `deriveStatus` reads `unit_split` only inside its
+ * `hasIpo` branch, so status stays `registered`, `unit_split_date` is filled,
+ * and no IPO is claimed that no filing supports.
+ *
+ * The allowance is exchange-only. Issuer Form 25 and the whole Form 15 family
+ * still deregister whatever the floor, because a real wind-up files exactly
+ * those — so the conservative branch loses very little.
  */
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
-  if (isExchangeNse(args.form) && args.ipoDate != null && args.ipoDate !== "") {
+  if (isExchangeNse(args.form)) {
+    if (args.ipoDate == null || args.ipoDate === "") return "unit_split";
     const days = calendarDaysBetween(args.ipoDate, args.filingDate);
     if (days >= 0 && days <= UNIT_SEPARATION_MAX_DAYS_AFTER_IPO) {
       return "unit_split";

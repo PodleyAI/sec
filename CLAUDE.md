@@ -1560,7 +1560,26 @@ is still a split). That writes a `unit_split` event, fills `unit_split_date`,
 and advances status `ipo` → `searching`. It does **not** fail the vehicle and
 does not close a pending deal. Issuer Form 25, the Form 15 family, and a
 25-NSE **after** that 180-day window write `deregistration`, which closes a
-leftover pending deal and fails the vehicle. A deregistration ordered at or
+leftover pending deal and fails the vehicle.
+
+**An unknown IPO floor does not demote a 25-NSE** — same rule as the 8-K
+item-1.01 date floor above, and for the same reason: `ipo_date` is written only
+by `recordIpo`, which `processForm424` gates on a 424B1/424B4 whose SGML header
+codes SIC 6770, so a SPAC minted by the S-1 AI content classifier (the
+SIC-miscoded case that path exists to catch) structurally never has one.
+Classifying its routine post-IPO unit separation as `deregistration` marked a
+live searching vehicle permanently `liquidated`. So an exchange 25-NSE with an
+absent `ipo_date` writes `unit_split`; a KNOWN `ipo_date` keeps the 0–180 day
+window and still deregisters outside it. The allowance is exchange-only —
+issuer Form 25 and the whole Form 15 family deregister regardless, because a
+real wind-up files exactly those. It is self-correcting (once the 424 lands,
+`deregistrationDescriptor.filterTodo` re-derives the kind and re-queues, and
+`recordDeregistration` deletes the sibling `unit_split` on the same accession
+before appending — symmetric in both directions), and inert in the rollup with
+no `ipo` event, since `deriveStatus` reads `unit_split` only inside its `hasIpo`
+branch: status stays `registered` and `unit_split_date` is filled without
+claiming an IPO. Recover affected rows with `sec extractor backfill 25-15`
+(metadata-only, free, no `--force`). A deregistration ordered at or
 before a `completed` event is **post-close housekeeping and does not fail the
 deal** — the completion is dated by the 8-K's REPORT date while the Form 25
 event is dated by its FILING date, so the routine delisting of a de-SPAC'd
