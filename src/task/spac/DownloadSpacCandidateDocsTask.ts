@@ -16,7 +16,6 @@ import {
   Task,
   TaskAbortedError,
   TaskError,
-  Workflow,
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -214,22 +213,16 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
     fileName: string,
     context: IExecuteContext
   ): Promise<void> {
-    const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
-    wf.pipe(
-      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName, response_type: "stream" })
+    const fetchTask = context.own(
+      new SecFetchAccessionDocTask(
+        { cik, accessionNumber, fileName, response_type: "stream" },
+        { title: `Fetch ${accessionNumber} ${fileName}` }
+      )
     );
     try {
-      await wf.run();
+      await fetchTask.run();
     } finally {
-      for (const dataflow of wf.graph.getDataflows()) {
-        dataflow.reset();
-      }
-      for (const task of wf.graph.getTasks()) {
-        task.resetInputData();
-        task.runOutputData = {};
-        task.error = undefined;
-      }
-      context.disown(wf);
+      context.disown(fetchTask);
     }
   }
 

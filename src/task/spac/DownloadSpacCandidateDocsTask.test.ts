@@ -16,7 +16,13 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { globalServiceRegistry, TaskAbortedError, type IExecuteContext } from "workglow";
+import {
+  globalServiceRegistry,
+  registerSafeFetch,
+  TaskAbortedError,
+  type IExecuteContext,
+  type SafeFetchFn,
+} from "workglow";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -710,5 +716,66 @@ describe("DownloadSpacCandidateDocsTask", () => {
       await runDownload({ set: "all" });
       expect(seen.at(0)).not.toHaveProperty("form");
     });
+  });
+});
+
+describe("CacheOneSpacCandidateDocTask fetchDoc (the real seam, unstubbed)", () => {
+  it("streams the document to the cache path and reports success", async () => {
+    const previous = registerSafeFetch(
+      (async () =>
+        new Response(new TextEncoder().encode("<html>filing</html>"), {
+          status: 200,
+          headers: { "content-type": "text/html", "content-length": "19" },
+        })) as unknown as SafeFetchFn
+    );
+    try {
+      const out = await new CacheOneSpacCandidateDocTask().execute(
+        {
+          cik: 1,
+          accessionNumber: "0000000001-21-000001",
+          form: "S-1",
+          fileName: "0000000001-21-000001.txt",
+          primaryDoc: "",
+        },
+        ctx()
+      );
+
+      expect(out.success).toBe(true);
+      expect(
+        readFileSync(cachePath(1, "0000000001-21-000001", "0000000001-21-000001.txt"), "utf-8")
+      ).toBe("<html>filing</html>");
+      expect(ownership.owned).toEqual(["Fetch 0000000001-21-000001 0000000001-21-000001.txt"]);
+      expect(ownership.disowned).toEqual(ownership.owned);
+    } finally {
+      registerSafeFetch(previous);
+    }
+  });
+
+  it("releases the owned fetch task even when the fetch fails", async () => {
+    const previous = registerSafeFetch(
+      (async () =>
+        new Response("nope", { status: 404, statusText: "Not Found" })) as unknown as SafeFetchFn
+    );
+    const original = console.warn;
+    console.warn = () => {};
+    try {
+      const out = await new CacheOneSpacCandidateDocTask().execute(
+        {
+          cik: 2,
+          accessionNumber: "0000000002-21-000001",
+          form: "S-1",
+          fileName: "0000000002-21-000001.txt",
+          primaryDoc: "",
+        },
+        ctx()
+      );
+
+      expect(out.success).toBe(false);
+      expect(ownership.disowned).toEqual(ownership.owned);
+      expect(ownership.owned).toHaveLength(1);
+    } finally {
+      console.warn = original;
+      registerSafeFetch(previous);
+    }
   });
 });
