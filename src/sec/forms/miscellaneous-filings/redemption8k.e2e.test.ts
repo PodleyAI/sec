@@ -75,6 +75,8 @@ describe("processForm8K — redemption e2e", () => {
       items: "5.07",
       report_date: "2026-03-19",
       form8K: {},
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
       fullSubmissionText: FULL_TXT,
       model: fakeS1Model(),
     });
@@ -97,6 +99,8 @@ describe("processForm8K — redemption e2e", () => {
       items: "5.07",
       report_date: "2026-03-19",
       form8K: {},
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
       fullSubmissionText: FULL_TXT,
       model: fakeS1Model(),
     } as const;
@@ -166,6 +170,8 @@ describe("processForm8K — redemption e2e", () => {
       items: "5.07",
       report_date: "2026-03-19",
       form8K: {},
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
       fullSubmissionText: FULL_TXT,
       model: fakeS1Model(),
     });

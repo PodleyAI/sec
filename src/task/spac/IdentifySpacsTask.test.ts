@@ -229,6 +229,7 @@ describe("IdentifySpacsTask", () => {
       reg_while_spac_named: null,
       confidence: "low",
       identified_at: "2026-08-01T00:00:00.000Z",
+      signal_filed_sic_6770: null,
     });
     // The watermark is the newest identified_at minus one day.
     await globalServiceRegistry
@@ -263,6 +264,7 @@ describe("IdentifySpacsTask", () => {
       reg_while_spac_named: null,
       confidence: "low",
       identified_at,
+      signal_filed_sic_6770: null,
     }));
     for (let i = 0; i < stale.length; i += 5_000) {
       await repo.putBulk(stale.slice(i, i + 5_000));

@@ -15,17 +15,19 @@ import {
 
 /**
  * The longest real EDGAR values these columns have to hold. Measured over a
- * 20k-CIK scan of the bulk submissions; `file_number`, `film_number` and `act`
- * arrive comma-joined for multi-registrant filings, so their length scales with
- * the number of co-registrants and has no natural bound.
+ * 20k-CIK scan of the bulk submissions. `act` is bounded; `file_number` and
+ * `film_number` arrive comma-joined for multi-registrant filings, so their
+ * length scales with the number of co-registrants and has no natural bound
+ * (unbounded TEXT on `FilingSchema`).
  */
-const MEASURED_MAXIMA: ReadonlyArray<{ column: string; length: number; sample?: string }> = [
+const BOUNDED_MAXIMA: ReadonlyArray<{ column: string; length: number }> = [
   { column: "form", length: 16 },
-  { column: "file_number", length: 107 },
-  { column: "film_number", length: 89 },
   { column: "primary_doc_description", length: 80 },
   { column: "act", length: 5 },
 ];
+
+/** Comma-joined co-registrant lists; `FilingSchema` drops `maxLength` so these are TEXT. */
+const UNBOUNDED_COLUMNS = ["file_number", "film_number"] as const;
 
 const PHONE_SAMPLE = "+1 516 482 1200 ext. 108";
 
@@ -51,13 +53,19 @@ describe("declared column widths", () => {
     expect(width(PhoneSchema, "international_number")!).toBeGreaterThanOrEqual(PHONE_SAMPLE.length);
   });
 
-  it("fits the measured EDGAR maxima for every widened filing column", () => {
-    for (const { column, length } of MEASURED_MAXIMA) {
+  it("fits the measured EDGAR maxima for every bounded filing column", () => {
+    for (const { column, length } of BOUNDED_MAXIMA) {
       const declared = width(FilingSchema, column);
       expect(declared, `filings.${column} must declare a varchar width`).toBeDefined();
       expect(declared!, `filings.${column} must hold ${length} chars`).toBeGreaterThanOrEqual(
         length
       );
+    }
+  });
+
+  it("leaves file_number and film_number unbounded", () => {
+    for (const column of UNBOUNDED_COLUMNS) {
+      expect(width(FilingSchema, column), `filings.${column} must be unbounded text`).toBeUndefined();
     }
   });
 });

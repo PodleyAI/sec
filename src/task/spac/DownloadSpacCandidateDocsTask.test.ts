@@ -116,6 +116,7 @@ function candidate(
     reg_while_spac_named: true,
     confidence,
     identified_at: "2026-08-01T00:00:00.000Z",
+    signal_filed_sic_6770: null,
     ...extra,
   };
 }

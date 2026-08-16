@@ -414,6 +414,8 @@ describe("processForm8K SPAC milestone wiring", () => {
       items,
       report_date,
       form8K,
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
       fullSubmissionText,
     });
   }
@@ -431,6 +433,7 @@ describe("processForm8K SPAC milestone wiring", () => {
       reg_while_spac_named: true,
       confidence: "high",
       identified_at: "2026-01-01T00:00:00.000Z",
+      signal_filed_sic_6770: null,
     });
   }
 
@@ -545,6 +548,8 @@ describe("processForm8K SPAC milestone wiring", () => {
       items: "1.01",
       report_date: "2021-03-01", // the actual triggering-event date
       form8K,
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
       fullSubmissionText: mergerTxt("2021-03-01"),
     });
 
@@ -566,6 +571,8 @@ describe("processForm8K SPAC milestone wiring", () => {
       items: "1.01",
       report_date: null,
       form8K,
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
     });
 
     // An undated 8-K must not write a milestone (empty event_date would be junk).

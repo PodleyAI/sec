@@ -78,6 +78,7 @@ describe("InvestmentOfferingRepo", () => {
     is_business_combination_type: false,
     is_other_type: false,
     description_of_other: null,
+    as_of: null,
   };
 
   const mockOfferingHistory: InvestmentOfferingHistory = {

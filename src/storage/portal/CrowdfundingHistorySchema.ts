@@ -34,7 +34,7 @@ export const CrowdfundingHistorySchema = Type.Object({
       "(cik, valid_from) and silently dropping a history version.",
   }),
   file_number: Type.String({
-    maxLength: 10,
+    maxLength: 32,
     description: "File number",
   }),
   filing_date: Type.String({

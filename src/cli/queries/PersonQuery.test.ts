@@ -27,6 +27,8 @@ function makeObservation(overrides: Partial<Parameters<typeof repo.put>[0]> = {}
     raw_address_id: null,
     raw_phone_id: null,
     source_context: null,
+    birth_year: null,
+    bio: null,
     created_at: new Date().toISOString(),
     ...overrides,
   };

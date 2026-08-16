@@ -33,7 +33,8 @@ describe("ResolveObservationsTask --renormalize", () => {
       name: "Blue Acquisition Corp/Cayman",
       // A stale value, as an earlier normalizer generation would have left it.
       normalized_name: "Blue Acquisition Corp/Cayman",
-    } as never);
+      created_at: "2026-01-01T00:00:00.000Z",
+    });
     expect(row.normalized_name).toBe("Blue Acquisition Corp/Cayman");
 
     const out = await run("company", true);
@@ -53,7 +54,8 @@ describe("ResolveObservationsTask --renormalize", () => {
       observation_index: 0,
       name: "Blue Acquisition Corp/Cayman",
       normalized_name: "Blue Acquisition Corp/Cayman",
-    } as never);
+      created_at: "2026-01-01T00:00:00.000Z",
+    });
 
     const out = await run("company", false);
     expect(out.renormalized).toBe(0);
@@ -73,7 +75,8 @@ describe("ResolveObservationsTask --renormalize", () => {
       last_name: "Smith",
       normalized_first: "wrong",
       normalized_last: "wrong",
-    } as never);
+      created_at: "2026-01-01T00:00:00.000Z",
+    });
 
     const first = await run("person", true);
     expect(first.renormalized).toBe(1);

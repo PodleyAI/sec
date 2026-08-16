@@ -22,6 +22,7 @@ function makeOffering(overrides: Partial<Parameters<typeof repo.put>[0]> = {}) {
     is_business_combination_type: null,
     is_other_type: null,
     description_of_other: null,
+    as_of: null,
     ...overrides,
   };
 }

@@ -86,6 +86,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 11111,
       status: "annual-report",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     // Freeze the wall clock so both stale-replay snapshots get an identical
@@ -136,6 +138,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 54321,
       status: "Active",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, "TEST_SOURCE");
@@ -170,6 +174,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 54321,
       status: "Active",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     await temporalRepo.saveCrowdfundingWithHistory(initial, "INITIAL_SOURCE");
@@ -235,6 +241,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 12345,
       status: "annual-report",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     await temporalRepo.saveCrowdfundingWithHistory(crowdfunding, "STALE_REPLAY", {
@@ -276,6 +284,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 11111,
       status: "annual-report",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     await temporalRepo.saveCrowdfundingWithHistory(stale, "Form C-AR", {
@@ -311,6 +321,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 22222,
       status: "active",
+      progress_update: null,
+      nature_of_amendment: null,
     };
     await temporalRepo.saveCrowdfundingWithHistory(dominant, "Form C");
 
@@ -320,6 +332,8 @@ describe("CrowdfundingTemporalRepo", () => {
       ...dominant,
       name: "Stale Older Snapshot",
       status: "annual-report",
+      progress_update: null,
+      nature_of_amendment: null,
     };
     await temporalRepo.saveCrowdfundingWithHistory(replay, "Form C-AR", {
       skipMutableUpdate: true,
@@ -437,6 +451,8 @@ describe("CrowdfundingTemporalRepo", () => {
       url: "http://example.com",
       portal_cik: 54321,
       status: "Active",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     await temporalRepo.saveCrowdfundingWithHistory(initial, "INITIAL");

@@ -124,6 +124,8 @@ describe("Form C post-offering pipeline (C-U / C-AR / C-TR)", () => {
       url: "https://issuer.example.com",
       portal_cik: 1725012,
       status: "active",
+      progress_update: null,
+      nature_of_amendment: null,
     });
 
     await processFormC({

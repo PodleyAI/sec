@@ -16,7 +16,7 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
 export const InvestmentOfferingHistorySchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) of the entity" }),
   file_number: Type.String({
-    maxLength: 10,
+    maxLength: 32,
     description: "SEC file number for the offering",
   }),
   accession_number: Type.String({

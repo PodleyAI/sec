@@ -48,6 +48,20 @@ function coverPrefix(text: string): string {
   return text.slice(0, COVER_CHARS);
 }
 
+/**
+ * Whether a 424B3 body is the blank-check IPO prospectus, not an S-4/F-4
+ * proxy statement/prospectus for the de-SPAC. Real IPO B3s print
+ * "This is an initial public offering" on the cover (Aimfinity, Spring
+ * Valley III, …); de-SPAC B3s (NewGenIvf, Broad Capital) never do, and
+ * their cover also fails {@link parsePricedProspectusCover} (no Units
+ * headline). Either signal is enough — the synthetic B3 fixture is
+ * `$80,500,000` / `8,050,000 Units` with no IPO sentence.
+ */
+export function looksLikePricedIpoProspectusBody(html: string): boolean {
+  if (/This is an initial public offering/i.test(html)) return true;
+  return parsePricedProspectusCover(html) != null;
+}
+
 export function parsePricedProspectusCover(html: string): PricedProspectusCover | null {
   const prefix = coverPrefix(htmlToCoverText(html));
   const unitsMatch = prefix.match(new RegExp(String.raw`\b(${COMMA_NUMBER})\s+Units\b`, "i"));

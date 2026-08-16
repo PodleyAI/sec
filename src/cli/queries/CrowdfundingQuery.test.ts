@@ -16,6 +16,8 @@ function makeCrowdfunding(overrides: Partial<Parameters<typeof repo.put>[0]> = {
     url: "https://acme.example.com",
     portal_cik: 9999999,
     status: "active",
+    progress_update: null,
+    nature_of_amendment: null,
     ...overrides,
   };
 }

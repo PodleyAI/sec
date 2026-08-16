@@ -234,8 +234,8 @@ describe("planColumnAlignment", () => {
       'ALTER TABLE "public"."addresses" ALTER COLUMN "state_or_country" DROP NOT NULL;',
       'ALTER TABLE "public"."phones" ALTER COLUMN "international_number" TYPE varchar(64);',
       'ALTER TABLE "public"."filings" ALTER COLUMN "form" TYPE varchar(32);',
-      'ALTER TABLE "public"."filings" ALTER COLUMN "file_number" TYPE varchar(255);',
-      'ALTER TABLE "public"."filings" ALTER COLUMN "film_number" TYPE varchar(255);',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "file_number" TYPE text;',
+      'ALTER TABLE "public"."filings" ALTER COLUMN "film_number" TYPE text;',
       'ALTER TABLE "public"."filings" ALTER COLUMN "primary_doc" TYPE varchar(128);',
       // Both halves for one column: `primary_doc` was widened AND relaxed, and
       // a legacy database needs each. This is the whole reason the relaxation

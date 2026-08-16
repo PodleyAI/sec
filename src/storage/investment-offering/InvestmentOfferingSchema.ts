@@ -16,16 +16,23 @@ import { TypeNullable } from "../../util/TypeBoxUtil";
 export const InvestmentOfferingSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) of the entity" }),
   file_number: Type.String({
-    maxLength: 10,
+    // Form D is typically `021-XXXXXX` (10). Pipeline tests synthesize
+    // `020-` + 7 accession digits (11), and Form D fixtures use
+    // accession-keyed stand-ins (~25). 32 leaves room without matching
+    // the unbounded filings column (comma-joined co-registrant lists).
+    maxLength: 32,
     description: "SEC file number for the offering",
   }),
   industry_group: Type.String({
-    maxLength: 25,
+    // Form D `INDUSTRY_GROUP_LIST`: longest value is
+    // "Other Banking and Financial Services" (36).
+    maxLength: 64,
     description: "Industry group classification",
   }),
   industry_subgroup: TypeNullable(
     Type.String({
-      maxLength: 25,
+      // Longest Form D subgroup is "Tourism and Travel Services" (27).
+      maxLength: 64,
       description: "Industry subgroup classification",
     })
   ),

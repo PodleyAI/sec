@@ -16,7 +16,7 @@ import { TypeSecCik } from "../../util/TypeSecCik";
 export const CrowdfundingSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
-    maxLength: 10,
+    maxLength: 32,
     description: "File number",
   }),
   filing_date: Type.String({
@@ -87,7 +87,7 @@ export const CROWDFUNDING_REPOSITORY_TOKEN = createServiceToken<CrowdfundingRepo
 export const CrowdfundingOfferingsSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
-    maxLength: 10,
+    maxLength: 32,
     description: "File number",
   }),
   filing_date: Type.String({
@@ -189,7 +189,7 @@ export const CROWDFUNDING_OFFERINGS_REPOSITORY_TOKEN =
 export const CrowdfundingReportsSchema = Type.Object({
   cik: TypeSecCik({ description: "Central Index Key (CIK) - unique identifier for entity" }),
   file_number: Type.String({
-    maxLength: 10,
+    maxLength: 32,
     description: "File number",
   }),
   filing_date: Type.String({

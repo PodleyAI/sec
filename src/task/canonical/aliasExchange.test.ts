@@ -39,7 +39,7 @@ async function makeCompany(id: string, displayName: string): Promise<void> {
     display_name: displayName,
     normalized_name: displayName,
     cik: null,
-    crd: null,
+    crd_number: null,
     created_at: new Date().toISOString(),
   });
 }

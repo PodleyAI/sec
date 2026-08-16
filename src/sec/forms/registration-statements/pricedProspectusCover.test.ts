@@ -8,7 +8,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parsePricedProspectusCover } from "./pricedProspectusCover";
+import {
+  looksLikePricedIpoProspectusBody,
+  parsePricedProspectusCover,
+} from "./pricedProspectusCover";
 
 const importMetaDir = fileURLToPath(new URL(".", import.meta.url)).replace(/\/+$/, "");
 
@@ -82,5 +85,28 @@ may purchase up to an additional 1,200,000 units.</p>
       gross_proceeds: 80_000_000,
       units_offered: 8_000_000,
     });
+  });
+});
+
+describe("looksLikePricedIpoProspectusBody", () => {
+  it("accepts a cover that parses even without the IPO sentence", () => {
+    expect(
+      looksLikePricedIpoProspectusBody("<p>$80,500,000</p><p>8,050,000 Units</p>")
+    ).toBe(true);
+  });
+
+  it("accepts the IPO sentence even when the Units headline is absent", () => {
+    expect(
+      looksLikePricedIpoProspectusBody(
+        "<p>This is an initial public offering of our ordinary shares.</p>"
+      )
+    ).toBe(true);
+  });
+
+  it("rejects a de-SPAC proxy statement/prospectus", () => {
+    const html = `<h1>PROXY STATEMENT FOR SPECIAL MEETING OF SHAREHOLDERS</h1>
+<p>Dear Shareholders: You are cordially invited to attend the special meeting.</p>
+<p>The aggregate consideration for the Acquisition Merger is $50,000,000.</p>`;
+    expect(looksLikePricedIpoProspectusBody(html)).toBe(false);
   });
 });

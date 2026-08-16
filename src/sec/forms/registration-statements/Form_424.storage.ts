@@ -21,7 +21,10 @@ import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import type { S1SectionName } from "./s1/DocumentSegmenter";
-import { parsePricedProspectusCover } from "./pricedProspectusCover";
+import {
+  looksLikePricedIpoProspectusBody,
+  parsePricedProspectusCover,
+} from "./pricedProspectusCover";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
 import { getS1Models, resolveModelId } from "./s1/s1Model";
@@ -42,8 +45,8 @@ const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
  * The 424 variants that are full priced-IPO prospectuses (Rule 430A pricing
  * after effectiveness) and therefore worth the AI offering-sections pass.
  * 424B3 is included only via {@link isPricedIpoProspectus} when it is the
- * SPAC's IPO prospectus (known SPAC, no ipo_date yet). Shelf takedowns
- * (424B2/B5, 424A) stay deterministic-only.
+ * SPAC's IPO prospectus (known SPAC, no ipo_date yet, IPO-shaped body).
+ * Shelf takedowns (424B2/B5, 424A) stay deterministic-only.
  */
 const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
 
@@ -52,9 +55,10 @@ const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
  * pass and a `recordIpo` event.
  *
  * B1/B4 are always priced (Rule 430A after effectiveness). B3 is a SPAC IPO
- * prospectus when the vehicle has a spac row (or a 6770 header) and has not
- * already recorded `ipo_date` — later B3s are supplements and stay
- * deterministic-only (Innventure has 65 of them).
+ * prospectus when the vehicle has a spac row (or a 6770 header), has not
+ * already recorded `ipo_date`, and the body is the blank-check IPO — later
+ * B3s are supplements (Innventure has 65 of them) and S-4/F-4 424B3s are
+ * de-SPAC proxy prospectuses, not IPOs.
  */
 export function isPricedIpoProspectus(
   form: string,
@@ -62,13 +66,16 @@ export function isPricedIpoProspectus(
     readonly knownSpac: boolean;
     readonly ipoDate: string | null | undefined;
     readonly headerSic: number | null | undefined;
+    readonly html?: string | undefined;
   }
 ): boolean {
   const f = form.trim().toUpperCase();
   if (PRICED_PROSPECTUS_FORMS.has(f)) return true;
   if (f !== "424B3") return false;
   if (args.ipoDate != null && args.ipoDate !== "") return false;
-  return args.knownSpac || args.headerSic === 6770;
+  if (!(args.knownSpac || args.headerSic === 6770)) return false;
+  if (args.html != null && !looksLikePricedIpoProspectusBody(args.html)) return false;
+  return true;
 }
 
 /**
@@ -179,6 +186,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     knownSpac: spacRow != null,
     ipoDate: spacRow?.ipo_date ?? null,
     headerSic,
+    html: form424.html,
   });
   if (!priced) return;
 

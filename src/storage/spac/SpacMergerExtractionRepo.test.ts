@@ -23,6 +23,7 @@ function row(
     target_observation_id: null,
     pipe_amount: null,
     merger_consideration: null,
+    target_description: null,
     confidence: 0.9,
     source_span: null,
     model_id: null,

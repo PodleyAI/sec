@@ -33,6 +33,8 @@ describe("CrowdfundingRepo", () => {
       url: "https://testcompany.com",
       portal_cik: 789012,
       status: "Active",
+      progress_update: null,
+      nature_of_amendment: null,
     };
 
     test("should save and retrieve crowdfunding entity", async () => {

@@ -426,6 +426,43 @@ offering price of $10.00.</p>
       expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
     });
 
+    it("does NOT record an IPO from a de-SPAC proxy 424B3", async () => {
+      await new SpacReportWriter().recordRegistration({
+        cik: CIK,
+        accession_number: S1_ACCESSION,
+        filing_date: "2023-06-16",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Synthetic SPAC Corp",
+        spac_sic: 6770,
+      });
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2024-02-14",
+        primary_doc: "f424b3.htm",
+        form: "424B3",
+        form424: {
+          header: NULL_HEADER,
+          html: `<html><body>
+<h1>PROXY STATEMENT FOR SPECIAL MEETING OF SHAREHOLDERS</h1>
+<p>Dear Shareholders: You are cordially invited to attend the special meeting.</p>
+<p>The Company has entered into a merger agreement. The aggregate consideration
+is $50,000,000, payable in newly issued ordinary shares.</p>
+</body></html>`,
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac?.ipo_date).toBeNull();
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(0);
+    });
+
     it("does NOT record a second IPO from a later 424B3 once ipo_date is set", async () => {
       await processForm424({
         cik: CIK,
@@ -608,5 +645,43 @@ describe("isPricedIpoProspectus", () => {
     expect(
       isPricedIpoProspectus("424B3", { knownSpac: true, ipoDate: "2025-09-04", headerSic: 6770 })
     ).toBe(false);
+  });
+
+  it("does not treat a de-SPAC proxy 424B3 as a priced IPO", () => {
+    // NewGenIvf / Broad Capital: S-4/F-4 424B3 is a proxy statement/prospectus
+    // for the combination, not the blank-check IPO. Stamping `ipo` from it
+    // left proceeds null (cover parse finds no Units headline) and blocked
+    // a later RW from becoming `withdrawn`.
+    const html = `<html><body>
+<h1>PROXY STATEMENT FOR SPECIAL MEETING OF SHAREHOLDERS</h1>
+<p>Dear Shareholders: You are cordially invited to attend the special meeting
+of the shareholders of A SPAC I Acquisition Corp.</p>
+<p>ASCA has entered into a merger agreement with NewGenIvf Limited. The
+aggregate consideration for the Acquisition Merger is $50,000,000.</p>
+</body></html>`;
+    expect(
+      isPricedIpoProspectus("424B3", {
+        knownSpac: true,
+        ipoDate: null,
+        headerSic: null,
+        html,
+      })
+    ).toBe(false);
+  });
+
+  it("still treats a 424B3 as priced when the body is an IPO prospectus", () => {
+    const html = `<html><body>
+<p>$80,500,000</p>
+<p>8,050,000 Units</p>
+<p>This is an initial public offering of our securities.</p>
+</body></html>`;
+    expect(
+      isPricedIpoProspectus("424B3", {
+        knownSpac: true,
+        ipoDate: null,
+        headerSic: null,
+        html,
+      })
+    ).toBe(true);
   });
 });
