@@ -231,30 +231,55 @@ export class SecFetchJob<
     // counts, not just the body port's binary ones — what makes bytes
     // unrepeatable is that something received them.
     let deliveredToReceiver = false;
+    // Rearms the CURRENT attempt's timer. Reassigned per attempt below, and
+    // reset to a no-op when an attempt ends so a late delta from an abandoned
+    // one cannot revive a timer nobody is waiting on.
+    let rearmTimeout: () => void = () => {};
     const emitStreamEvent = context.emitStreamEvent;
     const watched: IJobExecuteContext = emitStreamEvent
       ? {
           ...context,
           emitStreamEvent: async (event) => {
-            if (event.type.endsWith("-delta")) deliveredToReceiver = true;
+            if (event.type.endsWith("-delta")) {
+              deliveredToReceiver = true;
+              // Progress, so the attempt is alive: restart the clock.
+              rearmTimeout();
+            }
             await emitStreamEvent(event);
           },
         }
       : context;
     for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
-      // Per-attempt timeout. Use an AbortController + setTimeout so we can
+      // Per-attempt timeout, measured as time WITHOUT PROGRESS rather than
+      // total elapsed time. Use an AbortController + setTimeout so we can
       // clearTimeout() on success: AbortSignal.timeout() leaves an
       // uncancellable timer alive, which accumulates in a high-throughput
       // queue. We still combine with the caller's signal so external aborts
       // win.
+      //
+      // The stall framing is what makes a streamed body possible at all. As a
+      // wall-clock cap this timer covers the WHOLE download, so whether a fetch
+      // succeeds is a function of file size and bandwidth rather than of the
+      // connection being alive: a healthy ~1.5 GB Feed tarball or a multi-GB
+      // bulk archive cannot finish inside 60s at any realistic rate, and it
+      // aborts mid-body — where `deliveredToReceiver` has latched, so the retry
+      // loop rethrows and the download can never succeed. Nothing catches it in
+      // a small-document sweep, which is why the cap looked fine for years.
+      //
+      // Non-streaming fetches are unaffected: with no deltas nothing rearms, so
+      // a JSON or a document still gets exactly today's fixed window.
       const timeoutController = DEFAULT_TIMEOUT_MS > 0 ? new AbortController() : undefined;
-      const timeoutHandle =
-        timeoutController && DEFAULT_TIMEOUT_MS > 0
-          ? setTimeout(
-              () => timeoutController.abort(new Error("SEC fetch timed out")),
-              DEFAULT_TIMEOUT_MS
-            )
-          : undefined;
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      const arm = (): void => {
+        if (timeoutController === undefined) return;
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+        timeoutHandle = setTimeout(
+          () => timeoutController.abort(new Error("SEC fetch timed out")),
+          DEFAULT_TIMEOUT_MS
+        );
+      };
+      arm();
+      rearmTimeout = arm;
       const { signal, cleanup } = combineSignals([context.signal, timeoutController?.signal]);
 
       try {
@@ -297,6 +322,7 @@ export class SecFetchJob<
         await sleepWithAbort(delay, context.signal);
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+        rearmTimeout = () => {};
         cleanup();
       }
     }

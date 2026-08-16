@@ -60,9 +60,70 @@ writes, per form:
 
 Completed days are marked under `accessiondocs/.feed-done/`, so a re-run resumes;
 `--force` re-downloads and overwrites. A day with no Feed archive yet (recent
-dates → 404) is warned and left unmarked to retry next run. Backend-dispatched
-day/filing queries (`feedFilings.ts`) mirror `createCikNameBulkWriter`
-(SQLite → `getDb()`, Postgres → `getPgPool()`, else the repository).
+dates → 404) is warned and left unmarked to retry next run. A day whose download
+or extraction **throws** is counted in `failed` with a short reason and also left
+unmarked — a range can be thousands of days, and the ones already extracted are
+worth keeping. Backend-dispatched day/filing queries (`feedFilings.ts`) mirror
+`createCikNameBulkWriter` (SQLite → `getDb()`, Postgres → `getPgPool()`, else
+the repository).
+
+#### The two bulk downloads run on the task framework
+
+Both the Feed tarball and the bulk archives (`submissions.zip`,
+`companyfacts.zip`) used to call raw `fetch()` — the only way to avoid
+materializing a multi-GB body before `FetchUrlTask` could stream. Each is now a
+two-node subgraph instead, so the largest downloads in the system keep the
+memory ceiling AND get back SafeFetch's redirect/SSRF checks, the SEC rate
+limiter, `SecFetchJob`'s retry/backoff and the 429 cluster-throttle signal:
+
+```
+SecFetchTask { response_type: "stream" } --body--> FeedTarballExtractTask   (a day)
+SecFetchTask { response_type: "stream" } --body--> ArchiveToFileTask        (an archive)
+```
+
+Three things that shape is load-bearing about:
+
+- **The run sets `noAccumulation`**, and it is not a tuning knob. Without it
+  `awaitStreamInputs` drains the edge to a value before the sink starts, and
+  that value IS the ~1.5 GB day. The edge must also name `body` explicitly and
+  have a single consumer, or the passthrough check declines and the drain comes
+  back. `FeedTarballExtractTask.test.ts` parks the producer before its final
+  chunk and requires the sink to have already written — it fails outright with
+  the flag off, so the property cannot silently regress.
+- **`byteIterableFromEvents` turns an in-stream `error` event into a throw**,
+  never a clean end. On a clean end gunzip is handed a truncated archive, the
+  walk loop finishes normally, and the day is marked done holding half its
+  documents — silent, permanent loss. It is an async generator rather than a
+  `ReadableStream` because that is where the runtimes diverge: an errored WHATWG
+  stream wrapped through `Readable.fromWeb` does not reliably reject under Bun,
+  and the truncated-archive case hung instead of failing.
+- **`ArchiveToFileTask` opens its tmp file lazily, on the first byte.** That is
+  what makes a `304 Not Modified` safe end to end: it carries no body, so no
+  stream is created, so nothing is opened and the extracted tree the conditional
+  request just certified as current is untouched. Opening up front would
+  truncate it to zero before discovering there was nothing to write. The other
+  reason a port can carry no stream — a `body` that arrived as a VALUE — is the
+  opposite verdict and throws, since a materialized edge is the entire cost this
+  replaced.
+
+`Content-Length` verification is not reimplemented in sec: `FetchUrlTask`
+asserts the advertised length at end of stream, which is the only evidence
+available that a body ending without a socket error was complete. The
+ETag/Last-Modified marker bookkeeping stays in `BootstrapDownloadTask` — that is
+sec's own state, not the fetch's.
+
+Routing these through `SecFetchTask` also puts them under `SecFetchJob`'s
+per-attempt timeout, and that is why the timer measures **time without
+progress** rather than total elapsed time. As a wall-clock cap it covered the
+whole attempt, body included, so whether a fetch succeeded was a function of
+file size and bandwidth rather than of the connection being alive: at the 60 s
+default neither a multi-GB `submissions.zip` nor a ~1.5 GB daily Feed tarball
+can finish, and the abort lands mid-body where the post-delivery retry ban
+refuses to restart it — unrecoverable, not merely slow. A steady trickle now
+rearms the timer on every delta; a body that goes silent still trips it, and a
+fetch that stalls before its first byte keeps exactly the fixed window it always
+had (nothing rearms without progress), so the fast-failure property the
+per-document sweeps rely on is not traded away for the two bulk downloads.
 
 > ⚠️ A full-history pull is a large storage commitment — roughly tens of TB
 > decompressed, back-loaded onto recent years. Bound it with `--from`/`--to`.
@@ -1741,12 +1802,29 @@ downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every
 filing for those CIKs. Already-cached files are skipped. Run this before
 `sec update forms` / `sec spac process` so the forms sweep is a cache hit.
 
+The fetch asks for `response_type: "stream"`: this command exists to FILL the
+cache, not to read it, so nothing here wants the document as a value. The cache
+file is the artifact and success is the absence of an error. That deletes a
+recovery branch the materializing path needed — a binary primary document
+(`.pdf`, `.jpg`) resolved to `blob`, so `fetchOutput.text` was undefined and the
+fetch threw "Fetch returned no text" AFTER the bytes were already cached, and an
+`existsSync` check had to discover the download had in fact worked. The one step
+that genuinely needs the text, the 8-K primary-doc slice, reads the cached
+submission back.
+
+`inputToFileName` does not include `response_type`, so this `"stream"` fill and
+a later `"text"` fetch of the same document address the **same** cache path —
+which is what makes the two interchangeable across commands. The streamed copy
+is in fact the more faithful of the two: `"text"` serializes a UTF-8 decode,
+lossy on invalid sequences (`U+FFFD`), while `"stream"` writes the origin's
+bytes verbatim.
+
 `--force` **deletes** the cache entry and then re-fetches. The delete is the
 point: the fetch task's own file cache keys off that exact path and is consulted
 before the fetch runs, so without it a "re-fetch" is served from the very file
 being replaced and a corrupt entry can never be evicted. Deleting is also the
-only variant that keeps `SecFetchFileOutputCache.saveOutput`'s tmp+rename as the
-single writer — `CacheCoordinator.lookup` and `.save` share one gate, so a
+only variant that keeps `SecFetchFileOutputCache`'s tmp+rename as the single
+writer — `CacheCoordinator.lookup` and `.save` share one gate, so a
 cache-bypass flag would suppress the write too and force a non-atomic
 hand-rolled one.
 
@@ -1759,10 +1837,14 @@ hand-rolled one.
 > `failed` count and a re-run refills them.
 
 Failures never abort the sweep: each one is counted with a short reason (404 vs
-403 vs an exhausted-retry 429 vs "no text" stay distinguishable), warned per
-filing, and tallied by reason at the end. Skips are reported three ways —
-already-cached, no filename on the filing, and a filer-authored name that could
-not be made path-safe — because only the first is a healthy steady state.
+403 vs an exhausted-retry 429 stay distinguishable), warned per filing, and
+tallied by reason at the end. A fetch that reports success but leaves no cache
+file is counted as a failure too — the streaming path holds nothing else, so
+there is no value left to fall back on, and reporting it beats returning a
+success that left the cache empty for the later forms sweep to miss on. Skips
+are reported three ways — already-cached, no filename on the filing, and a
+filer-authored name that could not be made path-safe — because only the first is
+a healthy steady state.
 
 Four signals, each kept as its own column so a consumer can re-derive its own
 rule: `entities.sic = 6770`, a blank-check-shaped current name, a
@@ -2242,6 +2324,51 @@ same as junctions). Query with `sec query person-roles <cik> [--current]`; the
 - `rollback` — swaps `previous` and `current`.
 - `dropNext` — discards an in-flight cycle.
 - `dropPrevious` — clears the previous slot and purges associated data (extractor runs or resolver identity-link/canonical rows).
+
+### The fetch layer and `response_type`
+
+`SecCachedFetchTask` takes a domain key (a CIK, an accession, a date), not a
+URL, so it builds the request in **`resolveFetchInput`** — the seam every
+dispatch path runs through. Not `execute()`: `FetchUrlTask` is streamable, so
+`TaskRunner` always dispatches to `executeStream` and a subclass `execute()`
+override is never invoked (its constructor throws on one rather than letting the
+URL derivation be silently skipped).
+
+`response_type` is `"stream" | "text" | "json" | "blob" | "arraybuffer"` and is
+required upstream. A caller-supplied value is always honored, including
+`"stream"`; the URL-extension guess (`guessResponseType`) decides only for a
+caller that stated nothing, and never yields `"stream"` — materializing is the
+right default for a parser-facing fetch, and asking for bytes-only is an
+explicit decision about who reads the result.
+
+**`SecFetchFileOutputCache` is what makes `"stream"` usable on a cached fetch.**
+It implements `saveOutputStreamPort` — the single capability probe the cache
+coordinator keys its binary sinks on — writing to the same path
+`inputToFileName` yields for a materializing fetch, with the same
+tmp-then-rename discipline so a stream that fails mid-body never renames a
+truncated file into place. Two consequences worth knowing:
+
+- **The row save that follows the sink is skipped**, detected by `body` carrying
+  a `CacheRef` (or by `response_type` being `"stream"`). `saveByPolicy` runs
+  after the streaming sink and targets the same path, so re-serializing there
+  would overwrite the bytes the sink just committed — with a re-encode of the
+  value derived from them for a materializing type, and with an **empty file**
+  for `"stream"`.
+- **An unrecognized `response_type` is a cache MISS**, not an empty hit.
+  `outputDeserializer` filling no field used to hand back `{}`, which `getOutput`
+  reported as a hit holding nothing — read downstream as "the document was
+  empty" rather than "no entry", so the fetch was skipped and the caller parsed
+  nothing.
+
+`SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
+**only before the first byte reaches a stream receiver**. Past that point the
+receiver's subscription outlives the attempt, so a re-issue starts again at byte
+0 and concatenates a second body onto the first with nothing marking the seam.
+Nearly every retryable condition lands before any body byte, so the loop keeps
+its value. The ban is enforced twice over: upstream re-classifies a mid-body
+failure as a non-retryable `BODY_TRUNCATED`, and this loop latches its own
+delivery flag because a per-attempt timeout arrives as a bare abort that keeps
+its shape through that classification and would otherwise drive straight through.
 
 ### SQLite initialization
 

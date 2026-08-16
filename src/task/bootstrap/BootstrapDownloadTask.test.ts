@@ -7,11 +7,112 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { globalServiceRegistry } from "workglow";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  globalServiceRegistry,
+  Task,
+  type DataPortSchema,
+  type ITask,
+  type StreamEvent,
+} from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
-import { BootstrapDownloadTask, streamDownloadToFile } from "./BootstrapDownloadTask";
+import type { TaskPorts } from "../taskPorts";
+import { BootstrapDownloadTask } from "./BootstrapDownloadTask";
+
+/**
+ * Stands in for `SecFetchTask` with `response_type: "stream"`: same `body`
+ * port, same binary deltas, same `metadata` on finish. Everything downstream —
+ * the graph edge, the passthrough, ArchiveToFileTask, the tmp+rename — is
+ * production code.
+ */
+class CannedArchiveFetchTask extends Task<
+  TaskPorts<{ url?: string }>,
+  TaskPorts<{ body?: unknown; metadata?: Record<string, unknown> }>
+> {
+  static readonly type = "CannedArchiveFetchTask";
+  static readonly category = "SEC";
+  static readonly title = "Canned archive download";
+  static readonly cacheable = false;
+
+  public bodyBytes: Uint8Array | undefined = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  /**
+   * NOT named `status`: `Task` owns a `status` field of its own (the runner
+   * sets it to "STREAMING"), and shadowing it made every canned 304 read back
+   * as a 200 with a body.
+   */
+  public responseStatus = 200;
+  public etag: string | undefined;
+  public lastModified: string | undefined;
+
+  public static inputSchema(): DataPortSchema {
+    return {
+      type: "object",
+      properties: { url: { type: "string", title: "URL" } },
+      additionalProperties: false,
+    } as const satisfies DataPortSchema;
+  }
+
+  public static outputSchema(): DataPortSchema {
+    return {
+      type: "object",
+      properties: {
+        body: { title: "Body", "x-stream": "binary", format: "blob" },
+        metadata: { type: "object", title: "Metadata", additionalProperties: true },
+      },
+      additionalProperties: false,
+    } as const satisfies DataPortSchema;
+  }
+
+  async *executeStream(): AsyncIterable<
+    StreamEvent<{ body?: unknown; metadata?: Record<string, unknown> }>
+  > {
+    const headers: Record<string, string> = {};
+    if (this.etag !== undefined) headers.etag = this.etag;
+    if (this.lastModified !== undefined) headers["last-modified"] = this.lastModified;
+    // A 304 carries no body at all — no binary-delta, so the sink never opens
+    // its tmp file and the archive already on disk is left untouched.
+    if (this.responseStatus !== 304 && this.bodyBytes !== undefined) {
+      yield { type: "binary-delta", port: "body", binaryDelta: this.bodyBytes };
+    }
+    yield {
+      type: "finish",
+      data: {
+        metadata: {
+          status: this.responseStatus,
+          notModified: this.responseStatus === 304,
+          headers,
+        },
+      },
+    };
+  }
+
+  async execute(): Promise<{ body?: unknown }> {
+    throw new Error("CannedArchiveFetchTask only streams");
+  }
+}
+
+/** Records the headers each archive request carried, and replies from a canned response. */
+class TestBootstrapDownloadTask extends BootstrapDownloadTask {
+  public readonly seenHeaders: Record<string, string>[] = [];
+  public response: {
+    status?: number;
+    etag?: string;
+    lastModified?: string;
+    /** A 200 that carries no body at all — the sink writes nothing. */
+    emptyBody?: boolean;
+  } = {};
+
+  protected override createArchiveFetchTask(_url: string, headers: Record<string, string>): ITask {
+    this.seenHeaders.push({ ...headers });
+    const task = new CannedArchiveFetchTask({ title: "Download archive" });
+    if (this.response.emptyBody === true) task.bodyBytes = undefined;
+    task.responseStatus = this.response.status ?? 200;
+    task.etag = this.response.etag;
+    task.lastModified = this.response.lastModified;
+    return task as unknown as ITask;
+  }
+}
 
 let tmpRoot: string;
 
@@ -23,305 +124,6 @@ afterEach(() => {
   // Strip any env-derived binding a test set (e.g. SEC_RAW_DATA_FOLDER) so it
   // does not leak into a later test file's container.
   resetDependencyInjectionsForTesting();
-});
-
-// TODO: streamDownloadToFile calls Bun.file(...).writer() to sink the response
-// body to disk, so every test in this block needs a Bun runtime. Migrate the
-// production streamer to node:fs/promises (or fs.createWriteStream) so both
-// runtimes can drive it, then drop this skip.
-describe.skipIf(typeof Bun === "undefined")("streamDownloadToFile", () => {
-  it("streams a response body to disk and reports progress", async () => {
-    // Build a fake ReadableStream that emits the body in three chunks so
-    // we exercise the iteration path, not a one-shot blob copy.
-    const chunks = [
-      new TextEncoder().encode("hello "),
-      new TextEncoder().encode("world"),
-      new TextEncoder().encode("!"),
-    ];
-    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          for (const c of chunks) controller.enqueue(c);
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": String(totalLen) },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "stream.bin");
-      const progress: { downloaded: number; total: number | undefined }[] = [];
-      const result = await streamDownloadToFile("https://example/file", dest, {
-        onProgress: (downloaded, total) => {
-          progress.push({ downloaded, total });
-        },
-      });
-      expect(result.bytes).toBe(totalLen);
-      expect(result.totalBytes).toBe(totalLen);
-      const written = readFileSync(dest, "utf-8");
-      expect(written).toBe("hello world!");
-      // At least one progress callback per chunk.
-      expect(progress.length).toBeGreaterThanOrEqual(3);
-      expect(progress[progress.length - 1].downloaded).toBe(totalLen);
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "stream.bin"), { force: true });
-    }
-  });
-
-  it("throws on non-2xx responses without writing the destination file", async () => {
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => new Response("nope", { status: 404 }));
-    try {
-      const dest = path.join(tmpRoot, "404.bin");
-      await expect(streamDownloadToFile("https://example/missing", dest)).rejects.toThrow(
-        /HTTP 404/
-      );
-    } finally {
-      (global as any).fetch = oldFetch;
-    }
-  });
-
-  it("removes the destination file when the stream aborts mid-download", async () => {
-    // Simulates the multi-GB EDGAR-bulk download case where the connection
-    // drops after partial bytes. The old implementation left a half-written
-    // archive on disk that the next bootstrap run would silently feed to
-    // unzip. The wrapper must catch the stream error, remove the partial
-    // file, and rethrow so the caller surfaces the failure.
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          controller.enqueue(new TextEncoder().encode("first-half"));
-          // Defer the abort to the next microtask so the first chunk has
-          // already been written to disk before we tear the stream down.
-          await Promise.resolve();
-          controller.error(new Error("connection reset"));
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "100" },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "aborted.bin");
-      await expect(streamDownloadToFile("https://example/aborts", dest)).rejects.toThrow(
-        /connection reset/
-      );
-      // The partial file must not be left behind for the next bootstrap
-      // run to mistake for a complete archive.
-      expect(existsSync(dest)).toBe(false);
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "aborted.bin"), { force: true });
-    }
-  });
-
-  it("throws and removes the destination when content-length mismatch is detected", async () => {
-    // Server advertised 10 bytes but only sent 4. We want a hard failure
-    // (with cleanup) rather than silently honouring a truncated archive.
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode("abcd"));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "10" },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "short.bin");
-      await expect(streamDownloadToFile("https://example/short", dest)).rejects.toThrow(
-        /size mismatch/
-      );
-      expect(existsSync(dest)).toBe(false);
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "short.bin"), { force: true });
-    }
-  });
-
-  it("streamDownloadToFile rejects malformed Content-Length", async () => {
-    // Server advertises `123abc`. `parseInt` would have returned 123 and
-    // silently downgraded integrity to a wrong-but-passable check; we
-    // fail closed instead so the caller sees the protocol violation.
-    const body = new TextEncoder().encode("0123456789");
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(body);
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "123abc" },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "bad-len.bin");
-      await expect(streamDownloadToFile("https://example/bad-len", dest)).rejects.toThrow(
-        /Invalid Content-Length/
-      );
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "bad-len.bin"), { force: true });
-    }
-  });
-
-  it("streamDownloadToFile accepts whitespace-padded Content-Length", async () => {
-    // Surrounding whitespace is harmless and must not trip the strict
-    // parser — many proxies normalise headers with stray spaces.
-    const body = new TextEncoder().encode("0123456789");
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(body);
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "  10  " },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "padded-len.bin");
-      const result = await streamDownloadToFile("https://example/padded-len", dest);
-      expect(result.bytes).toBe(10);
-      expect(result.totalBytes).toBe(10);
-      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "padded-len.bin"), { force: true });
-    }
-  });
-
-  it("streamDownloadToFile rejects negative Content-Length", async () => {
-    // A negative value is malformed under RFC 9110; we fail closed rather
-    // than silently downgrade to no-integrity-check.
-    const body = new TextEncoder().encode("hello");
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(body);
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "-5" },
-      });
-    });
-    try {
-      const dest = path.join(tmpRoot, "neg-len.bin");
-      await expect(streamDownloadToFile("https://example/neg-len", dest)).rejects.toThrow(
-        /Invalid Content-Length/
-      );
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "neg-len.bin"), { force: true });
-    }
-  });
-
-  it("accepts RFC 9112 duplicate-equal Content-Length values", async () => {
-    // CloudFront / Akamai / ELB sometimes emit two `Content-Length: N`
-    // header lines. Headers.append combines them into a single
-    // comma-joined string "N, N". RFC 9112 §6.3 explicitly allows the
-    // recipient to combine duplicate equal values. The strict regex
-    // introduced in PR #125 rejected this real-world value; we now
-    // accept it while still rejecting genuinely conflicting values.
-    const body = new TextEncoder().encode("0123456789");
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(body);
-          controller.close();
-        },
-      });
-      // Build the header via append so we get the RFC 9112 combined form.
-      const h = new Headers();
-      h.append("content-length", "10");
-      h.append("content-length", "10");
-      return new Response(stream, { status: 200, headers: h });
-    });
-    try {
-      const dest = path.join(tmpRoot, "dup-equal-len.bin");
-      const result = await streamDownloadToFile("https://example/dup-equal", dest);
-      expect(result.bytes).toBe(10);
-      expect(result.totalBytes).toBe(10);
-      expect(readFileSync(dest, "utf-8")).toBe("0123456789");
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "dup-equal-len.bin"), { force: true });
-    }
-  });
-
-  it("rejects mismatched duplicate Content-Length values", async () => {
-    // Two Content-Length lines with different values are a genuine
-    // protocol error. RFC 9112 §6.3 requires equal duplicates; mismatched
-    // duplicates must fail closed.
-    const body = new TextEncoder().encode("0123456789");
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(body);
-          controller.close();
-        },
-      });
-      const h = new Headers();
-      h.append("content-length", "10");
-      h.append("content-length", "20");
-      return new Response(stream, { status: 200, headers: h });
-    });
-    try {
-      const dest = path.join(tmpRoot, "dup-mismatched-len.bin");
-      await expect(streamDownloadToFile("https://example/dup-mismatched", dest)).rejects.toThrow(
-        /Conflicting Content-Length/
-      );
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "dup-mismatched-len.bin"), { force: true });
-    }
-  });
-
-  it("handles responses with no content-length header", async () => {
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode("data"));
-          controller.close();
-        },
-      });
-      return new Response(stream, { status: 200 });
-    });
-    try {
-      const dest = path.join(tmpRoot, "no-len.bin");
-      const result = await streamDownloadToFile("https://example/chunked", dest);
-      expect(result.bytes).toBe(4);
-      expect(result.totalBytes).toBeUndefined();
-      expect(readFileSync(dest, "utf-8")).toBe("data");
-    } finally {
-      (global as any).fetch = oldFetch;
-      rmSync(path.join(tmpRoot, "no-len.bin"), { force: true });
-    }
-  });
 });
 
 // TODO: BootstrapDownloadTask.execute drives unzip via Bun.spawn / Bun.which
@@ -349,27 +151,6 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
     };
   }
 
-  function stubFetchToWriteZip(): () => void {
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async () => {
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          // Minimal ZIP magic bytes — we never actually unzip in these
-          // tests because Bun.spawn is stubbed.
-          controller.enqueue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { "content-length": "4" },
-      });
-    });
-    return () => {
-      (global as any).fetch = oldFetch;
-    };
-  }
-
   function stubBun(opts: {
     spawn: (cmd: readonly string[]) => { exited: Promise<number> } | never;
   }): () => void {
@@ -388,11 +169,12 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
   const ctx = {
     signal: new AbortController().signal,
     updateProgress: async () => {},
+    own: <T>(value: T) => value,
+    disown: () => {},
   } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
 
   it("removes the staged zip when Bun.spawn throws synchronously", async () => {
     const { folder, targetFolder, zipPath } = setupRawDataFolder();
-    const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => {
         throw new Error("spawn refused");
@@ -400,37 +182,33 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
     });
     try {
       const input = { url: "https://example/file.zip", targetFolder };
-      const task = new BootstrapDownloadTask({ defaults: input });
+      const task = new TestBootstrapDownloadTask({ defaults: input });
       await expect(task.execute(input, ctx)).rejects.toThrow(/spawn refused/);
       expect(existsSync(zipPath)).toBe(false);
     } finally {
       restoreBun();
-      restoreFetch();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
   it("removes the staged zip when unzip exits non-zero", async () => {
     const { folder, targetFolder, zipPath } = setupRawDataFolder();
-    const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => ({ exited: Promise.resolve(1) }),
     });
     try {
       const input = { url: "https://example/file.zip", targetFolder };
-      const task = new BootstrapDownloadTask({ defaults: input });
+      const task = new TestBootstrapDownloadTask({ defaults: input });
       await expect(task.execute(input, ctx)).rejects.toThrow(/unzip exited with code 1/);
       expect(existsSync(zipPath)).toBe(false);
     } finally {
       restoreBun();
-      restoreFetch();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
   it("removes the staged zip on the success path too", async () => {
     const { folder, targetFolder, zipPath } = setupRawDataFolder();
-    const restoreFetch = stubFetchToWriteZip();
     const restoreBun = stubBun({
       spawn: () => ({ exited: Promise.resolve(0) }),
     });
@@ -441,22 +219,30 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
       // someone refactors the stream stub).
       writeFileSync(zipPath, "placeholder");
       const input = { url: "https://example/file.zip", targetFolder };
-      const task = new BootstrapDownloadTask({ defaults: input });
+      const task = new TestBootstrapDownloadTask({ defaults: input });
       const result = await task.execute(input, ctx);
       expect(result.success).toBe(true);
       expect(existsSync(zipPath)).toBe(false);
     } finally {
       restoreBun();
-      restoreFetch();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 });
 
-describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional download", () => {
+/** True for the tests below that drive `unzip` through `Bun.spawn`. */
+const NEEDS_BUN = typeof Bun === "undefined";
+
+describe("BootstrapDownloadTask conditional download", () => {
   // The bulk archives are ~1.5 GB each and EDGAR serves ETag/Last-Modified on
   // both, so a re-run should ask "changed?" rather than re-pulling. These tests
   // pin the marker round-trip, the 304 skip, and the -uo/-o flag choice.
+  //
+  // The describe is NOT Bun-gated as a whole: the repo's `test` script is
+  // `vitest run`, so gating it hid the 304 and matching-ETag paths — the ones
+  // this file exists for — from the only command CI runs. Only the tests that
+  // actually reach `Bun.which`/`Bun.spawn` (i.e. those that extract) are
+  // skipped off Bun; the two that short-circuit before extraction are not.
 
   const URL = "https://example/file.zip";
 
@@ -472,38 +258,11 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
     };
   }
 
-  /** Records the headers each request carried, and replies with `status`. */
-  function stubFetch(opts: {
-    status?: number;
-    etag?: string;
-    lastModified?: string;
-  }): { seen: Record<string, string>[]; restore: () => void } {
-    const seen: Record<string, string>[] = [];
-    const oldFetch = global.fetch;
-    (global as any).fetch = vi.fn(async (_url: string, init?: RequestInit) => {
-      seen.push({ ...((init?.headers as Record<string, string>) ?? {}) });
-      const headers: Record<string, string> = {};
-      if (opts.etag !== undefined) headers.etag = opts.etag;
-      if (opts.lastModified !== undefined) headers["last-modified"] = opts.lastModified;
-      if (opts.status === 304) {
-        return new Response(null, { status: 304, headers });
-      }
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 200,
-        headers: { ...headers, "content-length": "4" },
-      });
-    });
-    return { seen, restore: () => ((global as any).fetch = oldFetch) };
-  }
-
   function stubBun(): { cmds: readonly string[][]; restore: () => void } {
     const cmds: string[][] = [];
+    // Off Bun there is nothing to stub; the tests that keep running here never
+    // reach extraction, so an empty recorder states exactly that.
+    if (NEEDS_BUN) return { cmds, restore: () => {} };
     const realSpawn = Bun.spawn;
     const realWhich = Bun.which;
     (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((cmd: readonly string[]) => {
@@ -524,29 +283,34 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
   const ctx = {
     signal: new AbortController().signal,
     updateProgress: async () => {},
+    own: <T>(value: T) => value,
+    disown: () => {},
   } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
 
-  it("sends no conditional header on a first run and records a marker", async () => {
-    const { folder, targetFolder } = setup();
-    const fetchStub = stubFetch({ etag: '"abc"', lastModified: "Fri, 31 Jul 2026 04:40:43 GMT" });
-    const bun = stubBun();
-    try {
-      const input = { url: URL, targetFolder };
-      await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+  it.skipIf(NEEDS_BUN)(
+    "sends no conditional header on a first run and records a marker",
+    async () => {
+      const { folder, targetFolder } = setup();
+      const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+      task.response = { etag: '"abc"', lastModified: "Fri, 31 Jul 2026 04:40:43 GMT" };
+      const bun = stubBun();
+      try {
+        const input = { url: URL, targetFolder };
+        await task.execute(input, ctx);
 
-      expect(fetchStub.seen[0]["If-None-Match"]).toBeUndefined();
-      const marker = JSON.parse(
-        readFileSync(path.join(folder, ".bulk-done", `${targetFolder}.json`), "utf8")
-      );
-      expect(marker.etag).toBe('"abc"');
-      expect(marker.contentLength).toBe(4);
-      expect(marker.url).toBe(URL);
-    } finally {
-      bun.restore();
-      fetchStub.restore();
-      rmSync(folder, { recursive: true, force: true });
+        expect(task.seenHeaders[0]["If-None-Match"]).toBeUndefined();
+        const marker = JSON.parse(
+          readFileSync(path.join(folder, ".bulk-done", `${targetFolder}.json`), "utf8")
+        );
+        expect(marker.etag).toBe('"abc"');
+        expect(marker.contentLength).toBe(4);
+        expect(marker.url).toBe(URL);
+      } finally {
+        bun.restore();
+        rmSync(folder, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   it("sends BOTH validators and skips extraction entirely on 304", async () => {
     // www.sec.gov ignores If-None-Match but honours If-Modified-Since, so
@@ -561,75 +325,108 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
         url: URL,
         etag: '"abc"',
         lastModified: "Fri, 31 Jul 2026 04:40:43 GMT",
-        contentLength: 4,
+        // Deliberately NOT the 4 bytes a 200 would write: the belt-and-braces
+        // "same ETag and length" branch below skips extraction too, so with a
+        // matching length this test would pass whether the 304 was honored or
+        // silently downloaded. A mismatched length leaves the real 304 path as
+        // the only way to reach a skip.
+        contentLength: 999,
         extractedAt: "2026-07-31",
       })
     );
-    const fetchStub = stubFetch({ status: 304, etag: '"abc"' });
+    const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+    task.response = { status: 304, etag: '"abc"' };
     const bun = stubBun();
     try {
       const input = { url: URL, targetFolder };
-      const result = await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+      const result = await task.execute(input, ctx);
 
       expect(result.success).toBe(true);
-      expect(fetchStub.seen[0]["If-None-Match"]).toBe('"abc"');
-      expect(fetchStub.seen[0]["If-Modified-Since"]).toBe("Fri, 31 Jul 2026 04:40:43 GMT");
+      expect(task.seenHeaders[0]["If-None-Match"]).toBe('"abc"');
+      expect(task.seenHeaders[0]["If-Modified-Since"]).toBe("Fri, 31 Jul 2026 04:40:43 GMT");
       expect(bun.cmds).toHaveLength(0); // never unzipped
+      // A 304 carries no body, so the sink never opened its file: the extracted
+      // tree the conditional request just certified as current is untouched,
+      // and no zero-byte archive was staged over it.
+      expect(readFileSync(path.join(targetDir, "already-here.json"), "utf8")).toBe("{}");
+      expect(existsSync(path.join(folder, `${targetFolder}.zip`))).toBe(false);
     } finally {
       bun.restore();
-      fetchStub.restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
-  it("ignores a marker whose extracted tree is gone", async () => {
+  it.skipIf(NEEDS_BUN)("ignores a marker whose extracted tree is gone", async () => {
     const { folder, targetFolder } = setup();
     mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
     writeFileSync(
       path.join(folder, ".bulk-done", `${targetFolder}.json`),
       JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
     );
-    const fetchStub = stubFetch({ etag: '"def"' });
+    const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+    task.response = { etag: '"def"' };
     const bun = stubBun();
     try {
       const input = { url: URL, targetFolder };
-      await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+      await task.execute(input, ctx);
 
       // No target dir contents => marker untrusted => unconditional download.
-      expect(fetchStub.seen[0]["If-None-Match"]).toBeUndefined();
+      expect(task.seenHeaders[0]["If-None-Match"]).toBeUndefined();
       expect(bun.cmds).toHaveLength(1);
     } finally {
       bun.restore();
-      fetchStub.restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });
 
-  it("extracts with -uo normally and -o under force, and force skips the marker", async () => {
-    const { folder, targetFolder, targetDir } = setup();
-    mkdirSync(targetDir, { recursive: true });
-    writeFileSync(path.join(targetDir, "already-here.json"), "{}");
-    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
-    writeFileSync(
-      path.join(folder, ".bulk-done", `${targetFolder}.json`),
-      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
-    );
-    const fetchStub = stubFetch({ etag: '"changed"' });
+  it.skipIf(NEEDS_BUN)(
+    "extracts with -uo normally and -o under force, and force skips the marker",
+    async () => {
+      const { folder, targetFolder, targetDir } = setup();
+      mkdirSync(targetDir, { recursive: true });
+      writeFileSync(path.join(targetDir, "already-here.json"), "{}");
+      mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+      writeFileSync(
+        path.join(folder, ".bulk-done", `${targetFolder}.json`),
+        JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+      );
+      const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+      task.response = { etag: '"changed"' };
+      const bun = stubBun();
+      try {
+        const plain = { url: URL, targetFolder };
+        await task.execute(plain, ctx);
+        expect(bun.cmds[0]).toContain("-uo");
+        expect(task.seenHeaders[0]["If-None-Match"]).toBe('"abc"');
+
+        const forced = { url: URL, targetFolder, force: true };
+        await task.execute(forced, ctx);
+        expect(bun.cmds[1]).toContain("-o");
+        expect(bun.cmds[1]).not.toContain("-uo");
+        expect(task.seenHeaders[1]["If-None-Match"]).toBeUndefined();
+      } finally {
+        bun.restore();
+        rmSync(folder, { recursive: true, force: true });
+      }
+    }
+  );
+
+  it("refuses to extract when a 200 comes back with no body at all", async () => {
+    // The sink reports `wrote: false` and leaves `zipPath` alone. Extracting
+    // anyway would republish whatever an earlier run left there AND stamp the
+    // marker with this response's validators, freezing the staleness in.
+    const { folder, targetFolder, zipPath } = setup();
+    writeFileSync(zipPath, "an earlier run's archive");
+    const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+    task.response = { emptyBody: true, etag: '"abc"' };
     const bun = stubBun();
     try {
-      const plain = { url: URL, targetFolder };
-      await new BootstrapDownloadTask({ defaults: plain }).execute(plain, ctx);
-      expect(bun.cmds[0]).toContain("-uo");
-      expect(fetchStub.seen[0]["If-None-Match"]).toBe('"abc"');
-
-      const forced = { url: URL, targetFolder, force: true };
-      await new BootstrapDownloadTask({ defaults: forced }).execute(forced, ctx);
-      expect(bun.cmds[1]).toContain("-o");
-      expect(bun.cmds[1]).not.toContain("-uo");
-      expect(fetchStub.seen[1]["If-None-Match"]).toBeUndefined();
+      await expect(task.execute({ url: URL, targetFolder }, ctx)).rejects.toThrow(/no body/);
+      expect(bun.cmds).toHaveLength(0);
+      expect(existsSync(path.join(folder, ".bulk-done", `${targetFolder}.json`))).toBe(false);
+      expect(readFileSync(zipPath, "utf8")).toBe("an earlier run's archive");
     } finally {
       bun.restore();
-      fetchStub.restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });
@@ -644,18 +441,18 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
       JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
     );
     // Origin ignores the conditional header and replies 200 with identical bytes.
-    const fetchStub = stubFetch({ etag: '"abc"' });
+    const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+    task.response = { etag: '"abc"' };
     const bun = stubBun();
     try {
       const input = { url: URL, targetFolder };
-      const result = await new BootstrapDownloadTask({ defaults: input }).execute(input, ctx);
+      const result = await task.execute(input, ctx);
 
       expect(result.success).toBe(true);
       expect(bun.cmds).toHaveLength(0);
       expect(existsSync(zipPath)).toBe(false); // staged zip binned
     } finally {
       bun.restore();
-      fetchStub.restore();
       rmSync(folder, { recursive: true, force: true });
     }
   });

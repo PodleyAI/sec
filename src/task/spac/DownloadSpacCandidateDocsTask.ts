@@ -9,7 +9,6 @@ import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises
 import path from "node:path";
 import { Type } from "typebox";
 import {
-  FetchUrlTaskOutput,
   globalServiceRegistry,
   IExecuteContext,
   type PageCursor,
@@ -17,7 +16,6 @@ import {
   Task,
   TaskAbortedError,
   TaskError,
-  Workflow,
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
@@ -31,6 +29,8 @@ import {
   resolvePrimaryDocName,
   sanitizePrimaryDoc,
 } from "../../util/accessionDocPath";
+import { tmpPathFor } from "../../util/atomicFileWrite";
+import { describeFailureReason } from "../../util/describeFailure";
 import { TypeSecCik } from "../../util/TypeSecCik";
 import { extractPrimaryDocFromSubmission } from "../bootstrap/feedTarball";
 import { FORMS_SWEEP_CONCURRENCY_LIMIT } from "../forms/formsSweep";
@@ -87,9 +87,9 @@ type CacheOneOutput = {
   readonly success: boolean;
   /**
    * Why the fetch failed, in one short phrase. Without it a 404, a 403 (EDGAR
-   * blocking the User-Agent), an exhausted-retry 429 and "the response carried
-   * no text" all sum into one counter and are indistinguishable — three of
-   * which need completely different operator responses.
+   * blocking the User-Agent) and an exhausted-retry 429 all sum into one
+   * counter and are indistinguishable — three causes needing completely
+   * different operator responses.
    */
   readonly reason?: string;
 };
@@ -100,21 +100,6 @@ function isEightK(form: string): boolean {
 
 /** Longest failure reason kept on a row, so one HTML error page cannot flood the log. */
 const MAX_REASON_LENGTH = 160;
-
-/**
- * One short phrase naming why a fetch failed, for the per-filing warning and
- * the grouped tally. Kept to the message so distinct causes — 404, 403, an
- * exhausted-retry 429, "no text" — stay distinguishable without a stack trace
- * per filing in a sweep that can fail thousands of times.
- */
-function describeFetchFailure(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const collapsed = message.replace(/\s+/g, " ").trim();
-  if (collapsed.length === 0) return "unknown error";
-  return collapsed.length > MAX_REASON_LENGTH
-    ? `${collapsed.slice(0, MAX_REASON_LENGTH - 1)}…`
-    : collapsed;
-}
 
 /**
  * Writes a cache file the way {@link SecFetchFileOutputCache} does: to a unique
@@ -128,7 +113,7 @@ function describeFetchFailure(err: unknown): string {
 async function writeFileAtomic(fullPath: string, dir: string, body: string): Promise<void> {
   assertInsideDir(fullPath, dir);
   await mkdir(path.dirname(fullPath), { recursive: true });
-  const tmpPath = `${fullPath}.tmp.${process.pid}.${Math.random().toString(36).slice(2, 10)}`;
+  const tmpPath = tmpPathFor(fullPath);
   try {
     await writeFile(tmpPath, body, "utf-8");
     await rename(tmpPath, fullPath);
@@ -175,13 +160,14 @@ async function evictCacheFile(fullPath: string, dir: string): Promise<void> {
  * every one of its thousands of filings, and the operator needs the fact, not
  * the count.
  */
-let warnedNonAtomicFallback = false;
-function warnNonAtomicFallbackOnce(): void {
-  if (warnedNonAtomicFallback) return;
-  warnedNonAtomicFallback = true;
+let warnedMissingCacheFile = false;
+function warnMissingCacheFileOnce(): void {
+  if (warnedMissingCacheFile) return;
+  warnedMissingCacheFile = true;
   console.warn(
-    "SPAC doc download: the fetch left no cache file, writing it directly. " +
-      "In production this means SEC_RAW_DATA_FOLDER was not registered when the fetch task was built."
+    "SPAC doc download: the fetch reported success but left no cache file. " +
+      "The download path streams to the file cache, so nothing else holds the bytes; " +
+      "in production this means SEC_RAW_DATA_FOLDER was not registered when the fetch task was built."
   );
 }
 
@@ -212,40 +198,32 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
 
   /**
    * Fetch seam. Production goes through {@link SecFetchAccessionDocTask}
-   * (rate limiter + file cache). Tests override to return canned bodies.
+   * (rate limiter + file cache) with `response_type: "stream"` — this command
+   * exists to FILL the cache, not to read it, so nothing here wants the
+   * document as a value. The cache file is the artifact and success is the
+   * absence of an error; there is nothing to return.
+   *
+   * The seam's contract is therefore that the bytes end up at the cache path,
+   * and an override that returns without writing one is a broken seam, not a
+   * fetch this task can paper over.
    */
   protected async fetchDoc(
     cik: number,
     accessionNumber: string,
     fileName: string,
     context: IExecuteContext
-  ): Promise<string> {
-    const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
-    let text: string | undefined;
-    wf.pipe(
-      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
-      async function checkDownloadSuccess(fetchOutput: FetchUrlTaskOutput) {
-        text = fetchOutput.text ?? undefined;
-        return { success: true };
-      }
+  ): Promise<void> {
+    const fetchTask = context.own(
+      new SecFetchAccessionDocTask(
+        { cik, accessionNumber, fileName, response_type: "stream" },
+        { title: `Fetch ${accessionNumber} ${fileName}` }
+      )
     );
     try {
-      await wf.run();
+      await fetchTask.run();
     } finally {
-      for (const dataflow of wf.graph.getDataflows()) {
-        dataflow.reset();
-      }
-      for (const task of wf.graph.getTasks()) {
-        task.resetInputData();
-        task.runOutputData = {};
-        task.error = undefined;
-      }
-      context.disown(wf);
+      context.disown(fetchTask);
     }
-    if (!text) {
-      throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
-    }
-    return text;
   }
 
   async execute(input: CacheOneInput, context: IExecuteContext): Promise<CacheOneOutput> {
@@ -263,7 +241,6 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
     const cikDir = path.join(raw, "accessiondocs", String(cik).padStart(10, "0"));
     const requiredPath = path.join(raw, accessionDocCacheRelative(cik, accessionNumber, fileName));
 
-    let text: string;
     // `fileName` arrives on a data port that accepts any string, and this task
     // is exported — the parent's worklist sanitization is not a substitute.
     // Guard the READ the same way `ProcessAccessionDocFormTask.readCachedDoc`
@@ -277,48 +254,51 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
         cacheReadable = false;
       }
     }
-    if (cacheReadable) {
-      text = await readFile(requiredPath, "utf-8");
-    } else {
+    if (!cacheReadable) {
       if (force && !isDryRun()) {
         // Evict BEFORE fetching: the fetch task's own file cache keys off this
         // exact path, so a surviving entry short-circuits the re-fetch.
         await evictCacheFile(requiredPath, cikDir);
       }
       try {
-        text = await this.fetchDoc(cik, accessionNumber, fileName, context);
+        await this.fetchDoc(cik, accessionNumber, fileName, context);
       } catch (err) {
         if (err instanceof TaskAbortedError) throw err;
         if (context.signal?.aborted) throw new TaskAbortedError();
-        // A binary primary document (`.pdf`, `.jpg`, …) resolves to
-        // `response_type: "blob"`, so `fetchOutput.text` is undefined and
-        // `fetchDoc` throws "Fetch returned no text" — AFTER the fetch task's
-        // own file cache already wrote the bytes. The document is cached; the
-        // filing is not a failure, and only the text-only slice step below is
-        // unavailable (which no binary form uses). Reachable on `everything`
-        // for any primary-doc form.
-        if (existsSync(requiredPath)) return { success: true };
-        return { success: false, reason: describeFetchFailure(err) };
+        return { success: false, reason: describeFailureReason(err, MAX_REASON_LENGTH) };
       }
-      // The production fetch path already persisted the body through
-      // `SecFetchFileOutputCache.saveOutput` (tmp + rename). Writing again on
-      // top of that is a second, non-atomic write of bytes that are already on
-      // disk. This fallback covers the two cases where nothing wrote: the test
-      // seam that stubs `fetchDoc`, and a process where SEC_RAW_DATA_FOLDER was
-      // not yet registered when the fetch task was constructed (no output cache
-      // is installed then) — which in production means a mis-ordered DI
-      // registration, hence the warning.
-      if (!existsSync(requiredPath)) {
-        warnNonAtomicFallbackOnce();
-        await writeFileAtomic(requiredPath, cikDir, text);
+      // Streaming makes the cache file the whole result, so its absence is the
+      // only way this fetch can have failed silently — there is no returned
+      // value left to fall back to. In production the SEC_RAW_DATA_FOLDER
+      // check at the top of this method guarantees the fetch task installs an
+      // output cache, so reaching here means a seam that did not honor its
+      // contract.
+      //
+      // Except under `--dry-run`, where the cache deliberately drains the body
+      // and writes nothing: an absent file is the expected outcome there, and
+      // reporting it as a failure made a dry run tally every filing as failed
+      // under a reason that blames a DI misconfiguration.
+      if (!isDryRun() && !existsSync(requiredPath)) {
+        warnMissingCacheFileOnce();
+        return {
+          success: false,
+          reason: "fetch completed but wrote no cache file",
+        };
       }
     }
 
-    if (isEightK(form) && primaryDoc.trim().length > 0) {
+    // Skipped under dry run: the cache wrote nothing to read back, and the
+    // slice it derives is written by this task rather than by the cache, so it
+    // would otherwise be the one write a dry run still performs.
+    if (isEightK(form) && primaryDoc.trim().length > 0 && !isDryRun()) {
       try {
         // Same resolution `shouldSkipCached` uses, so the path this writes is
         // the path the next run's skip check looks for.
         const safeName = sanitizePrimaryDoc(resolvePrimaryDocName(primaryDoc) ?? "");
+        // The one step that genuinely needs the text. Read it back from the
+        // cache: the file is guaranteed present by the check above, and the
+        // fetch no longer hands a string over.
+        const text = await readFile(requiredPath, "utf-8");
         const sliced = extractPrimaryDocFromSubmission(text, safeName);
         if (sliced !== undefined) {
           const primaryPath = path.join(

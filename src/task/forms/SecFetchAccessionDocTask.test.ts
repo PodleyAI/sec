@@ -41,15 +41,18 @@ describe("SecFetchAccessionDocTask", () => {
     expect(resolved.response_type).toBe("text");
   });
 
-  it('does not pass response_type "stream" through to the file-cache serializer', async () => {
-    // FetchUrlTaskInput now includes "stream", which materializes no derived
-    // port. SecFetchFileOutputCache writes json/text/blob/arraybuffer, so a
-    // cached SEC fetch must pick a materializing type from the URL even when
-    // a caller (or FetchUrlTask's default) asked for a stream.
+  it('honors an explicit response_type "stream" instead of guessing from the URL', async () => {
+    // The extension mapping decides only for a caller that stated nothing.
+    // A caller asking for "stream" wants the bytes on disk and no value in
+    // memory (`sec spac download`); SecFetchFileOutputCache sinks that through
+    // saveOutputStreamPort to the same path a "text" fetch would write, so
+    // downgrading it here would re-materialize the very document the caller
+    // asked not to hold.
     const task = new SecFetchAccessionDocTask({
       cik: 2097288,
       accessionNumber: "0001213900-26-012345",
       fileName: "ea123.htm",
+      response_type: "stream",
     });
     const resolved = await (
       task as unknown as {
@@ -67,6 +70,6 @@ describe("SecFetchAccessionDocTask", () => {
       } as FetchUrlTaskInput,
       {} as IExecuteContext
     );
-    expect(resolved.response_type).toBe("text");
+    expect(resolved.response_type).toBe("stream");
   });
 });

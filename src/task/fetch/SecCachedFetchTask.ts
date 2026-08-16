@@ -18,7 +18,9 @@ import { YYYYdMMdDD } from "../../util/parseDate";
 import { SecFetchFileOutputCache } from "./SecFetchFileOutputCache";
 import { SecFetchTask } from "./SecFetchTask";
 
-export type response_type = "text" | "json" | "blob" | "arraybuffer";
+const RESPONSE_TYPES = ["stream", "text", "json", "blob", "arraybuffer"] as const;
+
+export type response_type = (typeof RESPONSE_TYPES)[number];
 export interface SecCachedFetchTaskInput {
   cik: number;
   date?: YYYYdMMdDD;
@@ -26,15 +28,25 @@ export interface SecCachedFetchTaskInput {
 }
 
 /**
- * File-cacheable fetch types. FetchUrlTask also accepts `"stream"`, which
- * materializes no derived port — SecFetchFileOutputCache cannot persist that.
+ * True for any type FetchUrlTask accepts. `"stream"` is included: it
+ * materializes no derived port, and {@link SecFetchFileOutputCache} sinks it
+ * through `saveOutputStreamPort` to the same path a materializing fetch of the
+ * same document would write — so a caller that only wants the bytes on disk
+ * (`sec spac download`) can ask for it and the cache still fills.
  */
-function isMaterializingResponseType(value: unknown): value is response_type {
-  return value === "text" || value === "json" || value === "blob" || value === "arraybuffer";
+function isResponseType(value: unknown): value is response_type {
+  return (RESPONSE_TYPES as readonly unknown[]).includes(value);
 }
 
+/**
+ * Resolves the response type for a request. A caller-supplied type is always
+ * honored — including `"stream"` — and the URL extension only decides for a
+ * caller that did not state one. `"stream"` is therefore never *guessed*:
+ * materializing is the safe default for a parser-facing fetch, and asking for
+ * bytes-only is an explicit decision about who reads the result.
+ */
 function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_type {
-  if (isMaterializingResponseType(input.response_type)) {
+  if (isResponseType(input.response_type)) {
     return input.response_type;
   }
   const url = new URL(urlstr);
@@ -69,6 +81,19 @@ function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_t
   }
 }
 
+/**
+ * True when a schema declares the `x-stream: "binary"` `body` port the cache's
+ * streaming sink writes through. A subclass that narrows {@link
+ * SecCachedFetchTask.outputSchema} to its own port shape drops that port, and
+ * with it the sink — see the guard in the constructor.
+ */
+function declaresBinaryBodyPort(schema: unknown): boolean {
+  const properties = (
+    schema as { properties?: Record<string, { "x-stream"?: unknown } | undefined> } | undefined
+  )?.properties;
+  return properties?.body?.["x-stream"] === "binary";
+}
+
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
   O extends TaskOutput = FetchUrlTaskOutput,
@@ -82,8 +107,32 @@ export abstract class SecCachedFetchTask<
     return {} as any;
   }
 
-  static outputSchema() {
-    return {} as any;
+  /**
+   * FetchUrlTask's real output schema, not the `{}` this used to return.
+   *
+   * Which schema is declared here decides whether a cached fetch can stream at
+   * all: the runner reads the OUTPUT schema to find the `x-stream: "binary"`
+   * port, so an empty one meant `getBinaryRefSinksByPolicy` built no sink and
+   * the cache file was written only by `saveOutput`, off the materialized
+   * derived value. That was harmless while every fetch materialized
+   * something — and silently fatal for `response_type: "stream"`, which
+   * materializes nothing: no sink AND no derived value is no bytes anywhere,
+   * so the download reported success and wrote no cache entry.
+   *
+   * ⚠️ A subclass that narrows this to its own port shape (as
+   * `SecFetchSubmissionsTask` does, to publish the typed JSON it returns) drops
+   * `body` and lands back in the no-sink case. That is fine for a fetch whose
+   * `response_type` materializes a value — `saveOutput` still writes it — but
+   * such a subclass must not ask for `"stream"`.
+   *
+   * The return type stays `any`, as it was: FetchUrlTask declares its schema as
+   * a literal, so TypeScript's static-side variance rejects any narrowing
+   * override outright, and that escape hatch is the only reason those
+   * subclasses compile. What changed is the runtime value — the schema the
+   * runner actually reads — not the typing.
+   */
+  static outputSchema(): any {
+    return SecFetchTask.outputSchema();
   }
 
   abstract inputToFileName(input: I): string;
@@ -97,10 +146,30 @@ export abstract class SecCachedFetchTask<
     // `defaults`/`runInputData`, so that downstream `execute()` calls and
     // any cache lookups see a consistent value.
     const fetchInput = this.defaults as FetchUrlTaskInput & I;
-    if (!isMaterializingResponseType(fetchInput.response_type)) {
+    if (!isResponseType(fetchInput.response_type)) {
       const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
       fetchInput.response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
+    }
+
+    // Enforce the hazard {@link SecCachedFetchTask.outputSchema} documents,
+    // rather than leaving it to whoever reads that comment. `"stream"`
+    // materializes no derived port, so the streaming sink is the ONLY writer —
+    // and the runner only builds one for a schema declaring a binary `body`
+    // port. A subclass that narrowed the schema away would report success and
+    // write no cache entry, which is precisely the silent failure the schema
+    // fix exists to remove. Checked only on the `"stream"` path, so nothing
+    // else pays for evaluating the schema at construction time.
+    if (fetchInput.response_type === "stream") {
+      const ctor = this.constructor as typeof SecCachedFetchTask;
+      if (!declaresBinaryBodyPort(ctor.outputSchema())) {
+        throw new Error(
+          `${ctor.type}: response_type "stream" requires a binary \`body\` output port for the ` +
+            `cache sink to write through, and this task's outputSchema() declares none — the ` +
+            `fetch would report success and write no cache entry. Ask for a materializing ` +
+            `response_type instead.`
+        );
+      }
     }
 
     if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {
