@@ -50,14 +50,36 @@ describe("classifyListingRemoval", () => {
     ).toBe("deregistration");
   });
 
-  it("does not treat a 25-NSE as unit separation when the vehicle never IPO'd", () => {
-    expect(
-      classifyListingRemoval({
-        form: "25-NSE",
-        ipoDate: null,
-        filingDate: "2026-06-09",
-      })
-    ).toBe("deregistration");
+  it("does not demote a 25-NSE when the IPO floor is unknown", () => {
+    // A SPAC minted by the S-1 AI content classifier (a SIC-miscoded filer)
+    // structurally never gets an ipo_date, so demoting on an absent floor
+    // marked a live searching vehicle liquidated.
+    for (const ipoDate of [null, ""]) {
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE",
+          ipoDate,
+          filingDate: "2026-06-09",
+        })
+      ).toBe("unit_split");
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE/A",
+          ipoDate,
+          filingDate: "2026-06-09",
+        })
+      ).toBe("unit_split");
+    }
+  });
+
+  it("still deregisters an issuer Form 25 / Form 15 with an unknown IPO floor", () => {
+    // The unknown-floor allowance is exchange-only: a real wind-up files one of
+    // these, so the conservative branch loses very little.
+    for (const form of ["25", "25/A", "15-12G", "15-12B", "15F-12G"]) {
+      expect(classifyListingRemoval({ form, ipoDate: null, filingDate: "2026-06-09" })).toBe(
+        "deregistration"
+      );
+    }
   });
 
   it("treats issuer Form 25 as deregistration even right after IPO", () => {

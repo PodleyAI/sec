@@ -74,6 +74,20 @@ describe("ProcessAccessionDocFormTask metadata-only Form 25/15", () => {
 
   it("succeeds for 25-NSE with no primary document and never fetches", async () => {
     await seedSpac();
+    // The vehicle priced, so its 2023 25-NSE is three years past the unit-
+    // separation window and really is a delisting. Without the IPO the floor
+    // would be unknown, and an unknown floor no longer demotes to
+    // deregistration — see `classifyListingRemoval`.
+    await new SpacReportWriter().recordIpo({
+      cik: CIK,
+      accession_number: "0001213900-20-030000",
+      filing_date: "2020-10-20",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 240_000_000,
+      trust_amount: 240_000_000,
+      spac_tickers: ["ADER.U"],
+    });
     await seedFiling(null);
 
     const result = await new MustNotFetchTask().run({ accessionNumber: ACCESSION });

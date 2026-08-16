@@ -539,6 +539,28 @@ describe("buildSpacRow", () => {
     expect(row.status).toBe("liquidated");
   });
 
+  it("a unit_split with no ipo event fills unit_split_date and leaves status registered", () => {
+    // The rollup half of the unknown-IPO-floor rule: a SIC-miscoded SPAC has a
+    // registration and no `ipo` event, so `deriveStatus` never reaches the
+    // unit_split branch (it is inside `hasIpo`). The date is recorded and no
+    // IPO is claimed that no filing supports.
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "registration", event_date: "2026-01-05" }),
+        ev({ event_type: "unit_split", event_date: "2026-06-09" }),
+      ],
+      patch: {},
+      filingDate: "2026-06-09",
+    });
+    expect(row.status).toBe("registered");
+    expect(row.unit_split_date).toBe("2026-06-09");
+    expect(row.ipo_date).toBeNull();
+    expect(row.failed_date).toBeNull();
+  });
+
   it("registration plus a withdrawal event is withdrawn, not leftover registered", () => {
     const row = buildSpacRow({
       existing: undefined,
