@@ -2021,6 +2021,18 @@ EXISTS` is a no-op on an existing table and `createStorage` declares no
   `underwriter_link.role_detail` (declared `type: ["string", "null"]`, which
   the emitter itself does not recognize).
 
+  Because the mirror declines arrays, converting
+  `rega_offerings.securities_offered_type` from its original scalar column to
+  the list Form 1-A's multi-select always produced is **hand-rolled**
+  (`RegASecuritiesOfferedTypeArrayMigration.ts`), like
+  `AddressRegionNullableMigration` and `backfillExtractorRunsOutcome` — not
+  taught to either generic pass, which would mean re-deriving the emitter's
+  array rules from memory. The two backends converge on what the repository
+  hands back (`string[]`) while storing it differently: **JSON array text on
+  SQLite, `text[]` on Postgres**. So the SQLite arm issues no DDL at all (a
+  legacy multi-select was already JSON; only a legacy single selection needs
+  wrapping), and the Postgres arm is one `ALTER COLUMN ... TYPE text[]`.
+
   Second, a **column-alignment pass**
   (`alignPostgresColumnTypes`). `CREATE TABLE IF NOT EXISTS` never alters an
   existing table and the declarative migration op set has no `alterColumn`, so
@@ -2040,7 +2052,12 @@ EXISTS` is a no-op on an existing table and `createStorage` declares no
   binary-coercible so the heap is not rewritten, but every index on the column
   — including the unique index backing a primary key — is rebuilt under an
   ACCESS EXCLUSIVE lock. On a large deployment, run `db setup` in a maintenance
-  window. A **type** change on a column a view reads is skipped with a warning
+  window. ⚠️ The hand-rolled `securities_offered_type` conversion above is
+  worse on that axis and runs in the same command: `varchar` → `text[]` is NOT
+  binary-coercible, so Postgres rewrites the whole heap under ACCESS EXCLUSIVE
+  rather than only rebuilding indexes. It runs once (the probe returns early on
+  `data_type = 'ARRAY'`) — budget the same maintenance window for it.
+  A **type** change on a column a view reads is skipped with a warning
   naming the view and the exact DDL, rather than failing the whole setup; a
   `DROP NOT NULL` is never view-gated, because Postgres does not refuse it.
 

@@ -82,6 +82,7 @@ import { XBRL_FACT_REPOSITORY_TOKEN } from "../storage/xbrl/XbrlFactSchema";
 import { FORM_8K_EVENT_REPOSITORY_TOKEN } from "../storage/form-8k-event/Form8KEventSchema";
 import { migrateLegacyForm8KEventsTable } from "../storage/form-8k-event/Form8KEventLegacyMigration";
 import { migrateAddressRegionNullable } from "../storage/address/AddressRegionNullableMigration";
+import { migrateRegASecuritiesOfferedTypeArray } from "../storage/reg-a/RegASecuritiesOfferedTypeArrayMigration";
 import { alignPostgresColumnTypes } from "./alignPostgresColumnTypes";
 import {
   addMissingColumnsPostgres,
@@ -170,6 +171,11 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(FORM144_RECENT_SALE_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CHANGE_LOG_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PORTAL_REPOSITORY_TOKEN).setupDatabase();
+  // Convert `rega_offerings.securities_offered_type` from the scalar column it
+  // was declared as into the list Form 1-A's multi-select always produced.
+  // Neither generic catch-up pass can express a type change, and the alignment
+  // planner declines arrays outright. No-op on a fresh or converted database.
+  await migrateRegASecuritiesOfferedTypeArray();
   await globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_OFFERING_HISTORY_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(REGA_SERVICE_PROVIDER_REPOSITORY_TOKEN).setupDatabase();

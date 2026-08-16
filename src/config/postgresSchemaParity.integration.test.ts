@@ -101,6 +101,53 @@ describe.skipIf(!PG_URL)("postgres schema parity", () => {
     ).toBe(true);
   });
 
+  it("converts a legacy varchar securities_offered_type to text[] in place", async () => {
+    const pool = getPgPool();
+    // Degrade to the pre-conversion shape. Neither generic catch-up pass can
+    // undo this — `planMissingColumns` only ADDs and `planColumnAlignment`
+    // declines arrays — so the hand-rolled migration is what does.
+    await pool.query(`DELETE FROM "rega_offerings"`);
+    await pool.query(
+      `ALTER TABLE "rega_offerings" ALTER COLUMN "securities_offered_type" TYPE varchar(100)`
+    );
+    // The two encodings a pre-conversion database can hold: a bare scalar (one
+    // selection) and a well-formed array literal (a short multi-select — a long
+    // one never made it in, which is the 57 STORE_ERRORs).
+    const insert = `INSERT INTO "rega_offerings"
+        (cik, file_number, issuer_name, jurisdiction, sic_code, tier,
+         financial_statement_audit_status, securities_offered_type,
+         industry_group, status, as_of)
+       VALUES ($1, $2, 'Legacy Issuer Inc', 'DE', NULL, 'Tier2',
+               NULL, $3, NULL, 'pending', '2024-01-01')`;
+    await pool.query(insert, [2001, "024-2001", "Debt"]);
+    await pool.query(insert, [2002, "024-2002", '{"Debt","Other(describe)"}']);
+
+    await setupAllDatabases();
+
+    const dataType = await pool.query(
+      `SELECT data_type FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'rega_offerings'
+          AND column_name = 'securities_offered_type'`
+    );
+    expect(dataType.rows[0]?.data_type).toBe("ARRAY");
+
+    const repo = globalServiceRegistry.get(REGA_OFFERING_REPOSITORY_TOKEN);
+    expect(
+      (await repo.get({ cik: 2001, file_number: "024-2001" }))?.securities_offered_type
+    ).toEqual(["Debt"]);
+    expect(
+      (await repo.get({ cik: 2002, file_number: "024-2002" }))?.securities_offered_type
+    ).toEqual(["Debt", "Other(describe)"]);
+
+    // Idempotent: a second `db setup` sees data_type ARRAY and returns early.
+    await setupAllDatabases();
+    expect(
+      (await repo.get({ cik: 2001, file_number: "024-2001" }))?.securities_offered_type
+    ).toEqual(["Debt"]);
+    await pool.query(`DELETE FROM "rega_offerings"`);
+  });
+
   it("round-trips the same values the sqlite suite asserts", async () => {
     await globalServiceRegistry.get(PHONE_REPOSITORY_TOKEN).put({
       country_code: "US",
