@@ -375,6 +375,48 @@ function equityClassNameForStorage(className: string | null | undefined): string
  * but is currently unissued is a disclosure, not a blank — and so is an unnamed
  * class that reports real figures, which is the case normalization exists for.
  */
+/**
+ * True when a CUSIP field carries an actual identifier rather than a filler.
+ *
+ * The field is fixed-width on the form, so filers who have no CUSIP pad it
+ * instead of leaving it blank: `000000000`, `000000N/A`, `00000None`. Those are
+ * non-empty strings, which is why a plain `!== ""` test reads them as real data.
+ *
+ * A genuine CUSIP is 9 characters and never all zeros — the check digit alone
+ * rules that out — so an all-zero or N/A-bearing value is filler by
+ * construction, not by guess.
+ */
+function isPlaceholderCusip(cusip: string | null | undefined): boolean {
+  if (cusip == null) return true;
+  const v = cusip.trim().toUpperCase();
+  if (v === "" || v === "-" || v === "0") return true;
+  if (/^0+$/.test(v)) return true;
+  return v.includes("N/A") || v.includes("NA/") || v.includes("NONE");
+}
+
+/** Same idea for the exchange field, whose fillers are words rather than digits. */
+function isPlaceholderExchange(value: string | null | undefined): boolean {
+  if (value == null) return true;
+  const v = value.trim().toUpperCase();
+  return ["", "N/A", "NA", "NONE", "NO", "0", "-", "--"].includes(v);
+}
+
+/**
+ * True when an equity block discloses ANYTHING — the test that decides whether
+ * a block becomes a row.
+ *
+ * Every arm asks whether a field is MEANINGFUL, not merely whether it is
+ * present. That distinction is the whole of it: the previous version accepted
+ * any non-empty cusip, and filers pad the field rather than leave it blank, so
+ * `000000000` read as a disclosure. The result was 9,621 rows — 31% of the
+ * table — of the form `debt / N/A / 0 / N/A`, carrying no information and
+ * rendering as empty lines on the public Reg A page.
+ *
+ * The 316 unnamed blocks that DO report outstanding shares still pass on the
+ * `outstanding > 0` arm, which is the case this predicate exists to protect:
+ * a filer who leaves the name blank but reports 20,000,001 shares has made a
+ * real disclosure and must not be dropped.
+ */
 function hasEquityClassSubstance(
   className: string | null | undefined,
   outstanding: number | null | undefined,
@@ -383,8 +425,8 @@ function hasEquityClassSubstance(
 ): boolean {
   if (!isPlaceholderEquityClassName(className)) return true;
   if (outstanding != null && outstanding > 0) return true;
-  if (cusip != null && cusip.trim() !== "") return true;
-  if (publiclyTraded != null && publiclyTraded.trim() !== "") return true;
+  if (!isPlaceholderCusip(cusip)) return true;
+  if (!isPlaceholderExchange(publiclyTraded)) return true;
   return false;
 }
 
