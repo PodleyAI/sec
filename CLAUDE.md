@@ -1991,7 +1991,7 @@ sec exposes the general downstream seams embarc-data (and future features) build
 
   First, an **add-missing-column pass** (`addMissingColumns.ts`): a pure
   `planMissingColumns` plus a thin executor per backend. `CREATE TABLE IF NOT
-  EXISTS` is a no-op on an existing table and `createStorage` declares no
+EXISTS` is a no-op on an existing table and `createStorage` declares no
   `tabularMigrations`, so a column added to a schema after a database was
   created never appears in it — and nothing else closes that gap, since the
   alignment pass below deliberately skips a column the live schema lacks. Every
@@ -2015,10 +2015,11 @@ sec exposes the general downstream seams embarc-data (and future features) build
   of a `workglow` emitter this repo does not own, so
   `schemaTypeMirror.sqlite.test.ts` creates every registered table on real
   SQLite and requires the mirror to have predicted each emitted type; a column
-  the mirror declines must be in a short explicit allowlist there. Two are:
-  `investment_offerings.exemptions` (an array, where the two backends genuinely
-  differ) and `underwriter_link.role_detail` (declared `type: ["string",
-  "null"]`, which the emitter itself does not recognize).
+  the mirror declines must be in a short explicit allowlist there. Three are:
+  `investment_offerings.exemptions` and `rega_offerings.securities_offered_type`
+  (arrays, where the two backends genuinely differ) and
+  `underwriter_link.role_detail` (declared `type: ["string", "null"]`, which
+  the emitter itself does not recognize).
 
   Second, a **column-alignment pass**
   (`alignPostgresColumnTypes`). `CREATE TABLE IF NOT EXISTS` never alters an

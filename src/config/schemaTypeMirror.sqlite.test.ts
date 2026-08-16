@@ -6,11 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 import { Sqlite } from "workglow";
+import { getDb } from "../util/db";
 import { sqliteColumnType } from "./addMissingColumns";
 import type { ObjectSchema } from "./alignPostgresColumnTypes";
 import { listRegisteredTables } from "./tableRegistry";
 import { withSqliteDb } from "./testing/withSqliteDb";
-import { getDb } from "../util/db";
 
 /**
  * The prerequisite that makes `addMissingColumns` safe to run at all.
@@ -45,9 +45,11 @@ const UNMAPPED_COLUMNS: ReadonlySet<string> = new Set<string>([
   // `Type.Array(Type.String())`. The emitter's two backends genuinely disagree
   // about it — SQLite stores JSON in a TEXT column, Postgres emits a real
   // `TEXT[]` — and the array rules branch further on the element type. Left
-  // unmapped rather than modelled for one column: `ADD COLUMN` is not where
-  // that divergence should be re-derived from memory.
+  // unmapped rather than modelled: `ADD COLUMN` is not where that divergence
+  // should be re-derived from memory. Two columns, same shape — Form D
+  // exemptions and the Form 1-A securities-offered multi-select.
   "investment_offerings.exemptions",
+  "rega_offerings.securities_offered_type",
   // Declared as the union spelling `type: ["string", "null"]` rather than a
   // TypeBox union, which the emitter's `switch (actualType.type)` does not
   // match either — it falls through to its `TEXT /* unknown type */` default.
