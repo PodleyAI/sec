@@ -11,6 +11,7 @@ import { processDeregistration } from "../../sec/forms/exchange-listing-withdraw
 import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import {
   formsForExtractor,
@@ -189,7 +190,7 @@ describe("25-15 descriptor", () => {
     await setupAllDatabases();
   });
 
-  it("selects known-SPAC Form 25/15 filings; filterTodo keeps those lacking a deregistration event", async () => {
+  it("selects known-SPAC Form 25/15 filings; filterTodo keeps those lacking a deregistration or unit_split event", async () => {
     await seedSpac(5);
     await seedFiling({ cik: 5, accession_number: "acc-nse", form: "25-NSE" });
     await seedFiling({ cik: 5, accession_number: "acc-15", form: "15-12G" });
@@ -209,6 +210,68 @@ describe("25-15 descriptor", () => {
     });
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-15"]);
+  });
+
+  it("re-selects a 25-NSE recorded as deregistration that is actually unit separation", async () => {
+    await seedSpac(5);
+    await new SpacReportWriter().recordIpo({
+      cik: 5,
+      accession_number: "5-ipo",
+      filing_date: "2026-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["FOO.U"],
+    });
+    await seedFiling({ cik: 5, accession_number: "acc-nse", form: "25-NSE" });
+
+    await new SpacReportWriter().recordDeregistration({
+      cik: 5,
+      accession_number: "acc-nse",
+      form: "25-NSE",
+      filing_date: "2026-03-20",
+    });
+    expect((await new SpacRepo().getSpac(5))?.status).toBe("liquidated");
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const candidates = await descriptor.selectCandidates();
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-nse"]);
+  });
+
+  it("re-selects a second 25-NSE recorded as deregistration while an earlier split exists", async () => {
+    await seedSpac(5);
+    await new SpacReportWriter().recordIpo({
+      cik: 5,
+      accession_number: "5-ipo",
+      filing_date: "2026-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["FOO.U"],
+    });
+    await seedFiling({ cik: 5, accession_number: "acc-nse-1", form: "25-NSE" });
+    await seedFiling({ cik: 5, accession_number: "acc-nse-2", form: "25-NSE" });
+    await processDeregistration({
+      cik: 5,
+      accession_number: "acc-nse-1",
+      form: "25-NSE",
+      filing_date: "2026-03-01",
+    });
+    await new SpacReportWriter().recordDeregistration({
+      cik: 5,
+      accession_number: "acc-nse-2",
+      form: "25-NSE",
+      filing_date: "2026-03-08",
+    });
+    expect((await new SpacRepo().getSpac(5))?.status).toBe("liquidated");
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const candidates = await descriptor.selectCandidates();
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-nse-2"]);
   });
 });
 

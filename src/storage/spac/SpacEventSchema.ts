@@ -15,7 +15,9 @@ import { TypeSecCik } from "../../util/TypeSecCik";
  * Item 1.01 / 1.02 / 5.07 are classified into a lifecycle type
  * (`definitive_agreement` / `terminated` / `vote`) or a non-lifecycle type
  * (`material_agreement` / `eight_k`); they are not 1:1 with item codes.
- * `deregistration` is written from Form 25 / 25-NSE / Form 15 metadata.
+ * `deregistration` is written from Form 25 / Form 15 metadata, and from a
+ * 25-NSE that is not unit separation. `unit_split` is written from an
+ * exchange 25-NSE shortly after IPO (units unbundle; shares keep trading).
  * `withdrawal` is written from Form RW (registration withdrawal) metadata.
  * Remaining types are reserved for deferred extractors (S-4, Form 425,
  * liquidation narrative).

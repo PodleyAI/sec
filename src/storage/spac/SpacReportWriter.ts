@@ -322,7 +322,9 @@ export class SpacReportWriter {
    * Record Exchange listing withdrawal (Form 25 / 25-NSE) or Exchange Act
    * termination (Form 15 / 15F): append a `deregistration` event (idempotent
    * by PK), recompute deals, then rebuild the row. Rollup treats that event as
-   * a failure unless a completed de-SPAC already exists.
+   * a failure unless a completed de-SPAC already exists. Drops a `unit_split`
+   * on the same accession so a replay that reclassifies the filing cannot
+   * leave both events.
    */
   async recordDeregistration(args: {
     readonly cik: number;
@@ -331,10 +333,40 @@ export class SpacReportWriter {
     readonly form: string;
   }): Promise<void> {
     await withCikLock(args.cik, async () => {
+      await this.repo.deleteEvent(args.cik, args.accession_number, "unit_split");
       await this.appendEvent({
         cik: args.cik,
         accession_number: args.accession_number,
         event_type: "deregistration",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
+   * Record unit separation (exchange 25-NSE of the unit class after IPO):
+   * append a `unit_split` event (idempotent by PK), recompute deals, then
+   * rebuild the row. Rollup advances `ipo` → `searching` and fills
+   * `unit_split_date`; it does not fail the vehicle. Drops a `deregistration`
+   * on the same accession so a replay of a filing previously recorded as a
+   * wind-up becomes a split instead of leaving both.
+   */
+  async recordUnitSplit(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.repo.deleteEvent(args.cik, args.accession_number, "deregistration");
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "unit_split",
         event_date: args.filing_date,
         form: args.form,
         primary_document: null,

@@ -95,6 +95,104 @@ describe("processDeregistration", () => {
     }
   });
 
+  it("records a second 25-NSE still inside the IPO window as unit_split, not liquidation", async () => {
+    // Westin: two Nasdaq 25-NSEs a week apart, both within 180 days of IPO.
+    await seedSpac(2076192);
+    await processDeregistration({
+      cik: 2076192,
+      accession_number: "0001354457-25-001301",
+      form: "25-NSE",
+      filing_date: "2021-03-01",
+    });
+    await processDeregistration({
+      cik: 2076192,
+      accession_number: "0001354457-26-000012",
+      form: "25-NSE",
+      filing_date: "2021-03-08",
+    });
+
+    const events = await repo.getEvents(2076192);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "unit_split")).toHaveLength(2);
+
+    const row = await repo.getSpac(2076192);
+    expect(row?.status).toBe("searching");
+    expect(row?.unit_split_date).toBe("2021-03-01");
+    expect(row?.failed_date).toBeNull();
+  });
+
+  it("records a unit_split for a 25-NSE shortly after IPO and does not liquidate", async () => {
+    await seedSpac(1822912);
+    await processDeregistration({
+      cik: 1822912,
+      accession_number: "0001354457-21-000100",
+      form: "25-NSE",
+      filing_date: "2021-03-01",
+    });
+
+    const events = await repo.getEvents(1822912);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    const split = events.filter((e) => e.event_type === "unit_split");
+    expect(split).toHaveLength(1);
+    expect(split[0]?.form).toBe("25-NSE");
+    expect(split[0]?.event_date).toBe("2021-03-01");
+
+    const row = await repo.getSpac(1822912);
+    expect(row?.status).toBe("searching");
+    expect(row?.unit_split_date).toBe("2021-03-01");
+    expect(row?.failed_date).toBeNull();
+  });
+
+  it("replaces a previously recorded deregistration on the same 25-NSE accession", async () => {
+    await seedSpac(1822912);
+    await new SpacReportWriter().recordDeregistration({
+      cik: 1822912,
+      accession_number: "0001354457-21-000100",
+      form: "25-NSE",
+      filing_date: "2021-03-01",
+    });
+    expect((await repo.getSpac(1822912))?.status).toBe("liquidated");
+
+    await processDeregistration({
+      cik: 1822912,
+      accession_number: "0001354457-21-000100",
+      form: "25-NSE",
+      filing_date: "2021-03-01",
+    });
+
+    const events = await repo.getEvents(1822912);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect(events.filter((e) => e.event_type === "unit_split")).toHaveLength(1);
+    expect((await repo.getSpac(1822912))?.status).toBe("searching");
+  });
+
+  it("does not close a pending deal when the 25-NSE is unit separation", async () => {
+    await seedSpac(1822912);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1822912,
+      accession_number: "1822912-da",
+      filing_date: "2021-02-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2021-02-01" }],
+    });
+
+    await processDeregistration({
+      cik: 1822912,
+      accession_number: "0001354457-21-000100",
+      form: "25-NSE",
+      filing_date: "2021-03-01",
+    });
+
+    const row = await repo.getSpac(1822912);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.definitive_agreement_date).toBe("2021-02-01");
+    expect(row?.unit_split_date).toBe("2021-03-01");
+    const deals = await repo.getDeals(1822912);
+    expect(deals).toHaveLength(1);
+    expect(deals[0]?.outcome).toBe("pending");
+  });
+
   it("records a deregistration event and liquidates a known SPAC", async () => {
     await seedSpac(1822912);
     await processDeregistration({

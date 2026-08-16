@@ -17,7 +17,9 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 
 const CIK = 1822912;
+const EXCHANGE_CIK = 876661;
 const ACCESSION = "0001354457-23-000698";
+const NEAR_IPO_ACCESSION = "0000876661-26-000550";
 
 class MustNotFetchTask extends ProcessAccessionDocFormTask {
   protected override async runFetch(): Promise<string> {
@@ -25,15 +27,18 @@ class MustNotFetchTask extends ProcessAccessionDocFormTask {
   }
 }
 
-async function seedFiling(primaryDoc: string | null): Promise<void> {
+async function seedFiling(
+  primaryDoc: string | null,
+  opts: { cik?: number; accession?: string; filingDate?: string } = {}
+): Promise<void> {
   const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   await repo.put({
-    cik: CIK,
-    accession_number: ACCESSION,
+    cik: opts.cik ?? CIK,
+    accession_number: opts.accession ?? ACCESSION,
     form: "25-NSE",
     primary_doc: primaryDoc,
     file_number: "",
-    filing_date: "2023-09-25",
+    filing_date: opts.filingDate ?? "2023-09-25",
     acceptance_date: "2023-09-25T00:00:00.000Z",
     report_date: null,
     film_number: null,
@@ -100,5 +105,40 @@ describe("ProcessAccessionDocFormTask metadata-only Form 25/15", () => {
     expect(run?.success).toBe(true);
 
     expect(await new SpacRepo().getEvents(CIK)).toEqual([]);
+  });
+
+  it("uses the issuer CIK when the same 25-NSE accession is also stored under the exchange", async () => {
+    await seedSpac();
+    await new SpacReportWriter().recordIpo({
+      cik: CIK,
+      accession_number: "0001213900-21-000001",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 200_000_000,
+      trust_amount: 200_000_000,
+      spac_tickers: ["FOO.U"],
+    });
+    await seedFiling(null, {
+      cik: EXCHANGE_CIK,
+      accession: NEAR_IPO_ACCESSION,
+      filingDate: "2021-03-01",
+    });
+    await seedFiling(null, {
+      cik: CIK,
+      accession: NEAR_IPO_ACCESSION,
+      filingDate: "2021-03-01",
+    });
+
+    const result = await new MustNotFetchTask().run({
+      accessionNumber: NEAR_IPO_ACCESSION,
+      cik: CIK,
+    });
+    expect((result as { success: boolean }).success).toBe(true);
+
+    const events = await new SpacRepo().getEvents(CIK);
+    expect(events.filter((e) => e.event_type === "unit_split")).toHaveLength(1);
+    expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
+    expect((await new SpacRepo().getSpac(CIK))?.status).toBe("searching");
   });
 });

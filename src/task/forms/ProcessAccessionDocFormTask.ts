@@ -284,10 +284,14 @@ export class ProcessAccessionDocFormTask extends Task<
     if (!cik || !form || !fileName) {
       const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
       const filings = await filingRepo.query({ accession_number: accessionNumber });
-      const filing = filings?.[0];
+      // 25-NSE / Form 25 live under the exchange CIK as well as the issuer;
+      // prefer the row matching a caller-supplied CIK so a backfill of the
+      // issuer does not no-op on the exchange copy.
+      const filing =
+        (cik != null ? filings?.find((f) => f.cik === cik) : undefined) ?? filings?.[0];
       if (!filing) throw new TaskError("Filing not found");
-      cik = filing.cik;
-      form = filing.form ?? undefined;
+      cik = cik ?? filing.cik;
+      form = form ?? filing.form ?? undefined;
       filing_date = filing.filing_date;
       file_number = filing.file_number;
       items = filing.items;
@@ -303,7 +307,8 @@ export class ProcessAccessionDocFormTask extends Task<
       // tolerated here since the identifiers themselves were supplied.
       const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
       const filings = await filingRepo.query({ accession_number: accessionNumber });
-      const filing = filings?.[0];
+      const filing =
+        (cik != null ? filings?.find((f) => f.cik === cik) : undefined) ?? filings?.[0];
       filing_date = filing?.filing_date;
       file_number = filing?.file_number;
       items = filing?.items;

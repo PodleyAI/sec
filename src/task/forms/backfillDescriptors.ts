@@ -9,12 +9,15 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
+import { classifyListingRemoval } from "../../sec/forms/exchange-listing-withdrawal/classifyListingRemoval";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 
 export interface BackfillCandidate {
   readonly cik: number;
   readonly accession_number: string;
+  readonly form?: string;
+  readonly filing_date?: string;
 }
 
 /**
@@ -75,7 +78,12 @@ async function selectKnownSpacFilings(extractorId: string): Promise<BackfillCand
     for (const form of formsForExtractor(extractorId)) {
       const filings = (await filingRepo.query({ form, cik: spac.cik })) ?? [];
       for (const f of filings) {
-        out.push({ cik: f.cik, accession_number: f.accession_number });
+        out.push({
+          cik: f.cik,
+          accession_number: f.accession_number,
+          form: f.form ?? undefined,
+          filing_date: f.filing_date ?? undefined,
+        });
       }
     }
   }
@@ -132,9 +140,11 @@ const mergerProxyDescriptor: BackfillDescriptor = {
 /**
  * Candidates for Form 25/15 recovery: known-SPAC listing-withdrawal and
  * Exchange Act termination filings. `filterTodo` keeps those with no
- * `deregistration` event: the known-SPAC gate records a `success: true` no-op
- * when the spac row does not exist at ingestion, so the default extractor-runs
- * anti-join would never revisit them after the S-1 lands.
+ * `deregistration` or `unit_split` event for the accession: the known-SPAC
+ * gate records a `success: true` no-op when the spac row does not exist at
+ * ingestion, so the default extractor-runs anti-join would never revisit them
+ * after the S-1 lands. A 25-NSE shortly after IPO writes `unit_split` rather
+ * than `deregistration`.
  */
 const deregistrationDescriptor: BackfillDescriptor = {
   extractorId: "25-15",
@@ -142,6 +152,7 @@ const deregistrationDescriptor: BackfillDescriptor = {
   filterTodo: async (candidates) => {
     const repo = new SpacRepo();
     const eventsByCik = new Map<number, SpacEvent[]>();
+    const ipoByCik = new Map<number, string | null>();
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
       let events = eventsByCik.get(c.cik);
@@ -149,13 +160,26 @@ const deregistrationDescriptor: BackfillDescriptor = {
         events = await repo.getEvents(c.cik);
         eventsByCik.set(c.cik, events);
       }
-      if (
-        !events.some(
-          (e) => e.event_type === "deregistration" && e.accession_number === c.accession_number
-        )
-      ) {
+      const hasDeregistration = events.some(
+        (e) => e.event_type === "deregistration" && e.accession_number === c.accession_number
+      );
+      const hasUnitSplit = events.some(
+        (e) => e.event_type === "unit_split" && e.accession_number === c.accession_number
+      );
+      if (c.form && c.filing_date) {
+        if (!ipoByCik.has(c.cik)) {
+          ipoByCik.set(c.cik, (await repo.getSpac(c.cik))?.ipo_date ?? null);
+        }
+        const kind = classifyListingRemoval({
+          form: c.form,
+          ipoDate: ipoByCik.get(c.cik) ?? null,
+          filingDate: c.filing_date,
+        });
+        if (kind === "unit_split" ? hasUnitSplit : hasDeregistration) continue;
         todo.push(c);
+        continue;
       }
+      if (!hasDeregistration && !hasUnitSplit) todo.push(c);
     }
     return todo;
   },

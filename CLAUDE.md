@@ -1552,11 +1552,17 @@ and roll up automatically. `target_name`, `pipe_amount`, and redemption amounts
 stay null until the narrative/AI extractors (S-4 / DEFM14A / 425) land — 8-K
 item codes carry no names or amounts.
 
-**Deregistration.** Form 25 / 25-NSE / Form 15 (extractor id `25-15`) are
-implemented end to end: metadata-only, writing a `deregistration` event that
-closes a leftover pending deal and fails the vehicle. A deregistration ordered
-at or before a `completed` event is **post-close housekeeping and does not fail
-the deal** — the completion is dated by the 8-K's REPORT date while the Form 25
+**Deregistration and unit separation.** Form 25 / 25-NSE / Form 15 (extractor
+id `25-15`) are metadata-only. An **exchange 25-NSE within 180 days of IPO**
+is unit separation — units stop trading so shares/warrants/rights can trade
+separately (Nasdaq often files one 25-NSE per class; a second in that window
+is still a split). That writes a `unit_split` event, fills `unit_split_date`,
+and advances status `ipo` → `searching`. It does **not** fail the vehicle and
+does not close a pending deal. Issuer Form 25, the Form 15 family, and a
+25-NSE **after** that 180-day window write `deregistration`, which closes a
+leftover pending deal and fails the vehicle. A deregistration ordered at or
+before a `completed` event is **post-close housekeeping and does not fail the
+deal** — the completion is dated by the 8-K's REPORT date while the Form 25
 event is dated by its FILING date, so the routine delisting of a de-SPAC'd
 shell's units routinely collides with or sorts ahead of the closing it follows.
 `deriveDeals` therefore ignores liquidation/deregistration entirely when the
@@ -1571,8 +1577,8 @@ registration → prospectus → 8-K → proxies → 25/15 order rather than rely
 `Object.keys` (which enumerates the integer-like `"25"` fourth). For filings
 ingested before that fix, or before their issuer's S-1 was processed, recover
 with `sec extractor backfill 25-15` — its `filterTodo` already selects
-known-SPAC Form 25/15 filings that have no deregistration event, so no `--force`
-is needed.
+known-SPAC Form 25/15 filings that have no `deregistration` or `unit_split`
+event for the accession, so no `--force` is needed.
 
 **De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
 post-merger surviving entity. The rollup (`buildSpacRow`) derives `surviving_name`

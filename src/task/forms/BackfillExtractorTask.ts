@@ -25,7 +25,7 @@ export interface RunExtractorBackfillOptions {
   readonly dryRun: boolean;
   readonly signal?: AbortSignal;
   /** Reprocess one filing. The task wires ProcessAccessionDocFormTask; tests inject a counter. */
-  readonly processFiling: (accessionNumber: string) => Promise<void>;
+  readonly processFiling: (accessionNumber: string, cik: number) => Promise<void>;
 }
 
 export interface ExtractorBackfillResult {
@@ -84,7 +84,7 @@ export async function runExtractorBackfill(
   for (const c of todo) {
     if (opts.signal?.aborted) throw new TaskAbortedError();
     try {
-      await opts.processFiling(c.accession_number);
+      await opts.processFiling(c.accession_number, c.cik);
       processed++;
     } catch (err) {
       // A cooperative cancellation must stop the sweep, not be swallowed as a
@@ -152,11 +152,11 @@ export class BackfillExtractorTask extends Task<
       force: input.force === true,
       dryRun: input.dryRun === true,
       signal: context.signal,
-      processFiling: async (accessionNumber) => {
+      processFiling: async (accessionNumber, cik) => {
         const wf = context.own(new Workflow(), { title: `Backfill ${accessionNumber}` });
         wf.pipe(new ProcessAccessionDocFormTask());
         try {
-          await wf.run({ accessionNumber });
+          await wf.run({ accessionNumber, cik });
         } finally {
           // `own` is add-only and the subgraph is cleared only between runs of
           // THIS task, which does not return until the whole sweep is done —

@@ -8,6 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { classifyListingRemoval } from "./classifyListingRemoval";
 
 export interface ProcessDeregistrationArgs {
   readonly cik: number;
@@ -31,12 +32,16 @@ async function isSpacCandidate(cik: number): Promise<boolean> {
 }
 
 /**
- * Record Form 25 / 25-NSE / Form 15 family as a `deregistration` lifecycle
- * event. Known-SPAC gated: without a spac row the filing still "succeeds"
- * (the forms sweep must not retry every 15-12G forever) but writes nothing.
+ * Record Form 25 / 25-NSE / Form 15 family as a lifecycle event. Exchange
+ * 25-NSE shortly after IPO is `unit_split` (units unbundle; the vehicle
+ * keeps searching — a second 25-NSE in that window is still a split).
+ * Everything else is `deregistration`. Known-SPAC gated:
+ * without a spac row the filing still "succeeds" (the forms sweep must not
+ * retry every 15-12G forever) but writes nothing.
  */
 export async function processDeregistration(args: ProcessDeregistrationArgs): Promise<void> {
-  const spacRow = await new SpacRepo().getSpac(args.cik);
+  const repo = new SpacRepo();
+  const spacRow = await repo.getSpac(args.cik);
   if (!spacRow) {
     if (await isSpacCandidate(args.cik)) {
       console.warn(
@@ -48,5 +53,15 @@ export async function processDeregistration(args: ProcessDeregistrationArgs): Pr
     return;
   }
   if (!args.filing_date) return;
-  await new SpacReportWriter().recordDeregistration(args);
+  const kind = classifyListingRemoval({
+    form: args.form,
+    ipoDate: spacRow.ipo_date,
+    filingDate: args.filing_date,
+  });
+  const writer = new SpacReportWriter();
+  if (kind === "unit_split") {
+    await writer.recordUnitSplit(args);
+    return;
+  }
+  await writer.recordDeregistration(args);
 }
