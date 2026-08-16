@@ -17,6 +17,7 @@ import {
   TaskOutputRepository,
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
+import { tmpPathFor, writeFully } from "../../util/atomicFileWrite";
 import { secDate, YYYYdMMdDD } from "../../util/parseDate";
 
 /**
@@ -51,18 +52,6 @@ function safeJoinWithinFolder(folderPath: string, relative: string): string {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
-}
-
-/**
- * Sibling path a write lands on before it is renamed into place. Unique per
- * writer so two concurrent writers targeting one key cannot interleave bytes,
- * and so a crashed writer's leftovers are never mistaken for a cache entry
- * (nothing reads a `.tmp.` name).
- */
-function tmpPathFor(filePath: string): string {
-  return `${filePath}.tmp.${process.pid}.${Date.now().toString(36)}.${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
 }
 
 interface SecFetchFileOutputCacheOptions {
@@ -123,8 +112,7 @@ export class SecFetchFileOutputCache extends TaskOutputRepository {
     const handle = await open(tmpPath, "w");
     try {
       for await (const chunk of chunks) {
-        await handle.write(chunk);
-        size += chunk.byteLength;
+        size += await writeFully(handle, chunk);
       }
       await handle.close();
       await rename(tmpPath, filePath);

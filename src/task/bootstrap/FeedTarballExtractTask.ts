@@ -77,8 +77,14 @@ export class FeedTarballExtractTask extends Task<
    * Writes one submission's cache files and returns how many it wrote. Supplied
    * by the caller, which owns the cache layout and the resume bookkeeping; this
    * task owns only the walk.
+   *
+   * The default THROWS rather than returning 0: an unwired writer would walk
+   * the whole day, report `docsWritten: 0`, and let the caller mark the day
+   * `.feed-done` — silently skipping it on every later run.
    */
-  public writeFiling: (filing: FeedFiling, submissionText: string) => number = () => 0;
+  public writeFiling: (filing: FeedFiling, submissionText: string) => number = () => {
+    throw new Error("FeedTarballExtractTask.writeFiling was never wired by the caller");
+  };
 
   async *executeStream(
     input: FeedTarballExtractTaskInput,

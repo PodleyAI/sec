@@ -12,6 +12,7 @@ import { Dataflow, globalServiceRegistry, IExecuteContext, Task, TaskGraph } fro
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { assertInsideDir, sanitizePrimaryDoc, stripXslPrefix } from "../../util/accessionDocPath";
+import { describeFailureReason } from "../../util/describeFailure";
 import { parseDate } from "../../util/parseDate";
 import { getHttpErrorStatus } from "../fetch/SecFetchJob";
 import { SecFetchTask } from "../fetch/SecFetchTask";
@@ -48,16 +49,6 @@ export type BootstrapAccessionDocsTaskOutput = {
 
 /** Longest failure phrase kept per day, so one HTML error page cannot flood the log. */
 const MAX_FEED_REASON_LENGTH = 200;
-
-/** One short phrase naming why a day failed, so a 403, a 429 and a truncated archive stay distinguishable. */
-function describeFeedFailure(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const collapsed = message.replace(/\s+/g, " ").trim();
-  if (collapsed.length === 0) return "unknown error";
-  return collapsed.length > MAX_FEED_REASON_LENGTH
-    ? `${collapsed.slice(0, MAX_FEED_REASON_LENGTH - 1)}…`
-    : collapsed;
-}
 
 /**
  * Result of a day's Feed download derived from the tarball members. Used to
@@ -351,7 +342,9 @@ export class BootstrapAccessionDocsTask extends Task<
         // thousands of days and the ones already extracted are still worth
         // keeping. The marker is not written, so the next run retries it.
         failed++;
-        console.warn(`Feed extraction failed for ${date}: ${describeFeedFailure(err)}`);
+        console.warn(
+          `Feed extraction failed for ${date}: ${describeFailureReason(err, MAX_FEED_REASON_LENGTH)}`
+        );
         continue;
       }
       if (result === "missing") {

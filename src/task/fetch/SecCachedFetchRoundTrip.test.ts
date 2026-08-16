@@ -153,6 +153,26 @@ describe("SecCachedFetchTask round trip with the streaming sink live", () => {
     expect(calls).toBe(1);
   });
 
+  it('refuses "stream" on a subclass that narrowed away the binary body port', async () => {
+    // The narrowing drops the port the streaming sink is built from, so the
+    // fetch would report success and write nothing — the exact silent failure
+    // declaring FetchUrlTask's real output schema exists to remove. Caught at
+    // construction rather than left to the ⚠️ in that schema's doc comment.
+    class NarrowedTask extends TestCachedFetchTask {
+      static readonly type = "NarrowedCachedFetchTask";
+      static outputSchema(): any {
+        return { type: "object", properties: { parsed: { type: "string" } } };
+      }
+    }
+
+    expect(() => new NarrowedTask({ name: "doc.htm", response_type: "stream" })).toThrow(
+      /binary `body` output port/
+    );
+    // A materializing type on the same subclass is still fine: saveOutput
+    // writes the derived value, so there is nothing to lose.
+    expect(() => new NarrowedTask({ name: "doc.htm", response_type: "text" })).not.toThrow();
+  });
+
   it("writes no cache entry when the fetch fails", async () => {
     restoreFetch = registerSafeFetch(
       (async () =>

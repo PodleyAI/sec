@@ -30,6 +30,8 @@ import {
   resolvePrimaryDocName,
   sanitizePrimaryDoc,
 } from "../../util/accessionDocPath";
+import { tmpPathFor } from "../../util/atomicFileWrite";
+import { describeFailureReason } from "../../util/describeFailure";
 import { TypeSecCik } from "../../util/TypeSecCik";
 import { extractPrimaryDocFromSubmission } from "../bootstrap/feedTarball";
 import { FORMS_SWEEP_CONCURRENCY_LIMIT } from "../forms/formsSweep";
@@ -101,21 +103,6 @@ function isEightK(form: string): boolean {
 const MAX_REASON_LENGTH = 160;
 
 /**
- * One short phrase naming why a fetch failed, for the per-filing warning and
- * the grouped tally. Kept to the message so distinct causes — 404, 403, an
- * exhausted-retry 429, "no text" — stay distinguishable without a stack trace
- * per filing in a sweep that can fail thousands of times.
- */
-function describeFetchFailure(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const collapsed = message.replace(/\s+/g, " ").trim();
-  if (collapsed.length === 0) return "unknown error";
-  return collapsed.length > MAX_REASON_LENGTH
-    ? `${collapsed.slice(0, MAX_REASON_LENGTH - 1)}…`
-    : collapsed;
-}
-
-/**
  * Writes a cache file the way {@link SecFetchFileOutputCache} does: to a unique
  * tmp name, then `rename` onto the final path. A plain `writeFile` leaves a
  * truncated entry behind when the process is interrupted mid-write, and two
@@ -127,7 +114,7 @@ function describeFetchFailure(err: unknown): string {
 async function writeFileAtomic(fullPath: string, dir: string, body: string): Promise<void> {
   assertInsideDir(fullPath, dir);
   await mkdir(path.dirname(fullPath), { recursive: true });
-  const tmpPath = `${fullPath}.tmp.${process.pid}.${Math.random().toString(36).slice(2, 10)}`;
+  const tmpPath = tmpPathFor(fullPath);
   try {
     await writeFile(tmpPath, body, "utf-8");
     await rename(tmpPath, fullPath);
@@ -285,7 +272,7 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       } catch (err) {
         if (err instanceof TaskAbortedError) throw err;
         if (context.signal?.aborted) throw new TaskAbortedError();
-        return { success: false, reason: describeFetchFailure(err) };
+        return { success: false, reason: describeFailureReason(err, MAX_REASON_LENGTH) };
       }
       // Streaming makes the cache file the whole result, so its absence is the
       // only way this fetch can have failed silently — there is no returned
@@ -293,7 +280,12 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       // check at the top of this method guarantees the fetch task installs an
       // output cache, so reaching here means a seam that did not honor its
       // contract.
-      if (!existsSync(requiredPath)) {
+      //
+      // Except under `--dry-run`, where the cache deliberately drains the body
+      // and writes nothing: an absent file is the expected outcome there, and
+      // reporting it as a failure made a dry run tally every filing as failed
+      // under a reason that blames a DI misconfiguration.
+      if (!isDryRun() && !existsSync(requiredPath)) {
         warnMissingCacheFileOnce();
         return {
           success: false,
@@ -302,7 +294,10 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       }
     }
 
-    if (isEightK(form) && primaryDoc.trim().length > 0) {
+    // Skipped under dry run: the cache wrote nothing to read back, and the
+    // slice it derives is written by this task rather than by the cache, so it
+    // would otherwise be the one write a dry run still performs.
+    if (isEightK(form) && primaryDoc.trim().length > 0 && !isDryRun()) {
       try {
         // Same resolution `shouldSkipCached` uses, so the path this writes is
         // the path the next run's skip check looks for.

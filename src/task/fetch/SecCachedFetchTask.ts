@@ -81,6 +81,19 @@ function guessResponseType(urlstr: string, input: FetchUrlTaskInput): response_t
   }
 }
 
+/**
+ * True when a schema declares the `x-stream: "binary"` `body` port the cache's
+ * streaming sink writes through. A subclass that narrows {@link
+ * SecCachedFetchTask.outputSchema} to its own port shape drops that port, and
+ * with it the sink — see the guard in the constructor.
+ */
+function declaresBinaryBodyPort(schema: unknown): boolean {
+  const properties = (
+    schema as { properties?: Record<string, { "x-stream"?: unknown } | undefined> } | undefined
+  )?.properties;
+  return properties?.body?.["x-stream"] === "binary";
+}
+
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
   O extends TaskOutput = FetchUrlTaskOutput,
@@ -137,6 +150,26 @@ export abstract class SecCachedFetchTask<
       const response_type = guessResponseType(this.inputToUrl(fetchInput as I), fetchInput);
       fetchInput.response_type = response_type;
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
+    }
+
+    // Enforce the hazard {@link SecCachedFetchTask.outputSchema} documents,
+    // rather than leaving it to whoever reads that comment. `"stream"`
+    // materializes no derived port, so the streaming sink is the ONLY writer —
+    // and the runner only builds one for a schema declaring a binary `body`
+    // port. A subclass that narrowed the schema away would report success and
+    // write no cache entry, which is precisely the silent failure the schema
+    // fix exists to remove. Checked only on the `"stream"` path, so nothing
+    // else pays for evaluating the schema at construction time.
+    if (fetchInput.response_type === "stream") {
+      const ctor = this.constructor as typeof SecCachedFetchTask;
+      if (!declaresBinaryBodyPort(ctor.outputSchema())) {
+        throw new Error(
+          `${ctor.type}: response_type "stream" requires a binary \`body\` output port for the ` +
+            `cache sink to write through, and this task's outputSchema() declares none — the ` +
+            `fetch would report success and write no cache entry. Ask for a materializing ` +
+            `response_type instead.`
+        );
+      }
     }
 
     if (globalServiceRegistry.has(SEC_RAW_DATA_FOLDER)) {

@@ -91,18 +91,22 @@ export function markerCoversTarget(
 /** Response facts the marker bookkeeping needs, lifted off the fetch task's output. */
 interface ArchiveResponse {
   readonly bytes: number;
+  /** False when the body carried no bytes, so `destPath` was never touched. */
+  readonly wrote: boolean;
   readonly notModified: boolean;
   readonly etag: string | undefined;
   readonly lastModified: string | undefined;
 }
 
+/**
+ * `name` must be lower-case. The fetch task builds `metadata.headers` by
+ * iterating a `Headers`, which the Fetch standard lower-cases, so the direct
+ * hit answers; the scan is the fallback for a runtime that does not.
+ */
 function headerOf(metadata: FetchUrlTaskOutput["metadata"], name: string): string | undefined {
   const headers = metadata?.headers as Record<string, string> | undefined;
   if (!headers) return undefined;
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === name) return value;
-  }
-  return undefined;
+  return headers[name] ?? Object.entries(headers).find(([key]) => key.toLowerCase() === name)?.[1];
 }
 
 export type BootstrapDownloadTaskOutput = {
@@ -198,6 +202,7 @@ export class BootstrapDownloadTask extends Task<
     const written = sink.runOutputData as Partial<ArchiveToFileTaskOutput>;
     return {
       bytes: written.bytes ?? 0,
+      wrote: written.wrote === true,
       notModified: metadata?.notModified === true,
       etag: headerOf(metadata, "etag"),
       lastModified: headerOf(metadata, "last-modified"),
@@ -278,13 +283,25 @@ export class BootstrapDownloadTask extends Task<
         }
       }
     );
-    const { bytes: downloadedBytes, notModified, etag, lastModified } = response;
+    const { bytes: downloadedBytes, wrote, notModified, etag, lastModified } = response;
 
     if (notModified) {
       console.log(
         `${input.targetFolder}: unchanged since ${usableMarker?.extractedAt ?? "the last run"} (HTTP 304) — skipping download and extraction.`
       );
       return { success: true };
+    }
+
+    // The sink reports `wrote: false` when the body carried no bytes, which
+    // outside a 304 means the origin answered with nothing. Staging never
+    // happened, so anything sitting at `zipPath` is an earlier run's archive —
+    // extracting it would republish stale content AND stamp the marker with
+    // this response's validators, making the staleness permanent.
+    if (!wrote) {
+      throw new Error(
+        `Download of ${input.url} produced no body (${downloadedBytes} bytes, not a 304) — ` +
+          `refusing to extract, since nothing was staged at ${zipPath}.`
+      );
     }
 
     // Belt-and-braces: some intermediaries drop conditional headers and answer

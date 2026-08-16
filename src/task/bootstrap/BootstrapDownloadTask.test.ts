@@ -95,11 +95,18 @@ class CannedArchiveFetchTask extends Task<
 /** Records the headers each archive request carried, and replies from a canned response. */
 class TestBootstrapDownloadTask extends BootstrapDownloadTask {
   public readonly seenHeaders: Record<string, string>[] = [];
-  public response: { status?: number; etag?: string; lastModified?: string } = {};
+  public response: {
+    status?: number;
+    etag?: string;
+    lastModified?: string;
+    /** A 200 that carries no body at all — the sink writes nothing. */
+    emptyBody?: boolean;
+  } = {};
 
   protected override createArchiveFetchTask(_url: string, headers: Record<string, string>): ITask {
     this.seenHeaders.push({ ...headers });
     const task = new CannedArchiveFetchTask({ title: "Download archive" });
+    if (this.response.emptyBody === true) task.bodyBytes = undefined;
     task.responseStatus = this.response.status ?? 200;
     task.etag = this.response.etag;
     task.lastModified = this.response.lastModified;
@@ -223,10 +230,19 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask.execute zip c
   });
 });
 
-describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional download", () => {
+/** True for the tests below that drive `unzip` through `Bun.spawn`. */
+const NEEDS_BUN = typeof Bun === "undefined";
+
+describe("BootstrapDownloadTask conditional download", () => {
   // The bulk archives are ~1.5 GB each and EDGAR serves ETag/Last-Modified on
   // both, so a re-run should ask "changed?" rather than re-pulling. These tests
   // pin the marker round-trip, the 304 skip, and the -uo/-o flag choice.
+  //
+  // The describe is NOT Bun-gated as a whole: the repo's `test` script is
+  // `vitest run`, so gating it hid the 304 and matching-ETag paths — the ones
+  // this file exists for — from the only command CI runs. Only the tests that
+  // actually reach `Bun.which`/`Bun.spawn` (i.e. those that extract) are
+  // skipped off Bun; the two that short-circuit before extraction are not.
 
   const URL = "https://example/file.zip";
 
@@ -244,6 +260,9 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
 
   function stubBun(): { cmds: readonly string[][]; restore: () => void } {
     const cmds: string[][] = [];
+    // Off Bun there is nothing to stub; the tests that keep running here never
+    // reach extraction, so an empty recorder states exactly that.
+    if (NEEDS_BUN) return { cmds, restore: () => {} };
     const realSpawn = Bun.spawn;
     const realWhich = Bun.which;
     (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = ((cmd: readonly string[]) => {
@@ -268,27 +287,30 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
     disown: () => {},
   } as unknown as Parameters<BootstrapDownloadTask["execute"]>[1];
 
-  it("sends no conditional header on a first run and records a marker", async () => {
-    const { folder, targetFolder } = setup();
-    const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
-    task.response = { etag: '"abc"', lastModified: "Fri, 31 Jul 2026 04:40:43 GMT" };
-    const bun = stubBun();
-    try {
-      const input = { url: URL, targetFolder };
-      await task.execute(input, ctx);
+  it.skipIf(NEEDS_BUN)(
+    "sends no conditional header on a first run and records a marker",
+    async () => {
+      const { folder, targetFolder } = setup();
+      const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+      task.response = { etag: '"abc"', lastModified: "Fri, 31 Jul 2026 04:40:43 GMT" };
+      const bun = stubBun();
+      try {
+        const input = { url: URL, targetFolder };
+        await task.execute(input, ctx);
 
-      expect(task.seenHeaders[0]["If-None-Match"]).toBeUndefined();
-      const marker = JSON.parse(
-        readFileSync(path.join(folder, ".bulk-done", `${targetFolder}.json`), "utf8")
-      );
-      expect(marker.etag).toBe('"abc"');
-      expect(marker.contentLength).toBe(4);
-      expect(marker.url).toBe(URL);
-    } finally {
-      bun.restore();
-      rmSync(folder, { recursive: true, force: true });
+        expect(task.seenHeaders[0]["If-None-Match"]).toBeUndefined();
+        const marker = JSON.parse(
+          readFileSync(path.join(folder, ".bulk-done", `${targetFolder}.json`), "utf8")
+        );
+        expect(marker.etag).toBe('"abc"');
+        expect(marker.contentLength).toBe(4);
+        expect(marker.url).toBe(URL);
+      } finally {
+        bun.restore();
+        rmSync(folder, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   it("sends BOTH validators and skips extraction entirely on 304", async () => {
     // www.sec.gov ignores If-None-Match but honours If-Modified-Since, so
@@ -334,7 +356,7 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
     }
   });
 
-  it("ignores a marker whose extracted tree is gone", async () => {
+  it.skipIf(NEEDS_BUN)("ignores a marker whose extracted tree is gone", async () => {
     const { folder, targetFolder } = setup();
     mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
     writeFileSync(
@@ -357,29 +379,52 @@ describe.skipIf(typeof Bun === "undefined")("BootstrapDownloadTask conditional d
     }
   });
 
-  it("extracts with -uo normally and -o under force, and force skips the marker", async () => {
-    const { folder, targetFolder, targetDir } = setup();
-    mkdirSync(targetDir, { recursive: true });
-    writeFileSync(path.join(targetDir, "already-here.json"), "{}");
-    mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
-    writeFileSync(
-      path.join(folder, ".bulk-done", `${targetFolder}.json`),
-      JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
-    );
+  it.skipIf(NEEDS_BUN)(
+    "extracts with -uo normally and -o under force, and force skips the marker",
+    async () => {
+      const { folder, targetFolder, targetDir } = setup();
+      mkdirSync(targetDir, { recursive: true });
+      writeFileSync(path.join(targetDir, "already-here.json"), "{}");
+      mkdirSync(path.join(folder, ".bulk-done"), { recursive: true });
+      writeFileSync(
+        path.join(folder, ".bulk-done", `${targetFolder}.json`),
+        JSON.stringify({ url: URL, etag: '"abc"', contentLength: 4, extractedAt: "2026-07-31" })
+      );
+      const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
+      task.response = { etag: '"changed"' };
+      const bun = stubBun();
+      try {
+        const plain = { url: URL, targetFolder };
+        await task.execute(plain, ctx);
+        expect(bun.cmds[0]).toContain("-uo");
+        expect(task.seenHeaders[0]["If-None-Match"]).toBe('"abc"');
+
+        const forced = { url: URL, targetFolder, force: true };
+        await task.execute(forced, ctx);
+        expect(bun.cmds[1]).toContain("-o");
+        expect(bun.cmds[1]).not.toContain("-uo");
+        expect(task.seenHeaders[1]["If-None-Match"]).toBeUndefined();
+      } finally {
+        bun.restore();
+        rmSync(folder, { recursive: true, force: true });
+      }
+    }
+  );
+
+  it("refuses to extract when a 200 comes back with no body at all", async () => {
+    // The sink reports `wrote: false` and leaves `zipPath` alone. Extracting
+    // anyway would republish whatever an earlier run left there AND stamp the
+    // marker with this response's validators, freezing the staleness in.
+    const { folder, targetFolder, zipPath } = setup();
+    writeFileSync(zipPath, "an earlier run's archive");
     const task = new TestBootstrapDownloadTask({ defaults: { url: URL, targetFolder } });
-    task.response = { etag: '"changed"' };
+    task.response = { emptyBody: true, etag: '"abc"' };
     const bun = stubBun();
     try {
-      const plain = { url: URL, targetFolder };
-      await task.execute(plain, ctx);
-      expect(bun.cmds[0]).toContain("-uo");
-      expect(task.seenHeaders[0]["If-None-Match"]).toBe('"abc"');
-
-      const forced = { url: URL, targetFolder, force: true };
-      await task.execute(forced, ctx);
-      expect(bun.cmds[1]).toContain("-o");
-      expect(bun.cmds[1]).not.toContain("-uo");
-      expect(task.seenHeaders[1]["If-None-Match"]).toBeUndefined();
+      await expect(task.execute({ url: URL, targetFolder }, ctx)).rejects.toThrow(/no body/);
+      expect(bun.cmds).toHaveLength(0);
+      expect(existsSync(path.join(folder, ".bulk-done", `${targetFolder}.json`))).toBe(false);
+      expect(readFileSync(zipPath, "utf8")).toBe("an earlier run's archive");
     } finally {
       bun.restore();
       rmSync(folder, { recursive: true, force: true });

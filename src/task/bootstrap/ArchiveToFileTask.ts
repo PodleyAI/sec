@@ -8,6 +8,7 @@ import { mkdir, open, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { DataPortSchema, IExecuteContext, StreamEvent } from "workglow";
 import { Task } from "workglow";
+import { tmpPathFor, writeFully } from "../../util/atomicFileWrite";
 import type { TaskPorts } from "../taskPorts";
 import { byteIterableFromEvents } from "./streamEventBytes";
 
@@ -107,7 +108,7 @@ export class ArchiveToFileTask extends Task<
       return;
     }
 
-    const tmpPath = `${destPath}.tmp.${process.pid}.${Date.now().toString(36)}`;
+    const tmpPath = tmpPathFor(destPath);
     let handle: Awaited<ReturnType<typeof open>> | undefined;
     let bytes = 0;
     try {
@@ -116,8 +117,7 @@ export class ArchiveToFileTask extends Task<
           await mkdir(path.dirname(tmpPath), { recursive: true });
           handle = await open(tmpPath, "w");
         }
-        await handle.write(chunk);
-        bytes += chunk.byteLength;
+        bytes += await writeFully(handle, chunk);
         this.onProgress(bytes);
       }
       if (handle === undefined) {

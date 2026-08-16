@@ -112,6 +112,19 @@ available that a body ending without a socket error was complete. The
 ETag/Last-Modified marker bookkeeping stays in `BootstrapDownloadTask` — that is
 sec's own state, not the fetch's.
 
+Routing these through `SecFetchTask` also puts them under `SecFetchJob`'s
+per-attempt timeout, and that is why the timer measures **time without
+progress** rather than total elapsed time. As a wall-clock cap it covered the
+whole attempt, body included, so whether a fetch succeeded was a function of
+file size and bandwidth rather than of the connection being alive: at the 60 s
+default neither a multi-GB `submissions.zip` nor a ~1.5 GB daily Feed tarball
+can finish, and the abort lands mid-body where the post-delivery retry ban
+refuses to restart it — unrecoverable, not merely slow. A steady trickle now
+rearms the timer on every delta; a body that goes silent still trips it, and a
+fetch that stalls before its first byte keeps exactly the fixed window it always
+had (nothing rearms without progress), so the fast-failure property the
+per-document sweeps rely on is not traded away for the two bulk downloads.
+
 > ⚠️ A full-history pull is a large storage commitment — roughly tens of TB
 > decompressed, back-loaded onto recent years. Bound it with `--from`/`--to`.
 
