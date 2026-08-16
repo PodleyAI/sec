@@ -91,10 +91,7 @@ function parseTarSize(block: Buffer): number {
     for (let i = 1; i < field.length; i++) value = value * 256 + field[i];
     return value;
   }
-  const text = field
-    .toString("ascii")
-    .replace(/[\0 ]+$/g, "")
-    .trim();
+  const text = field.toString("ascii").replace(/[\0 ]+$/g, "").trim();
   return text.length === 0 ? 0 : parseInt(text, 8);
 }
 
@@ -200,10 +197,7 @@ export function extractPrimaryDocFromSubmission(
   let m: RegExpExecArray | null;
   while ((m = re.exec(submissionText)) !== null) {
     const inner = m[1];
-    const docFile = inner
-      .match(/<FILENAME>\s*([^\r\n<]+)/i)?.[1]
-      .trim()
-      .toLowerCase();
+    const docFile = inner.match(/<FILENAME>\s*([^\r\n<]+)/i)?.[1].trim().toLowerCase();
     if (docFile !== target) continue;
     const textMatch = inner.match(/<TEXT>\s*([\s\S]*?)\s*<\/TEXT>/i);
     if (!textMatch) return undefined;
