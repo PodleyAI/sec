@@ -94,8 +94,32 @@ export abstract class SecCachedFetchTask<
     return {} as any;
   }
 
-  static outputSchema() {
-    return {} as any;
+  /**
+   * FetchUrlTask's real output schema, not the `{}` this used to return.
+   *
+   * Which schema is declared here decides whether a cached fetch can stream at
+   * all: the runner reads the OUTPUT schema to find the `x-stream: "binary"`
+   * port, so an empty one meant `getBinaryRefSinksByPolicy` built no sink and
+   * the cache file was written only by `saveOutput`, off the materialized
+   * derived value. That was harmless while every fetch materialized
+   * something — and silently fatal for `response_type: "stream"`, which
+   * materializes nothing: no sink AND no derived value is no bytes anywhere,
+   * so the download reported success and wrote no cache entry.
+   *
+   * ⚠️ A subclass that narrows this to its own port shape (as
+   * `SecFetchSubmissionsTask` does, to publish the typed JSON it returns) drops
+   * `body` and lands back in the no-sink case. That is fine for a fetch whose
+   * `response_type` materializes a value — `saveOutput` still writes it — but
+   * such a subclass must not ask for `"stream"`.
+   *
+   * The return type stays `any`, as it was: FetchUrlTask declares its schema as
+   * a literal, so TypeScript's static-side variance rejects any narrowing
+   * override outright, and that escape hatch is the only reason those
+   * subclasses compile. What changed is the runtime value — the schema the
+   * runner actually reads — not the typing.
+   */
+  static outputSchema(): any {
+    return SecFetchTask.outputSchema();
   }
 
   abstract inputToFileName(input: I): string;
