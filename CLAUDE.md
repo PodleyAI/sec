@@ -1575,7 +1575,12 @@ SIC-miscoded case that path exists to catch) structurally never has one.
 Classifying its routine post-IPO unit separation as `deregistration` marked a
 live searching vehicle permanently `liquidated`. So an exchange 25-NSE with an
 absent `ipo_date` writes `unit_split`; a KNOWN `ipo_date` keeps the 0–180 day
-window and still deregisters outside it. The allowance is exchange-only —
+window and still deregisters outside it. The allowance is applied **after** the
+nearby-20-F FPI-close check, not inside the post-IPO window test, and the
+ordering is load-bearing: an FPI close carries no `ipo_date` either, so letting
+an unknown floor claim `unit_split` first would misfile every miscoded FPI close
+as a unit separation — trading one wrong answer for another. The 20-F check gets
+first refusal on the same filings. The allowance is exchange-only —
 issuer Form 25 and the whole Form 15 family deregister regardless, because a
 real wind-up files exactly those. It is self-correcting (once the 424 lands,
 `deregistrationDescriptor.filterTodo` re-derives the kind and re-queues, and

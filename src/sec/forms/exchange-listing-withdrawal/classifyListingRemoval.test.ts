@@ -172,6 +172,39 @@ describe("classifyListingRemoval", () => {
       })
     ).toBe("unit_split");
   });
+
+  it("lets a nearby 20-F win over the unknown-floor allowance", () => {
+    // Both branches accept this filing, and the FPI close is the truthful one:
+    // an FPI close carries no ipo_date either, so granting the unknown floor a
+    // unit_split first would misfile every miscoded FPI close as a separation.
+    // This is why the allowance sits after the 20-F check rather than inside
+    // the post-IPO window test.
+    for (const ipoDate of [null, ""]) {
+      expect(
+        classifyListingRemoval({
+          form: "25-NSE",
+          ipoDate,
+          filingDate: "2026-07-10",
+          pendingDeal: null,
+          hasNearby20F: true,
+        })
+      ).toBe("completed");
+    }
+  });
+
+  it("keeps the unknown-floor allowance when no 20-F is nearby", () => {
+    // The negative twin of the case above: with the 20-F absent the allowance
+    // is reachable, so the ordering costs the SIC-miscoded SPAC nothing.
+    expect(
+      classifyListingRemoval({
+        form: "25-NSE",
+        ipoDate: null,
+        filingDate: "2026-07-10",
+        pendingDeal: null,
+        hasNearby20F: false,
+      })
+    ).toBe("unit_split");
+  });
 });
 
 describe("isNearby20F", () => {
