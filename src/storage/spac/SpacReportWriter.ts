@@ -407,8 +407,8 @@ export class SpacReportWriter {
   /**
    * Record Form RW (registration withdrawal): append a `withdrawal` event
    * (idempotent by PK), recompute deals, then rebuild the row. Rollup treats
-   * that event as `withdrawn` only when the vehicle never IPOd — an IPO already
-   * on the stream stays `ipo`.
+   * that event as `withdrawn` only when the vehicle never IPOd and no later
+   * S-1 reopened the row — an IPO already on the stream stays `ipo`.
    */
   async recordWithdrawal(args: {
     readonly cik: number;

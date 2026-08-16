@@ -123,8 +123,26 @@ function deriveStatus(
   if (hasIpo) return events.some((e) => e.event_type === "unit_split") ? "searching" : "ipo";
   // Form RW: the registration was pulled before it priced. An IPO already
   // recorded above stays ipo — withdrawing a later S-3 does not un-IPO the shell.
-  if (events.some((e) => e.event_type === "withdrawal")) return "withdrawn";
+  // A later S-1 after the last RW reopens the row (the first S-1's registration
+  // event stays on the stream, so "any withdrawal" is not terminal).
+  if (isWithdrawnWithoutLaterRegistration(events)) return "withdrawn";
   return "registered";
+}
+
+function latestEventDate(events: readonly SpacEvent[], type: string): string | null {
+  const dates = events
+    .filter((e) => e.event_type === type && e.event_date)
+    .map((e) => e.event_date);
+  if (dates.length === 0) return null;
+  return dates.reduce((a, b) => (a.localeCompare(b) >= 0 ? a : b));
+}
+
+function isWithdrawnWithoutLaterRegistration(events: readonly SpacEvent[]): boolean {
+  const lastWithdrawal = latestEventDate(events, "withdrawal");
+  if (lastWithdrawal == null) return false;
+  return !events.some(
+    (e) => e.event_type === "registration" && e.event_date.localeCompare(lastWithdrawal) > 0
+  );
 }
 
 /**

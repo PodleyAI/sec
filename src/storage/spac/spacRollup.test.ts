@@ -576,6 +576,41 @@ describe("buildSpacRow", () => {
     expect(row.status).toBe("withdrawn");
   });
 
+  it("a registration dated after the last withdrawal reopens as registered", () => {
+    // Innovative Digital / FPA Energy: Form RW then a later S-1 family.
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "registration", event_date: "2024-05-30" }),
+        ev({ event_type: "withdrawal", event_date: "2024-11-21" }),
+        ev({ event_type: "registration", event_date: "2025-05-30" }),
+      ],
+      patch: {},
+      filingDate: "2025-05-30",
+    });
+    expect(row.status).toBe("registered");
+    expect(row.registration_date).toBe("2024-05-30");
+  });
+
+  it("a second RW after the reopened S-1 is withdrawn again", () => {
+    const row = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events: [
+        ev({ event_type: "registration", event_date: "2024-05-30" }),
+        ev({ event_type: "withdrawal", event_date: "2024-11-21" }),
+        ev({ event_type: "registration", event_date: "2025-05-30" }),
+        ev({ event_type: "withdrawal", event_date: "2025-08-01" }),
+      ],
+      patch: {},
+      filingDate: "2025-08-01",
+    });
+    expect(row.status).toBe("withdrawn");
+  });
+
   it("an IPO then a withdrawal stays ipo — RW after pricing is not a never-priced shell", () => {
     const row = buildSpacRow({
       existing: undefined,
