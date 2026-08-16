@@ -1,5 +1,298 @@
 # Changelog
 
+## 0.0.24
+
+### Features
+
+- add legal form handling for company names
+- implement optionValue and csvOptionValue functions for improved CLI argument handling
+- enhance risk factors extraction and improve title casing logic
+- add SPAC-specific extractors and related-party handling in golden label tests
+- enhance command exports and improve error handling in fetch commands
+
+#### classifyListingRemoval
+
+- implement classification logic for listing removals and add corresponding tests
+
+#### extractor
+
+- enhance dead-letter CLI commands and add tests for extractor filtering
+
+#### schema
+
+- normalize securities offered types and enhance RegAOfferingSchema
+- introduce CrowdfundingHistorySchema tests and update maxLength constraints
+
+#### spac
+
+- add loi_date and target_description to spac_deal schema and tests
+- add triageExtractors to ProcessSpacTimelineTask output
+- implement current trust balance management for SPACs
+- enhance Form 8-K processing with merger counterparty extraction and exhibit detail improvements
+- enhance SPAC milestone event mapping and exhibit handling
+- enhance deregistration handling and deal termination logic
+- enhance formatSpacProcessSummary for dry-run functionality
+- introduce temporary inventory script and enhance risk factors handling
+- add spac download registration/8k/everything CLI
+- download candidate registration and 8-K filings into accessiondocs
+- add download helper for candidate form sets and cache paths
+
+#### sec
+
+- enhance Form 424 processing with ipoProceeds calculation and add tests
+- introduce Form RW and process withdrawal functionality
+- add ipoTrustAmount function and related tests for trust calculations
+- re-normalizing resolve, alias suggester, and an as-filed SIC signal
+- recover structureless filings, and stop a stale header SIC minting a SPAC
+- enhance model ID handling for environment variables
+- implement metadata-only parsing for Form 25/15 and integrate deregistration processing
+
+#### resolver
+
+- key families off the legal name, not the model's common name
+
+#### company
+
+- derive a family name from a company's legal name
+
+#### eval
+
+- score a mixed name column through the row's own entity kind
+- run eval s1 sections through MapTask concurrency
+- map candidate models per S-1 section
+- add per-candidate S-1 eval MapTask worker
+- add eval s1 --concurrency flag
+- add eval s1 section concurrency default helper
+- enhance print prompts with new document mode and extraction prompt estimation
+- add --print-prompts schema mode
+- add --dump-raw CLI flag and stderr dumps
+- add stderr dump helpers for --dump-raw
+- retain raw payloads in EvalS1Task when dumpRaw
+- retain raw payloads in runUnitTermsEval when dumpRaw
+- retain raw payloads in runExtractionEval when dumpRaw
+- add captureEvalRaw for --dump-raw payloads
+- add --print-prompts inspect-only dump to extract/s1/unit-terms
+- add printEvalPrompts helper and resolveEvalFixtures
+
+#### config
+
+- update model pricing for Grok and DeepSeek models
+- add list pricing functionality and tests for model pricing
+- enhance model registration with optional inference provider support and pricing integration
+
+#### model
+
+- enhance EnsureModelDownloadedTask to support cloud model verification
+
+### Bug Fixes
+
+#### 1-A
+
+- normalize blank equity class names to N/A instead of dropping the class
+
+#### sec
+
+- merge main, repair fallbacks narrowing, bump workglow to 0.3.44
+- enhance error handling in S-1 extraction process
+- three heading gaps found on 30 more SPAC registrations
+- generalize the nested-section fallback, minus the summary
+- recover an ownership table that follows the roster unheaded
+- recover an offering table the filer bolds inside the summary
+- a CIK that is already a known SPAC is never demoted
+- do not demote a small blank check, and read the shell Item 401 heading
+- normalizer and segmenter defects found on real SPAC registrations
+- correct estimate reporting, unbounded prune, and silent partial extractions (#250)
+
+#### fetch
+
+- ban a timed-out retry once bytes reached a receiver
+- resolve the SEC request through resolveFetchInput
+- bound EDGAR fetches in flight, not just their start rate
+- stop the job queue retaining every downloaded document
+
+#### company
+
+- drop the write-only locals in stripCompanyAllEndings
+- strip a series marker mid-name, not only at the tail
+- state the diacritic gap, and restore the family-key floor
+
+#### rekey
+
+- repair the Postgres schema pin and the 424 family-tier gap
+- scope the truncate scripts, and make aliases restorable
+
+#### tests
+
+- correct expected length in listRegisteredComponents test
+
+#### spac
+
+- stop counting partial extractions as issuer failures
+- let a completion outrank a deregistration, and order the forms sweep
+- classify 8-K items from the pre-filing event prefix
+- build the download worklist per chunk, not from every filing at once
+- own and run each filing's download task instead of executing it
+- drop the inert per-instance title on the inner download task
+- diagnosable failures, real progress, and clean abort in the doc download
+- make --force actually evict the cached accession document
+- guard nullable primary_doc in the SPAC download worklist
+- make primary_doc nullable and pin the real fan-out shape
+- isolate issuers in `spac process` and count real successes
+
+#### eval
+
+- carry owner_kind on the reference side so ownership scores
+- scope personNameFields to person-only extractors, and pass it everywhere
+- honor `disabled` in the s1 sweep and report the axes it ran at
+- name every eval s1 fan-out axis, and keep partial sweeps
+- define the four symbols main already imports
+- print instructions without fixtures; restore s1 default guard
+- count reproducibility against the fixtures actually measured
+
+#### util
+
+- fold Latin letters that carry their mark inside the glyph
+
+#### s1
+
+- gate the initialism exception on heading shape and make the echo drop attributable
+- stop dropping real risk-factor captions as carried-heading echoes
+- drop only the chunker's own heading echoes, restore the strict mixed-shape guard
+- bound throttle waits, narrow 429 detection, verify what gets stored
+- store a risk-factor caption verbatim or not at all
+- classify an exhausted throttle transiently and let Ctrl-C through
+- ratio-gate the mixed risk-caption shape guard
+- bound throttle waits, narrow 429 detection, verify what gets stored
+
+#### models
+
+- keep OpenRouter variant suffixes, de-race the readiness memo
+
+#### config
+
+- double the default max tokens for improved output handling
+- fail fast on a malformed extraction temperature
+- restore claude-sonnet-5 as the extraction default model
+
+#### registerModels
+
+- update dtype in provider configuration from "q4" to "f16q4" for improved model performance
+
+#### forms
+
+- count outcomes deterministically per extractor
+
+#### html
+
+- strip comments with a linear DOM walk, unblocking CI
+
+### Refactors
+
+#### cli
+
+- update runCliProcess to use async/await and improve error handling
+
+#### fetch
+
+- streamline response type guessing and add tests for SecFetchAccessionDocTask
+
+#### eval
+
+- extract S-1 oracle run helpers for MapTask tasks
+- expose extractor instruction builders for prompt dump
+
+#### model
+
+- update model ID handling to require explicit prefixes for onnx: llama: node-llama: open-router: etc
+
+#### s1
+
+- extract buildExtractionPrompt for shared dump path
+
+### Performance
+
+#### spac
+
+- page the download worklist scan and narrow it by form
+
+#### html
+
+- resolve style and walk the DOM without per-node cheerio wrappers
+
+### Style
+
+#### spac
+
+- terminate the cursor walk on truthiness
+
+### Tests
+
+- fix from failing
+- add unit tests for EvalExtractTask to validate fixture handling fixes
+
+#### versioning
+
+- correct the registered-component count for Form RW
+
+#### componentRegistry
+
+- update component count in tests to reflect new extractors and resolvers
+
+#### fetch
+
+- pin the in-job loop against the post-delivery retry ban
+
+#### sec
+
+- enhance handling of CJK names and placeholders in S-1 processing
+
+#### cli
+
+- assert the registered command tree, not help-text substrings
+- assert the CLI boot exit code and every command group
+- guard the command graph against an unloadable import
+
+#### redemption
+
+- follow the dead-letter attempts semantics to their consumer
+
+#### eval
+
+- cover --print-prompts schema CLI listing and dump
+
+### Documentation
+
+- describe the conditional 8-K classifier and the 25-15 extractor
+
+#### sec
+
+- document family keys, diacritic folding, and re-keying
+
+#### spac
+
+- state the --force eviction tradeoff honestly
+
+#### claude
+
+- describe golden-label coverage and the cost of a bare eval s1
+
+### Chores
+
+- update deps
+- update deps based on audit
+- update deps (workglow)
+- update deps
+- update dependencies
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.45
+- `fast-xml-parser`: ^5.11.0
+- `pg`: ^8.23.0
+- `typebox`: 1.3.14
+- `workglow`: 0.3.45
+- `concurrently`: ^10.0.5
+
 ## 0.0.23
 
 ### Features
