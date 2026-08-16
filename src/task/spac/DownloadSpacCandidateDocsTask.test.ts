@@ -118,12 +118,13 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
   static requested: string[] = [];
   static docs = new Map<string, string | Error>();
   /**
-   * Keys whose fetch writes the cache file and THEN throws — the shape a
-   * binary primary document produces: `response_type` resolves to `blob`, so
-   * `fetchOutput.text` is undefined and `fetchDoc` raises "Fetch returned no
-   * text" after `SecFetchFileOutputCache` already persisted the bytes.
+   * Keys whose fetch reports success without writing the cache file — the
+   * broken-seam shape. Production cannot reach it (the fetch task installs its
+   * output cache from the same SEC_RAW_DATA_FOLDER this task requires), and
+   * the download path holds nothing else, so it must be reported rather than
+   * papered over.
    */
-  static cachedThenThrows = new Map<string, string>();
+  static succeedsWithoutWriting = new Set<string>();
   /**
    * Whether the cache file still existed when the fetch was entered. The real
    * fetch task's output cache keys off exactly this path and is consulted
@@ -134,22 +135,23 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
   /** When set, the fetch aborts this controller and raises, as Ctrl-C would. */
   static abortOnFetch: AbortController | undefined;
 
+  /**
+   * Stands in for `SecFetchAccessionDocTask` with `response_type: "stream"`:
+   * the seam's contract is that the bytes land at the cache path, and it
+   * returns nothing. Bodies are declared as strings for readability — what the
+   * production sink writes is the origin's bytes.
+   */
   protected override async fetchDoc(
     cik: number,
     accessionNumber: string,
     fileName: string,
     _context: IExecuteContext
-  ): Promise<string> {
+  ): Promise<void> {
     const key = `${cik}/${accessionNumber}/${fileName}`;
     TestCacheOne.requested.push(key);
     if (TestCacheOne.abortOnFetch !== undefined) {
       TestCacheOne.abortOnFetch.abort();
       throw new TaskAbortedError();
-    }
-    const cachedBody = TestCacheOne.cachedThenThrows.get(key);
-    if (cachedBody !== undefined) {
-      writeCache(cik, accessionNumber, fileName, cachedBody);
-      throw new Error(`Fetch returned no text for ${key}`);
     }
     TestCacheOne.cacheExistedAtFetch.set(
       key,
@@ -158,7 +160,8 @@ class TestCacheOne extends CacheOneSpacCandidateDocTask {
     const v = TestCacheOne.docs.get(key);
     if (v instanceof Error) throw v;
     if (typeof v !== "string") throw new Error(`unexpected fetch ${key}`);
-    return v;
+    if (TestCacheOne.succeedsWithoutWriting.has(key)) return;
+    writeCache(cik, accessionNumber, fileName, v);
   }
 }
 
@@ -182,7 +185,7 @@ beforeEach(async () => {
   globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, raw);
   TestCacheOne.requested = [];
   TestCacheOne.docs = new Map();
-  TestCacheOne.cachedThenThrows = new Map();
+  TestCacheOne.succeedsWithoutWriting = new Set();
   TestCacheOne.cacheExistedAtFetch = new Map();
   TestCacheOne.abortOnFetch = undefined;
   TestDownload.innerTitles = [];
@@ -520,19 +523,39 @@ describe("DownloadSpacCandidateDocsTask", () => {
     expect(joined).toContain("1 × HTTP 403 Forbidden");
   });
 
-  it("counts a binary primary doc as downloaded, not failed, when the fetch cached it", async () => {
+  it("counts a binary primary doc as downloaded, with no recovery branch to reach", async () => {
     await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
     await globalServiceRegistry
       .get(FILING_REPOSITORY_TOKEN)
       .put(filing({ cik: 1, accession_number: "acc-pdf", form: "10-K", primary_doc: "d10k.pdf" }));
-    // `guessResponseType` maps `.pdf` to `blob`, so `fetchOutput.text` is
-    // undefined and fetchDoc throws — after the bytes were already cached.
-    TestCacheOne.cachedThenThrows.set("1/acc-pdf/d10k.pdf", "%PDF-1.4 bytes");
+    // A `.pdf` primary doc used to resolve to `response_type: "blob"`, so
+    // `fetchOutput.text` was undefined and fetchDoc threw "Fetch returned no
+    // text" AFTER the bytes were cached — and an existsSync branch had to
+    // recover the success. Streaming materializes nothing, so a binary
+    // document is an ordinary download and there is no throw to catch.
+    TestCacheOne.docs.set("1/acc-pdf/d10k.pdf", "%PDF-1.4 bytes");
 
     const out = await runDownload({ set: "all" });
     expect(out.downloaded).toBe(1);
     expect(out.failed).toBe(0);
     expect(readFileSync(cachePath(1, "acc-pdf", "d10k.pdf"), "utf-8")).toBe("%PDF-1.4 bytes");
+  });
+
+  it("fails the filing when the fetch reports success but writes no cache file", async () => {
+    // The download path holds nothing but the file, so "succeeded and wrote
+    // nothing" cannot be recovered from — reporting it beats returning a
+    // success that left the cache empty for the later forms sweep to miss on.
+    await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put(candidate(1, "high"));
+    await globalServiceRegistry
+      .get(FILING_REPOSITORY_TOKEN)
+      .put(filing({ cik: 1, accession_number: "acc-void", form: "S-1" }));
+    TestCacheOne.docs.set("1/acc-void/acc-void.txt", "unwritten");
+    TestCacheOne.succeedsWithoutWriting.add("1/acc-void/acc-void.txt");
+
+    const out = await runDownload({ set: "registration" });
+    expect(out.downloaded).toBe(0);
+    expect(out.failed).toBe(1);
+    expect(existsSync(cachePath(1, "acc-void", "acc-void.txt"))).toBe(false);
   });
 
   it("splits skipped into cached / no-filename / unsafe-name, summing to skipped", async () => {

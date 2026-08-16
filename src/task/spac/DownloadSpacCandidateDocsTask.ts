@@ -9,7 +9,6 @@ import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises
 import path from "node:path";
 import { Type } from "typebox";
 import {
-  FetchUrlTaskOutput,
   globalServiceRegistry,
   IExecuteContext,
   type PageCursor,
@@ -87,9 +86,9 @@ type CacheOneOutput = {
   readonly success: boolean;
   /**
    * Why the fetch failed, in one short phrase. Without it a 404, a 403 (EDGAR
-   * blocking the User-Agent), an exhausted-retry 429 and "the response carried
-   * no text" all sum into one counter and are indistinguishable — three of
-   * which need completely different operator responses.
+   * blocking the User-Agent) and an exhausted-retry 429 all sum into one
+   * counter and are indistinguishable — three causes needing completely
+   * different operator responses.
    */
   readonly reason?: string;
 };
@@ -175,13 +174,14 @@ async function evictCacheFile(fullPath: string, dir: string): Promise<void> {
  * every one of its thousands of filings, and the operator needs the fact, not
  * the count.
  */
-let warnedNonAtomicFallback = false;
-function warnNonAtomicFallbackOnce(): void {
-  if (warnedNonAtomicFallback) return;
-  warnedNonAtomicFallback = true;
+let warnedMissingCacheFile = false;
+function warnMissingCacheFileOnce(): void {
+  if (warnedMissingCacheFile) return;
+  warnedMissingCacheFile = true;
   console.warn(
-    "SPAC doc download: the fetch left no cache file, writing it directly. " +
-      "In production this means SEC_RAW_DATA_FOLDER was not registered when the fetch task was built."
+    "SPAC doc download: the fetch reported success but left no cache file. " +
+      "The download path streams to the file cache, so nothing else holds the bytes; " +
+      "in production this means SEC_RAW_DATA_FOLDER was not registered when the fetch task was built."
   );
 }
 
@@ -212,22 +212,24 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
 
   /**
    * Fetch seam. Production goes through {@link SecFetchAccessionDocTask}
-   * (rate limiter + file cache). Tests override to return canned bodies.
+   * (rate limiter + file cache) with `response_type: "stream"` — this command
+   * exists to FILL the cache, not to read it, so nothing here wants the
+   * document as a value. The cache file is the artifact and success is the
+   * absence of an error; there is nothing to return.
+   *
+   * The seam's contract is therefore that the bytes end up at the cache path,
+   * and an override that returns without writing one is a broken seam, not a
+   * fetch this task can paper over.
    */
   protected async fetchDoc(
     cik: number,
     accessionNumber: string,
     fileName: string,
     context: IExecuteContext
-  ): Promise<string> {
+  ): Promise<void> {
     const wf = context.own(new Workflow(), { title: `Fetch ${accessionNumber} ${fileName}` });
-    let text: string | undefined;
     wf.pipe(
-      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName }),
-      async function checkDownloadSuccess(fetchOutput: FetchUrlTaskOutput) {
-        text = fetchOutput.text ?? undefined;
-        return { success: true };
-      }
+      new SecFetchAccessionDocTask({ cik, accessionNumber, fileName, response_type: "stream" })
     );
     try {
       await wf.run();
@@ -242,10 +244,6 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       }
       context.disown(wf);
     }
-    if (!text) {
-      throw new TaskError(`Fetch returned no text for ${cik}/${accessionNumber}/${fileName}`);
-    }
-    return text;
   }
 
   async execute(input: CacheOneInput, context: IExecuteContext): Promise<CacheOneOutput> {
@@ -263,7 +261,6 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
     const cikDir = path.join(raw, "accessiondocs", String(cik).padStart(10, "0"));
     const requiredPath = path.join(raw, accessionDocCacheRelative(cik, accessionNumber, fileName));
 
-    let text: string;
     // `fileName` arrives on a data port that accepts any string, and this task
     // is exported — the parent's worklist sanitization is not a substitute.
     // Guard the READ the same way `ProcessAccessionDocFormTask.readCachedDoc`
@@ -277,40 +274,31 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
         cacheReadable = false;
       }
     }
-    if (cacheReadable) {
-      text = await readFile(requiredPath, "utf-8");
-    } else {
+    if (!cacheReadable) {
       if (force && !isDryRun()) {
         // Evict BEFORE fetching: the fetch task's own file cache keys off this
         // exact path, so a surviving entry short-circuits the re-fetch.
         await evictCacheFile(requiredPath, cikDir);
       }
       try {
-        text = await this.fetchDoc(cik, accessionNumber, fileName, context);
+        await this.fetchDoc(cik, accessionNumber, fileName, context);
       } catch (err) {
         if (err instanceof TaskAbortedError) throw err;
         if (context.signal?.aborted) throw new TaskAbortedError();
-        // A binary primary document (`.pdf`, `.jpg`, …) resolves to
-        // `response_type: "blob"`, so `fetchOutput.text` is undefined and
-        // `fetchDoc` throws "Fetch returned no text" — AFTER the fetch task's
-        // own file cache already wrote the bytes. The document is cached; the
-        // filing is not a failure, and only the text-only slice step below is
-        // unavailable (which no binary form uses). Reachable on `everything`
-        // for any primary-doc form.
-        if (existsSync(requiredPath)) return { success: true };
         return { success: false, reason: describeFetchFailure(err) };
       }
-      // The production fetch path already persisted the body through
-      // `SecFetchFileOutputCache.saveOutput` (tmp + rename). Writing again on
-      // top of that is a second, non-atomic write of bytes that are already on
-      // disk. This fallback covers the two cases where nothing wrote: the test
-      // seam that stubs `fetchDoc`, and a process where SEC_RAW_DATA_FOLDER was
-      // not yet registered when the fetch task was constructed (no output cache
-      // is installed then) — which in production means a mis-ordered DI
-      // registration, hence the warning.
+      // Streaming makes the cache file the whole result, so its absence is the
+      // only way this fetch can have failed silently — there is no returned
+      // value left to fall back to. In production the SEC_RAW_DATA_FOLDER
+      // check at the top of this method guarantees the fetch task installs an
+      // output cache, so reaching here means a seam that did not honor its
+      // contract.
       if (!existsSync(requiredPath)) {
-        warnNonAtomicFallbackOnce();
-        await writeFileAtomic(requiredPath, cikDir, text);
+        warnMissingCacheFileOnce();
+        return {
+          success: false,
+          reason: "fetch completed but wrote no cache file",
+        };
       }
     }
 
@@ -319,6 +307,10 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
         // Same resolution `shouldSkipCached` uses, so the path this writes is
         // the path the next run's skip check looks for.
         const safeName = sanitizePrimaryDoc(resolvePrimaryDocName(primaryDoc) ?? "");
+        // The one step that genuinely needs the text. Read it back from the
+        // cache: the file is guaranteed present by the check above, and the
+        // fetch no longer hands a string over.
+        const text = await readFile(requiredPath, "utf-8");
         const sliced = extractPrimaryDocFromSubmission(text, safeName);
         if (sliced !== undefined) {
           const primaryPath = path.join(
