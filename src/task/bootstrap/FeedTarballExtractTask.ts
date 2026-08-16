@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Readable } from "node:stream";
 import type { DataPortSchema, IExecuteContext, StreamEvent } from "workglow";
 import { Task } from "workglow";
 import type { TaskPorts } from "../taskPorts";
 import type { FeedFiling } from "./feedFilings";
 import { streamFeedTarball } from "./feedTarball";
-import { byteStreamFromEvents } from "./streamEventBytes";
+import { byteIterableFromEvents } from "./streamEventBytes";
 
 export interface FeedTarballExtractTaskInput {
   /** Streaming port: the gzipped daily Feed tarball, as it arrives. */
@@ -96,7 +97,7 @@ export class FeedTarballExtractTask extends Task<
     let docsWritten = 0;
 
     await streamFeedTarball(
-      byteStreamFromEvents(events, "body"),
+      Readable.from(byteIterableFromEvents(events, "body")),
       (accession) => byAccession.has(accession),
       (entry) => {
         const rows = byAccession.get(entry.accession);

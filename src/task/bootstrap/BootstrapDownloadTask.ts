@@ -7,10 +7,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
+import type { FetchUrlTaskConfig, FetchUrlTaskOutput, ITask } from "workglow";
+import { Dataflow, globalServiceRegistry, IExecuteContext, Task, TaskGraph } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SecUserAgent } from "../../config/Constants";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
+import { SecFetchTask } from "../fetch/SecFetchTask";
+import { ArchiveToFileTask, type ArchiveToFileTaskOutput } from "./ArchiveToFileTask";
 
 export type BootstrapDownloadTaskInput = {
   readonly url: string;
@@ -85,139 +88,21 @@ export function markerCoversTarget(
   }
 }
 
-/**
- * Streams an HTTP response body directly to disk without buffering the
- * full payload in memory. Returns the byte count written. Honours
- * `signal` and reports progress via `onProgress(downloadedBytes,
- * totalBytes | undefined)`.
- *
- * Exported for testing — the task wraps it with logging and the SEC
- * User-Agent header.
- *
- * When the caller sends a conditional header (`If-None-Match` /
- * `If-Modified-Since`) and the origin answers `304 Not Modified`, this returns
- * `notModified: true` without touching `destPath`. The 304 check must precede
- * both the `response.ok` guard (304 is not "ok") and the body-null guard (a 304
- * legitimately carries no body).
- */
-export async function streamDownloadToFile(
-  url: string,
-  destPath: string,
-  opts: {
-    readonly headers?: Record<string, string>;
-    readonly signal?: AbortSignal;
-    readonly onProgress?: (downloadedBytes: number, totalBytes: number | undefined) => void;
-  } = {}
-): Promise<{
-  bytes: number;
-  totalBytes: number | undefined;
-  notModified: boolean;
-  etag: string | undefined;
-  lastModified: string | undefined;
-}> {
-  const response = await fetch(url, {
-    headers: opts.headers,
-    signal: opts.signal,
-  });
-  const etag = response.headers.get("etag") ?? undefined;
-  const lastModified = response.headers.get("last-modified") ?? undefined;
-  if (response.status === 304) {
-    return { bytes: 0, totalBytes: undefined, notModified: true, etag, lastModified };
-  }
-  if (!response.ok) {
-    throw new Error(`Download failed: HTTP ${response.status} ${response.statusText} for ${url}`);
-  }
-  if (response.body === null) {
-    throw new Error(`Download returned no body for ${url}`);
-  }
+/** Response facts the marker bookkeeping needs, lifted off the fetch task's output. */
+interface ArchiveResponse {
+  readonly bytes: number;
+  readonly notModified: boolean;
+  readonly etag: string | undefined;
+  readonly lastModified: string | undefined;
+}
 
-  // Strict integer parse, fail-closed: `parseInt` accepts trailing garbage
-  // ("123abc" → 123) which would let a malformed Content-Length defeat the
-  // size-mismatch integrity check below. When the header is present we
-  // require each comma-separated part to be a pure non-negative integer no
-  // larger than `MAX_SAFE_INTEGER` (beyond that point `bytes !== totalBytes`
-  // is no longer exact); otherwise we throw rather than silently treating
-  // the response as having no advertised length. A truly-absent header
-  // (chunked transfer) keeps `totalBytes` undefined and skips the
-  // mismatch assertion as before.
-  const len = response.headers.get("content-length");
-  let totalBytes: number | undefined;
-  if (len !== null) {
-    // RFC 9112 §6.3: repeated Content-Length lines may be combined as
-    // "v1, v2, ...". Equal duplicates are valid (same length); mismatched
-    // values are a protocol error. A single value remains a single value.
-    const parts = len.split(",").map((p) => p.trim());
-    if (parts.length === 0 || parts.some((p) => !/^\d+$/.test(p))) {
-      throw new Error(`Invalid Content-Length header ${JSON.stringify(len)} for ${url}`);
-    }
-    if (new Set(parts).size > 1) {
-      throw new Error(
-        `Conflicting Content-Length values ${JSON.stringify(len)} for ${url} (RFC 9112 §6.3 requires duplicates to be equal)`
-      );
-    }
-    const parsed = Number(parts[0]);
-    if (parsed > Number.MAX_SAFE_INTEGER) {
-      throw new Error(`Content-Length ${parts[0]} exceeds MAX_SAFE_INTEGER for ${url}`);
-    }
-    totalBytes = parsed;
+function headerOf(metadata: FetchUrlTaskOutput["metadata"], name: string): string | undefined {
+  const headers = metadata?.headers as Record<string, string> | undefined;
+  if (!headers) return undefined;
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === name) return value;
   }
-
-  const writer = Bun.file(destPath).writer();
-  let bytes = 0;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  let originalError: unknown;
-  try {
-    reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      await writer.write(value);
-      bytes += value.length;
-      opts.onProgress?.(bytes, totalBytes);
-    }
-    await writer.flush();
-    if (totalBytes !== undefined && bytes !== totalBytes) {
-      throw new Error(`Download size mismatch: got ${bytes} bytes, expected ${totalBytes}`);
-    }
-  } catch (err) {
-    originalError = err;
-  }
-
-  // Release the reader before closing the writer so the underlying
-  // stream is cancellable if writer.end() awaits a flush.
-  try {
-    reader?.releaseLock();
-  } catch {
-    // swallow
-  }
-
-  // Close the writer FIRST, then unlink. On Windows, rmSync cannot
-  // delete a file whose handle is still open. On every platform, a
-  // writer.end() failure (disk full, permission error) must surface as
-  // the operation failure on the success path — silently swallowing it
-  // would let us return success with a corrupt / half-flushed file.
-  let endError: unknown;
-  try {
-    await writer.end();
-  } catch (e) {
-    endError = e;
-  }
-
-  // Best-effort cleanup on any failure path (mid-stream abort, size
-  // mismatch, writer error, end-flush error) — drop the partial file so
-  // a multi-GB stale archive doesn't sit on disk silently. force: true
-  // makes this a no-op when the file was never created.
-  if (originalError !== undefined || endError !== undefined) {
-    try {
-      rmSync(destPath, { force: true });
-    } catch {
-      // swallow — the original error matters more
-    }
-  }
-
-  if (originalError !== undefined) throw originalError;
-  if (endError !== undefined) throw endError;
-  return { bytes, totalBytes, notModified: false, etag, lastModified };
+  return undefined;
 }
 
 export type BootstrapDownloadTaskOutput = {
@@ -248,6 +133,75 @@ export class BootstrapDownloadTask extends Task<
     return Type.Object({
       success: Type.Boolean(),
     });
+  }
+
+  /**
+   * The archive's byte producer. A protected seam so the marker / extraction
+   * bookkeeping is testable without the network; production returns the real
+   * rate-limited fetch.
+   *
+   * `SecFetchTask` installs no output cache (only `SecCachedFetchTask` does),
+   * which is what satisfies FetchUrlTask's refusal to combine a conditional
+   * request with one: a 304 carries no body, so caching the response would
+   * write an empty row over the copy the 304 just certified as current.
+   */
+  protected createArchiveFetchTask(url: string, headers: Record<string, string>): ITask {
+    return new SecFetchTask({ url, headers, response_type: "stream" }, {
+      title: "Download archive",
+    } as FetchUrlTaskConfig);
+  }
+
+  /**
+   * Downloads `url` to `destPath` as a two-node subgraph — the fetch produces
+   * `body`, {@link ArchiveToFileTask} consumes it — so a multi-GB archive
+   * never exists in memory as one value. Replaces a raw `fetch()` bypass, so
+   * the biggest download sec performs regains SafeFetch's redirect checks, the
+   * SEC rate limiter, SecFetchJob's retry/backoff and 429 throttle signalling.
+   *
+   * `Content-Length` verification is not reimplemented here: FetchUrlTask
+   * asserts the advertised length at end of stream, which is the only evidence
+   * available that a body which ended without a socket error was complete.
+   */
+  private async downloadArchive(
+    url: string,
+    destPath: string,
+    headers: Record<string, string>,
+    context: IExecuteContext,
+    onProgress: (bytes: number) => void
+  ): Promise<ArchiveResponse> {
+    const fetchTask = this.createArchiveFetchTask(url, headers);
+    const sink = new ArchiveToFileTask({ defaults: { destPath }, title: "Write archive" });
+    sink.onProgress = onProgress;
+
+    const graph = context.own(new TaskGraph(), { title: "Download archive" });
+    graph.addTask(fetchTask);
+    graph.addTask(sink);
+    graph.addDataflow(new Dataflow(fetchTask.config.id, "body", sink.config.id, "body"));
+
+    try {
+      // Without `noAccumulation` the edge is drained to a value before the
+      // sink starts — the whole multi-GB archive in memory, which is the
+      // failure this replaced.
+      await graph.run(
+        {},
+        { noAccumulation: true, accumulateLeafOutputs: false, parentSignal: context.signal }
+      );
+    } finally {
+      context.disown(graph);
+    }
+
+    // Read the response facts off the producer rather than wiring a second
+    // `metadata` edge: the sink runs CONCURRENTLY with the fetch, so a value
+    // edge from the same producer would have it waiting for an output the
+    // producer cannot finish until the sink has drained it.
+    const metadata = (fetchTask.runOutputData as FetchUrlTaskOutput).metadata;
+    const written = sink.runOutputData as Partial<ArchiveToFileTaskOutput>;
+    return {
+      bytes: written.bytes ?? 0,
+      notModified: metadata?.notModified === true,
+      etag: headerOf(metadata, "etag"),
+      lastModified: headerOf(metadata, "last-modified"),
+    };
   }
 
   async execute(
@@ -302,41 +256,29 @@ export class BootstrapDownloadTask extends Task<
 
     console.log(`Downloading ${input.url} ...`);
 
-    // Stream the response body directly to disk via streamDownloadToFile.
-    // SEC bulk archives (submissions.zip, companyfacts.zip) are multi-GB;
-    // the previous path went through SecFetchJob with response_type:
-    // "blob", which buffered the entire body in JS heap and OOM'd on
-    // smaller VMs. We bypass the SecFetchJob queue/retry machinery here
-    // because workglow's FetchUrlJob materialises the body regardless of
-    // response_type. Bulk download is a low-frequency operator-triggered
-    // path, so dropping the queue-level retry is an acceptable tradeoff
-    // for the memory ceiling. SEC's 10 req/sec rate limit is never a
-    // concern for a single download.
-    let lastReportedPct = -1;
-    let sizeLogged = false;
-    const {
-      bytes: downloadedBytes,
-      totalBytes,
-      notModified,
-      etag,
-      lastModified,
-    } = await streamDownloadToFile(input.url, zipPath, {
+    // SEC bulk archives (submissions.zip, companyfacts.zip) are multi-GB, so
+    // this streams to disk. It used to be a raw fetch() for that reason —
+    // FetchUrlTask materialised the body regardless of response_type — which
+    // cost the rate limiter, the retry/backoff and the 429 throttle signal.
+    // With a streaming producer none of that has to be traded away.
+    let lastReportedMb = -1;
+    const response = await this.downloadArchive(
+      input.url,
+      zipPath,
       headers,
-      signal: context.signal,
-      onProgress: (downloaded, total) => {
-        if (!sizeLogged && total !== undefined) {
-          console.log(`Download size: ~${(total / (1024 * 1024)).toFixed(0)} MB`);
-          sizeLogged = true;
+      context,
+      (downloaded) => {
+        // The advertised total is verified inside the fetch task rather than
+        // reported here, so progress is stated in MB rather than as a
+        // percentage of a number this side no longer holds.
+        const mb = Math.floor(downloaded / (1024 * 1024));
+        if (mb !== lastReportedMb) {
+          context.updateProgress(0, `${mb} MB`);
+          lastReportedMb = mb;
         }
-        if (total !== undefined && total > 0) {
-          const pct = Math.floor((downloaded / total) * 100);
-          if (pct !== lastReportedPct) {
-            context.updateProgress(pct, `${(downloaded / (1024 * 1024)).toFixed(0)} MB`);
-            lastReportedPct = pct;
-          }
-        }
-      },
-    });
+      }
+    );
+    const { bytes: downloadedBytes, notModified, etag, lastModified } = response;
 
     if (notModified) {
       console.log(
@@ -395,7 +337,9 @@ export class BootstrapDownloadTask extends Task<
         url: input.url,
         etag,
         lastModified,
-        contentLength: totalBytes ?? downloadedBytes,
+        // The bytes actually written, which the fetch task has already
+        // asserted against the advertised Content-Length.
+        contentLength: downloadedBytes,
         extractedAt: new Date().toISOString(),
       });
     } finally {
