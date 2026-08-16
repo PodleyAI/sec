@@ -83,14 +83,18 @@ export function isPricedIpoProspectus(
  * as gross proceeds). When the offering table omits a unit count — a live
  * 424B4 extracted `trust_per_unit` and `gross_proceeds` but left
  * `units_offered` null — fall back to the sponsor-promote `trust_total`.
+ * When the unit row has a count but no per-unit trust, the promote
+ * `trust_per_public_share` is the same $10 deposit (Maywood 2).
  */
 export function ipoTrustAmount(args: {
   readonly trust_per_unit: number | null | undefined;
   readonly units_offered: number | null | undefined;
   readonly trust_total: number | null | undefined;
+  readonly trust_per_public_share?: number | null | undefined;
 }): number | null {
-  if (args.trust_per_unit != null && args.units_offered != null) {
-    return args.trust_per_unit * args.units_offered;
+  const perUnit = args.trust_per_unit ?? args.trust_per_public_share ?? null;
+  if (perUnit != null && args.units_offered != null) {
+    return perUnit * args.units_offered;
   }
   return args.trust_total ?? null;
 }
@@ -248,6 +252,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
         trust_per_unit: unitTerms?.trust_per_unit,
         units_offered: unitTerms?.units_offered,
         trust_total: promoteTerms?.trust_total,
+        trust_per_public_share: promoteTerms?.trust_per_public_share,
       }),
       spac_tickers: tickers.length > 0 ? tickers : null,
     });

@@ -614,6 +614,20 @@ describe("ipoTrustAmount", () => {
       })
     ).toBeNull();
   });
+
+  it("multiplies promote trust_per_public_share by units when unit trust_per_unit is missing", () => {
+    // Live: Maywood 2 424B4 (CIK 2080087) extracted 10,000,000 units and
+    // promote trust_per_public_share=$10 but left unit trust_per_unit and
+    // trust_total null, so the IPO row kept a null trust.
+    expect(
+      ipoTrustAmount({
+        trust_per_unit: null,
+        units_offered: 10_000_000,
+        trust_total: null,
+        trust_per_public_share: 10,
+      })
+    ).toBe(100_000_000);
+  });
 });
 
 describe("isPricedIpoProspectus", () => {
