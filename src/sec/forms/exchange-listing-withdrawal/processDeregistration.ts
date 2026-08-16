@@ -5,10 +5,15 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { EntityRepo } from "../../../storage/entity/EntityRepo";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
+import { pendingDealBefore } from "../../../storage/spac/spacDealGrouping";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
-import { classifyListingRemoval } from "./classifyListingRemoval";
+import {
+  classifyListingRemoval,
+  isNearby20F,
+} from "./classifyListingRemoval";
 
 export interface ProcessDeregistrationArgs {
   readonly cik: number;
@@ -31,10 +36,23 @@ async function isSpacCandidate(cik: number): Promise<boolean> {
   }
 }
 
+export async function hasNearby20F(cik: number, filingDate: string): Promise<boolean> {
+  const entity = new EntityRepo();
+  const [annual, amendment] = await Promise.all([
+    entity.getFilingsByForm(cik, "20-F"),
+    entity.getFilingsByForm(cik, "20-F/A"),
+  ]);
+  return [...annual, ...amendment].some(
+    (f) => f.filing_date != null && f.filing_date !== "" && isNearby20F(filingDate, f.filing_date)
+  );
+}
+
 /**
  * Record Form 25 / 25-NSE / Form 15 family as a lifecycle event. Exchange
  * 25-NSE shortly after IPO is `unit_split` (units unbundle; the vehicle
  * keeps searching — a second 25-NSE in that window is still a split).
+ * A pending deal that has reached proxy or vote, or an exchange 25-NSE with
+ * a nearby Form 20-F, is `completed` (newco / FPI close with no Item 2.01).
  * Everything else is `deregistration`. Known-SPAC gated:
  * without a spac row the filing still "succeeds" (the forms sweep must not
  * retry every 15-12G forever) but writes nothing.
@@ -53,14 +71,26 @@ export async function processDeregistration(args: ProcessDeregistrationArgs): Pr
     return;
   }
   if (!args.filing_date) return;
+  const events = await repo.getEvents(args.cik);
+  const pending = pendingDealBefore(args.cik, events, {
+    event_date: args.filing_date,
+    accession_number: args.accession_number,
+  });
   const kind = classifyListingRemoval({
     form: args.form,
     ipoDate: spacRow.ipo_date,
     filingDate: args.filing_date,
+    pendingDeal: pending,
+    hasNearby20F: await hasNearby20F(args.cik, args.filing_date),
   });
   const writer = new SpacReportWriter();
   if (kind === "unit_split") {
     await writer.recordUnitSplit(args);
+    return;
+  }
+  if (kind === "completed") {
+    await writer.recordCompleted(args);
+    await writer.recordDeSpacLinkage(args);
     return;
   }
   await writer.recordDeregistration(args);

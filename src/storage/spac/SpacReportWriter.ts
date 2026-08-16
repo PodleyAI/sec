@@ -319,6 +319,34 @@ export class SpacReportWriter {
   }
 
   /**
+   * Record a completed de-SPAC whose close was a listing removal rather than
+   * Item 2.01 (newco pubco / FPI 20-F). Drops a `deregistration` or
+   * `unit_split` on the same accession so a replay that reclassifies a
+   * previously failed vehicle cannot leave both events.
+   */
+  async recordCompleted(args: {
+    readonly cik: number;
+    readonly accession_number: string;
+    readonly filing_date: string;
+    readonly form: string;
+  }): Promise<void> {
+    await withCikLock(args.cik, async () => {
+      await this.repo.deleteEvent(args.cik, args.accession_number, "deregistration");
+      await this.repo.deleteEvent(args.cik, args.accession_number, "unit_split");
+      await this.appendEvent({
+        cik: args.cik,
+        accession_number: args.accession_number,
+        event_type: "completed",
+        event_date: args.filing_date,
+        form: args.form,
+        primary_document: null,
+      });
+      await this.recomputeAndSaveDeals(args.cik);
+      await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});
+    });
+  }
+
+  /**
    * Record Exchange listing withdrawal (Form 25 / 25-NSE) or Exchange Act
    * termination (Form 15 / 15F): append a `deregistration` event (idempotent
    * by PK), recompute deals, then rebuild the row. Rollup treats that event as

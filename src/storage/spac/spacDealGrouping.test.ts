@@ -292,6 +292,16 @@ describe("deriveDeals", () => {
     );
     expect(deals[0].proxy_date).toBe("2021-05-20");
   });
+
+  it("opens a deal from a proxy event with no prior DA (D. Boral)", () => {
+    // A DEFM14A with no Item 1.01 merger 8-K used to stay timeline-only, so
+    // proxy_date never landed on the spac row and status stayed `ipo`.
+    const deals = deriveDeals(1, [ev("proxy", "2026-07-07")], [], [], []);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].outcome).toBe("pending");
+    expect(deals[0].proxy_date).toBe("2026-07-07");
+    expect(deals[0].definitive_agreement_date).toBeNull();
+  });
 });
 
 describe("deriveDeals — completion is terminal", () => {
@@ -498,5 +508,29 @@ describe("pendingDealBefore", () => {
     expect(
       pendingDealBefore(1, events, { event_date: "2021-04-01", accession_number: "acc-0" })
     ).toBeNull();
+  });
+
+  it("treats a proxy-only prefix as a pending deal so a later 5.07 can be a vote", () => {
+    const events = [ev("proxy", "2026-07-07", "acc-proxy")];
+    const hint = pendingDealBefore(1, events, {
+      event_date: "2026-07-20",
+      accession_number: "acc-vote",
+    });
+    expect(hint).not.toBeNull();
+    expect(hint?.proxy_date).toBe("2026-07-07");
+    expect(hint?.vote_date).toBeNull();
+  });
+
+  it("reports vote_date on a pending deal that has already voted", () => {
+    const events = [
+      ev("definitive_agreement", "2025-06-23", "acc-da"),
+      ev("vote", "2025-12-03", "acc-vote"),
+    ];
+    const hint = pendingDealBefore(1, events, {
+      event_date: "2025-12-05",
+      accession_number: "acc-nse",
+    });
+    expect(hint?.vote_date).toBe("2025-12-03");
+    expect(hint?.definitive_agreement_date).toBe("2025-06-23");
   });
 });

@@ -14,6 +14,7 @@ import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -40,9 +41,35 @@ const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
 /**
  * The 424 variants that are full priced-IPO prospectuses (Rule 430A pricing
  * after effectiveness) and therefore worth the AI offering-sections pass.
- * Shelf takedowns and supplements (424B2/B3/B5, 424A) stay deterministic-only.
+ * 424B3 is included only via {@link isPricedIpoProspectus} when it is the
+ * SPAC's IPO prospectus (known SPAC, no ipo_date yet). Shelf takedowns
+ * (424B2/B5, 424A) stay deterministic-only.
  */
 const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
+
+/**
+ * Whether this 424 is a priced IPO prospectus worth the AI offering-sections
+ * pass and a `recordIpo` event.
+ *
+ * B1/B4 are always priced (Rule 430A after effectiveness). B3 is a SPAC IPO
+ * prospectus when the vehicle has a spac row (or a 6770 header) and has not
+ * already recorded `ipo_date` — later B3s are supplements and stay
+ * deterministic-only (Innventure has 65 of them).
+ */
+export function isPricedIpoProspectus(
+  form: string,
+  args: {
+    readonly knownSpac: boolean;
+    readonly ipoDate: string | null | undefined;
+    readonly headerSic: number | null | undefined;
+  }
+): boolean {
+  const f = form.trim().toUpperCase();
+  if (PRICED_PROSPECTUS_FORMS.has(f)) return true;
+  if (f !== "424B3") return false;
+  if (args.ipoDate != null && args.ipoDate !== "") return false;
+  return args.knownSpac || args.headerSic === 6770;
+}
 
 /**
  * IPO-day trust deposit. Prefer units × trust-per-unit (the same arithmetic
@@ -146,10 +173,16 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     ),
   });
 
-  if (!PRICED_PROSPECTUS_FORMS.has(form)) return;
+  const spacRow = await new SpacRepo().getSpac(cik);
+  const headerSic = form424.header?.sic ?? null;
+  const priced = isPricedIpoProspectus(form, {
+    knownSpac: spacRow != null,
+    ipoDate: spacRow?.ipo_date ?? null,
+    headerSic,
+  });
+  if (!priced) return;
 
-  const isSpac = form424.header?.sic === 6770;
-
+  const isSpac = headerSic === 6770 || spacRow != null;
   const deadLetters = new ExtractionDeadLetterRepo();
   const recordFail = (section: string, reason: DeadLetterReasonCode, detail: string | null) =>
     deadLetters.record({
