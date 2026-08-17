@@ -84,4 +84,6 @@ export interface OfferingTermsRow {
   confidence: number;
   source_span: string;
   tickers: ReadonlyArray<OfferingTickerRow>;
+  /** Persist-only. Set by the markdown-table parser; never part of the model schema. */
+  source?: "deterministic";
 }
