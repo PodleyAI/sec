@@ -19,6 +19,25 @@ export const UNIT_SEPARATION_MAX_DAYS_AFTER_IPO = 180;
  */
 export const FPI_CLOSE_20F_MAX_DAYS = 14;
 
+/**
+ * Calendar-day window after a pending deal's proxy or vote during which a
+ * listing removal reads as post-close housekeeping rather than a wind-up.
+ *
+ * Reaching the ballot is not closing. A deal can die after its vote — commonly
+ * announced under Item 8.01, which carries no lifecycle mapping and so writes no
+ * `terminated` event — leaving the attempt `pending` with a `vote_date` forever,
+ * and the vehicle then liquidates much later. An unbounded "has a proxy or vote"
+ * test reads that Form 25 / Form 15 as a completed combination, deletes the
+ * wind-up, and promotes a post-merger identity onto a shell that never merged.
+ * A 5.07 extension meeting also maps to `vote` whenever a deal is pending, so a
+ * `vote_date` does not even mean the merger was approved.
+ *
+ * A real post-approval close is days: the trust has to be released. The widest
+ * pairing in the committed corpus is 40 days (Columbus Circle, proxy 2025-11-12
+ * → Form 15 2025-12-22); the rest are 2, 3, 6, 8, 10 and 19.
+ */
+export const LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL = 90;
+
 export type ListingRemovalKind = "unit_split" | "deregistration" | "completed" | "ignore";
 
 export interface ListingRemovalPendingDeal {
@@ -60,9 +79,36 @@ function calendarDaysBetween(from: string, to: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
-function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefined): boolean {
+/**
+ * The deal's most recent approval-stage signal. A superseding proxy revives an
+ * attempt, so the LATER of the two dates is what the window is anchored on.
+ */
+function approvalDate(deal: ListingRemovalPendingDeal): string | null {
+  const dates = [deal.vote_date, deal.proxy_date].filter(
+    (d): d is string => d != null && d !== ""
+  );
+  if (dates.length === 0) return null;
+  return dates.reduce((latest, d) => (d > latest ? d : latest));
+}
+
+/**
+ * Whether the pending deal reached proxy or vote within
+ * {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing.
+ *
+ * The window is ONE-SIDED, unlike {@link isNearby20F}'s absolute value: a
+ * removal filed BEFORE the approval is not post-close housekeeping.
+ * `calendarDaysBetween` yields `+Infinity` for an unparseable date, which falls
+ * outside the window on its own.
+ */
+function pendingReachedApproval(
+  deal: ListingRemovalPendingDeal | null | undefined,
+  filingDate: string
+): boolean {
   if (deal == null) return false;
-  return (deal.vote_date != null && deal.vote_date !== "") || (deal.proxy_date != null && deal.proxy_date !== "");
+  const approval = approvalDate(deal);
+  if (approval == null) return false;
+  const days = calendarDaysBetween(approval, filingDate);
+  return days >= 0 && days <= LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL;
 }
 
 /**
@@ -70,10 +116,13 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
  * same lifecycle event.
  *
  * Priority:
- * 1. A pending deal that has reached proxy or vote, or a `completed` event
- *    already on an earlier accession — the listing removal is post-close
- *    housekeeping (newco/FPI closes have no Item 2.01; Form 15 after the
- *    close-day 25-NSE is the same paperwork).
+ * 1. A pending deal whose proxy or vote is within
+ *    {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing, or a
+ *    `completed` event already on an earlier accession — the listing removal is
+ *    post-close housekeeping (newco/FPI closes have no Item 2.01; Form 15 after
+ *    the close-day 25-NSE is the same paperwork). Reaching the ballot alone, at
+ *    any distance, is NOT evidence of a close: a deal that died after its vote
+ *    stays `pending` with a `vote_date` indefinitely.
  * 2. Exchange 25-NSE shortly after a KNOWN IPO — units unbundle; the vehicle
  *    keeps searching (a second 25-NSE in that window is still a split).
  * 3. Exchange 25-NSE with a nearby Form 20-F — FPI close (the 20-F is the
@@ -111,7 +160,7 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
   if (is20F(args.form)) {
     if (
-      pendingReachedApproval(args.pendingDeal) ||
+      pendingReachedApproval(args.pendingDeal, args.filingDate) ||
       args.hasPriorCompleted === true ||
       args.hasNearby25Nse === true ||
       args.isFirst20FAfterCombination === true
@@ -120,7 +169,10 @@ export function classifyListingRemoval(args: ClassifyListingRemovalArgs): Listin
     }
     return "ignore";
   }
-  if (pendingReachedApproval(args.pendingDeal) || args.hasPriorCompleted === true) {
+  if (
+    pendingReachedApproval(args.pendingDeal, args.filingDate) ||
+    args.hasPriorCompleted === true
+  ) {
     return "completed";
   }
   const floorKnown = args.ipoDate != null && args.ipoDate !== "";

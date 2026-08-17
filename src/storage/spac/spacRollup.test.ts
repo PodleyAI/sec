@@ -202,6 +202,81 @@ describe("buildSpacRow", () => {
     expect(rebuilt.surviving_name_source).toBe("entity");
   });
 
+  it("drops an entity-sourced surviving name when no deal is completed", () => {
+    // Post-merger identity is DERIVED from a completed combination, not merged
+    // forward. A misclassified filing can promote a surviving name onto a shell
+    // that never merged; when the corrected event stream re-derives the vehicle
+    // as wound up, the promotion has to go with it — otherwise the row keeps
+    // reading as the operating company forever.
+    const promoted = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "completed", outcome_date: "2024-08-01" })],
+      events: [ev({ event_type: "completed", event_date: "2024-08-01" })],
+      patch: {
+        spac_name: "Shell SPAC",
+        surviving_name: "Operating Newco, Inc.",
+        post_merger_sic: 3711,
+        post_merger_tickers: '["NEWCO"]',
+      },
+      filingDate: "2024-08-01",
+    });
+    expect(promoted.surviving_name_source).toBe("entity");
+
+    const rebuilt = buildSpacRow({
+      existing: promoted,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "terminated", outcome_date: "2024-08-01" })],
+      events: [
+        ev({ event_type: "vote", event_date: "2023-02-01" }),
+        ev({ event_type: "deregistration", event_date: "2024-08-01" }),
+      ],
+      patch: {},
+      filingDate: "2024-08-02",
+    });
+    expect(rebuilt.surviving_name).toBeNull();
+    expect(rebuilt.surviving_name_source).toBeNull();
+    expect(rebuilt.post_merger_sic).toBeNull();
+    expect(rebuilt.post_merger_tickers).toBeNull();
+    // Every current_* chain collapses back to the spac_* mirror.
+    expect(rebuilt.current_name).toBe("Shell SPAC");
+    expect(rebuilt.current_sic).toBe(rebuilt.spac_sic);
+    expect(rebuilt.current_tickers).toBe(rebuilt.spac_tickers);
+  });
+
+  it("keeps an entity-sourced surviving name while a deal is completed", () => {
+    // The other half of the gate: a rebuild that still derives a completed deal
+    // must not disturb the close-time entity snapshot.
+    const promoted = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "completed", outcome_date: "2024-08-01" })],
+      events: [ev({ event_type: "completed", event_date: "2024-08-01" })],
+      patch: {
+        spac_name: "Shell SPAC",
+        surviving_name: "Operating Newco, Inc.",
+        post_merger_sic: 3711,
+        post_merger_tickers: '["NEWCO"]',
+      },
+      filingDate: "2024-08-01",
+    });
+
+    const rebuilt = buildSpacRow({
+      existing: promoted,
+      cik: 1,
+      deals: [deal({ deal_index: 0, outcome: "completed", outcome_date: "2024-08-01" })],
+      events: [ev({ event_type: "completed", event_date: "2024-08-01" })],
+      patch: {},
+      filingDate: "2024-08-02",
+    });
+    expect(rebuilt.surviving_name).toBe("Operating Newco, Inc.");
+    expect(rebuilt.surviving_name_source).toBe("entity");
+    expect(rebuilt.post_merger_sic).toBe(3711);
+    expect(rebuilt.post_merger_tickers).toBe('["NEWCO"]');
+    expect(rebuilt.current_name).toBe("Operating Newco, Inc.");
+    expect(rebuilt.current_sic).toBe(3711);
+  });
+
   it("leaves surviving_name null for a still-pending deal", () => {
     const row = buildSpacRow({
       existing: undefined,

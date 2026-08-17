@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyListingRemoval,
   isNearby20F,
+  LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL,
   UNIT_SEPARATION_MAX_DAYS_AFTER_IPO,
 } from "./classifyListingRemoval";
 
@@ -151,6 +152,98 @@ describe("classifyListingRemoval", () => {
         pendingDeal: { vote_date: null, proxy_date: "2026-07-07" },
       })
     ).toBe("completed");
+  });
+
+  it("does not complete a Form 25 filed long after the proxy and vote", () => {
+    // The deal died after its vote. That is commonly disclosed under Item 8.01,
+    // which `mapItemCodesToSpacEvents` maps to NO event at all, so no
+    // `terminated` is ever written and the attempt stays `pending` with its
+    // vote_date indefinitely. Eighteen months later the vehicle winds up and
+    // files Form 25 — a liquidation, not a close. Without the window this
+    // classified `completed`, which deletes the deregistration event and marks
+    // a wound-up shell as a completed de-SPAC.
+    expect(
+      classifyListingRemoval({
+        form: "25",
+        ipoDate: "2021-01-19",
+        filingDate: "2024-08-01",
+        pendingDeal: { vote_date: "2023-02-01", proxy_date: "2023-01-05" },
+      })
+    ).toBe("deregistration");
+  });
+
+  it("does not complete a Form 15 filed long after the proxy and vote", () => {
+    expect(
+      classifyListingRemoval({
+        form: "15-12B",
+        ipoDate: "2021-01-19",
+        filingDate: "2024-08-01",
+        pendingDeal: { vote_date: "2023-02-01", proxy_date: "2023-01-05" },
+      })
+    ).toBe("deregistration");
+  });
+
+  it("ignores an annual 20-F filed long after a proxy with no other close signal", () => {
+    // The same bound governs the 20-F branch, which had its own copy of the
+    // unbounded predicate: an annual report is not an FPI close filing just
+    // because the issuer once held a vote.
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2021-01-19",
+        filingDate: "2024-08-01",
+        pendingDeal: { vote_date: "2023-02-01", proxy_date: null },
+        hasNearby25Nse: false,
+        isFirst20FAfterCombination: false,
+      })
+    ).toBe("ignore");
+  });
+
+  it("includes the approval-window bound and not the day after", () => {
+    const atBound = classifyListingRemoval({
+      form: "25",
+      ipoDate: "2024-01-01",
+      // 2025-01-01 + 90 days.
+      filingDate: "2025-04-01",
+      pendingDeal: { vote_date: "2025-01-01", proxy_date: null },
+    });
+    const pastBound = classifyListingRemoval({
+      form: "25",
+      ipoDate: "2024-01-01",
+      filingDate: "2025-04-02",
+      pendingDeal: { vote_date: "2025-01-01", proxy_date: null },
+    });
+    expect(atBound).toBe("completed");
+    expect(pastBound).toBe("deregistration");
+    expect(LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL).toBe(90);
+  });
+
+  it("anchors the window on the later of proxy and vote", () => {
+    // A superseding proxy revives an attempt, so the most recent approval-stage
+    // signal is the anchor — taking the earlier one would age a live deal out
+    // of the window.
+    expect(
+      classifyListingRemoval({
+        form: "25",
+        ipoDate: "2024-01-01",
+        filingDate: "2025-05-01",
+        // proxy 120 days before the filing, vote 10 days before it.
+        pendingDeal: { vote_date: "2025-04-21", proxy_date: "2025-01-01" },
+      })
+    ).toBe("completed");
+  });
+
+  it("does not complete on a removal filed before the approval", () => {
+    // One-sided by design: a Form 25 that PRECEDES the vote cannot be
+    // post-close housekeeping for it.
+    expect(
+      classifyListingRemoval({
+        form: "25",
+        ipoDate: "2024-01-01",
+        filingDate: "2025-01-01",
+        pendingDeal: { vote_date: "2025-01-20", proxy_date: null },
+      })
+    ).toBe("deregistration");
   });
 
   it("does not complete on a pending DA that never reached proxy or vote", () => {

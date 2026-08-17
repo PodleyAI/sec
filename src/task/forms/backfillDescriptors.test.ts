@@ -40,17 +40,19 @@ async function seedFiling(opts: {
   readonly accession_number: string;
   readonly form: string;
   readonly items?: string;
+  readonly filing_date?: string;
 }): Promise<void> {
   const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const filing_date = opts.filing_date ?? "2026-03-20";
   await repo.put({
     cik: opts.cik,
     accession_number: opts.accession_number,
     form: opts.form,
     primary_doc: "primary.htm",
     file_number: "",
-    filing_date: "2026-03-20",
-    acceptance_date: "2026-03-20T00:00:00.000Z",
-    report_date: "2026-03-19",
+    filing_date,
+    acceptance_date: `${filing_date}T00:00:00.000Z`,
+    report_date: filing_date,
     film_number: null,
     primary_doc_description: null,
     size: null,
@@ -419,6 +421,106 @@ describe("25-15 descriptor", () => {
     });
 
     expect(await descriptor.filterTodo!(await descriptor.selectCandidates())).toEqual([]);
+  });
+
+  it("re-selects a 25-15 accession whose recorded completed no longer classifies", async () => {
+    // The recovery path for the approval-window fix. The old unbounded rule
+    // recorded `completed` for a Form 25 filed 18 months after the vote; the
+    // live classifier now says `deregistration`, and filterTodo compares
+    // against what is recorded, so the accession is re-queued (no --force).
+    await seedSpac(5);
+    await new SpacReportWriter().recordIpo({
+      cik: 5,
+      accession_number: "5-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["FOO.U"],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 5,
+      accession_number: "5-vote",
+      filing_date: "2023-02-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2023-02-01" }],
+    });
+    await seedFiling({ cik: 5, accession_number: "acc-25", form: "25", filing_date: "2024-08-01" });
+    await new SpacReportWriter().recordCompleted({
+      cik: 5,
+      accession_number: "acc-25",
+      form: "25",
+      filing_date: "2024-08-01",
+    });
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const todo = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-25"]);
+  });
+
+  it("needs a second pass when two accessions both carry a stale completed", async () => {
+    // The fixpoint requirement, in executable form. `hasPriorCompleted` reads
+    // the EVENT stream, so while the Form 25's stale `completed` is still on an
+    // earlier accession the Form 15 keeps classifying `completed` too — it
+    // matches what is recorded and is skipped. Only after pass one corrects the
+    // Form 25 does pass two see the Form 15 for what it is. Operators must run
+    // `sec extractor backfill 25-15` until it reports `processed 0`.
+    await seedSpac(5);
+    await new SpacReportWriter().recordIpo({
+      cik: 5,
+      accession_number: "5-ipo",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100_000_000,
+      trust_amount: 100_000_000,
+      spac_tickers: ["FOO.U"],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 5,
+      accession_number: "5-vote",
+      filing_date: "2023-02-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2023-02-01" }],
+    });
+    await seedFiling({ cik: 5, accession_number: "acc-25", form: "25", filing_date: "2024-08-01" });
+    await seedFiling({
+      cik: 5,
+      accession_number: "acc-15",
+      form: "15-12B",
+      filing_date: "2024-09-03",
+    });
+    for (const [accession_number, form, filing_date] of [
+      ["acc-25", "25", "2024-08-01"],
+      ["acc-15", "15-12B", "2024-09-03"],
+    ] as const) {
+      await new SpacReportWriter().recordCompleted({
+        cik: 5,
+        accession_number,
+        form,
+        filing_date,
+      });
+    }
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const pass1 = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(pass1.map((c) => c.accession_number)).toEqual(["acc-25"]);
+
+    // Simulate pass one processing acc-25: the classifier now says
+    // deregistration, and recordDeregistration deletes the sibling completed on
+    // that accession before appending.
+    await new SpacReportWriter().recordDeregistration({
+      cik: 5,
+      accession_number: "acc-25",
+      form: "25",
+      filing_date: "2024-08-01",
+    });
+
+    const pass2 = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(pass2.map((c) => c.accession_number)).toEqual(["acc-15"]);
   });
 
   it("re-selects a second 25-NSE recorded as deregistration while an earlier split exists", async () => {
