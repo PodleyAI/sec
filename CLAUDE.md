@@ -16,7 +16,20 @@ bun run build                # Full build (clean + JS + types)
 bun run dev                  # Watch mode (JS + types concurrently)
 bun test                     # Run all tests
 bun test src/path/to/file.test.ts  # Run a single test file
+bun run format               # Prettier write (run before pushing)
+bun run format-check         # Prettier check — CI runs this
+bun run typecheck-tests      # Typecheck the test files
 ```
+
+CI runs `format-check` → `build` → `test`, cheapest first.
+
+`typecheck-tests` is a separate script because the test files are **excluded
+from the base `tsconfig.json`** and vitest transpiles without typechecking, so
+nothing else ever type-checks them: `bun run build` and `bun run test` both pass
+over a test file whose types are wrong. It is **not** in CI yet — the suite
+currently reports 122 errors across 37 files, and a step that is red the day it
+lands teaches everyone to ignore it. Run it locally on the files you touch, and
+wire it into `test.yml` in the change that gets the count to zero.
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
@@ -2618,3 +2631,25 @@ From `.cursor/rules/`:
 ## Formatting
 
 Prettier: 100 char print width, 2-space indent, double quotes, trailing commas (es5), semicolons.
+
+Enforced in CI by `bun run format-check`, so run `bun run format` before
+pushing. The version is **pinned exactly** (`prettier` in `devDependencies`, not
+a range): a floating range reformats on a minor release and turns CI red on a
+day nobody touched the code.
+
+Two `.prettierignore` entries are load-bearing and should not be tidied out:
+
+- every `mock_data/` directory — captured EDGAR bytes, not source. `goldenFixtures.test.ts`
+  re-hashes the `src/sec/html/mock_data/{s1,424}` corpus against the SHA-256
+  recorded in `goldenFixtureManifest.ts` with no network, so reformatting a
+  fixture turns that test red and destroys the capture provenance the manifest
+  exists to prove (a bare `prettier --write .` rewrites 28 of them). The
+  fixtures under the other `mock_data/` trees back whitespace-sensitive prose
+  segmentation and source-span verification, where re-indenting changes what
+  the tests measure. The entry names the directories rather than the files that
+  fail today, because a fixture that is prettier-clean today is clean by
+  accident of its markup, not by guarantee.
+- **`src/eval/goldenS1Labels.ts`** — one label per line so each can be checked
+  against the filing it came from. Prettier collapses them onto single lines;
+  19,950 of the 21,757 lines a repo-wide reformat would change are in this one
+  file, and the result is the opposite of reviewable.

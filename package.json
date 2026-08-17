@@ -29,7 +29,9 @@
     "link": "bun link",
     "link-workglow": "bun ./scripts/link-workglow-packages.ts",
     "test": "vitest run",
-    "typecheck-tests": "tsc -p tsconfig.test.json"
+    "typecheck-tests": "tsc -p tsconfig.test.json",
+    "format": "prettier --write .",
+    "format-check": "prettier --check ."
   },
   "bin": "./dist/sec.js",
   "exports": {
@@ -69,6 +71,7 @@
     "better-sqlite3": "^13.0.3",
     "bunset": "1.0.13",
     "concurrently": "^10.0.5",
+    "prettier": "3.8.1",
     "vitest": "^4.1.10"
   },
   "trustedDependencies": [
