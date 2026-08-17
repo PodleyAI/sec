@@ -262,14 +262,14 @@ describe("registerSecModels", () => {
     expect((await repo.findByName(SecHftModelDefault))?.provider).toBe("HF_TRANSFORMERS_ONNX");
   });
 
-  it("pins the built-in default to a schema-enforced cloud model", () => {
+  it("pins the built-in default to Anthropic so a key-only deployment resolves", () => {
     // Deliberately NOT derived from SecModelDefault: the derived test above
     // asserts the wiring, so nothing failed when the built-in value itself was
     // changed. A default whose provider a deployment has no key for
-    // dead-letters every AI section with MODEL_RESOLUTION_ERROR, and a default
-    // whose json-mode is not schema-enforced raises the schema-failure rate on
-    // every extractor at once. Adopting another tier is an env-var opt-in
-    // (SEC_MODEL_DEFAULT / a per-extractor variable), not a change here.
+    // dead-letters every AI section with MODEL_RESOLUTION_ERROR. Adopting
+    // another tier is an env-var opt-in (SEC_MODEL_DEFAULT / a per-extractor
+    // variable), not a change here. Schema conformance is not a reason to
+    // change this id — libs enforces the schema for json-mode providers.
     expect(DEFAULT_SEC_MODEL).toBe("claude-sonnet-5");
     expect(secModelRecord(DEFAULT_SEC_MODEL).provider).toBe("ANTHROPIC");
     // `.env.test` sets no SEC_MODEL_DEFAULT, and beforeEach deletes it, so the

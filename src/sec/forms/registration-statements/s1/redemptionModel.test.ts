@@ -63,7 +63,7 @@ describe("getRedemptionModelIds", () => {
     expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6", "deepseek-v4-flash"]);
   });
 
-  it("keeps a set override first and appends remaining schema-enforced default ids", () => {
+  it("keeps a set override first and appends remaining default ids", () => {
     process.env[MODEL_ENV] = "gpt-5.6-luna";
     process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
     expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);

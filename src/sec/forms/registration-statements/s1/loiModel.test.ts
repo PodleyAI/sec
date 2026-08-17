@@ -53,7 +53,7 @@ describe("getLoiModelIds", () => {
     expect(getLoiModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
   });
 
-  it("keeps a set override first and appends remaining schema-enforced default ids", () => {
+  it("keeps a set override first and appends remaining default ids", () => {
     process.env[MODEL_ENV] = "gpt-5.6-luna";
     process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
     expect(getLoiModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);

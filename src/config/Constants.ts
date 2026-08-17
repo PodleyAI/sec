@@ -74,12 +74,13 @@ export const SecFetchMaxConcurrent = ((): number => {
  * blank entries are dropped. An unset per-extractor variable inherits this
  * whole list; a set override replaces it.
  *
- * The default stays on a provider whose `json-mode` is schema-enforced
- * server-side: a default that a deployment holding only ANTHROPIC_API_KEY
- * cannot resolve turns every AI section into a MODEL_RESOLUTION_ERROR dead
- * letter. A cheaper tier is adopted per deployment through SEC_MODEL_DEFAULT
- * (all extractors) or a per-extractor variable such as
- * SEC_S1_RISK_FACTORS_MODEL, after ranking it with `sec eval s1`.
+ * The default stays on Anthropic so a deployment holding only
+ * ANTHROPIC_API_KEY can resolve it; any other built-in id would turn every
+ * AI section into a MODEL_RESOLUTION_ERROR dead letter. A cheaper tier is
+ * adopted per deployment through SEC_MODEL_DEFAULT (all extractors) or a
+ * per-extractor variable such as SEC_S1_RISK_FACTORS_MODEL, after ranking
+ * it with `sec eval s1`. Schema conformance is the provider layer's job
+ * (`jsonModeChatParts` in `@workglow/ai`), not a filter on this list.
  */
 export const DEFAULT_SEC_MODEL = "claude-sonnet-5";
 
