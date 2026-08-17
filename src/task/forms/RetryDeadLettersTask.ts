@@ -33,6 +33,12 @@ const OutputSchema = () =>
   Type.Object({
     eligibleAccessions: Type.Array(Type.String()),
     reprocessed: Type.Number(),
+    /**
+     * Accessions cleared WITHOUT re-running the filing — every eligible entry
+     * on them was an expected negative. Counted apart from `reprocessed`, which
+     * claims a filing was actually put back through the pipeline.
+     */
+    resolved: Type.Number(),
     failed: Type.Number(),
   });
 type RetryDeadLettersTaskOutput = Static<ReturnType<typeof OutputSchema>>;
@@ -77,10 +83,11 @@ export class RetryDeadLettersTask extends Task<
     );
 
     if (input.dryRun) {
-      return { eligibleAccessions: accessions, reprocessed: 0, failed: 0 };
+      return { eligibleAccessions: accessions, reprocessed: 0, resolved: 0, failed: 0 };
     }
 
     let reprocessed = 0;
+    let resolved = 0;
     let failed = 0;
     for (const accessionNumber of accessions) {
       if (context.signal?.aborted) throw new TaskAbortedError();
@@ -88,7 +95,7 @@ export class RetryDeadLettersTask extends Task<
         for (const row of eligible.filter((e) => e.accession_number === accessionNumber)) {
           await deadLetters.markResolved(row.extractor_id, row.accession_number, row.section_name);
         }
-        reprocessed++;
+        resolved++;
         continue;
       }
       // Isolate each accession: ProcessAccessionDocFormTask still throws for
@@ -118,6 +125,6 @@ export class RetryDeadLettersTask extends Task<
         console.warn(`retry-dead-letters: ${accessionNumber} failed to reprocess: ${message}`);
       }
     }
-    return { eligibleAccessions: accessions, reprocessed, failed };
+    return { eligibleAccessions: accessions, reprocessed, resolved, failed };
   }
 }

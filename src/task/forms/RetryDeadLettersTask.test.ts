@@ -58,9 +58,38 @@ describe("RetryDeadLettersTask", () => {
 
     const out = await new RetryDeadLettersTask().run({ extractorId: "redemption" } as never);
     expect(out.eligibleAccessions).toEqual(["no-such-filing"]);
-    expect(out.reprocessed).toBe(1);
+    // Counted as `resolved`, not `reprocessed`: no filing went back through the
+    // pipeline. `reprocessed` claims work happened, and the accession here does
+    // not even resolve to a filing.
+    expect(out.resolved).toBe(1);
+    expect(out.reprocessed).toBe(0);
     expect(out.failed).toBe(0);
     expect((await dl.get("redemption", "no-such-filing", "redemption"))?.status).toBe("resolved");
+  });
+
+  it("does not resolve a redemption MODEL_INVALID_OUTPUT entry without re-running the filing", async () => {
+    // Recorded at a STALE version so it is eligible the ordinary way; the point
+    // is that it takes the REPROCESS branch rather than the resolve-only one.
+    // The accession does not resolve to a filing, so the reprocess fails and is
+    // counted — and the entry is still pending, because only a clean run of the
+    // extractor is allowed to clear it.
+    const dl = new ExtractionDeadLetterRepo();
+    await dl.record({
+      extractor_id: "redemption",
+      accession_number: "invalid-8k",
+      section_name: "redemption",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: "response did not match schema",
+      failed_extractor_version: "0.9.0",
+      source_run_id: null,
+    });
+
+    const out = await new RetryDeadLettersTask().run({ extractorId: "redemption" } as never);
+    expect(out.eligibleAccessions).toEqual(["invalid-8k"]);
+    expect(out.resolved).toBe(0);
+    expect(out.reprocessed).toBe(0);
+    expect(out.failed).toBe(1);
+    expect((await dl.get("redemption", "invalid-8k", "redemption"))?.status).toBe("pending");
   });
 
   it("releases each accession's owned workflow instead of retaining the whole sweep", async () => {

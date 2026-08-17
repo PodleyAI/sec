@@ -273,16 +273,15 @@ export async function processRedemption8K(args: ProcessRedemption8KArgs): Promis
 
   // "No redemption reported" is the expected outcome for most trigger-item
   // 8-Ks (5.07/2.01/8.01 carry votes, closes, and ordinary updates). Leaving
-  // the MODEL_EMPTY / MODEL_INVALID_OUTPUT entry pending floods the retry
-  // worklist with confident negatives, so auto-resolve it — matching the LOI
-  // detector. Genuine problems (LOW_CONFIDENCE_ALL, UNVERIFIED_SOURCE_SPAN)
-  // stay pending.
+  // the MODEL_EMPTY entry pending floods the retry worklist with confident
+  // negatives, so auto-resolve it — matching the LOI detector. Genuine problems
+  // stay pending: LOW_CONFIDENCE_ALL, UNVERIFIED_SOURCE_SPAN, and
+  // MODEL_INVALID_OUTPUT — the section runner's catch-all for a throw it could
+  // not classify (a provider 5xx, a schema rejection, a failure inside persist),
+  // which says nothing about whether this filing reported a redemption.
   if (persisted === 0) {
     const entry = await deadLetters.get(EXTRACTOR_ID, accession_number, REDEMPTION_SECTION);
-    if (
-      entry?.reason_code === "MODEL_EMPTY" ||
-      entry?.reason_code === "MODEL_INVALID_OUTPUT"
-    ) {
+    if (entry?.reason_code === "MODEL_EMPTY") {
       await deadLetters.markResolved(EXTRACTOR_ID, accession_number, REDEMPTION_SECTION);
     }
   }

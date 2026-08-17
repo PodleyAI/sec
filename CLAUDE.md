@@ -288,6 +288,15 @@ written but never declared used to persist silently (which is how
 time without appearing in the list an operator reads); adding one is now a
 compile error until it is declared.
 
+`MODEL_INVALID_OUTPUT` is **never an expected negative**. It is the section
+runner's catch-all for any throw it could not classify — a provider 5xx, a
+schema rejection, a failure inside `persist` — so it says nothing about what the
+filing disclosed. `EXPECTED_NEGATIVE_REASON_CODES` (same file) is therefore
+`MODEL_EMPTY` **only**, scoped to the `loi` / `redemption` detectors: those
+extractors record a successful run row regardless, so treating a catch-all
+failure as a confident negative left no extraction row, no pending entry, and
+nothing for the forms sweep or the backfill anti-join to re-select.
+
 `CONVERTER_NO_STRUCTURE` is the S-1 extractor's own diagnostic, recorded under
 the section name `converter`: the HTML converter produced a document with no
 usable structure, so the tree walk found nothing and the line-scan fallback stood
@@ -1817,6 +1826,15 @@ once. Configure the model via `SEC_REDEMPTION_MODEL` (default `claude-sonnet-5`)
 and an optional confidence floor via `SEC_REDEMPTION_CONFIDENCE_FLOOR` (falls back to
 `SEC_S1_CONFIDENCE_FLOOR`).
 
+"No redemption reported" is the expected answer for most trigger 8-Ks, so its
+`MODEL_EMPTY` dead-letter is auto-resolved. A `MODEL_INVALID_OUTPUT` entry stays
+**pending**: it is the section runner's catch-all for an unclassifiable throw,
+not a verdict about the filing. The detector still records a **successful** run
+row for that filing, so the ordinary forms sweep will not re-select it and the
+pending entry is the only surviving trace. `sec spac backfill-redemptions`
+re-selects exactly those filings — a catch-all entry (in any status) with no
+`spac_redemption_extraction` row — alongside the ones that never ran.
+
 ```bash
 sec spac backfill-redemptions            # sweep historical known-SPAC trigger 8-Ks
 sec extractor dead-letters redemption    # version-fixable extraction failures
@@ -1835,10 +1853,15 @@ report/filing date); `deriveDeals` opens/dates the attempt and the rollup lifts
 `loi_date` / `status = "loi"` onto the spac row — a later definitive agreement
 on the same deal supersedes the LOI stage. "No LOI reported" is the expected
 outcome for most trigger 8-Ks, so its `MODEL_EMPTY` dead-letter is auto-resolved
-(genuine problems — low confidence, unverified span, nonce mismatch — stay
-pending). Configure the model via `SEC_LOI_MODEL` (default `claude-sonnet-5`)
-and an optional floor via `SEC_LOI_CONFIDENCE_FLOOR` (falls back to
-`SEC_S1_CONFIDENCE_FLOOR`).
+(genuine problems — low confidence, unverified span, nonce mismatch, and the
+`MODEL_INVALID_OUTPUT` catch-all — stay **pending**). As with redemptions, the
+detector records a **successful** run row even for a section that threw, so the
+ordinary forms sweep will not re-select the filing and the pending entry is the
+only trace; `sec spac backfill-lois` re-selects exactly those filings — a
+catch-all entry (in any status) with no `spac_loi_extraction` row — alongside the
+ones that never ran. Configure the model via `SEC_LOI_MODEL` (default
+`claude-sonnet-5`) and an optional floor via `SEC_LOI_CONFIDENCE_FLOOR` (falls
+back to `SEC_S1_CONFIDENCE_FLOOR`).
 
 ```bash
 sec spac backfill-lois            # sweep historical known-SPAC trigger 8-Ks
@@ -2071,7 +2094,14 @@ known-SPAC trigger-item 8-Ks) and extractors whose recorded success can be a
 gated no-op override `filterTodo` (`merger-proxy` keeps candidates lacking a
 `spac_merger_extraction` row, since its known-SPAC gate records `success: true`).
 The default needing-work predicate is a bulk anti-join against `extractor_runs`
-at the active version. Each survivor re-runs `ProcessAccessionDocFormTask`, so
+at the active version, exported as `defaultFilterTodo` so a descriptor that only
+WIDENS it does not restate it. The `redemption` / `loi` descriptors do exactly
+that: their `filterTodo` is the default UNIONED with filings whose detector
+section carries the `MODEL_INVALID_OUTPUT` catch-all and produced no extraction
+row. Those recorded a successful run while writing nothing, so the anti-join
+alone never revisits them. `MODEL_EMPTY` entries are deliberately excluded — a
+confident negative is the expected answer for most trigger 8-Ks and must not be
+re-paid as an AI call on every sweep. Each survivor re-runs `ProcessAccessionDocFormTask`, so
 the full form pipeline (and any sub-extractors it gates) runs. The
 `sec spac backfill-redemptions` / `backfill-lois` / `backfill-merger-proxies`
 commands remain as aliases with the extractor id fixed.

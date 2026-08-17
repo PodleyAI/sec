@@ -4,20 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Static, Type } from "typebox";
-import { globalServiceRegistry, IExecuteContext, Task, TaskAbortedError, Workflow } from "workglow";
-import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
-import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { IExecuteContext, Task, TaskAbortedError, Workflow } from "workglow";
 import { ProcessAccessionDocFormTask } from "./ProcessAccessionDocFormTask";
 import {
+  defaultFilterTodo,
   getBackfillDescriptor,
   listBackfillableExtractorIds,
   type BackfillCandidate,
 } from "./backfillDescriptors";
-
-const FALLBACK_VERSION = "1.0.0";
 
 export interface RunExtractorBackfillOptions {
   readonly extractorId: string;
@@ -62,17 +56,7 @@ export async function runExtractorBackfill(
   } else if (descriptor.filterTodo) {
     todo = await descriptor.filterTodo(candidates);
   } else {
-    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-    const versionRegistry = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
-    const activeSlot = await getActiveSlot(versionRegistry, "extractor", opts.extractorId);
-    const extractorVersion = activeSlot?.semver ?? FALLBACK_VERSION;
-    todo = await runRepo.listFilingsWithoutSuccessfulRun(
-      candidates,
-      opts.extractorId,
-      extractorVersion
-    );
+    todo = await defaultFilterTodo(opts.extractorId, candidates);
   }
   const skipped = candidates.length - todo.length;
 
