@@ -26,12 +26,8 @@ export async function getVersionCoverage(
   kind: ComponentKind,
   id: string
 ): Promise<VersionCoverageResult> {
-  const reg = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-  const runs = new ExtractorRunRepo(
-    globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-  );
+  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+  const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
 
   const next = await reg.getNext(kind, id);
   if (!next) {

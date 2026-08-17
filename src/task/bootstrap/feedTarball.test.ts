@@ -7,11 +7,7 @@
 import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import {
-  extractPrimaryDocFromSubmission,
-  streamFeedTarball,
-  type FeedEntry,
-} from "./feedTarball";
+import { extractPrimaryDocFromSubmission, streamFeedTarball, type FeedEntry } from "./feedTarball";
 
 /** Builds a single ustar tar header block for a regular file. */
 function tarHeader(name: string, size: number): Buffer {
@@ -45,10 +41,7 @@ function makeTarGz(entries: ReadonlyArray<{ name: string; body: string }>): Buff
   return gzipSync(Buffer.concat(parts));
 }
 
-async function collect(
-  gz: Buffer,
-  want: (accession: string) => boolean
-): Promise<FeedEntry[]> {
+async function collect(gz: Buffer, want: (accession: string) => boolean): Promise<FeedEntry[]> {
   const out: FeedEntry[] = [];
   await streamFeedTarball(Readable.from([gz]), want, (e) => {
     out.push(e);

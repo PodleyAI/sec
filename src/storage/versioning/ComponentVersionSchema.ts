@@ -18,34 +18,26 @@ export const BUMP_TYPES = ["major", "minor", "patch"] as const;
 export type BumpType = (typeof BUMP_TYPES)[number];
 
 export const ComponentVersionSchema = Type.Object({
-  component_kind: Type.Union(
-    [Type.Literal("extractor"), Type.Literal("resolver")],
-    { description: "Which subsystem this component belongs to" }
-  ),
+  component_kind: Type.Union([Type.Literal("extractor"), Type.Literal("resolver")], {
+    description: "Which subsystem this component belongs to",
+  }),
   component_id: Type.String({
     maxLength: 64,
     description:
       "Form symbol (e.g. 'D', '1-A') for extractors, or domain name ('person', 'company') for resolvers",
   }),
-  slot: Type.Union(
-    [Type.Literal("previous"), Type.Literal("current"), Type.Literal("next")],
-    { description: "Which of the three slots this row occupies" }
-  ),
+  slot: Type.Union([Type.Literal("previous"), Type.Literal("current"), Type.Literal("next")], {
+    description: "Which of the three slots this row occupies",
+  }),
   semver: Type.String({
     maxLength: 32,
     description:
       "Semantic version, e.g. '2.1.0'. Validation enforced by VersionRegistry, not schema.",
   }),
   bump_type: Type.Union(
-    [
-      Type.Literal("major"),
-      Type.Literal("minor"),
-      Type.Literal("patch"),
-      Type.Null(),
-    ],
+    [Type.Literal("major"), Type.Literal("minor"), Type.Literal("patch"), Type.Null()],
     {
-      description:
-        "Declared bump type for the next→current transition. Null on initial seed.",
+      description: "Declared bump type for the next→current transition. Null on initial seed.",
     }
   ),
   started_at: Type.String({
@@ -63,11 +55,7 @@ export const ComponentVersionSchema = Type.Object({
 
 export type ComponentVersion = Static<typeof ComponentVersionSchema>;
 
-export const ComponentVersionPrimaryKeyNames = [
-  "component_kind",
-  "component_id",
-  "slot",
-] as const;
+export const ComponentVersionPrimaryKeyNames = ["component_kind", "component_id", "slot"] as const;
 
 export type ComponentVersionRepositoryStorage = ITabularStorage<
   typeof ComponentVersionSchema,
@@ -76,6 +64,4 @@ export type ComponentVersionRepositoryStorage = ITabularStorage<
 >;
 
 export const COMPONENT_VERSION_REPOSITORY_TOKEN =
-  createServiceToken<ComponentVersionRepositoryStorage>(
-    "sec.storage.componentVersionRepository"
-  );
+  createServiceToken<ComponentVersionRepositoryStorage>("sec.storage.componentVersionRepository");

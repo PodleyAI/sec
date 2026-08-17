@@ -97,12 +97,13 @@ describe("sectionModelConcurrencyLimit", () => {
     // was configured with 6.
     const configs: Array<{ concurrencyLimit?: number }> = [];
     const map = Workflow.prototype.map;
-    const spy = vi
-      .spyOn(Workflow.prototype, "map")
-      .mockImplementation(function (this: Workflow, config = {}) {
-        configs.push(config as { concurrencyLimit?: number });
-        return map.call(this, config);
-      });
+    const spy = vi.spyOn(Workflow.prototype, "map").mockImplementation(function (
+      this: Workflow,
+      config = {}
+    ) {
+      configs.push(config as { concurrencyLimit?: number });
+      return map.call(this, config);
+    });
     try {
       const task = new EvalS1SectionTask({
         defaults: {

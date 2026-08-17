@@ -21,9 +21,7 @@ describe("VersionEventRepo", () => {
   });
 
   it("recordEvent then listForComponent round-trips", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     await repo.recordEvent({
       component_kind: "extractor",
       component_id: "D",
@@ -47,9 +45,7 @@ describe("VersionEventRepo", () => {
   });
 
   it("listForComponent returns events ordered newest first", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     await repo.recordEvent({
       component_kind: "extractor",
       component_id: "D",
@@ -79,9 +75,7 @@ describe("VersionEventRepo", () => {
   });
 
   it("listForComponent filters by (kind, id)", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     await repo.recordEvent({
       component_kind: "extractor",
       component_id: "D",
@@ -109,9 +103,7 @@ describe("VersionEventRepo", () => {
   });
 
   it("listForComponent honors the limit parameter", async () => {
-    const repo = new VersionEventRepo(
-      globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-    );
+    const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
     for (let i = 0; i < 5; i++) {
       await repo.recordEvent({
         component_kind: "extractor",

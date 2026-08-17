@@ -317,7 +317,11 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     (event) => event.accession_number !== accession_number
   );
   let newcoListingRejected = false;
-  if (isSpac && !alreadyKnownForNewco && (await issuerHasCombinationListing(cik, args.filing_date))) {
+  if (
+    isSpac &&
+    !alreadyKnownForNewco &&
+    (await issuerHasCombinationListing(cik, args.filing_date))
+  ) {
     isSpac = false;
     newcoListingRejected = true;
     await new S1ClassificationRepo().save({

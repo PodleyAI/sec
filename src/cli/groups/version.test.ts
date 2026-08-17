@@ -17,11 +17,14 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
-    SEC_DB_TYPE: "sqlite",
-    SEC_DB_FOLDER: dbFolder,
-    SEC_DB_NAME: "edgar",
-  }));
+  return runCliProcess(
+    ["bun", "src/sec.ts", ...args],
+    cliEnv({
+      SEC_DB_TYPE: "sqlite",
+      SEC_DB_FOLDER: dbFolder,
+      SEC_DB_NAME: "edgar",
+    })
+  );
 }
 
 describe("sec version CLI", () => {

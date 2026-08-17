@@ -197,9 +197,9 @@ describe("ExtractionDeadLetterRepo", () => {
       source_run_id: null,
     });
 
-    expect((await repo.listEligible("redemption", "1.0.0")).map((r) => r.accession_number)).toEqual([
-      "empty-8k",
-    ]);
+    expect((await repo.listEligible("redemption", "1.0.0")).map((r) => r.accession_number)).toEqual(
+      ["empty-8k"]
+    );
     // Same-version MODEL_INVALID_OUTPUT: gated, like every other extractor.
     // The stale-version one is eligible the ordinary way — fix the extractor,
     // bump the version, retry.

@@ -38,9 +38,14 @@ test("coverage/dropPrevious are the registered closures", async () => {
   registerResolverExtension({
     id: "cov",
     coverage: async (v) => ({ numerator: 1, denominator: v === "1.0.0" ? 2 : 0 }),
-    dropPrevious: async (v) => { dropped = v; },
+    dropPrevious: async (v) => {
+      dropped = v;
+    },
   });
-  expect(await getResolverExtension("cov")!.coverage!("1.0.0")).toEqual({ numerator: 1, denominator: 2 });
+  expect(await getResolverExtension("cov")!.coverage!("1.0.0")).toEqual({
+    numerator: 1,
+    denominator: 2,
+  });
   await getResolverExtension("cov")!.dropPrevious!("0.9.0");
   expect(dropped).toBe("0.9.0");
 });

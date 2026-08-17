@@ -16,7 +16,8 @@ export class SpacRedemptionExtractionRepo {
   private readonly storage: SpacRedemptionExtractionRepositoryStorage;
 
   constructor(storage?: SpacRedemptionExtractionRepositoryStorage) {
-    this.storage = storage ?? globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN);
+    this.storage =
+      storage ?? globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN);
   }
 
   async save(row: SpacRedemptionExtraction): Promise<void> {

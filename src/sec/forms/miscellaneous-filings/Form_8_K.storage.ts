@@ -128,13 +128,7 @@ export async function processForm8K({
     is_amendment: isAmendment,
   }));
 
-  await eventRepo.replaceEvents(
-    cik,
-    accession_number,
-    extractor_id,
-    extractor_version,
-    events
-  );
+  await eventRepo.replaceEvents(cik, accession_number, extractor_id, extractor_version, events);
 
   const spacRepo = new SpacRepo();
   const spacRow = await spacRepo.getSpac(cik);

@@ -43,9 +43,7 @@ const findLine = (
   label: string,
   column: number
 ): RegAFinancialLine | undefined =>
-  rows.find(
-    (r) => r.statement_kind === kind && r.label === label && r.column_index === column
-  );
+  rows.find((r) => r.statement_kind === kind && r.label === label && r.column_index === column);
 
 describe("Reg A financial statement storage", () => {
   let repo: RegAFinancialLineRepo;

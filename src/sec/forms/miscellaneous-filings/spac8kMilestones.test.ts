@@ -214,10 +214,10 @@ describe("extractMergerCounterparty", () => {
   it("picks the operating company from a by-and-among merger 8-K", () => {
     expect(
       extractMergerCounterparty(
-        "entered into an Agreement and Plan of Reorganization (\"Merger Agreement\") " +
+        'entered into an Agreement and Plan of Reorganization ("Merger Agreement") ' +
           "by and among Northern Star, NISC II-A Merger LLC, a Delaware limited liability " +
-          "company and wholly-owned subsidiary of Northern Star (\"Merger Sub I\"), " +
-          "Apex Clearing Holdings LLC, a Delaware limited liability company (\"Apex\") " +
+          'company and wholly-owned subsidiary of Northern Star ("Merger Sub I"), ' +
+          'Apex Clearing Holdings LLC, a Delaware limited liability company ("Apex") ' +
           "and, solely for the purposes of Section 5.21 therein, PEAK6 Investments LLC.",
         "Northern Star Investment Corp. II"
       )
@@ -242,7 +242,7 @@ describe("extractMergerCounterparty", () => {
     expect(
       extractMergerCounterparty(
         "the Company entered into a Business Combination Agreement with Lucid Group, Inc., " +
-          "a Delaware corporation (\"Lucid\").",
+          'a Delaware corporation ("Lucid").',
         "Churchill Capital Corp IV"
       )
     ).toBe("Lucid Group, Inc.");

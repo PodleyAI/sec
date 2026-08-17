@@ -104,13 +104,17 @@ export function registerFakeStructuredProvider(
     if (canned instanceof Error) throw canned;
     const nonce = extractVerifyNonce(prompt);
     const payload: Record<string, unknown> =
-      nonce !== null && !("nonce_seen" in canned) ? { ...canned, nonce_seen: nonce } : { ...canned };
+      nonce !== null && !("nonce_seen" in canned)
+        ? { ...canned, nonce_seen: nonce }
+        : { ...canned };
     emit({ type: "object-delta", port: "object", objectDelta: payload });
     emit({ type: "finish", data: { object: payload } as any });
   };
 
   const registry = getAiProviderRegistry();
-  registry.registerProvider(new FakeStructuredProvider(providerName, [{ serves: JSON_MODE, runFn }]));
+  registry.registerProvider(
+    new FakeStructuredProvider(providerName, [{ serves: JSON_MODE, runFn }])
+  );
   registry.registerRunFn(providerName, { serves: JSON_MODE, runFn });
   return { calls, unregister: () => registry.unregisterProvider(providerName) };
 }

@@ -21,9 +21,7 @@ export type ExtractionReasoningEffort = ModelEffort;
 let effortOverride: ExtractionReasoningEffort | undefined;
 
 /** Pin (or clear) the extraction effort override used by {@link withExtractionReasoning}. */
-export function setExtractionEffortOverride(
-  effort: ExtractionReasoningEffort | undefined
-): void {
+export function setExtractionEffortOverride(effort: ExtractionReasoningEffort | undefined): void {
   effortOverride = effort;
 }
 

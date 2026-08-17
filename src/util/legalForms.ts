@@ -192,8 +192,7 @@ function buildIdentityCanonical(): ReadonlyArray<readonly [string, string]> {
 
 export const legalFormFoldedTokens: ReadonlySet<string> = buildFoldedTokens();
 export const legalFormProseSuffixAlternation: string = buildProseAlternation();
-export const legalFormTrailingCanonical: ReadonlyArray<readonly [RegExp, string]> =
-  buildTrailing();
+export const legalFormTrailingCanonical: ReadonlyArray<readonly [RegExp, string]> = buildTrailing();
 export const legalFormIdentityStrip: readonly string[] = buildIdentityStrip();
 export const legalFormIdentityCanonical: ReadonlyArray<readonly [string, string]> =
   buildIdentityCanonical();

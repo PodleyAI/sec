@@ -121,9 +121,7 @@ describe("SEC_UNIT_TERMS_REF override", () => {
     const missingPath = join(tmpDir, "does-not-exist.csv");
     process.env.SEC_UNIT_TERMS_REF = missingPath;
 
-    expect(() => loadEmbarcUnitTermsReference()).toThrow(
-      /SEC_UNIT_TERMS_REF.*does not exist/
-    );
+    expect(() => loadEmbarcUnitTermsReference()).toThrow(/SEC_UNIT_TERMS_REF.*does not exist/);
   });
 
   it("env unset → falls back to the package-shipped fixture", () => {

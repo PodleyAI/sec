@@ -62,7 +62,10 @@ export class PersonIdentityLinkRepo {
   async deleteForObservation(observation_id: number): Promise<void> {
     const rows = (await this.repo.query({ observation_id })) ?? [];
     for (const r of rows) {
-      await this.repo.delete({ observation_id: r.observation_id, resolver_version: r.resolver_version });
+      await this.repo.delete({
+        observation_id: r.observation_id,
+        resolver_version: r.resolver_version,
+      });
     }
   }
 

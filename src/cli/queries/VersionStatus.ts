@@ -21,9 +21,7 @@ export interface VersionStatusRow {
 }
 
 export async function getVersionStatus(): Promise<VersionStatusRow[]> {
-  const reg = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
+  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
   const rows = await reg.listAll();
 
   const grouped = new Map<string, VersionStatusRow>();

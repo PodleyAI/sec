@@ -90,9 +90,7 @@ may purchase up to an additional 1,200,000 units.</p>
 
 describe("looksLikePricedIpoProspectusBody", () => {
   it("accepts a cover that parses even without the IPO sentence", () => {
-    expect(
-      looksLikePricedIpoProspectusBody("<p>$80,500,000</p><p>8,050,000 Units</p>")
-    ).toBe(true);
+    expect(looksLikePricedIpoProspectusBody("<p>$80,500,000</p><p>8,050,000 Units</p>")).toBe(true);
   });
 
   it("accepts the IPO sentence even when the Units headline is absent", () => {

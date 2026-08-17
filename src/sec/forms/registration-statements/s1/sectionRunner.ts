@@ -277,11 +277,7 @@ export function makeRunSection(opts: {
             }
           } catch (e) {
             if (isImmediateExtractFailure(e)) throw e;
-            if (
-              !triedEmptyFallbacks &&
-              fallbacks !== undefined &&
-              fallbacks.length > 0
-            ) {
+            if (!triedEmptyFallbacks && fallbacks !== undefined && fallbacks.length > 0) {
               raw = await runEmptyFallbacks(e);
             } else {
               throw e;

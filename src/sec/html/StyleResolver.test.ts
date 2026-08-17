@@ -70,18 +70,18 @@ describe("resolveStyle: the `font` shorthand", () => {
     // Per spec the shorthand sets every sub-property; `font: 10pt Arial` inside
     // a bold parent is NOT bold. Leaving weight undefined would let the
     // ancestor chain fill it in and mark body text as a heading.
-    const s = styleOf(`<div style="font-weight:700"><p data-t style="font: 10pt Arial">x</p></div>`);
+    const s = styleOf(
+      `<div style="font-weight:700"><p data-t style="font: 10pt Arial">x</p></div>`
+    );
     expect(s.bold).toBe(false);
   });
   it("obeys declaration order in both directions", () => {
     // Longhand after shorthand overrides it...
-    expect(
-      styleOf(`<p data-t style="font: bold 10pt Arial; font-weight: 400">x</p>`).bold
-    ).toBe(false);
+    expect(styleOf(`<p data-t style="font: bold 10pt Arial; font-weight: 400">x</p>`).bold).toBe(
+      false
+    );
     // ...and shorthand after longhand resets it.
-    expect(
-      styleOf(`<p data-t style="font-weight: 700; font: 10pt Arial">x</p>`).bold
-    ).toBe(false);
+    expect(styleOf(`<p data-t style="font-weight: 700; font: 10pt Arial">x</p>`).bold).toBe(false);
   });
   it("ignores shorthands with no readable size rather than resetting weight off a bad parse", () => {
     // `font: inherit` / system keywords carry no size; treating them as a full

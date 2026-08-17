@@ -40,9 +40,11 @@ export interface FilingKey {
 export class ExtractorRunRepo {
   constructor(private readonly storage: ExtractorRunRepositoryStorage) {}
 
-  async recordRun(row: Omit<ExtractorRun, "ran_at" | "outcome"> & {
-    outcome?: ExtractorRunOutcome;
-  }): Promise<void> {
+  async recordRun(
+    row: Omit<ExtractorRun, "ran_at" | "outcome"> & {
+      outcome?: ExtractorRunOutcome;
+    }
+  ): Promise<void> {
     const outcome: ExtractorRunOutcome = row.outcome ?? (row.success ? "success" : "failure");
     await this.storage.put({
       ...row,
@@ -103,11 +105,12 @@ export class ExtractorRunRepo {
    * Partial runs do NOT count — coverage measures fully-successful production.
    */
   async countSuccessfulAtVersion(extractor_id: string, extractor_version: string): Promise<number> {
-    const rows = (await this.storage.query({
-      extractor_id,
-      extractor_version,
-      success: true,
-    })) ?? [];
+    const rows =
+      (await this.storage.query({
+        extractor_id,
+        extractor_version,
+        success: true,
+      })) ?? [];
     // success=true narrows the storage scan; inferOutcome is the source of truth
     // (legacy rows lack outcome and fall back to success).
     return rows.filter((r) => inferOutcome(r) === "success").length;

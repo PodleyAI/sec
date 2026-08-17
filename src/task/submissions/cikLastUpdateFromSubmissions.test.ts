@@ -108,7 +108,9 @@ describe("cik_last_update is written by submission ingest", () => {
     vi.spyOn(repo, "put").mockRejectedValue(boom);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(recordCikLastUpdate(320193, { filingDate: ["2026-08-14"] })).resolves.toBeUndefined();
+    await expect(
+      recordCikLastUpdate(320193, { filingDate: ["2026-08-14"] })
+    ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalled();
     expect(String(warn.mock.calls[0]?.[0])).toContain("320193");
 

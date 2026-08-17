@@ -488,20 +488,27 @@ describe("CrowdfundingTemporalRepo", () => {
       source: string,
       acc: string
     ) =>
-      temporalRepo.saveCurrentByFilingDate(CIK, FN, filing_date, source, acc, (existing, isStale) => ({
-        cik: CIK,
-        file_number: FN,
-        filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
-        name: existing?.name || "Issuer Co",
-        legal_status: existing?.legal_status ?? "Corporation",
-        state_jurisdiction: existing?.state_jurisdiction ?? "DE",
-        date_incorporation: existing?.date_incorporation ?? "2020-01-01",
-        url: existing?.url ?? "http://example.com",
-        portal_cik: portalCik > 0 ? portalCik : (existing?.portal_cik ?? 0),
-        status,
-        progress_update: null,
-        nature_of_amendment: null,
-      }));
+      temporalRepo.saveCurrentByFilingDate(
+        CIK,
+        FN,
+        filing_date,
+        source,
+        acc,
+        (existing, isStale) => ({
+          cik: CIK,
+          file_number: FN,
+          filing_date: isStale ? filing_date : filing_date || existing?.filing_date || "",
+          name: existing?.name || "Issuer Co",
+          legal_status: existing?.legal_status ?? "Corporation",
+          state_jurisdiction: existing?.state_jurisdiction ?? "DE",
+          date_incorporation: existing?.date_incorporation ?? "2020-01-01",
+          url: existing?.url ?? "http://example.com",
+          portal_cik: portalCik > 0 ? portalCik : (existing?.portal_cik ?? 0),
+          status,
+          progress_update: null,
+          nature_of_amendment: null,
+        })
+      );
 
     test("merges a later C-AR onto the C and a stale replay snapshots without regressing", async () => {
       await save("2024-01-01", "active", 54321, "Form C", "acc-c");
@@ -525,8 +532,14 @@ describe("CrowdfundingTemporalRepo", () => {
 
     test("lets the newer filing win regardless of concurrent submission order", async () => {
       for (const ops of [
-        [save("2024-01-01", "active", 54321, "Form C", "acc-c"), save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car")],
-        [save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car"), save("2024-01-01", "active", 54321, "Form C", "acc-c")],
+        [
+          save("2024-01-01", "active", 54321, "Form C", "acc-c"),
+          save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car"),
+        ],
+        [
+          save("2024-06-01", "annual-report", 0, "Form C-AR", "acc-car"),
+          save("2024-01-01", "active", 54321, "Form C", "acc-c"),
+        ],
       ]) {
         await Promise.all(ops);
         const mutable = await temporalRepo.getCrowdfunding(CIK, FN);

@@ -32,10 +32,7 @@ export function isExpectedNegativeDeadLetter(row: ExtractionDeadLetter): boolean
   );
 }
 
-export function isEligibleDeadLetter(
-  row: ExtractionDeadLetter,
-  currentVersion: string
-): boolean {
+export function isEligibleDeadLetter(row: ExtractionDeadLetter, currentVersion: string): boolean {
   return (
     row.failed_extractor_version !== currentVersion ||
     MODEL_ERROR_REASONS.has(row.reason_code) ||

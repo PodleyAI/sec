@@ -69,8 +69,6 @@ export async function runCliProcess(
   // ChildProcessWithoutNullStreams is missing EventEmitter's methods under
   // this tsconfig (TypeScript 6 + DOM + @types/bun). `once` still waits on
   // "close" and rejects on "error" — the same pair the previous `.on` used.
-  const [code] = (await once(proc as unknown as NodeJS.EventEmitter, "close")) as [
-    number | null,
-  ];
+  const [code] = (await once(proc as unknown as NodeJS.EventEmitter, "close")) as [number | null];
   return { stdout, stderr, exitCode: code ?? 0 };
 }

@@ -122,17 +122,13 @@ describe("goldenS1Labels", () => {
   // First call in this process segments every committed fixture — tens of MB of
   // HTML, growing with each fixture added. The `it.each` below reuses the parse
   // cache, so only this one needs the headroom.
-  it(
-    "labels only sections that exist in the committed set",
-    () => {
-      const { sections } = loadRealS1Sections([...LABELED_EXTRACTORS]);
-      const present = new Set(sections.map((s) => goldenLabelKey(s.filing, s.extractor)));
-      for (const key of Object.keys(GOLDEN_S1_LABELS)) {
-        expect(present.has(key), `golden key not found in committed sections: ${key}`).toBe(true);
-      }
-    },
-    120_000
-  );
+  it("labels only sections that exist in the committed set", () => {
+    const { sections } = loadRealS1Sections([...LABELED_EXTRACTORS]);
+    const present = new Set(sections.map((s) => goldenLabelKey(s.filing, s.extractor)));
+    for (const key of Object.keys(GOLDEN_S1_LABELS)) {
+      expect(present.has(key), `golden key not found in committed sections: ${key}`).toBe(true);
+    }
+  }, 120_000);
 
   it.each(LABELED_EXTRACTORS)(
     "covers every committed %s section (so --reference golden scores them all)",

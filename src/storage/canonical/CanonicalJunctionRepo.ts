@@ -58,7 +58,11 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
     this.assocColumn = assocColumn;
   }
 
-  private pk(idValue: string, assocValue: string, resolver_version: string): Record<string, string> {
+  private pk(
+    idValue: string,
+    assocValue: string,
+    resolver_version: string
+  ): Record<string, string> {
     return {
       [this.idColumn]: idValue,
       [this.assocColumn]: assocValue,

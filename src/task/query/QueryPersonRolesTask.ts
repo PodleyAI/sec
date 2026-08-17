@@ -41,9 +41,7 @@ export class QueryPersonRolesTask extends Task<
     return queryResultSchema();
   }
 
-  async execute(
-    input: QueryPersonRolesTaskInput
-  ): Promise<TaskPorts<QueryResult<PersonRoleRow>>> {
+  async execute(input: QueryPersonRolesTaskInput): Promise<TaskPorts<QueryResult<PersonRoleRow>>> {
     return queryPersonRoles(input);
   }
 }

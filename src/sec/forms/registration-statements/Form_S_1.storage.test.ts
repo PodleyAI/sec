@@ -401,9 +401,9 @@ describe("processFormS1", () => {
     const companies = await new CompanyObservationRepo().listByAccession(accession);
     expect(companies.some((c) => c.name === "Acme Holdings")).toBe(true);
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
-    expect(
-      dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)
-    ).toEqual([]);
+    expect(dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)).toEqual(
+      []
+    );
   });
 
   it("keeps a legal-form-only related-party company name without aborting the section", async () => {
@@ -477,9 +477,9 @@ describe("processFormS1", () => {
     expect(companies.some((c) => c.name === "Acme Holdings")).toBe(true);
     expect(companies.some((c) => c.name === "Company")).toBe(false);
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
-    expect(
-      dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)
-    ).toEqual([]);
+    expect(dl.filter((d) => d.section_name.includes("Related")).map((d) => d.reason_code)).toEqual(
+      []
+    );
   });
 
   it("treats 'the Company' as an unnamed group row, not a canonical identity", async () => {

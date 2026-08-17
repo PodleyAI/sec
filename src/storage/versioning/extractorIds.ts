@@ -288,12 +288,7 @@ export function formToExtractorId(form: string): ExtractorId | undefined {
  * Ownership forms are off the SPAC timeline's critical path (S-1 → 424 → 8-K →
  * proxy → 25/15). A fetch miss on Form 3/4/5/144 must not fail `spac process`.
  */
-export const NONFATAL_TIMELINE_EXTRACTOR_IDS: ReadonlySet<string> = new Set([
-  "3",
-  "4",
-  "5",
-  "144",
-]);
+export const NONFATAL_TIMELINE_EXTRACTOR_IDS: ReadonlySet<string> = new Set(["3", "4", "5", "144"]);
 
 export function isNonfatalTimelineExtractor(extractorId: string): boolean {
   return NONFATAL_TIMELINE_EXTRACTOR_IDS.has(extractorId);

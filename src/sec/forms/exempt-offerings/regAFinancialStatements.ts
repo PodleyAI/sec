@@ -94,13 +94,10 @@ const STATEMENT_ANCHORS: ReadonlyArray<{
 ];
 
 /** Rows whose label is a section heading rather than a line item. */
-const SECTION_HEADING = /^(assets|liabilities|current assets|current liabilities|equity|revenues?|operating expenses|expenses)$/i;
+const SECTION_HEADING =
+  /^(assets|liabilities|current assets|current liabilities|equity|revenues?|operating expenses|expenses)$/i;
 
-const cellText = (raw: string): string =>
-  raw
-    .replace(/ /g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const cellText = (raw: string): string => raw.replace(/ /g, " ").replace(/\s+/g, " ").trim();
 
 /**
  * Reads the numeric values out of a row's cells.
@@ -147,7 +144,8 @@ const VALUE_TOKEN =
 const DASH_PLACEHOLDER = /^[-‒-―]$/;
 
 /** A cell that reads as a reporting period ("April 30, 2026", "December 31, 2025"). */
-const PERIOD = /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s*\d{4}\b/;
+const PERIOD =
+  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s*\d{4}\b/;
 
 /** A cell holding nothing but a year — how an operations statement heads its columns. */
 const BARE_YEAR = /^(?:19|20)\d{2}$/;
@@ -168,10 +166,12 @@ const BARE_YEAR = /^(?:19|20)\d{2}$/;
  * items with values. 654 such labels and 10,356 stray year labels reached
  * storage across 3,148 of 5,695 filings before this was handled.
  */
-const MONTH_DAY = /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?$/;
+const MONTH_DAY =
+  /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?$/;
 
 /** The month-day fragments of a split header row, in column order. */
-const readMonthDays = (texts: readonly string[]): string[] => texts.filter((c) => MONTH_DAY.test(c));
+const readMonthDays = (texts: readonly string[]): string[] =>
+  texts.filter((c) => MONTH_DAY.test(c));
 
 /**
  * Reads the dates out of one header row.
@@ -382,7 +382,9 @@ export function parseRegAFinancialStatements(html: string): RegAStatement[] {
     }
   });
 
-  return REGA_STATEMENT_KINDS.map((k) => best.get(k)).filter((s): s is RegAStatement => s !== undefined);
+  return REGA_STATEMENT_KINDS.map((k) => best.get(k)).filter(
+    (s): s is RegAStatement => s !== undefined
+  );
 }
 
 function padTo(values: number[], length: number): (number | null)[] {

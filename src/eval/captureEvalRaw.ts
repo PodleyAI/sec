@@ -26,10 +26,7 @@ export function captureEvalRawFromRows(
   return { kind: "rows", rows };
 }
 
-export function captureEvalRawFromError(
-  dumpRaw: boolean,
-  err: unknown
-): EvalRawDump | undefined {
+export function captureEvalRawFromError(dumpRaw: boolean, err: unknown): EvalRawDump | undefined {
   if (!dumpRaw) return undefined;
   if (err instanceof StructuredOutputValidationError) {
     return { kind: "validation", attempts: err.attempts };

@@ -11,8 +11,7 @@ import { SpacPromoteTermsRepo } from "./SpacPromoteTermsRepo";
 import type { SpacPromoteTerms } from "./SpacPromoteTermsSchema";
 
 function row(
-  p: Partial<SpacPromoteTerms> &
-    Pick<SpacPromoteTerms, "extractor_id" | "accession_number" | "cik">
+  p: Partial<SpacPromoteTerms> & Pick<SpacPromoteTerms, "extractor_id" | "accession_number" | "cik">
 ): SpacPromoteTerms {
   return {
     founder_shares: null,
@@ -38,8 +37,12 @@ describe("SpacPromoteTermsRepo", () => {
   });
 
   it("round-trips a row and overwrites by (extractor_id, accession)", async () => {
-    await repo.save(row({ extractor_id: "S-1", accession_number: "a1", cik: 5, founder_shares: 100 }));
-    await repo.save(row({ extractor_id: "S-1", accession_number: "a1", cik: 5, founder_shares: 200 }));
+    await repo.save(
+      row({ extractor_id: "S-1", accession_number: "a1", cik: 5, founder_shares: 100 })
+    );
+    await repo.save(
+      row({ extractor_id: "S-1", accession_number: "a1", cik: 5, founder_shares: 200 })
+    );
     expect((await repo.get("S-1", "a1"))?.founder_shares).toBe(200);
   });
 

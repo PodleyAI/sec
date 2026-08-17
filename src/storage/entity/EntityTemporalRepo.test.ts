@@ -19,9 +19,11 @@ describe("EntityTemporalRepo", () => {
   let randomUUIDSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    randomUUIDSpy = vi.spyOn(crypto, "randomUUID").mockImplementation(
-      () => `test-uuid-${Math.random()}` as `${string}-${string}-${string}-${string}-${string}`
-    );
+    randomUUIDSpy = vi
+      .spyOn(crypto, "randomUUID")
+      .mockImplementation(
+        () => `test-uuid-${Math.random()}` as `${string}-${string}-${string}-${string}-${string}`
+      );
 
     // Reset mocks
     mockEntityRepo = {

@@ -42,7 +42,10 @@ const RISK_FACTORS_RE = /risk\s*(?:<[^>]*>\s*)*factors/i;
 
 /** Cheap tag strip — good enough to measure length; not a renderer. */
 function approximateTextLength(html: string): number {
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().length;
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim().length;
 }
 
 /**

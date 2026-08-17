@@ -68,9 +68,7 @@ describe("parseEditorialCsv", () => {
   });
 
   it("rejects unknown family kinds", () => {
-    const parsed = parseEditorialCsv(
-      "family_kind,name,description\nleadership,Someone,text\n"
-    );
+    const parsed = parseEditorialCsv("family_kind,name,description\nleadership,Someone,text\n");
     expect(parsed.familyRows).toHaveLength(0);
     expect(parsed.errors[0]).toContain("unknown family_kind");
   });

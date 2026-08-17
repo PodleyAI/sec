@@ -31,9 +31,7 @@ describe("bootstrapComponentVersions", () => {
 
   it("seeds every known extractor at 1.0.0 in the current slot", async () => {
     await bootstrapComponentVersions();
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     for (const id of EXTRACTOR_IDS) {
       const cur = await reg.getCurrent("extractor", id);
       expect(cur?.semver).toBe("1.0.0");
@@ -44,9 +42,7 @@ describe("bootstrapComponentVersions", () => {
 
   it("seeds resolver:person and resolver:company at 1.0.0", async () => {
     await bootstrapComponentVersions();
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     for (const id of resolverIds()) {
       const cur = await reg.getCurrent("resolver", id);
       expect(cur?.semver).toBe("1.0.0");
@@ -70,9 +66,7 @@ describe("bootstrapComponentVersions", () => {
 
   it("is idempotent: running it twice does not change anything", async () => {
     await bootstrapComponentVersions();
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     const before = await reg.getCurrent("extractor", "D");
 
     await bootstrapComponentVersions();
@@ -83,9 +77,7 @@ describe("bootstrapComponentVersions", () => {
   });
 
   it("does not overwrite a manually-advanced current slot", async () => {
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     await reg.putSlot({
       component_kind: "extractor",
       component_id: "D",
@@ -105,9 +97,7 @@ describe("bootstrapComponentVersions", () => {
 
   it("leaves previous and next slots empty", async () => {
     await bootstrapComponentVersions();
-    const reg = new VersionRegistry(
-      globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-    );
+    const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
     expect(await reg.getPrevious("extractor", "D")).toBeUndefined();
     expect(await reg.getNext("extractor", "D")).toBeUndefined();
   });

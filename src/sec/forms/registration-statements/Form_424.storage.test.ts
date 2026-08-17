@@ -13,7 +13,12 @@ import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
-import { ipoProceeds, ipoTrustAmount, isPricedIpoProspectus, processForm424 } from "./Form_424.storage";
+import {
+  ipoProceeds,
+  ipoTrustAmount,
+  isPricedIpoProspectus,
+  processForm424,
+} from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
@@ -903,15 +908,15 @@ describe("isPricedIpoProspectus", () => {
   });
 
   it("treats 424B3 as priced for a known SPAC that has not IPOed", () => {
-    expect(isPricedIpoProspectus("424B3", { knownSpac: true, ipoDate: null, headerSic: null })).toBe(
-      true
-    );
+    expect(
+      isPricedIpoProspectus("424B3", { knownSpac: true, ipoDate: null, headerSic: null })
+    ).toBe(true);
   });
 
   it("treats 424B3 as priced when the header is SIC 6770 even without a spac row", () => {
-    expect(isPricedIpoProspectus("424B3", { knownSpac: false, ipoDate: null, headerSic: 6770 })).toBe(
-      true
-    );
+    expect(
+      isPricedIpoProspectus("424B3", { knownSpac: false, ipoDate: null, headerSic: 6770 })
+    ).toBe(true);
   });
 
   it("does not treat a later 424B3 as priced once ipo_date is set", () => {

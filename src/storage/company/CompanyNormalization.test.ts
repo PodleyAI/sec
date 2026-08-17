@@ -245,7 +245,9 @@ describe("CompanyNormalization", () => {
     });
 
     it("folds smart double quotes to ASCII", () => {
-      expect(normalizeCompanyName("The “Acme” Group")).toBe(normalizeCompanyName('The "Acme" Group'));
+      expect(normalizeCompanyName("The “Acme” Group")).toBe(
+        normalizeCompanyName('The "Acme" Group')
+      );
     });
   });
 

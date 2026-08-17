@@ -14,7 +14,8 @@ const OFFERING_FIELDS = [
   { key: "gross_proceeds", label: "proceeds" },
 ] as const;
 
-const SECTION = "We are offering 20,000,000 units at $10.00 per unit. $10.00 per unit is deposited in trust.";
+const SECTION =
+  "We are offering 20,000,000 units at $10.00 per unit. $10.00 per unit is deposited in trust.";
 
 describe("verifyNumericObjectSpan", () => {
   it("keeps a verbatim source_span", () => {

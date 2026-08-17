@@ -186,7 +186,12 @@ describe("alias export/import round trip", () => {
     // A dangling alias is exactly what `--orphans` is for; the listing must show
     // it as unresolved so an operator can see what cannot be restored.
     await makeCompany("11111111-1111-4111-8111-111111111111", "Acme Capital LLC");
-    await new CanonicalCompanyAliasRepo().add("11111111-1111-4111-8111-111111111111", "00000000-0000-4000-8000-000000000000", "stale", "test");
+    await new CanonicalCompanyAliasRepo().add(
+      "11111111-1111-4111-8111-111111111111",
+      "00000000-0000-4000-8000-000000000000",
+      "stale",
+      "test"
+    );
     const { aliases } = await new CanonicalAliasListTask({ defaults: { kind: "company" } }).run();
     expect(aliases[0]!.alias_name).toBe("Acme Capital LLC");
     expect(aliases[0]!.target_name).toBeNull();

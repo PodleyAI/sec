@@ -37,10 +37,7 @@ export const PersonIdentityLinkSchema = Type.Object({
 
 export type PersonIdentityLink = Static<typeof PersonIdentityLinkSchema>;
 
-export const PersonIdentityLinkPrimaryKeyNames = [
-  "observation_id",
-  "resolver_version",
-] as const;
+export const PersonIdentityLinkPrimaryKeyNames = ["observation_id", "resolver_version"] as const;
 
 export type PersonIdentityLinkRepositoryStorage = ITabularStorage<
   typeof PersonIdentityLinkSchema,

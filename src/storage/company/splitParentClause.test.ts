@@ -45,9 +45,7 @@ describe("splitParentClause", () => {
 
   it("splits a trailing parenthetical clause", () => {
     expect(
-      splitParentClause(
-        "Kingswood Capital Markets (a division of Benchmark Investments, Inc.)"
-      )
+      splitParentClause("Kingswood Capital Markets (a division of Benchmark Investments, Inc.)")
     ).toEqual(
       splitOf(
         "Kingswood Capital Markets (a division of Benchmark Investments, Inc.)",
@@ -56,9 +54,7 @@ describe("splitParentClause", () => {
       )
     );
     expect(
-      splitParentClause(
-        "Kingswood Capital Markets, (a division of Benchmark Investments, Inc.)"
-      )
+      splitParentClause("Kingswood Capital Markets, (a division of Benchmark Investments, Inc.)")
     ).toEqual(
       splitOf(
         "Kingswood Capital Markets, (a division of Benchmark Investments, Inc.)",
@@ -108,7 +104,9 @@ describe("splitParentClause", () => {
     expect(splitParentClause("Foo, an indirect wholly-owned subsidiary of Bar Inc.")).toEqual(
       intact("Foo, an indirect wholly-owned subsidiary of Bar Inc.")
     );
-    expect(splitParentClause(", a division of Bar Inc.")).toEqual(intact(", a division of Bar Inc."));
+    expect(splitParentClause(", a division of Bar Inc.")).toEqual(
+      intact(", a division of Bar Inc.")
+    );
     expect(splitParentClause("")).toEqual(intact(""));
   });
 

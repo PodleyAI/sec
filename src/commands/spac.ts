@@ -439,11 +439,7 @@ export function registerSpacCommands(program: Command): void {
     "Download S-1/F-1/DRS family filings for high+medium SPAC candidates"
   );
   addDownloadLeaf("8k", "8k", "Download every 8-K/8-K/A for high+medium SPAC candidates");
-  addDownloadLeaf(
-    "everything",
-    "all",
-    "Download every filing for high+medium SPAC candidates"
-  );
+  addDownloadLeaf("everything", "all", "Download every filing for high+medium SPAC candidates");
 
   // De-SPAC linkage refresh: the item-2.01 8-K that closes a combination is
   // usually processed BEFORE the surviving entity's renamed submissions land, so

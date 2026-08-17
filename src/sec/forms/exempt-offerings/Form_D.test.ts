@@ -290,9 +290,7 @@ describe("Form_D comprehensive storage test", () => {
 
       // Verify company observation with CRD number was stored
       const allCompanyObs = await companyObsRepo.listAll();
-      const thornhillObs = allCompanyObs?.find((obs) =>
-        obs.name?.includes("Thornhill Securities")
-      );
+      const thornhillObs = allCompanyObs?.find((obs) => obs.name?.includes("Thornhill Securities"));
       expect(thornhillObs).toBeDefined();
       expect(thornhillObs?.crd_number).toBe("22333");
 

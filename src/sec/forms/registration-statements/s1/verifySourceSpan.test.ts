@@ -183,8 +183,7 @@ describe("boundSourceSpan", () => {
 });
 
 describe("verifyRowSpan", () => {
-  const haystack =
-    "Our sponsor, Acme Sponsor LLC, is a Delaware limited liability company.";
+  const haystack = "Our sponsor, Acme Sponsor LLC, is a Delaware limited liability company.";
 
   it("returns false for null / undefined", () => {
     expect(verifyRowSpan(haystack, null)).toBe(false);

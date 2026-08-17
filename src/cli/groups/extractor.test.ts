@@ -43,8 +43,6 @@ describe("extractor dead-letters CLI", () => {
     expect(deadLetters!.registeredArguments[0]?.required).toBe(false);
     const cikOption = deadLetters!.options.find((option) => option.long === "--cik");
     expect(cikOption?.parseArg).toBeTypeOf("function");
-    expect(() => cikOption!.parseArg!("", undefined)).toThrow(
-      '"" is not a non-negative integer.'
-    );
+    expect(() => cikOption!.parseArg!("", undefined)).toThrow('"" is not a non-negative integer.');
   });
 });

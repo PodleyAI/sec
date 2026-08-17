@@ -114,7 +114,9 @@ export async function selectSubmissionsToRefresh(
   force: boolean
 ): Promise<SubmissionRefreshSelection> {
   const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
-  const processedSubmissionsRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+  const processedSubmissionsRepo = globalServiceRegistry.get(
+    PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
+  );
 
   // getAll() rather than query({}, …): the tabular backend rejects an empty
   // criteria object ("Query criteria must not be empty. Use getAll()"), which

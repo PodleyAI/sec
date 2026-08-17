@@ -7,7 +7,11 @@
 import { globalServiceRegistry } from "workglow";
 import { Spac, SpacStatus, SPAC_REPOSITORY_TOKEN, SpacRepositoryStorage } from "./SpacSchema";
 import { SpacDeal, SPAC_DEAL_REPOSITORY_TOKEN, SpacDealRepositoryStorage } from "./SpacDealSchema";
-import { SpacEvent, SPAC_EVENT_REPOSITORY_TOKEN, SpacEventRepositoryStorage } from "./SpacEventSchema";
+import {
+  SpacEvent,
+  SPAC_EVENT_REPOSITORY_TOKEN,
+  SpacEventRepositoryStorage,
+} from "./SpacEventSchema";
 import {
   SpacHistory,
   SPAC_HISTORY_REPOSITORY_TOKEN,
@@ -29,8 +33,10 @@ export class SpacRepo {
   readonly historyRepository: SpacHistoryRepositoryStorage;
 
   constructor(options: SpacRepoOptions = {}) {
-    this.spacRepository = options.spacRepository ?? globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
-    this.dealRepository = options.dealRepository ?? globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN);
+    this.spacRepository =
+      options.spacRepository ?? globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
+    this.dealRepository =
+      options.dealRepository ?? globalServiceRegistry.get(SPAC_DEAL_REPOSITORY_TOKEN);
     this.eventRepository =
       options.eventRepository ?? globalServiceRegistry.get(SPAC_EVENT_REPOSITORY_TOKEN);
     this.historyRepository =
@@ -84,8 +90,7 @@ export class SpacRepo {
   async getEvents(cik: number): Promise<SpacEvent[]> {
     const rows = (await this.eventRepository.query({ cik })) || [];
     return rows.sort(
-      (a, b) =>
-        a.event_date.localeCompare(b.event_date) || a.created_at.localeCompare(b.created_at)
+      (a, b) => a.event_date.localeCompare(b.event_date) || a.created_at.localeCompare(b.created_at)
     );
   }
 

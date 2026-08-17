@@ -80,9 +80,10 @@ describe("ListDeadLettersTask", () => {
     await recordPending("S-1", "0000000000-26-000001", "Management");
 
     const out = await new ListDeadLettersTask().run({ cik: OURS });
-    expect(
-      out.pending.map((r) => `${r.extractor_id}:${r.accession_number}`).sort()
-    ).toEqual(["424:0001104659-26-011571", "redemption:0001104659-26-012751"]);
+    expect(out.pending.map((r) => `${r.extractor_id}:${r.accession_number}`).sort()).toEqual([
+      "424:0001104659-26-011571",
+      "redemption:0001104659-26-012751",
+    ]);
   });
 
   it("counts only that CIK's eligible entries under --eligible", async () => {

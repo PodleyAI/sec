@@ -649,7 +649,9 @@ describe("makeRunSection confidenceFloor", () => {
       persist: async () => 0,
     });
 
-    expect(letters).toEqual([{ section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" }]);
+    expect(letters).toEqual([
+      { section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" },
+    ]);
     expect(details[0]).toBe("fallback: provider unavailable");
   });
 });

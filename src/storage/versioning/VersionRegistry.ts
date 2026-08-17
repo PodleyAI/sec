@@ -24,24 +24,15 @@ export function isValidSemver(s: string): boolean {
 export class VersionRegistry {
   constructor(private readonly storage: ComponentVersionRepositoryStorage) {}
 
-  async getCurrent(
-    kind: ComponentKind,
-    id: string
-  ): Promise<ComponentVersion | undefined> {
+  async getCurrent(kind: ComponentKind, id: string): Promise<ComponentVersion | undefined> {
     return this.getSlot(kind, id, "current");
   }
 
-  async getPrevious(
-    kind: ComponentKind,
-    id: string
-  ): Promise<ComponentVersion | undefined> {
+  async getPrevious(kind: ComponentKind, id: string): Promise<ComponentVersion | undefined> {
     return this.getSlot(kind, id, "previous");
   }
 
-  async getNext(
-    kind: ComponentKind,
-    id: string
-  ): Promise<ComponentVersion | undefined> {
+  async getNext(kind: ComponentKind, id: string): Promise<ComponentVersion | undefined> {
     return this.getSlot(kind, id, "next");
   }
 
@@ -66,11 +57,7 @@ export class VersionRegistry {
         `VersionRegistry: target_count is only meaningful for bump_type='major' (got ${row.target_count} with bump_type=${row.bump_type})`
       );
     }
-    if (
-      row.slot === "next" &&
-      row.bump_type === "major" &&
-      row.target_count === null
-    ) {
+    if (row.slot === "next" && row.bump_type === "major" && row.target_count === null) {
       throw new Error(
         `VersionRegistry: major bump in next slot requires non-null target_count (got null on ${row.component_kind}:${row.component_id})`
       );
@@ -78,11 +65,7 @@ export class VersionRegistry {
     await this.storage.put(row);
   }
 
-  async clearSlot(
-    kind: ComponentKind,
-    id: string,
-    slot: ComponentSlot
-  ): Promise<void> {
+  async clearSlot(kind: ComponentKind, id: string, slot: ComponentSlot): Promise<void> {
     await this.storage.delete({
       component_kind: kind,
       component_id: id,

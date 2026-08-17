@@ -19,7 +19,12 @@ const ctx = (): IExecuteContext =>
     signal: new AbortController().signal,
     updateProgress: async () => {},
     own: <T>(v: T): T => v,
-    registry: { has: () => false, get: () => { throw new Error("x"); } },
+    registry: {
+      has: () => false,
+      get: () => {
+        throw new Error("x");
+      },
+    },
     resourceScope: { register: () => {}, dispose: async () => {} },
   }) as unknown as IExecuteContext;
 
@@ -113,7 +118,7 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
       const owned: unknown[] = [];
       const counting = {
         ...ctx(),
-        own: <T,>(v: T): T => {
+        own: <T>(v: T): T => {
           owned.push(v);
           return v;
         },
@@ -196,7 +201,12 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
           progress.push([p, m]);
         },
         own: <T>(v: T): T => v,
-        registry: { has: () => false, get: () => { throw new Error("x"); } },
+        registry: {
+          has: () => false,
+          get: () => {
+            throw new Error("x");
+          },
+        },
         resourceScope: { register: () => {}, dispose: async () => {} },
       } as unknown as IExecuteContext;
 

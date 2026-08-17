@@ -140,13 +140,13 @@ async function processOfferingSummaries(
       });
 
       // Guard on the NORMALIZED name, not the raw one. `CompanyResolver` keys on
-    // cik -> crd -> normalized_name, so a name that survives this check but
-    // normalizes away (a bare legal form like "Inc.", which EDGAR emits when its
-    // filer software comma-splits a firm name across repeated elements) resolves
-    // to no key at all and THROWS, taking the whole filing down with it.
-    // rejoinCommaSplitNames repairs the split upstream; this is the backstop for
-    // any other name that cannot identify a company.
-    if (provider.name && normalizeCompanyName(provider.name)) {
+      // cik -> crd -> normalized_name, so a name that survives this check but
+      // normalizes away (a bare legal form like "Inc.", which EDGAR emits when its
+      // filer software comma-splits a firm name across repeated elements) resolves
+      // to no key at all and THROWS, taking the whole filing down with it.
+      // rejoinCommaSplitNames repairs the split upstream; this is the backstop for
+      // any other name that cannot identify a company.
+      if (provider.name && normalizeCompanyName(provider.name)) {
         await ctx.observer.observeCompany({
           accession_number: ctx.accession_number,
           extractor_id: ctx.extractor_id,
