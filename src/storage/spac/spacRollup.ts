@@ -213,39 +213,41 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   // supersedes `target_name` (definitive over preliminary, revised over
   // definitive) could never correct it. Only an entity-sourced snapshot is
   // preserved, which `surviving_name_source` is what distinguishes.
-  const survivingFromEntity =
-    applied.surviving_name ??
-    (existing?.surviving_name_source === "entity" ? (existing.surviving_name ?? null) : null);
+  //
+  // The whole post-merger identity is gated on an actually-completed deal —
+  // derived, never merged. A misclassified filing can put a surviving name and
+  // a post-merger SIC/ticker set on a shell that never merged, and preserving
+  // them unconditionally would leave the row reading as the operating company
+  // forever even after the corrected event stream re-derives the vehicle as
+  // wound up. Every one of these columns is in TRACKED_FIELDS, so the
+  // correction lands in spac_history / ChangeLog.
+  const survivingFromEntity = completed
+    ? (applied.surviving_name ??
+      (existing?.surviving_name_source === "entity" ? (existing.surviving_name ?? null) : null))
+    : null;
   const surviving_name = survivingFromEntity ?? (completed ? (active?.target_name ?? null) : null);
   const surviving_name_source: SurvivingNameSource | null =
     survivingFromEntity != null ? "entity" : surviving_name != null ? "deal-target" : null;
-  const post_merger_sic = pick("post_merger_sic");
-  const post_merger_tickers = pick("post_merger_tickers");
+  const post_merger_sic = completed ? pick("post_merger_sic") : null;
+  const post_merger_tickers = completed ? pick("post_merger_tickers") : null;
 
   // current_* is the latest-known identity. Pre-merger it mirrors spac_*; a
   // completed de-SPAC promotes the surviving / post-merger identity over the
   // stale mirrored value, so a row that stored current_name = spac_name at
   // registration reflects the rename once the combination closes. When the
   // post-merger value is not yet known (no target/entity data), it falls
-  // through to the previously mirrored value.
-  const current_name =
-    applied.current_name ??
-    (completed ? surviving_name : null) ??
-    existing?.current_name ??
-    surviving_name ??
-    spac_name;
-  const current_sic =
-    applied.current_sic ??
-    (completed ? post_merger_sic : null) ??
-    existing?.current_sic ??
-    post_merger_sic ??
-    spac_sic;
-  const current_tickers =
-    applied.current_tickers ??
-    (completed ? post_merger_tickers : null) ??
-    existing?.current_tickers ??
-    post_merger_tickers ??
-    spac_tickers;
+  // through to the previously mirrored value. With no completed deal the chain
+  // collapses back to the spac_* mirror rather than to whatever a previous
+  // rebuild promoted.
+  const current_name = completed
+    ? (applied.current_name ?? surviving_name ?? existing?.current_name ?? spac_name)
+    : (applied.current_name ?? spac_name);
+  const current_sic = completed
+    ? (applied.current_sic ?? post_merger_sic ?? existing?.current_sic ?? spac_sic)
+    : (applied.current_sic ?? spac_sic);
+  const current_tickers = completed
+    ? (applied.current_tickers ?? post_merger_tickers ?? existing?.current_tickers ?? spac_tickers)
+    : (applied.current_tickers ?? spac_tickers);
 
   const investorPres = latestInvestorPres(events);
   const hasFailed =

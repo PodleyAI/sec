@@ -1684,6 +1684,11 @@ which no deal walk reads):
 | `1.02` | `terminated`           | a deal was pending as of that filing, or the exhibits are merger-shaped                              |
 | `5.07` | `vote`                 | the pending deal had a definitive-agreement or proxy date                                            |
 
+Item `8.01` carries **no lifecycle mapping at all** — `mapItemCodesToSpacEvents`
+falls through its `default: break` and writes nothing. A termination disclosed
+only under 8.01 (a common way to announce a dead deal) therefore leaves the
+attempt `pending` indefinitely, with whatever proxy/vote dates it reached.
+
 The date floor is `ipo_date`, falling back to `registration_date`. It exists
 only to reject the SPAC's own pre-IPO underwriting and formation agreements, so
 an **unknown** floor does not demote: `ipo_date` is written by `recordIpo`,
@@ -1719,6 +1724,21 @@ does not close a pending deal. Issuer Form 25, the Form 15 family, and a
 25-NSE **after** that 180-day window write `deregistration`, which closes a
 leftover pending deal and fails the vehicle.
 
+**A pending deal only makes a listing removal a close within
+`LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL` (90 calendar days) of its proxy or
+vote**, anchored on the LATER of the two (a superseding proxy revives an
+attempt). Reaching the ballot is not closing: a deal can die after its vote, and
+when that is disclosed only under Item 8.01 — which writes no lifecycle event —
+the attempt stays `pending` with its `vote_date` forever, so an unbounded
+"has a proxy or vote" test read the eventual wind-up's Form 25 / Form 15 as a
+completed combination. A 5.07 extension meeting also maps to `vote` whenever a
+deal is pending, so a `vote_date` does not even mean the merger was approved.
+A real post-approval close is days — the trust has to be released; the widest
+pairing in the committed corpus is **40 days** (Columbus Circle, proxy
+2025-11-12 → Form 15 2025-12-22), the rest 2, 3, 6, 8, 10 and 19. The window is
+**one-sided**: a removal filed before the approval is not housekeeping for it.
+The same bound governs the 20-F branch.
+
 **An unknown IPO floor does not demote a 25-NSE** — same rule as the 8-K
 item-1.01 date floor above, and for the same reason: `ipo_date` is written only
 by `recordIpo`, which `processForm424` runs for a priced prospectus filed by a
@@ -1743,7 +1763,12 @@ before appending — symmetric in both directions), and inert in the rollup with
 no `ipo` event, since `deriveStatus` reads `unit_split` only inside its `hasIpo`
 branch: status stays `registered` and `unit_split_date` is filled without
 claiming an IPO. Recover affected rows with `sec extractor backfill 25-15`
-(metadata-only, free, no `--force`). A deregistration ordered at or
+(metadata-only, free, no `--force`) — **run it until it reports `processed 0`**:
+`filterTodo` re-derives each accession's kind against the live classifier, and
+`hasPriorCompleted` reads the event stream, so a stale `completed` sitting on an
+EARLIER accession keeps a later one classifying `completed` and skipped. Only
+after the earlier accession is corrected does the next pass see the later one.
+A deregistration ordered at or
 before a `completed` event is **post-close housekeeping and does not fail the
 deal** — the completion is dated by the 8-K's REPORT date while the Form 25
 event is dated by its FILING date, so the routine delisting of a de-SPAC'd
@@ -1761,7 +1786,8 @@ registration → prospectus → 8-K → proxies → 25/15 order rather than rely
 ingested before that fix, or before their issuer's S-1 was processed, recover
 with `sec extractor backfill 25-15` — its `filterTodo` already selects
 known-SPAC Form 25/15 filings that have no `deregistration` or `unit_split`
-event for the accession, so no `--force` is needed.
+event for the accession, so no `--force` is needed (repeat until `processed 0`,
+per the fixpoint note above).
 
 **De-SPAC linkage.** When a deal reaches `completed`, the issuer is linked to its
 post-merger surviving entity. The rollup (`buildSpacRow`) derives `surviving_name`
@@ -1775,6 +1801,16 @@ the renamed entity (each set only when it diverges from the SPAC-era value, so
 replays are order-safe). Entity metadata usually refreshes _after_ the 2.01 8-K,
 so `sec spac backfill-despac` re-runs the linkage over every completed SPAC to
 fill the still-null slots from now-current entity data.
+
+`surviving_name`, `post_merger_sic`, `post_merger_tickers` and the `current_*`
+promotion are **derived strictly from a completed deal**, never merged forward.
+A rebuild whose event stream no longer derives one drops all of them — the
+`current_*` chains collapse back to the `spac_*` mirror — so a filing
+reclassified from `completed` to `deregistration` cannot leave a wound-up shell
+reading as the operating company forever. All five columns are in
+`TRACKED_FIELDS`, so the correction is captured in `spac_history` / `ChangeLog`.
+Genuinely completed SPACs are re-filled afterwards by `sec spac
+backfill-despac`.
 
 **Current trust.** `trust_amount` is the IPO-day deposit. The live balance
 (interest, extension deposits, redemptions) is `current_trust_amount` /

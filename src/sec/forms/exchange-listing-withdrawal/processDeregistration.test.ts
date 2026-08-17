@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { EntityRepo } from "../../../storage/entity/EntityRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
@@ -577,6 +578,11 @@ describe("processDeregistration", () => {
   });
 
   it("replays a previously recorded completed 25-NSE as deregistration once the deal terminated", async () => {
+    // The 25-NSE sits 41 days after the vote — deliberately INSIDE
+    // LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL, because this test is about the
+    // replay reclassification, not about the window. The interposed
+    // `terminated` still precedes the 25-NSE, which is what makes phase two
+    // re-derive it as a wind-up.
     await seedSpac(1900402);
     await new SpacReportWriter().recordDealMilestones({
       cik: 1900402,
@@ -598,23 +604,23 @@ describe("processDeregistration", () => {
       cik: 1900402,
       accession_number: "1900402-nse",
       form: "25-NSE",
-      filing_date: "2025-06-20",
+      filing_date: "2025-03-10",
     });
     expect((await repo.getSpac(1900402))?.status).toBe("completed");
 
     await new SpacReportWriter().recordDealMilestones({
       cik: 1900402,
       accession_number: "1900402-term",
-      filing_date: "2025-06-05",
+      filing_date: "2025-03-01",
       form: "8-K",
       primary_document: null,
-      events: [{ event_type: "terminated", event_date: "2025-06-05" }],
+      events: [{ event_type: "terminated", event_date: "2025-03-01" }],
     });
     await processDeregistration({
       cik: 1900402,
       accession_number: "1900402-nse",
       form: "25-NSE",
-      filing_date: "2025-06-20",
+      filing_date: "2025-03-10",
     });
 
     const events = await repo.getEvents(1900402);
@@ -623,6 +629,167 @@ describe("processDeregistration", () => {
       events.some((e) => e.event_type === "deregistration" && e.accession_number === "1900402-nse")
     ).toBe(true);
     expect((await repo.getSpac(1900402))?.status).toBe("liquidated");
+  });
+
+  it("liquidates a SPAC whose post-vote deal died in an 8.01 with no 1.02", async () => {
+    // The shape the approval window exists for. The deal reached a definitive
+    // agreement, a proxy and a vote, then collapsed — disclosed under Item
+    // 8.01, which `mapItemCodesToSpacEvents` maps to no event at all, so no
+    // `terminated` was ever written and the attempt stays `pending` with its
+    // vote_date. Eighteen months later the vehicle winds up.
+    //
+    // The entity row is seeded FIRST, renamed and re-SIC'd, precisely so this
+    // test would fail loudly if `recordDeSpacLinkage` ran: the promoted
+    // identity would land on a shell that never merged.
+    const cik = 1900500;
+    await seedSpac(cik);
+    await new EntityRepo().saveEntity({
+      cik,
+      name: "Operating Newco, Inc.",
+      type: null,
+      sic: 3711,
+      ein: null,
+      description: null,
+      website: null,
+      investor_website: null,
+      category: null,
+      fiscal_year: null,
+      state_incorporation: null,
+      state_incorporation_desc: null,
+    });
+    await new EntityRepo().saveEntityTicker({ cik, ticker: "NEWCO", exchange: "NASDAQ" });
+
+    const writer = new SpacReportWriter();
+    await writer.recordDealMilestones({
+      cik,
+      accession_number: `${cik}-da`,
+      filing_date: "2023-01-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2023-01-05" }],
+    });
+    await writer.recordDealMilestones({
+      cik,
+      accession_number: `${cik}-proxy`,
+      filing_date: "2023-01-20",
+      form: "DEFM14A",
+      primary_document: null,
+      events: [{ event_type: "proxy", event_date: "2023-01-20" }],
+    });
+    await writer.recordDealMilestones({
+      cik,
+      accession_number: `${cik}-vote`,
+      filing_date: "2023-02-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2023-02-01" }],
+    });
+
+    await processDeregistration({
+      cik,
+      accession_number: `${cik}-nse`,
+      form: "25-NSE",
+      filing_date: "2024-08-01",
+    });
+    await processDeregistration({
+      cik,
+      accession_number: `${cik}-15`,
+      form: "15-12B",
+      filing_date: "2024-09-03",
+    });
+
+    const events = await repo.getEvents(cik);
+    expect(events.filter((e) => e.event_type === "completed")).toEqual([]);
+    expect(
+      events
+        .filter((e) => e.event_type === "deregistration")
+        .map((e) => e.accession_number)
+        .sort()
+    ).toEqual([`${cik}-15`, `${cik}-nse`]);
+
+    const row = await repo.getSpac(cik);
+    expect(row?.status).toBe("liquidated");
+    // Load-bearing: no completed deal means no post-merger identity at all.
+    expect(row?.surviving_name).toBeNull();
+    expect(row?.post_merger_sic).toBeNull();
+    expect(row?.post_merger_tickers).toBeNull();
+    expect(row?.current_name).toBe(row?.spac_name);
+  });
+
+  it("clears a promoted post-merger identity when a replay re-derives the vehicle as wound up", async () => {
+    // Run the corrupted shape by hand — what the unbounded predicate produced —
+    // then reprocess the same accession under the fixed classifier. The
+    // corrected event stream must drop the promoted identity, not merge it
+    // forward: post-merger columns are derived from a completed deal, and there
+    // is no longer one.
+    const cik = 1900501;
+    await seedSpac(cik);
+    await new EntityRepo().saveEntity({
+      cik,
+      name: "Operating Newco, Inc.",
+      type: null,
+      sic: 3711,
+      ein: null,
+      description: null,
+      website: null,
+      investor_website: null,
+      category: null,
+      fiscal_year: null,
+      state_incorporation: null,
+      state_incorporation_desc: null,
+    });
+    await new EntityRepo().saveEntityTicker({ cik, ticker: "NEWCO", exchange: "NASDAQ" });
+
+    const writer = new SpacReportWriter();
+    await writer.recordDealMilestones({
+      cik,
+      accession_number: `${cik}-da`,
+      filing_date: "2023-01-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2023-01-05" }],
+    });
+    await writer.recordDealMilestones({
+      cik,
+      accession_number: `${cik}-vote`,
+      filing_date: "2023-02-01",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2023-02-01" }],
+    });
+    await writer.recordCompleted({
+      cik,
+      accession_number: `${cik}-nse`,
+      form: "25-NSE",
+      filing_date: "2024-08-01",
+    });
+    await writer.recordDeSpacLinkage({
+      cik,
+      accession_number: `${cik}-nse`,
+      form: "25-NSE",
+      filing_date: "2024-08-01",
+    });
+    const corrupted = await repo.getSpac(cik);
+    expect(corrupted?.surviving_name).toBe("Operating Newco, Inc.");
+    expect(corrupted?.surviving_name_source).toBe("entity");
+    expect(corrupted?.current_name).toBe("Operating Newco, Inc.");
+
+    await processDeregistration({
+      cik,
+      accession_number: `${cik}-nse`,
+      form: "25-NSE",
+      filing_date: "2024-08-01",
+    });
+
+    const row = await repo.getSpac(cik);
+    expect(row?.status).toBe("liquidated");
+    expect(row?.surviving_name).toBeNull();
+    expect(row?.surviving_name_source).toBeNull();
+    expect(row?.post_merger_sic).toBeNull();
+    expect(row?.post_merger_tickers).toBeNull();
+    expect(row?.current_name).toBe(row?.spac_name);
+    expect(row?.current_sic).toBe(row?.spac_sic);
+    expect(row?.current_tickers).toBe(row?.spac_tickers);
   });
 
   it("records the first 20-F after an F-4 as FPI close (NewGenIvf)", async () => {
