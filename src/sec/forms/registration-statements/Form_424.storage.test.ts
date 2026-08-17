@@ -10,6 +10,7 @@ import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyIdentityLinkRepo } from "../../../storage/canonical/CompanyIdentityLinkRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
+import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { XbrlFactRepo } from "../../../storage/xbrl/XbrlFactRepo";
 import { ipoProceeds, ipoTrustAmount, isPricedIpoProspectus, processForm424 } from "./Form_424.storage";
@@ -542,6 +543,222 @@ subject to Rule 419.</p>
       expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
       const dl = await new ExtractionDeadLetterRepo().listPending("424");
       expect(dl.filter((d) => d.accession_number === later)).toEqual([]);
+    });
+
+    /**
+     * Registers, IPOs in 2021, then completes a business combination. The
+     * surviving operating company keeps the shell's CIK — and EDGAR keeps
+     * coding it 6770 for years — so a later 424B4 of its own arrives with both
+     * SPAC signals still reading true.
+     */
+    async function deSpacedCompany(): Promise<void> {
+      await new SpacReportWriter().recordRegistration({
+        cik: CIK,
+        accession_number: S1_ACCESSION,
+        filing_date: "2021-01-15",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Synthetic SPAC Corp",
+        spac_sic: 6770,
+      });
+      await new SpacReportWriter().recordIpo({
+        cik: CIK,
+        accession_number: B4_ACCESSION,
+        filing_date: "2021-03-01",
+        form: "424B4",
+        primary_document: "424b4.htm",
+        ipo_proceeds: 100_000_000,
+        trust_amount: 100_000_000,
+        spac_tickers: ["SSPAC.U"],
+      });
+      await new SpacReportWriter().recordDealMilestones({
+        cik: CIK,
+        accession_number: "0000000000-22-000001",
+        filing_date: "2022-06-30",
+        form: "8-K",
+        primary_document: "8k.htm",
+        events: [{ event_type: "completed", event_date: "2022-06-30" }],
+      });
+      expect((await new SpacRepo().getSpac(CIK))?.status).toBe("completed");
+    }
+
+    const FOLLOW_ON_ACCESSION = "0000000000-26-000809";
+    const FOLLOW_ON_HTML =
+      `<html><body><p>PROSPECTUS</p><p>$500,000,000</p>` +
+      `<p>50,000,000 Units</p>` +
+      `<p>This is an initial public offering of our securities. Each unit has an` +
+      ` offering price of $10.00.</p></body></html>`;
+
+    it("does NOT record a second IPO from a de-SPAC'd company's follow-on 424B4", async () => {
+      await deSpacedCompany();
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000002",
+        accession_number: FOLLOW_ON_ACCESSION,
+        filing_date: "2026-05-20",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: FOLLOW_ON_HTML,
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac?.ipo_date).toBe("2021-03-01");
+      expect(spac?.ipo_proceeds).toBe(100_000_000);
+    });
+
+    it("routes a post-de-SPAC follow-on's terms to offering_terms, not spac_unit_terms", async () => {
+      // The IPO-event gate alone would not stop this: `isSpac` also picks the
+      // destination table for the AI offering pass and gates sponsor-promote
+      // extraction, so an operating company's follow-on would file its terms
+      // as SPAC unit economics.
+      await deSpacedCompany();
+      const { unregister } = registerFakeStructuredProvider([
+        {
+          security_type: "Units",
+          shares_offered: null,
+          price: null,
+          price_low: null,
+          price_high: null,
+          gross_proceeds: 500000000,
+          net_proceeds: null,
+          over_allotment_shares: null,
+          units_offered: 50000000,
+          price_per_unit: 10,
+          unit_composition: "one share and one-quarter warrant",
+          warrant_fraction_per_unit: 0.25,
+          right_fraction_per_unit: null,
+          trust_per_unit: 10.0,
+          over_allotment_units: null,
+          exchange: "NASDAQ",
+          par_value: null,
+          confidence: 0.9,
+          source_span: "50,000,000 units",
+          tickers: [],
+        },
+        { underwriters: [] },
+      ]);
+      cleanup = unregister;
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000002",
+        accession_number: FOLLOW_ON_ACCESSION,
+        filing_date: "2026-05-20",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: [
+            "<h1>THE OFFERING</h1><p>We are offering 50,000,000 units at $10.00.</p>",
+            "<h1>UNDERWRITING</h1><p>BTIG, LLC is the book-running manager.</p>",
+          ].join(""),
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+        model: fakeS1Model(),
+      });
+
+      expect(await new SpacUnitTermsRepo().get("424", FOLLOW_ON_ACCESSION)).toBeUndefined();
+      const equity = await new OfferingTermsRepo().get("424", FOLLOW_ON_ACCESSION);
+      expect(equity?.gross_proceeds).toBe(500000000);
+    });
+
+    it("still treats a SIC-miscoded pre-combination SPAC as a SPAC (the widening this must not undo)", async () => {
+      // The whole point of the `spacRow != null` arm: a SPAC minted by the S-1
+      // AI content classifier files a 424B4 whose header carries no SIC at all.
+      // A terminal-status check must not cost that filing its SPAC treatment.
+      await new SpacReportWriter().recordRegistration({
+        cik: CIK,
+        accession_number: S1_ACCESSION,
+        filing_date: "2026-01-15",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Synthetic SPAC Corp",
+        spac_sic: null,
+      });
+      expect((await new SpacRepo().getSpac(CIK))?.status).toBe("registered");
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2026-04-28",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: NULL_HEADER,
+          html: FOLLOW_ON_HTML,
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_date).toBe("2026-04-28");
+    });
+
+    it("re-processing the SAME IPO 424B4 still records, and does not append a second event", async () => {
+      // The gate is keyed on the ACCESSION, not on `ipo_date` alone. A replay
+      // — a version bump, a dead-letter retry that finally produced the AI
+      // unit-terms row — has to re-record so the numeric fields can be filled;
+      // an `ipo_date`-only gate would refuse the filing on the strength of the
+      // date it wrote itself, and the proceeds would stay at the cover
+      // fallback forever.
+      const run = () =>
+        processForm424({
+          cik: CIK,
+          file_number: "333-000001",
+          accession_number: B4_ACCESSION,
+          filing_date: "2026-04-28",
+          primary_doc: "424b4.htm",
+          form: "424B4",
+          form424: {
+            header: SPAC_HEADER,
+            html: FOLLOW_ON_HTML,
+            xbrlInstanceXml: null,
+            feeExhibitHtml: null,
+          },
+        });
+
+      await run();
+      // The first pass had no unit-terms row, so proceeds came off the cover.
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_proceeds).toBe(500_000_000);
+
+      // Stand in for a dead-letter retry that produced the row this time.
+      await new SpacUnitTermsRepo().save({
+        extractor_id: "424",
+        accession_number: B4_ACCESSION,
+        cik: CIK,
+        units_offered: 51_750_000,
+        price_per_unit: 10,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        ticker: null,
+        gross_proceeds: 517_500_000,
+        net_proceeds: null,
+        confidence: null,
+        source_span: null,
+        created_at: new Date().toISOString(),
+      } as never);
+      await run();
+
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(1);
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_date).toBe("2026-04-28");
+      expect((await new SpacRepo().getSpac(CIK))?.ipo_proceeds).toBe(517_500_000);
     });
   });
 

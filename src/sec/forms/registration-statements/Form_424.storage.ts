@@ -15,6 +15,7 @@ import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTerms
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import type { SpacStatus } from "../../../storage/spac/SpacSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
@@ -49,6 +50,24 @@ const DEFAULT_EXTRACTOR_VERSION = "1.2.0";
  * Shelf takedowns (424B2/B5, 424A) stay deterministic-only.
  */
 const PRICED_PROSPECTUS_FORMS = new Set(["424B1", "424B4"]);
+
+/**
+ * Statuses past which a `spac` row no longer speaks for the filings its CIK
+ * makes. The row is deliberately kept after the combination — the shell keeps
+ * its CIK and renames, which is what the three name eras model — and EDGAR
+ * keeps coding the surviving operating company 6770 for years afterwards. So
+ * neither signal on its own still means "this filing belongs to the vehicle",
+ * and a follow-on prospectus from a company that already combined must not be
+ * treated as SPAC unit economics.
+ */
+// Typed `ReadonlySet<string>` for lookup — the stored column is a plain string
+// — while the literals are still checked against {@link SpacStatus}, so a typo
+// or a renamed status is a compile error.
+const TERMINAL_SPAC_STATUSES: ReadonlySet<string> = new Set<SpacStatus>([
+  "completed",
+  "liquidated",
+  "withdrawn",
+]);
 
 /**
  * Whether this 424 is a priced IPO prospectus worth the AI offering-sections
@@ -194,7 +213,8 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   });
   if (!priced) return;
 
-  const isSpac = headerSic === 6770 || spacRow != null;
+  const spacEraOver = spacRow != null && TERMINAL_SPAC_STATUSES.has(spacRow.status);
+  const isSpac = !spacEraOver && (headerSic === 6770 || spacRow != null);
   const deadLetters = new ExtractionDeadLetterRepo();
   const recordFail = (section: string, reason: DeadLetterReasonCode, detail: string | null) =>
     deadLetters.record({
@@ -216,6 +236,18 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   // the numeric fields once the version-gated dead letters clear.
   const recordSpacIpoEventIfEligible = async (): Promise<void> => {
     if (!isSpac) return;
+    // A vehicle IPOs once. Keying on the ACCESSION rather than on `ipo_date`
+    // alone keeps a replay of the SAME filing working — a version bump or a
+    // dead-letter retry must still re-record its own event — while a later
+    // prospectus from the same CIK cannot reprice the IPO. The `ipo_date`
+    // short-circuit keeps the extra read off the common path.
+    if (spacRow?.ipo_date) {
+      const events = await new SpacRepo().getEvents(cik);
+      const priorIpo = events.some(
+        (e) => e.event_type === "ipo" && e.accession_number !== accession_number
+      );
+      if (priorIpo) return;
+    }
     const unitTerms = await new SpacUnitTermsRepo().get(EXTRACTOR_ID, accession_number);
     const promoteTerms = await new SpacPromoteTermsRepo().get(EXTRACTOR_ID, accession_number);
     const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
