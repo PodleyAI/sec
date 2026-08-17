@@ -1437,6 +1437,58 @@ re-key half the tier to a generation nothing else produces. The fold itself is
 still not applied — `CompanyNormalization.test.ts` pins the gap so it cannot land
 as a one-line change with no migration — but the migration is now one command.
 
+#### Address normalization: a blank city is stored blank
+
+`AddressSchema.city` is **nullable**, and `normalizeAddress` never invents a
+value for it. The ownership forms (3/4/5/144) routinely put the country in
+`stateOrCountry` and leave the city blank; the country NAME used to stand in,
+which is not a city and — since `generateAddressHash` joins every non-empty
+column — went straight into `address_hash_id`. It also mis-resolved the US
+territories: `COUNTRY_STATE_CODE_ARRAY` carries `AS` / `GU` / `MP` / `VI` / `UM`
+twice, as a US subdivision before the country row, so a `find` on the ISO code
+took the first and an American Samoa address was given the city
+`"UNITED STATES"`.
+
+The rule now: a **street** is what makes an address usable, a city is still
+required for a **US** address, and a foreign one is kept with a null city.
+
+⚠️ Changing it **re-keys every address whose city was fabricated** — non-US
+addresses with a blank filer-reported city, and nothing else. Nothing like the
+person re-key in scale, and **free**: every writer on this path
+(`StoreSubmissionContactInfoTask`, Form D / C / 1-A / 1-K / 1-Z / CFPORTAL,
+ownership 3/4/5, Form 144, `s1/xbrlEnrichment`) is deterministic, so there is no
+AI cost and no version bump. Tables carrying the old key: `addresses`,
+`addresses_entity_junction`, `addresses_entity_history_junction`,
+`canonical_person_address`, `canonical_company_address`, and the
+`raw_address_id` column on both observation tables.
+
+```bash
+sec db setup                       # relaxes the NOT NULL (see below)
+sec update submissions
+for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
+sec resolve --kind person  --all
+sec resolve --kind company --all
+```
+
+Do **not** delete the old rows. `addresses_entity_history_junction` is temporal
+and pins the old hash forever, correctly, as a record of what was stored; the
+orphaned `addresses` rows are inert residue, exactly like the canonical rows the
+company re-key above leaves behind.
+
+⚠️ Skipping steps 2–4 is **silent**: the fabricated cities keep resolving,
+nothing errors, and no coverage number drops. Size the job first with
+`SELECT COUNT(*) FROM addresses WHERE country_code <> 'US' AND city IS NOT NULL`
+and eyeball the result for country display names.
+
+`AddressRegionNullableMigration` is the pattern for relaxing a NOT NULL on
+SQLite, where no `ALTER` can do it: rename aside, recreate at the current
+schema, copy back, all inside one `BEGIN IMMEDIATE`. It now covers **two**
+columns (`NULLABLE_COLUMNS`) rather than the one its name records, and keeps its
+`addresses__legacy_region` scratch-table name so a database stranded mid-rebuild
+by an older build is still found by the resume probe. Postgres gets the same
+relaxation twice over — here and from the generic `alignPostgresColumnTypes`
+pass — both catalog probes that no-op once the column is nullable.
+
 #### Re-keying without a version bump
 
 A resolver version bump preserves rows minted under the old normalizer so the
@@ -1583,7 +1635,33 @@ so replays are idempotent; an `as_of` guard protects filing-sourced scalar field
 from out-of-order writes, and `spac_history` + `ChangeLog` version the row.
 
 The IPO half is populated from S-1/DRS (`registration`) and priced 424B1/424B4
-(`ipo`). De-SPAC **milestone dates** come from 8-K item codes (known SPACs only
+(`ipo`). **A vehicle IPOs once.** The `spac` row is deliberately kept past the
+combination (the shell keeps its CIK and renames — that is what the three name
+eras model) and EDGAR keeps coding the surviving operating company 6770 for
+years, so when that company files a 424B4 of its own, both of `isSpac`'s
+signals still read true. Two gates stop it being treated as a SPAC unit IPO:
+`isSpac` is false once `status` is terminal (`completed` / `liquidated` /
+`withdrawn`), and `recordSpacIpoEventIfEligible` refuses when an `ipo` event
+already exists under a **different** accession. The first is what keeps the
+follow-on's terms out of `spac_unit_terms` (`isSpac` picks the destination
+table and gates sponsor-promote extraction); the second is the backstop for a
+vehicle whose `completed` event has not landed yet. Keying the second on the
+accession rather than on `ipo_date` is what keeps a replay of the same filing
+working across a version bump or a dead-letter retry.
+
+A database that ingested follow-on prospectuses before those gates existed
+carries duplicate `ipo` events and repriced IPO figures. Find them with a
+`GROUP BY cik HAVING COUNT(*) > 1` over `spac_event` where `event_type = 'ipo'`.
+`spac.ipo_proceeds` is recoverable from the earliest `ipo` event's `amount`
+(`recordIpo` passes it), but `trust_amount` and `spac_tickers` are not on the
+event and need `sec extractor backfill 424 --force` — which first requires the
+affected rows' `as_of` to be cleared along with those three columns. Otherwise
+`buildSpacRow` marks the true IPO filing stale (`filingDate < existing.as_of`)
+and `pick()` refuses to clobber a non-null, so the re-run silently leaves the
+follow-on's numbers in place. Leave `spac_history` alone: it is the audit trail
+of what the row said.
+
+De-SPAC **milestone dates** come from 8-K item codes (known SPACs only
 — a `spac` row must already exist), but the mapping is **not 1:1**: the same
 item code carries a de-SPAC milestone on one filing and ordinary corporate
 housekeeping on the next, so `mapItemCodesToSpacEvents` classifies each code
@@ -1599,10 +1677,14 @@ which no deal walk reads):
 
 The date floor is `ipo_date`, falling back to `registration_date`. It exists
 only to reject the SPAC's own pre-IPO underwriting and formation agreements, so
-an **unknown** floor does not demote: `ipo_date` is written solely from a
-424B1/424B4 whose SGML header codes SIC 6770, and a row minted by the S-1 AI
-content classifier (a SIC-miscoded filer) legitimately has none. The real
-discriminator is the EX-2 exhibit.
+an **unknown** floor does not demote: `ipo_date` is written by `recordIpo`,
+which `processForm424` runs for a priced prospectus (424B1/424B4, or a 424B3
+that is the vehicle's IPO prospectus) filed by a CIK that either carries a 6770
+SGML header or already has a **non-terminal** `spac` row — and never twice,
+since an existing `ipo` event from a different accession stops it, so a
+de-SPAC'd company's follow-on cannot reprice the IPO. A row minted by the S-1
+AI content classifier (a SIC-miscoded filer) legitimately has none until its
+own priced prospectus lands. The real discriminator is the EX-2 exhibit.
 
 **The pending-deal hint is computed from the event stream strictly BEFORE this
 accession** (`pendingDealBefore`), never from the currently derived deal set.
@@ -1630,9 +1712,11 @@ leftover pending deal and fails the vehicle.
 
 **An unknown IPO floor does not demote a 25-NSE** — same rule as the 8-K
 item-1.01 date floor above, and for the same reason: `ipo_date` is written only
-by `recordIpo`, which `processForm424` gates on a 424B1/424B4 whose SGML header
-codes SIC 6770, so a SPAC minted by the S-1 AI content classifier (the
-SIC-miscoded case that path exists to catch) structurally never has one.
+by `recordIpo`, which `processForm424` runs for a priced prospectus filed by a
+CIK carrying a 6770 SGML header or a non-terminal `spac` row (see the date-floor
+note above), so a SPAC minted by the S-1 AI content classifier (the
+SIC-miscoded case that path exists to catch) has none until its own priced
+prospectus lands.
 Classifying its routine post-IPO unit separation as `deregistration` marked a
 live searching vehicle permanently `liquidated`. So an exchange 25-NSE with an
 absent `ipo_date` writes `unit_split`; a KNOWN `ipo_date` keeps the 0–180 day
