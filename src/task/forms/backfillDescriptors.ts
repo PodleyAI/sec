@@ -9,9 +9,8 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
-import { classifyListingRemoval } from "../../sec/forms/exchange-listing-withdrawal/classifyListingRemoval";
-import { hasNearby20F } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
-import { pendingDealBefore } from "../../storage/spac/spacDealGrouping";
+import { resolveListingRemovalKind } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
 
@@ -158,7 +157,6 @@ const deregistrationDescriptor: BackfillDescriptor = {
     const repo = new SpacRepo();
     const eventsByCik = new Map<number, SpacEvent[]>();
     const ipoByCik = new Map<number, string | null>();
-    const nearby20FByKey = new Map<string, boolean>();
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
       let events = eventsByCik.get(c.cik);
@@ -179,20 +177,15 @@ const deregistrationDescriptor: BackfillDescriptor = {
         if (!ipoByCik.has(c.cik)) {
           ipoByCik.set(c.cik, (await repo.getSpac(c.cik))?.ipo_date ?? null);
         }
-        const nearbyKey = `${c.cik}:${c.filing_date}`;
-        if (!nearby20FByKey.has(nearbyKey)) {
-          nearby20FByKey.set(nearbyKey, await hasNearby20F(c.cik, c.filing_date));
-        }
-        const kind = classifyListingRemoval({
+        const kind = await resolveListingRemovalKind({
+          cik: c.cik,
           form: c.form,
-          ipoDate: ipoByCik.get(c.cik) ?? null,
           filingDate: c.filing_date,
-          pendingDeal: pendingDealBefore(c.cik, events, {
-            event_date: c.filing_date,
-            accession_number: c.accession_number,
-          }),
-          hasNearby20F: nearby20FByKey.get(nearbyKey) === true,
+          accession_number: c.accession_number,
+          ipoDate: ipoByCik.get(c.cik) ?? null,
+          events,
         });
+        if (kind === "ignore") continue;
         const alreadyRecorded =
           kind === "unit_split"
             ? hasUnitSplit
@@ -230,12 +223,20 @@ const withdrawalDescriptor: BackfillDescriptor = {
         eventsByCik.set(c.cik, events);
       }
       if (
-        !events.some(
+        events.some(
           (e) => e.event_type === "withdrawal" && e.accession_number === c.accession_number
         )
       ) {
-        todo.push(c);
+        continue;
       }
+      if (c.form === "SEC STAFF ACTION") {
+        const spac = await repo.getSpac(c.cik);
+        if (spac?.ipo_date != null && spac.ipo_date !== "") continue;
+        if (c.filing_date && !(await staffActionAbandonsRegistration(c.cik, c.filing_date))) {
+          continue;
+        }
+      }
+      todo.push(c);
     }
     return todo;
   },

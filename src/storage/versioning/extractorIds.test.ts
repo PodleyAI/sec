@@ -172,12 +172,14 @@ describe("extractorIds — DRS dispatch mapping", () => {
   });
 });
 
-describe("extractorIds — SEC STAFF ACTION is not a withdrawal", () => {
-  it("does not route SEC STAFF ACTION to an extractor", () => {
-    // Staff action is not Form RW. Mapping it would mark shells withdrawn
-    // without a filer request (live: 1849470 1Sharpe, 2061918 MSM Frontier).
-    expect(formToExtractorId("SEC STAFF ACTION")).toBeUndefined();
-    expect(isFormParsingSupported("SEC STAFF ACTION")).toBe(false);
+describe("extractorIds — SEC STAFF ACTION withdrawal dispatch", () => {
+  it("routes SEC STAFF ACTION to RW and leaves EFFECT / SEC ACTION unmapped", () => {
+    // Staff action is not Form RW, but a last-word staff action on an
+    // unpriced registration is the same lifecycle end. processWithdrawal
+    // still no-ops when a later S-1 exists (Iron Horse). EFFECT and SEC ACTION
+    // are unrelated codes.
+    expect(formToExtractorId("SEC STAFF ACTION")).toBe("RW");
+    expect(isFormParsingSupported("SEC STAFF ACTION")).toBe(true);
     expect(formToExtractorId("EFFECT")).toBeUndefined();
     expect(formToExtractorId("SEC ACTION")).toBeUndefined();
   });
@@ -209,6 +211,8 @@ describe("extractorIds — Form 25/15 deregistration dispatch mapping", () => {
       "15F-12G/A",
       "15F-15D",
       "15F-15D/A",
+      "20-F",
+      "20-F/A",
     ]) {
       expect(formToExtractorId(form)).toBe("25-15");
     }

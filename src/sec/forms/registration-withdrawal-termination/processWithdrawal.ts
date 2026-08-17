@@ -8,6 +8,7 @@ import { globalServiceRegistry } from "workglow";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { staffActionAbandonsRegistration } from "./staffActionAbandonsRegistration";
 
 export interface ProcessWithdrawalArgs {
   readonly cik: number;
@@ -49,5 +50,9 @@ export async function processWithdrawal(args: ProcessWithdrawalArgs): Promise<vo
     return;
   }
   if (!args.filing_date) return;
+  if (args.form === "SEC STAFF ACTION") {
+    if (spacRow.ipo_date != null && spacRow.ipo_date !== "") return;
+    if (!(await staffActionAbandonsRegistration(args.cik, args.filing_date))) return;
+  }
   await new SpacReportWriter().recordWithdrawal(args);
 }

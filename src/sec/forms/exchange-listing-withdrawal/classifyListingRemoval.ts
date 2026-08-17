@@ -19,7 +19,7 @@ export const UNIT_SEPARATION_MAX_DAYS_AFTER_IPO = 180;
  */
 export const FPI_CLOSE_20F_MAX_DAYS = 14;
 
-export type ListingRemovalKind = "unit_split" | "deregistration" | "completed";
+export type ListingRemovalKind = "unit_split" | "deregistration" | "completed" | "ignore";
 
 export interface ListingRemovalPendingDeal {
   readonly vote_date: string | null;
@@ -34,11 +34,23 @@ export interface ClassifyListingRemovalArgs {
   readonly hasNearby20F?: boolean;
   /** A `completed` event already exists on an earlier accession. */
   readonly hasPriorCompleted?: boolean;
+  /** A 25-NSE within {@link FPI_CLOSE_20F_MAX_DAYS} of this 20-F. */
+  readonly hasNearby25Nse?: boolean;
+  /**
+   * This 20-F is the first one dated on or after the issuer's S-4 / F-4.
+   * The FPI close filing when there is no 25-NSE (NewGenIvf).
+   */
+  readonly isFirst20FAfterCombination?: boolean;
 }
 
 function isExchangeNse(form: string): boolean {
   const f = form.trim().toUpperCase();
   return f === "25-NSE" || f === "25-NSE/A";
+}
+
+function is20F(form: string): boolean {
+  const f = form.trim().toUpperCase();
+  return f === "20-F" || f === "20-F/A";
 }
 
 function calendarDaysBetween(from: string, to: string): number {
@@ -97,6 +109,17 @@ function pendingReachedApproval(deal: ListingRemovalPendingDeal | null | undefin
  * those — so the conservative branch loses very little.
  */
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
+  if (is20F(args.form)) {
+    if (
+      pendingReachedApproval(args.pendingDeal) ||
+      args.hasPriorCompleted === true ||
+      args.hasNearby25Nse === true ||
+      args.isFirst20FAfterCombination === true
+    ) {
+      return "completed";
+    }
+    return "ignore";
+  }
   if (pendingReachedApproval(args.pendingDeal) || args.hasPriorCompleted === true) {
     return "completed";
   }

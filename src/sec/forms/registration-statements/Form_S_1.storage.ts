@@ -305,18 +305,19 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     created_at: new Date().toISOString(),
   });
 
-  // A de-SPAC newco (S-4/F-4 + 8-A12B/8-A12G on this CIK) keeps SIC 6770 on
-  // later resale S-1s, and the summary often still reads like a blank check
-  // because it recounts the combination. That pair of filings is the listing
-  // of the surviving company, not a SPAC IPO — do not mint. A CIK that already
-  // has a spac row from a different accession is a real SPAC that later filed
-  // an S-4; leave it alone.
+  // A de-SPAC newco (S-4/F-4 + 8-A12B/8-A12G on this CIK, dated on or before
+  // this filing) keeps SIC 6770 on later resale S-1s, and the summary often
+  // still reads like a blank check because it recounts the combination. That
+  // pair of filings is the listing of the surviving company, not a SPAC IPO —
+  // do not mint. A later S-4 on a genuine SPAC CIK must not reject the original
+  // blank-check registration. A CIK that already has a spac row from a
+  // different accession is a real SPAC that later filed an S-4; leave it alone.
   const priorEventsForNewco = await new SpacRepo().getEvents(cik);
   const alreadyKnownForNewco = priorEventsForNewco.some(
     (event) => event.accession_number !== accession_number
   );
   let newcoListingRejected = false;
-  if (isSpac && !alreadyKnownForNewco && (await issuerHasCombinationListing(cik))) {
+  if (isSpac && !alreadyKnownForNewco && (await issuerHasCombinationListing(cik, args.filing_date))) {
     isSpac = false;
     newcoListingRejected = true;
     await new S1ClassificationRepo().save({

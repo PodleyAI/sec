@@ -206,6 +206,65 @@ describe("classifyListingRemoval", () => {
     }
   });
 
+  it("does not complete a 25-NSE when the voted deal is no longer pending (Evergreen)", () => {
+    expect(
+      classifyListingRemoval({
+        form: "25-NSE",
+        ipoDate: "2022-02-10",
+        filingDate: "2025-06-20",
+        pendingDeal: null,
+      })
+    ).toBe("deregistration");
+  });
+
+  it("treats a 20-F after a vote as FPI close, not an annual report", () => {
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2025-09-04",
+        filingDate: "2026-07-16",
+        pendingDeal: { vote_date: "2026-07-06", proxy_date: null },
+      })
+    ).toBe("completed");
+  });
+
+  it("treats a 20-F with a nearby 25-NSE as FPI close (Spring Valley III)", () => {
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2025-09-04",
+        filingDate: "2026-07-16",
+        pendingDeal: null,
+        hasNearby25Nse: true,
+      })
+    ).toBe("completed");
+  });
+
+  it("treats the first 20-F after an F-4 as FPI close (NewGenIvf)", () => {
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: null,
+        filingDate: "2024-04-09",
+        pendingDeal: null,
+        isFirst20FAfterCombination: true,
+      })
+    ).toBe("completed");
+  });
+
+  it("ignores an annual 20-F with no close signal", () => {
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2025-09-04",
+        filingDate: "2026-03-31",
+        pendingDeal: null,
+        hasNearby25Nse: false,
+        isFirst20FAfterCombination: false,
+      })
+    ).toBe("ignore");
+  });
+
   it("keeps the unknown-floor allowance when no 20-F is nearby", () => {
     // The negative twin of the case above: with the 20-F absent the allowance
     // is reachable, so the ordering costs the SIC-miscoded SPAC nothing.

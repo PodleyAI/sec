@@ -533,4 +533,15 @@ describe("pendingDealBefore", () => {
     expect(hint?.vote_date).toBe("2025-12-03");
     expect(hint?.definitive_agreement_date).toBe("2025-06-23");
   });
+
+  it("reports no pending deal after a vote if that deal later terminated (Evergreen)", () => {
+    const events = [
+      ev("definitive_agreement", "2024-09-05", "acc-da"),
+      ev("vote", "2025-01-28", "acc-vote"),
+      ev("terminated", "2025-06-05", "acc-term"),
+    ];
+    expect(
+      pendingDealBefore(1, events, { event_date: "2025-06-20", accession_number: "acc-nse" })
+    ).toBeNull();
+  });
 });

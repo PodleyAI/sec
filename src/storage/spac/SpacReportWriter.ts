@@ -351,8 +351,9 @@ export class SpacReportWriter {
    * termination (Form 15 / 15F): append a `deregistration` event (idempotent
    * by PK), recompute deals, then rebuild the row. Rollup treats that event as
    * a failure unless a completed de-SPAC already exists. Drops a `unit_split`
-   * on the same accession so a replay that reclassifies the filing cannot
-   * leave both events.
+   * or `completed` on the same accession so a replay that reclassifies a
+   * previously-closed vehicle as a wind-up (vote, then terminated, then 25-NSE)
+   * cannot leave both events.
    */
   async recordDeregistration(args: {
     readonly cik: number;
@@ -362,6 +363,7 @@ export class SpacReportWriter {
   }): Promise<void> {
     await withCikLock(args.cik, async () => {
       await this.repo.deleteEvent(args.cik, args.accession_number, "unit_split");
+      await this.repo.deleteEvent(args.cik, args.accession_number, "completed");
       await this.appendEvent({
         cik: args.cik,
         accession_number: args.accession_number,
@@ -391,6 +393,7 @@ export class SpacReportWriter {
   }): Promise<void> {
     await withCikLock(args.cik, async () => {
       await this.repo.deleteEvent(args.cik, args.accession_number, "deregistration");
+      await this.repo.deleteEvent(args.cik, args.accession_number, "completed");
       await this.appendEvent({
         cik: args.cik,
         accession_number: args.accession_number,

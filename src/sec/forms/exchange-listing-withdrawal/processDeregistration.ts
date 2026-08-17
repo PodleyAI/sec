@@ -9,10 +9,13 @@ import { EntityRepo } from "../../../storage/entity/EntityRepo";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { pendingDealBefore, compareSpacEventOrder } from "../../../storage/spac/spacDealGrouping";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import type { SpacEvent } from "../../../storage/spac/SpacEventSchema";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { isFirst20FAfterCombination } from "../registration-statements/s1/newcoListing";
 import {
   classifyListingRemoval,
   isNearby20F,
+  type ListingRemovalKind,
 } from "./classifyListingRemoval";
 
 export interface ProcessDeregistrationArgs {
@@ -47,6 +50,50 @@ export async function hasNearby20F(cik: number, filingDate: string): Promise<boo
   );
 }
 
+export async function hasNearby25Nse(cik: number, filingDate: string): Promise<boolean> {
+  const entity = new EntityRepo();
+  const [nse, amendment] = await Promise.all([
+    entity.getFilingsByForm(cik, "25-NSE"),
+    entity.getFilingsByForm(cik, "25-NSE/A"),
+  ]);
+  return [...nse, ...amendment].some(
+    (f) => f.filing_date != null && f.filing_date !== "" && isNearby20F(filingDate, f.filing_date)
+  );
+}
+
+export async function resolveListingRemovalKind(args: {
+  readonly cik: number;
+  readonly form: string;
+  readonly filingDate: string;
+  readonly accession_number: string;
+  readonly ipoDate: string | null;
+  readonly events: readonly SpacEvent[];
+}): Promise<ListingRemovalKind> {
+  const boundary = { event_date: args.filingDate, accession_number: args.accession_number };
+  const pending = pendingDealBefore(args.cik, args.events, boundary);
+  const hasPriorCompleted = args.events.some(
+    (e) =>
+      e.event_type === "completed" &&
+      e.accession_number !== args.accession_number &&
+      compareSpacEventOrder(e, boundary) < 0
+  );
+  const [nearby20F, nearby25Nse, first20FAfterCombination] = await Promise.all([
+    hasNearby20F(args.cik, args.filingDate),
+    hasNearby25Nse(args.cik, args.filingDate),
+    isFirst20FAfterCombination(args.cik, args.accession_number, args.filingDate),
+  ]);
+  return classifyListingRemoval({
+    form: args.form,
+    ipoDate: args.ipoDate,
+    filingDate: args.filingDate,
+    pendingDeal: pending,
+    hasNearby20F: nearby20F,
+    hasPriorCompleted,
+    hasNearby25Nse: nearby25Nse,
+    isFirst20FAfterCombination: first20FAfterCombination,
+  });
+}
+
 /**
  * Record Form 25 / 25-NSE / Form 15 family as a lifecycle event. Exchange
  * 25-NSE shortly after IPO is `unit_split` (units unbundle; the vehicle
@@ -72,22 +119,15 @@ export async function processDeregistration(args: ProcessDeregistrationArgs): Pr
   }
   if (!args.filing_date) return;
   const events = await repo.getEvents(args.cik);
-  const boundary = { event_date: args.filing_date, accession_number: args.accession_number };
-  const pending = pendingDealBefore(args.cik, events, boundary);
-  const hasPriorCompleted = events.some(
-    (e) =>
-      e.event_type === "completed" &&
-      e.accession_number !== args.accession_number &&
-      compareSpacEventOrder(e, boundary) < 0
-  );
-  const kind = classifyListingRemoval({
+  const kind = await resolveListingRemovalKind({
+    cik: args.cik,
     form: args.form,
-    ipoDate: spacRow.ipo_date,
     filingDate: args.filing_date,
-    pendingDeal: pending,
-    hasNearby20F: await hasNearby20F(args.cik, args.filing_date),
-    hasPriorCompleted,
+    accession_number: args.accession_number,
+    ipoDate: spacRow.ipo_date,
+    events,
   });
+  if (kind === "ignore") return;
   const writer = new SpacReportWriter();
   if (kind === "unit_split") {
     await writer.recordUnitSplit(args);

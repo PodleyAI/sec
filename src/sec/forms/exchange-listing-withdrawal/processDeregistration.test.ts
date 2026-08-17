@@ -535,4 +535,159 @@ describe("processDeregistration", () => {
     expect(events.filter((e) => e.event_type === "completed")).toHaveLength(1);
     expect((await repo.getSpac(2074850))?.status).toBe("completed");
   });
+
+  it("does not complete a 25-NSE after a vote on a terminated deal (Evergreen)", async () => {
+    await seedSpac(1900402);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-da",
+      filing_date: "2024-09-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2024-09-05" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-vote",
+      filing_date: "2025-01-28",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2025-01-28" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-term",
+      filing_date: "2025-06-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "terminated", event_date: "2025-06-05" }],
+    });
+
+    await processDeregistration({
+      cik: 1900402,
+      accession_number: "1900402-nse",
+      form: "25-NSE",
+      filing_date: "2025-06-20",
+    });
+
+    const events = await repo.getEvents(1900402);
+    expect(events.filter((e) => e.event_type === "completed")).toEqual([]);
+    expect(events.some((e) => e.event_type === "deregistration")).toBe(true);
+    expect((await repo.getSpac(1900402))?.status).toBe("liquidated");
+  });
+
+  it("replays a previously recorded completed 25-NSE as deregistration once the deal terminated", async () => {
+    await seedSpac(1900402);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-da",
+      filing_date: "2024-09-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2024-09-05" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-vote",
+      filing_date: "2025-01-28",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2025-01-28" }],
+    });
+    await processDeregistration({
+      cik: 1900402,
+      accession_number: "1900402-nse",
+      form: "25-NSE",
+      filing_date: "2025-06-20",
+    });
+    expect((await repo.getSpac(1900402))?.status).toBe("completed");
+
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1900402,
+      accession_number: "1900402-term",
+      filing_date: "2025-06-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "terminated", event_date: "2025-06-05" }],
+    });
+    await processDeregistration({
+      cik: 1900402,
+      accession_number: "1900402-nse",
+      form: "25-NSE",
+      filing_date: "2025-06-20",
+    });
+
+    const events = await repo.getEvents(1900402);
+    expect(events.filter((e) => e.event_type === "completed")).toEqual([]);
+    expect(
+      events.some((e) => e.event_type === "deregistration" && e.accession_number === "1900402-nse")
+    ).toBe(true);
+    expect((await repo.getSpac(1900402))?.status).toBe("liquidated");
+  });
+
+  it("records the first 20-F after an F-4 as FPI close (NewGenIvf)", async () => {
+    await seedSpac(1981662);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1981662,
+      accession_number: "1981662-f4",
+      form: "F-4",
+      primary_doc: "f4.htm",
+      file_number: "",
+      filing_date: "2023-10-27",
+      acceptance_date: "2023-10-27T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1981662,
+      accession_number: "1981662-20f",
+      form: "20-F",
+      primary_doc: "20f.htm",
+      file_number: "",
+      filing_date: "2024-04-09",
+      acceptance_date: "2024-04-09T00:00:00.000Z",
+      report_date: "2024-04-02",
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+
+    await processDeregistration({
+      cik: 1981662,
+      accession_number: "1981662-20f",
+      form: "20-F",
+      filing_date: "2024-04-09",
+    });
+
+    expect((await repo.getSpac(1981662))?.status).toBe("completed");
+    const events = await repo.getEvents(1981662);
+    expect(events.some((e) => e.event_type === "completed" && e.form === "20-F")).toBe(true);
+  });
+
+  it("does not liquidate an FPI SPAC on an annual 20-F with no close signal", async () => {
+    await seedSpac(2074851);
+    await processDeregistration({
+      cik: 2074851,
+      accession_number: "2074851-20f",
+      form: "20-F",
+      filing_date: "2026-03-31",
+    });
+    expect(await repo.getEvents(2074851).then((e) => e.filter((x) => x.event_type === "completed"))).toEqual(
+      []
+    );
+    expect(
+      await repo.getEvents(2074851).then((e) => e.filter((x) => x.event_type === "deregistration"))
+    ).toEqual([]);
+    expect((await repo.getSpac(2074851))?.status).toBe("ipo");
+  });
 });

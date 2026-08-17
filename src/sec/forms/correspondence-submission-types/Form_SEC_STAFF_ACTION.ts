@@ -5,9 +5,11 @@
  */
 
 import { Form } from "../Form";
+import { parseMetadataOnlyForm } from "../parseMetadataOnly";
 
 export class Form_SEC_STAFF_ACTION extends Form {
   static readonly name = "SEC Staff Action Notification";
   static readonly description = "Notification of SEC staff action.";
   static readonly forms = ["SEC STAFF ACTION"] as const;
+  static parse = parseMetadataOnlyForm;
 }

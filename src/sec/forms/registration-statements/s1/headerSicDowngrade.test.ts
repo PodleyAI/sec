@@ -39,12 +39,12 @@ function body(summary: string): string {
   ].join("");
 }
 
-function runArgs(cik: number, accession: string, summary: string) {
+function runArgs(cik: number, accession: string, summary: string, filingDate = "2026-01-01") {
   return {
     cik,
     file_number: "333-1",
     accession_number: accession,
-    filing_date: "2026-01-01",
+    filing_date: filingDate,
     primary_doc: `${accession}.txt`,
     form: "S-1",
     formS1: {
@@ -232,6 +232,17 @@ describe("header-SIC downgrade", () => {
     expect(row?.is_spac).toBe(false);
     expect(row?.classifier_source).toBe("newco-listing");
     expect(await new SpacRepo().getSpac(cik)).toBeUndefined();
+  });
+
+  it("still mints the original 6770 S-1 when S-4 + 8-A12B arrive later (Redwoods)", async () => {
+    const cik = 1907223;
+    await seedFiling(cik, "0000000000-22-000010", "8-A12B", "2022-03-30");
+    await seedFiling(cik, "0000000000-23-000011", "S-4", "2023-08-04");
+    await processFormS1(runArgs(cik, "0000000000-22-000012", BLANK_CHECK_SUMMARY, "2022-03-10"));
+    const row = await new S1ClassificationRepo().get("S-1", "0000000000-22-000012");
+    expect(row?.is_spac).toBe(true);
+    expect(row?.classifier_source).toBe("sgml-header");
+    expect(await new SpacRepo().getSpac(cik)).toBeDefined();
   });
 
   it("still mints when the CIK has only an 8-A12B (SPAC IPO listing)", async () => {

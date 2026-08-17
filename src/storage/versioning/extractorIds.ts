@@ -221,6 +221,13 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   // carries cik / form / filing_date. RW WD (undo of a withdrawal) is catalogued
   // but not extracted — reversing a withdrawal is not the same event.
   RW: "RW",
+  "SEC STAFF ACTION": "RW",
+  // FPI close filing (the 8-K 2.01 equivalent). Metadata-only: classified
+  // alongside Form 25/15 so a 20-F after a pending vote / nearby 25-NSE / F-4
+  // records `completed` rather than being skipped. An annual 20-F with no
+  // close signal is `ignore` and writes nothing.
+  "20-F": "25-15",
+  "20-F/A": "25-15",
 };
 
 /**

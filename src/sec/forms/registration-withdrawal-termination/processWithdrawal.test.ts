@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -169,5 +170,121 @@ describe("processWithdrawal", () => {
     expect(
       await repo.getEvents(53).then((e) => e.filter((x) => x.event_type === "withdrawal"))
     ).toEqual([]);
+  });
+
+  it("records a staff action as withdrawal when it is the last registration-family filing (1Sharpe)", async () => {
+    await seedRegistered(1849470);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1849470,
+      accession_number: "0001104659-21-035696",
+      form: "S-1",
+      primary_doc: "s1.htm",
+      file_number: "",
+      filing_date: "2021-03-12",
+      acceptance_date: "2021-03-12T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1849470,
+      accession_number: "9999999997-22-000099",
+      form: "SEC STAFF ACTION",
+      primary_doc: null,
+      file_number: "",
+      filing_date: "2022-01-14",
+      acceptance_date: "2022-01-14T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+
+    await processWithdrawal({
+      cik: 1849470,
+      accession_number: "9999999997-22-000099",
+      form: "SEC STAFF ACTION",
+      filing_date: "2022-01-14",
+    });
+
+    const events = await repo.getEvents(1849470);
+    expect(events.filter((e) => e.event_type === "withdrawal")).toHaveLength(1);
+    expect((await repo.getSpac(1849470))?.status).toBe("withdrawn");
+  });
+
+  it("does not treat a staff action as withdrawn when a later S-1 exists (Iron Horse)", async () => {
+    await seedRegistered(1901203);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1901203,
+      accession_number: "0000930413-22-001846",
+      form: "S-1",
+      primary_doc: "s1.htm",
+      file_number: "",
+      filing_date: "2022-11-01",
+      acceptance_date: "2022-11-01T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1901203,
+      accession_number: "9999999997-23-004366",
+      form: "SEC STAFF ACTION",
+      primary_doc: null,
+      file_number: "",
+      filing_date: "2023-09-29",
+      acceptance_date: "2023-09-29T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 1901203,
+      accession_number: "0000930413-23-002329",
+      form: "S-1",
+      primary_doc: "s1.htm",
+      file_number: "",
+      filing_date: "2023-10-19",
+      acceptance_date: "2023-10-19T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+
+    await processWithdrawal({
+      cik: 1901203,
+      accession_number: "9999999997-23-004366",
+      form: "SEC STAFF ACTION",
+      filing_date: "2023-09-29",
+    });
+
+    expect(
+      await repo.getEvents(1901203).then((e) => e.filter((x) => x.event_type === "withdrawal"))
+    ).toEqual([]);
+    expect((await repo.getSpac(1901203))?.status).toBe("registered");
   });
 });
