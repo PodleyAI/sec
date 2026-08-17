@@ -45,4 +45,6 @@ export interface SponsorPromoteRow {
   trust_total: number | null;
   confidence: number;
   source_span: string;
+  /** Persist-only. Set by the markdown-table parser; never part of the model schema. */
+  source?: "deterministic";
 }
