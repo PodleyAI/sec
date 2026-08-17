@@ -414,6 +414,21 @@ describe("cleanAddress", () => {
       expect(result).toBeUndefined();
     });
 
+    it("keeps a foreign address whose EDGAR city is null (UK X0 / HK K3 / BVI D8)", () => {
+      const result = normalizeAddress({
+        street1: "1 Canada Square",
+        city: null,
+        stateOrCountry: "X0",
+        zipCode: "E14 5AB",
+        isForeignLocation: true,
+      });
+      expect(result).toBeDefined();
+      expect(result!.country_code).toBe("GB");
+      expect(result!.state_or_country).toBe("X0");
+      expect(result!.street1).toBe("1 Canada Square");
+      expect(result!.city).toBe("UNITED KINGDOM");
+    });
+
     it("should return undefined when no street address is provided", () => {
       const input = {
         street1: null,

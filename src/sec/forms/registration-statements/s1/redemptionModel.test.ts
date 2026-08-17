@@ -53,20 +53,26 @@ describe("getRedemptionModelId", () => {
 describe("getRedemptionModelIds", () => {
   it("inherits the full SEC_MODEL_DEFAULT list when the override is unset", () => {
     delete process.env[MODEL_ENV];
-    process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6";
-    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
+    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);
   });
 
-  it("keeps a set override first and appends remaining default ids as fallbacks", () => {
+  it("keeps grok/deepseek fallbacks — libs enforces the schema even when json_schema is unavailable", () => {
+    delete process.env[MODEL_ENV];
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6,deepseek-v4-flash";
+    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6", "deepseek-v4-flash"]);
+  });
+
+  it("keeps a set override first and appends remaining schema-enforced default ids", () => {
     process.env[MODEL_ENV] = "gpt-5.6-luna";
-    process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6";
-    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
+    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);
   });
 
   it("does not duplicate ids already present in the override", () => {
-    process.env[MODEL_ENV] = "gpt-5.6-luna,grok-4.6";
-    process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6";
-    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
+    process.env[MODEL_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
+    expect(getRedemptionModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);
   });
 });
 

@@ -7,6 +7,8 @@
 import { globalServiceRegistry } from "workglow";
 import {
   EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN,
+  EXPECTED_NEGATIVE_EXTRACTOR_IDS,
+  EXPECTED_NEGATIVE_REASON_CODES,
   MODEL_ERROR_REASON_CODES,
   NONDETERMINISTIC_REASON_CODES,
   NONDETERMINISTIC_RETRY_ATTEMPTS,
@@ -17,9 +19,18 @@ import {
 
 const MODEL_ERROR_REASONS: ReadonlySet<string> = new Set(MODEL_ERROR_REASON_CODES);
 const NONDETERMINISTIC_REASONS: ReadonlySet<string> = new Set(NONDETERMINISTIC_REASON_CODES);
+const EXPECTED_NEGATIVE_EXTRACTORS: ReadonlySet<string> = new Set(EXPECTED_NEGATIVE_EXTRACTOR_IDS);
+const EXPECTED_NEGATIVE_REASONS: ReadonlySet<string> = new Set(EXPECTED_NEGATIVE_REASON_CODES);
 
 /** Ids per `in`-list query. SQLite binds one parameter per value. */
 const MAX_IDS_PER_QUERY = 900;
+
+export function isExpectedNegativeDeadLetter(row: ExtractionDeadLetter): boolean {
+  return (
+    EXPECTED_NEGATIVE_EXTRACTORS.has(row.extractor_id) &&
+    EXPECTED_NEGATIVE_REASONS.has(row.reason_code)
+  );
+}
 
 export function isEligibleDeadLetter(
   row: ExtractionDeadLetter,
@@ -28,6 +39,7 @@ export function isEligibleDeadLetter(
   return (
     row.failed_extractor_version !== currentVersion ||
     MODEL_ERROR_REASONS.has(row.reason_code) ||
+    isExpectedNegativeDeadLetter(row) ||
     (NONDETERMINISTIC_REASONS.has(row.reason_code) &&
       row.attempts < NONDETERMINISTIC_RETRY_ATTEMPTS)
   );
@@ -156,13 +168,15 @@ export class ExtractionDeadLetterRepo {
   }
 
   /**
-   * Pending entries eligible for retry. Three ways in:
+   * Pending entries eligible for retry. Four ways in:
    *
    * - the failing version differs from the current version — the usual
    *   version-fixable path;
    * - the reason code is a model/provider-availability error
    *   ({@link MODEL_ERROR_REASON_CODES}), which a version bump does not address:
    *   those recover by re-running once the model is registered, unbounded;
+   * - LOI / redemption `MODEL_EMPTY` / `MODEL_INVALID_OUTPUT` — expected
+   *   negatives that should be marked resolved rather than re-paid as AI;
    * - the reason code is a non-deterministic model response
    *   ({@link NONDETERMINISTIC_REASON_CODES}), which the next call may well get
    *   right — but only for {@link NONDETERMINISTIC_RETRY_ATTEMPTS} recorded

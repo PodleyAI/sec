@@ -47,10 +47,16 @@ describe("getLoiModelId", () => {
 });
 
 describe("getLoiModelIds", () => {
-  it("keeps a set override first and appends remaining default ids as fallbacks", () => {
-    process.env[MODEL_ENV] = "gpt-5.6-luna";
+  it("inherits the full SEC_MODEL_DEFAULT list when the override is unset", () => {
+    delete process.env[MODEL_ENV];
     process.env[DEFAULT_ENV] = "gpt-5.6-luna,grok-4.6";
     expect(getLoiModelIds()).toEqual(["gpt-5.6-luna", "grok-4.6"]);
+  });
+
+  it("keeps a set override first and appends remaining schema-enforced default ids", () => {
+    process.env[MODEL_ENV] = "gpt-5.6-luna";
+    process.env[DEFAULT_ENV] = "gpt-5.6-luna,claude-haiku-4-5";
+    expect(getLoiModelIds()).toEqual(["gpt-5.6-luna", "claude-haiku-4-5"]);
   });
 });
 

@@ -417,6 +417,15 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
     if (secForCountry) state_or_country = secForCountry as StateOrCountryCode;
   }
 
+  // Ownership forms (3/4/5/144) often put the country in stateOrCountry
+  // (UK X0, HK K3, BVI D8) and leave city blank. AddressSchema.city is
+  // NOT NULL, so stand in the country name rather than dropping a street
+  // we otherwise have. A US address with no city is still unusable.
+  if (!city && country_code !== "US") {
+    const countryName = COUNTRY_STATE_CODE_ARRAY.find(([iso]) => iso === country_code)?.[3];
+    if (countryName) city = normalizeCity(countryName);
+  }
+
   // A street and a city are what make an address usable; the country is now
   // always known (US by assumption above), and the region is optional.
   if (!street1 || !city) {

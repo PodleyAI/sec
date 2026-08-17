@@ -154,6 +154,44 @@ describe("ExtractionDeadLetterRepo", () => {
     expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
   });
 
+  it("keeps loi/redemption MODEL_EMPTY and MODEL_INVALID_OUTPUT eligible under the same version", async () => {
+    await repo.record({
+      extractor_id: "redemption",
+      accession_number: "empty-8k",
+      section_name: "redemption",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "loi",
+      accession_number: "invalid-8k",
+      section_name: "loi",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "S-1",
+      accession_number: "s1-empty",
+      section_name: "Management",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    expect((await repo.listEligible("redemption", "1.0.0")).map((r) => r.accession_number)).toEqual([
+      "empty-8k",
+    ]);
+    expect((await repo.listEligible("loi", "1.0.0")).map((r) => r.accession_number)).toEqual([
+      "invalid-8k",
+    ]);
+    expect(await repo.listEligible("S-1", "1.0.0")).toEqual([]);
+  });
+
   it("keeps RATE_LIMITED entries eligible under the same version", async () => {
     // The section never ran: the provider throttled it until its wait budget
     // was spent. Nothing about the extractor needs fixing, so gating the retry

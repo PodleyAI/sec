@@ -439,7 +439,6 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
 
   it("keeps a reporting owner whose foreign address has no city", async () => {
     // EDGAR codes UK/HK/BVI in stateOrCountry (X0/K3/D8) with a null city.
-    // saveAddress throws; the owner must still be observed.
     const accession = "0001493152-26-025476";
     const xml = readFileSync(
       join(__dirname, "mock_data", "form-4", "000149315226025476-primary_doc.xml"),
@@ -469,7 +468,12 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
     const owner = (await new PersonObservationRepo().listByAccession(accession)).find(
       (p) => p.last_name === "GARRETT SCOTT T"
     );
-    expect(owner?.raw_address_id).toBeNull();
+    expect(owner?.raw_address_id).toBeTruthy();
+    const saved = await globalServiceRegistry
+      .get(ADDRESS_REPOSITORY_TOKEN)
+      .get({ address_hash_id: owner!.raw_address_id! });
+    expect(saved?.country_code).toBe("GB");
+    expect(saved?.city).toBe("UNITED KINGDOM");
   });
 
   it("propagates a real address-store failure instead of swallowing it", async () => {

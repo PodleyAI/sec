@@ -213,6 +213,32 @@ describe("processLoi8K", () => {
     expect(run?.success).toBe(true);
   });
 
+  it("auto-resolves MODEL_INVALID_OUTPUT the same as MODEL_EMPTY", async () => {
+    await seedSearchingSpac(73);
+    const registration = registerFakeStructuredProvider([
+      new Error("response did not match schema"),
+    ]);
+    cleanup = registration.unregister;
+
+    await processLoi8K({
+      cik: 73,
+      accession_number: "0000000000-26-000173",
+      filing_date: "2026-02-03",
+      form: "8-K",
+      itemCodes: ["8.01"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new SpacLoiExtractionRepo().getByAccession("0000000000-26-000173")
+    ).toBeUndefined();
+
+    const dl = await new ExtractionDeadLetterRepo().get("loi", "0000000000-26-000173", "loi");
+    expect(dl?.reason_code).toBe("MODEL_INVALID_OUTPUT");
+    expect(dl?.status).toBe("resolved");
+  });
+
   it("writes nothing without a trigger item", async () => {
     await seedSearchingSpac(64);
     const registration = registerFakeStructuredProvider([LOI_PAYLOAD]);

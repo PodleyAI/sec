@@ -13,7 +13,10 @@ import {
   TaskError,
   Workflow,
 } from "workglow";
-import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import {
+  ExtractionDeadLetterRepo,
+  isExpectedNegativeDeadLetter,
+} from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
@@ -65,6 +68,13 @@ export class RetryDeadLettersTask extends Task<
 
     // Group by accession; per-section reconciliation happens inside processForm*.
     const accessions = [...new Set(eligible.map((e) => e.accession_number))];
+    const expectedNegativeOnly = new Set(
+      accessions.filter((accession) =>
+        eligible
+          .filter((e) => e.accession_number === accession)
+          .every(isExpectedNegativeDeadLetter)
+      )
+    );
 
     if (input.dryRun) {
       return { eligibleAccessions: accessions, reprocessed: 0, failed: 0 };
@@ -74,6 +84,13 @@ export class RetryDeadLettersTask extends Task<
     let failed = 0;
     for (const accessionNumber of accessions) {
       if (context.signal?.aborted) throw new TaskAbortedError();
+      if (expectedNegativeOnly.has(accessionNumber)) {
+        for (const row of eligible.filter((e) => e.accession_number === accessionNumber)) {
+          await deadLetters.markResolved(row.extractor_id, row.accession_number, row.section_name);
+        }
+        reprocessed++;
+        continue;
+      }
       // Isolate each accession: ProcessAccessionDocFormTask still throws for
       // failures it cannot attribute to a filing (unknown accession, no form
       // type, no registered extractor or active slot), and a recovery sweep

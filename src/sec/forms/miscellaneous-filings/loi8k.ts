@@ -258,13 +258,17 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
 
   // Unlike the other section extractors, "no LOI reported" is the EXPECTED
   // outcome for most trigger-item 8-Ks (1.01/7.01/8.01 carry all sorts of
-  // announcements). Leaving the MODEL_EMPTY entry pending would flood the
-  // version-gated retry worklist with confident negatives, so auto-resolve it
-  // (the attempts counter keeps the audit trail). Genuine problems —
-  // LOW_CONFIDENCE_ALL, UNVERIFIED_SOURCE_SPAN, NONCE_MISMATCH — stay pending.
+  // announcements). Leaving the MODEL_EMPTY / MODEL_INVALID_OUTPUT entry
+  // pending would flood the version-gated retry worklist with confident
+  // negatives, so auto-resolve it (the attempts counter keeps the audit
+  // trail). Genuine problems — LOW_CONFIDENCE_ALL, UNVERIFIED_SOURCE_SPAN,
+  // NONCE_MISMATCH — stay pending.
   if (persistedRow === null) {
     const entry = await deadLetters.get(EXTRACTOR_ID, accession_number, LOI_SECTION);
-    if (entry?.reason_code === "MODEL_EMPTY") {
+    if (
+      entry?.reason_code === "MODEL_EMPTY" ||
+      entry?.reason_code === "MODEL_INVALID_OUTPUT"
+    ) {
       await deadLetters.markResolved(EXTRACTOR_ID, accession_number, LOI_SECTION);
     }
   }

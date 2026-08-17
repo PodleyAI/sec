@@ -86,6 +86,16 @@ export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR", "RATE_LIMITED"] as const;
 
 /**
+ * 8-K detectors (LOI / redemption) where an empty or schema-invalid response
+ * means "no event reported" — the expected negative for most trigger 8-Ks.
+ * Same-version retryable so a worklist of historical `MODEL_EMPTY` /
+ * `MODEL_INVALID_OUTPUT` entries can be cleared without a version bump.
+ */
+export const EXPECTED_NEGATIVE_EXTRACTOR_IDS = ["loi", "redemption"] as const;
+
+export const EXPECTED_NEGATIVE_REASON_CODES = ["MODEL_EMPTY", "MODEL_INVALID_OUTPUT"] as const;
+
+/**
  * Reason codes describing a **non-deterministic** model response rather than a
  * bug in the extractor: the same filing under the same extractor version can
  * come back clean on the next call. Retrying under the same version is the only

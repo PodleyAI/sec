@@ -138,7 +138,7 @@ describe("processRedemption8K", () => {
     expect(run?.success).toBe(true);
   });
 
-  it("leaves MODEL_INVALID_OUTPUT pending — grok schema failures are not expected negatives", async () => {
+  it("auto-resolves MODEL_INVALID_OUTPUT the same as MODEL_EMPTY — grok schema failures are expected negatives", async () => {
     await seedSpacWithOpenDeal(71);
     const registration = registerFakeStructuredProvider([
       new Error("response did not match schema"),
@@ -165,7 +165,7 @@ describe("processRedemption8K", () => {
       "redemption"
     );
     expect(dl?.reason_code).toBe("MODEL_INVALID_OUTPUT");
-    expect(dl?.status).toBe("pending");
+    expect(dl?.status).toBe("resolved");
   });
 
   it("writes nothing without a trigger item", async () => {

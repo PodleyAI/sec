@@ -44,6 +44,25 @@ describe("RetryDeadLettersTask", () => {
     expect(out.eligibleAccessions).toEqual(["acc-stale"]);
   });
 
+  it("resolves expected-negative 8-K detector entries without reprocessing the filing", async () => {
+    const dl = new ExtractionDeadLetterRepo();
+    await dl.record({
+      extractor_id: "redemption",
+      accession_number: "no-such-filing",
+      section_name: "redemption",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const out = await new RetryDeadLettersTask().run({ extractorId: "redemption" } as never);
+    expect(out.eligibleAccessions).toEqual(["no-such-filing"]);
+    expect(out.reprocessed).toBe(1);
+    expect(out.failed).toBe(0);
+    expect((await dl.get("redemption", "no-such-filing", "redemption"))?.status).toBe("resolved");
+  });
+
   it("releases each accession's owned workflow instead of retaining the whole sweep", async () => {
     const dl = new ExtractionDeadLetterRepo();
     for (let i = 0; i < 5; i++) {
