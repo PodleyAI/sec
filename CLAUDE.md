@@ -1812,6 +1812,23 @@ fetch threw "Fetch returned no text" AFTER the bytes were already cached, and an
 that genuinely needs the text, the 8-K primary-doc slice, reads the cached
 submission back.
 
+The fetch also runs with **`shouldAccumulate: false`**, and that flag is what
+makes `"stream"` mean what it says. The cache sink receives every chunk without
+it, but `StreamProcessor` ALSO tees each `binary-delta` into an in-memory
+accumulator and materializes the whole document at finish — so a command whose
+entire point is not to hold the document still held a full copy of every filing
+in flight, ten at a time. The relaxation that skips the tee
+(`canStreamBinaryToCache`) is computed only for a task the GRAPH schedules,
+which is why the two bulk downloads above get it from `noAccumulation` and this
+one does not: an owned child runs through its own `run()`, where accumulation
+stays on by default because a standalone runner cannot see whether anyone reads
+the value. Here nobody does — the 8-K slice reads the cache file back. Measured
+on a 128 MiB body, the finish event carried the whole thing and peak off-heap
+memory ran ~4x the document; with the flag it carries nothing and the file is
+still written whole. `DownloadSpacCandidateDocsTask.test.ts` asserts the finish
+event has no `body` while deltas did flow, so the property cannot regress into
+a memory-only symptom nothing catches.
+
 `inputToFileName` does not include `response_type`, so this `"stream"` fill and
 a later `"text"` fetch of the same document address the **same** cache path —
 which is what makes the two interchangeable across commands. The streamed copy

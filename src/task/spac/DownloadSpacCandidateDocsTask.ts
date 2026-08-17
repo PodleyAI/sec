@@ -206,6 +206,18 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
    * The seam's contract is therefore that the bytes end up at the cache path,
    * and an override that returns without writing one is a broken seam, not a
    * fetch this task can paper over.
+   *
+   * `shouldAccumulate: false` is what makes `"stream"` mean what it says here,
+   * and it is not a tuning knob. The cache sink already receives every chunk,
+   * but the stream processor ALSO tees each `binary-delta` into an in-memory
+   * accumulator and materializes the whole body at finish — so a fetch that
+   * writes nothing to memory by design still held a full copy of the document,
+   * and this sweep runs {@link FORMS_SWEEP_CONCURRENCY_LIMIT} of them at once.
+   * The relaxation that skips the tee (`canStreamBinaryToCache`) is computed
+   * only for a task the GRAPH schedules; an owned child runs through its own
+   * `run()`, where accumulation is on by default — deliberately, since a
+   * standalone runner cannot see whether anyone reads the value. Here nobody
+   * does: the caller's next step reads the cache file back.
    */
   protected async fetchDoc(
     cik: number,
@@ -220,7 +232,7 @@ export class CacheOneSpacCandidateDocTask extends Task<CacheOneInput, CacheOneOu
       )
     );
     try {
-      await fetchTask.run();
+      await fetchTask.run({}, { shouldAccumulate: false });
     } finally {
       context.disown(fetchTask);
     }
