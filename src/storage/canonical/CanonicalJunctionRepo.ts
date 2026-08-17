@@ -58,6 +58,10 @@ export class CanonicalJunctionRepo<TRow extends CanonicalJunctionRow> {
     this.assocColumn = assocColumn;
   }
 
+  get storage(): ITabularStorage<any, any, TRow> {
+    return this.repo;
+  }
+
   private pk(idValue: string, assocValue: string, resolver_version: string): Record<string, string> {
     return {
       [this.idColumn]: idValue,

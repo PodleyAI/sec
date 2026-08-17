@@ -5,6 +5,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { AnyTabularStorage } from "workglow";
 import type { CanonicalCompanyRepo } from "../storage/canonical/CanonicalCompanyRepo";
 import type { CanonicalCompanyAliasRepo } from "../storage/canonical/CanonicalCompanyAliasRepo";
 import type { CompanyObservation } from "../storage/observation/CompanyObservationSchema";
@@ -56,6 +57,10 @@ export class CompanyResolver {
   private readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
 
   constructor(private opts: CompanyResolverOptions) {}
+
+  enlistedStorages(): AnyTabularStorage[] {
+    return [this.opts.canonicalCompanyRepo.storage, this.opts.canonicalCompanyAliasRepo.storage];
+  }
 
   async resolve(obs: CompanyObservation): Promise<string> {
     const k = companyKey(obs, this.opts.activeResolverVersion);

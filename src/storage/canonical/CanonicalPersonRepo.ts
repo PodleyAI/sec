@@ -31,6 +31,10 @@ export class CanonicalPersonRepo {
       globalServiceRegistry.get(CANONICAL_PERSON_REPOSITORY_TOKEN);
   }
 
+  get storage(): CanonicalPersonRepositoryStorage {
+    return this.repo;
+  }
+
   async create(row: CanonicalPerson): Promise<CanonicalPerson> {
     await this.repo.put(row);
     return row;

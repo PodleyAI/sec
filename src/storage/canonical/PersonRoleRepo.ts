@@ -94,6 +94,10 @@ export class PersonRoleRepo {
     }
   }
 
+  get storage(): PersonRoleRepositoryStorage {
+    return this.repo;
+  }
+
   /**
    * A filing at `filing_date` asserts the person holds `title` at the company.
    *

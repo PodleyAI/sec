@@ -29,6 +29,10 @@ export class PersonIdentityLinkRepo {
       globalServiceRegistry.get(PERSON_IDENTITY_LINK_REPOSITORY_TOKEN);
   }
 
+  get storage(): PersonIdentityLinkRepositoryStorage {
+    return this.repo;
+  }
+
   async upsert(
     observation_id: number,
     resolver_version: string,

@@ -190,6 +190,7 @@ export { parseCikSafely as parseCik } from "./util/parseCik";
 export {
   createServiceToken,
   InMemoryTabularStorage,
+  withConnectionTransaction,
   type AnyTabularStorage,
   type ITabularStorage,
 } from "workglow";

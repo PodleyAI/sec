@@ -29,6 +29,10 @@ export class CompanyIdentityLinkRepo {
       globalServiceRegistry.get(COMPANY_IDENTITY_LINK_REPOSITORY_TOKEN);
   }
 
+  get storage(): CompanyIdentityLinkRepositoryStorage {
+    return this.repo;
+  }
+
   async upsert(
     observation_id: number,
     resolver_version: string,

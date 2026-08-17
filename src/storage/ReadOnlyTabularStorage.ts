@@ -124,7 +124,10 @@ export class ReadOnlyTabularStorage<
   // ── transactions (no-op wrapper) ───────────────────────────────────
   // Run `fn` against this read-only wrapper so writes inside continue to
   // no-op; reads still hit the underlying storage. No real DB transaction
-  // is opened because there is nothing to commit or roll back.
+  // is opened because there is nothing to commit or roll back. Deliberately
+  // omits `runConnectionTransaction`: dry-run wrappers stay best-effort so
+  // `withConnectionTransaction` runs `fn()` without mixing a native handle
+  // with no-op writes.
   withTransaction<T>(fn: (tx: this) => Promise<T>): Promise<T> {
     return fn(this);
   }

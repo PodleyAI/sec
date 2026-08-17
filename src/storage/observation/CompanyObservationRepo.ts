@@ -69,6 +69,10 @@ export class CompanyObservationRepo {
       globalServiceRegistry.get(COMPANY_OBSERVATION_REPOSITORY_TOKEN);
   }
 
+  get storage(): CompanyObservationRepositoryStorage {
+    return this.repo;
+  }
+
   async upsertByNaturalKey(draft: CompanyObservationDraft): Promise<CompanyObservation> {
     const existing = await this.getByNaturalKey(
       draft.accession_number,

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { withConnectionTransaction, type AnyTabularStorage } from "workglow";
 import { normalizePerson } from "../storage/person/PersonNormalization";
 import { normalizeCompanyName } from "../storage/company/CompanyNormalization";
 import { normalizeManagementTitles } from "../sec/forms/registration-statements/s1/normalizeTitle";
@@ -195,7 +196,38 @@ export class EntityObserver {
 
   constructor(private readonly opts: EntityObserverOptions) {}
 
+  private enlistedStorages(kind: "person" | "company"): AnyTabularStorage[] {
+    const fromRepo = (repo: { storage: AnyTabularStorage } | undefined): AnyTabularStorage[] =>
+      repo ? [repo.storage] : [];
+    if (kind === "person") {
+      return [
+        ...fromRepo(this.opts.personObservationRepo),
+        ...fromRepo(this.opts.personObservationTitleRepo),
+        ...fromRepo(this.opts.personIdentityLinkRepo),
+        ...fromRepo(this.opts.personRoleRepo),
+        ...fromRepo(this.opts.canonicalPersonAddressRepo),
+        ...fromRepo(this.opts.canonicalPersonPhoneRepo),
+        ...(this.opts.personResolver?.enlistedStorages() ?? []),
+      ];
+    }
+    return [
+      ...fromRepo(this.opts.companyObservationRepo),
+      ...fromRepo(this.opts.companyIdentityLinkRepo),
+      ...fromRepo(this.opts.canonicalCompanyAddressRepo),
+      ...fromRepo(this.opts.canonicalCompanyPhoneRepo),
+      ...(this.opts.companyResolver?.enlistedStorages() ?? []),
+    ];
+  }
+
   async observePerson(
+    claim: PersonClaim
+  ): Promise<{ canonical_person_id: string; observation_id: number }> {
+    return withConnectionTransaction(this.enlistedStorages("person"), () =>
+      this.observePersonBody(claim)
+    );
+  }
+
+  private async observePersonBody(
     claim: PersonClaim
   ): Promise<{ canonical_person_id: string; observation_id: number }> {
     // Re-observing this natural key would blindly +1 the address/phone
@@ -384,6 +416,14 @@ export class EntityObserver {
   }
 
   async observeCompany(
+    claim: CompanyClaim
+  ): Promise<{ canonical_company_id: string; observation_id: number }> {
+    return withConnectionTransaction(this.enlistedStorages("company"), () =>
+      this.observeCompanyBody(claim)
+    );
+  }
+
+  private async observeCompanyBody(
     claim: CompanyClaim
   ): Promise<{ canonical_company_id: string; observation_id: number }> {
     // Idempotent replay: drop the prior contribution before re-recording.

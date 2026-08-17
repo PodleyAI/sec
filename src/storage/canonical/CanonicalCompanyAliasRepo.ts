@@ -24,6 +24,10 @@ export class CanonicalCompanyAliasRepo {
       globalServiceRegistry.get(CANONICAL_COMPANY_ALIAS_REPOSITORY_TOKEN);
   }
 
+  get storage(): CanonicalCompanyAliasRepositoryStorage {
+    return this.repo;
+  }
+
   async add(
     alias_canonical_id: string,
     target_canonical_id: string,

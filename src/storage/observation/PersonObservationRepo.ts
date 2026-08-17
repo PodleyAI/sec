@@ -83,6 +83,10 @@ export class PersonObservationRepo {
       globalServiceRegistry.get(PERSON_OBSERVATION_REPOSITORY_TOKEN);
   }
 
+  get storage(): PersonObservationRepositoryStorage {
+    return this.repo;
+  }
+
   async upsertByNaturalKey(draft: PersonObservationDraft): Promise<PersonObservation> {
     const existing = await this.getByNaturalKey(
       draft.accession_number,

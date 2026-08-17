@@ -5,6 +5,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { AnyTabularStorage } from "workglow";
 import type { CanonicalPersonRepo } from "../storage/canonical/CanonicalPersonRepo";
 import type { CanonicalPersonAliasRepo } from "../storage/canonical/CanonicalPersonAliasRepo";
 import type { PersonObservation } from "../storage/observation/PersonObservationSchema";
@@ -69,6 +70,10 @@ export class PersonResolver {
   private readonly _keyMutexes = new Map<string, { mutex: AsyncMutex; refs: number }>();
 
   constructor(private opts: PersonResolverOptions) {}
+
+  enlistedStorages(): AnyTabularStorage[] {
+    return [this.opts.canonicalPersonRepo.storage, this.opts.canonicalPersonAliasRepo.storage];
+  }
 
   async resolve(obs: PersonObservation): Promise<string> {
     const key = personKey(obs, this.opts.activeResolverVersion);

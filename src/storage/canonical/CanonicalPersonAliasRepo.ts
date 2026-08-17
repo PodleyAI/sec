@@ -24,6 +24,10 @@ export class CanonicalPersonAliasRepo {
       globalServiceRegistry.get(CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN);
   }
 
+  get storage(): CanonicalPersonAliasRepositoryStorage {
+    return this.repo;
+  }
+
   async add(
     alias_canonical_id: string,
     target_canonical_id: string,

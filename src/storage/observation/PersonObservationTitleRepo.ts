@@ -53,6 +53,10 @@ export class PersonObservationTitleRepo {
       globalServiceRegistry.get(PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN);
   }
 
+  get storage(): PersonObservationTitleRepositoryStorage {
+    return this.repo;
+  }
+
   /**
    * Replace an observation's title rows with `titles` (empties dropped,
    * case-insensitively de-duplicated, clamped to the column width). A
