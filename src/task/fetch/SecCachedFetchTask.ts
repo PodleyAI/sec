@@ -94,6 +94,54 @@ function declaresBinaryBodyPort(schema: unknown): boolean {
   return properties?.body?.["x-stream"] === "binary";
 }
 
+/**
+ * Latch for {@link warnFetchCacheDisabled}: the warning describes a
+ * process-wide configuration state, not a property of one task, and a sweep
+ * constructs thousands of fetch tasks. Warning per construction would bury the
+ * message it is trying to deliver.
+ */
+let warnedFetchCacheDisabled = false;
+
+/** Resets the {@link warnedFetchCacheDisabled} latch. Test seam only. */
+export function resetFetchCacheWarningForTesting(): void {
+  warnedFetchCacheDisabled = false;
+}
+
+/**
+ * Says out loud that no fetch cache was installed.
+ *
+ * Without `SEC_RAW_DATA_FOLDER` there is no cache object at all — no
+ * `getOutput`, no `saveOutput`, no streaming sink. Every fetch re-downloads and
+ * nothing is ever read from disk, while each fetch still reports success and
+ * each ingest still completes. That combination is the problem: the failure is
+ * invisible at every layer that could notice it.
+ *
+ * It is not hypothetical. Dropping this one line from an `.env.local` silently
+ * disabled caching across the whole CLI, and the symptom that eventually
+ * surfaced — "archives download fine but no file is ever written" — read as a
+ * cache bug and cost a long hunt through the storage layer before anyone
+ * suspected configuration. The wasted work is not only local: this folder is
+ * also the root for `accessiondocs/`, so losing it re-fetches every document
+ * from EDGAR under its rate limit.
+ *
+ * A warning rather than a throw, deliberately. Running without a raw-data
+ * folder is legitimate — unit tests do it constantly, and so does any caller
+ * that only wants the fetched value — so refusing would break working callers
+ * to report a condition most of them chose. The consumer that genuinely depends
+ * on the cache should assert for itself, the way `sec spac download` and the
+ * ADV archive fetch both do.
+ */
+function warnFetchCacheDisabled(): void {
+  if (warnedFetchCacheDisabled) return;
+  warnedFetchCacheDisabled = true;
+  console.warn(
+    `SecCachedFetchTask: SEC_RAW_DATA_FOLDER is not configured, so NO fetch cache is installed — ` +
+      `every fetch re-downloads and nothing is read from disk, with no other symptom. Set it (env ` +
+      `var or .env.local) to restore caching; it is also the root for accessiondocs/, so leaving ` +
+      `it unset re-fetches every document from EDGAR under its rate limit. Warned once per process.`
+  );
+}
+
 export abstract class SecCachedFetchTask<
   I = SecCachedFetchTaskInput,
   O extends TaskOutput = FetchUrlTaskOutput,
@@ -152,6 +200,9 @@ export abstract class SecCachedFetchTask<
       (this.runInputData as FetchUrlTaskInput).response_type = response_type;
     }
 
+    // See {@link warnFetchCacheDisabled} — checked below, after the schema
+    // hazard, so a task that is going to throw outright does not also warn.
+    //
     // Enforce the hazard {@link SecCachedFetchTask.outputSchema} documents,
     // rather than leaving it to whoever reads that comment. `"stream"`
     // materializes no derived port, so the streaming sink is the ONLY writer —
@@ -181,6 +232,8 @@ export abstract class SecCachedFetchTask<
         folderPath: folderPath,
         inputToFileName: this.inputToFileName.bind(this),
       });
+    } else {
+      warnFetchCacheDisabled();
     }
   }
 
