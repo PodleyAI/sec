@@ -31,7 +31,12 @@ export const AddressSchema = Type.Object({
   street1: Type.String({ description: "First line of the address" }),
   street2: TypeNullable(Type.String({ description: "Second line of the address" })),
   street3: TypeNullable(Type.String({ description: "Third line of the address" })),
-  city: Type.String({ description: "City of the address" }),
+  // Nullable: the ownership forms (3/4/5/144) routinely put the country in
+  // `stateOrCountry` and leave the city blank, and there is no honest value to
+  // stand in — the country name is not a city, and hashing it produced
+  // addresses like "1 Canada Square, UNITED KINGDOM, United Kingdom". A blank
+  // city is recorded as blank; the street is what makes the address usable.
+  city: TypeNullable(Type.String({ description: "City of the address" })),
   // Nullable: a US address whose filer left the state blank is kept as
   // `country_code: "US"` with no region rather than dropped — see
   // `normalizeAddress`.

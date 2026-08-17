@@ -473,7 +473,11 @@ describe("OwnershipDocument storage (Forms 3/4/5)", () => {
       .get(ADDRESS_REPOSITORY_TOKEN)
       .get({ address_hash_id: owner!.raw_address_id! });
     expect(saved?.country_code).toBe("GB");
-    expect(saved?.city).toBe("UNITED KINGDOM");
+    // The address is KEPT (the street is what makes it usable) with the city
+    // recorded as blank, rather than standing in the country name — which is
+    // not a city and, being hash material, went into `address_hash_id`.
+    expect(saved?.city).toBeNull();
+    expect(saved?.address_hash_id.toLowerCase()).not.toContain("united kingdom");
   });
 
   it("propagates a real address-store failure instead of swallowing it", async () => {

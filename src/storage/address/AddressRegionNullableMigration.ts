@@ -12,19 +12,30 @@ import { getPgPool } from "../../util/pg";
 import { ADDRESS_REPOSITORY_TOKEN, AddressPrimaryKeyNames, AddressSchema } from "./AddressSchema";
 
 const TABLE = "addresses";
+/**
+ * Deliberately still named for the region even though this now relaxes two
+ * columns: the resume probe below looks for exactly this table, so a database
+ * stranded mid-rebuild by an older build must keep being found by it. Renaming
+ * the sentinel abandons those rows.
+ */
 const LEGACY_TABLE = "addresses__legacy_region";
-const COLUMN = "state_or_country";
+/** Every column this rebuild relaxes from NOT NULL to nullable. */
+const NULLABLE_COLUMNS = ["state_or_country", "city"] as const;
+const COLUMN_LIST = NULLABLE_COLUMNS.join(", ");
 /** Single-column PK, so the resume-path merge can anti-join on it. */
 const PRIMARY_KEY = AddressPrimaryKeyNames[0];
 
 /**
- * Relaxes `addresses.state_or_country` from NOT NULL to nullable.
+ * Relaxes every column in {@link NULLABLE_COLUMNS} from NOT NULL to nullable —
+ * not only the region the function name records.
  *
- * A US address whose filer left the state blank is now kept as
- * `country_code: "US"` with a null region instead of being dropped (see
- * `normalizeAddress`), so the column has to accept null. `CREATE TABLE IF NOT
- * EXISTS` never alters an existing table, so a database set up before that
- * change keeps the NOT NULL column and every such address fails to store.
+ * A US address whose filer left the state blank is kept as
+ * `country_code: "US"` with a null region instead of being dropped, and a
+ * foreign address whose filer left the city blank is kept with a null city
+ * rather than one invented from the country name (see `normalizeAddress`), so
+ * both columns have to accept null. `CREATE TABLE IF NOT EXISTS` never alters
+ * an existing table, so a database set up before those changes keeps the NOT
+ * NULL columns and every such address fails to store.
  *
  * Unlike the legacy 8-K events table, addresses cannot simply be dropped and
  * re-extracted: entity/canonical junction rows reference `address_hash_id`.
@@ -95,6 +106,18 @@ function columnsOf(db: SqliteDb, table: string): { name: string; notnull: number
   return db.prepare<[], { name: string; notnull: number }>(`PRAGMA table_info(${table})`).all();
 }
 
+/**
+ * The target columns the table still declares NOT NULL. A column the table
+ * does not carry at all is not pending — it is an older shape this migration
+ * does not know how to fill.
+ */
+function stillNotNull(columns: readonly { name: string; notnull: number }[]): string[] {
+  return NULLABLE_COLUMNS.filter((target) => {
+    const column = columns.find((c) => c.name === target);
+    return column !== undefined && column.notnull !== 0;
+  });
+}
+
 function rowCount(db: SqliteDb, table: string): number {
   const row = db.prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${table}`).get();
   return Number(row?.n ?? 0);
@@ -141,7 +164,7 @@ function assertCopyableColumns(db: SqliteDb, table: string): void {
   const missing = Object.keys(AddressSchema.properties).filter((c) => !existing.has(c));
   if (missing.length > 0) {
     throw new Error(
-      `db setup: cannot rebuild \`${TABLE}\` to relax \`${COLUMN}\` — \`${table}\` is ` +
+      `db setup: cannot rebuild \`${TABLE}\` to relax ${COLUMN_LIST} — \`${table}\` is ` +
         `missing column(s) ${missing.join(", ")} that the current schema declares. ` +
         `Add them (or drop and re-ingest \`${TABLE}\`) before re-running \`sec db setup\`.`
     );
@@ -245,30 +268,26 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
     assertCopyableColumns(db, LEGACY_TABLE);
     db.exec(`BEGIN IMMEDIATE`);
     try {
-      // The live table may be absent, or present but still legacy-shaped (the
-      // rename never happened for it). Either way it has to be replaced with a
-      // fresh table at the current schema before copying back — but only an
-      // EMPTY one may be dropped to get there. A populated legacy-shaped table
-      // beside a stranded legacy table is a state no build in this file
-      // produces (`setupDatabase()` only ever creates the current, nullable
-      // schema), and dropping rows to tidy up a shape is the very failure this
-      // rebuild exists to prevent, so refuse and let an operator reconcile.
+      // The live table may be absent, or present but still declaring one of
+      // the targets NOT NULL. An EMPTY one is dropped so `setupDatabase()`
+      // recreates it at the current schema straight away.
+      //
+      // A POPULATED one is kept and merged into, even though its shape is
+      // stale. It used to be refused as "a state no build in this file
+      // produces" — true when this relaxed a single column, and no longer:
+      // a database that completed the region-only migration carries a live
+      // table with a nullable region and a NOT NULL `city`, which is exactly
+      // this shape. Dropping it would discard rows and refusing would strand a
+      // database that is merely one release behind, so the merge runs and the
+      // fall-through below performs the ordinary rebuild that relaxes whatever
+      // is still pending.
       const live = tableExists(db, TABLE) ? columnsOf(db, TABLE) : undefined;
-      const liveRegion = live?.find((c) => c.name === COLUMN);
-      if (live !== undefined && liveRegion !== undefined && liveRegion.notnull !== 0) {
-        const liveRows = rowCount(db, TABLE);
-        if (liveRows > 0) {
-          throw new Error(
-            `\`${TABLE}\` still declares \`${COLUMN}\` NOT NULL and holds ${liveRows} row(s) ` +
-              `while \`${LEGACY_TABLE}\` holds ${stranded} — two populated copies, and no way ` +
-              `to tell which rows are current. Reconcile them by hand, then re-run ` +
-              `\`sec db setup\`.`
-          );
-        }
+      if (live !== undefined && stillNotNull(live).length > 0 && rowCount(db, TABLE) === 0) {
         db.exec(`DROP TABLE ${TABLE}`);
       }
-      // A live table at the current schema is KEPT, populated or not:
-      // `copyBackAndDropLegacy` merges the legacy rows into it.
+      // A live table that is kept — at the current schema or one release
+      // behind — has the legacy rows merged into it by
+      // `copyBackAndDropLegacy`.
       dropCarriedOverIndexes(db);
       // Safe to call inside the transaction: `createStorage` passes no
       // `tabularMigrations`, so setupDatabase() is only CREATE TABLE IF NOT
@@ -283,16 +302,17 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
       rollbackQuietly(db);
       throw wrapRebuildError(err);
     }
-    return;
+    // Deliberately no `return`: the merged table can still be one release
+    // behind on a column (a live table kept above), and the ordinary rebuild
+    // below is what relaxes it. It is a no-op when nothing is pending.
   }
 
   if (!tableExists(db, TABLE)) return;
 
-  const columns = columnsOf(db, TABLE);
-  const region = columns.find((c) => c.name === COLUMN);
-  // Column absent entirely (older shape than this migration knows) or already
-  // nullable → nothing to do.
-  if (!region || region.notnull === 0) return;
+  // Every target column absent entirely (older shape than this migration
+  // knows) or already nullable → nothing to do.
+  const pending = stillNotNull(columnsOf(db, TABLE));
+  if (pending.length === 0) return;
 
   assertCopyableColumns(db, TABLE);
 
@@ -303,13 +323,15 @@ async function rebuildSqlite(db: SqliteDb): Promise<void> {
   try {
     db.exec(`ALTER TABLE ${TABLE} RENAME TO ${LEGACY_TABLE}`);
     dropCarriedOverIndexes(db);
-    // Recreate `addresses` at the current schema (nullable region).
+    // Recreate `addresses` at the current schema (nullable targets).
     // setupAllDatabases calls this again right after; the second call is a
     // no-op. Safe inside the transaction — see the note on the resume path.
     await globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN).setupDatabase();
     const copied = copyBackAndDropLegacy(db);
     db.exec(`COMMIT`);
-    console.warn(`db setup: rebuilt \`${TABLE}\` with a nullable \`${COLUMN}\` (${copied} rows)`);
+    console.warn(
+      `db setup: rebuilt \`${TABLE}\` with nullable ${pending.join(", ")} (${copied} rows)`
+    );
   } catch (err) {
     rollbackQuietly(db);
     throw wrapRebuildError(err);
@@ -332,7 +354,7 @@ function rollbackQuietly(db: SqliteDb): void {
 function wrapRebuildError(err: unknown): Error {
   const msg = err instanceof Error ? err.message : String(err);
   const wrapped = new Error(
-    `db setup: rebuilding \`${TABLE}\` to relax \`${COLUMN}\` failed and was rolled back — ` +
+    `db setup: rebuilding \`${TABLE}\` to relax ${COLUMN_LIST} failed and was rolled back — ` +
       `no rows were lost, \`${TABLE}\` is unchanged. Cause: ${msg}`
   );
   if (err instanceof Error) wrapped.cause = err;
@@ -346,16 +368,18 @@ async function migratePostgres(): Promise<void> {
     // Scoped to `current_schema()`: `information_schema` spans every schema the
     // role can see, so a same-named table in another schema would otherwise
     // decide this probe while the ALTER below resolves through the search_path.
-    const info = await client.query(
-      `SELECT is_nullable
-         FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = $1 AND column_name = $2`,
-      [TABLE, COLUMN]
-    );
-    // Table/column absent (nothing created yet) or already nullable → skip.
-    if (info.rowCount === 0 || info.rows[0]?.is_nullable !== "NO") return;
-    await client.query(`ALTER TABLE "${TABLE}" ALTER COLUMN "${COLUMN}" DROP NOT NULL`);
+    for (const column of NULLABLE_COLUMNS) {
+      const info = await client.query(
+        `SELECT is_nullable
+           FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = $1 AND column_name = $2`,
+        [TABLE, column]
+      );
+      // Table/column absent (nothing created yet) or already nullable → skip.
+      if (info.rowCount === 0 || info.rows[0]?.is_nullable !== "NO") continue;
+      await client.query(`ALTER TABLE "${TABLE}" ALTER COLUMN "${column}" DROP NOT NULL`);
+    }
   } finally {
     client.release();
   }
