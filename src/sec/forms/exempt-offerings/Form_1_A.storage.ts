@@ -627,6 +627,10 @@ export async function processForm1A({
     aggregate_offering_price_holders: null,
     issuer_aggregate_offering: numScalar(summaryInfo.issuerAggregateOffering),
     security_holder_aggregate: numScalar(summaryInfo.securityHolderAggegate),
+    // The other two components of the total. `securityHolderAggegate` is the
+    // SEC's own spelling in the XSD, not a typo here.
+    qualification_offering_aggregate: numScalar(summaryInfo.qualificationOfferingAggregate),
+    concurrent_offering_aggregate: numScalar(summaryInfo.concurrentOfferingAggregate),
     total_aggregate_offering: numScalar(summaryInfo.totalAggregateOffering),
     securities_offered: summaryInfo.securitiesOffered,
     outstanding_securities: summaryInfo.outstandingSecurities ?? null,

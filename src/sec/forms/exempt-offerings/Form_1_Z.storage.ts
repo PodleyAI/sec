@@ -114,6 +114,9 @@ async function processOfferingSummaries(
       aggregate_offering_price_holders: numScalar(summaryInfo.portionSecuritiesSoldSecurityholders),
       issuer_aggregate_offering: null,
       security_holder_aggregate: null,
+      // Only Form 1-A states the offering breakdown; the reporting forms do not.
+      qualification_offering_aggregate: null,
+      concurrent_offering_aggregate: null,
       total_aggregate_offering: null,
       securities_offered: null,
       outstanding_securities: null,

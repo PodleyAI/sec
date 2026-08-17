@@ -76,6 +76,30 @@ export const RegAOfferingHistorySchema = Type.Object({
       description: "Security holder aggregate amount (Form 1-A)",
     })
   ),
+  /**
+   * The other two components of the Form 1-A offering total.
+   *
+   * `totalAggregateOffering` is the sum of FOUR figures, not two: the issuer's
+   * own raise, the selling security holders', securities qualified within the
+   * last 12 months, and any concurrent offering. Persisting only the first two
+   * left the total unreconcilable on 1,346 rows — XY (CIK 1577351) files
+   * 8.00 + 44,178,387.90 + 5,219,309.10 + 16,966,248.00 = 66,363,953.00, and
+   * without these two the arithmetic is short by $22.2M.
+   *
+   * They matter beyond the arithmetic: both count against the Reg A annual
+   * offering cap, so the total alone does not say how much headroom an issuer
+   * has left.
+   */
+  qualification_offering_aggregate: TypeNullable(
+    Type.Number({
+      description: "Aggregate qualified within the last 12 months (Form 1-A)",
+    })
+  ),
+  concurrent_offering_aggregate: TypeNullable(
+    Type.Number({
+      description: "Aggregate offered concurrently in another offering (Form 1-A)",
+    })
+  ),
   total_aggregate_offering: TypeNullable(
     Type.Number({
       description: "Total aggregate offering amount (Form 1-A)",
