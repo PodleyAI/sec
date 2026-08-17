@@ -414,7 +414,10 @@ describe("cleanAddress", () => {
       expect(result).toBeUndefined();
     });
 
-    it("keeps a foreign address whose EDGAR city is null (UK X0 / HK K3 / BVI D8)", () => {
+    it("stores a NULL city for a foreign address, so the hash carries no invented segment", () => {
+      // Ownership forms (3/4/5/144) put the country in stateOrCountry and leave
+      // the city blank. The country name was standing in, which is not a city
+      // and is hash material: "1 Canada Square, UNITED KINGDOM, United Kingdom".
       const result = normalizeAddress({
         street1: "1 Canada Square",
         city: null,
@@ -426,7 +429,43 @@ describe("cleanAddress", () => {
       expect(result!.country_code).toBe("GB");
       expect(result!.state_or_country).toBe("X0");
       expect(result!.street1).toBe("1 Canada Square");
-      expect(result!.city).toBe("UNITED KINGDOM");
+      expect(result!.city).toBeNull();
+      // Asserted on the hash too: a re-introduction by some other route would
+      // still show up as a country name in the identity key.
+      expect(result!.address_hash_id.toLowerCase()).not.toContain("united kingdom");
+    });
+
+    it("does not resolve American Samoa through the US-territory row", () => {
+      // `COUNTRY_STATE_CODE_ARRAY` carries AS twice — ["AS","B5","American
+      // Samoa","United States"] before ["AS","B5","","American Samoa"] — so a
+      // `find` on the ISO code takes the first and the country name read
+      // "United States". Same shape for GU / MP / VI / UM. Kept after the
+      // stand-in was deleted: it pins the find-takes-the-first-row hazard.
+      const result = normalizeAddress({
+        street1: "1 Main Rd",
+        city: null,
+        stateOrCountry: "B5",
+      });
+      expect(result).toBeDefined();
+      expect(result!.country_code).toBe("AS");
+      expect(result!.city).toBeNull();
+    });
+
+    it("still rejects a US address with no city", () => {
+      const result = normalizeAddress({
+        street1: "123 Main St",
+        city: null,
+        stateOrCountry: "NY",
+        zipCode: "10001",
+      });
+      expect(result).toBeUndefined();
+    });
+
+    it("still rejects an address with no street, foreign or not", () => {
+      expect(
+        normalizeAddress({ street1: null, city: "New York", stateOrCountry: "NY" })
+      ).toBeUndefined();
+      expect(normalizeAddress({ street1: null, city: null, stateOrCountry: "X0" })).toBeUndefined();
     });
 
     it("should return undefined when no street address is provided", () => {

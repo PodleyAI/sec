@@ -64,13 +64,20 @@ function tableExists(name: string): boolean {
   return Boolean(row);
 }
 
-function regionColumnIsNullable(): boolean {
+/** Every column the migration relaxes, so each case covers both in one rebuild. */
+const RELAXED_COLUMNS = ["state_or_country", "city"] as const;
+
+function columnIsNullable(name: string): boolean {
   const columns = getDb()
     .prepare<[], { name: string; notnull: number }>(`PRAGMA table_info(addresses)`)
     .all();
-  const region = columns.find((c) => c.name === "state_or_country");
-  expect(region).toBeDefined();
-  return region!.notnull === 0;
+  const column = columns.find((c) => c.name === name);
+  expect(column).toBeDefined();
+  return column!.notnull === 0;
+}
+
+function regionColumnIsNullable(): boolean {
+  return RELAXED_COLUMNS.every((c) => columnIsNullable(c));
 }
 
 describe("migrateAddressRegionNullable (sqlite)", () => {
@@ -253,22 +260,30 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
     expect(kept?.city).toBe("SEATTLE");
   });
 
-  it("refuses rather than dropping a populated legacy-shaped live table", async () => {
+  it("merges rather than dropping a populated stale-shaped live table", async () => {
+    // This used to be refused as a state no build produced — true while only
+    // one column was relaxed. It is produced now: a database that completed
+    // the region-only migration and was then interrupted mid-city-rebuild has
+    // a populated live table declaring `city` NOT NULL beside a stranded
+    // legacy table. Refusing would strand a database one release behind, and
+    // dropping the live table would discard rows, so the two are merged and
+    // the rebuild then relaxes what is still pending.
     const db = getDb();
     db.exec(LEGACY_DDL);
     insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
     db.exec(`ALTER TABLE addresses RENAME TO addresses__legacy_region`);
-    // A second NOT NULL table, populated: two copies and no way to tell which
-    // rows are current. Tidying up the shape by dropping rows is the failure
-    // this whole rebuild exists to prevent.
     db.exec(LEGACY_DDL);
     insertLegacyRow("addresses", "hash-7", "AUSTIN", "TX");
 
     DefaultDI();
-    await expect(setupAllDatabases()).rejects.toThrow(/two populated copies/);
+    await setupAllDatabases();
 
-    expect(addressHashIds()).toEqual(["hash-7"]);
-    expect(tableExists("addresses__legacy_region")).toBe(true);
+    // Neither copy is lost, and the scratch table is gone.
+    expect(addressHashIds()).toEqual(["hash-1", "hash-7"]);
+    expect(tableExists("addresses__legacy_region")).toBe(false);
+    for (const column of RELAXED_COLUMNS) {
+      expect(columnIsNullable(column)).toBe(true);
+    }
   });
 
   it("refuses to destroy a stranded legacy table when the live table is unusable", async () => {
@@ -317,5 +332,75 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
       .get(ADDRESS_REPOSITORY_TOKEN)
       .get({ address_hash_id: "hash-3" });
     expect(stored?.city).toBe("CUPERTINO");
+  });
+
+  it("relaxes BOTH state_or_country and city in one rebuild", async () => {
+    const db = getDb();
+    db.exec(LEGACY_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", "NY");
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    for (const column of RELAXED_COLUMNS) {
+      expect(columnIsNullable(column)).toBe(true);
+    }
+    expect(addressHashIds()).toEqual(["hash-1"]);
+
+    // Both new shapes now store: a US address with no region, and a foreign
+    // address whose filer left the city blank.
+    const repo = globalServiceRegistry.get(ADDRESS_REPOSITORY_TOKEN);
+    await repo.put({
+      address_hash_id: "hash-no-city",
+      street1: "1 Canada Square",
+      street2: null,
+      street3: null,
+      city: null,
+      state_or_country: "X0",
+      country_code: "GB",
+      zip: "E14 5AB",
+    });
+    expect((await repo.get({ address_hash_id: "hash-no-city" }))?.city).toBeNull();
+  });
+
+  it("still resumes from addresses__legacy_region left by the region-only build", async () => {
+    // A database the previous build left mid-rebuild names its scratch table
+    // `addresses__legacy_region`. The constant keeps that name precisely so
+    // those rows are still found — renaming the sentinel abandons them.
+    const db = getDb();
+    db.exec(REBUILT_DDL.replace("addresses", "addresses__legacy_region"));
+    insertLegacyRow("addresses__legacy_region", "hash-1", "NEW YORK", "NY");
+    insertLegacyRow("addresses__legacy_region", "hash-2", "BOSTON", null);
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(addressHashIds()).toEqual(["hash-1", "hash-2"]);
+    for (const column of RELAXED_COLUMNS) {
+      expect(columnIsNullable(column)).toBe(true);
+    }
+    const leftover = db
+      .prepare<
+        [],
+        { name: string }
+      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='addresses__legacy_region'`)
+      .get();
+    expect(leftover).toBeUndefined();
+  });
+
+  it("rebuilds a database that already completed the region-only migration", async () => {
+    // `city` is still NOT NULL there, so the pass is not yet a no-op for it.
+    const db = getDb();
+    db.exec(REBUILT_DDL);
+    insertLegacyRow("addresses", "hash-1", "NEW YORK", null);
+
+    expect(columnIsNullable("state_or_country")).toBe(true);
+    expect(columnIsNullable("city")).toBe(false);
+
+    DefaultDI();
+    await setupAllDatabases();
+
+    expect(columnIsNullable("city")).toBe(true);
+    expect(addressHashIds()).toEqual(["hash-1"]);
   });
 });
