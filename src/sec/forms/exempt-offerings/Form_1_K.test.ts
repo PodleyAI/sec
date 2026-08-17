@@ -34,7 +34,9 @@ describe("Form_1_K parsing test", () => {
 
         try {
           // Parse the Form 1-K
-          const form1K = await Form_1_K.parse("1-K", xmlContent);
+          // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
           // Extract metadata
           const accessionNumber = file.replace("-primary_doc.xml", "");
@@ -99,7 +101,9 @@ describe("Form_1_K parsing test", () => {
       const mockDataDir = join(__dirname, "mock_data", "form-1-k");
       const xmlContent = readFileSync(join(mockDataDir, testFile), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
       // Test header data
       expect(form1K.headerData.submissionType).toBe("1-K");
@@ -180,7 +184,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
         submissionTypes.add(form1K.headerData.submissionType);
       }
 
@@ -202,7 +208,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
         formIndications.add(form1K.formData.item1.formIndication);
       }
 
@@ -220,7 +228,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test shell company flag
         expect(["Y", "N"]).toContain(form1K.headerData.filerInfo.flags.shellCompanyFlag);
@@ -236,7 +246,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test regArule257 flag
         expect(["true", "false"]).toContain(form1K.formData.item2.regArule257);
@@ -254,7 +266,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test state or country in item1
         if (form1K.formData.item1.stateOrCountry) {
@@ -278,7 +292,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test summary info financial data
         if (form1K.formData.summaryInfo) {
@@ -329,7 +345,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test reporting period date
         if (form1K.headerData.filerInfo.reportingPeriod) {
@@ -362,7 +380,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test summary info commission file numbers
         if (form1K.formData.summaryInfo) {
@@ -381,7 +401,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test item1Info IRS numbers
         form1K.formData.item1Info.forEach((info) => {
@@ -398,7 +420,9 @@ describe("Form_1_K parsing test", () => {
 
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        // `parse` returns the cover page AND the PART II statements; these
+          // assertions are about the cover.
+          const form1K = (await Form_1_K.parse("1-K", xmlContent)).cover;
 
         // Test summary info CRD numbers
         if (form1K.formData.summaryInfo) {

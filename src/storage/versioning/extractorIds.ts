@@ -10,7 +10,10 @@ export const EXTRACTOR_IDS = [
   "CFPORTAL",
   "1-A",
   "1-K",
+  "1-SA",
   "1-Z",
+  "1-U",
+  "QUALIF",
   "3",
   "4",
   "5",
@@ -116,8 +119,22 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   "1-A POS": "1-A",
   "1-K": "1-K",
   "1-K/A": "1-K",
+  // Reg A semiannual report. Its financial statements are the whole extractor —
+  // a 1-SA has no XSD cover page, so there is no issuer or offering data behind
+  // it to observe.
+  "1-SA": "1-SA",
+  "1-SA/A": "1-SA",
   "1-Z": "1-Z",
   "1-Z/A": "1-Z",
+  // The SEC's own qualification notice. Metadata-shaped like 25-15 rather than
+  // a filer disclosure, but it carries the authoritative qualification date the
+  // issuer-reported field only supplies for ~9% of offerings.
+  // Reg A current report — the 8-K analogue. Metadata-only: its item codes
+  // arrive in the submissions payload, so the event is known without reading the
+  // document.
+  "1-U": "1-U",
+  "1-U/A": "1-U",
+  QUALIF: "QUALIF",
   "3": "3",
   "3/A": "3",
   "4": "4",

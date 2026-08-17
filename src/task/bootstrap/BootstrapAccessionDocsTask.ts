@@ -16,7 +16,10 @@ import { describeFailureReason } from "../../util/describeFailure";
 import { parseDate } from "../../util/parseDate";
 import { getHttpErrorStatus } from "../fetch/SecFetchJob";
 import { SecFetchTask } from "../fetch/SecFetchTask";
-import { REGISTRATION_PROSPECTUS_FORMS } from "../forms/ProcessAccessionDocFormTask";
+import {
+  REGA_FULL_SUBMISSION_FORMS,
+  REGISTRATION_PROSPECTUS_FORMS,
+} from "../forms/ProcessAccessionDocFormTask";
 import { extractPrimaryDocFromSubmission } from "./feedTarball";
 import {
   FeedTarballExtractTask,
@@ -154,6 +157,12 @@ export class BootstrapAccessionDocsTask extends Task<
     const form = filing.form ?? "";
     const isRegistration = REGISTRATION_PROSPECTUS_FORMS.has(form);
     const isEightK = form === "8-K" || form === "8-K/A";
+    // A Reg A ANNUAL report reads the full submission — its financials are in a
+    // sibling <DOCUMENT>, not the primary doc — so the cache must hold the
+    // `.txt` or every 1-K misses and falls back to the network. A 1-SA is not
+    // in that set: its primary doc IS its report, so the slice above is already
+    // the right file.
+    const isRegAReport = REGA_FULL_SUBMISSION_FORMS.has(form);
     const primaryName = stripXslPrefix(filing.primary_doc ?? "").trim();
     // Pre-2003 EDGAR filings (and some later ones) carry no separate primary
     // document in the submissions metadata — the whole filing IS the `.txt`.
@@ -208,7 +217,7 @@ export class BootstrapAccessionDocsTask extends Task<
     // Stored for forms parsed from the full submission (registration
     // prospectuses, 8-Ks), for any filing lacking a primary document, and as the
     // fallback when a primary doc exists but could not be sliced.
-    if (isRegistration || isEightK || !hasPrimary || !sliced) {
+    if (isRegistration || isEightK || isRegAReport || !hasPrimary || !sliced) {
       const fullSubPath = join(dir, `${accNoDash}-${filing.accession_number}.txt`);
       assertInsideDir(fullSubPath, dir);
       if (force || !existsSync(fullSubPath)) {

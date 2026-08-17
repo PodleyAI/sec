@@ -51,7 +51,8 @@ describe("Form_1_K pipeline", () => {
   ): Promise<IngestedFixture[]> {
     const ingested: IngestedFixture[] = [];
     const summary = await runPipeline(slug, async (file, xml) => {
-      const form1K = await Form_1_K.parse(formCode, xml);
+      const parsed = await Form_1_K.parse(formCode, xml);
+      const form1K = parsed.cover;
       const accession = accessionFromFixtureName(file);
       const primary = form1K.formData.item1Info[0];
       const cik = safeCikToInt(primary?.cik);
@@ -62,7 +63,8 @@ describe("Form_1_K pipeline", () => {
         accession_number: accession,
         filing_date: "2024-01-15",
         primary_doc: file,
-        form1K,
+        form: formCode,
+        form1K: parsed,
       });
       ingested.push({
         file,
@@ -130,7 +132,8 @@ describe("Form_1_K pipeline", () => {
     const sample = files.slice(0, Math.min(5, files.length));
     for (const file of sample) {
       const xml = readFixture("form-1-k-a", file);
-      const form1K = await Form_1_K.parse("1-K/A", xml);
+      const parsed = await Form_1_K.parse("1-K/A", xml);
+      const form1K = parsed.cover;
       const accession = accessionFromFixtureName(file);
       const cik = safeCikToInt(form1K.formData.item1Info[0]?.cik);
       const fileNumber = deriveFileNumber(accession);
@@ -140,7 +143,8 @@ describe("Form_1_K pipeline", () => {
         accession_number: accession,
         filing_date: "2024-01-15",
         primary_doc: file,
-        form1K,
+        form: "1-K/A",
+        form1K: parsed,
       });
     }
     const histories = (await regARepo.offeringHistoryRepository.getAll()) || [];

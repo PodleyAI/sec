@@ -43,7 +43,8 @@ describe("Form_1_K storage test", () => {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
 
         try {
-          const form1K = await Form_1_K.parse("1-K", xmlContent);
+          const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
           const accessionNumber = file.replace("-primary_doc.xml", "");
           const primaryIssuer = form1K.formData.item1Info[0];
           const cik = primaryIssuer?.cik ? parseInt(primaryIssuer.cik) : 12345;
@@ -56,7 +57,8 @@ describe("Form_1_K storage test", () => {
             accession_number: accessionNumber,
             filing_date: "2024-06-15",
             primary_doc: file,
-            form1K,
+            form: "1-K",
+            form1K: parsed,
           });
 
           results.push({ file, success: true });
@@ -95,7 +97,8 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       const primaryIssuer = form1K.formData.item1Info[0];
       const cik = primaryIssuer?.cik ? parseInt(primaryIssuer.cik) : 12345;
       const fileNumber = "024-test-001";
@@ -106,7 +109,8 @@ describe("Form_1_K storage test", () => {
         accession_number: "test-accession-1k",
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
 
       // Check offering was created
@@ -128,7 +132,8 @@ describe("Form_1_K storage test", () => {
       // Find a file that has service providers
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
-        const form1K = await Form_1_K.parse("1-K", xmlContent);
+        const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
 
         if (form1K.formData.summaryInfo?.some((si) => si.auditorSpName || si.legalSpName)) {
           const primaryIssuer = form1K.formData.item1Info[0];
@@ -141,7 +146,8 @@ describe("Form_1_K storage test", () => {
             accession_number: "test-sp-accession",
             filing_date: "2024-06-15",
             primary_doc: file,
-            form1K,
+            form: "1-K",
+            form1K: parsed,
           });
 
           // Service providers may use commissionFileNumber from summary info
@@ -159,7 +165,8 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       const primaryIssuer = form1K.formData.item1Info[0];
       const cik = primaryIssuer?.cik ? parseInt(primaryIssuer.cik) : 12345;
 
@@ -169,7 +176,8 @@ describe("Form_1_K storage test", () => {
         accession_number: "test-addr-accession",
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
 
       const allAddresses = (await addressRepo.addressRepository.getAll()) || [];
@@ -184,7 +192,8 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return; // schema-optional
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "   ";
 
@@ -197,7 +206,8 @@ describe("Form_1_K storage test", () => {
         accession_number: accessionNumber,
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
       const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
@@ -213,7 +223,8 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return;
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "";
 
@@ -226,7 +237,8 @@ describe("Form_1_K storage test", () => {
         accession_number: accessionNumber,
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
       const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
@@ -242,7 +254,8 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return;
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "0";
 
@@ -255,7 +268,8 @@ describe("Form_1_K storage test", () => {
         accession_number: accessionNumber,
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
       const offeringFileNumber = form1K.formData.summaryInfo[0].commissionFileNumber ?? fileNumber;
       const history = await regARepo.offeringHistoryRepository.get({
@@ -270,7 +284,8 @@ describe("Form_1_K storage test", () => {
       const mockDataDir = join(__dirname, "mock_data", "form-1-k");
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
-      const form1K = await Form_1_K.parse("1-K", xmlContent);
+      const parsed = await Form_1_K.parse("1-K", xmlContent);
+          const form1K = parsed.cover;
       const cik = 990010;
       const fileNumber = "024-1k-und";
 
@@ -280,7 +295,8 @@ describe("Form_1_K storage test", () => {
         accession_number: "1k-dated-seed",
         filing_date: "2024-06-15",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
 
       const seeded = await regARepo.getOffering(cik, fileNumber);
@@ -296,7 +312,8 @@ describe("Form_1_K storage test", () => {
         accession_number: "1k-undated-replay",
         filing_date: "",
         primary_doc: xmlFiles[0],
-        form1K,
+        form: "1-K",
+        form1K: parsed,
       });
 
       const after = await regARepo.getOffering(cik, fileNumber);

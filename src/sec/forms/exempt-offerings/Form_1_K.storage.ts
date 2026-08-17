@@ -12,6 +12,8 @@ import type { RegAOffering } from "../../../storage/reg-a/RegAOfferingSchema";
 import type { RegAOfferingHistory } from "../../../storage/reg-a/RegAOfferingHistorySchema";
 import { extractServiceProviders } from "./RegA_shared";
 import type { Form1K } from "./Form_1_K.schema";
+import type { ParsedForm1K } from "./Form_1_K";
+import { storeRegAFinancialStatements } from "./regAFinancialStatements.storage";
 import { numScalar } from "../_valueHelpers";
 import { EntityObserver } from "../../../resolver/EntityObserver";
 import { PersonResolver } from "../../../resolver/PersonResolver";
@@ -174,6 +176,7 @@ export async function processForm1K({
   accession_number,
   filing_date,
   primary_doc,
+  form,
   form1K,
 }: {
   cik: number;
@@ -181,8 +184,14 @@ export async function processForm1K({
   accession_number: string;
   filing_date: string;
   primary_doc: string;
-  form1K: Form1K;
+  form: string;
+  form1K: ParsedForm1K;
 }): Promise<void> {
+  // The cover page (`primary_doc.xml`) drives everything below; the annual
+  // report's financial statements are stored separately at the end. They arrive
+  // together because they are two documents of ONE submission — see
+  // {@link ParsedForm1K}.
+  const cover = form1K.cover;
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
@@ -249,7 +258,7 @@ export async function processForm1K({
   };
 
   const regARepo = new RegAOfferingRepo();
-  const item1Info = form1K.formData.item1Info;
+  const item1Info = cover.formData.item1Info;
   const primaryIssuer = item1Info[0];
 
   // Upsert the offering. A 1-K carries no tier/SIC/audit/securities data, so
@@ -272,6 +281,17 @@ export async function processForm1K({
     as_of: filing_date || existing?.as_of || null,
   }));
 
-  await processIssuer(cik, form1K, ctx, 0);
-  await processOfferingHistory(cik, file_number, accession_number, filing_date, form1K, ctx, 100);
+  await processIssuer(cik, cover, ctx, 0);
+  await processOfferingHistory(cik, file_number, accession_number, filing_date, cover, ctx, 100);
+
+  // The financial statements — the reason the 1-K fetch was escalated to the
+  // full submission. Stored last so a parse that yielded none still leaves the
+  // cover data committed.
+  await storeRegAFinancialStatements({
+    cik,
+    accession_number,
+    form,
+    filing_date,
+    statements: form1K.statements,
+  });
 }

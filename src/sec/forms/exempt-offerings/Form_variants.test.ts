@@ -113,7 +113,10 @@ const VARIANTS: readonly VariantCase[] = [
   {
     slug: "form-1-k-a",
     formCode: "1-K/A",
-    parse: (xml) => Form_1_K.parse("1-K/A", xml) as Promise<ParsedSubmission>,
+    // 1-K parse returns the cover page alongside the PART II statements; the
+    // submission header this harness checks lives on the cover.
+    parse: (xml) =>
+      Form_1_K.parse("1-K/A", xml).then((p) => p.cover) as Promise<ParsedSubmission>,
     extractSubmissionType: headerSubmissionType,
   },
   {

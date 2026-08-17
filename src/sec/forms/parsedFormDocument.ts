@@ -7,7 +7,9 @@
 import type { FormConstructor } from "./Form";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
 import { Form_1_K } from "./exempt-offerings/Form_1_K";
+import { Form_1_SA } from "./exempt-offerings/Form_1_SA";
 import { Form_1_Z } from "./exempt-offerings/Form_1_Z";
+import { Form_QUALIF } from "./exempt-offerings/Form_QUALIF";
 import { Form_C } from "./exempt-offerings/Form_C";
 import { Form_D } from "./exempt-offerings/Form_D";
 import { Form_F_1 } from "./foreign-registration-statements/Form_F_1";
@@ -64,7 +66,9 @@ export type ParsedFormDocument =
   | ParsedDocumentOf<typeof Form_CFPORTAL>
   | ParsedDocumentOf<typeof Form_1_A>
   | ParsedDocumentOf<typeof Form_1_K>
+  | ParsedDocumentOf<typeof Form_1_SA>
   | ParsedDocumentOf<typeof Form_1_Z>
+  | ParsedDocumentOf<typeof Form_QUALIF>
   | ParsedDocumentOf<typeof Form_3>
   | ParsedDocumentOf<typeof Form_4>
   | ParsedDocumentOf<typeof Form_5>

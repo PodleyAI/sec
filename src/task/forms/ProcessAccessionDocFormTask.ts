@@ -19,8 +19,11 @@ import { ALL_FORMS_MAP } from "../../sec/forms/all-forms";
 import type { ParsedFormDocument } from "../../sec/forms/parsedFormDocument";
 import { processForm1A } from "../../sec/forms/exempt-offerings/Form_1_A.storage";
 import { processForm1K } from "../../sec/forms/exempt-offerings/Form_1_K.storage";
+import { processForm1SA } from "../../sec/forms/exempt-offerings/Form_1_SA.storage";
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
+import { processForm1U } from "../../sec/forms/exempt-offerings/Form_1_U.storage";
+import { processFormQualif } from "../../sec/forms/exempt-offerings/Form_QUALIF.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
 import { processOwnershipForm } from "../../sec/forms/insider-trading/OwnershipDocument.storage";
@@ -77,6 +80,24 @@ export const REGISTRATION_PROSPECTUS_FORMS = new Set([
   "424B5",
   "424B7",
 ]);
+
+/**
+ * Reg A annual reports, whose body is fetched as the full submission .txt.
+ *
+ * The financial statements are not in the document the pipeline would otherwise
+ * fetch. A 1-K's primary document is `primary_doc.xml` — an XSD cover page with
+ * no financial elements at all, which is why 1-K produced 0 financial rows
+ * across all 2,997 filings — and the annual report sits beside it as
+ * `<TYPE>PART II`. Reading the full submission gets BOTH out of one request.
+ *
+ * The 1-SA is deliberately NOT here. Its primary document IS its report — every
+ * one of the 2,792 filings records a `.htm` primary doc where every one of the
+ * 3,001 1-K filings records a `.xml` — so escalating it would fetch the whole
+ * submission to arrive at the document already being fetched, and would
+ * invalidate a cache that is already holding exactly the right file. Uniformity
+ * between the two forms is not worth re-downloading a corpus for.
+ */
+export const REGA_FULL_SUBMISSION_FORMS = new Set(["1-K", "1-K/A"]);
 
 /** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
 function fullSubmissionFileName(accessionNumber: string): string {
@@ -329,7 +350,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // Registration prospectus forms (S-1 / DRS family) are fetched as the full
     // submission .txt so Form.parse() can read the <SEC-HEADER> and select the
     // primary <DOCUMENT>. Other forms keep their primary-doc fetch.
-    if (REGISTRATION_PROSPECTUS_FORMS.has(form)) {
+    if (REGISTRATION_PROSPECTUS_FORMS.has(form) || REGA_FULL_SUBMISSION_FORMS.has(form)) {
       fileName = fullSubmissionFileName(accessionNumber);
     }
 
@@ -434,12 +455,66 @@ export class ProcessAccessionDocFormTask extends Task<
     // filings-table `filing_date`. Form RW is the same shape — metadata only.
     // Skip fetch/parse before the missing-primary-doc guard so a 25-NSE with
     // no `primary_doc` still records.
+    //
+    // Form 1-U joins them for a different reason: its body IS narrative HTML,
+    // but its item codes arrive in the submissions payload for all 11,600
+    // filings, so the event and its date are already known. Fetching the
+    // narratives at 8 req/s would cost ~25 minutes of rate-limit budget to learn
+    // what EDGAR has already told us.
     const metadataOnly =
       extractorId === "25-15"
         ? processDeregistration
         : extractorId === "RW"
           ? processWithdrawal
           : undefined;
+    if (extractorId === "1-U") {
+      await context.updateProgress(80, `${label} · storing`);
+      try {
+        await processForm1U({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form: form!,
+          filing_date: filing_date ?? "",
+          file_number: file_number ?? null,
+          items: items ?? null,
+        });
+      } catch (err) {
+        if (err instanceof TaskAbortedError || context.signal?.aborted) throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        const detail = `Store failed for form '${form}': ${message}`;
+        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
+        await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
+        await recordRunFailed(`STORE_ERROR: ${detail}`);
+        return { success: false };
+      }
+      try {
+        await deadLetters.markResolved(extractorId, accessionNumber, "");
+      } catch (dlErr) {
+        console.error(
+          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
+      try {
+        await runRepo.recordRun({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form: form!,
+          extractor_id: extractorId,
+          extractor_version: extractorVersion,
+          slot_at_run: slotAtRun,
+          success: true,
+          outcome: "success",
+          error: null,
+        });
+      } catch (recordErr) {
+        console.error(
+          `Failed to record extractor_runs row for ${accessionNumber}@${extractorId}:`,
+          recordErr
+        );
+      }
+      return { success: true };
+    }
     if (metadataOnly) {
       await context.updateProgress(80, `${label} · storing`);
       try {
@@ -607,7 +682,25 @@ export class ProcessAccessionDocFormTask extends Task<
           break;
         case "1-K":
         case "1-K/A":
-          await processForm1K({ ...storageArgs, form1K: parsedDocument.parsed });
+          await processForm1K({ ...storageArgs, form: form!, form1K: parsedDocument.parsed });
+          break;
+        case "1-SA":
+        case "1-SA/A":
+          await processForm1SA({
+            cik: cik!,
+            accession_number: accessionNumber,
+            form: form!,
+            filing_date: filing_date ?? "",
+            form1SA: parsedDocument.parsed,
+          });
+          break;
+        case "QUALIF":
+          await processFormQualif({
+            cik: cik!,
+            accession_number: accessionNumber,
+            filing_date: filing_date ?? "",
+            formQualif: parsedDocument.parsed,
+          });
           break;
         case "1-Z":
         case "1-Z/A":

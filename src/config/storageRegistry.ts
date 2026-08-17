@@ -147,6 +147,16 @@ import {
   ProcessedSubmissionsSchema,
 } from "../storage/processing/ProcessedSubmissionsSchema";
 import {
+  REGA_CURRENT_REPORT_REPOSITORY_TOKEN,
+  RegACurrentReportPrimaryKeyNames,
+  RegACurrentReportSchema,
+} from "../storage/reg-a/RegACurrentReportSchema";
+import {
+  REGA_FINANCIAL_LINE_REPOSITORY_TOKEN,
+  RegAFinancialLinePrimaryKeyNames,
+  RegAFinancialLineSchema,
+} from "../storage/reg-a/RegAFinancialLineSchema";
+import {
   REGA_EQUITY_CLASS_REPOSITORY_TOKEN,
   RegAEquityClassPrimaryKeyNames,
   RegAEquityClassSchema,
@@ -737,6 +747,30 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     schema: RegAEquityClassSchema,
     primaryKeyNames: RegAEquityClassPrimaryKeyNames,
     indexes: [["cik", "file_number"]],
+  }),
+  defineStorage({
+    token: REGA_CURRENT_REPORT_REPOSITORY_TOKEN,
+    table: "rega_current_report",
+    schema: RegACurrentReportSchema,
+    primaryKeyNames: RegACurrentReportPrimaryKeyNames,
+    // Indexed by issuer (the timeline query) and by the classification, so the
+    // ~1,000 substantive reports are findable without scanning 11,600 rows of
+    // "other".
+    indexes: [["cik", "filing_date"], ["event_type"]],
+  }),
+  defineStorage({
+    token: REGA_FINANCIAL_LINE_REPOSITORY_TOKEN,
+    table: "rega_financial_line",
+    schema: RegAFinancialLineSchema,
+    primaryKeyNames: RegAFinancialLinePrimaryKeyNames,
+    // Indexed by issuer over time (an issuer's statements across filings) and by
+    // the line item itself, which is how a series is pulled: "total assets for
+    // this CIK, every period". Without the second index that query scans the
+    // whole table, since the primary key leads with the accession.
+    indexes: [
+      ["cik", "filing_date"],
+      ["cik", "label"],
+    ],
   }),
   // ------------------------------ SPAC ------------------------------------------
   defineStorage({

@@ -43,6 +43,8 @@ describe("sec version CLI", () => {
       expect(ids).toEqual([
         "1-A",
         "1-K",
+        "1-SA",
+        "1-U",
         "1-Z",
         "144",
         "25-15",
@@ -54,6 +56,7 @@ describe("sec version CLI", () => {
         "C",
         "CFPORTAL",
         "D",
+        "QUALIF",
         "RW",
         "S-1",
         "loi",
