@@ -50,53 +50,9 @@ export class UpdateAllSubmissionsTask extends Task<
     input: UpdateAllSubmissionsTaskInput,
     context: IExecuteContext
   ): Promise<UpdateAllSubmissionsTaskOutput> {
-    const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
-    const processedSubmissionsRepo = globalServiceRegistry.get(
-      PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN
+    const { needsUpdating, needsInitialProcessing } = await selectSubmissionsToRefresh(
+      input.force === true
     );
-
-    // getAll() rather than query({}, …): the tabular backend rejects an empty
-    // criteria object ("Query criteria must not be empty. Use getAll()"), which
-    // is exactly the all-rows read we want here.
-    //
-    // The `query({}, …)` form threw unconditionally — it is the criteria that is
-    // rejected, not the result — so this command could never complete, and
-    // neither could the `sync` pipeline that runs it third. It went unnoticed
-    // because `cik_last_update` was empty on every database anyone ran it
-    // against, so the command looked like a no-op rather than a failure.
-    // UpdateAllCompanyFactsTask already carried this fix; the two had drifted.
-    const allCikUpdates =
-      (await cikLastUpdateRepo.getAll({
-        orderBy: [{ column: "last_update", direction: "DESC" }],
-      })) ?? [];
-
-    const needsUpdating: { cik: number; last_update: string }[] = [];
-    const needsInitialProcessing: { cik: number; last_update: string }[] = [];
-
-    if (input.force) {
-      for (const clu of allCikUpdates) {
-        needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
-      }
-    } else {
-      // Stream rather than getAll() — production has hundreds of
-      // thousands of processed-submission rows. We need both cik and
-      // last_processed for the freshness comparison, so we keep them in
-      // a Map but build it page-by-page rather than materialising every
-      // row up front.
-      const processedMap = new Map<number, ProcessedSubmissions>();
-      for await (const ps of processedSubmissionsRepo.records(5000)) {
-        processedMap.set(ps.cik, ps);
-      }
-
-      for (const clu of allCikUpdates) {
-        const ps = processedMap.get(clu.cik);
-        if (!ps) {
-          needsInitialProcessing.push({ cik: clu.cik, last_update: clu.last_update });
-        } else if (clu.last_update > ps.last_processed) {
-          needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
-        }
-      }
-    }
 
     if (isDryRun()) {
       if (input.force) {
@@ -137,4 +93,71 @@ export class UpdateAllSubmissionsTask extends Task<
 
     return { success: true };
   }
+}
+
+export interface SubmissionRefreshSelection {
+  /** CIKs EDGAR has published for since we last processed them. */
+  readonly needsUpdating: readonly { cik: number; last_update: string }[];
+  /** CIKs with a watermark but no processed-submissions row at all. */
+  readonly needsInitialProcessing: readonly { cik: number; last_update: string }[];
+}
+
+/**
+ * The freshness rule `update submissions` applies: a CIK is refetched when
+ * `cik_last_update.last_update > processed_submissions.last_processed`.
+ *
+ * Extracted from `execute` so the dry-run counts and the real run derive from
+ * one function — a report that re-implements the selection can disagree with
+ * what the command then does.
+ */
+export async function selectSubmissionsToRefresh(
+  force: boolean
+): Promise<SubmissionRefreshSelection> {
+  const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+  const processedSubmissionsRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+
+  // getAll() rather than query({}, …): the tabular backend rejects an empty
+  // criteria object ("Query criteria must not be empty. Use getAll()"), which
+  // is exactly the all-rows read we want here.
+  //
+  // The `query({}, …)` form threw unconditionally — it is the criteria that is
+  // rejected, not the result — so this command could never complete, and
+  // neither could the `sync` pipeline that runs it third. It went unnoticed
+  // because `cik_last_update` was empty on every database anyone ran it
+  // against, so the command looked like a no-op rather than a failure.
+  // UpdateAllCompanyFactsTask already carried this fix; the two had drifted.
+  const allCikUpdates =
+    (await cikLastUpdateRepo.getAll({
+      orderBy: [{ column: "last_update", direction: "DESC" }],
+    })) ?? [];
+
+  const needsUpdating: { cik: number; last_update: string }[] = [];
+  const needsInitialProcessing: { cik: number; last_update: string }[] = [];
+
+  if (force) {
+    for (const clu of allCikUpdates) {
+      needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+    }
+  } else {
+    // Stream rather than getAll() — production has hundreds of
+    // thousands of processed-submission rows. We need both cik and
+    // last_processed for the freshness comparison, so we keep them in
+    // a Map but build it page-by-page rather than materialising every
+    // row up front.
+    const processedMap = new Map<number, ProcessedSubmissions>();
+    for await (const ps of processedSubmissionsRepo.records(5000)) {
+      processedMap.set(ps.cik, ps);
+    }
+
+    for (const clu of allCikUpdates) {
+      const ps = processedMap.get(clu.cik);
+      if (!ps) {
+        needsInitialProcessing.push({ cik: clu.cik, last_update: clu.last_update });
+      } else if (clu.last_update > ps.last_processed) {
+        needsUpdating.push({ cik: clu.cik, last_update: clu.last_update });
+      }
+    }
+  }
+
+  return { needsUpdating, needsInitialProcessing };
 }

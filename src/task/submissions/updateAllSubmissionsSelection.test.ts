@@ -10,6 +10,7 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../../storage/processing/ProcessedSubmissionsSchema";
+import { selectSubmissionsToRefresh } from "./UpdateAllSubmissionsTask";
 
 /**
  * `UpdateAllSubmissionsTask` reads the whole watermark table, and it has to do
@@ -61,9 +62,10 @@ describe("watermark reads use getAll, not query({})", () => {
 });
 
 /**
- * The freshness rule the task applies once it has the rows. Asserted here as
- * behaviour so the two-table comparison is pinned independently of the fetching
- * machinery around it.
+ * The freshness rule the task applies once it has the rows, driven through the
+ * production `selectSubmissionsToRefresh` — the same function `execute` and its
+ * dry-run report both call, so the two can never disagree about what a run
+ * would do.
  */
 describe("submission refresh selection", () => {
   beforeEach(async () => {
@@ -84,17 +86,49 @@ describe("submission refresh selection", () => {
     await procRepo.put({ cik: 200, last_processed: "2026-08-15", success: true });
     await cikRepo.put({ cik: 300, last_update: "2026-08-10" });
 
-    const all = (await cikRepo.getAll()) ?? [];
-    const processed = new Map<number, string>();
-    for (const p of (await procRepo.getAll()) ?? []) processed.set(p.cik, p.last_processed);
+    const { needsUpdating, needsInitialProcessing } = await selectSubmissionsToRefresh(false);
 
-    const changed = all.filter((c) => {
-      const lp = processed.get(c.cik);
-      return lp !== undefined && c.last_update > lp;
-    });
-    const brandNew = all.filter((c) => !processed.has(c.cik));
+    expect(needsUpdating.map((c) => c.cik)).toEqual([100]);
+    expect(needsInitialProcessing.map((c) => c.cik)).toEqual([300]);
+  });
 
-    expect(changed.map((c) => c.cik)).toEqual([100]);
-    expect(brandNew.map((c) => c.cik)).toEqual([300]);
+  it("does not select a CIK whose processing date EQUALS its watermark", async () => {
+    // The comparison is `>`, not `>=`. At `>=` every CIK processed on the same
+    // day its newest filing was published would be re-fetched on every run,
+    // forever.
+    const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    const procRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+
+    await cikRepo.put({ cik: 100, last_update: "2026-08-14" });
+    await procRepo.put({ cik: 100, last_processed: "2026-08-14", success: true });
+
+    const { needsUpdating, needsInitialProcessing } = await selectSubmissionsToRefresh(false);
+
+    expect(needsUpdating).toHaveLength(0);
+    expect(needsInitialProcessing).toHaveLength(0);
+  });
+
+  it("selects every watermark row under force, and nothing as initial processing", async () => {
+    const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    const procRepo = globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN);
+
+    await cikRepo.put({ cik: 100, last_update: "2026-08-14" });
+    await procRepo.put({ cik: 100, last_processed: "2026-08-15", success: true });
+    await cikRepo.put({ cik: 300, last_update: "2026-08-10" });
+
+    const { needsUpdating, needsInitialProcessing } = await selectSubmissionsToRefresh(true);
+
+    expect(needsUpdating.map((c) => c.cik).sort()).toEqual([100, 300]);
+    expect(needsInitialProcessing).toHaveLength(0);
+  });
+
+  it("treats a CIK with no processed row as initial processing, not an update", async () => {
+    const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    await cikRepo.put({ cik: 300, last_update: "2026-08-10" });
+
+    const { needsUpdating, needsInitialProcessing } = await selectSubmissionsToRefresh(false);
+
+    expect(needsUpdating).toHaveLength(0);
+    expect(needsInitialProcessing.map((c) => c.cik)).toEqual([300]);
   });
 });
