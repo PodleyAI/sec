@@ -100,7 +100,8 @@ describe("formatExhibitDetail", () => {
       formatExhibitDetail([
         {
           type: "EX-1.1",
-          description: "UNDERWRITING AGREEMENT, DATED JANUARY 14, 2021, BY AND BETWEEN THE COMPANY AND C",
+          description:
+            "UNDERWRITING AGREEMENT, DATED JANUARY 14, 2021, BY AND BETWEEN THE COMPANY AND C",
           filename: "ex11.htm",
         },
       ])
@@ -109,9 +110,7 @@ describe("formatExhibitDetail", () => {
 
   it("omits a description that just restates TYPE", () => {
     expect(
-      formatExhibitDetail([
-        { type: "EX-2.1", description: "EX-2.1", filename: "d137294dex21.htm" },
-      ])
+      formatExhibitDetail([{ type: "EX-2.1", description: "EX-2.1", filename: "d137294dex21.htm" }])
     ).toBe("EX-2.1\td137294dex21.htm");
   });
 

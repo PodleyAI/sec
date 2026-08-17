@@ -90,6 +90,8 @@ describe("CompanyFactsSchema (storage validation)", () => {
   });
 
   it("accepts the 9-char ifrs-full grouping", () => {
-    expect(Value.Check(CompanyFactsSchema, factoid({ grouping: "ifrs-full", fp: "FY" }))).toBe(true);
+    expect(Value.Check(CompanyFactsSchema, factoid({ grouping: "ifrs-full", fp: "FY" }))).toBe(
+      true
+    );
   });
 });

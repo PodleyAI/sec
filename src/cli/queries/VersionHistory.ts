@@ -15,8 +15,6 @@ export async function getVersionHistory(
   id: string,
   limit: number = 20
 ): Promise<VersionEvent[]> {
-  const repo = new VersionEventRepo(
-    globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-  );
+  const repo = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
   return repo.listForComponent(kind, id, limit);
 }

@@ -36,7 +36,11 @@ describe("assertWithinDeclaredBounds", () => {
 
   it("ignores nulls and unbounded string columns", () => {
     expect(() =>
-      assertWithinDeclaredBounds([{ id: "abc", note: null, freeform: "y".repeat(99_999) }], Schema, "row")
+      assertWithinDeclaredBounds(
+        [{ id: "abc", note: null, freeform: "y".repeat(99_999) }],
+        Schema,
+        "row"
+      )
     ).not.toThrow();
   });
 

@@ -129,7 +129,9 @@ async function main(): Promise<void> {
 
   const stale = linkable.filter((pkg) => !resolvesToLocal(pkg, local.get(pkg) as string));
 
-  console.log(`${dryRun ? "Would link" : "Linking"} ${linkable.length} package(s) to local source:`);
+  console.log(
+    `${dryRun ? "Would link" : "Linking"} ${linkable.length} package(s) to local source:`
+  );
   for (const pkg of linkable) {
     const linked = resolvesToLocal(pkg, local.get(pkg) as string);
     console.log(`  - ${pkg}${linked ? " (already linked)" : "  <-- on a registry copy"}`);

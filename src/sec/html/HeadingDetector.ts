@@ -58,7 +58,5 @@ export function assignHeadingLevels(styles: ResolvedStyle[]): number[] {
   const levelOfTier = (idx: number): number =>
     tiers.length <= 6 ? idx + 1 : Math.max(1, Math.ceil(((idx + 1) * 6) / tiers.length));
   const levelByProminence = new Map(tiers.map((p, idx) => [p, levelOfTier(idx)]));
-  return sigs.map(
-    (sig) => levelByProminence.get(prominenceBySig.get(sig) as number) as number
-  );
+  return sigs.map((sig) => levelByProminence.get(prominenceBySig.get(sig) as number) as number);
 }

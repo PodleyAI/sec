@@ -149,13 +149,7 @@ describe("LEGAL_FORMS", () => {
     // clause that FOLLOWS one ("a Delaware corporation", "a German company"),
     // which is exactly what the folded alternation used to return as the
     // merger counterparty.
-    for (const suffix of [
-      "corporation",
-      "company",
-      "limited",
-      "incorporated",
-      "trust",
-    ] as const) {
+    for (const suffix of ["corporation", "company", "limited", "incorporated", "trust"] as const) {
       expect(re.test(suffix), suffix).toBe(false);
     }
 

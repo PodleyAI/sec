@@ -10,7 +10,9 @@ import { parseNumeric } from "./parseNumeric";
 
 /** Convert a <table> element into a rectangular, colspan/rowspan-expanded TableNode. */
 export function extractTable($: CheerioAPI, table: unknown): TableNode {
-  const rowEls = $(table as never).find("tr").toArray();
+  const rowEls = $(table as never)
+    .find("tr")
+    .toArray();
 
   // Dense grid: grid[row][col] — may have holes during construction.
   const grid: (TableCell | null)[][] = [];

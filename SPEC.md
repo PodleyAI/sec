@@ -113,20 +113,20 @@ flowchart LR
 
 ### 0.3 Command → Data Mapping
 
-| Command                    | Reads                                  | Writes                                                                  |
-| -------------------------- | -------------------------------------- | ----------------------------------------------------------------------- |
-| `sec bootstrap download`   | SEC bulk archives                      | Raw files (filesystem)                                                  |
-| `sec bootstrap ingest`     | Raw files (filesystem)                 | CIK Names, Entity, Filings, Addresses, Phones, Tickers, SIC, Company Facts, Processed Submissions, Processed Facts |
-| `sec bootstrap`            | Raw files + SEC APIs                   | All core + form tables                                                  |
-| `sec sync`                 | SEC daily index + APIs                 | CIK Last Update, Entity, Filings, Company Facts, Form tables            |
-| `sec update submissions`   | CIK Last Update, Processed Submissions | Entity, Filings, Addresses, Phones, Tickers                             |
-| `sec update facts`         | CIK Last Update, Processed Facts       | Company Facts                                                           |
-| `sec update forms`         | Filings, Processed Filings             | Form-specific tables                                                    |
-| `sec fetch submissions`    | SEC submissions API                    | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions |
-| `sec fetch facts`          | SEC facts API                          | Company Facts, Processed Facts                                          |
-| `sec fetch form`           | Filings table, SEC filing docs         | Form-specific tables, Processed Filings                                 |
-| `sec fetch doc`            | SEC filing document                    | Form-specific tables                                                    |
-| `sec query *`              | Database tables                        | _(read-only)_                                                           |
+| Command                  | Reads                                  | Writes                                                                                                             |
+| ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `sec bootstrap download` | SEC bulk archives                      | Raw files (filesystem)                                                                                             |
+| `sec bootstrap ingest`   | Raw files (filesystem)                 | CIK Names, Entity, Filings, Addresses, Phones, Tickers, SIC, Company Facts, Processed Submissions, Processed Facts |
+| `sec bootstrap`          | Raw files + SEC APIs                   | All core + form tables                                                                                             |
+| `sec sync`               | SEC daily index + APIs                 | CIK Last Update, Entity, Filings, Company Facts, Form tables                                                       |
+| `sec update submissions` | CIK Last Update, Processed Submissions | Entity, Filings, Addresses, Phones, Tickers                                                                        |
+| `sec update facts`       | CIK Last Update, Processed Facts       | Company Facts                                                                                                      |
+| `sec update forms`       | Filings, Processed Filings             | Form-specific tables                                                                                               |
+| `sec fetch submissions`  | SEC submissions API                    | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions                                            |
+| `sec fetch facts`        | SEC facts API                          | Company Facts, Processed Facts                                                                                     |
+| `sec fetch form`         | Filings table, SEC filing docs         | Form-specific tables, Processed Filings                                                                            |
+| `sec fetch doc`          | SEC filing document                    | Form-specific tables                                                                                               |
+| `sec query *`            | Database tables                        | _(read-only)_                                                                                                      |
 
 ---
 
@@ -136,13 +136,13 @@ flowchart LR
 
 All commands accept the following flags:
 
-| Flag            | Short | Description                                       |
-| --------------- | ----- | ------------------------------------------------- |
-| `--json`        |       | Output structured JSON to stdout                  |
-| `--verbose`     |       | Enable detailed log output                        |
-| `--dry-run`     |       | Show what would be done without making changes    |
-| `--no-color`    |       | Disable colored output                            |
-| `--concurrency` |       | Max parallel operations (default varies by command)|
+| Flag            | Short | Description                                         |
+| --------------- | ----- | --------------------------------------------------- |
+| `--json`        |       | Output structured JSON to stdout                    |
+| `--verbose`     |       | Enable detailed log output                          |
+| `--dry-run`     |       | Show what would be done without making changes      |
+| `--no-color`    |       | Disable colored output                              |
+| `--concurrency` |       | Max parallel operations (default varies by command) |
 
 ---
 
@@ -200,8 +200,8 @@ Subcommands for running individual bootstrap phases.
 
 Download and extract bulk SEC data archives.
 
-| Argument | Description                                                  |
-| -------- | ------------------------------------------------------------ |
+| Argument | Description                                                    |
+| -------- | -------------------------------------------------------------- |
 | `<type>` | One of: `submissions`, `facts`, `ciks`, `all` (default: `all`) |
 
 **Behavior:**
@@ -257,8 +257,8 @@ Update XBRL facts for all companies that have new data.
 
 Process all unprocessed filings for supported form types.
 
-| Argument | Required | Description                                   |
-| -------- | -------- | --------------------------------------------- |
+| Argument | Required | Description                                             |
+| -------- | -------- | ------------------------------------------------------- |
 | `forms`  | No       | Comma-separated form types (default: `D,C,1-A,1-K,1-Z`) |
 
 **Behavior:**
@@ -324,7 +324,7 @@ Parse and store specific form filings for a company.
 | Argument    | Required | Description                          |
 | ----------- | -------- | ------------------------------------ |
 | `cik`       | Yes      | Central Index Key                    |
-| `form`      | Yes      | Form type (e.g., `D`, `C`, `1-A`)   |
+| `form`      | Yes      | Form type (e.g., `D`, `C`, `1-A`)    |
 | `accession` | No       | Specific accession number to process |
 
 **Behavior:**
@@ -338,10 +338,10 @@ Parse and store specific form filings for a company.
 
 Process a single accession document.
 
-| Argument   | Required | Description                         |
-| ---------- | -------- | ----------------------------------- |
-| `accession`| Yes      | Accession number                    |
-| `fileName` | No       | Specific filename within the filing |
+| Argument    | Required | Description                         |
+| ----------- | -------- | ----------------------------------- |
+| `accession` | Yes      | Accession number                    |
+| `fileName`  | No       | Specific filename within the filing |
 
 **Behavior:**
 
@@ -363,60 +363,60 @@ List or look up entities.
 | -------- | -------- | ---------------------------------------- |
 | `search` | No       | Free-text search term to filter entities |
 
-| Option             | Description                      |
-| ------------------ | -------------------------------- |
-| `--cik <cik>`      | Filter by exact CIK              |
-| `--sic <code>`     | Filter by SIC code               |
-| `--state <code>`   | Filter by state of incorporation |
-| `--sort <field>`   | Sort by field name               |
-| `--limit <n>`      | Max rows (default: 25)           |
-| `--offset <n>`     | Skip rows (default: 0)           |
-| `--format <fmt>`   | Output format: table, csv, json  |
+| Option           | Description                      |
+| ---------------- | -------------------------------- |
+| `--cik <cik>`    | Filter by exact CIK              |
+| `--sic <code>`   | Filter by SIC code               |
+| `--state <code>` | Filter by state of incorporation |
+| `--sort <field>` | Sort by field name               |
+| `--limit <n>`    | Max rows (default: 25)           |
+| `--offset <n>`   | Skip rows (default: 0)           |
+| `--format <fmt>` | Output format: table, csv, json  |
 
 #### `sec query filings [search]`
 
 List or look up filings.
 
-| Argument | Required | Description                               |
-| -------- | -------- | ----------------------------------------- |
-| `search` | No       | Free-text search term to filter filings   |
+| Argument | Required | Description                             |
+| -------- | -------- | --------------------------------------- |
+| `search` | No       | Free-text search term to filter filings |
 
-| Option             | Description                       |
-| ------------------ | --------------------------------- |
-| `--cik <cik>`      | Filter by entity CIK              |
-| `--form <type>`    | Filter by form type               |
-| `--after <date>`   | Filing date start (YYYY-MM-DD)    |
-| `--before <date>`  | Filing date end (YYYY-MM-DD)      |
-| `--limit <n>`      | Max rows (default: 25)            |
-| `--offset <n>`     | Skip rows (default: 0)            |
-| `--format <fmt>`   | Output format: table, csv, json   |
+| Option            | Description                     |
+| ----------------- | ------------------------------- |
+| `--cik <cik>`     | Filter by entity CIK            |
+| `--form <type>`   | Filter by form type             |
+| `--after <date>`  | Filing date start (YYYY-MM-DD)  |
+| `--before <date>` | Filing date end (YYYY-MM-DD)    |
+| `--limit <n>`     | Max rows (default: 25)          |
+| `--offset <n>`    | Skip rows (default: 0)          |
+| `--format <fmt>`  | Output format: table, csv, json |
 
 #### `sec query offerings [search]`
 
 List Form D investment offerings.
 
-| Argument | Required | Description                                |
-| -------- | -------- | ------------------------------------------ |
-| `search` | No       | Free-text search term to filter offerings  |
+| Argument | Required | Description                               |
+| -------- | -------- | ----------------------------------------- |
+| `search` | No       | Free-text search term to filter offerings |
 
-| Option                  | Description                    |
-| ----------------------- | ------------------------------ |
-| `--cik <cik>`           | Filter by issuer CIK           |
-| `--industry <group>`    | Filter by industry group       |
-| `--exemption <type>`    | Filter by exemption type       |
-| `--after <date>`        | Filter after date              |
-| `--before <date>`       | Filter before date             |
-| `--limit <n>`           | Max rows (default: 25)         |
-| `--offset <n>`          | Skip rows (default: 0)         |
-| `--format <fmt>`        | Output format: table, csv, json |
+| Option               | Description                     |
+| -------------------- | ------------------------------- |
+| `--cik <cik>`        | Filter by issuer CIK            |
+| `--industry <group>` | Filter by industry group        |
+| `--exemption <type>` | Filter by exemption type        |
+| `--after <date>`     | Filter after date               |
+| `--before <date>`    | Filter before date              |
+| `--limit <n>`        | Max rows (default: 25)          |
+| `--offset <n>`       | Skip rows (default: 0)          |
+| `--format <fmt>`     | Output format: table, csv, json |
 
 #### `sec query crowdfunding [cik]`
 
 List Regulation Crowdfunding (Form C) offerings.
 
-| Argument | Required | Description           |
-| -------- | -------- | --------------------- |
-| `cik`    | No       | Filter by issuer CIK  |
+| Argument | Required | Description          |
+| -------- | -------- | -------------------- |
+| `cik`    | No       | Filter by issuer CIK |
 
 | Option           | Description                     |
 | ---------------- | ------------------------------- |
@@ -474,9 +474,9 @@ Show row counts for all tables and processing progress.
 
 Drop all tables and re-create them. Prompts for confirmation unless `--confirm` is passed.
 
-| Option      | Description                    |
-| ----------- | ------------------------------ |
-| `--confirm` | Skip confirmation prompt       |
+| Option      | Description              |
+| ----------- | ------------------------ |
+| `--confirm` | Skip confirmation prompt |
 
 ---
 
@@ -1100,10 +1100,10 @@ Verbose output goes to stderr so it does not interfere with `--json` on stdout.
 
 Query commands (`sec query *`) support three output formats via `--format`:
 
-| Format  | Description                                                |
-| ------- | ---------------------------------------------------------- |
-| `table` | Aligned columns with headers (default for TTY)             |
-| `csv`   | Comma-separated values with header row                     |
+| Format  | Description                                                 |
+| ------- | ----------------------------------------------------------- |
+| `table` | Aligned columns with headers (default for TTY)              |
+| `csv`   | Comma-separated values with header row                      |
 | `json`  | JSON array of objects (same as `--json` for query commands) |
 
 ### 8.5 Pagination
@@ -1120,11 +1120,11 @@ Showing 1-25 of 1,042 results. Use --offset 25 to see more.
 
 ### 9.1 Exit Codes
 
-| Code | Meaning                                                                 |
-| ---- | ----------------------------------------------------------------------- |
-| `0`  | Success — all operations completed without error                        |
+| Code | Meaning                                                                     |
+| ---- | --------------------------------------------------------------------------- |
+| `0`  | Success — all operations completed without error                            |
 | `1`  | Error — command failed (invalid arguments, database error, network failure) |
-| `2`  | Partial failure — some items processed successfully, others failed      |
+| `2`  | Partial failure — some items processed successfully, others failed          |
 
 ### 9.2 Error Output
 

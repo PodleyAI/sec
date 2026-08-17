@@ -22,10 +22,7 @@ import {
   CanonicalCompanyPrimaryKeyNames,
   type CanonicalCompany,
 } from "../../storage/canonical/CanonicalCompanySchema";
-import {
-  resolveCanonicalCompanyRef,
-  resolveCanonicalPersonRef,
-} from "./canonical";
+import { resolveCanonicalCompanyRef, resolveCanonicalPersonRef } from "./canonical";
 
 interface RunResult {
   stdout: string;
@@ -34,11 +31,14 @@ interface RunResult {
 }
 
 async function runCli(args: string[], dbFolder: string): Promise<RunResult> {
-  return runCliProcess(["bun", "src/sec.ts", ...args], cliEnv({
-    SEC_DB_TYPE: "sqlite",
-    SEC_DB_FOLDER: dbFolder,
-    SEC_DB_NAME: "edgar",
-  }));
+  return runCliProcess(
+    ["bun", "src/sec.ts", ...args],
+    cliEnv({
+      SEC_DB_TYPE: "sqlite",
+      SEC_DB_FOLDER: dbFolder,
+      SEC_DB_NAME: "edgar",
+    })
+  );
 }
 
 const UUID_A = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -68,10 +68,7 @@ describe("sec canonical CLI", () => {
       const setup = await runCli(["db", "setup"], dir);
       expect(setup.exitCode).toBe(0);
 
-      const result = await runCli(
-        ["canonical", "person", "alias", UUID_A, UUID_A],
-        dir
-      );
+      const result = await runCli(["canonical", "person", "alias", UUID_A, UUID_A], dir);
       expect(result.exitCode).not.toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -131,10 +128,7 @@ describe("sec canonical CLI", () => {
       expect(setup.exitCode).toBe(0);
 
       // Add an alias first (UUID_A → UUID_B are not canonical rows, so they'll be orphans)
-      await runCli(
-        ["canonical", "company", "alias", UUID_A, UUID_B, "--reason", "test"],
-        dir
-      );
+      await runCli(["canonical", "company", "alias", UUID_A, UUID_B, "--reason", "test"], dir);
 
       const result = await runCli(["canonical", "company", "alias-list", "--orphans"], dir);
       expect(result.exitCode).toBe(0);

@@ -37,12 +37,7 @@ import {
   type OracleRunResult,
 } from "./evalS1Run";
 
-export {
-  GOLDEN_REFERENCE,
-  type OracleModelSummary,
-  type OracleReport,
-  type OracleRunResult,
-};
+export { GOLDEN_REFERENCE, type OracleModelSummary, type OracleReport, type OracleRunResult };
 
 const InputSchema = () =>
   Type.Object({

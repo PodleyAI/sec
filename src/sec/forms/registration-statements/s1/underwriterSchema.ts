@@ -15,7 +15,10 @@ export const UnderwriterOutputSchema = {
         type: "object",
         properties: {
           legal_name: { type: "string" },
-          role: { type: ["string", "null"], enum: ["lead", "bookrunner", "co-manager", "underwriter", null] },
+          role: {
+            type: ["string", "null"],
+            enum: ["lead", "bookrunner", "co-manager", "underwriter", null],
+          },
           shares_allocated: { type: ["number", "null"] },
           over_allotment_shares: { type: ["number", "null"] },
           confidence: { type: "number", minimum: 0, maximum: 1 },

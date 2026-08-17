@@ -89,10 +89,7 @@ function generatePersonHash(person: Omit<Person, "person_hash_id">): string {
  */
 function stripNamePartPunctuation(part: string | null): string | null {
   if (part === null || part === undefined) return part ?? null;
-  const cleaned = foldDiacritics(part)
-    .replace(/[.,]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const cleaned = foldDiacritics(part).replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
   return cleaned === "" ? null : cleaned;
 }
 

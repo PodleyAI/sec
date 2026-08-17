@@ -193,10 +193,7 @@ describe("filterTitlesSupportedBySpan", () => {
 
   it("keeps Director when the span only says 'board member' (no 'director' word)", () => {
     expect(
-      titleSupportedBySpan(
-        "Director",
-        "Jane Roe has served as a board member since 2019."
-      )
+      titleSupportedBySpan("Director", "Jane Roe has served as a board member since 2019.")
     ).toBe(true);
   });
 

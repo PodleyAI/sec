@@ -38,10 +38,7 @@ export class FamilyMembershipRepo<TRow extends FamilyMembershipRow> {
     await this.repo.put(row); // PK upsert -> idempotent
   }
 
-  async listCompaniesForFamily(
-    resolver_version: string,
-    family_id: string
-  ): Promise<string[]> {
+  async listCompaniesForFamily(resolver_version: string, family_id: string): Promise<string[]> {
     const rows =
       (await this.repo.query({ resolver_version, [this.familyIdColumn]: family_id } as any)) ?? [];
     return rows.map((r) => r.canonical_company_id);

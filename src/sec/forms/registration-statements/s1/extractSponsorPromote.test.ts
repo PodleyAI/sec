@@ -30,7 +30,8 @@ describe("extractSponsorPromote", () => {
       },
     ]);
     cleanup = unregister;
-    const text = "Our sponsor currently holds 5,000,000 Class B ordinary shares (the founder shares).";
+    const text =
+      "Our sponsor currently holds 5,000,000 Class B ordinary shares (the founder shares).";
     const row = await extractSponsorPromote(text, fakeS1Model());
     expect(row).not.toBeNull();
     expect(row?.founder_shares).toBe(5000000);

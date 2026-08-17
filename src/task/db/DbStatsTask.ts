@@ -45,10 +45,9 @@ export class DbStatsTask extends Task<DbStatsTaskInput, DbStatsTaskOutput> {
 
   async execute(input: DbStatsTaskInput, context: IExecuteContext): Promise<DbStatsTaskOutput> {
     return {
-      tables: await getDbStats(
-        (progress, message) => context.updateProgress(progress, message),
-        { exact: input.exact === true }
-      ),
+      tables: await getDbStats((progress, message) => context.updateProgress(progress, message), {
+        exact: input.exact === true,
+      }),
     };
   }
 }

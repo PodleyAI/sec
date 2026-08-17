@@ -5,11 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  buildExtractionPrompt,
-  buildUntrustedPreamble,
-  wrapUntrusted,
-} from "./sectionExtractors";
+import { buildExtractionPrompt, buildUntrustedPreamble, wrapUntrusted } from "./sectionExtractors";
 
 describe("buildExtractionPrompt", () => {
   it("joins preamble, instructions, and wrapped section text", () => {

@@ -39,18 +39,13 @@ export class Form_1_K extends Form {
    * apart by looking for the SGML `<DOCUMENT>` envelope rather than by trusting
    * the caller, because both arrive as a string and getting it wrong is silent.
    */
-  static async parse(
-    form: (typeof Form_1_K.forms)[number],
-    text: string
-  ): Promise<ParsedForm1K> {
+  static async parse(form: (typeof Form_1_K.forms)[number], text: string): Promise<ParsedForm1K> {
     if (!Form_1_K.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }
 
     const isFullSubmission = /<DOCUMENT>/i.test(text);
-    const coverXml = isFullSubmission
-      ? selectRegACoverDocument(text, form)?.body
-      : text;
+    const coverXml = isFullSubmission ? selectRegACoverDocument(text, form)?.body : text;
     if (coverXml === undefined) {
       throw new Error(`Form 1-K submission carries no <TYPE>${form} cover document`);
     }

@@ -92,9 +92,7 @@ const OTHER_NAME_AND_URL_TYPE = Type.Object({
 const IDENTIFYING_INFORMATION_TYPE = Type.Object({
   amendmentExplanation: Type.Optional(Type.String()),
   nameOfPortal: Type.Optional(ENTITY_NAME_TYPE),
-  otherNamesAndWebsiteUrls: Type.Optional(
-    Type.Array(OTHER_NAME_AND_URL_TYPE, { maxItems: 30 })
-  ),
+  otherNamesAndWebsiteUrls: Type.Optional(Type.Array(OTHER_NAME_AND_URL_TYPE, { maxItems: 30 })),
   irsEmployerIdNumber: Type.Optional(Type.String()),
   portalAddress: Type.Optional(ADDRESS_TYPE),
   mailingAddressDifferent: Type.Optional(TRUE_FALSE_LIST),
@@ -189,9 +187,7 @@ const FORM_DATA = Type.Object({
   ),
   scheduleA: Type.Optional(
     Type.Object({
-      entityOrNaturalPerson: Type.Optional(
-        Type.Array(SCHEDULE_A_PERSON_TYPE, { maxItems: 50 })
-      ),
+      entityOrNaturalPerson: Type.Optional(Type.Array(SCHEDULE_A_PERSON_TYPE, { maxItems: 50 })),
     })
   ),
   scheduleB: Type.Optional(

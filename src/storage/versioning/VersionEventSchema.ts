@@ -22,10 +22,9 @@ export const VersionEventSchema = Type.Object({
     description:
       "Sequential primary key, assigned by VersionEventRepo on insert via storage.size() + 1. The table is append-only by design; see VersionEventRepo JSDoc for the no-delete invariant.",
   }),
-  component_kind: Type.Union(
-    [Type.Literal("extractor"), Type.Literal("resolver")],
-    { description: "Which subsystem this event belongs to" }
-  ),
+  component_kind: Type.Union([Type.Literal("extractor"), Type.Literal("resolver")], {
+    description: "Which subsystem this event belongs to",
+  }),
   component_id: Type.String({
     maxLength: 64,
     description: "Form symbol or domain name",
@@ -47,12 +46,7 @@ export const VersionEventSchema = Type.Object({
     description: "Semver of the resulting state (depends on event_type)",
   }),
   bump_type: Type.Union(
-    [
-      Type.Literal("major"),
-      Type.Literal("minor"),
-      Type.Literal("patch"),
-      Type.Null(),
-    ],
+    [Type.Literal("major"), Type.Literal("minor"), Type.Literal("patch"), Type.Null()],
     { description: "Bump type associated with the event" }
   ),
   target_count: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()], {
@@ -76,7 +70,6 @@ export type VersionEventRepositoryStorage = ITabularStorage<
   VersionEvent
 >;
 
-export const VERSION_EVENT_REPOSITORY_TOKEN =
-  createServiceToken<VersionEventRepositoryStorage>(
-    "sec.storage.versionEventRepository"
-  );
+export const VERSION_EVENT_REPOSITORY_TOKEN = createServiceToken<VersionEventRepositoryStorage>(
+  "sec.storage.versionEventRepository"
+);

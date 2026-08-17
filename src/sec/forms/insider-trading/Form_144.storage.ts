@@ -35,9 +35,7 @@ import { Form144Repo } from "../../../storage/form144/Form144Repo";
 import type { Form144 } from "./Form_144.schema";
 import { numScalar as num, strScalar as str } from "../_valueHelpers";
 
-type AddressShape = NonNullable<
-  NonNullable<Form144["formData"]>["issuerInfo"]
->["issuerAddress"];
+type AddressShape = NonNullable<NonNullable<Form144["formData"]>["issuerInfo"]>["issuerAddress"];
 
 // EDGAR Y/N flags.
 function toBoolYN(raw: string | undefined): boolean {

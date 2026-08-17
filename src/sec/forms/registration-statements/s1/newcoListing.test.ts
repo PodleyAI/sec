@@ -11,7 +11,12 @@ import { setupAllDatabases } from "../../../../config/setupAllDatabases";
 import { FILING_REPOSITORY_TOKEN } from "../../../../storage/filing/FilingSchema";
 import { issuerHasCombinationListing } from "./newcoListing";
 
-async function seedFiling(cik: number, accession: string, form: string, filingDate = "2024-10-02"): Promise<void> {
+async function seedFiling(
+  cik: number,
+  accession: string,
+  form: string,
+  filingDate = "2024-10-02"
+): Promise<void> {
   await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
     cik,
     accession_number: accession,

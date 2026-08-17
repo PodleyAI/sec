@@ -20,13 +20,15 @@ const table = (rows: string[][]): string =>
 
 const find = (statements: RegAStatement[], kind: string): RegAStatement => {
   const found = statements.find((s) => s.kind === kind);
-  if (found === undefined) throw new Error(`no ${kind} statement; got ${statements.map((s) => s.kind)}`);
+  if (found === undefined)
+    throw new Error(`no ${kind} statement; got ${statements.map((s) => s.kind)}`);
   return found;
 };
 
 const row = (statement: RegAStatement, label: string): (number | null)[] => {
   const found = statement.rows.find((r) => r.label.toLowerCase().startsWith(label.toLowerCase()));
-  if (found === undefined) throw new Error(`no row "${label}"; got ${statement.rows.map((r) => r.label)}`);
+  if (found === undefined)
+    throw new Error(`no row "${label}"; got ${statement.rows.map((r) => r.label)}`);
   return found.values;
 };
 
@@ -285,7 +287,9 @@ describe("parseRegAFinancialStatements — statement identification", () => {
   });
 
   it("returns nothing for a document carrying no statements", () => {
-    expect(parseRegAFinancialStatements("<html><body><p>Nothing here.</p></body></html>")).toEqual([]);
+    expect(parseRegAFinancialStatements("<html><body><p>Nothing here.</p></body></html>")).toEqual(
+      []
+    );
   });
 
   it("takes audit status from the report, not from one table", () => {

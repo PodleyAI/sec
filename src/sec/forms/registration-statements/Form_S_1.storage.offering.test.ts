@@ -289,7 +289,12 @@ describe("processFormS1 offering terms", () => {
 
   it("skips promote for a non-SPAC filing", async () => {
     const { unregister } = registerFakeStructuredProvider([
-      { security_type: "Common Stock", confidence: 0.9, source_span: "5,000,000 shares", tickers: [] },
+      {
+        security_type: "Common Stock",
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [],
+      },
       { underwriters: [] },
     ]);
     cleanup = unregister;

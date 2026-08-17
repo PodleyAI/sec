@@ -19,10 +19,7 @@ export class Form_4 extends Form {
     "Any changes to a previously filed form 3 are reported in this filing.";
   static readonly forms = ["4", "4/A"] as const;
 
-  static async parse(
-    form: (typeof Form_4.forms)[number],
-    xml: string
-  ): Promise<OwnershipDocument> {
+  static async parse(form: (typeof Form_4.forms)[number], xml: string): Promise<OwnershipDocument> {
     if (!Form_4.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }

@@ -325,7 +325,10 @@ describe("processDeregistration", () => {
     const events = await repo.getEvents(50);
     expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
     expect(
-      events.filter((e) => e.event_type === "completed").map((e) => e.form).toSorted()
+      events
+        .filter((e) => e.event_type === "completed")
+        .map((e) => e.form)
+        .toSorted()
     ).toEqual(["25", "8-K"]);
     const row = await repo.getSpac(50);
     expect(row?.status).toBe("completed");
@@ -409,7 +412,9 @@ describe("processDeregistration", () => {
 
     const events = await repo.getEvents(2056263);
     expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
-    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form)).toEqual(["15-12G"]);
+    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form)).toEqual([
+      "15-12G",
+    ]);
     const row = await repo.getSpac(2056263);
     expect(row?.status).toBe("completed");
     expect(row?.failed_date).toBeNull();
@@ -454,10 +459,12 @@ describe("processDeregistration", () => {
 
     const events = await repo.getEvents(2032379);
     expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
-    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form).sort()).toEqual([
-      "15-12G",
-      "25-NSE",
-    ]);
+    expect(
+      events
+        .filter((e) => e.event_type === "completed")
+        .map((e) => e.form)
+        .sort()
+    ).toEqual(["15-12G", "25-NSE"]);
     expect((await repo.getSpac(2032379))?.status).toBe("completed");
     expect((await repo.getSpac(2032379))?.failed_date).toBeNull();
   });
@@ -498,9 +505,9 @@ describe("processDeregistration", () => {
 
     const events = await repo.getEvents(2054174);
     expect(events.filter((e) => e.event_type === "deregistration")).toEqual([]);
-    expect(events.some((e) => e.event_type === "completed" && e.accession_number === "2054174-nse")).toBe(
-      true
-    );
+    expect(
+      events.some((e) => e.event_type === "completed" && e.accession_number === "2054174-nse")
+    ).toBe(true);
     expect((await repo.getSpac(2054174))?.status).toBe("completed");
   });
 
@@ -849,9 +856,9 @@ describe("processDeregistration", () => {
       form: "20-F",
       filing_date: "2026-03-31",
     });
-    expect(await repo.getEvents(2074851).then((e) => e.filter((x) => x.event_type === "completed"))).toEqual(
-      []
-    );
+    expect(
+      await repo.getEvents(2074851).then((e) => e.filter((x) => x.event_type === "completed"))
+    ).toEqual([]);
     expect(
       await repo.getEvents(2074851).then((e) => e.filter((x) => x.event_type === "deregistration"))
     ).toEqual([]);

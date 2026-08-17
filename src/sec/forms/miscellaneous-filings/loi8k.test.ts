@@ -119,9 +119,7 @@ describe("processLoi8K", () => {
 
   it("falls back to the report-date event_date when the narrative states no date", async () => {
     await seedSearchingSpac(61);
-    const registration = registerFakeStructuredProvider([
-      { ...LOI_PAYLOAD, loi_date: null },
-    ]);
+    const registration = registerFakeStructuredProvider([{ ...LOI_PAYLOAD, loi_date: null }]);
     cleanup = registration.unregister;
 
     await processLoi8K({

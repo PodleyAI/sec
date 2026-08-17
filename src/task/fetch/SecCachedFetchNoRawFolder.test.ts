@@ -97,9 +97,9 @@ describe("SecCachedFetchTask without SEC_RAW_DATA_FOLDER", () => {
       }
     }
 
-    expect(
-      () => new NarrowedSchemaTask({ name: "a.txt", response_type: "stream" })
-    ).toThrow(/binary `body` output port/);
+    expect(() => new NarrowedSchemaTask({ name: "a.txt", response_type: "stream" })).toThrow(
+      /binary `body` output port/
+    );
     expect(warn).not.toHaveBeenCalled();
   });
 });

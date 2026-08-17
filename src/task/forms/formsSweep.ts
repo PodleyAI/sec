@@ -33,7 +33,10 @@ export interface FormsShard {
  * only the filings hashing into `shard.index`, so N processes each with a
  * distinct index cover the worklist disjointly.
  */
-export function newFormsWorklistTask(form?: string[], shard?: FormsShard): ComputeFormsWorklistTask {
+export function newFormsWorklistTask(
+  form?: string[],
+  shard?: FormsShard
+): ComputeFormsWorklistTask {
   return new ComputeFormsWorklistTask({
     defaults: { form, shardIndex: shard?.index, shardCount: shard?.count },
   });

@@ -84,34 +84,32 @@ function replaceSqlite(
        "outcome", "outcome_date", "source_accession", "created_at")
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  const tx = db.transaction(
-    (del: ReadonlyArray<SpacDeal>, ups: ReadonlyArray<SpacDeal>) => {
-      for (const d of del) {
-        delStmt.run(d.cik, d.deal_index);
-      }
-      for (const d of ups) {
-        insStmt.run(
-          d.cik,
-          d.deal_index,
-          d.target_name,
-          d.target_cik,
-          d.target_description,
-          d.loi_date,
-          d.announced_date,
-          d.definitive_agreement_date,
-          d.proxy_date,
-          d.vote_date,
-          d.pipe_amount,
-          d.redemption_amount,
-          d.redemption_shares,
-          d.outcome,
-          d.outcome_date,
-          d.source_accession,
-          d.created_at
-        );
-      }
+  const tx = db.transaction((del: ReadonlyArray<SpacDeal>, ups: ReadonlyArray<SpacDeal>) => {
+    for (const d of del) {
+      delStmt.run(d.cik, d.deal_index);
     }
-  );
+    for (const d of ups) {
+      insStmt.run(
+        d.cik,
+        d.deal_index,
+        d.target_name,
+        d.target_cik,
+        d.target_description,
+        d.loi_date,
+        d.announced_date,
+        d.definitive_agreement_date,
+        d.proxy_date,
+        d.vote_date,
+        d.pipe_amount,
+        d.redemption_amount,
+        d.redemption_shares,
+        d.outcome,
+        d.outcome_date,
+        d.source_accession,
+        d.created_at
+      );
+    }
+  });
   tx(toDelete, toUpsert);
   return Promise.resolve();
 }
@@ -148,10 +146,10 @@ async function runPostgresOps(
   toUpsert: ReadonlyArray<SpacDeal>
 ): Promise<void> {
   for (const d of toDelete) {
-    await client.query(
-      `DELETE FROM "spac_deal" WHERE "cik" = $1 AND "deal_index" = $2`,
-      [d.cik, d.deal_index]
-    );
+    await client.query(`DELETE FROM "spac_deal" WHERE "cik" = $1 AND "deal_index" = $2`, [
+      d.cik,
+      d.deal_index,
+    ]);
   }
   for (const d of toUpsert) {
     await client.query(

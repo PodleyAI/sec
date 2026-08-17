@@ -784,10 +784,7 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     primaryKeyNames: RegAOfferingEventPrimaryKeyNames,
     // By issuer over time (the timeline query) and by the offering the event
     // belongs to, which is how a supplement is joined back to its `024-` line.
-    indexes: [
-      ["cik", "filing_date"],
-      ["file_number"],
-    ],
+    indexes: [["cik", "filing_date"], ["file_number"]],
   }),
   // ------------------------------ SPAC ------------------------------------------
   defineStorage({

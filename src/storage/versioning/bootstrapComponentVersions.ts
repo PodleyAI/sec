@@ -16,9 +16,7 @@ import { VersionRegistry } from "./VersionRegistry";
  * extractor AND resolver id. Existing current slots are left untouched.
  */
 export async function bootstrapComponentVersions(): Promise<void> {
-  const reg = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
+  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
   const startedAt = new Date().toISOString();
 
   const tasks: ReadonlyArray<{ kind: ComponentKind; ids: ReadonlyArray<string> }> = [

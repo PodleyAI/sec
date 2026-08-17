@@ -88,4 +88,3 @@ export function assertAllSucceeded(summary: PipelineSummary): void {
       sample.map((e) => `\n  ${e.file}: ${e.error}`).join("")
   );
 }
-

@@ -28,9 +28,7 @@ export function addExtractorCommands(program: Command): void {
 
   cmd
     .command("dead-letters [extractorId]")
-    .description(
-      "List dead-letter entries for an extractor, or for one issuer with --cik"
-    )
+    .description("List dead-letter entries for an extractor, or for one issuer with --cik")
     .option(
       "--eligible",
       "count entries eligible for retry under each extractor's current version",

@@ -19,10 +19,7 @@ export class Form_3 extends Form {
     "An initial filing of equity securities filed by every director, officer, or owner of more than ten percent of a class of equity securities.";
   static readonly forms = ["3", "3/A"] as const;
 
-  static async parse(
-    form: (typeof Form_3.forms)[number],
-    xml: string
-  ): Promise<OwnershipDocument> {
+  static async parse(form: (typeof Form_3.forms)[number], xml: string): Promise<OwnershipDocument> {
     if (!Form_3.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }

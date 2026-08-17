@@ -194,16 +194,22 @@ function normalizeStreetAddress(
   if (!street1) return [street1, street2, street3];
 
   try {
-    const streetInput = [street1, street2, street3]
-      .filter((s) => s?.trim())
-      .join(", ");
+    const streetInput = [street1, street2, street3].filter((s) => s?.trim()).join(", ");
 
     const parts = parser.parseLocation(streetInput);
 
     if (!parts) return [street1, street2, street3];
 
-    const { number, civic_number_suffix, prefix, street, type, suffix, sec_unit_type, sec_unit_num } =
-      parts;
+    const {
+      number,
+      civic_number_suffix,
+      prefix,
+      street,
+      type,
+      suffix,
+      sec_unit_type,
+      sec_unit_num,
+    } = parts;
 
     const houseNumber =
       [number, civic_number_suffix]
@@ -218,7 +224,11 @@ function normalizeStreetAddress(
     // "123 Principale Rue". Ambiguous words (Avenue, Place) are disambiguated by
     // position, not by the word itself.
     const streetHint = street1.replace(/^\s*\d+[a-z]?\s+/i, "").trimStart();
-    const firstToken = streetHint.split(/[\s,]+/)[0]?.toLowerCase().replace(/[.]/g, "") ?? "";
+    const firstToken =
+      streetHint
+        .split(/[\s,]+/)[0]
+        ?.toLowerCase()
+        .replace(/[.]/g, "") ?? "";
     const typeLeadsStreet = !!type && !!street && FRENCH_LEADING_STREET_TYPES.has(firstToken);
 
     const orderedStreet1 = typeLeadsStreet
@@ -386,12 +396,7 @@ export function normalizeAddress(importAddress: AddressImport | null): Address |
 
   const streetParser = streetParserForCountry(country_code);
   if (streetParser) {
-    [street1, street2, street3] = normalizeStreetAddress(
-      streetParser,
-      street1,
-      street2,
-      street3
-    );
+    [street1, street2, street3] = normalizeStreetAddress(streetParser, street1, street2, street3);
   }
 
   zip = normalizePostalCode(zip, country_code);

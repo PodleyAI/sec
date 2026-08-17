@@ -76,9 +76,7 @@ export class RetryDeadLettersTask extends Task<
     const accessions = [...new Set(eligible.map((e) => e.accession_number))];
     const expectedNegativeOnly = new Set(
       accessions.filter((accession) =>
-        eligible
-          .filter((e) => e.accession_number === accession)
-          .every(isExpectedNegativeDeadLetter)
+        eligible.filter((e) => e.accession_number === accession).every(isExpectedNegativeDeadLetter)
       )
     );
 

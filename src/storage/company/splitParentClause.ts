@@ -44,7 +44,10 @@ export function splitParentClause(legalName: string): ParentClauseSplit {
 
   const paren = asFiled.match(PAREN_CLAUSE);
   if (paren) {
-    const x = asFiled.slice(0, paren.index).replace(/[,\s]+$/g, "").trim();
+    const x = asFiled
+      .slice(0, paren.index)
+      .replace(/[,\s]+$/g, "")
+      .trim();
     const y = (paren[1] ?? "").trim();
     if (x !== "" && y !== "") {
       return {

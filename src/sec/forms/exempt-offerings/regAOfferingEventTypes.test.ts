@@ -5,10 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  classifyRegAOfferingEvent,
-  REGA_OFFERING_EVENT_TYPES,
-} from "./regAOfferingEventTypes";
+import { classifyRegAOfferingEvent, REGA_OFFERING_EVENT_TYPES } from "./regAOfferingEventTypes";
 
 describe("classifyRegAOfferingEvent", () => {
   it("groups all four 253G subsections as one supplement event", () => {

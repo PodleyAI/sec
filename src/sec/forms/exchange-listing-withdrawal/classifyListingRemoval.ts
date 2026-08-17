@@ -84,9 +84,7 @@ function calendarDaysBetween(from: string, to: string): number {
  * attempt, so the LATER of the two dates is what the window is anchored on.
  */
 function approvalDate(deal: ListingRemovalPendingDeal): string | null {
-  const dates = [deal.vote_date, deal.proxy_date].filter(
-    (d): d is string => d != null && d !== ""
-  );
+  const dates = [deal.vote_date, deal.proxy_date].filter((d): d is string => d != null && d !== "");
   if (dates.length === 0) return null;
   return dates.reduce((latest, d) => (d > latest ? d : latest));
 }

@@ -9,7 +9,9 @@ import type { ITabularStorage, SearchCriteria } from "workglow";
 // PageCursor isn't re-exported from the `workglow` facade in 0.3.0, so we
 // infer the cursor type from the return shape of queryPage() instead of
 // importing it.
-type CursorOf<Entity> = Awaited<ReturnType<ITabularStorage<any, any, Entity>["queryPage"]>>["nextCursor"];
+type CursorOf<Entity> = Awaited<
+  ReturnType<ITabularStorage<any, any, Entity>["queryPage"]>
+>["nextCursor"];
 
 /**
  * Soft cap on streamed substring/prefix matches before we stop counting.

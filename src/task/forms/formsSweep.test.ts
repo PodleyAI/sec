@@ -83,7 +83,12 @@ describe("forms sweep wiring", () => {
   });
 
   it("ComputeFormsWorklistTask emits index-aligned worklist arrays (xsl prefix stripped)", async () => {
-    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
+    await seed({
+      cik: 111,
+      accession_number: "0000000001-26-000001",
+      form: "3",
+      primary_doc: "a.xml",
+    });
     await seed({
       cik: 222,
       accession_number: "0000000002-26-000002",
@@ -106,8 +111,18 @@ describe("forms sweep wiring", () => {
     // puts the bare "25" fourth — long before the S-1 that mints the spac row
     // `processDeregistration` is gated on. A first-pass sweep therefore dropped
     // every deregistration as a successful no-op.
-    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "25", primary_doc: "a.htm" });
-    await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "S-1", primary_doc: "b.htm" });
+    await seed({
+      cik: 111,
+      accession_number: "0000000001-26-000001",
+      form: "25",
+      primary_doc: "a.htm",
+    });
+    await seed({
+      cik: 222,
+      accession_number: "0000000002-26-000002",
+      form: "S-1",
+      primary_doc: "b.htm",
+    });
 
     const producer = new ComputeFormsWorklistTask({ defaults: {} });
     const emitted: string[] = [];
@@ -158,8 +173,18 @@ describe("forms sweep wiring", () => {
     // array (~4.6M rows for form 4, ~3 GB per process — and every `--shard`
     // process paid it in full, because the shard filter ran afterwards).
     // Every read must stay bounded no matter how large the form is.
-    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
-    await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "b.xml" });
+    await seed({
+      cik: 111,
+      accession_number: "0000000001-26-000001",
+      form: "3",
+      primary_doc: "a.xml",
+    });
+    await seed({
+      cik: 222,
+      accession_number: "0000000002-26-000002",
+      form: "3",
+      primary_doc: "b.xml",
+    });
 
     const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
     const limits: Array<number | undefined> = [];
@@ -224,14 +249,31 @@ describe("forms sweep wiring", () => {
   });
 
   it("forEach loop fans one iteration per filing with correctly zipped inputs", async () => {
-    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
-    await seed({ cik: 222, accession_number: "0000000002-26-000002", form: "3", primary_doc: "b.xml" });
-    await seed({ cik: 333, accession_number: "0000000003-26-000003", form: "3", primary_doc: "c.xml" });
+    await seed({
+      cik: 111,
+      accession_number: "0000000001-26-000001",
+      form: "3",
+      primary_doc: "a.xml",
+    });
+    await seed({
+      cik: 222,
+      accession_number: "0000000002-26-000002",
+      form: "3",
+      primary_doc: "b.xml",
+    });
+    await seed({
+      cik: 333,
+      accession_number: "0000000003-26-000003",
+      form: "3",
+      primary_doc: "c.xml",
+    });
 
     // Mirror addFormsSweepLoop's structure, but with the recording inner task so
     // we can observe what each iteration receives.
     const wf = new Workflow();
-    wf.pipe(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>);
+    wf.pipe(
+      new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>
+    );
     const loop = wf.forEach({ concurrencyLimit: 20 });
     loop.pipe(new RecordingProcessTask() as ITask<DataPorts, DataPorts>);
     loop.endForEach();
@@ -242,9 +284,21 @@ describe("forms sweep wiring", () => {
     // Order-independent: each seeded filing must appear exactly once with its
     // own cik/form/fileName zipped alongside its accession number.
     const byAccession = new Map(recorded.map((r) => [r.accessionNumber, r]));
-    expect(byAccession.get("0000000001-26-000001")).toMatchObject({ cik: 111, form: "3", fileName: "a.xml" });
-    expect(byAccession.get("0000000002-26-000002")).toMatchObject({ cik: 222, form: "3", fileName: "b.xml" });
-    expect(byAccession.get("0000000003-26-000003")).toMatchObject({ cik: 333, form: "3", fileName: "c.xml" });
+    expect(byAccession.get("0000000001-26-000001")).toMatchObject({
+      cik: 111,
+      form: "3",
+      fileName: "a.xml",
+    });
+    expect(byAccession.get("0000000002-26-000002")).toMatchObject({
+      cik: 222,
+      form: "3",
+      fileName: "b.xml",
+    });
+    expect(byAccession.get("0000000003-26-000003")).toMatchObject({
+      cik: 333,
+      form: "3",
+      fileName: "c.xml",
+    });
   });
 
   it("surfaces the inner task's updateProgress message on the iterator's iteration_progress", async () => {
@@ -252,7 +306,12 @@ describe("forms sweep wiring", () => {
     // must reach the ForEach node's iteration_progress event (that is what the
     // CLI renders on each worker row). Without it every iteration row is a bare
     // spinner.
-    await seed({ cik: 111, accession_number: "0000000001-26-000001", form: "3", primary_doc: "a.xml" });
+    await seed({
+      cik: 111,
+      accession_number: "0000000001-26-000001",
+      form: "3",
+      primary_doc: "a.xml",
+    });
 
     class ProgressTask extends ProcessAccessionDocFormTask {
       static readonly type = "ProgressTask";
@@ -266,14 +325,18 @@ describe("forms sweep wiring", () => {
     }
 
     const wf = new Workflow();
-    wf.pipe(new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>);
+    wf.pipe(
+      new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }) as ITask<DataPorts, DataPorts>
+    );
     const loop = wf.forEach({ concurrencyLimit: 20 });
     loop.pipe(new ProgressTask() as ITask<DataPorts, DataPorts>);
     loop.endForEach();
     wf.pipe(new OutputTask() as ITask<DataPorts, DataPorts>);
 
     const messages: Array<string | undefined> = [];
-    const iterator = wf.graph.getTasks().find((t) => (t as { type?: string }).type === "ForEachTask");
+    const iterator = wf.graph
+      .getTasks()
+      .find((t) => (t as { type?: string }).type === "ForEachTask");
     expect(iterator).toBeDefined();
     iterator!.events.on("iteration_progress", (_i, _n, _p, message) => {
       messages.push(message);

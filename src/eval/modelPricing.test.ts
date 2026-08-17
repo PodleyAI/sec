@@ -63,7 +63,9 @@ describe("priceFor dispatch", () => {
     // / HF Inference ids at $0.
     expect(estimateCost("open-router:anthropic/claude-sonnet-4", 40_000, 2_000).usd).toBeNull();
     expect(estimateCost("hfi:meta-llama/Llama-3.3-70B-Instruct", 40_000, 2_000).usd).toBeNull();
-    expect(estimateCost("onnx-community/Qwen3-4B-Instruct-2507-ONNX", 40_000, 2_000).usd).toBeNull();
+    expect(
+      estimateCost("onnx-community/Qwen3-4B-Instruct-2507-ONNX", 40_000, 2_000).usd
+    ).toBeNull();
   });
 
   it("reports an unknown id as unavailable rather than guessing", () => {
@@ -141,7 +143,10 @@ describe("Gemini pricing", () => {
   });
 
   it("prices the 2.5 family", () => {
-    expect(estimateCost("gemini-2.5-flash-lite", 4_000_000, 4_000_000).usd).toBeCloseTo(0.1 + 0.4, 5);
+    expect(estimateCost("gemini-2.5-flash-lite", 4_000_000, 4_000_000).usd).toBeCloseTo(
+      0.1 + 0.4,
+      5
+    );
     expect(estimateCost("gemini-2.5-pro", 4_000_000, 4_000_000).usd).toBeCloseTo(1.25 + 10, 5);
   });
 });

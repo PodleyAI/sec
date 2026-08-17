@@ -221,7 +221,9 @@ async function downloadPlan(
   return { ok, failed };
 }
 
-export async function fetchFixtures(options: FetchFixturesOptions = {}): Promise<FetchFixturesResult> {
+export async function fetchFixtures(
+  options: FetchFixturesOptions = {}
+): Promise<FetchFixturesResult> {
   const forms = options.forms ?? EXEMPT_OFFERING_FORM_CODES;
   const count = options.count ?? DEFAULT_FIXTURES_PER_FORM;
   const quarters = options.quarters ?? defaultQuarters();
@@ -271,9 +273,7 @@ export async function fetchFixtures(options: FetchFixturesOptions = {}): Promise
     if (listOnly) {
       for (const row of plan.toFetch) {
         const accession = accessionFromFileName(row.fileName);
-        process.stdout.write(
-          `${form}\t${row.cik}\t${accession}\t${row.companyName}\n`
-        );
+        process.stdout.write(`${form}\t${row.cik}\t${accession}\t${row.companyName}\n`);
       }
       perForm.set(form, { ok: 0, failed: 0 });
       continue;

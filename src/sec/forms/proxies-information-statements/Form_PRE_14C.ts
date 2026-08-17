@@ -23,5 +23,4 @@ export class Form_PRE_14C extends Form {
   static override async parse(form: string, txt: string): Promise<FormS1Parsed> {
     return parseRegistrationSubmission(form, txt);
   }
-
 }

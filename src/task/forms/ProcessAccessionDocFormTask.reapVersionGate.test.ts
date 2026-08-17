@@ -105,7 +105,9 @@ async function seedPriorRunAtVersion(version: string): Promise<void> {
 
 /** Bump the S-1 extractor's active "current" slot to a new version. */
 async function bumpActiveVersion(version: string): Promise<void> {
-  const registry = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+  const registry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
   await registry.putSlot({
     component_kind: "extractor",
     component_id: "S-1",

@@ -28,10 +28,7 @@ import { findSourceStubs } from "./sourceStubs";
 
 const MAX_UNPACKED_BYTES = 5_000_000; // 5 MB
 const FORBIDDEN_SUFFIXES = [".test.ts"] as const;
-const FORBIDDEN_PREFIXES = [
-  "src/sec/html/mock_data/",
-  "src/eval/mock_data/",
-] as const;
+const FORBIDDEN_PREFIXES = ["src/sec/html/mock_data/", "src/eval/mock_data/"] as const;
 const FORBIDDEN_SUBSTRINGS = ["/mock_data/"] as const;
 
 interface PackReport {
@@ -109,11 +106,16 @@ function parseBunTextReport(source: string, output: string): PackReport {
       const n = parseFloat(u[1]);
       const unit = u[2].toUpperCase();
       const mult =
-        unit === "B" ? 1
-          : unit === "KB" ? 1024
-            : unit === "MB" ? 1024 ** 2
-              : unit === "GB" ? 1024 ** 3
-                : unit === "TB" ? 1024 ** 4
+        unit === "B"
+          ? 1
+          : unit === "KB"
+            ? 1024
+            : unit === "MB"
+              ? 1024 ** 2
+              : unit === "GB"
+                ? 1024 ** 3
+                : unit === "TB"
+                  ? 1024 ** 4
                   : 1;
       unpackedSize = Math.round(n * mult);
     }

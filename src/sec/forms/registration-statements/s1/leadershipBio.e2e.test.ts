@@ -85,9 +85,7 @@ describe("Leadership bio + birth_year end-to-end", () => {
     const rows = await new PersonObservationRepo().listByAccession("0000000000-26-000801");
     const john = rows.find((r) => r.last_name === "Doe");
     expect(john).toBeDefined();
-    const titles = await new PersonObservationTitleRepo().listForObservation(
-      john!.observation_id
-    );
+    const titles = await new PersonObservationTitleRepo().listForObservation(john!.observation_id);
     expect(titles).toEqual(["Chief Executive Officer"]);
     expect(john!.birth_year).toBe(1971); // 2026 - 55
     expect(john!.bio).toContain("served as our CEO since 2019");

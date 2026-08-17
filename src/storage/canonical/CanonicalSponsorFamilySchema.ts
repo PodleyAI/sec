@@ -22,7 +22,10 @@ export const CanonicalSponsorFamilySchema = Type.Object({
     description: "Semver of the resolver that produced this row",
   }),
   display_name: TypeNullable(Type.String({ maxLength: 512, description: "As first emitted" })),
-  normalized_name: Type.String({ maxLength: 512, description: "Natural key (with resolver_version)" }),
+  normalized_name: Type.String({
+    maxLength: 512,
+    description: "Natural key (with resolver_version)",
+  }),
   created_at: Type.String({ description: "ISO 8601 timestamp" }),
 });
 export type CanonicalSponsorFamily = Static<typeof CanonicalSponsorFamilySchema>;

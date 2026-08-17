@@ -18,8 +18,9 @@ const GENERATION_TAG = /(\s*){%(-?)\s*(?:end)?generation\s*(-?)%}(\s*)/gs;
 
 /** Remove `{% generation %}` / `{% endgeneration %}` marker tags from a chat template. */
 export function stripGenerationTags(template: string): string {
-  return template.replace(GENERATION_TAG, (_m, before, lstrip, rstrip, after) =>
-    (lstrip ? "" : before) + (rstrip ? "" : after)
+  return template.replace(
+    GENERATION_TAG,
+    (_m, before, lstrip, rstrip, after) => (lstrip ? "" : before) + (rstrip ? "" : after)
   );
 }
 
@@ -43,7 +44,10 @@ export function patchHftChatTemplateGenerationTags(): void {
     get_chat_template: (opts?: unknown) => unknown;
   };
   const original = proto.get_chat_template;
-  proto.get_chat_template = function patchedGetChatTemplate(this: unknown, opts?: unknown): unknown {
+  proto.get_chat_template = function patchedGetChatTemplate(
+    this: unknown,
+    opts?: unknown
+  ): unknown {
     const template = original.call(this, opts);
     return typeof template === "string" ? stripGenerationTags(template) : template;
   };

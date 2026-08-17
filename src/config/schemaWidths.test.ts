@@ -65,7 +65,10 @@ describe("declared column widths", () => {
 
   it("leaves file_number and film_number unbounded", () => {
     for (const column of UNBOUNDED_COLUMNS) {
-      expect(width(FilingSchema, column), `filings.${column} must be unbounded text`).toBeUndefined();
+      expect(
+        width(FilingSchema, column),
+        `filings.${column} must be unbounded text`
+      ).toBeUndefined();
     }
   });
 });

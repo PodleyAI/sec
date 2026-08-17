@@ -144,7 +144,9 @@ export async function fetchS1Fixtures(
   log("Listing recent S-1 candidates ...");
   const candidates = await deps.listCandidates();
   const selection = selectS1Sample(shuffle(candidates), count, minSpac);
-  log(`Selected ${selection.length} (${selection.filter(isSpac).length} SPAC) of ${candidates.length}`);
+  log(
+    `Selected ${selection.length} (${selection.filter(isSpac).length} SPAC) of ${candidates.length}`
+  );
 
   const existing = new Set(readdirSync(cacheDir).filter((f) => f.endsWith(".htm")));
   const files: string[] = [];

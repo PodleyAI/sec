@@ -65,22 +65,27 @@ export function validateBumpProgression(
   if (!to) return `invalid semver: ${toSemver}`;
 
   if (bump === "major") {
-    if (to.major !== from.major + 1) return `major must increment by 1 (${fromSemver} → ${toSemver})`;
+    if (to.major !== from.major + 1)
+      return `major must increment by 1 (${fromSemver} → ${toSemver})`;
     if (to.minor !== 0) return `major bump must reset minor to 0 (got ${toSemver})`;
     if (to.patch !== 0) return `major bump must reset patch to 0 (got ${toSemver})`;
     return undefined;
   }
 
   if (bump === "minor") {
-    if (to.major !== from.major) return `minor bump: major must stay the same (${fromSemver} → ${toSemver})`;
-    if (to.minor !== from.minor + 1) return `minor must increment by 1 (${fromSemver} → ${toSemver})`;
+    if (to.major !== from.major)
+      return `minor bump: major must stay the same (${fromSemver} → ${toSemver})`;
+    if (to.minor !== from.minor + 1)
+      return `minor must increment by 1 (${fromSemver} → ${toSemver})`;
     if (to.patch !== 0) return `minor bump must reset patch to 0 (got ${toSemver})`;
     return undefined;
   }
 
   // patch
-  if (to.major !== from.major) return `patch bump: major must stay the same (${fromSemver} → ${toSemver})`;
-  if (to.minor !== from.minor) return `patch bump: minor must stay the same (${fromSemver} → ${toSemver})`;
+  if (to.major !== from.major)
+    return `patch bump: major must stay the same (${fromSemver} → ${toSemver})`;
+  if (to.minor !== from.minor)
+    return `patch bump: minor must stay the same (${fromSemver} → ${toSemver})`;
   if (to.patch !== from.patch + 1) return `patch must increment by 1 (${fromSemver} → ${toSemver})`;
   return undefined;
 }

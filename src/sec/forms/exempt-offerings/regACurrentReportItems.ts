@@ -65,7 +65,9 @@ const SIGNIFICANCE: readonly RegACurrentReportEvent[] = [
  * because a future item code is unknown would reintroduce exactly the blind spot
  * this table exists to close. An unknown code is preserved verbatim in `items`.
  */
-export function classifyRegACurrentReport(items: string | null | undefined): RegACurrentReportEvent {
+export function classifyRegACurrentReport(
+  items: string | null | undefined
+): RegACurrentReportEvent {
   if (!items) return "other";
   const codes = items
     .split(",")

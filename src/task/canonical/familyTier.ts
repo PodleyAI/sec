@@ -84,7 +84,8 @@ export function familyTierDeps(family: FamilyKind): FamilyTierDeps {
         ),
       listIssuerCiksForFamily: (familyId) =>
         new SpacSponsorLinkRepo().listIssuerCiksForFamily(familyId),
-      displayNames: async () => familyDisplayNames(await new CanonicalSponsorFamilyRepo().listAll()),
+      displayNames: async () =>
+        familyDisplayNames(await new CanonicalSponsorFamilyRepo().listAll()),
     };
   }
   return {

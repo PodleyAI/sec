@@ -21,15 +21,9 @@ import { clearResolverExtensionsForTesting } from "../../resolver/resolverExtens
 import { registerSecResolvers } from "../../config/registerResolvers";
 
 function buildDeps() {
-  const reg = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-  const events = new VersionEventRepo(
-    globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN)
-  );
-  const runs = new ExtractorRunRepo(
-    globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
-  );
+  const reg = new VersionRegistry(globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN));
+  const events = new VersionEventRepo(globalServiceRegistry.get(VERSION_EVENT_REPOSITORY_TOKEN));
+  const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   return { reg, events, runs };
 }
 

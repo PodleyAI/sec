@@ -274,9 +274,7 @@ export async function processLoi8K(args: ProcessLoi8KArgs): Promise<void> {
 
   if (persistedRow !== null) {
     const row: LoiRow = persistedRow;
-    const eventDate = isIsoDate(row.loi_date)
-      ? row.loi_date
-      : (args.event_date ?? filing_date);
+    const eventDate = isIsoDate(row.loi_date) ? row.loi_date : (args.event_date ?? filing_date);
     if (eventDate) {
       await new SpacReportWriter().recordLoi({
         cik,

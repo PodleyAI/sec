@@ -65,7 +65,11 @@ describe("Form_1_K.parse", () => {
     const parsed = await Form_1_K.parse(
       "1-K",
       fullSubmission1K(
-        reportDocument("EX1K-6 MAT CTRCT", "exhibit_6-2c.htm", "<html><body>A contract.</body></html>")
+        reportDocument(
+          "EX1K-6 MAT CTRCT",
+          "exhibit_6-2c.htm",
+          "<html><body>A contract.</body></html>"
+        )
       )
     );
     expect(parsed.cover.formData.item1Info[0]?.issuerName).toBe("CalTier Inc.");
@@ -75,7 +79,9 @@ describe("Form_1_K.parse", () => {
   it("still parses a bare primary_doc.xml, yielding no statements", async () => {
     // A caller holding only the cover — a fixture, or a document cached before
     // the fetch was escalated — must not throw. It simply has no statements.
-    const coverXml = coverDocument().replace(/^[\s\S]*?<TEXT>\s*<XML>/i, "").replace(/<\/XML>[\s\S]*$/i, "");
+    const coverXml = coverDocument()
+      .replace(/^[\s\S]*?<TEXT>\s*<XML>/i, "")
+      .replace(/<\/XML>[\s\S]*$/i, "");
     const parsed = await Form_1_K.parse("1-K", coverXml);
     expect(parsed.cover.formData.item1Info[0]?.issuerName).toBe("CalTier Inc.");
     expect(parsed.statements).toEqual([]);
@@ -84,10 +90,7 @@ describe("Form_1_K.parse", () => {
   it("keeps the cover when the submission carries no PART II", async () => {
     // A filing may incorporate its financials by reference. The cover data is
     // still worth storing, so this degrades rather than throwing.
-    const parsed = await Form_1_K.parse(
-      "1-K",
-      `<SEC-DOCUMENT>\n${coverDocument()}</SEC-DOCUMENT>`
-    );
+    const parsed = await Form_1_K.parse("1-K", `<SEC-DOCUMENT>\n${coverDocument()}</SEC-DOCUMENT>`);
     expect(parsed.cover.formData.item1Info[0]?.issuerName).toBe("CalTier Inc.");
     expect(parsed.statements).toEqual([]);
   });
@@ -146,10 +149,7 @@ describe("Form_1_SA.parse", () => {
     // A 1-SA's primary document IS its report — all 2,792 filings record a
     // `.htm` primary doc — so this, not the full submission, is the real path.
     // The form is deliberately excluded from REGA_FULL_SUBMISSION_FORMS.
-    const parsed = await Form_1_SA.parse(
-      "1-SA",
-      fixture("1sa-1838432-000110465924104481.htm")
-    );
+    const parsed = await Form_1_SA.parse("1-SA", fixture("1sa-1838432-000110465924104481.htm"));
     expect(parsed.statements).toHaveLength(3);
   });
 

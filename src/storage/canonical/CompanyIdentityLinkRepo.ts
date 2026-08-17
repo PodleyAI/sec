@@ -62,7 +62,10 @@ export class CompanyIdentityLinkRepo {
   async deleteForObservation(observation_id: number): Promise<void> {
     const rows = (await this.repo.query({ observation_id })) ?? [];
     for (const r of rows) {
-      await this.repo.delete({ observation_id: r.observation_id, resolver_version: r.resolver_version });
+      await this.repo.delete({
+        observation_id: r.observation_id,
+        resolver_version: r.resolver_version,
+      });
     }
   }
 
@@ -70,9 +73,7 @@ export class CompanyIdentityLinkRepo {
     canonical_company_id: string,
     resolver_version: string
   ): Promise<CompanyIdentityLink[]> {
-    return (
-      (await this.repo.query({ canonical_company_id, resolver_version })) ?? []
-    );
+    return (await this.repo.query({ canonical_company_id, resolver_version })) ?? [];
   }
 
   async deleteForResolverVersion(resolver_version: string): Promise<number> {

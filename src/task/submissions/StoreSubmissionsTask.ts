@@ -107,7 +107,7 @@ export class StoreSubmissionsTask extends Task<
  * Best-effort: a watermark failure must not fail a submission whose entity,
  * filings and tickers all stored. The next index run rewrites it anyway.
  */
-async function recordCikLastUpdate(
+export async function recordCikLastUpdate(
   cik: number,
   filings: { filingDate?: string[] } | undefined
 ): Promise<void> {

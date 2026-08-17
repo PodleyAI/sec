@@ -137,8 +137,7 @@ async function registerLlamaCpp(): Promise<void> {
   try {
     const { registerLlamaCpp: register } = await import("workglow/node-llama");
     await register({
-      worker: () =>
-        new Worker(new URL("./llamaCppWorker.ts", import.meta.url), { type: "module" }),
+      worker: () => new Worker(new URL("./llamaCppWorker.ts", import.meta.url), { type: "module" }),
     });
   } catch (err) {
     warn("node-llama-cpp", err);

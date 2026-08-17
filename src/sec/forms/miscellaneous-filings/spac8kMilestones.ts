@@ -101,7 +101,10 @@ const WITH_NAMED = new RegExp(
 );
 
 function foldName(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function tidyName(value: string): string {
@@ -132,10 +135,7 @@ function pickFromAmong(blob: string, issuerName: string | null): string | null {
 }
 
 /** Operating-company counterparty named in a merger 8-K Item 1.01 narrative. */
-export function extractMergerCounterparty(
-  text: string,
-  issuerName: string | null
-): string | null {
+export function extractMergerCounterparty(text: string, issuerName: string | null): string | null {
   const start = text.search(MERGER_AGREEMENT);
   if (start === -1) return null;
   let window = text.slice(start, start + 2500).replace(/\s+/g, " ");
@@ -188,8 +188,7 @@ export function mapItemCodesToSpacEvents(
   const preIpo = floor != null && eventDate < floor;
   const pending = ctx.pendingDeal;
   const pendingMerger =
-    pending != null &&
-    (pending.definitive_agreement_date != null || pending.proxy_date != null);
+    pending != null && (pending.definitive_agreement_date != null || pending.proxy_date != null);
 
   for (const code of itemCodes) {
     let event_type: SpacEventType | null = null;

@@ -19,10 +19,7 @@ export class Form_5 extends Form {
     "An annual statement of ownership of securities filed by every director, officer, or owner of more than ten percent of a class of equity securities.";
   static readonly forms = ["5", "5/A"] as const;
 
-  static async parse(
-    form: (typeof Form_5.forms)[number],
-    xml: string
-  ): Promise<OwnershipDocument> {
+  static async parse(form: (typeof Form_5.forms)[number], xml: string): Promise<OwnershipDocument> {
     if (!Form_5.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }

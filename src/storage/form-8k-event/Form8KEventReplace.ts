@@ -118,12 +118,13 @@ async function replaceRepository(
   repo: Form8KEventRepositoryStorage,
   args: ReplaceForm8KEventsArgs
 ): Promise<void> {
-  const existing = (await repo.query({
-    cik: args.cik,
-    accession_number: args.accession_number,
-    extractor_id: args.extractor_id,
-    extractor_version: args.extractor_version,
-  } as any)) ?? [];
+  const existing =
+    (await repo.query({
+      cik: args.cik,
+      accession_number: args.accession_number,
+      extractor_id: args.extractor_id,
+      extractor_version: args.extractor_version,
+    } as any)) ?? [];
   for (const row of existing) {
     await repo.delete({ event_id: row.event_id } as any);
   }

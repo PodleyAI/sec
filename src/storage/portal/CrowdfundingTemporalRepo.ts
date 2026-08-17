@@ -235,8 +235,7 @@ export class CrowdfundingTemporalRepo {
     const timestampStr = timestamp.toISOString();
     const matches = history.filter((record) => {
       const isAfterStart = record.valid_from <= timestampStr;
-      const isClosedImmediately =
-        record.valid_to !== null && record.valid_to === record.valid_from;
+      const isClosedImmediately = record.valid_to !== null && record.valid_to === record.valid_from;
       const isBeforeEnd = isClosedImmediately
         ? record.valid_to! >= timestampStr
         : !record.valid_to || record.valid_to > timestampStr;
@@ -258,8 +257,14 @@ export class CrowdfundingTemporalRepo {
     const validRecord = dominant ?? matches[0];
 
     if (validRecord) {
-      const { change_source, change_date, valid_from, valid_to, accession_number, ...crowdfunding } =
-        validRecord;
+      const {
+        change_source,
+        change_date,
+        valid_from,
+        valid_to,
+        accession_number,
+        ...crowdfunding
+      } = validRecord;
       return crowdfunding as Crowdfunding;
     }
 

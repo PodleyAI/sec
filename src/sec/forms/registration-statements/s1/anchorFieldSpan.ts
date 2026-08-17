@@ -75,11 +75,7 @@ export function surfaceForms(value: unknown): string[] {
  * signal, since a figure absent from the section it was supposedly read from is
  * the definition of a fabricated one.
  */
-export function anchorFieldSpan(
-  text: string,
-  value: unknown,
-  label?: string
-): string | null {
+export function anchorFieldSpan(text: string, value: unknown, label?: string): string | null {
   const forms = surfaceForms(value);
   if (forms.length === 0) return null;
 

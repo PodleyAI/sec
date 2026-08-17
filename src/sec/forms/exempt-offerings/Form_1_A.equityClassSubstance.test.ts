@@ -91,7 +91,8 @@ describe("equity classes with no disclosure are not stored", () => {
     for (const file of files) {
       const form1A = await Form_1_A.parse("1-A", readFileSync(join(mockDir, file), "utf-8"));
       if (form1A.formData.employeesInfo.length === 0) continue;
-      if (form1A.formData.commonEquity.every((e) => (e.outstandingCommonEquity ?? 0) === 0)) continue;
+      if (form1A.formData.commonEquity.every((e) => (e.outstandingCommonEquity ?? 0) === 0))
+        continue;
 
       const cik = parseInt(form1A.formData.employeesInfo[0].cik);
       const fileNumber = "024-99998";

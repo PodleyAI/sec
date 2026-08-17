@@ -39,10 +39,7 @@ export class Form_1_SA extends Form {
    * filing with no primary document at all falls back to one), and selecting by
    * `<TYPE>1-SA` reads the right document out of it.
    */
-  static async parse(
-    form: (typeof Form_1_SA.forms)[number],
-    text: string
-  ): Promise<ParsedForm1SA> {
+  static async parse(form: (typeof Form_1_SA.forms)[number], text: string): Promise<ParsedForm1SA> {
     if (!Form_1_SA.forms.includes(form)) {
       throw new Error(`Invalid form: ${form}`);
     }

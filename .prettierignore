@@ -1,0 +1,27 @@
+dist
+node_modules
+coverage
+
+# Vendored skill documentation — not this repo's source.
+.claude
+
+# Captured EDGAR bytes, not source. Reformatting them is never right:
+# `goldenFixtures.test.ts` re-hashes the s1/424 corpus against the SHA-256 in
+# `goldenFixtureManifest.ts` with no network — a bare `prettier --write .`
+# rewrites 28 of those and turns the test red while destroying the capture
+# provenance the manifest exists to prove — and the parser fixtures elsewhere
+# in the tree back whitespace-sensitive prose segmentation and source-span
+# verification, so re-indenting them changes what the tests measure.
+#
+# The entry names the DIRECTORIES rather than the files that fail today. The
+# fixtures prettier currently leaves alone are clean by accident of their
+# markup, not by guarantee: a prettier upgrade or a re-captured fixture pulls
+# them in, and a fixture's hash obligation never depended on whether today's
+# prettier happened to reformat it.
+**/mock_data/
+
+# Golden extraction labels, one label per line so each can be checked against
+# the filing it came from. Prettier collapses them onto single lines — 19,950
+# of the 21,757 lines a repo-wide reformat would change are in this one file —
+# which is the opposite of what makes them reviewable.
+src/eval/goldenS1Labels.ts

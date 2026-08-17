@@ -86,7 +86,9 @@ function findByLocalName(el: DomElement, local: string): DomElement[] {
 
 function textOf($: CheerioAPI, el: DomElement | undefined): string | null {
   if (!el) return null;
-  const t = $(el as CheerioAcceptedNode).text().trim();
+  const t = $(el as CheerioAcceptedNode)
+    .text()
+    .trim();
   return t.length > 0 ? t : null;
 }
 

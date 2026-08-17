@@ -11,12 +11,7 @@ import {
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
 import { EVAL_EXTRACTORS } from "./fixtures";
 
-export type PrintPromptsMode =
-  | "instructions"
-  | "template"
-  | "document"
-  | "schema"
-  | "full";
+export type PrintPromptsMode = "instructions" | "template" | "document" | "schema" | "full";
 
 export interface PrintPromptItem {
   readonly extractor: string;
@@ -97,9 +92,7 @@ export function printEvalPrompts(args: {
   const schemaWritten = new Set<string>();
   for (const item of args.items) {
     if (item.sectionText === undefined) {
-      throw new Error(
-        `full mode requires sectionText for "${item.label}" (${item.extractor})`
-      );
+      throw new Error(`full mode requires sectionText for "${item.label}" (${item.extractor})`);
     }
     const ext = EVAL_EXTRACTORS[item.extractor];
     if (!ext) throw new Error(`unknown extractor "${item.extractor}"`);

@@ -98,7 +98,7 @@ describe("Form_1_K storage test", () => {
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       const primaryIssuer = form1K.formData.item1Info[0];
       const cik = primaryIssuer?.cik ? parseInt(primaryIssuer.cik) : 12345;
       const fileNumber = "024-test-001";
@@ -133,7 +133,7 @@ describe("Form_1_K storage test", () => {
       for (const file of xmlFiles) {
         const xmlContent = readFileSync(join(mockDataDir, file), "utf-8");
         const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+        const form1K = parsed.cover;
 
         if (form1K.formData.summaryInfo?.some((si) => si.auditorSpName || si.legalSpName)) {
           const primaryIssuer = form1K.formData.item1Info[0];
@@ -166,7 +166,7 @@ describe("Form_1_K storage test", () => {
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       const primaryIssuer = form1K.formData.item1Info[0];
       const cik = primaryIssuer?.cik ? parseInt(primaryIssuer.cik) : 12345;
 
@@ -193,7 +193,7 @@ describe("Form_1_K storage test", () => {
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return; // schema-optional
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "   ";
 
@@ -224,7 +224,7 @@ describe("Form_1_K storage test", () => {
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return;
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "";
 
@@ -255,7 +255,7 @@ describe("Form_1_K storage test", () => {
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
 
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       if (!form1K.formData.summaryInfo?.[0]) return;
       (form1K.formData.summaryInfo[0] as Record<string, unknown>).pricePerSecurity = "0";
 
@@ -285,7 +285,7 @@ describe("Form_1_K storage test", () => {
       const xmlFiles = readdirSync(mockDataDir).filter((file) => file.endsWith(".xml"));
       const xmlContent = readFileSync(join(mockDataDir, xmlFiles[0]), "utf-8");
       const parsed = await Form_1_K.parse("1-K", xmlContent);
-          const form1K = parsed.cover;
+      const form1K = parsed.cover;
       const cik = 990010;
       const fileNumber = "024-1k-und";
 

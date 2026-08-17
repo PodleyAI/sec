@@ -107,11 +107,17 @@ describe("SPAC sponsor end-to-end", () => {
       confidence: 0.95,
       source_span: "26 Capital Holdings LLC",
     };
-    ({ unregister } = registerFakeStructuredProvider([...EMPTY_SECTIONS, { sponsors: [holdings] }]));
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      { sponsors: [holdings] },
+    ]));
     await processFormS1(runArgs(1822912, "0000000000-26-000801", 6770));
     unregister?.();
 
-    ({ unregister } = registerFakeStructuredProvider([...EMPTY_SECTIONS, { sponsors: [holdings] }]));
+    ({ unregister } = registerFakeStructuredProvider([
+      ...EMPTY_SECTIONS,
+      { sponsors: [holdings] },
+    ]));
     await processFormS1(runArgs(1822912, "0000000000-26-000802", 6770));
 
     const families = await new CanonicalSponsorFamilyRepo().listForResolverVersion("1.0.0");
@@ -237,8 +243,7 @@ describe("SPAC sponsor end-to-end", () => {
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
     const partial = dl.find(
       (d) =>
-        d.section_name === "spac-sponsors-partial" &&
-        d.accession_number === "0000000000-26-000701"
+        d.section_name === "spac-sponsors-partial" && d.accession_number === "0000000000-26-000701"
     );
     expect(partial?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });

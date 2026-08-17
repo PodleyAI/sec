@@ -39,10 +39,9 @@ describe("ExtractorRunSchema.form width", () => {
       .filter((form) => form.length > (maxLength as number))
       .map((form) => `${form} (${form.length})`);
 
-    expect(
-      tooLong,
-      `form codes exceeding maxLength ${maxLength}: ${tooLong.join(", ")}`
-    ).toEqual([]);
+    expect(tooLong, `form codes exceeding maxLength ${maxLength}: ${tooLong.join(", ")}`).toEqual(
+      []
+    );
   });
 
   it("fits the longest form code with the length it actually has", () => {

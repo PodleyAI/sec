@@ -142,7 +142,14 @@ const orphanKeys = Object.keys(GOLDEN_S1_LABELS).filter((k) => {
 // Extractor coverage counts
 const extractorStats = {};
 for (const ext of EXTRACTORS) {
-  extractorStats[ext] = { labelled: 0, empty: 0, populated: 0, spacPop: 0, spacEmpty: 0, spacMissing: 0 };
+  extractorStats[ext] = {
+    labelled: 0,
+    empty: 0,
+    populated: 0,
+    spacPop: 0,
+    spacEmpty: 0,
+    spacMissing: 0,
+  };
 }
 for (const f of fixtures) {
   if (f.ext !== "htm") continue;
@@ -179,7 +186,9 @@ const out = {
     unlabelledSpacClass: unlabelled.length,
     unitTermsRows: unitByCik.size,
     spacWithUnitTerms: spacs.filter((f) => f.unitTerms).length,
-    spacWithoutUnitTerms: spacs.filter((f) => !f.unitTerms).map((f) => ({ cik: f.cik, name: f.name })),
+    spacWithoutUnitTerms: spacs
+      .filter((f) => !f.unitTerms)
+      .map((f) => ({ cik: f.cik, name: f.name })),
     orphanGoldenKeys: orphanKeys,
   },
   extractorStats,

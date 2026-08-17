@@ -316,7 +316,10 @@ export function titleSupportedBySpan(title: string, sourceSpan: string): boolean
     return true;
   }
 
-  const words = collapsed.split(" ").map(spanWord).filter((w) => w.length > 0);
+  const words = collapsed
+    .split(" ")
+    .map(spanWord)
+    .filter((w) => w.length > 0);
   for (let i = 0; i < words.length; i++) {
     const maxJ = Math.min(words.length, i + MAX_SPAN_TITLE_WORDS);
     for (let j = i + 1; j <= maxJ; j++) {

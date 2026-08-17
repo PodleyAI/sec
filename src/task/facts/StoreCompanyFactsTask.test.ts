@@ -94,10 +94,7 @@ describe("StoreCompanyFactsTask fy/fp sentinel handling", () => {
       payVsPerfBase({ end_date: "2023-12-31", val: 5_000_000 }),
       payVsPerfBase({ end_date: "2024-12-31", val: 8_000_000 }),
     ];
-    await new StoreCompanyFactsTask().execute(
-      { cik: 1018724, facts, date: undefined },
-      ctx()
-    );
+    await new StoreCompanyFactsTask().execute({ cik: 1018724, facts, date: undefined }, ctx());
     const repo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
     const rows =
       (await repo.query({
@@ -111,13 +108,8 @@ describe("StoreCompanyFactsTask fy/fp sentinel handling", () => {
   });
 
   it("coalesces fy to 0 when both fy and end_date are null", async () => {
-    const facts: Factoid[] = [
-      payVsPerfBase({ end_date: null, val: 1 }),
-    ];
-    await new StoreCompanyFactsTask().execute(
-      { cik: 1018724, facts, date: undefined },
-      ctx()
-    );
+    const facts: Factoid[] = [payVsPerfBase({ end_date: null, val: 1 })];
+    await new StoreCompanyFactsTask().execute({ cik: 1018724, facts, date: undefined }, ctx());
     const repo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
     const rows =
       (await repo.query({
@@ -131,13 +123,8 @@ describe("StoreCompanyFactsTask fy/fp sentinel handling", () => {
   });
 
   it("writes fy=2024, fp=Q1 verbatim when reported", async () => {
-    const facts: Factoid[] = [
-      payVsPerfBase({ fy: 2024, fp: "Q1", val: 42 }),
-    ];
-    await new StoreCompanyFactsTask().execute(
-      { cik: 1018724, facts, date: undefined },
-      ctx()
-    );
+    const facts: Factoid[] = [payVsPerfBase({ fy: 2024, fp: "Q1", val: 42 })];
+    await new StoreCompanyFactsTask().execute({ cik: 1018724, facts, date: undefined }, ctx());
     const repo = globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN);
     const rows =
       (await repo.query({

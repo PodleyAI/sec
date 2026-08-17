@@ -90,7 +90,10 @@ export function selectSubmissionDocumentByType(
   let match: RegExpExecArray | null;
   while ((match = documents.exec(submissionText)) !== null) {
     const inner = match[1];
-    const found = inner.match(/<TYPE>\s*([^\r\n<]+)/i)?.[1].trim().toUpperCase();
+    const found = inner
+      .match(/<TYPE>\s*([^\r\n<]+)/i)?.[1]
+      .trim()
+      .toUpperCase();
     if (found !== wanted) continue;
 
     const body = inner.match(/<TEXT>\s*([\s\S]*?)\s*<\/TEXT>/i)?.[1];

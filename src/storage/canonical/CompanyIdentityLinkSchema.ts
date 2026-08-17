@@ -37,10 +37,7 @@ export const CompanyIdentityLinkSchema = Type.Object({
 
 export type CompanyIdentityLink = Static<typeof CompanyIdentityLinkSchema>;
 
-export const CompanyIdentityLinkPrimaryKeyNames = [
-  "observation_id",
-  "resolver_version",
-] as const;
+export const CompanyIdentityLinkPrimaryKeyNames = ["observation_id", "resolver_version"] as const;
 
 export type CompanyIdentityLinkRepositoryStorage = ITabularStorage<
   typeof CompanyIdentityLinkSchema,

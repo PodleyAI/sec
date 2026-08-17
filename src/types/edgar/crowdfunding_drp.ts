@@ -440,7 +440,8 @@ export const CIVIL_ACTION_COURT_TYPE = {
   "State Court": "State Court",
   "Foreign Court": "Foreign Court",
 } as const;
-export type CIVIL_ACTION_COURT_TYPE = (typeof CIVIL_ACTION_COURT_TYPE)[keyof typeof CIVIL_ACTION_COURT_TYPE];
+export type CIVIL_ACTION_COURT_TYPE =
+  (typeof CIVIL_ACTION_COURT_TYPE)[keyof typeof CIVIL_ACTION_COURT_TYPE];
 
 // MATTER_RESOLVE_TYPE ...
 export type MATTER_RESOLVE_TYPE =
@@ -559,7 +560,8 @@ export interface BANKRUPTCY_SIPC_DRP_AFFILIATE_TYPE {
 export const BOND_RESPONDING_TO_TYPE = {
   "5-K": "5-K",
 } as const;
-export type BOND_RESPONDING_TO_TYPE = (typeof BOND_RESPONDING_TO_TYPE)[keyof typeof BOND_RESPONDING_TO_TYPE];
+export type BOND_RESPONDING_TO_TYPE =
+  (typeof BOND_RESPONDING_TO_TYPE)[keyof typeof BOND_RESPONDING_TO_TYPE];
 
 // BOND_DISCLOSURE_CONTAINER ...
 export interface BOND_DISCLOSURE_CONTAINER {
@@ -582,7 +584,8 @@ export interface BOND_DRP_TYPE {
 export const JUDGEMENT_RESPONDING_TO_TYPE = {
   "5-L": "5-L",
 } as const;
-export type JUDGEMENT_RESPONDING_TO_TYPE = (typeof JUDGEMENT_RESPONDING_TO_TYPE)[keyof typeof JUDGEMENT_RESPONDING_TO_TYPE];
+export type JUDGEMENT_RESPONDING_TO_TYPE =
+  (typeof JUDGEMENT_RESPONDING_TO_TYPE)[keyof typeof JUDGEMENT_RESPONDING_TO_TYPE];
 
 // LIEN_JUDGEMENT_TYPE ...
 export const LIEN_JUDGEMENT_TYPE = {

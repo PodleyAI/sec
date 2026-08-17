@@ -104,7 +104,7 @@ describe("selectRegAReportDocument", () => {
     // becomes the root and `json.edgarSubmission` is silently undefined — the
     // filing parses to nothing with no error anywhere.
     const wrapped = submission(
-      doc("1-K", "primary_doc.xml", "<XML>\n<?xml version=\"1.0\"?>\n<edgarSubmission/>\n</XML>")
+      doc("1-K", "primary_doc.xml", '<XML>\n<?xml version="1.0"?>\n<edgarSubmission/>\n</XML>')
     );
     expect(selectRegACoverDocument(wrapped, "1-K")?.body).toBe(
       '<?xml version="1.0"?>\n<edgarSubmission/>'
