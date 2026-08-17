@@ -751,6 +751,83 @@ describe("CacheOneSpacCandidateDocTask fetchDoc (the real seam, unstubbed)", () 
     }
   });
 
+  it("materializes no body: the deltas reach the cache sink and nothing else", async () => {
+    // The property this command exists for. The sink already receives every
+    // chunk without this — what it does NOT do on its own is stop the stream
+    // processor teeing the same chunks into an accumulator and building the
+    // whole document at finish, which is a full copy of every filing in
+    // flight, ten at a time. The relaxation that skips the tee is computed
+    // only for a task the graph schedules, and an owned child runs through its
+    // own `run()`; `fetchDoc` therefore has to ask for it.
+    //
+    // Asserted on the finish event rather than on memory: an RSS threshold
+    // measures the collector as much as the code. The finish payload IS the
+    // materialization — carrying `body` means a copy was built.
+    const CHUNKS = ["<html>", "part-two", "part-three</html>"];
+    const previous = registerSafeFetch((async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const c of CHUNKS) controller.enqueue(new TextEncoder().encode(c));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "content-type": "text/html",
+          "content-length": String(CHUNKS.join("").length),
+        },
+      });
+    }) as unknown as SafeFetchFn);
+
+    const finishes: Array<Record<string, unknown>> = [];
+    let deltas = 0;
+    // Subscribe at own() time — before `fetchDoc` runs the task it just owned.
+    const capturing = {
+      signal: new AbortController().signal,
+      updateProgress: () => {},
+      own: <T>(value: T) => {
+        (value as unknown as { on: (e: string, fn: (ev: any) => void) => void }).on(
+          "stream_chunk",
+          (event: any) => {
+            if (event?.type === "binary-delta") deltas++;
+            if (event?.type === "finish")
+              finishes.push((event.data ?? {}) as Record<string, unknown>);
+          }
+        );
+        return value;
+      },
+      disown: () => {},
+    } as unknown as IExecuteContext;
+
+    try {
+      const out = await new CacheOneSpacCandidateDocTask().execute(
+        {
+          cik: 3,
+          accessionNumber: "0000000003-21-000001",
+          form: "S-1",
+          fileName: "0000000003-21-000001.txt",
+          primaryDoc: "",
+        },
+        capturing
+      );
+
+      expect(out.success).toBe(true);
+      // Guards the assertion below against passing vacuously: a fetch that
+      // streamed nothing would also carry no body at finish.
+      expect(deltas).toBeGreaterThan(1);
+      expect(finishes).toHaveLength(1);
+      expect(finishes[0]).not.toHaveProperty("body");
+      // The bytes still land whole — the sink, not the accumulator, is the
+      // writer, and dropping the copy must not drop the document.
+      expect(
+        readFileSync(cachePath(3, "0000000003-21-000001", "0000000003-21-000001.txt"), "utf-8")
+      ).toBe(CHUNKS.join(""));
+    } finally {
+      registerSafeFetch(previous);
+    }
+  });
+
   it("releases the owned fetch task even when the fetch fails", async () => {
     const previous = registerSafeFetch(
       (async () =>
