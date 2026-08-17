@@ -394,6 +394,27 @@ export class DocumentTreeSegmenter implements DocumentSegmenter {
       }
     }
 
+    // Offering / underwriting / use-of-proceeds are often table-cell lines
+    // rather than heading nodes (Pyrophyte II). When the tree already found
+    // other targets, the converter-failure line scan never fires — scan
+    // just these three against the full render so a working Risk Factors
+    // heading does not hide the deal. Does not flip `usedLineScan`: that
+    // flag is "the document had no structure", not "we supplemented one
+    // section". Nested fallbacks run first so a real body-slice wins over
+    // a table-of-contents line.
+    const offeringLineScanTargets: readonly S1SectionName[] = [
+      S1_SECTIONS.THE_OFFERING,
+      S1_SECTIONS.UNDERWRITING,
+      S1_SECTIONS.USE_OF_PROCEEDS,
+    ];
+    if (offeringLineScanTargets.some((t) => !best.has(t))) {
+      for (const section of segmentByLineScan(renderMarkdown(doc))) {
+        if (!offeringLineScanTargets.includes(section.name)) continue;
+        const prev = best.get(section.name);
+        if (!prev || section.text.length > prev.text.length) best.set(section.name, section);
+      }
+    }
+
     return { sections: [...best.values()], usedLineScan };
   }
 

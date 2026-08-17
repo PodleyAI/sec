@@ -88,6 +88,9 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*our offering\s*$/i,
     // An F-1 heads its offering block "Summary Terms of The Offering".
     /^\s*summary (of )?(the )?(terms of (the )?)?offering\s*$/i,
+    // Pyrophyte Acquisition Corp. II 424B4: the offering table sits under
+    // "Terms of Our Offering", not "The Offering".
+    /^\s*terms of (our|the) offering\s*$/i,
   ],
   [S1_SECTIONS.UNDERWRITING]: [
     /^\s*underwriting\s*$/i,

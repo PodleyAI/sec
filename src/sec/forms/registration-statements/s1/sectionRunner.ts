@@ -27,6 +27,26 @@ export function parseConfidenceFloor(raw: string | undefined, fallback: number):
   return Number.isFinite(n) ? n : fallback;
 }
 
+const REJECTED_SPAN_DETAIL_CHARS = 300;
+
+/**
+ * Append the first rejected `source_span` onto an UNVERIFIED_SOURCE_SPAN
+ * detail so the worklist carries the quote that failed — the next fixture
+ * can be that span, not a guess at why the section wiped.
+ */
+function rejectedSourceSpanSuffix(rows: readonly object[]): string {
+  for (const row of rows) {
+    const span = (row as { source_span?: unknown }).source_span;
+    if (typeof span !== "string" || span.length === 0) continue;
+    const shown =
+      span.length > REJECTED_SPAN_DETAIL_CHARS
+        ? `${span.slice(0, REJECTED_SPAN_DETAIL_CHARS)}…`
+        : span;
+    return ` rejected source_span: ${JSON.stringify(shown)}`;
+  }
+  return "";
+}
+
 /** Shared default floor (S-1 / 424); merger-proxy overrides via makeRunSection. */
 export const CONFIDENCE_FLOOR = parseConfidenceFloor(process.env.SEC_S1_CONFIDENCE_FLOOR, 0);
 
@@ -320,10 +340,10 @@ export function makeRunSection(opts: {
         const detail = allDroppedUnverified
           ? allTooLong
             ? `all ${confident.length} confident rows had source_span over the section's length cap (the spans verify verbatim; the model quoted more than the cap allows)`
-            : (sargs.unverifiedAllDetail ?? sargs.lowConfidenceDetail).replace(
+            : `${(sargs.unverifiedAllDetail ?? sargs.lowConfidenceDetail).replace(
                 /\$T/g,
                 String(confident.length)
-              )
+              )}${rejectedSourceSpanSuffix(confident)}`
           : raw.length === 0
             ? sargs.modelIds !== undefined && sargs.modelIds.length > 1
               ? `${sargs.emptyDetail} (tried ${sargs.modelIds.join(", ")})`

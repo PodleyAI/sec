@@ -59,6 +59,9 @@ const REAL_HEADINGS: ReadonlyArray<{
   },
   // An F-1 brands its offering block this way.
   { heading: "Summary Terms of The Offering", expect: S1_SECTIONS.THE_OFFERING, cik: "-" },
+  // Pyrophyte Acquisition Corp. II 424B4 (CIK 2069238): the offering table
+  // sits under this heading, not "The Offering".
+  { heading: "Terms of Our Offering", expect: S1_SECTIONS.THE_OFFERING, cik: "2069238" },
   // A SPAC that brands its roster rather than titling it.
   { heading: "Our Team", expect: S1_SECTIONS.MANAGEMENT, cik: "1828108" },
   // Live 2134856 Karman Line: the roster sits under a FINRA-style conflicts

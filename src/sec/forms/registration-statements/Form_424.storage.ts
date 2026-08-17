@@ -223,6 +223,19 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     );
     const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
     const cover = parsePricedProspectusCover(form424.html);
+    const ipo_proceeds = ipoProceeds({
+      gross_proceeds: unitTerms?.gross_proceeds,
+      price_per_unit: unitTerms?.price_per_unit,
+      units_offered: unitTerms?.units_offered,
+      cover_proceeds: cover?.gross_proceeds,
+    });
+    // A priced 424B1/B4 still runs the AI offering pass, but a Rule 419
+    // share offering (RedHawk I) is not a SPAC unit IPO: cover parse is
+    // null, proceeds stay empty, and the body never says it is an IPO.
+    // Skip the event rather than minting an ipo with null proceeds.
+    if (ipo_proceeds == null && !looksLikePricedIpoProspectusBody(form424.html)) {
+      return;
+    }
     await new SpacReportWriter().recordIpo({
       cik,
       accession_number,
@@ -242,12 +255,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
       // there is one, since it accounts for anything the arithmetic misses.
       // When the whole unit-terms row is wiped (source_span failed), the cover
       // headline is the same number the arithmetic would have produced.
-      ipo_proceeds: ipoProceeds({
-        gross_proceeds: unitTerms?.gross_proceeds,
-        price_per_unit: unitTerms?.price_per_unit,
-        units_offered: unitTerms?.units_offered,
-        cover_proceeds: cover?.gross_proceeds,
-      }),
+      ipo_proceeds,
       trust_amount: ipoTrustAmount({
         trust_per_unit: unitTerms?.trust_per_unit,
         units_offered: unitTerms?.units_offered,

@@ -213,6 +213,80 @@ describe("processFormS1 offering terms", () => {
     expect(promote?.trust_total).toBe(200000000);
   });
 
+  it("persists SPAC unit + promote terms when the model span is a paraphrase but the figures appear in the section", async () => {
+    // SilverBox IV / ITHAX III: the model returns one offering-terms object
+    // and one promote object, then classifySpan drops both because the
+    // source_span is a paraphrase. The unit counts and trust figures are
+    // still in the section text.
+    const html = [
+      "<h1>THE OFFERING</h1>",
+      "<p>We are offering 20,000,000 units at $10.00 per unit.",
+      "Founder shares 5,000,000. $10.00 per public share is deposited in trust,",
+      "for a total of $200,000,000.</p>",
+      "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC is the representative.</p>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Units",
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 200000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: 20000000,
+        price_per_unit: 10,
+        unit_composition: "one share and one-half warrant",
+        warrant_fraction_per_unit: 0.5,
+        right_fraction_per_unit: null,
+        trust_per_unit: 10,
+        over_allotment_units: null,
+        exchange: "NASDAQ",
+        par_value: null,
+        confidence: 0.9,
+        source_span: "a paraphrase the section does not contain",
+        tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+      },
+      {
+        founder_shares: 5000000,
+        founder_percent: 0.2,
+        private_placement_warrants: 10000000,
+        private_placement_warrant_price: 1.0,
+        public_warrant_coverage: 0.5,
+        trust_per_public_share: 10.0,
+        trust_total: 200000000,
+        confidence: 0.9,
+        source_span: "a paraphrase the section does not contain",
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-5",
+      accession_number: "0000000000-26-000005",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const unit = await new SpacUnitTermsRepo().get("S-1", "0000000000-26-000005");
+    expect(unit?.units_offered).toBe(20000000);
+    expect(unit?.price_per_unit).toBe(10);
+    const promote = await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000005");
+    expect(promote?.trust_total).toBe(200000000);
+    expect(promote?.founder_shares).toBe(5000000);
+  });
+
   it("skips promote for a non-SPAC filing", async () => {
     const { unregister } = registerFakeStructuredProvider([
       { security_type: "Common Stock", confidence: 0.9, source_span: "5,000,000 shares", tickers: [] },

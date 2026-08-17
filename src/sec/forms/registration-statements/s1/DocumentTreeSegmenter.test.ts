@@ -232,6 +232,46 @@ describe("DocumentTreeSegmenter", () => {
       const result = new DocumentTreeSegmenter().segmentDocument(parseEdgarHtml(html, "S-1"));
       expect(result.usedLineScan).toBe(false);
     });
+
+    it("recovers offering sections from a line scan when other tree targets already matched", () => {
+      // Pyrophyte II: Risk Factors / Related Party / Compensation resolve as
+      // headings (so the converter-failure line scan never fires) while
+      // The Offering / Underwriting / Use of Proceeds live only as table-cell
+      // lines. A full-document line scan for those three still finds them
+      // without flipping usedLineScan (this is not a structureless document).
+      const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">RISK FACTORS</p>
+        <p>Investing in our securities involves a high degree of risk.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS</p>
+        <p>We entered into agreements with related parties.</p>
+        <p style="font-weight:700;text-align:center;font-size:16pt">EXECUTIVE COMPENSATION</p>
+        <p>No officer has been paid any cash compensation.</p>
+        <table><tr><td><p>The Offering</p></td></tr></table>
+        <table><tr><td><p>We are offering 17,500,000 units at $10.00 per unit.</p></td></tr></table>
+        <table><tr><td><p>Underwriting</p></td></tr></table>
+        <table><tr><td><p>The underwriters have agreed to purchase the units.</p></td></tr></table>
+        <table><tr><td><p>Use of Proceeds</p></td></tr></table>
+        <table><tr><td><p>We will deposit the proceeds into a trust account.</p></td></tr></table>
+      </body></html>`;
+      const result = new DocumentTreeSegmenter().segmentDocument(parseEdgarHtml(html, "S-1"));
+      expect(result.usedLineScan).toBe(false);
+      const byName = new Map(result.sections.map((s) => [s.name, s.text]));
+      expect(byName.get(S1_SECTIONS.THE_OFFERING)).toContain("17,500,000 units");
+      expect(byName.get(S1_SECTIONS.UNDERWRITING)).toContain("agreed to purchase");
+      expect(byName.get(S1_SECTIONS.USE_OF_PROCEEDS)).toContain("trust account");
+    });
+  });
+
+  it("resolves Terms of Our Offering as The Offering", () => {
+    const html = `
+      <html><body>
+        <p style="font-weight:700;text-align:center;font-size:16pt">TERMS OF OUR OFFERING</p>
+        <p>We are offering 17,500,000 units at $10.00 per unit.</p>
+      </body></html>`;
+    const sections = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "S-1"));
+    const offering = sections.find((s) => s.name === S1_SECTIONS.THE_OFFERING);
+    expect(offering?.text).toContain("17,500,000 units");
   });
 
   it("recovers an offering block the filer bolded inside the summary", () => {

@@ -266,6 +266,33 @@ describe("makeRunSection confidenceFloor", () => {
     expect(letters[0]?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
   });
 
+  it("names the rejected source_span in the UNVERIFIED_SOURCE_SPAN detail", async () => {
+    // Offering-terms / promote wipe with a paraphrase: the worklist used to
+    // say only "all 1 confident rows had source_span not present", so the
+    // next fixture could never be the rejected quote itself.
+    const { repo, letters, details } = stubDeadLetters();
+    const runSection = makeRunSection({
+      deadLetters: repo,
+      extractor_id: "424",
+      extractor_version: "1.0.0",
+      accession_number: "acc-span-detail",
+    });
+    const rejected = "a paraphrase the section does not contain at all";
+    await runSection<{ confidence: number; source_span: string }>({
+      sectionName: "offering-terms",
+      text: "We are offering 20,000,000 units at $10.00 per unit.",
+      emptyDetail: "none",
+      lowConfidenceDetail: "low",
+      unverifiedAllDetail: "all $T unverified",
+      verifyRow: (text, r) => text.includes(r.source_span),
+      extract: async () => [{ confidence: 0.9, source_span: rejected }],
+      persist: async () => 0,
+    });
+
+    expect(letters[0]?.reason_code).toBe("UNVERIFIED_SOURCE_SPAN");
+    expect(details[0]).toContain(rejected);
+  });
+
   it("re-asks a MixedRiskCaptionShapeError and keeps the retry's rows", async () => {
     // `extract` THROWS this one rather than returning rows, so before the fix
     // it escaped the re-ask loop entirely and went straight to the catch — the

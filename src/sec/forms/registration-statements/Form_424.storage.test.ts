@@ -294,7 +294,7 @@ offering price of $10.00.</p>
         form: "424B4",
         form424: {
           header: SPAC_HEADER,
-          html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+          html: "<h1>THE OFFERING</h1><p>This is an initial public offering. 30,000,000 units at $10.00.</p>",
           xbrlInstanceXml: null,
           feeExhibitHtml: null,
         },
@@ -344,7 +344,7 @@ offering price of $10.00.</p>
           form: "424B4",
           form424: {
             header: SPAC_HEADER,
-            html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+            html: "<h1>THE OFFERING</h1><p>This is an initial public offering. 30,000,000 units at $10.00.</p>",
             xbrlInstanceXml: null,
             feeExhibitHtml: null,
           },
@@ -463,6 +463,48 @@ is $50,000,000, payable in newly issued ordinary shares.</p>
       expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(0);
     });
 
+    it("does NOT record an IPO from a Rule 419 share 424B4 with no proceeds", async () => {
+      // RedHawk Acquisition Corporation I: a self-underwritten 6,000,000
+      // share offering at $0.75 under Rule 419. Cover parse is null (not
+      // Units, below MIN_PROCEEDS). The form is still a "priced" 424B4 so
+      // the AI offering pass may run, but it is not a SPAC unit IPO.
+      await new SpacReportWriter().recordRegistration({
+        cik: CIK,
+        accession_number: S1_ACCESSION,
+        filing_date: "2024-12-01",
+        form: "S-1",
+        primary_document: "s1.htm",
+        spac_name: "Synthetic SPAC Corp",
+        spac_sic: 6770,
+      });
+
+      await processForm424({
+        cik: CIK,
+        file_number: "333-000001",
+        accession_number: B4_ACCESSION,
+        filing_date: "2025-02-04",
+        primary_doc: "424b4.htm",
+        form: "424B4",
+        form424: {
+          header: SPAC_HEADER,
+          html: `<html><body>
+<h1>PROSPECTUS</h1>
+<p>6,000,000 shares of common stock</p>
+<p>Offering Price: $0.75 per share</p>
+<p>This is a self-underwritten offering. We are a blank check company
+subject to Rule 419.</p>
+</body></html>`,
+          xbrlInstanceXml: null,
+          feeExhibitHtml: null,
+        },
+      });
+
+      const spac = await new SpacRepo().getSpac(CIK);
+      expect(spac?.ipo_date).toBeNull();
+      const events = await new SpacRepo().getEvents(CIK);
+      expect(events.filter((e) => e.event_type === "ipo")).toHaveLength(0);
+    });
+
     it("does NOT record a second IPO from a later 424B3 once ipo_date is set", async () => {
       await processForm424({
         cik: CIK,
@@ -473,7 +515,7 @@ is $50,000,000, payable in newly issued ordinary shares.</p>
         form: "424B4",
         form424: {
           header: SPAC_HEADER,
-          html: "<h1>THE OFFERING</h1><p>30,000,000 units at $10.00.</p>",
+          html: "<h1>THE OFFERING</h1><p>This is an initial public offering. 30,000,000 units at $10.00.</p>",
           xbrlInstanceXml: null,
           feeExhibitHtml: null,
         },

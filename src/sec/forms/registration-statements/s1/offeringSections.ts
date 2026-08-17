@@ -38,6 +38,7 @@ import {
   splitParentClause,
 } from "../../../../storage/company/splitParentClause";
 import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
+import { verifyNumericObjectSpan } from "./verifyNumericObjectSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 
@@ -227,7 +228,17 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: `below confidence floor${OFFERING_TERMS_LOSS}`,
     // Prompt-injection backstop: refuse to persist a model-emitted offering-terms
     // row whose source_span is not a verbatim substring of the section text.
-    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    // A paraphrase still persists when two numeric fields locate in the
+    // section — the figures came from the filing even if the citation did not.
+    verifyRow: (text, r) =>
+      verifyNumericObjectSpan(text, r, [
+        { key: "units_offered", label: "units" },
+        { key: "price_per_unit", label: "per unit" },
+        { key: "trust_per_unit", label: "trust" },
+        { key: "gross_proceeds", label: "proceeds" },
+        { key: "shares_offered", label: "shares" },
+        { key: "price", label: "price" },
+      ]),
     unverifiedAllDetail: `all $T confident offering-terms rows had source_span not present in section text${OFFERING_TERMS_LOSS}`,
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
@@ -370,7 +381,16 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     lowConfidenceDetail: "below confidence floor",
     // Prompt-injection backstop: refuse to persist a promote row whose
     // source_span is not a verbatim substring of the section text.
-    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    // Same field-anchor fallback as offering-terms: two located figures
+    // beat a paraphrased citation.
+    verifyRow: (text, r) =>
+      verifyNumericObjectSpan(text, r, [
+        { key: "founder_shares", label: "founder" },
+        { key: "founder_percent", label: "founder" },
+        { key: "trust_per_public_share", label: "trust" },
+        { key: "trust_total", label: "trust" },
+        { key: "private_placement_warrants", label: "private placement" },
+      ]),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
     ...modelExtractChain(models, async (text, m) => {
