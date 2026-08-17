@@ -27,10 +27,23 @@
  * sample was ambiguous.
  */
 
-/** The `<TYPE>` holding the financial statements, per Reg A report form. */
+/**
+ * Marks a document EDGAR tags with the filing's own form name rather than a
+ * fixed label — resolved per filing by {@link selectByFormType}.
+ */
+const FORM_NAMED_DOCUMENT = "\u0000form-named";
+
+/**
+ * The `<TYPE>` holding the financial statements, per Reg A report form.
+ *
+ * A 1-K's annual report is tagged `PART II` whatever the form is called, so an
+ * amendment resolves to the same document type. A 1-SA's report is tagged with
+ * the FORM NAME, which for an amendment is `1-SA/A` — see
+ * {@link selectByFormType} for how that is resolved.
+ */
 const REPORT_DOCUMENT_TYPE: Readonly<Record<string, string>> = {
   "1-K": "PART II",
-  "1-SA": "1-SA",
+  "1-SA": FORM_NAMED_DOCUMENT,
 };
 
 export interface RegAReportDocument {
@@ -95,10 +108,38 @@ export function selectSubmissionDocumentByType(
 }
 
 /**
+ * Resolves a document type that may be named after the filing's own form.
+ *
+ * EDGAR tags a form-named document with the form AS FILED, so an amendment's is
+ * `1-K/A` or `1-SA/A`, not the base form. Resolving to the base name found no
+ * document at all: every one of the 125 `1-K/A` filings failed its parse
+ * (`carries no <TYPE>1-K/A cover document`) and all 84 `1-SA/A` filings
+ * extracted zero figures while still recording a clean run.
+ *
+ * The exact form is tried first and the base form second, so both a plain
+ * filing and an amendment resolve, and a filer that tags an amendment with the
+ * base name is still read.
+ */
+function selectByFormType(
+  submissionText: string,
+  form: string,
+  wanted: string
+): RegAReportDocument | undefined {
+  if (wanted !== FORM_NAMED_DOCUMENT) {
+    return selectSubmissionDocumentByType(submissionText, wanted);
+  }
+  return (
+    selectSubmissionDocumentByType(submissionText, form.trim().toUpperCase()) ??
+    selectSubmissionDocumentByType(submissionText, baseForm(form))
+  );
+}
+
+/**
  * Extracts the financial-statement document from a full-submission `.txt`.
  *
- * Amendments (`1-K/A`, `1-SA/A`) resolve to their base form's document type —
- * an amended annual report is still a `PART II`.
+ * An amended annual report is still a `PART II`, so `1-K/A` resolves to the same
+ * document type as `1-K`. A `1-SA/A`'s report is tagged with the form as filed,
+ * which {@link selectByFormType} resolves.
  *
  * Returns `undefined` when the submission carries no such document, which the
  * caller should treat as "nothing to extract" rather than as an error: a filing
@@ -110,7 +151,7 @@ export function selectRegAReportDocument(
 ): RegAReportDocument | undefined {
   const wanted = REPORT_DOCUMENT_TYPE[baseForm(form)];
   if (wanted === undefined) return undefined;
-  return selectSubmissionDocumentByType(submissionText, wanted);
+  return selectByFormType(submissionText, form, wanted);
 }
 
 /**
@@ -125,7 +166,7 @@ export function selectRegAReportDocument(
  * `edgarSubmission` XML.
  */
 const COVER_DOCUMENT_TYPE: Readonly<Record<string, string>> = {
-  "1-K": "1-K",
+  "1-K": FORM_NAMED_DOCUMENT,
 };
 
 /**
@@ -146,5 +187,5 @@ export function selectRegACoverDocument(
 ): RegAReportDocument | undefined {
   const wanted = COVER_DOCUMENT_TYPE[baseForm(form)];
   if (wanted === undefined) return undefined;
-  return selectSubmissionDocumentByType(submissionText, wanted);
+  return selectByFormType(submissionText, form, wanted);
 }

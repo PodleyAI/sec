@@ -51,11 +51,26 @@ describe("selectRegAReportDocument", () => {
     expect(selectRegAReportDocument(text, "1-SA")?.fileName).toBe("tm2425224d1_1sa.htm");
   });
 
-  it("resolves an amendment to its base form's document type", () => {
+  it("resolves a 1-K amendment to PART II, which is not form-named", () => {
     // An amended annual report is still a PART II.
     const text = submission(doc("PART II", "amended.htm", "<html>Total Assets</html>"));
     expect(selectRegAReportDocument(text, "1-K/A")?.fileName).toBe("amended.htm");
     expect(selectRegAReportDocument(text, "1-k")?.fileName).toBe("amended.htm");
+  });
+
+  it("finds a 1-SA/A report, which IS tagged with the amended form name", () => {
+    // EDGAR tags a form-named document with the form AS FILED. Looking for the
+    // base `1-SA` found nothing, so all 84 `1-SA/A` filings extracted zero
+    // figures while still recording a clean run — a silent hole, not an error.
+    const text = submission(doc("1-SA/A", "amended_1sa.htm", "<html>Total Assets</html>"));
+    expect(selectRegAReportDocument(text, "1-SA/A")?.fileName).toBe("amended_1sa.htm");
+  });
+
+  it("still finds a report an amendment tagged with the base form name", () => {
+    // Tolerance for a filer that does not follow the convention: the exact form
+    // is tried first, the base form second.
+    const text = submission(doc("1-SA", "amended_1sa.htm", "<html>Total Assets</html>"));
+    expect(selectRegAReportDocument(text, "1-SA/A")?.fileName).toBe("amended_1sa.htm");
   });
 
   it("returns nothing for a form that carries no financial statements", () => {
@@ -69,6 +84,18 @@ describe("selectRegAReportDocument", () => {
     // caller treats this as "nothing to extract" rather than as an error.
     const text = submission(doc("1-K", "primary_doc.xml", "<edgarSubmission/>"));
     expect(selectRegAReportDocument(text, "1-K")).toBeUndefined();
+  });
+
+  it("finds a 1-K/A cover, which is tagged with the amended form name", () => {
+    // The regression this guards. The cover is form-named, so a `1-K/A`
+    // submission tags it `<TYPE>1-K/A` — resolving to the base `1-K` found no
+    // cover and threw, failing every one of the 125 `1-K/A` filings.
+    const text = submission(
+      doc("1-K/A", "primary_doc.xml", "<edgarSubmission/>"),
+      doc("PART II", "amended.htm", "<html>Total Assets</html>")
+    );
+    expect(selectRegACoverDocument(text, "1-K/A")?.fileName).toBe("primary_doc.xml");
+    expect(selectRegAReportDocument(text, "1-K/A")?.fileName).toBe("amended.htm");
   });
 
   it("strips EDGAR's <XML> envelope so edgarSubmission is the root", () => {
