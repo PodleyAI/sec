@@ -138,7 +138,12 @@ describe("processRedemption8K", () => {
     expect(run?.success).toBe(true);
   });
 
-  it("auto-resolves MODEL_INVALID_OUTPUT the same as MODEL_EMPTY — grok schema failures are expected negatives", async () => {
+  it("leaves MODEL_INVALID_OUTPUT pending — grok schema failures are not expected negatives", async () => {
+    // MODEL_INVALID_OUTPUT is the section runner's catch-all: it is what a
+    // provider 5xx, a schema rejection, and a throw inside `persist` all land
+    // on. None of those is a statement about whether this 8-K reported a
+    // redemption, so auto-resolving it the way MODEL_EMPTY is resolved would
+    // silently discard a real extraction failure.
     await seedSpacWithOpenDeal(71);
     const registration = registerFakeStructuredProvider([
       new Error("response did not match schema"),
@@ -165,7 +170,40 @@ describe("processRedemption8K", () => {
       "redemption"
     );
     expect(dl?.reason_code).toBe("MODEL_INVALID_OUTPUT");
-    expect(dl?.status).toBe("resolved");
+    expect(dl?.status).toBe("pending");
+  });
+
+  it("keeps the failed filing findable when the model throws", async () => {
+    // The detector records a SUCCESSFUL extractor run even for the throwing
+    // section, so the ordinary forms sweep (and the default backfill anti-join
+    // behind it) will never re-select this filing. The pending dead letter is
+    // therefore the only surviving trace that the extraction failed — resolving
+    // it would leave no extraction row, no failed run, and nothing on any
+    // worklist.
+    await seedSpacWithOpenDeal(72);
+    const registration = registerFakeStructuredProvider([new Error("provider returned HTTP 503")]);
+    cleanup = registration.unregister;
+
+    await processRedemption8K({
+      cik: 72,
+      accession_number: "0000000000-26-000072",
+      filing_date: "2026-03-20",
+      form: "8-K",
+      itemCodes: ["5.07"],
+      fullSubmissionText: FULL_TXT,
+      model: fakeS1Model(),
+    });
+
+    expect(
+      await new SpacRedemptionExtractionRepo().getByAccession("0000000000-26-000072")
+    ).toBeUndefined();
+
+    const pending = await new ExtractionDeadLetterRepo().listPending("redemption");
+    expect(pending.map((e) => e.accession_number)).toContain("0000000000-26-000072");
+
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const run = await runRepo.findRun(72, "0000000000-26-000072", "redemption", "1.0.0");
+    expect(run?.success).toBe(true);
   });
 
   it("writes nothing without a trigger item", async () => {

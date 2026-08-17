@@ -9,10 +9,14 @@ import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { processDeregistration } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { processWithdrawal } from "../../sec/forms/registration-withdrawal-termination/processWithdrawal";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import {
   formsForExtractor,
   getBackfillDescriptor,
@@ -57,16 +61,59 @@ async function seedFiling(opts: {
   } as never);
 }
 
+/** A `success: true` run at the bootstrapped active version (1.0.0). */
+async function recordSuccessfulRun(opts: {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly extractorId: string;
+}): Promise<void> {
+  await new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)).recordRun({
+    cik: opts.cik,
+    accession_number: opts.accession_number,
+    form: "8-K",
+    extractor_id: opts.extractorId,
+    extractor_version: "1.0.0",
+    slot_at_run: "current",
+    success: true,
+    error: null,
+  });
+}
+
+/**
+ * The residue of the auto-resolve bug: a catch-all failure that was marked
+ * resolved. `markResolved` keeps the reason code, which is what makes the row
+ * recoverable at all.
+ */
+async function recordResolvedInvalidOutput(opts: {
+  readonly extractorId: string;
+  readonly accession_number: string;
+  readonly section_name: string;
+}): Promise<void> {
+  const dl = new ExtractionDeadLetterRepo();
+  await dl.record({
+    extractor_id: opts.extractorId,
+    accession_number: opts.accession_number,
+    section_name: opts.section_name,
+    reason_code: "MODEL_INVALID_OUTPUT",
+    detail: "response did not match schema",
+    failed_extractor_version: "1.0.0",
+    source_run_id: null,
+  });
+  await dl.markResolved(opts.extractorId, opts.accession_number, opts.section_name);
+}
+
 describe("backfill descriptor registry", () => {
   it("resolves a custom descriptor for the sub-extractors and merger-proxy", () => {
     for (const id of ["redemption", "loi", "merger-proxy", "25-15", "RW"]) {
       expect(getBackfillDescriptor(id)?.extractorId).toBe(id);
     }
-    // merger-proxy, 25-15, and RW override the needing-work predicate; the 8-K sub-extractors don't.
+    // Every custom descriptor overrides the needing-work predicate; the 8-K
+    // sub-extractors widen the default rather than replace it.
     expect(getBackfillDescriptor("merger-proxy")?.filterTodo).toBeDefined();
     expect(getBackfillDescriptor("25-15")?.filterTodo).toBeDefined();
     expect(getBackfillDescriptor("RW")?.filterTodo).toBeDefined();
-    expect(getBackfillDescriptor("redemption")?.filterTodo).toBeUndefined();
+    expect(getBackfillDescriptor("redemption")?.filterTodo).toBeDefined();
+    expect(getBackfillDescriptor("loi")?.filterTodo).toBeDefined();
   });
 
   it("resolves a generic form-based descriptor for every form-routed extractor", () => {
@@ -125,6 +172,107 @@ describe("known-SPAC trigger-8K selectors (redemption / loi)", () => {
     const accessions = new Set(candidates.map((c) => c.accession_number));
     // 7.01 is an LOI trigger; 5.07 and 2.02 are not; 2.01 is not either.
     expect(accessions).toEqual(new Set(["acc-other"]));
+  });
+
+  it("re-selects a redemption 8-K whose catch-all dead letter was resolved with no extraction row", async () => {
+    // The corrupted shape the auto-resolve bug left behind: the detector threw,
+    // the section runner recorded MODEL_INVALID_OUTPUT, the detector recorded a
+    // SUCCESSFUL run anyway, and the entry was then marked resolved. Nothing
+    // was extracted. The successful run row is what makes the default anti-join
+    // untrustworthy here — it says the filing was processed when the only thing
+    // that happened was a failure that has since been cleared off the worklist.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-vote", form: "8-K", items: "5.07" });
+    await recordSuccessfulRun({ cik: 5, accession_number: "acc-vote", extractorId: "redemption" });
+    await recordResolvedInvalidOutput({
+      extractorId: "redemption",
+      accession_number: "acc-vote",
+      section_name: "redemption",
+    });
+
+    const descriptor = getBackfillDescriptor("redemption")!;
+    const todo = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-vote"]);
+  });
+
+  it("does not re-select a confident negative", async () => {
+    // MODEL_EMPTY is the expected answer for most trigger 8-Ks. Selecting it
+    // would turn this descriptor into a re-run-everything-forever sweep that
+    // re-pays an AI call per 8-K on every pass.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-vote", form: "8-K", items: "5.07" });
+    await recordSuccessfulRun({ cik: 5, accession_number: "acc-vote", extractorId: "redemption" });
+    const dl = new ExtractionDeadLetterRepo();
+    await dl.record({
+      extractor_id: "redemption",
+      accession_number: "acc-vote",
+      section_name: "redemption",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await dl.markResolved("redemption", "acc-vote", "redemption");
+
+    const descriptor = getBackfillDescriptor("redemption")!;
+    expect(await descriptor.filterTodo!(await descriptor.selectCandidates())).toEqual([]);
+  });
+
+  it("does not re-select a catch-all entry whose filing did produce an extraction row", async () => {
+    // A later clean run wrote the extraction but left the reason code in place
+    // (markResolved does not rewrite it), so the code alone would over-select.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-vote", form: "8-K", items: "5.07" });
+    await recordSuccessfulRun({ cik: 5, accession_number: "acc-vote", extractorId: "redemption" });
+    await recordResolvedInvalidOutput({
+      extractorId: "redemption",
+      accession_number: "acc-vote",
+      section_name: "redemption",
+    });
+    await new SpacRedemptionExtractionRepo().save({
+      accession_number: "acc-vote",
+      cik: 5,
+      form: "8-K",
+      filing_date: "2026-03-20",
+      extractor_id: "redemption",
+      extractor_version: "1.0.0",
+      redemption_shares: 1_000,
+      redemption_amount: 10_000,
+      price_per_share: 10,
+      confidence: 0.9,
+      source_span: null,
+      model_id: null,
+      created_at: "2026-03-20T00:00:00.000Z",
+    });
+
+    const descriptor = getBackfillDescriptor("redemption")!;
+    expect(await descriptor.filterTodo!(await descriptor.selectCandidates())).toEqual([]);
+  });
+
+  it("still selects a filing that never ran", async () => {
+    // Pins that the union widened the default anti-join rather than replacing
+    // it: the ordinary "no successful run" candidate must still come through.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-vote", form: "8-K", items: "5.07" });
+
+    const descriptor = getBackfillDescriptor("redemption")!;
+    const todo = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-vote"]);
+  });
+
+  it("re-selects an LOI 8-K whose catch-all dead letter was resolved with no extraction row", async () => {
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-other", form: "8-K", items: "7.01" });
+    await recordSuccessfulRun({ cik: 5, accession_number: "acc-other", extractorId: "loi" });
+    await recordResolvedInvalidOutput({
+      extractorId: "loi",
+      accession_number: "acc-other",
+      section_name: "loi",
+    });
+
+    const descriptor = getBackfillDescriptor("loi")!;
+    const todo = await descriptor.filterTodo!(await descriptor.selectCandidates());
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-other"]);
   });
 
   it("aggregates candidates across multiple SPACs in bulk form queries", async () => {

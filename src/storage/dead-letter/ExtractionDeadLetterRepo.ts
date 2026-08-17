@@ -135,6 +135,14 @@ export class ExtractionDeadLetterRepo {
     });
   }
 
+  /** Entries for an extractor carrying a reason code, in any status. */
+  async listByReasonCode(
+    extractor_id: string,
+    reason_code: DeadLetterReasonCode
+  ): Promise<ExtractionDeadLetter[]> {
+    return (await this.storage.query({ extractor_id, reason_code })) ?? [];
+  }
+
   async listPending(extractor_id: string): Promise<ExtractionDeadLetter[]> {
     const rows = (await this.storage.query({ extractor_id })) ?? [];
     return rows.filter((r) => r.status === "pending");
@@ -175,8 +183,8 @@ export class ExtractionDeadLetterRepo {
    * - the reason code is a model/provider-availability error
    *   ({@link MODEL_ERROR_REASON_CODES}), which a version bump does not address:
    *   those recover by re-running once the model is registered, unbounded;
-   * - LOI / redemption `MODEL_EMPTY` / `MODEL_INVALID_OUTPUT` — expected
-   *   negatives that should be marked resolved rather than re-paid as AI;
+   * - LOI / redemption `MODEL_EMPTY` — expected negatives that should be marked
+   *   resolved rather than re-paid as AI;
    * - the reason code is a non-deterministic model response
    *   ({@link NONDETERMINISTIC_REASON_CODES}), which the next call may well get
    *   right — but only for {@link NONDETERMINISTIC_RETRY_ATTEMPTS} recorded

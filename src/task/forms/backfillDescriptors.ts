@@ -4,10 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { globalServiceRegistry } from "workglow";
+import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
+import { SpacLoiExtractionRepo } from "../../storage/spac/SpacLoiExtractionRepo";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
 import { resolveListingRemovalKind } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
@@ -45,6 +53,29 @@ export interface BackfillDescriptor {
    * predicate is "no extraction row" instead.
    */
   readonly filterTodo?: (candidates: BackfillCandidate[]) => Promise<BackfillCandidate[]>;
+}
+
+/** Extractor version used when no slot is registered yet. */
+const FALLBACK_VERSION = "1.0.0";
+
+/**
+ * The default needing-work predicate: a bulk anti-join against `extractor_runs`
+ * at the active extractor version. Exported so a descriptor whose own
+ * `filterTodo` only WIDENS the default can call it rather than restate it —
+ * one implementation, and no import cycle back through
+ * {@link runExtractorBackfill}, which imports this module.
+ */
+export async function defaultFilterTodo(
+  extractorId: string,
+  candidates: BackfillCandidate[]
+): Promise<BackfillCandidate[]> {
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+  const activeSlot = await getActiveSlot(versionRegistry, "extractor", extractorId);
+  const extractorVersion = activeSlot?.semver ?? FALLBACK_VERSION;
+  return runRepo.listFilingsWithoutSuccessfulRun(candidates, extractorId, extractorVersion);
 }
 
 /** All form symbols routed to the given extractor id. */
@@ -115,6 +146,49 @@ function spacTrigger8KSelector(
       }
     }
     return out;
+  };
+}
+
+/**
+ * Descriptor for a known-SPAC 8-K sub-extractor (redemption / LOI).
+ *
+ * `filterTodo` is the default anti-join UNIONED with the filings whose detector
+ * section carries the catch-all `MODEL_INVALID_OUTPUT` reason code and produced
+ * no extraction row. Those recorded a SUCCESSFUL run while writing nothing —
+ * the detector records the run before the section's dead letter is examined —
+ * so the anti-join alone never revisits them and the failure is invisible to
+ * every sweep. `MODEL_EMPTY` entries are deliberately not selected: a confident
+ * negative is the expected answer for most trigger 8-Ks and must not be re-paid
+ * as an AI call on every sweep.
+ */
+function spacTrigger8KDescriptor(
+  extractorId: string,
+  sectionName: string,
+  hasTriggerItem: (items: string | null | undefined) => boolean,
+  hasExtraction: (accession_number: string) => Promise<boolean>
+): BackfillDescriptor {
+  return {
+    extractorId,
+    selectCandidates: spacTrigger8KSelector(hasTriggerItem),
+    filterTodo: async (candidates) => {
+      const todo = await defaultFilterTodo(extractorId, candidates);
+      const already = new Set(todo.map((c) => c.accession_number));
+      const invalid = new Set(
+        (await new ExtractionDeadLetterRepo().listByReasonCode(extractorId, "MODEL_INVALID_OUTPUT"))
+          .filter((e) => e.section_name === sectionName)
+          .map((e) => e.accession_number)
+      );
+      for (const c of candidates) {
+        if (already.has(c.accession_number)) continue;
+        // Membership first, so the per-candidate extraction lookup is paid only
+        // for the corrupted set rather than for every candidate 8-K.
+        if (!invalid.has(c.accession_number)) continue;
+        if (await hasExtraction(c.accession_number)) continue;
+        todo.push(c);
+        already.add(c.accession_number);
+      }
+      return todo;
+    },
   };
 }
 
@@ -244,14 +318,20 @@ const withdrawalDescriptor: BackfillDescriptor = {
 
 /** Sub-extractors and gated extractors whose candidate set is not form-derived. */
 const CUSTOM_DESCRIPTORS: Readonly<Record<string, BackfillDescriptor>> = {
-  redemption: {
-    extractorId: "redemption",
-    selectCandidates: spacTrigger8KSelector(hasRedemptionTriggerItem),
-  },
-  loi: {
-    extractorId: "loi",
-    selectCandidates: spacTrigger8KSelector(hasLoiTriggerItem),
-  },
+  redemption: spacTrigger8KDescriptor(
+    "redemption",
+    "redemption",
+    hasRedemptionTriggerItem,
+    async (accession_number) =>
+      (await new SpacRedemptionExtractionRepo().getByAccession(accession_number)) !== undefined
+  ),
+  loi: spacTrigger8KDescriptor(
+    "loi",
+    "loi",
+    hasLoiTriggerItem,
+    async (accession_number) =>
+      (await new SpacLoiExtractionRepo().getByAccession(accession_number)) !== undefined
+  ),
   "merger-proxy": mergerProxyDescriptor,
   "25-15": deregistrationDescriptor,
   RW: withdrawalDescriptor,

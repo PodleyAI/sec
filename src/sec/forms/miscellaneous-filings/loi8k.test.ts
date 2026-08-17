@@ -213,7 +213,11 @@ describe("processLoi8K", () => {
     expect(run?.success).toBe(true);
   });
 
-  it("auto-resolves MODEL_INVALID_OUTPUT the same as MODEL_EMPTY", async () => {
+  it("leaves MODEL_INVALID_OUTPUT pending — a schema failure is not a 'no LOI' verdict", async () => {
+    // The auto-resolve exists because "no LOI reported" is the expected answer
+    // for most trigger 8-Ks. MODEL_INVALID_OUTPUT says nothing of the kind: it
+    // is the section runner's catch-all for a throw it could not classify, so
+    // resolving it records a filing as checked that was never read.
     await seedSearchingSpac(73);
     const registration = registerFakeStructuredProvider([
       new Error("response did not match schema"),
@@ -236,7 +240,7 @@ describe("processLoi8K", () => {
 
     const dl = await new ExtractionDeadLetterRepo().get("loi", "0000000000-26-000173", "loi");
     expect(dl?.reason_code).toBe("MODEL_INVALID_OUTPUT");
-    expect(dl?.status).toBe("resolved");
+    expect(dl?.status).toBe("pending");
   });
 
   it("writes nothing without a trigger item", async () => {

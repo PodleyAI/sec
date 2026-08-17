@@ -117,11 +117,13 @@ export function addExtractorCommands(program: Command): void {
         const out = await runWorkflowCli<{
           eligibleAccessions: string[];
           reprocessed: number;
+          resolved: number;
           failed: number;
         }>([new RetryDeadLettersTask({ defaults: { extractorId } })]);
         const failedSuffix = out.failed > 0 ? `, ${out.failed} failed` : "";
         console.log(
-          `reprocessed ${out.reprocessed} filing(s) from ${out.eligibleAccessions.length} eligible${failedSuffix}`
+          `reprocessed ${out.reprocessed} filing(s), resolved ${out.resolved} expected-negative ` +
+            `entr(ies) from ${out.eligibleAccessions.length} eligible${failedSuffix}`
         );
       });
     });

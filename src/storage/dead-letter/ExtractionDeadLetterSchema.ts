@@ -86,14 +86,24 @@ export type DeadLetterReasonCode = (typeof DEAD_LETTER_REASON_CODES)[number];
 export const MODEL_ERROR_REASON_CODES = ["MODEL_RESOLUTION_ERROR", "RATE_LIMITED"] as const;
 
 /**
- * 8-K detectors (LOI / redemption) where an empty or schema-invalid response
- * means "no event reported" — the expected negative for most trigger 8-Ks.
- * Same-version retryable so a worklist of historical `MODEL_EMPTY` /
- * `MODEL_INVALID_OUTPUT` entries can be cleared without a version bump.
+ * 8-K detectors (LOI / redemption) where an empty response means "no event
+ * reported" — the expected negative for most trigger 8-Ks. Same-version
+ * retryable so a worklist of historical `MODEL_EMPTY` entries can be cleared
+ * without a version bump.
  */
 export const EXPECTED_NEGATIVE_EXTRACTOR_IDS = ["loi", "redemption"] as const;
 
-export const EXPECTED_NEGATIVE_REASON_CODES = ["MODEL_EMPTY", "MODEL_INVALID_OUTPUT"] as const;
+/**
+ * Deliberately scoped to `MODEL_EMPTY`, and `MODEL_INVALID_OUTPUT` is
+ * deliberately NOT in it. `MODEL_EMPTY` is a verdict about the filing — the
+ * model read the narrative and reported no event. `MODEL_INVALID_OUTPUT` is the
+ * section runner's catch-all for any throw it cannot classify: a provider 5xx,
+ * a schema rejection, a failure inside `persist`. Treating that as an expected
+ * negative discards a real extraction failure behind the successful run row the
+ * detector records anyway, leaving nothing pending on the worklist and nothing
+ * for the forms sweep or the backfill anti-join to re-select.
+ */
+export const EXPECTED_NEGATIVE_REASON_CODES = ["MODEL_EMPTY"] as const;
 
 /**
  * Reason codes describing a **non-deterministic** model response rather than a

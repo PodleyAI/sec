@@ -154,7 +154,12 @@ describe("ExtractionDeadLetterRepo", () => {
     expect(await repo.countEligible("S-1", "1.0.0")).toBe(1);
   });
 
-  it("keeps loi/redemption MODEL_EMPTY and MODEL_INVALID_OUTPUT eligible under the same version", async () => {
+  it("keeps loi/redemption MODEL_EMPTY eligible under the same version but version-gates MODEL_INVALID_OUTPUT", async () => {
+    // The expected-negative shortcut exists for a CONFIDENT NEGATIVE: the model
+    // read the narrative and reported no event, which the retry sweep can mark
+    // resolved without re-paying an AI call. MODEL_INVALID_OUTPUT is the
+    // section runner's catch-all for an unclassifiable throw, so it is an
+    // ordinary version-gated failure on these extractors too.
     await repo.record({
       extractor_id: "redemption",
       accession_number: "empty-8k",
@@ -174,6 +179,15 @@ describe("ExtractionDeadLetterRepo", () => {
       source_run_id: null,
     });
     await repo.record({
+      extractor_id: "loi",
+      accession_number: "invalid-8k-stale",
+      section_name: "loi",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "0.9.0",
+      source_run_id: null,
+    });
+    await repo.record({
       extractor_id: "S-1",
       accession_number: "s1-empty",
       section_name: "Management",
@@ -186,10 +200,60 @@ describe("ExtractionDeadLetterRepo", () => {
     expect((await repo.listEligible("redemption", "1.0.0")).map((r) => r.accession_number)).toEqual([
       "empty-8k",
     ]);
+    // Same-version MODEL_INVALID_OUTPUT: gated, like every other extractor.
+    // The stale-version one is eligible the ordinary way — fix the extractor,
+    // bump the version, retry.
     expect((await repo.listEligible("loi", "1.0.0")).map((r) => r.accession_number)).toEqual([
-      "invalid-8k",
+      "invalid-8k-stale",
     ]);
     expect(await repo.listEligible("S-1", "1.0.0")).toEqual([]);
+  });
+
+  it("lists entries by reason code across statuses", async () => {
+    // The recovery sweep for the auto-resolve bug reads RESOLVED rows: an entry
+    // wrongly cleared keeps its reason code (markResolved only flips `status`),
+    // so the code is the only remaining evidence.
+    await repo.record({
+      extractor_id: "redemption",
+      accession_number: "cleared",
+      section_name: "redemption",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.markResolved("redemption", "cleared", "redemption");
+    await repo.record({
+      extractor_id: "redemption",
+      accession_number: "still-failing",
+      section_name: "redemption",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "redemption",
+      accession_number: "negative",
+      section_name: "redemption",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    await repo.record({
+      extractor_id: "loi",
+      accession_number: "other-extractor",
+      section_name: "loi",
+      reason_code: "MODEL_INVALID_OUTPUT",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const rows = await repo.listByReasonCode("redemption", "MODEL_INVALID_OUTPUT");
+    expect(rows.map((r) => r.accession_number).sort()).toEqual(["cleared", "still-failing"]);
+    expect(await repo.listByReasonCode("redemption", "SECTION_NOT_FOUND")).toEqual([]);
   });
 
   it("keeps RATE_LIMITED entries eligible under the same version", async () => {
