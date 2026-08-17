@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "workglow";
 import type { FetchUrlTaskInput, SafeFetchFn } from "workglow";
 import { registerSafeFetch } from "workglow";
@@ -181,6 +181,59 @@ describe("SecFetchJob", () => {
         server.stop();
       }
     }, 10_000);
+  });
+
+  // A hostile or buggy Retry-After: 86400 used to park this job on a setTimeout
+  // for a day. The cluster pause is already capped; this is the job's OWN sleep.
+  describe("Retry-After cap", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("caps a huge Retry-After so a sweep cannot park for a day", async () => {
+      vi.useFakeTimers();
+      let attempts = 0;
+      const previous = registerSafeFetch((async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return new Response("rate limited", {
+            status: 429,
+            headers: { "Retry-After": "86400" },
+          });
+        }
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as unknown as SafeFetchFn);
+      const ac = new AbortController();
+      let promise: Promise<unknown> | undefined;
+      try {
+        const job = new SecFetchJob({
+          input: {
+            url: "https://www.sec.gov/Archives/edgar/x.json",
+            response_type: "json",
+          } satisfies FetchUrlTaskInput,
+        });
+        promise = job.execute(job.input, {
+          signal: ac.signal,
+          updateProgress: async () => {},
+        });
+        // EDGAR's own pushback is ~10 minutes; a 30s ceiling would retry
+        // inside that window and keep the block alive. A 86400s header
+        // must still not park a sweep for a day.
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(attempts).toBe(1);
+        await vi.advanceTimersByTimeAsync(570_000);
+        expect(attempts).toBe(2);
+        const out = await promise;
+        expect((out as { json?: { ok?: boolean } }).json?.ok).toBe(true);
+      } finally {
+        ac.abort();
+        await promise?.catch(() => {});
+        registerSafeFetch(previous);
+      }
+    });
   });
 
   // The in-job loop is the second half of workglow's post-delivery retry ban.

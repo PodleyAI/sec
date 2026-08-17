@@ -29,6 +29,7 @@ const MAX_FETCH_ATTEMPTS = readPositiveIntEnv("SEC_FETCH_MAX_ATTEMPTS", 4);
 const INITIAL_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_INITIAL_BACKOFF_MS", 1_000);
 const MAX_BACKOFF_MS = readPositiveIntEnv("SEC_FETCH_MAX_BACKOFF_MS", 30_000);
 const DEFAULT_TIMEOUT_MS = readPositiveIntEnv("SEC_FETCH_TIMEOUT_MS", 60_000);
+export const MAX_RETRY_AFTER_MS = 600_000;
 
 interface MaybeHttpError {
   status?: number;
@@ -310,15 +311,16 @@ export class SecFetchJob<
         // (every shard process) via the shared limiter's cluster-visible
         // next-available sentinel, so NEW dispatches back off together instead
         // of piling on and keeping the block alive. This job's OWN retry keeps
-        // the normal fast backoff (honoring Retry-After when present) so a
-        // genuinely transient 429 still recovers quickly; a sustained block just
+        // the normal backoff (honoring Retry-After when present, capped at
+        // MAX_RETRY_AFTER_MS) so an EDGAR 10-minute pushback is waited out
+        // rather than retried inside the window; a sustained block just
         // exhausts this job's few attempts and dead-letters (retried next
         // sweep) while the cluster stays paused. Non-429 retryables (5xx,
         // timeouts, network blips) don't pause the cluster.
         if (getHttpErrorStatus(error) === 429) {
           await signalSecFetchThrottle(retryAfter);
         }
-        const delay = retryAfter ?? backoffDelay(attempt);
+        const delay = Math.min(retryAfter ?? backoffDelay(attempt), MAX_RETRY_AFTER_MS);
         await sleepWithAbort(delay, context.signal);
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
