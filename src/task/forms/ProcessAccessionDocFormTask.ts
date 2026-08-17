@@ -23,6 +23,7 @@ import { processForm1SA } from "../../sec/forms/exempt-offerings/Form_1_SA.stora
 import { processForm1Z } from "../../sec/forms/exempt-offerings/Form_1_Z.storage";
 import { processFormC } from "../../sec/forms/exempt-offerings/Form_C.storage";
 import { processForm1U } from "../../sec/forms/exempt-offerings/Form_1_U.storage";
+import { processRegAOfferingEvent } from "../../sec/forms/exempt-offerings/RegAOfferingEvent.storage";
 import { processFormQualif } from "../../sec/forms/exempt-offerings/Form_QUALIF.storage";
 import { processFormD } from "../../sec/forms/exempt-offerings/Form_D.storage";
 import { processFormCFPORTAL } from "../../sec/forms/portal/Form_CFPORTAL.storage";
@@ -467,6 +468,59 @@ export class ProcessAccessionDocFormTask extends Task<
         : extractorId === "RW"
           ? processWithdrawal
           : undefined;
+    // Offering-circular supplements (253G1-253G4) and withdrawals (1-A-W,
+    // 1-Z-W) join 1-U on the metadata-only path, and more cheaply than any of
+    // them: EDGAR records the `024-` file number linking the event to its
+    // offering on 100% of these filings, and the rule subsection IS the form
+    // name. Their bodies are 1-2 MB of narrative HTML apiece — ~8 GB across the
+    // 5,874 filings — and carry extractable terms in only 13-30% of cases.
+    if (extractorId === "253G" || extractorId === "1-A-W") {
+      await context.updateProgress(80, `${label} · storing`);
+      try {
+        await processRegAOfferingEvent({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form: form!,
+          filing_date: filing_date ?? "",
+          file_number: file_number ?? null,
+        });
+      } catch (err) {
+        if (err instanceof TaskAbortedError || context.signal?.aborted) throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        const detail = `Store failed for form '${form}': ${message}`;
+        console.error(`STORE_ERROR ${accessionNumber}@${extractorId}:`, err);
+        await recordDeadLetterSafe("STORE_ERROR", detail.slice(0, 1024));
+        await recordRunFailed(`STORE_ERROR: ${detail}`);
+        return { success: false };
+      }
+      try {
+        await deadLetters.markResolved(extractorId, accessionNumber, "");
+      } catch (dlErr) {
+        console.error(
+          `Failed to resolve filing-level dead-letter for ${accessionNumber}@${extractorId}:`,
+          dlErr
+        );
+      }
+      try {
+        await runRepo.recordRun({
+          cik: cik!,
+          accession_number: accessionNumber,
+          form: form!,
+          extractor_id: extractorId,
+          extractor_version: extractorVersion,
+          slot_at_run: slotAtRun,
+          success: true,
+          outcome: "success",
+          error: null,
+        });
+      } catch (recordErr) {
+        console.error(
+          `Failed to record extractor_runs row for ${accessionNumber}@${extractorId}:`,
+          recordErr
+        );
+      }
+      return { success: true };
+    }
     if (extractorId === "1-U") {
       await context.updateProgress(80, `${label} · storing`);
       try {

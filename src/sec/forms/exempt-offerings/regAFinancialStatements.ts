@@ -153,6 +153,27 @@ const PERIOD = /\b(?:January|February|March|April|May|June|July|August|September
 const BARE_YEAR = /^(?:19|20)\d{2}$/;
 
 /**
+ * A month-and-day with NO year — the top half of a header split across two
+ * ROWS:
+ *
+ * ```
+ *            June 30,      December 31,
+ *            2024          2023
+ * ```
+ *
+ * Neither row is a date on its own, so joining cells within a row (which is
+ * what {@link readDates} does) finds nothing. Worse, the `31` of
+ * "December 31," reads as a figure, so the row was taken for DATA and the
+ * header block ended before it began — leaving `June 30,` and `2024` as line
+ * items with values. 654 such labels and 10,356 stray year labels reached
+ * storage across 3,148 of 5,695 filings before this was handled.
+ */
+const MONTH_DAY = /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?$/;
+
+/** The month-day fragments of a split header row, in column order. */
+const readMonthDays = (texts: readonly string[]): string[] => texts.filter((c) => MONTH_DAY.test(c));
+
+/**
  * Reads the dates out of one header row.
  *
  * The cells are JOINED first, for the same reason {@link readRowValues} joins
@@ -199,6 +220,7 @@ function readHeader(rows: string[][]): { columns: string[]; periods: string[] } 
       // and calls the header row data, ending the block before it starts.
       const isDataRow =
         readDates(texts).length === 0 &&
+        readMonthDays(texts).length === 0 &&
         !BARE_YEAR.test(texts[labelIndex]) &&
         readRowValues(texts.slice(labelIndex + 1)).length > 0;
       if (isDataRow) break;
@@ -211,6 +233,24 @@ function readHeader(rows: string[][]): { columns: string[]; periods: string[] } 
   for (const texts of header) {
     const dates = readDates(texts);
     if (dates.length >= 1) return { columns: dates, periods: dates };
+  }
+
+  // A header split across two rows: month-and-day on one, the years beneath.
+  // Paired POSITIONALLY — the Nth month-day belongs to the Nth year — which is
+  // what the columns mean; zipping them in any other order invents periods.
+  for (let i = 0; i < header.length; i++) {
+    const monthDays = readMonthDays(header[i]);
+    if (monthDays.length === 0) continue;
+    for (let j = i + 1; j < header.length; j++) {
+      const years = header[j].filter((c) => BARE_YEAR.test(c));
+      if (years.length === 0) continue;
+      // Only pair when the two halves line up. A mismatch means the rows are
+      // not two halves of one heading, and guessing would attach a year to the
+      // wrong column.
+      if (years.length !== monthDays.length) break;
+      const paired = monthDays.map((d, k) => `${d.replace(/,$/, "")}, ${years[k]}`);
+      return { columns: paired, periods: paired };
+    }
   }
 
   for (const texts of header) {
@@ -292,8 +332,24 @@ export function parseRegAFinancialStatements(html: string): RegAStatement[] {
       const labelIndex = cells.findIndex((c) => c !== "");
       if (labelIndex === -1) continue;
       const label = cells[labelIndex];
-      // A label is prose; a period header is not a line item. Skip both.
-      if (label === "" || PERIOD.test(label) || SECTION_HEADING.test(label)) continue;
+      // A period heading is not a line item, in any of the three shapes a filer
+      // writes one: a full date, a bare year, or the month-and-day half of a
+      // header split across two rows.
+      //
+      // Skipping only the full-date shape let the OTHER two through as data.
+      // `['', '', '2019', '', '', '2018', '']` was read as the line item "2019"
+      // with the value 2018 — the heading re-entering as a row beneath itself.
+      // 654 month-day labels and 10,356 bare-year labels reached storage that
+      // way, across 3,148 of 5,695 filings.
+      if (
+        label === "" ||
+        PERIOD.test(label) ||
+        BARE_YEAR.test(label) ||
+        MONTH_DAY.test(label) ||
+        SECTION_HEADING.test(label)
+      ) {
+        continue;
+      }
 
       // Values come only from cells AFTER the label. A label routinely contains
       // digits — "Common Stock (125,000,000 and 35,146,765 ... shares)" — and

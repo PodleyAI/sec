@@ -198,6 +198,54 @@ describe("parseRegAFinancialStatements — rows", () => {
   });
 });
 
+describe("parseRegAFinancialStatements — header rows are never data", () => {
+  it("pairs a header split across two rows into full periods", () => {
+    // `June 30,` / `2024` — neither row is a date on its own, so joining cells
+    // WITHIN a row finds nothing, and the `31` of "December 31," reads as a
+    // figure so the row was taken for data.
+    const html = table([
+      ["", "", "June 30,", "", "December 31,"],
+      ["", "", "2024", "", "2023"],
+      ["Cash", "", "49,680", "", "14,319"],
+      ["Total Assets", "", "165,949", "", "351,704"],
+      ["Total Liabilities", "", "10,000", "", "20,000"],
+    ]);
+    const bs = find(parseRegAFinancialStatements(html), "balance_sheet");
+    expect(bs.periods).toEqual(["June 30, 2024", "December 31, 2023"]);
+    expect(bs.rows.map((r) => r.label)).not.toContain("June 30,");
+    expect(bs.rows.map((r) => r.label)).not.toContain("2024");
+    expect(row(bs, "Cash")).toEqual([49680, 14319]);
+  });
+
+  it("never emits a bare-year heading as a line item", () => {
+    // `['', '', '2019', '', '', '2018', '']` was read as the line item "2019"
+    // with the value 2018 — the heading re-entering as a row beneath itself.
+    // 10,356 such labels reached storage.
+    const html = table([
+      ["", "", "2019", "", "2018"],
+      ["Net revenue", "", "500", "", "400"],
+      ["Net loss", "", "(100", ")", "(80", ")"],
+    ]);
+    const ops = find(parseRegAFinancialStatements(html), "operations");
+    expect(ops.periods).toEqual(["2019", "2018"]);
+    expect(ops.rows.map((r) => r.label)).toEqual(["Net revenue", "Net loss"]);
+  });
+
+  it("does not pair a month-day row with a mismatched year row", () => {
+    // Two halves that do not line up are not one heading, and attaching a year
+    // to the wrong column would invent a period.
+    const html = table([
+      ["", "", "June 30,", "", "December 31,"],
+      ["", "", "2024"],
+      ["Total Assets", "", "1,000", "", "2,000"],
+      ["Total Liabilities", "", "10", "", "20"],
+    ]);
+    const bs = find(parseRegAFinancialStatements(html), "balance_sheet");
+    expect(bs.periods).not.toContain("December 31, 2024");
+    expect(bs.rows.map((r) => r.label)).not.toContain("June 30,");
+  });
+});
+
 describe("parseRegAFinancialStatements — statement identification", () => {
   it("calls a cash-flow statement cash flows, not operations", () => {
     // A cash-flow statement also carries "net income", so the more specific

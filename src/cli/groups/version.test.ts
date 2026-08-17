@@ -42,12 +42,14 @@ describe("sec version CLI", () => {
         .sort();
       expect(ids).toEqual([
         "1-A",
+        "1-A-W",
         "1-K",
         "1-SA",
         "1-U",
         "1-Z",
         "144",
         "25-15",
+        "253G",
         "3",
         "4",
         "424",

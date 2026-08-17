@@ -5,9 +5,14 @@
  */
 
 import { Form } from "../Form";
+import { parseMetadataOnlyForm } from "../parseMetadataOnly";
 
 export class Form_253G3 extends Form {
-  static readonly name = "Notice of Sales of Unregistered Securities (253G3)";
-  static readonly description = "Notice of sales of unregistered securities";
+  static readonly name = "Offering Circular Supplement (Rule 253(g)(3))";
+  static readonly description = "Supplement to a qualified Regulation A offering circular.";
   static readonly forms = ["253G3"] as const;
+  // Metadata-only. The link to the offering (`024-…`) is in the submissions
+  // payload for 100% of these filings and the rule subsection is the form name,
+  // so the body — 1–2 MB of narrative HTML — is never fetched.
+  static parse = parseMetadataOnlyForm;
 }

@@ -11,6 +11,8 @@ export const EXTRACTOR_IDS = [
   "1-A",
   "1-K",
   "1-SA",
+  "253G",
+  "1-A-W",
   "1-Z",
   "1-U",
   "QUALIF",
@@ -124,6 +126,17 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
   // it to observe.
   "1-SA": "1-SA",
   "1-SA/A": "1-SA",
+  // Offering-circular supplements and withdrawals. Metadata-only: the `024-`
+  // link and the rule subsection both arrive in the submissions payload, so no
+  // document is fetched for any of the 5,874 filings.
+  "253G1": "253G",
+  "253G2": "253G",
+  "253G3": "253G",
+  "253G4": "253G",
+  "1-A-W": "1-A-W",
+  "1-A-W/A": "1-A-W",
+  "1-Z-W": "1-A-W",
+  "1-Z-W/A": "1-A-W",
   "1-Z": "1-Z",
   "1-Z/A": "1-Z",
   // The SEC's own qualification notice. Metadata-shaped like 25-15 rather than

@@ -152,6 +152,11 @@ import {
   RegACurrentReportSchema,
 } from "../storage/reg-a/RegACurrentReportSchema";
 import {
+  REGA_OFFERING_EVENT_REPOSITORY_TOKEN,
+  RegAOfferingEventPrimaryKeyNames,
+  RegAOfferingEventSchema,
+} from "../storage/reg-a/RegAOfferingEventSchema";
+import {
   REGA_FINANCIAL_LINE_REPOSITORY_TOKEN,
   RegAFinancialLinePrimaryKeyNames,
   RegAFinancialLineSchema,
@@ -770,6 +775,18 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     indexes: [
       ["cik", "filing_date"],
       ["cik", "label"],
+    ],
+  }),
+  defineStorage({
+    token: REGA_OFFERING_EVENT_REPOSITORY_TOKEN,
+    table: "rega_offering_event",
+    schema: RegAOfferingEventSchema,
+    primaryKeyNames: RegAOfferingEventPrimaryKeyNames,
+    // By issuer over time (the timeline query) and by the offering the event
+    // belongs to, which is how a supplement is joined back to its `024-` line.
+    indexes: [
+      ["cik", "filing_date"],
+      ["file_number"],
     ],
   }),
   // ------------------------------ SPAC ------------------------------------------

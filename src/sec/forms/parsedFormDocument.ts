@@ -8,6 +8,12 @@ import type { FormConstructor } from "./Form";
 import { Form_1_A } from "./exempt-offerings/Form_1_A";
 import { Form_1_K } from "./exempt-offerings/Form_1_K";
 import { Form_1_SA } from "./exempt-offerings/Form_1_SA";
+import { Form_253G1 } from "./exempt-offerings/Form_253G1";
+import { Form_253G2 } from "./exempt-offerings/Form_253G2";
+import { Form_253G3 } from "./exempt-offerings/Form_253G3";
+import { Form_253G4 } from "./exempt-offerings/Form_253G4";
+import { Form_1_A_W } from "./exempt-offerings/Form_1_A_W";
+import { Form_1_Z_W } from "./exempt-offerings/Form_1_Z_W";
 import { Form_1_Z } from "./exempt-offerings/Form_1_Z";
 import { Form_QUALIF } from "./exempt-offerings/Form_QUALIF";
 import { Form_C } from "./exempt-offerings/Form_C";
@@ -67,6 +73,12 @@ export type ParsedFormDocument =
   | ParsedDocumentOf<typeof Form_1_A>
   | ParsedDocumentOf<typeof Form_1_K>
   | ParsedDocumentOf<typeof Form_1_SA>
+  | ParsedDocumentOf<typeof Form_253G1>
+  | ParsedDocumentOf<typeof Form_253G2>
+  | ParsedDocumentOf<typeof Form_253G3>
+  | ParsedDocumentOf<typeof Form_253G4>
+  | ParsedDocumentOf<typeof Form_1_A_W>
+  | ParsedDocumentOf<typeof Form_1_Z_W>
   | ParsedDocumentOf<typeof Form_1_Z>
   | ParsedDocumentOf<typeof Form_QUALIF>
   | ParsedDocumentOf<typeof Form_3>

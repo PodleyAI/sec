@@ -5,9 +5,13 @@
  */
 
 import { Form } from "../Form";
+import { parseMetadataOnlyForm } from "../parseMetadataOnly";
 
 export class Form_1_A_W extends Form {
   static readonly name = "Reg-A Offering Statement Withdrawal";
   static readonly description = "Offering Statement Withdrawal";
   static readonly forms = ["1-A-W", "1-A-W/A"] as const;
+  // Metadata-only: a withdrawal asserts nothing beyond its own date and the
+  // offering it withdraws, both of which arrive as filings metadata.
+  static parse = parseMetadataOnlyForm;
 }
