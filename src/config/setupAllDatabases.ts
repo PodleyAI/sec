@@ -44,6 +44,7 @@ import {
   FORM144_RECENT_SALE_REPOSITORY_TOKEN,
 } from "../storage/form144/Form144Schema";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../storage/processing/CikLastUpdateSchema";
+import { DAILY_INDEX_CURSOR_REPOSITORY_TOKEN } from "../storage/processing/DailyIndexCursorSchema";
 import { PROCESSED_FACTS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedFactsSchema";
 import { PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN } from "../storage/processing/ProcessedSubmissionsSchema";
 import { REGA_CURRENT_REPORT_REPOSITORY_TOKEN } from "../storage/reg-a/RegACurrentReportSchema";
@@ -190,6 +191,7 @@ export async function setupAllDatabases(): Promise<void> {
   await globalServiceRegistry.get(SPAC_REDEMPTION_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(SPAC_LOI_EXTRACTION_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).setupDatabase();
+  await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_FACTS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(PROCESSED_SUBMISSIONS_REPOSITORY_TOKEN).setupDatabase();
   await globalServiceRegistry.get(COMPANY_FACTS_REPOSITORY_TOKEN).setupDatabase();

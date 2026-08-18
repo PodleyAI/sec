@@ -137,6 +137,11 @@ import {
   CikLastUpdateSchema,
 } from "../storage/processing/CikLastUpdateSchema";
 import {
+  DAILY_INDEX_CURSOR_REPOSITORY_TOKEN,
+  DailyIndexCursorPrimaryKeyNames,
+  DailyIndexCursorSchema,
+} from "../storage/processing/DailyIndexCursorSchema";
+import {
   PROCESSED_FACTS_REPOSITORY_TOKEN,
   ProcessedFactsPrimaryKeyNames,
   ProcessedFactsSchema,
@@ -670,6 +675,12 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "cik_last_update",
     schema: CikLastUpdateSchema,
     primaryKeyNames: CikLastUpdatePrimaryKeyNames,
+  }),
+  defineStorage({
+    token: DAILY_INDEX_CURSOR_REPOSITORY_TOKEN,
+    table: "daily_index_cursor",
+    schema: DailyIndexCursorSchema,
+    primaryKeyNames: DailyIndexCursorPrimaryKeyNames,
   }),
   defineStorage({
     token: PROCESSED_FACTS_REPOSITORY_TOKEN,
