@@ -284,6 +284,13 @@ export function formToExtractorId(form: string): ExtractorId | undefined {
   return FORM_TO_EXTRACTOR_ID[form];
 }
 
+export function formsForExtractorIds(ids: readonly ExtractorId[]): string[] {
+  const want = new Set<string>(ids);
+  return Object.entries(FORM_TO_EXTRACTOR_ID)
+    .filter(([, extractorId]) => want.has(extractorId))
+    .map(([form]) => form);
+}
+
 /**
  * Ownership forms are off the SPAC timeline's critical path (S-1 → 424 → 8-K →
  * proxy → 25/15). A fetch miss on Form 3/4/5/144 must not fail `spac process`.

@@ -16,6 +16,7 @@ import {
   TypeSecDate,
   YYYYdMMdDD,
 } from "../../util/parseDate";
+import { dailyIndexCacheRelPath } from "./dailyIndexDates";
 
 // NOTE: daily index is immutable, but date is part of the url
 
@@ -45,8 +46,7 @@ class SecFetchDailyIndexTask extends SecCachedFetchTask<FetchDailyIndexTaskInput
   }
 
   inputToFileName(input: FetchDailyIndexTaskInput): string {
-    const { year, month, day } = parseDate(input.date);
-    return `daily-index/${year}/${year}-${month}-${day}.master.idx`;
+    return dailyIndexCacheRelPath(input.date);
   }
   inputToUrl(input: FetchDailyIndexTaskInput): string {
     const { year, month, day } = parseDate(input.date);

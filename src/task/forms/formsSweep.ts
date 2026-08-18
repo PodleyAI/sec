@@ -35,10 +35,11 @@ export interface FormsShard {
  */
 export function newFormsWorklistTask(
   form?: string[],
-  shard?: FormsShard
+  shard?: FormsShard,
+  ciks?: number[]
 ): ComputeFormsWorklistTask {
   return new ComputeFormsWorklistTask({
-    defaults: { form, shardIndex: shard?.index, shardCount: shard?.count },
+    defaults: { form, shardIndex: shard?.index, shardCount: shard?.count, ciks },
   });
 }
 

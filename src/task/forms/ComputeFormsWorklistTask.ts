@@ -40,6 +40,8 @@ export type ComputeFormsWorklistTaskInput = {
    */
   readonly shardIndex?: number;
   readonly shardCount?: number;
+  /** When non-empty, only filings whose CIK is in this list are emitted. */
+  readonly ciks?: number[];
   /**
    * Filings emitted per batch. Defaults to {@link WORKLIST_BATCH_SIZE}; exposed
    * mainly so tests can drive the batching/resume path with a handful of rows
@@ -132,6 +134,7 @@ export class ComputeFormsWorklistTask extends Task<
       form: Type.Optional(Type.Array(Type.String())),
       shardIndex: Type.Optional(Type.Integer({ minimum: 0 })),
       shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
+      ciks: Type.Optional(Type.Array(TypeSecCik())),
       batchSize: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
@@ -196,6 +199,8 @@ export class ComputeFormsWorklistTask extends Task<
       );
     }
     const sharding = shardCount > 1;
+    const cikAllowList =
+      input.ciks !== undefined && input.ciks.length > 0 ? new Set(input.ciks) : undefined;
     const dryRun = isDryRun();
     const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
 
@@ -262,6 +267,7 @@ export class ComputeFormsWorklistTask extends Task<
           const { rows, full } = await this.readPage(filingRepo, form, from, seen);
           for (const f of rows) {
             if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
+            if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
             if (keys.has(filingRunKey(f))) continue;
             total++;
           }
@@ -339,6 +345,7 @@ export class ComputeFormsWorklistTask extends Task<
         // Shard first: a pure hash over a field already in hand, discarding
         // (shardCount-1)/shardCount of candidates before any other test.
         if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
+        if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
         if (this.successfulKeys.has(filingRunKey(f))) continue;
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);

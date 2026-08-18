@@ -814,7 +814,7 @@ reasoning preamble leaking in — unlike the HFT ONNX thinking-model caveat abov
 counts consecutive failures and resets on success.
 
 ```bash
-sec update facts --retry-failed   # also re-fetch CIKs whose last facts processing failed
+sec sync facts --retry-failed   # also re-fetch CIKs whose last facts processing failed
 ```
 
 A curated sample of real S-1 prospectus HTML (incl. ≥3 SPACs, SIC 6770) is
@@ -1255,7 +1255,7 @@ something a bare `sec eval extract` or `sec eval s1` should charge you for.
 Naming it runs it, in either harness.
 
 Production extraction is parked too (`EXTRACT_S1_RISK_FACTORS` in
-`Form_S_1.storage.ts`). `sec spac process` / `sec update forms` skip the AI
+`Form_S_1.storage.ts`). `sec spac process` / `sec sync spacs` skip the AI
 call, leave any previously extracted rows in place, and do not dead-letter the
 section. Flip the constant (or pass `extractRiskFactors: true` in tests) to
 turn it back on; already-processed S-1s then need `sec extractor backfill S-1
@@ -1486,7 +1486,7 @@ AI cost and no version bump. Tables carrying the old key: `addresses`,
 
 ```bash
 sec db setup                       # relaxes the NOT NULL (see below)
-sec update submissions
+sec sync submissions --step submissions
 for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
 sec resolve --kind person  --all
 sec resolve --kind company --all
@@ -1793,7 +1793,7 @@ The whole 8-K / proxy / 25-15 tier is gated on the `spac` row that the
 registration statement mints, and each handler records a **successful** run
 when the row is missing — so a sweep that reaches them first drops their events
 with nothing to re-select the filing. `sortFormsForSweep`
-(`storage/versioning/extractorIds.ts`) gives `sec update forms` an explicit
+(`storage/versioning/extractorIds.ts`) gives `sec sync` form-domain leaves an explicit
 registration → prospectus → 8-K → proxies → 25/15 order rather than relying on
 `Object.keys` (which enumerates the integer-like `"25"` fourth). For filings
 ingested before that fix, or before their issuer's S-1 was processed, recover
@@ -1828,7 +1828,7 @@ backfill-despac`.
 **Current trust.** `trust_amount` is the IPO-day deposit. The live balance
 (interest, extension deposits, redemptions) is `current_trust_amount` /
 `current_trust_as_of`, lifted from company facts tagged `AssetsHeldInTrust*`
-on 10-Q/10-K. `sec update facts` refreshes a CIK as it stores; `sec spac
+on 10-Q/10-K. `sec sync facts` refreshes a CIK as it stores; `sec spac
 backfill-trust` sweeps every known SPAC. The filing `as_of` anchor is not
 moved, so IPO scalars stay order-safe.
 
@@ -1944,8 +1944,8 @@ alone** — no document fetches — so a usable list exists the moment submissio
 are ingested, and so the forms sweep has a worklist to aim at.
 
 ```bash
-sec update spacs                        # incremental: CIKs whose submissions changed
-sec update spacs --full                 # rescan every entity
+sec sync spacs --step identify                        # incremental: CIKs whose submissions changed
+sec sync spacs --step identify --full                 # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
 sec spac download registration [--confidence high,medium] [--force]
 sec spac download 8k
@@ -1956,7 +1956,7 @@ sec spac download everything
 **without** running extractors. Default confidence is high+medium. Registration
 downloads the S-1/F-1/DRS family; `8k` every `8-K`/`8-K/A`; `everything` every
 filing for those CIKs. Already-cached files are skipped. Run this before
-`sec update forms` / `sec spac process` so the forms sweep is a cache hit.
+`sec sync spacs` / `sec spac process` so the forms sweep is a cache hit.
 
 The fetch asks for `response_type: "stream"`: this command exists to FILL the
 cache, not to read it, so nothing here wants the document as a value. The cache
@@ -2288,7 +2288,7 @@ EXISTS` is a no-op on an existing table and `createStorage` declares no
   alignment pass below deliberately skips a column the live schema lacks. Every
   write goes through `putBulk` with the full row, so the first write after the
   schema change fails outright: `spac_candidate.signal_filed_sic_6770` broke
-  `sec update spacs` on every pre-existing database that way. It runs before
+  `sec sync spacs` on every pre-existing database that way. It runs before
   the alignment pass so a freshly-added column is eligible for widening in the
   same `db setup`, and it subsumes the hand-written `spac.current_trust_*`
   migration that used to sit beside it. `backfillExtractorRunsOutcome` stays

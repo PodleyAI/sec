@@ -58,10 +58,9 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
 
     const remaining = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
+      )
       .get();
     expect(remaining).toBeUndefined();
   });
@@ -86,10 +85,9 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
 
     const remaining = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
+      )
       .get();
     expect(remaining).toBeDefined();
   });
@@ -99,10 +97,9 @@ describe("migrateLegacyForm8KEventsTable (sqlite)", () => {
     await migrateLegacyForm8KEventsTable();
     const db = getDb();
     const remaining = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
+      )
       .get();
     expect(remaining).toBeUndefined();
   });

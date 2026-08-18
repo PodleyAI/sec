@@ -84,10 +84,9 @@ describe("replaceEvents (sqlite) transactional rollback", () => {
     // pre-existing-plus-half-new state.
     const db = getDb();
     const all = db
-      .prepare<
-        [],
-        { item_code: string }
-      >(`SELECT item_code FROM form_8k_events WHERE cik = ? AND accession_number = ?`)
+      .prepare<[], { item_code: string }>(
+        `SELECT item_code FROM form_8k_events WHERE cik = ? AND accession_number = ?`
+      )
       .all(320193, "0001193125-24-000001");
     expect(all.map((r) => r.item_code).sort()).toEqual(["1.01"]);
   });
@@ -118,10 +117,9 @@ describe("replaceEvents (sqlite) transactional rollback", () => {
     ]);
 
     const rows = getDb()
-      .prepare<
-        [string],
-        { item_code: string }
-      >(`SELECT item_code FROM form_8k_events WHERE accession_number = ?`)
+      .prepare<[string], { item_code: string }>(
+        `SELECT item_code FROM form_8k_events WHERE accession_number = ?`
+      )
       .all("0001193125-24-000002");
     expect(rows).toEqual([]);
   });

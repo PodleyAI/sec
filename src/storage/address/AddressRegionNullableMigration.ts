@@ -94,10 +94,9 @@ type SqliteDb = ReturnType<typeof getDb>;
 
 function tableExists(db: SqliteDb, name: string): boolean {
   const row = db
-    .prepare<
-      [],
-      { name: string }
-    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
+    )
     .get();
   return Boolean(row);
 }

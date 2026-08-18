@@ -27,7 +27,7 @@ import { TypeNullable } from "../util/TypeBoxUtil";
  * on an existing table, `createStorage` passes no `tabularMigrations`, and
  * `planColumnAlignment` explicitly skips a column the live schema lacks — so
  * nothing added it, and `IdentifySpacsTask` writes full rows through `putBulk`.
- * `sec update spacs` therefore failed on every pre-existing database.
+ * `sec sync spacs` therefore failed on every pre-existing database.
  */
 const MISSING_COLUMN = "signal_filed_sic_6770";
 

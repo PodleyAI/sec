@@ -303,7 +303,11 @@ function iterTableRows(text: string): TableRow[] {
     const picked = pickLabelValue(cells);
     if (picked === null) continue;
     const { label, value } = picked;
-    if (isBulletLabel(label) && !isCompositionBullet(value) && founderPercent(value) === undefined) {
+    if (
+      isBulletLabel(label) &&
+      !isCompositionBullet(value) &&
+      founderPercent(value) === undefined
+    ) {
       continue;
     }
     if (isPlaceholder(value)) {
@@ -367,7 +371,10 @@ function splitPipeRow(line: string): string[] {
 
 function normalizeLabel(raw: string): string {
   const lowered = raw.toLowerCase().replace(/\s+/g, " ").trim();
-  const stripped = lowered.replace(/\(\d+\)/g, "").replace(/\s+/g, " ").trim();
+  const stripped = lowered
+    .replace(/\(\d+\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   return stripped !== "" ? stripped : lowered;
 }
 
@@ -515,7 +522,10 @@ function founderShareCount(cell: string): number | undefined {
   const cleaned = cell
     .replace(/\$\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?/g, " ")
     .replace(/up to (?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ")
-    .replace(/forfeit(?:ed|ure)(?:\s+of)?\s+(?:up to )?(?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ")
+    .replace(
+      /forfeit(?:ed|ure)(?:\s+of)?\s+(?:up to )?(?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi,
+      " "
+    )
     .replace(/surrendered\s+(?:up to )?(?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ");
   const recap =
     cleaned.match(/holds(?: an aggregate of)?\s+(\d{1,3}(?:,\d{3})+)\s+founder shares/i) ??

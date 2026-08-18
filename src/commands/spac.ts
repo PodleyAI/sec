@@ -348,7 +348,7 @@ export function registerSpacCommands(program: Command): void {
   spacCmd
     .command("candidates")
     .description(
-      "List SPAC candidates identified from submissions metadata (populated by `sec update spacs`)"
+      "List SPAC candidates identified from submissions metadata (populated by `sec sync spacs`)"
     )
     .option("--confidence <tier>", "Filter to one tier: high | medium | low")
     .option("--limit <n>", "Rows to show", parseIntOption, 50)

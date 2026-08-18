@@ -42,6 +42,21 @@ export {
 } from "./cli/queries/DbStatus";
 export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
+export {
+  registerSyncLeaf,
+  getSyncLeaf,
+  listSyncLeaves,
+  clearSyncLeavesForTesting,
+  runSyncLeaves,
+  EMPTY_SYNC_CONTEXT,
+  type SyncLeaf,
+  type SyncStep,
+  type SyncRunContext,
+} from "./cli/sync/syncLeaves";
+export { addSyncLeafCommands } from "./cli/groups/sync";
+export { runFormsSweep } from "./cli/sync/runFormsSweep";
+export { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./cli/sync/syncFormDomains";
+
 // ── Config / dependency injection ───────────────────────────────────────────
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";

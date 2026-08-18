@@ -41,7 +41,6 @@ describe("CLI v2 integration", () => {
     for (const group of [
       "bootstrap",
       "sync",
-      "update",
       "fetch",
       "query",
       "db",
@@ -128,11 +127,35 @@ describe("CLI v2 integration", () => {
     expect(output).toContain("doc");
   });
 
-  it("should show update subcommands", async () => {
-    const output = await runCli("update", "--help");
-    expect(output).toContain("submissions");
-    expect(output).toContain("facts");
-    expect(output).toContain("forms");
+  it("should show sync subcommands", async () => {
+    const output = await runCli("sync", "--help");
+    for (const sub of [
+      "all",
+      "submissions",
+      "facts",
+      "portals",
+      "crowdfunding",
+      "reg-a",
+      "forms",
+      "spacs",
+    ]) {
+      expect(output, sub).toContain(sub);
+    }
+  });
+
+  it("should reject unknown sync adv subcommand", async () => {
+    const { stdout, stderr, exitCode } = await runCliProcess(
+      ["bun", "run", SEC_TS, "sync", "adv"],
+      ENV
+    );
+    const output = stdout + stderr;
+    expect(exitCode, `sec sync adv exited ${exitCode}:\n${output}`).not.toBe(0);
+    expect(output).toMatch(/unknown command/i);
+  });
+
+  it("should show sync forms shard option", async () => {
+    const output = await runCli("sync", "forms", "--help");
+    expect(output).toContain("--shard");
   });
 
   it("should show db subcommands", async () => {

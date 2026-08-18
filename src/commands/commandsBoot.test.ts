@@ -37,7 +37,6 @@ describe("CLI command graph", () => {
     for (const expected of [
       "bootstrap",
       "sync",
-      "update",
       "fetch",
       "query",
       "db",
@@ -68,5 +67,31 @@ describe("CLI command graph", () => {
     expect(subNames).toContain("extract");
     expect(subNames).toContain("s1");
     expect(subNames).toContain("unit-terms");
+  });
+
+  it("registers sync subcommands without update or adv", () => {
+    const program = new Command();
+    AddCommands(program);
+
+    const names = program.commands.map((c) => c.name());
+    expect(names).toContain("sync");
+    expect(names).not.toContain("update");
+
+    const syncCmd = program.commands.find((c) => c.name() === "sync");
+    expect(syncCmd).toBeDefined();
+    const subNames = syncCmd!.commands.map((c) => c.name());
+    for (const expected of [
+      "all",
+      "submissions",
+      "facts",
+      "portals",
+      "crowdfunding",
+      "reg-a",
+      "forms",
+      "spacs",
+    ]) {
+      expect(subNames).toContain(expected);
+    }
+    expect(subNames).not.toContain("adv");
   });
 });

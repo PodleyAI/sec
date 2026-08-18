@@ -68,10 +68,9 @@ export async function listFilingDates(
     }
     const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
     const rows = db
-      .prepare<
-        string[],
-        { filing_date: string }
-      >(`SELECT DISTINCT \`filing_date\` FROM \`filings\`${where} ORDER BY \`filing_date\` ASC`)
+      .prepare<string[], { filing_date: string }>(
+        `SELECT DISTINCT \`filing_date\` FROM \`filings\`${where} ORDER BY \`filing_date\` ASC`
+      )
       .all(...params);
     return rows.map((r) => r.filing_date).filter((d) => d && inRange(d, from, to));
   }
@@ -118,10 +117,9 @@ export async function filingsForDate(date: string): Promise<FeedFiling[]> {
   if (backend === "sqlite") {
     const db = getDb();
     return db
-      .prepare<
-        [string],
-        FeedFiling
-      >("SELECT `accession_number`, `cik`, `primary_doc`, `form` FROM `filings` WHERE `filing_date` = ?")
+      .prepare<[string], FeedFiling>(
+        "SELECT `accession_number`, `cik`, `primary_doc`, `form` FROM `filings` WHERE `filing_date` = ?"
+      )
       .all(date);
   }
 

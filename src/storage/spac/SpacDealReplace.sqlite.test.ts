@@ -55,10 +55,9 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
     // Confirm the seed.
     const db = getDb();
     const before = db
-      .prepare<
-        [number],
-        { deal_index: number; outcome: string; source_accession: string | null }
-      >(`SELECT deal_index, outcome, source_accession FROM spac_deal WHERE cik = ? ORDER BY deal_index`)
+      .prepare<[number], { deal_index: number; outcome: string; source_accession: string | null }>(
+        `SELECT deal_index, outcome, source_accession FROM spac_deal WHERE cik = ? ORDER BY deal_index`
+      )
       .all(320193);
     expect(before).toHaveLength(2);
 
@@ -85,10 +84,9 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
 
     // After rollback the original two rows are still there, untouched.
     const after = db
-      .prepare<
-        [number],
-        { deal_index: number; outcome: string; source_accession: string | null }
-      >(`SELECT deal_index, outcome, source_accession FROM spac_deal WHERE cik = ? ORDER BY deal_index`)
+      .prepare<[number], { deal_index: number; outcome: string; source_accession: string | null }>(
+        `SELECT deal_index, outcome, source_accession FROM spac_deal WHERE cik = ? ORDER BY deal_index`
+      )
       .all(320193);
     expect(after.map((r) => r.deal_index)).toEqual([0, 1]);
     expect(after[0].source_accession).toBe("seed-0");
@@ -96,10 +94,9 @@ describe("recomputeSpacDeals (sqlite) transactional rollback", () => {
     // The deal that the rolled-back upsert would have mutated (deal_index 0
     // → redemption_amount=1234) is still at the seed.
     const seededRedemption = db
-      .prepare<
-        [number, number],
-        { redemption_amount: number | null }
-      >(`SELECT redemption_amount FROM spac_deal WHERE cik = ? AND deal_index = ?`)
+      .prepare<[number, number], { redemption_amount: number | null }>(
+        `SELECT redemption_amount FROM spac_deal WHERE cik = ? AND deal_index = ?`
+      )
       .get(320193, 0);
     expect(seededRedemption?.redemption_amount ?? null).toBeNull();
   });
