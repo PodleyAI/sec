@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.26
+
+### Bug Fixes
+
+#### checkPackedContents
+
+- update max unpacked bytes limit and add .map to forbidden suffixes
+
+### Chores
+
+- update release script and enhance PROCESS_CONFIDENCES type safety
+- format
+
 ## 0.0.25
 
 ### Features
