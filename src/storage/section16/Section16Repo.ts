@@ -6,15 +6,15 @@
 
 import { globalServiceRegistry } from "workglow";
 import {
+  SECTION16_FILING_REPOSITORY_TOKEN,
+  SECTION16_HOLDING_REPOSITORY_TOKEN,
+  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
   Section16Filing,
   Section16FilingRepositoryStorage,
   Section16Holding,
   Section16HoldingRepositoryStorage,
   Section16Transaction,
   Section16TransactionRepositoryStorage,
-  SECTION16_FILING_REPOSITORY_TOKEN,
-  SECTION16_HOLDING_REPOSITORY_TOKEN,
-  SECTION16_TRANSACTION_REPOSITORY_TOKEN,
 } from "./Section16Schema";
 
 interface Section16RepoOptions {
@@ -88,5 +88,25 @@ export class Section16Repo implements Section16RepoOptions {
     for (const row of rows) {
       await this.holdingRepository.delete({ accession_number, holding_index: row.holding_index });
     }
+  }
+
+  /**
+   * Distinct `issuer_trading_symbol` values on Forms 3/4/5 filed on or before
+   * `onOrBefore`. Used when a priced prospectus never wrote an issuer_ticker
+   * row — IPO-day Form 3s still carry the SPAC-era symbol (WAVS), while later
+   * post-combination Form 4s (CYCU) are excluded by the date bound.
+   */
+  async tradingSymbolsOnOrBefore(issuer_cik: number, onOrBefore: string): Promise<string[]> {
+    const rows = (await this.filingRepository.query({ issuer_cik })) || [];
+    const seen = new Set<string>();
+    const symbols: string[] = [];
+    for (const row of rows) {
+      if (row.filing_date == null || row.filing_date > onOrBefore) continue;
+      const symbol = row.issuer_trading_symbol?.trim().toUpperCase();
+      if (!symbol || seen.has(symbol)) continue;
+      seen.add(symbol);
+      symbols.push(symbol);
+    }
+    return symbols;
   }
 }

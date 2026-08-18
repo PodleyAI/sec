@@ -85,7 +85,9 @@ function exhibitDetail(
     eventType === "eight_k" ||
     eventType === "definitive_agreement";
   const exhibitLines = showExhibits ? formatExhibitDetail(exhibits) : null;
-  const head = eventType === "definitive_agreement" && counterparty ? `# ${counterparty}` : null;
+  const named =
+    eventType === "definitive_agreement" || eventType === "name_change" ? counterparty : null;
+  const head = named ? `# ${named}` : null;
   if (head == null) return exhibitLines;
   if (exhibitLines == null) return head;
   let joined = `${head}\n${exhibitLines}`;
@@ -130,6 +132,12 @@ function isIssuerName(party: string, issuerName: string | null): boolean {
   );
 }
 
+/** Cayman PubCo / Newco / Holdco listing vehicle, not the operating company. */
+function isListingVehicle(name: string, after: string): boolean {
+  if (/\b(?:pubco|newco|holdco)\b/i.test(name)) return true;
+  return /\(\s*["“']?\s*(?:PubCo|Holdco|HoldCo|Newco|NewCo)\s*["”']?\s*\)/i.test(after);
+}
+
 function pickFromAmong(blob: string, issuerName: string | null): string | null {
   const names = blob.match(LEGAL_NAME) ?? [];
   for (const raw of names) {
@@ -137,10 +145,48 @@ function pickFromAmong(blob: string, issuerName: string | null): string | null {
     const idx = blob.indexOf(raw);
     const after = blob.slice(idx + raw.length, idx + raw.length + 180);
     if (/wholly[-\s]owned subsidiary/i.test(after)) continue;
-    if (/merger\s+sub/i.test(name)) continue;
+    if (/merger\s+sub/i.test(name) || /merger\s+sub/i.test(after)) continue;
+    if (isListingVehicle(name, after)) continue;
     if (isIssuerName(name, issuerName)) continue;
     return name;
   }
+  return null;
+}
+
+function partyListBlob(window: string): string | null {
+  const amongAt = window.search(/by and (?:among|between)\s+/i);
+  if (amongAt !== -1) {
+    return window.slice(amongAt).replace(/^by and (?:among|between)\s+/i, "");
+  }
+  // SuperBac-shaped: "with (i) PubCo … (iv) SuperBac Biotechnology Solutions S.A."
+  const withListAt = window.search(/\bwith\s+\(/i);
+  if (withListAt === -1) return null;
+  return window.slice(withListAt).replace(/^\s*with\s+/i, "");
+}
+
+function tidyChangedName(value: string): string {
+  const name = tidyName(value);
+  // "changed to Foo Corp." — the last period is sentence punctuation, not
+  // "Foo L.P." / "Bar S.A." where the dots are the legal form.
+  if (/\.[A-Za-z]\.$/.test(name)) return name;
+  return name.replace(/\.$/, "");
+}
+
+const FROM_TO_NAME = new RegExp(
+  `(?:change(?:d)?(?:\\s+the)?\\s+name(?:\\s+of\\s+the\\s+(?:Company|Registrant|Issuer))?|changed\\s+its\\s+name)\\s+from\\s+["“']([^"”']+)["”']\\s+to\\s+["“']([^"”']+)["”']`,
+  "i"
+);
+
+const CHANGED_TO_NAME =
+  /(?:name of the (?:Company|Registrant|Issuer)|its name)\s+has been changed to\s+["“']?([A-Z][A-Za-z0-9.&'’\-]*(?:\s+[A-Z0-9][A-Za-z0-9.&'’\-]*)*)/i;
+
+/** New registrant name from an Item 5.03 name-change 8-K. */
+export function extractNameChange(text: string): string | null {
+  const collapsed = text.replace(/\s+/g, " ");
+  const fromTo = collapsed.match(FROM_TO_NAME);
+  if (fromTo) return tidyChangedName(fromTo[2]);
+  const changedTo = collapsed.match(CHANGED_TO_NAME);
+  if (changedTo) return tidyChangedName(changedTo[1]);
   return null;
 }
 
@@ -152,9 +198,8 @@ export function extractMergerCounterparty(text: string, issuerName: string | nul
   const solely = window.search(/,\s*and,?\s*solely for the purposes/i);
   if (solely !== -1) window = window.slice(0, solely);
 
-  const amongAt = window.search(/by and (?:among|between)\s+/i);
-  if (amongAt !== -1) {
-    const blob = window.slice(amongAt).replace(/^by and (?:among|between)\s+/i, "");
+  const blob = partyListBlob(window);
+  if (blob != null) {
     const picked = pickFromAmong(blob, issuerName);
     if (picked) return picked;
   }
@@ -211,6 +256,11 @@ export function mapItemCodesToSpacEvents(
       case "2.01":
         event_type = "completed";
         break;
+      case "5.03":
+        // Bylaw / fiscal-year 5.03s are silent. Only a narrative that names the
+        // new registrant is a name_change — otherwise this item is ignored.
+        event_type = extractNameChange(ctx.narrative ?? "") != null ? "name_change" : null;
+        break;
       case "5.07":
         // A pending DA is not enough: annual meetings and charter-extension
         // votes fire 5.07 while a deal is open. Only a definitive merger /
@@ -224,13 +274,20 @@ export function mapItemCodesToSpacEvents(
       const counterparty =
         event_type === "definitive_agreement"
           ? extractMergerCounterparty(ctx.narrative ?? "", ctx.issuerName ?? null)
-          : null;
+          : event_type === "name_change"
+            ? extractNameChange(ctx.narrative ?? "")
+            : null;
       events.push({
         event_type,
         event_date: eventDate,
         detail: exhibitDetail(event_type, ctx.exhibits, counterparty),
       });
     }
+  }
+  // A name-change 8-K also files Item 1.01 for the charter amendment. That is
+  // the same fact as 5.03, not a separate misc agreement.
+  if (events.some((e) => e.event_type === "name_change")) {
+    return events.filter((e) => e.event_type !== "material_agreement");
   }
   return events;
 }

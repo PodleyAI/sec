@@ -58,7 +58,7 @@ function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K
   return [...itemSet].sort();
 }
 
-const MILESTONE_ITEM_CODES = new Set(["1.01", "1.02", "2.01", "5.07"]);
+const MILESTONE_ITEM_CODES = new Set(["1.01", "1.02", "2.01", "5.03", "5.07"]);
 
 /**
  * Whether the submissions-only SPAC screen has flagged this CIK. Read

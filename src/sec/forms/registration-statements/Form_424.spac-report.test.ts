@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { processForm424 } from "./Form_424.storage";
 import { processFormS1 } from "./Form_S_1.storage";
@@ -143,6 +144,100 @@ describe("processFormS1 + processForm424 → SPAC report", () => {
     // All three SPAC-era tickers (common + units + warrants) must be present.
     const tickers = row?.spac_tickers != null ? (JSON.parse(row.spac_tickers) as string[]) : null;
     expect(tickers).toEqual(["CCXII", "CCXII.U", "CCXII.WS"]);
+  });
+
+  it("fills spac_tickers from a pre-IPO Form 3 when the prospectus omitted tickers", async () => {
+    const s1Reg = registerFakeStructuredProvider([{ people: [] }, { owners: [] }, { parties: [] }]);
+    await processFormS1({
+      cik: CIK,
+      file_number: "333-000002",
+      accession_number: S1_ACCESSION,
+      filing_date: "2026-04-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_S1_HEADER,
+        html: S1_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+    s1Reg.unregister();
+
+    await new Section16Repo().saveFiling({
+      accession_number: "0000000000-26-000800",
+      form: "3",
+      document_type: "3",
+      issuer_cik: CIK,
+      issuer_name: "Synthetic SPAC Corp",
+      issuer_trading_symbol: "WAVS",
+      period_of_report: "2026-04-27",
+      filing_date: "2026-04-27",
+      not_subject_to_section16: false,
+      no_securities_owned: false,
+      remarks: null,
+    });
+    await new Section16Repo().saveFiling({
+      accession_number: "0000000000-26-000801",
+      form: "4",
+      document_type: "4",
+      issuer_cik: CIK,
+      issuer_name: "Synthetic SPAC Corp",
+      issuer_trading_symbol: "CYCU",
+      period_of_report: "2026-08-01",
+      filing_date: "2026-08-01",
+      not_subject_to_section16: false,
+      no_securities_owned: false,
+      remarks: null,
+    });
+
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Units",
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 300000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: 30000000,
+        price_per_unit: 10,
+        unit_composition: "one share and one-quarter warrant",
+        warrant_fraction_per_unit: 0.25,
+        right_fraction_per_unit: null,
+        trust_per_unit: 10.0,
+        over_allotment_units: 4500000,
+        exchange: "NASDAQ",
+        par_value: null,
+        confidence: 0.9,
+        source_span: "30,000,000 units",
+        tickers: [],
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processForm424({
+      cik: CIK,
+      file_number: "333-000002",
+      accession_number: B4_ACCESSION,
+      filing_date: "2026-04-28",
+      primary_doc: "424b4.htm",
+      form: "424B4",
+      form424: {
+        header: SPAC_424_HEADER,
+        html: OFFERING_HTML,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const row = await new SpacRepo().getSpac(CIK);
+    const tickers = row?.spac_tickers != null ? (JSON.parse(row.spac_tickers) as string[]) : null;
+    expect(tickers).toEqual(["WAVS"]);
   });
 
   it("a non-SPAC priced 424B4 does not create a spac row", async () => {

@@ -5,27 +5,28 @@
  */
 
 import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
-import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
-import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { IssuerTickerRepo } from "../../../storage/offering/IssuerTickerRepo";
 import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
-import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
+import { Section16Repo } from "../../../storage/section16/Section16Repo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
+import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { SpacStatus } from "../../../storage/spac/SpacSchema";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../../storage/versioning/ComponentVersionSchema";
 import { VersionRegistry } from "../../../storage/versioning/VersionRegistry";
 import { getActiveSlot } from "../../../storage/versioning/getActiveSlot";
+import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
-import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
-import type { S1SectionName } from "./s1/DocumentSegmenter";
 import {
   looksLikePricedIpoProspectusBody,
   parsePricedProspectusCover,
 } from "./pricedProspectusCover";
+import type { S1SectionName } from "./s1/DocumentSegmenter";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
 import { offeringSectionNames, runOfferingSections } from "./s1/offeringSections";
 import type { FormS1Parsed } from "./s1/parseSubmission";
 import { getS1Models, resolveModelId } from "./s1/s1Model";
@@ -253,7 +254,10 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     const tickerRows = (await new IssuerTickerRepo().history(cik)).filter(
       (t) => t.accession_number === accession_number
     );
-    const tickers = [...new Set(tickerRows.map((t) => t.ticker))];
+    let tickers = [...new Set(tickerRows.map((t) => t.ticker))];
+    if (tickers.length === 0) {
+      tickers = await new Section16Repo().tradingSymbolsOnOrBefore(cik, args.filing_date);
+    }
     const cover = parsePricedProspectusCover(form424.html);
     const ipo_proceeds = ipoProceeds({
       gross_proceeds: unitTerms?.gross_proceeds,

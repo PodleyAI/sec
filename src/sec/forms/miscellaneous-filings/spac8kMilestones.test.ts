@@ -15,7 +15,11 @@ import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
 import type { SubmissionExhibit } from "../registration-statements/s1/parseSubmission";
 import { Form_8_K } from "./Form_8_K";
 import { processForm8K } from "./Form_8_K.storage";
-import { extractMergerCounterparty, mapItemCodesToSpacEvents } from "./spac8kMilestones";
+import {
+  extractMergerCounterparty,
+  extractNameChange,
+  mapItemCodesToSpacEvents,
+} from "./spac8kMilestones";
 
 const emptyCtx = {
   ipoDate: null as string | null,
@@ -209,6 +213,61 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(mapItemCodesToSpacEvents(["2.02", "9.01", "7.01"], "2021-03-01", emptyCtx)).toEqual([]);
   });
 
+  it("maps 5.03 with a name-change narrative to name_change, not material_agreement", () => {
+    const events = mapItemCodesToSpacEvents(
+      ["1.01", "3.03", "5.03", "5.07", "8.01", "9.01"],
+      "2023-07-27",
+      {
+        ipoDate: "2021-08-10",
+        registrationDate: null,
+        exhibits: [
+          {
+            type: "EX-3.1",
+            description: "SHAREHOLDER RESOLUTIONS",
+            filename: "tm2321971d1_ex3-1.htm",
+          },
+        ],
+        pendingDeal: { definitive_agreement_date: "2022-04-25", proxy_date: null },
+        issuerName: "XPAC Acquisition Corp.",
+        narrative:
+          "As a result of the Name Change Amendment Proposal having been approved and " +
+          "implemented on July 27, 2023, the name of the Company has been changed to " +
+          "Zalatoris II Acquisition Corp. To change the name of the Company from " +
+          '"XPAC Acquisition Corp." to "Zalatoris II Acquisition Corp".',
+      }
+    );
+    expect(events.map((e) => e.event_type)).toEqual(["name_change", "eight_k"]);
+    expect(events[0].detail?.split("\n")[0]).toBe("# Zalatoris II Acquisition Corp");
+  });
+
+  it("does not treat a bylaw-only 5.03 as a name change", () => {
+    expect(
+      mapItemCodesToSpacEvents(["5.03"], "2021-03-01", {
+        ...emptyCtx,
+        ipoDate: "2021-01-27",
+        narrative:
+          "On March 1, 2021, the Board amended the Bylaws to change the quorum for " +
+          "shareholder meetings from one-third to a majority of the shares entitled to vote.",
+      })
+    ).toEqual([]);
+  });
+
+  it("keeps a merger 1.01 as definitive_agreement alongside a 5.03 name change", () => {
+    const events = mapItemCodesToSpacEvents(["1.01", "5.03"], "2021-08-31", {
+      ipoDate: "2021-01-27",
+      registrationDate: null,
+      exhibits: [mergerEx],
+      pendingDeal: null,
+      issuerName: "Foo Acquisition Corp.",
+      narrative:
+        "entered into an Agreement and Plan of Merger by and among Foo Acquisition Corp., " +
+        "a Cayman Islands exempted company, Merger Sub Inc., a Delaware corporation and " +
+        "wholly-owned subsidiary of Foo, and Target Operating Co, Inc., a Delaware corporation. " +
+        'The Company changed its name from "Foo Acquisition Corp." to "Bar Acquisition Corp."',
+    });
+    expect(events.map((e) => e.event_type)).toEqual(["definitive_agreement", "name_change"]);
+  });
+
   it("prefixes the merger counterparty on a DA when the 8-K names it", () => {
     const events = mapItemCodesToSpacEvents(["1.01"], "2021-02-21", {
       ipoDate: "2021-01-27",
@@ -228,6 +287,35 @@ describe("mapItemCodesToSpacEvents", () => {
     expect(events[0].event_type).toBe("definitive_agreement");
     expect(events[0].detail?.split("\n")[0]).toBe("# Apex Clearing Holdings LLC");
     expect(events[0].detail).toContain("EX-2.1");
+  });
+});
+
+describe("extractNameChange", () => {
+  it("reads the implemented-name sentence from the Zalatoris II 8-K", () => {
+    expect(
+      extractNameChange(
+        "Therefore, as a result of the Name Change Amendment Proposal having been " +
+          "approved and implemented on July 27, 2023, the name of the Company has been " +
+          "changed to Zalatoris II Acquisition Corp."
+      )
+    ).toBe("Zalatoris II Acquisition Corp");
+  });
+
+  it("reads a quoted from/to name-change proposal", () => {
+    expect(
+      extractNameChange(
+        'to change the name of the Company from "XPAC Acquisition Corp." to ' +
+          '"Zalatoris II Acquisition Corp".'
+      )
+    ).toBe("Zalatoris II Acquisition Corp");
+  });
+
+  it("returns null when the 8-K does not rename the company", () => {
+    expect(
+      extractNameChange(
+        "The Board amended the Bylaws to change the quorum for shareholder meetings."
+      )
+    ).toBeNull();
   });
 });
 
@@ -267,6 +355,30 @@ describe("extractMergerCounterparty", () => {
         "Churchill Capital Corp IV"
       )
     ).toBe("Lucid Group, Inc.");
+  });
+
+  it("picks the operating company from a numbered with-(i) party list, not the PubCo", () => {
+    // XPAC / SuperBac 8-K 0001104659-22-049275: no "by and among", the BCA
+    // opens "with (i) SUPERBAC PubCo Holdings Inc. … (iv) SuperBac
+    // Biotechnology Solutions S.A." WITH_NAMED requires `with NAME, a ` so
+    // the roman-numeral marker and ", an exempted" both miss, and a naive
+    // party walk would return the Cayman listing vehicle.
+    expect(
+      extractMergerCounterparty(
+        "XPAC Acquisition Corp. entered into a Business Combination Agreement " +
+          '(the "Business Combination Agreement") with (i) SUPERBAC PubCo Holdings Inc., ' +
+          "an exempted company limited by shares incorporated under the laws of the " +
+          'Cayman Islands ("PubCo"), (ii) BAC1 Holdings Inc., an exempted company ' +
+          "limited by shares incorporated under the laws of the Cayman Islands and a " +
+          'direct wholly owned subsidiary of PubCo ("Merger Sub 1"), (iii) BAC2 ' +
+          "Holdings Inc., an exempted company limited by shares incorporated under the " +
+          "laws of the Cayman Islands and a direct wholly owned subsidiary of PubCo " +
+          '("Merger Sub 2"), and (iv) SuperBac Biotechnology Solutions S.A., a ' +
+          "corporation incorporated under the laws of the Federative Republic of Brazil " +
+          '("SuperBac").',
+        "XPAC Acquisition Corp."
+      )
+    ).toBe("SuperBac Biotechnology Solutions S.A.");
   });
 
   it("does not stop the party list at the period in Inc.", () => {
@@ -632,6 +744,30 @@ describe("processForm8K SPAC milestone wiring", () => {
     expect(da?.detail?.split("\n")[0]).toBe("# Acme Robotics, Inc.");
     expect(da?.detail).toContain("EX-2.1");
     expect(da?.detail).toContain("ex21.htm");
+  });
+
+  it("writes a 5.03 name change from the 8-K body and does not also store Misc Agreement", async () => {
+    await seedSpac(850);
+    await seedIpo(850);
+    const body =
+      `<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<FILENAME>d8k.htm\n<DESCRIPTION>CURRENT REPORT\n<TEXT>\n` +
+      `<html><body><p>Item 5.03 Amendments to Articles of Incorporation or Bylaws.</p>` +
+      `<p>The name of the Company has been changed to Zalatoris II Acquisition Corp.</p>` +
+      `</body></html>\n</TEXT>\n</DOCUMENT>\n`;
+    await run8K(850, "850-rename", "1.01,5.03,5.07", "2023-07-27", body);
+
+    const events = await repo.getEvents(850);
+    expect(events.some((e) => e.event_type === "material_agreement")).toBe(false);
+    expect(events.map((e) => e.event_type).sort()).toEqual([
+      "eight_k",
+      "ipo",
+      "name_change",
+      "registration",
+    ]);
+    const rename = events.find((e) => e.event_type === "name_change");
+    expect(rename?.detail).toBe("# Zalatoris II Acquisition Corp");
+    expect((await repo.getSpac(850))?.current_name).toBe("Zalatoris II Acquisition Corp");
+    expect((await repo.getSpac(850))?.spac_name).toBe("Test SPAC");
   });
 
   it("writes a post-IPO underwriting 1.01 as material_agreement, not a DA", async () => {

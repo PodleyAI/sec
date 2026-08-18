@@ -85,6 +85,31 @@ function latestInvestorPres(events: readonly SpacEvent[]): {
   return { url: latest?.source_document_url ?? null, date: latest?.event_date ?? null };
 }
 
+function hashNameFromDetail(detail: string | null): string | null {
+  if (detail == null || detail === "") return null;
+  const line = detail.split("\n")[0] ?? "";
+  if (!line.startsWith("# ")) return null;
+  const name = line.slice(2).trim();
+  return name === "" ? null : name;
+}
+
+function latestNameChange(events: readonly SpacEvent[]): string | null {
+  let best: { date: string; accession: string; name: string } | null = null;
+  for (const e of events) {
+    if (e.event_type !== "name_change") continue;
+    const name = hashNameFromDetail(e.detail);
+    if (name == null) continue;
+    if (
+      best == null ||
+      e.event_date.localeCompare(best.date) > 0 ||
+      (e.event_date === best.date && e.accession_number.localeCompare(best.accession) > 0)
+    ) {
+      best = { date: e.event_date, accession: e.accession_number, name };
+    }
+  }
+  return best?.name ?? null;
+}
+
 /**
  * The active deal = the completed deal if one exists; else the latest pending
  * deal by announced_date (deal_index breaks ties). Terminated deals never win.
@@ -232,16 +257,15 @@ export function buildSpacRow(input: BuildSpacRowInput): Spac {
   const post_merger_tickers = completed ? pick("post_merger_tickers") : null;
 
   // current_* is the latest-known identity. Pre-merger it mirrors spac_*; a
-  // completed de-SPAC promotes the surviving / post-merger identity over the
-  // stale mirrored value, so a row that stored current_name = spac_name at
-  // registration reflects the rename once the combination closes. When the
-  // post-merger value is not yet known (no target/entity data), it falls
+  // mid-life Item 5.03 rename (name_change event) updates current_name without
+  // touching spac_name. A completed de-SPAC promotes the surviving / post-merger
+  // identity over that. When the post-merger value is not yet known, it falls
   // through to the previously mirrored value. With no completed deal the chain
-  // collapses back to the spac_* mirror rather than to whatever a previous
-  // rebuild promoted.
+  // collapses back to the latest name_change, else the spac_* mirror — never
+  // to a surviving name a previous rebuild promoted from a misclassified close.
   const current_name = completed
     ? (applied.current_name ?? surviving_name ?? existing?.current_name ?? spac_name)
-    : (applied.current_name ?? spac_name);
+    : (applied.current_name ?? latestNameChange(events) ?? spac_name);
   const current_sic = completed
     ? (applied.current_sic ?? post_merger_sic ?? existing?.current_sic ?? spac_sic)
     : (applied.current_sic ?? spac_sic);

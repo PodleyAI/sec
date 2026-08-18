@@ -277,6 +277,38 @@ describe("buildSpacRow", () => {
     expect(rebuilt.current_sic).toBe(3711);
   });
 
+  it("lifts current_name from a name_change event when the deal is not completed", () => {
+    const events = [
+      ev({ event_type: "ipo", event_date: "2021-08-10" }),
+      ev({
+        event_type: "name_change",
+        event_date: "2023-07-27",
+        detail: "# Zalatoris II Acquisition Corp",
+      }),
+      ev({ event_type: "deregistration", event_date: "2024-10-15" }),
+    ];
+    const first = buildSpacRow({
+      existing: undefined,
+      cik: 1,
+      deals: [],
+      events,
+      patch: { spac_name: "XPAC Acquisition Corp." },
+      filingDate: "2023-07-27",
+    });
+    expect(first.current_name).toBe("Zalatoris II Acquisition Corp");
+
+    const rebuilt = buildSpacRow({
+      existing: first,
+      cik: 1,
+      deals: [],
+      events,
+      patch: {},
+      filingDate: "2024-10-15",
+    });
+    expect(rebuilt.current_name).toBe("Zalatoris II Acquisition Corp");
+    expect(rebuilt.spac_name).toBe("XPAC Acquisition Corp.");
+  });
+
   it("leaves surviving_name null for a still-pending deal", () => {
     const row = buildSpacRow({
       existing: undefined,
