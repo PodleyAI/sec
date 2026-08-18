@@ -20,8 +20,9 @@ export const UNIT_SEPARATION_MAX_DAYS_AFTER_IPO = 180;
 export const FPI_CLOSE_20F_MAX_DAYS = 14;
 
 /**
- * Calendar-day window after a pending deal's proxy or vote during which a
- * listing removal reads as post-close housekeeping rather than a wind-up.
+ * Calendar-day window after a pending deal's merger proxy (and any later vote)
+ * during which a listing removal reads as post-close housekeeping rather than a
+ * wind-up.
  *
  * Reaching the ballot is not closing. A deal can die after its vote — commonly
  * announced under Item 8.01, which carries no lifecycle mapping and so writes no
@@ -29,8 +30,15 @@ export const FPI_CLOSE_20F_MAX_DAYS = 14;
  * and the vehicle then liquidates much later. An unbounded "has a proxy or vote"
  * test reads that Form 25 / Form 15 as a completed combination, deletes the
  * wind-up, and promotes a post-merger identity onto a shell that never merged.
- * A 5.07 extension meeting also maps to `vote` whenever a deal is pending, so a
- * `vote_date` does not even mean the merger was approved.
+ *
+ * A 5.07 is often not a merger vote at all: annual meetings and charter-extension
+ * meetings map to `vote` whenever a deal is pending, so a `vote_date` without a
+ * definitive merger/consent proxy is not approval. Zalatoris II (CIK 1853397)
+ * extended its deadline on 2024-08-02 and Nasdaq delisted it 74 days later for
+ * failing to complete a combination; treating that 5.07 as approval minted a
+ * false close. The window therefore requires a `proxy_date`. Once that exists,
+ * it still anchors on the later of proxy and vote (a superseding proxy revives
+ * an attempt) and stays one-sided.
  *
  * A real post-approval close is days: the trust has to be released. The widest
  * pairing in the committed corpus is 40 days (Columbus Circle, proxy 2025-11-12
@@ -80,17 +88,19 @@ function calendarDaysBetween(from: string, to: string): number {
 }
 
 /**
- * The deal's most recent approval-stage signal. A superseding proxy revives an
- * attempt, so the LATER of the two dates is what the window is anchored on.
+ * The deal's most recent approval-stage signal. A vote without a merger proxy
+ * is not approval (extension and annual meetings). When a proxy exists, a
+ * superseding one revives an attempt, so the LATER of proxy and vote is what
+ * the window is anchored on.
  */
 function approvalDate(deal: ListingRemovalPendingDeal): string | null {
+  if (deal.proxy_date == null || deal.proxy_date === "") return null;
   const dates = [deal.vote_date, deal.proxy_date].filter((d): d is string => d != null && d !== "");
-  if (dates.length === 0) return null;
   return dates.reduce((latest, d) => (d > latest ? d : latest));
 }
 
 /**
- * Whether the pending deal reached proxy or vote within
+ * Whether the pending deal reached a merger proxy (and any later vote) within
  * {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing.
  *
  * The window is ONE-SIDED, unlike {@link isNearby20F}'s absolute value: a
@@ -114,13 +124,15 @@ function pendingReachedApproval(
  * same lifecycle event.
  *
  * Priority:
- * 1. A pending deal whose proxy or vote is within
+ * 1. A pending deal whose merger proxy (and any later vote) is within
  *    {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing, or a
  *    `completed` event already on an earlier accession — the listing removal is
  *    post-close housekeeping (newco/FPI closes have no Item 2.01; Form 15 after
- *    the close-day 25-NSE is the same paperwork). Reaching the ballot alone, at
- *    any distance, is NOT evidence of a close: a deal that died after its vote
- *    stays `pending` with a `vote_date` indefinitely.
+ *    the close-day 25-NSE is the same paperwork). A 5.07 without a DEFM14A /
+ *    DEFM14C is not approval: extension meetings leave a `vote_date` on a deal
+ *    that never reached the ballot. Reaching the ballot alone, at any distance,
+ *    is also NOT evidence of a close: a deal that died after its vote stays
+ *    `pending` with a `vote_date` indefinitely.
  * 2. Exchange 25-NSE shortly after a KNOWN IPO — units unbundle; the vehicle
  *    keeps searching (a second 25-NSE in that window is still a split).
  * 3. Exchange 25-NSE with a nearby Form 20-F — FPI close (the 20-F is the

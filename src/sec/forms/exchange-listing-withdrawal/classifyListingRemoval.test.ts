@@ -131,16 +131,33 @@ describe("classifyListingRemoval", () => {
     ).toBe("completed");
   });
 
-  it("treats a 25-NSE after a vote as completed even inside the unit-split window", () => {
+  it("treats a 25-NSE after a merger proxy and vote as completed even inside the unit-split window", () => {
     // Fast de-SPAC: close-day 25-NSE would otherwise look like unit separation.
+    // The merger proxy is load-bearing: a 5.07 alone is often an extension
+    // meeting, not approval of the combination.
     expect(
       classifyListingRemoval({
         form: "25-NSE",
         ipoDate: "2025-08-01",
         filingDate: "2025-12-05",
-        pendingDeal: { vote_date: "2025-12-03", proxy_date: null },
+        pendingDeal: { vote_date: "2025-12-03", proxy_date: "2025-11-12" },
       })
     ).toBe("completed");
+  });
+
+  it("does not complete a 25-NSE after an extension vote with no merger proxy (Zalatoris II)", () => {
+    // XPAC / Zalatoris II (CIK 1853397): Item 5.07 on 2024-08-02 was an
+    // extension amendment, not a merger vote. Nasdaq's 25-NSE 74 days later
+    // is the delisting for failing to complete a combination. A vote_date
+    // without a DEFM14A/DEFM14C proxy is not approval.
+    expect(
+      classifyListingRemoval({
+        form: "25-NSE",
+        ipoDate: "2021-08-02",
+        filingDate: "2024-10-15",
+        pendingDeal: { vote_date: "2024-08-02", proxy_date: null },
+      })
+    ).toBe("deregistration");
   });
 
   it("treats a 25-NSE after a proxy (no vote yet, 14C) as completed", () => {
@@ -205,13 +222,13 @@ describe("classifyListingRemoval", () => {
       ipoDate: "2024-01-01",
       // 2025-01-01 + 90 days.
       filingDate: "2025-04-01",
-      pendingDeal: { vote_date: "2025-01-01", proxy_date: null },
+      pendingDeal: { vote_date: "2025-01-01", proxy_date: "2024-12-15" },
     });
     const pastBound = classifyListingRemoval({
       form: "25",
       ipoDate: "2024-01-01",
       filingDate: "2025-04-02",
-      pendingDeal: { vote_date: "2025-01-01", proxy_date: null },
+      pendingDeal: { vote_date: "2025-01-01", proxy_date: "2024-12-15" },
     });
     expect(atBound).toBe("completed");
     expect(pastBound).toBe("deregistration");
@@ -241,7 +258,7 @@ describe("classifyListingRemoval", () => {
         form: "25",
         ipoDate: "2024-01-01",
         filingDate: "2025-01-01",
-        pendingDeal: { vote_date: "2025-01-20", proxy_date: null },
+        pendingDeal: { vote_date: "2025-01-20", proxy_date: "2024-12-15" },
       })
     ).toBe("deregistration");
   });
@@ -310,13 +327,13 @@ describe("classifyListingRemoval", () => {
     ).toBe("deregistration");
   });
 
-  it("treats a 20-F after a vote as FPI close, not an annual report", () => {
+  it("treats a 20-F after a merger proxy and vote as FPI close, not an annual report", () => {
     expect(
       classifyListingRemoval({
         form: "20-F",
         ipoDate: "2025-09-04",
         filingDate: "2026-07-16",
-        pendingDeal: { vote_date: "2026-07-06", proxy_date: null },
+        pendingDeal: { vote_date: "2026-07-06", proxy_date: "2026-06-20" },
       })
     ).toBe("completed");
   });

@@ -46,6 +46,17 @@ describe("processDeregistration", () => {
     });
   }
 
+  async function seedProxy(cik: number, date: string): Promise<void> {
+    await new SpacReportWriter().recordDealMilestones({
+      cik,
+      accession_number: `${cik}-proxy`,
+      filing_date: date,
+      form: "DEFM14A",
+      primary_document: null,
+      events: [{ event_type: "proxy", event_date: date }],
+    });
+  }
+
   async function seedSpacCandidate(cik: number): Promise<void> {
     await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put({
       cik,
@@ -402,6 +413,7 @@ describe("processDeregistration", () => {
       primary_document: null,
       events: [{ event_type: "vote", event_date: "2025-12-03" }],
     });
+    await seedProxy(2056263, "2025-11-12");
 
     await processDeregistration({
       cik: 2056263,
@@ -424,6 +436,40 @@ describe("processDeregistration", () => {
     expect(deals[0]?.outcome_date).toBe("2025-12-22");
   });
 
+  it("records a 25-NSE after an extension vote with no merger proxy as liquidation (Zalatoris II)", async () => {
+    await seedSpac(1853397);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1853397,
+      accession_number: "1853397-da",
+      filing_date: "2023-12-05",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "definitive_agreement", event_date: "2023-12-05" }],
+    });
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 1853397,
+      accession_number: "1853397-vote",
+      filing_date: "2024-08-02",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "vote", event_date: "2024-08-02" }],
+    });
+
+    await processDeregistration({
+      cik: 1853397,
+      accession_number: "0001354457-24-000783",
+      form: "25-NSE",
+      filing_date: "2024-10-15",
+    });
+
+    const events = await repo.getEvents(1853397);
+    expect(events.filter((e) => e.event_type === "completed")).toEqual([]);
+    expect(events.some((e) => e.event_type === "deregistration")).toBe(true);
+    const row = await repo.getSpac(1853397);
+    expect(row?.status).toBe("liquidated");
+    expect(row?.surviving_name).toBeNull();
+  });
+
   it("records Form 15 after an earlier completed 25-NSE as housekeeping, not liquidation", async () => {
     await seedSpac(2032379);
     await new SpacReportWriter().recordDealMilestones({
@@ -442,6 +488,7 @@ describe("processDeregistration", () => {
       primary_document: null,
       events: [{ event_type: "vote", event_date: "2026-04-30" }],
     });
+    await seedProxy(2032379, "2026-04-15");
     await processDeregistration({
       cik: 2032379,
       accession_number: "2032379-nse",
@@ -495,6 +542,7 @@ describe("processDeregistration", () => {
       primary_document: null,
       events: [{ event_type: "vote", event_date: "2026-03-20" }],
     });
+    await seedProxy(2054174, "2026-03-01");
 
     await processDeregistration({
       cik: 2054174,
@@ -607,6 +655,7 @@ describe("processDeregistration", () => {
       primary_document: null,
       events: [{ event_type: "vote", event_date: "2025-01-28" }],
     });
+    await seedProxy(1900402, "2025-01-10");
     await processDeregistration({
       cik: 1900402,
       accession_number: "1900402-nse",

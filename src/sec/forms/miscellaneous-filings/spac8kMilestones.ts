@@ -49,11 +49,21 @@ function compactExhibitToken(value: string): string {
   return value.replace(/[\s._-]/g, "").toLowerCase();
 }
 
-/** DESCRIPTION is missing or just restates TYPE (e.g. `<DESCRIPTION>EX-2.1`). */
+function exhibitLabelBody(value: string): string {
+  return compactExhibitToken(value).replace(/^(exhibit|ex)/, "");
+}
+
+/**
+ * DESCRIPTION is missing or just restates TYPE (`EX-2.1`, `EXHIBIT 2.1`).
+ * Filers write either spelling; compacting punctuation alone leaves
+ * `exhibit21` ≠ `ex21`, which treated SuperBac's BCA as a non-merger EX-2.
+ * Strip a leading `exhibit` (longer token first) or `ex` from both sides so
+ * `EX-2.1` and `EXHIBIT 2.1` both reduce to `21`.
+ */
 function isUninformativeDescription(exhibit: SubmissionExhibit): boolean {
   const description = exhibit.description.trim();
   if (description === "") return true;
-  return compactExhibitToken(description) === compactExhibitToken(exhibit.type);
+  return exhibitLabelBody(description) === exhibitLabelBody(exhibit.type);
 }
 
 function isMergerShaped(exhibits: readonly SubmissionExhibit[]): boolean {
@@ -187,8 +197,7 @@ export function mapItemCodesToSpacEvents(
   const floor = ctx.ipoDate ?? ctx.registrationDate;
   const preIpo = floor != null && eventDate < floor;
   const pending = ctx.pendingDeal;
-  const pendingMerger =
-    pending != null && (pending.definitive_agreement_date != null || pending.proxy_date != null);
+  const pendingMerger = pending != null && pending.proxy_date != null;
 
   for (const code of itemCodes) {
     let event_type: SpacEventType | null = null;
@@ -203,6 +212,9 @@ export function mapItemCodesToSpacEvents(
         event_type = "completed";
         break;
       case "5.07":
+        // A pending DA is not enough: annual meetings and charter-extension
+        // votes fire 5.07 while a deal is open. Only a definitive merger /
+        // consent proxy means this meeting is about the combination.
         event_type = pendingMerger ? "vote" : "eight_k";
         break;
       default:

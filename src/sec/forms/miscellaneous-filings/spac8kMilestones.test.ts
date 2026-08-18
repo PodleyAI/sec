@@ -117,7 +117,15 @@ describe("mapItemCodesToSpacEvents", () => {
     ).toBe("material_agreement");
   });
 
-  it("maps 5.07 to vote only when a pending deal has a DA or proxy date", () => {
+  it("maps 5.07 to vote only when a pending deal has a merger proxy", () => {
+    expect(
+      mapItemCodesToSpacEvents(["5.07"], "2021-06-01", {
+        ipoDate: "2021-01-27",
+        registrationDate: null,
+        exhibits: [],
+        pendingDeal: { definitive_agreement_date: "2021-03-01", proxy_date: "2021-05-01" },
+      })[0].event_type
+    ).toBe("vote");
     expect(
       mapItemCodesToSpacEvents(["5.07"], "2021-06-01", {
         ipoDate: "2021-01-27",
@@ -125,7 +133,7 @@ describe("mapItemCodesToSpacEvents", () => {
         exhibits: [],
         pendingDeal: { definitive_agreement_date: "2021-03-01", proxy_date: null },
       })[0].event_type
-    ).toBe("vote");
+    ).toBe("eight_k");
     expect(
       mapItemCodesToSpacEvents(["5.07"], "2021-06-01", {
         ipoDate: "2021-01-27",
@@ -134,6 +142,19 @@ describe("mapItemCodesToSpacEvents", () => {
         pendingDeal: null,
       })[0].event_type
     ).toBe("eight_k");
+  });
+
+  it("maps a post-IPO EX-2.1 whose description is EXHIBIT 2.1 (XPAC / SuperBac) to DA", () => {
+    expect(
+      mapItemCodesToSpacEvents(["1.01"], "2022-04-25", {
+        ipoDate: "2021-08-02",
+        registrationDate: null,
+        exhibits: [
+          { type: "EX-2.1", description: "EXHIBIT 2.1", filename: "tm2213436d1_ex2-1.htm" },
+        ],
+        pendingDeal: null,
+      })[0].event_type
+    ).toBe("definitive_agreement");
   });
 
   it("still maps 2.01 to completed", () => {
@@ -390,6 +411,17 @@ describe("processForm8K SPAC milestone wiring", () => {
     });
   }
 
+  async function seedProxy(cik: number, date = "2021-05-01"): Promise<void> {
+    await new SpacReportWriter().recordDealMilestones({
+      cik,
+      accession_number: `${cik}-proxy`,
+      filing_date: date,
+      form: "DEFM14A",
+      primary_document: null,
+      events: [{ event_type: "proxy", event_date: date }],
+    });
+  }
+
   const mergerTxt = (date: string): string =>
     `<DOCUMENT>\n<TYPE>8-K\n<SEQUENCE>1\n<FILENAME>d8k.htm\n<DESCRIPTION>CURRENT REPORT\n<TEXT>\n<html/>\n</TEXT>\n</DOCUMENT>\n` +
     `<DOCUMENT>\n<TYPE>EX-2.1\n<SEQUENCE>2\n<FILENAME>ex21.htm\n<DESCRIPTION>AGREEMENT AND PLAN OF MERGER, DATED ${date}\n<TEXT>\n<html/>\n</TEXT>\n</DOCUMENT>\n`;
@@ -470,6 +502,7 @@ describe("processForm8K SPAC milestone wiring", () => {
     await seedSpac(100);
     await seedIpo(100);
     await run8K(100, "100-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+    await seedProxy(100);
     await run8K(100, "100-vote", "5.07", "2021-06-01");
     await run8K(100, "100-close", "2.01,5.01", "2021-06-15");
 
@@ -625,6 +658,7 @@ describe("processForm8K SPAC milestone wiring", () => {
     await seedIpo(900);
     const replay = async (): Promise<void> => {
       await run8K(900, "900-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+      await seedProxy(900);
       await run8K(900, "900-vote", "5.07", "2021-06-01");
       await run8K(900, "900-close", "2.01,5.01", "2021-06-15");
     };
@@ -671,6 +705,7 @@ describe("processForm8K SPAC milestone wiring", () => {
     await seedSpac(920);
     await seedIpo(920);
     await run8K(920, "920-da", "1.01,9.01", "2021-03-01", mergerTxt("2021-03-01"));
+    await seedProxy(920);
     await run8K(920, "920-close", "2.01", "2021-06-15");
     // Out-of-order arrival: the vote 8-K is processed last but dated between.
     await run8K(920, "920-vote", "5.07", "2021-06-01");
