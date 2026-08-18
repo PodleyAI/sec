@@ -26,6 +26,10 @@ export class UseOfProceedsRepo {
     return (await this.storage.query({ accession_number })) ?? [];
   }
 
+  async listAll(): Promise<UseOfProceeds[]> {
+    return (await this.storage.getAll()) ?? [];
+  }
+
   async clear(accession_number: string): Promise<void> {
     const rows = await this.queryByAccession(accession_number);
     for (const r of rows) {

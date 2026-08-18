@@ -43,9 +43,12 @@ import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 import {
   DETERMINISTIC_MODEL_ID,
+  looksLikeUnitIpo,
   parseSpacOfferingTerms,
   parseSpacPromoteTerms,
 } from "./parseOfferingTables";
+import { parseSpacUnderwriters } from "./parseSpacUnderwriters";
+import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
 
 /**
  * Concatenate the sections production hands the offering-terms parser, so eval
@@ -192,6 +195,7 @@ export interface OfferingSectionsArgs {
   readonly byName: ReadonlyMap<S1SectionName, string>;
   /** Running task context, threaded to the generation calls for CLI progress. */
   readonly context?: IExecuteContext;
+  readonly markSectionResolved: (sectionName: string) => Promise<void>;
 }
 
 /**
@@ -217,6 +221,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     activeUnderwriterFamilyVersion,
     byName,
     context,
+    markSectionResolved,
   } = args;
   const models = args.models ?? [model];
   const base = { accession_number, extractor_id, extractor_version };
@@ -480,100 +485,115 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   });
 
   // --- Underwriters (Underwriting section; all filings) ---
-  await runSection<UnderwriterRowOut>({
-    sectionName: "underwriters",
-    text: byName.get(S1_SECTIONS.UNDERWRITING),
-    emptyDetail: "no underwriters returned",
-    lowConfidenceDetail: "all rows below confidence floor",
-    invalidWriteDetail: "no underwriter rows had a usable legal name",
-    // Prompt-injection backstop: refuse to persist any underwriter row whose
-    // source_span is not a verbatim substring of the Underwriting section text.
-    verifyRow: (text, r) => classifySpan(text, r.source_span),
-    unverifiedAllDetail:
-      "all $T confident underwriter rows had source_span not present in section text",
-    unverifiedPartialDetail:
-      "$N of $T confident underwriter rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
-    persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
-      let wrote = 0;
-      // One underwriter, one link row. The model repeats an underwriter across
-      // rows more often than not — a sole-underwriter filing came back with the
-      // same bank once, twice, and three times on three consecutive runs — and
-      // every duplicate previously minted its own observation, family
-      // membership and link row, inflating `sec underwriter by-family` counts by
-      // however many times the model stuttered. Deduped on the LEGAL name, not
-      // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
-      // Markets Limited" are two entities that share one family, and collapsing
-      // on the family would silently drop the second.
-      const seenLegalNames = new Set<string>();
-      const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
-      const extractedNames = splits.map((s) => s.observationName);
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i]!;
-        const split = splits[i]!;
-        if (split.observationName === "") continue;
-        if (isUnnamedCompanyName(split.observationName)) continue;
-        // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
-        // & Co.") is one house, not two. Inc vs Limited of the same house are
-        // equal-length family keys and are not dropped.
-        if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
-        const dedupeKey = normalizeEntityName(split.observationName);
-        if (seenLegalNames.has(dedupeKey)) continue;
-        seenLegalNames.add(dedupeKey);
-        // companyFamilyName wipes non-ASCII and punctuation, so "[●]" (a
-        // still-blank F-1 table cell) and a CJK legal name both have no family
-        // key. A letterless placeholder is not an entity — skip it before
-        // observeCompany. A name that still has letters (CJK) is observed
-        // without a family rather than throwing "empty name" and aborting the
-        // rest of the table.
-        const familyKey = normalizeFamilyName(split.familyName);
-        if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
-        const observation_index = nextIndex();
-        const { observation_id, canonical_company_id } = await observer.observeCompany({
-          ...base,
-          observation_index,
-          name: split.observationName,
-          source_context: parentClauseSourceContext(`${relationPrefix}:underwriter`, split),
-        });
-        await provenance.save({
-          kind: "company",
-          observation_id,
-          confidence: r.confidence,
-          source_span: boundSourceSpan(r.source_span),
-          section_name: "underwriters",
-          model_id,
-          prompt_version: extractor_version,
-          extra: null,
-        });
-        if (!familyKey) {
-          wrote++;
-          continue;
+  const underwritingText = byName.get(S1_SECTIONS.UNDERWRITING);
+  const unitIpo = looksLikeUnitIpo(offeringText);
+  if (isSpac && !unitIpo) {
+    await markSectionResolved("underwriters");
+  } else {
+    await runSection<UnderwriterRowOut>({
+      sectionName: "underwriters",
+      text: underwritingText,
+      emptyDetail: "no underwriters returned",
+      lowConfidenceDetail: "all rows below confidence floor",
+      invalidWriteDetail: "no underwriter rows had a usable legal name",
+      // Prompt-injection backstop: refuse to persist any underwriter row whose
+      // source_span is not a verbatim substring of the Underwriting section text.
+      verifyRow: (text, r) => classifySpan(text, r.source_span),
+      unverifiedAllDetail:
+        "all $T confident underwriter rows had source_span not present in section text",
+      unverifiedPartialDetail:
+        "$N of $T confident underwriter rows had source_span not present in section text",
+      ...modelExtractChain(models, async (text, m) => {
+        if (isSpac) {
+          const det = parseSpacUnderwriters(text);
+          if (det.length > 0) return det;
         }
-        const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
-        await underwriterMembershipRepo.record({
-          resolver_version: activeUnderwriterFamilyVersion,
-          canonical_company_id,
-          canonical_underwriter_family_id: underwriter_family_id,
-          seen_at: new Date().toISOString(),
-        });
-        await underwriterLinkRepo.save({
-          accession_number,
-          extractor_id,
-          observation_index,
-          issuer_cik: cik,
-          underwriter_canonical_company_id: canonical_company_id,
-          underwriter_family_id,
-          role_detail: r.role,
-          shares_allocated: toIntCount(r.shares_allocated),
-          over_allotment_shares: toIntCount(r.over_allotment_shares),
-          resolver_version: activeUnderwriterFamilyVersion,
-        });
-        wrote++;
-      }
-      return wrote;
-    },
-  });
+        return extractUnderwriters(text, m, context);
+      }),
+      persist: async (rows, meta) => {
+        const model_id =
+          rows[0]?.source === "deterministic"
+            ? DETERMINISTIC_MODEL_ID
+            : persistModelId(models, meta.modelIndex);
+        let wrote = 0;
+        // One underwriter, one link row. The model repeats an underwriter across
+        // rows more often than not — a sole-underwriter filing came back with the
+        // same bank once, twice, and three times on three consecutive runs — and
+        // every duplicate previously minted its own observation, family
+        // membership and link row, inflating `sec underwriter by-family` counts by
+        // however many times the model stuttered. Deduped on the LEGAL name, not
+        // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
+        // Markets Limited" are two entities that share one family, and collapsing
+        // on the family would silently drop the second.
+        const seenLegalNames = new Set<string>();
+        const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
+        const extractedNames = splits.map((s) => s.observationName);
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i]!;
+          const split = splits[i]!;
+          if (split.observationName === "") continue;
+          if (isUnnamedCompanyName(split.observationName)) continue;
+          // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
+          // & Co.") is one house, not two. Inc vs Limited of the same house are
+          // equal-length family keys and are not dropped.
+          if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
+          const dedupeKey = normalizeEntityName(split.observationName);
+          if (seenLegalNames.has(dedupeKey)) continue;
+          seenLegalNames.add(dedupeKey);
+          // companyFamilyName wipes non-ASCII and punctuation, so "[●]" (a
+          // still-blank F-1 table cell) and a CJK legal name both have no family
+          // key. A letterless placeholder is not an entity — skip it before
+          // observeCompany. A name that still has letters (CJK) is observed
+          // without a family rather than throwing "empty name" and aborting the
+          // rest of the table.
+          const familyKey = normalizeFamilyName(split.familyName);
+          if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
+          const observation_index = nextIndex();
+          const { observation_id, canonical_company_id } = await observer.observeCompany({
+            ...base,
+            observation_index,
+            name: split.observationName,
+            source_context: parentClauseSourceContext(`${relationPrefix}:underwriter`, split),
+          });
+          await provenance.save({
+            kind: "company",
+            observation_id,
+            confidence: r.confidence,
+            source_span: boundSourceSpan(r.source_span),
+            section_name: "underwriters",
+            model_id,
+            prompt_version: extractor_version,
+            extra: null,
+          });
+          if (!familyKey) {
+            wrote++;
+            continue;
+          }
+          const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
+          await underwriterMembershipRepo.record({
+            resolver_version: activeUnderwriterFamilyVersion,
+            canonical_company_id,
+            canonical_underwriter_family_id: underwriter_family_id,
+            seen_at: new Date().toISOString(),
+          });
+          await underwriterLinkRepo.save({
+            accession_number,
+            extractor_id,
+            observation_index,
+            issuer_cik: cik,
+            underwriter_canonical_company_id: canonical_company_id,
+            underwriter_family_id,
+            role_detail: r.role,
+            shares_allocated: toIntCount(r.shares_allocated),
+            over_allotment_shares: toIntCount(r.over_allotment_shares),
+            resolver_version: activeUnderwriterFamilyVersion,
+          });
+          wrote++;
+        }
+        return wrote;
+      },
+    });
+  }
 
   // --- Use of proceeds ---
   await runSection<UseOfProceedsLineRow>({

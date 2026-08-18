@@ -1218,6 +1218,8 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     activeUnderwriterFamilyVersion,
     byName,
     context: args.context,
+    markSectionResolved: (section) =>
+      deadLetters.markResolved(EXTRACTOR_ID, accession_number, section),
   });
 
   // --- SPAC sponsors (gated on deterministic classification) ---

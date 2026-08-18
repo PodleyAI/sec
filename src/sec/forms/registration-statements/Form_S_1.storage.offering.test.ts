@@ -13,6 +13,8 @@ import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FieldProvenanceRepo } from "../../../storage/provenance/FieldProvenanceRepo";
+import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
@@ -416,5 +418,116 @@ describe("processFormS1 offering terms", () => {
     expect(unitProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
     expect(promoteProv.length).toBeGreaterThan(0);
     expect(promoteProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
+  });
+
+  it("persists a syndicate table hit as deterministic without calling the underwriters model", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1>",
+      "<table>",
+      "<tr><td>Offering price</td><td>$10.00</td></tr>",
+      "<tr><td>Number of units offered</td><td>20,000,000</td></tr>",
+      "<tr><td>Founder shares</td><td>5,750,000</td></tr>",
+      "<tr><td>Proceeds to be held in trust account</td><td>$10.00 per unit</td></tr>",
+      "</table>",
+      "<h1>UNDERWRITING</h1>",
+      "<table>",
+      "<tr><td>Underwriter</td><td>Number of Units</td></tr>",
+      "<tr><td>Cantor Fitzgerald &amp; Co.</td><td></td></tr>",
+      "<tr><td>Total</td><td>20,000,000</td></tr>",
+      "</table>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-11",
+      accession_number: "0000000000-26-000011",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const obs = await new CompanyObservationRepo().listByAccession("0000000000-26-000011");
+    expect(obs.map((o) => o.name).filter((n) => n != null && n !== "")).toEqual([
+      "Cantor Fitzgerald & Co.",
+    ]);
+    const links = await new UnderwriterLinkRepo().listByAccession("0000000000-26-000011");
+    expect(links).toHaveLength(1);
+    expect(links[0]!.role_detail).toBeNull();
+  });
+
+  it("skips the underwriters model on a SPAC resale with no unit IPO", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
+      "<h1>UNDERWRITING</h1>",
+      "<table>",
+      "<tr><td>Selling Stockholder</td><td>Number of Shares</td></tr>",
+      "<tr><td>Acme Holdings LLC</td><td>1,000,000</td></tr>",
+      "</table>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: 10,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 50000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        par_value: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [],
+      },
+      {
+        founder_shares: null,
+        founder_percent: null,
+        private_placement_warrants: null,
+        private_placement_warrant_price: null,
+        public_warrant_coverage: null,
+        trust_per_public_share: null,
+        trust_total: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-12",
+      accession_number: "0000000000-26-000012",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(await new UnderwriterLinkRepo().listByAccession("0000000000-26-000012")).toEqual([]);
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    expect(dl.filter((d) => d.section_name === "underwriters")).toEqual([]);
   });
 });
