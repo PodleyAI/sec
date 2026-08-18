@@ -8,8 +8,6 @@ import type { IExecuteContext, ModelConfig } from "workglow";
 import { globalServiceRegistry } from "workglow";
 import { Form8KEventRepo } from "../../../storage/form-8k-event/Form8KEventRepo";
 import type { Form8KEvent } from "../../../storage/form-8k-event/Form8KEventSchema";
-import type { Form8K } from "./Form_8_K.schema";
-import { Form_8_K_ITEMS } from "./Form_8_K";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -18,9 +16,11 @@ import {
   parseEightKSubmission,
   parseSubmissionExhibits,
 } from "../registration-statements/s1/parseSubmission";
-import { htmlToPlainText, mapItemCodesToSpacEvents } from "./spac8kMilestones";
-import { processRedemption8K } from "./redemption8k";
+import { Form_8_K_ITEMS } from "./Form_8_K";
+import type { Form8K } from "./Form_8_K.schema";
 import { processLoi8K } from "./loi8k";
+import { processRedemption8K } from "./redemption8k";
+import { htmlToPlainText, mapItemCodesToSpacEvents } from "./spac8kMilestones";
 
 /**
  * Extracts item codes from the filing metadata `items` field.

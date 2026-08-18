@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Spac, SpacStatus, SurvivingNameSource } from "./SpacSchema";
 import type { SpacDeal } from "./SpacDealSchema";
 import type { SpacEvent } from "./SpacEventSchema";
+import type { Spac, SpacStatus, SurvivingNameSource } from "./SpacSchema";
 
 /**
  * Filing-sourced scalar fields a population call can set directly. These are
