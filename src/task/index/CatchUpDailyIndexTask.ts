@@ -8,6 +8,7 @@ import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { Type } from "typebox";
 import { globalServiceRegistry, IExecuteContext, Task } from "workglow";
+import { isMissingRelationError } from "../../cli/queries/DbStatus";
 import { isDryRun } from "../../cli/isDryRun";
 import { SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import {
@@ -51,7 +52,7 @@ export class CatchUpDailyIndexTask extends Task<
   public static inputSchema() {
     return Type.Object({
       from: Type.Optional(TypeSecDate()),
-      lookback: Type.Optional(Type.Integer({ minimum: 0 })),
+      lookback: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
 
@@ -72,13 +73,24 @@ export class CatchUpDailyIndexTask extends Task<
     const cursorRepo = globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN);
     const cikLastUpdateRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
 
-    const cursor = await cursorRepo.get({ id: DAILY_INDEX_CURSOR_ID });
+    let cursor;
+    try {
+      cursor = await cursorRepo.get({ id: DAILY_INDEX_CURSOR_ID });
+    } catch (err) {
+      if (isMissingRelationError(err)) {
+        throw new Error(
+          "daily_index_cursor table is missing. Run `sec db setup` before the first `sec sync`."
+        );
+      }
+      throw err;
+    }
 
     let seed: string | undefined;
     if (!cursor) {
       const rows =
         (await cikLastUpdateRepo.getAll({
           orderBy: [{ column: "last_update", direction: "DESC" }],
+          limit: 1,
         })) ?? [];
       seed = rows[0]?.last_update;
     }

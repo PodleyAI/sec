@@ -151,7 +151,7 @@ function isTypedArray(actual: PropertySchema): boolean {
  * (it aligns TYPES of existing columns), and every write goes through `putBulk`
  * with the full row, so the first write after the schema change fails outright.
  * That is not hypothetical — `spac_candidate.signal_filed_sic_6770` broke
- * `sec update spacs` on every pre-existing database.
+ * `sec sync spacs` on every pre-existing database.
  *
  * Two safety rails, both load-bearing:
  *

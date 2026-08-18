@@ -198,7 +198,7 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 | Flag | Leaves | Description |
 | ---- | ------ | ----------- |
 | `--step <name>` | Multi-step leaves only | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list |
-| `--from <date>` | `submissions`, `all` | Override daily-index catch-up start (`YYYY-MM-DD`) |
+| `--from <date>` | `submissions`, `all` | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success` |
 | `--lookback <n>` | `submissions`, `all` | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**) |
 | `--force` | `submissions`, `facts`, `all` | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step) |
 | `--retry-failed` | `facts`, `all` | Also re-fetch CIKs whose last facts processing failed |
@@ -217,6 +217,9 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 - **404 on today:** end the index step successfully; cursor unchanged.
 - **Throw** (5xx/network): fail the index step; cursor unchanged.
 - First run with an empty cursor seeds from `max(cik_last_update)` if present, else today.
+- Catch-up walks `(start, today)` — the day after `start` through yesterday — so `--from` and `last_success` are **exclusive** (a `--from` of `2026-08-01` fetches from `2026-08-02` onward).
+
+**Upgrade:** on an existing deployment, run `sec db setup` once before the first `sec sync` so the `daily_index_cursor` table exists.
 
 `sync submissions --step submissions` is the submissions refresh **without** the index step (the old `update submissions` path).
 

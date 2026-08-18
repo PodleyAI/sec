@@ -81,6 +81,20 @@ describe("planIndexDays", () => {
     expect(plan.completed).toEqual(["2026-08-15", "2026-08-16", "2026-08-17"]);
     expect(plan.bypassCache).toEqual(["2026-08-15", "2026-08-16", "2026-08-17"]);
   });
+
+  it("treats --from as exclusive well outside the lookback window", () => {
+    const plan = planIndexDays({
+      lastSuccess: undefined,
+      fromOverride: "2026-08-01",
+      seed: undefined,
+      today: TODAY,
+      lookback: 3,
+    });
+    expect(plan.completed).not.toContain("2026-08-01");
+    expect(plan.completed[0]).toBe("2026-08-02");
+    expect(plan.completed[plan.completed.length - 1]).toBe("2026-08-17");
+    expect(plan.bypassCache).toEqual(["2026-08-15", "2026-08-16", "2026-08-17"]);
+  });
 });
 
 describe("dailyIndexCacheRelPath", () => {
