@@ -4,9 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { access } from "node:fs/promises";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { globalServiceRegistry, type IExecuteContext } from "workglow";
-import { SEC_DRY_RUN } from "../../config/tokens";
+import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
@@ -15,10 +19,13 @@ import {
   DAILY_INDEX_CURSOR_REPOSITORY_TOKEN,
 } from "../../storage/processing/DailyIndexCursorSchema";
 import * as dailyIndexDates from "./dailyIndexDates";
+import { dailyIndexCacheRelPath, planIndexDays } from "./dailyIndexDates";
 import { CatchUpDailyIndexTask } from "./CatchUpDailyIndexTask";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 
 const TODAY = "2026-08-18";
+
+let rawRoot: string | undefined;
 
 function ctx(): IExecuteContext {
   return {
@@ -44,6 +51,10 @@ describe("CatchUpDailyIndexTask", () => {
   });
 
   afterEach(() => {
+    if (rawRoot) {
+      rmSync(rawRoot, { recursive: true, force: true });
+      rawRoot = undefined;
+    }
     vi.restoreAllMocks();
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, false);
     resetDependencyInjectionsForTesting();
@@ -141,6 +152,29 @@ describe("CatchUpDailyIndexTask", () => {
       .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
       .get({ id: DAILY_INDEX_CURSOR_ID });
     expect(cursor?.last_success).toBe("2026-08-17");
+  });
+
+  it("unlinks today's cache before fetch even though today is not in bypassCache", async () => {
+    const plan = planIndexDays({
+      lastSuccess: "2026-08-14",
+      fromOverride: undefined,
+      seed: undefined,
+      today: TODAY,
+      lookback: 3,
+    });
+    expect(plan.bypassCache).not.toContain(TODAY);
+
+    rawRoot = mkdtempSync(path.join(tmpdir(), "sec-catchup-index-"));
+    globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, rawRoot);
+    const todayCachePath = path.join(rawRoot, dailyIndexCacheRelPath(TODAY));
+    mkdirSync(path.dirname(todayCachePath), { recursive: true });
+    writeFileSync(todayCachePath, "stale");
+
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockResolvedValue({ updateList: [] });
+
+    await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    await expect(access(todayCachePath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("does not write the cursor in dry-run mode", async () => {

@@ -111,14 +111,19 @@ export class CatchUpDailyIndexTask extends Task<
     let skipped404 = 0;
     let lastSuccess: string | null = cursor?.last_success ?? null;
 
-    const bypassCacheIfNeeded = async (date: string): Promise<void> => {
-      if (!plan.bypassCache.includes(date) || rawFolder === undefined) return;
+    const unlinkCacheFile = async (date: string): Promise<void> => {
+      if (rawFolder === undefined) return;
       const cachePath = path.join(rawFolder, dailyIndexCacheRelPath(date));
       try {
         await unlink(cachePath);
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
       }
+    };
+
+    const bypassCacheIfNeeded = async (date: string): Promise<void> => {
+      if (!plan.bypassCache.includes(date)) return;
+      await unlinkCacheFile(date);
     };
 
     for (const date of plan.completed) {
@@ -143,7 +148,7 @@ export class CatchUpDailyIndexTask extends Task<
     }
 
     let todayFetched = false;
-    await bypassCacheIfNeeded(plan.today);
+    await unlinkCacheFile(plan.today);
     try {
       const fetchResult = await context.own(new FetchDailyIndexTask()).run({ date: plan.today });
       await context
