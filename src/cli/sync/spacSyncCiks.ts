@@ -18,7 +18,7 @@ export async function listSpacProcessCiks(): Promise<number[]> {
   const spacRepo = globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
   const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
 
-  const ciks = new Set<number>((await spacRepo.getAll()).map((row) => row.cik));
+  const ciks = new Set<number>((await spacRepo.getAll())?.map((row) => row.cik) ?? []);
 
   let candidates = await candidateRepo.query({
     confidence: { value: ["high", "medium"], operator: "in" },

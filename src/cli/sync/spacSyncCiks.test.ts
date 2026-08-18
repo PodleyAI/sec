@@ -102,4 +102,16 @@ describe("listSpacProcessCiks", () => {
 
     await expect(listSpacProcessCiks()).resolves.toEqual([1, 2, 3]);
   });
+
+  it("returns high and medium candidates when the spac table is empty", async () => {
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+
+    await candidateRepo.putBulk([
+      candidateRow(2, "high"),
+      candidateRow(3, "medium"),
+      candidateRow(4, "low"),
+    ]);
+
+    await expect(listSpacProcessCiks()).resolves.toEqual([2, 3]);
+  });
 });
