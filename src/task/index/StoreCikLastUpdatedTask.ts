@@ -72,7 +72,22 @@ export class StoreCikLastUpdatedTask extends Task<
           last_update: last_known_update,
         }));
 
-      await cikLastUpdateRepo.putBulk(batch);
+      const ciks = batch.map((row) => row.cik);
+      const existingRows =
+        (await cikLastUpdateRepo.query({ cik: { value: ciks, operator: "in" } })) ?? [];
+      const existingByCik = new Map(
+        existingRows.map((row) => [row.cik, row.last_update] as const)
+      );
+      const mergedBatch = batch.map(({ cik, last_update }) => {
+        const existing = existingByCik.get(cik);
+        return {
+          cik,
+          last_update:
+            existing !== undefined && existing > last_update ? existing : last_update,
+        };
+      });
+
+      await cikLastUpdateRepo.putBulk(mergedBatch);
       // Progress is over ROWS processed, not batches — index++ / length (the
       // old form) divided a batch counter by the row count and never advanced.
       const processed = Math.min((i + 1) * batchSize, length);
