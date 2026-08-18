@@ -136,6 +136,58 @@ describe("forms sweep wiring", () => {
     expect(emitted.indexOf("S-1")).toBeLessThan(emitted.indexOf("25"));
   });
 
+  it("filters the worklist to an allow-list of CIKs when ciks is non-empty", async () => {
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000001",
+      form: "D",
+      primary_doc: "a.xml",
+    });
+    await seed({
+      cik: 2,
+      accession_number: "0000000002-26-000002",
+      form: "D",
+      primary_doc: "b.xml",
+    });
+
+    const producer = new ComputeFormsWorklistTask({
+      defaults: { form: ["D"], ciks: [1], batchSize: 10 },
+    });
+    const emittedCiks: number[] = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      emittedCiks.push(...out.cik);
+    }
+
+    expect(emittedCiks).toEqual([1]);
+  });
+
+  it("includes all CIKs when ciks is omitted", async () => {
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000001",
+      form: "D",
+      primary_doc: "a.xml",
+    });
+    await seed({
+      cik: 2,
+      accession_number: "0000000002-26-000002",
+      form: "D",
+      primary_doc: "b.xml",
+    });
+
+    const producer = new ComputeFormsWorklistTask({
+      defaults: { form: ["D"], batchSize: 10 },
+    });
+    const emittedCiks: number[] = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      emittedCiks.push(...out.cik);
+    }
+
+    expect(emittedCiks.sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
   it("shards the worklist disjointly and completely across shardCount", async () => {
     const accessions: string[] = [];
     for (let i = 1; i <= 40; i++) {
