@@ -11,7 +11,13 @@ import {
 } from "../../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
 
-const PROCESS_CONFIDENCES = new Set<SpacCandidateConfidence>(["high", "medium"]);
+// Typed `ReadonlySet<string>` for lookup — the stored column is a plain string
+// (`TypeStringEnum` surfaces `string`, not the union) — while the literals are
+// still checked against {@link SpacCandidateConfidence}, so a typo is a compile error.
+const PROCESS_CONFIDENCES: ReadonlySet<string> = new Set<SpacCandidateConfidence>([
+  "high",
+  "medium",
+]);
 
 /** Known spac rows ∪ spac_candidate rows with confidence high|medium. */
 export async function listSpacProcessCiks(): Promise<number[]> {

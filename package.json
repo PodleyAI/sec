@@ -13,7 +13,7 @@
   "description": "Workglow SEC is an example of using the Workglow AI library to build a tool for retrieving SEC data.",
   "scripts": {
     "bunset": "bunset --patch --push --commit --tag",
-    "release": "bun run build && bun run test && bun run prepack-check && bun run bunset",
+    "release": "bun run format && bun run build && bun run test && bun run prepack-check && bun run bunset",
     "prepack-check": "bun ./scripts/checkPackedContents.ts",
     "dev": "concurrently -c 'auto' -n 'sec:' 'bun:dev-*'",
     "dev-js": "bun build --watch --target=bun --sourcemap=external --packages=external --outdir ./dist ./src/index.ts",
