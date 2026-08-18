@@ -11,6 +11,7 @@ import { Form_DRSLTR } from "../../sec/forms/registration-statements/Form_DRSLTR
 import {
   EXTRACTOR_IDS,
   FORM_TO_EXTRACTOR_ID,
+  formsForExtractorIds,
   formToExtractorId,
   isNonfatalTimelineExtractor,
 } from "./extractorIds";
@@ -239,5 +240,26 @@ describe("Form_DRS — DRSLTR catalogued separately, never extracted", () => {
   it("being catalogued does not route DRSLTR to an extractor", () => {
     expect(formToExtractorId("DRSLTR")).toBeUndefined();
     expect(isFormParsingSupported("DRSLTR")).toBe(false);
+  });
+});
+
+describe("formsForExtractorIds", () => {
+  it("returns every form mapped to a requested extractor id", () => {
+    const forms = formsForExtractorIds(["D"]);
+
+    expect(forms).toContain("D");
+    expect(forms).toContain("D/A");
+    expect(forms.every((form) => FORM_TO_EXTRACTOR_ID[form] === "D")).toBe(true);
+  });
+
+  it("returns forms for multiple extractor ids", () => {
+    const forms = formsForExtractorIds(["CFPORTAL", "C"]);
+    const extractors = new Set(forms.map((form) => FORM_TO_EXTRACTOR_ID[form]));
+
+    expect(extractors).toEqual(new Set(["CFPORTAL", "C"]));
+  });
+
+  it("returns an empty list when no extractor ids match", () => {
+    expect(formsForExtractorIds([])).toEqual([]);
   });
 });
