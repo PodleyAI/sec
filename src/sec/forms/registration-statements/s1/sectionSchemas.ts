@@ -146,6 +146,8 @@ export interface BeneficialOwnerRow {
   footnote: string | null;
   confidence: number;
   source_span: string;
+  /** Persist-only; never part of the model JSON schema. */
+  source?: "deterministic";
 }
 export interface RelatedPartyRow {
   name: string;

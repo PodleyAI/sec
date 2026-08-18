@@ -43,11 +43,13 @@ import { EvalOfferingTablesTask } from "../../task/eval/EvalOfferingTablesTask";
 import { EvalUnderwritersTask } from "../../task/eval/EvalUnderwritersTask";
 import { EvalUseOfProceedsTask } from "../../task/eval/EvalUseOfProceedsTask";
 import { EvalExecutiveCompensationTask } from "../../task/eval/EvalExecutiveCompensationTask";
+import { EvalBeneficialOwnershipTask } from "../../task/eval/EvalBeneficialOwnershipTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 import type { OfferingTablesReport } from "../../eval/runOfferingTablesEval";
 import type { UnderwritersReport } from "../../eval/runUnderwritersEval";
 import type { UseOfProceedsReport } from "../../eval/runUseOfProceedsEval";
 import type { ExecutiveCompensationReport } from "../../eval/runExecutiveCompensationEval";
+import type { BeneficialOwnershipReport } from "../../eval/runBeneficialOwnershipEval";
 
 /**
  * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
@@ -188,6 +190,26 @@ function pad(s: string, w: number): string {
 function truncate(s: string, max = 60): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
+}
+
+function printBeneficialOwnershipReport(report: BeneficialOwnershipReport): void {
+  const { counts } = report;
+  console.log(
+    `beneficial-ownership parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
 }
 
 function printExecutiveCompensationReport(report: ExecutiveCompensationReport): void {
@@ -1175,6 +1197,47 @@ export function addEvalCommands(program: Command): void {
             return;
           }
           printExecutiveCompensationReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("beneficial-ownership")
+    .description(
+      "Score the deterministic beneficial-ownership parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<BeneficialOwnershipReport>([
+            new EvalBeneficialOwnershipTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printBeneficialOwnershipReport(report);
         });
       }
     );

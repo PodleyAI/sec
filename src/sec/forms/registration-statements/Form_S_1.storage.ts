@@ -48,6 +48,7 @@ import {
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
+import { parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { issuerHasCombinationListing } from "./s1/newcoListing";
@@ -804,9 +805,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context)),
+    ...modelExtractChain(models, async (text, m) => {
+      const det = parseBeneficialOwnership(text);
+      if (det.length > 0) return det;
+      return extractBeneficialOwnership(text, m, args.context);
+    }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
+      const model_id =
+        rows[0]?.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         if (r.owner_kind === "company" && isUnnamedCompanyName(r.name)) continue;
         const observation_index = idx++;
