@@ -138,7 +138,60 @@ function walkFields(text: string): WalkedFields {
   const take = (value: string): void => {
     if (out.source_span === "") out.source_span = value;
   };
+  let section = "";
   for (const row of iterTableRows(text)) {
+    if (row.label === "continuation") {
+      if (out.founder_percent === null) {
+        const p = founderPercent(row.value);
+        if (p !== undefined) {
+          out.founder_percent = p;
+          take(row.value);
+        }
+      }
+      continue;
+    }
+    if (isSectionHeader(row)) {
+      section = row.label;
+      continue;
+    }
+    const unitAt = unitsAtPrice(row.value);
+    if (unitAt) {
+      if (out.units_offered === null) {
+        out.units_offered = unitAt.units;
+        take(row.value);
+      }
+      if (out.price_per_unit === null && unitAt.price >= PRICE_MIN && unitAt.price <= PRICE_MAX) {
+        out.price_per_unit = unitAt.price;
+        take(row.value);
+      }
+    }
+    const compositionCell =
+      isCompositionLabel(row.label) ||
+      /consisting of/i.test(row.value) ||
+      (isBulletLabel(row.label) && isCompositionBullet(row.value));
+    if (compositionCell) {
+      if (out.unit_composition === null) {
+        const clause = compositionClause(row.value);
+        if (clause !== null) {
+          out.unit_composition = clause;
+          take(row.value);
+        }
+      }
+      if (out.warrant_fraction_per_unit === null) {
+        const w = warrantFraction(row.value);
+        if (w !== undefined) {
+          out.warrant_fraction_per_unit = w;
+          take(row.value);
+        }
+      }
+      if (out.right_fraction_per_unit === null) {
+        const r = rightFraction(row.value);
+        if (r !== undefined) {
+          out.right_fraction_per_unit = r;
+          take(row.value);
+        }
+      }
+    }
     if (out.price_per_unit === null && isPriceLabel(row.label)) {
       const n = firstMoney(row.value);
       if (n !== undefined && n >= PRICE_MIN && n <= PRICE_MAX) {
@@ -170,29 +223,6 @@ function walkFields(text: string): WalkedFields {
         }
       }
     }
-    if (isCompositionLabel(row.label) || /consisting of/i.test(row.value)) {
-      if (out.unit_composition === null) {
-        const clause = compositionClause(row.value);
-        if (clause !== null) {
-          out.unit_composition = clause;
-          take(row.value);
-        }
-      }
-      if (out.warrant_fraction_per_unit === null) {
-        const w = warrantFraction(row.value);
-        if (w !== undefined) {
-          out.warrant_fraction_per_unit = w;
-          take(row.value);
-        }
-      }
-      if (out.right_fraction_per_unit === null) {
-        const r = rightFraction(row.value);
-        if (r !== undefined) {
-          out.right_fraction_per_unit = r;
-          take(row.value);
-        }
-      }
-    }
     if (out.over_allotment_units === null && /over-?allotment/.test(row.label)) {
       const n = firstInteger(row.value);
       if (n !== undefined) {
@@ -214,30 +244,35 @@ function walkFields(text: string): WalkedFields {
         take(row.value);
       }
     }
-    if (isFounderLabel(row.label)) {
+    if (isFounderRow(row)) {
       if (out.founder_shares === null) {
         const n = founderShareCount(row.value);
-        if (n !== undefined && n >= 1000) {
+        if (n !== undefined) {
           out.founder_shares = n;
           take(row.value);
         }
       }
       if (out.founder_percent === null) {
-        const p = firstPercentFraction(row.value);
+        const blob = `${row.label} ${row.value}`;
+        const p = isFounderRow(row)
+          ? (founderPercent(blob) ?? firstPercentFraction(row.value))
+          : founderPercent(blob);
         if (p !== undefined) {
           out.founder_percent = p;
-          take(row.value);
+          take(row.value || row.label);
         }
       }
     }
-    if (out.private_placement_warrants === null && isPrivateWarrantLabel(row.label)) {
-      const n = firstInteger(row.value);
-      if (n !== undefined) {
+    if (out.private_placement_warrants === null) {
+      const n = isPrivateWarrantLabel(row.label, section)
+        ? (firstInteger(row.value) ?? firstPositiveInteger(row.cells.slice(1)))
+        : placementWarrantCount(row.value);
+      if (n !== undefined && n >= 10_000) {
         out.private_placement_warrants = n;
         take(row.value);
       }
     }
-    if (out.private_placement_warrant_price === null && isPrivateWarrantLabel(row.label)) {
+    if (out.private_placement_warrant_price === null && isPrivateWarrantLabel(row.label, section)) {
       const n = firstMoney(row.value);
       if (n !== undefined && n < PRICE_MIN) {
         out.private_placement_warrant_price = n;
@@ -255,6 +290,7 @@ function locates(text: string, value: number, label: string): boolean {
 interface TableRow {
   readonly label: string;
   readonly value: string;
+  readonly cells: readonly string[];
 }
 
 function iterTableRows(text: string): TableRow[] {
@@ -264,13 +300,44 @@ function iterTableRows(text: string): TableRow[] {
     if (!trimmed.startsWith("|")) continue;
     if (isSeparatorRow(trimmed)) continue;
     const cells = splitPipeRow(trimmed);
-    if (cells.length < 2) continue;
-    const label = normalizeLabel(cells[0] ?? "");
-    const value = (cells[1] ?? "").trim();
-    if (label === "" || isPlaceholder(value)) continue;
-    rows.push({ label, value });
+    const picked = pickLabelValue(cells);
+    if (picked === null) continue;
+    const { label, value } = picked;
+    if (isBulletLabel(label) && !isCompositionBullet(value) && founderPercent(value) === undefined) {
+      continue;
+    }
+    if (isPlaceholder(value)) {
+      const later = (picked.cells ?? cells).slice(2).some((cell) => {
+        const n = firstInteger(cell);
+        return n !== undefined && n > 0;
+      });
+      if (!later && !(label !== "" && value === "")) continue;
+    }
+    rows.push({ label, value, cells: picked.cells ?? cells.map((x) => x.trim()) });
   }
   return rows;
+}
+
+function pickLabelValue(cells: string[]): TableRow | null {
+  const c = cells.map((x) => x.trim());
+  if (c.length === 1 && c[0] !== "") {
+    return { label: "continuation", value: c[0]!, cells: c };
+  }
+  if (c.length < 2) return null;
+  for (let i = 0; i < c.length - 1; i++) {
+    if (!isBulletGlyph(c[i]!)) continue;
+    if (c[i + 1] === "") continue;
+    if (c.slice(0, i).every((x) => x === "")) {
+      return { label: normalizeLabel(c[i]!), value: c[i + 1]!, cells: c };
+    }
+  }
+  let label = normalizeLabel(c[0] ?? "");
+  let value = c[1] ?? "";
+  if (isBulletGlyph(value) && (c[2] ?? "") !== "") {
+    if (label === "") label = normalizeLabel(value);
+    value = c[2]!;
+  }
+  return { label, value, cells: c };
 }
 
 function isSeparatorRow(line: string): boolean {
@@ -299,15 +366,30 @@ function splitPipeRow(line: string): string[] {
 }
 
 function normalizeLabel(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\(\d+\)/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const lowered = raw.toLowerCase().replace(/\s+/g, " ").trim();
+  const stripped = lowered.replace(/\(\d+\)/g, "").replace(/\s+/g, " ").trim();
+  return stripped !== "" ? stripped : lowered;
 }
 
 function isPlaceholder(value: string): boolean {
   return PLACEHOLDER.test(value.trim());
+}
+
+function isBulletGlyph(s: string): boolean {
+  return /^[•·●\-*]$/.test(s.trim());
+}
+
+function isBulletLabel(label: string): boolean {
+  return label === "" || isBulletGlyph(label);
+}
+
+function isCompositionBullet(value: string): boolean {
+  return (
+    /consisting of/i.test(value) ||
+    /units?,?\s+at\s+\$/i.test(value) ||
+    /\bone[\s-](?:half|third|fourth|quarter|fifth)\b/i.test(value) ||
+    /\bone (?:ordinary |class [ab] |redeemable )?(?:share|right|warrant)\b/i.test(value)
+  );
 }
 
 function isPriceLabel(label: string): boolean {
@@ -331,15 +413,43 @@ function isFounderLabel(label: string): boolean {
   return /founder shares|class b/.test(label);
 }
 
-function isPrivateWarrantLabel(label: string): boolean {
+function isFounderRow(row: TableRow): boolean {
+  if (isFounderLabel(row.label)) return true;
+  return (
+    /number outstanding before this offering/.test(row.label) &&
+    /class b|founder shares|ordinary shares/i.test(row.value)
+  );
+}
+
+function isSectionHeader(row: TableRow): boolean {
+  if (row.value !== "") return false;
+  return /^(units|ordinary shares|class [ab].*|warrants?|rights?):?$/.test(row.label);
+}
+
+function isPrivateWarrantLabel(label: string, section = ""): boolean {
+  if (/outstanding after/.test(label)) return false;
   if (/units?$/.test(label) && !/warrants?/.test(label)) return false;
-  return /private placement warrants?|sponsor warrants?/.test(label);
+  if (/warrants?/.test(section) && /included in the private placement units/.test(label)) {
+    return true;
+  }
+  return (
+    /private placement warrants?|sponsor warrants?|private warrants?/.test(label) ||
+    (/warrants?/.test(label) && /private (?:placement|units)/.test(label))
+  );
 }
 
 function firstMoney(cell: string): number | undefined {
   const m = cell.match(/\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)/);
   if (m) return parseNumeric(m[0]);
   return firstNumber(cell);
+}
+
+function firstPositiveInteger(cells: readonly string[]): number | undefined {
+  for (const cell of cells) {
+    const n = firstInteger(cell);
+    if (n !== undefined && n > 0) return n;
+  }
+  return undefined;
 }
 
 function firstInteger(cell: string): number | undefined {
@@ -379,7 +489,15 @@ function wordFraction(cell: string): number | undefined {
 
 function warrantFraction(cell: string): number | undefined {
   if (!/warrant/i.test(cell)) return undefined;
-  return wordFraction(cell);
+  for (const { re, value } of WORD_FRACTIONS) {
+    const attached = new RegExp(
+      `${re.source}(?:\\s*\\([^)]*\\))?\\s+(?:of\\s+(?:one\\s+)?)?(?:redeemable\\s+)?warrants?`,
+      "i"
+    );
+    if (attached.test(cell)) return value;
+  }
+  if (/\bone (?:redeemable )?warrant\b/i.test(cell)) return 1;
+  return undefined;
 }
 
 function rightFraction(cell: string): number | undefined {
@@ -394,8 +512,71 @@ function compositionClause(cell: string): string | null {
 }
 
 function founderShareCount(cell: string): number | undefined {
-  const before = cell.split(/forfeiture/i)[0] ?? cell;
-  return firstInteger(before);
+  const cleaned = cell
+    .replace(/\$\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?/g, " ")
+    .replace(/up to (?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ")
+    .replace(/forfeit(?:ed|ure)(?:\s+of)?\s+(?:up to )?(?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ")
+    .replace(/surrendered\s+(?:up to )?(?:an aggregate of )?\d{1,3}(?:,\d{3})+/gi, " ");
+  const recap =
+    cleaned.match(/holds(?: an aggregate of)?\s+(\d{1,3}(?:,\d{3})+)\s+founder shares/i) ??
+    cleaned.match(/founder shares to\s+(\d{1,3}(?:,\d{3})+)/i) ??
+    cleaned.match(/to\s+(\d{1,3}(?:,\d{3})+)\s+class b (?:ordinary )?shares/i);
+  if (recap) {
+    const n = parseNumeric(recap[1]);
+    if (n !== undefined && n >= 100_000) return n;
+  }
+  const namedAll = cleaned.matchAll(
+    /(\d{1,3}(?:,\d{3})+)\s+(?:founder shares|class b (?:ordinary )?shares)/gi
+  );
+  let namedBest: number | undefined;
+  for (const m of namedAll) {
+    const n = parseNumeric(m[1]);
+    if (n === undefined || n < 100_000) continue;
+    if (namedBest === undefined || n > namedBest) namedBest = n;
+  }
+  if (namedBest !== undefined) return namedBest;
+  const matches = cleaned.match(/\d{1,3}(?:,\d{3})+|\d+/g) ?? [];
+  for (const raw of matches) {
+    const n = parseNumeric(raw);
+    if (n === undefined || !Number.isInteger(n)) continue;
+    if (n >= 1900 && n <= 2099) continue;
+    if (n < 100_000) continue;
+    return n;
+  }
+  return undefined;
+}
+
+function placementWarrantCount(cell: string): number | undefined {
+  const m = cell.match(
+    /(\d{1,3}(?:,\d{3})+)\s+(?:placement|private placement|private)\s+warrants/i
+  );
+  if (!m) return undefined;
+  return parseNumeric(m[1]);
+}
+
+function unitsAtPrice(cell: string): { units: number; price: number } | undefined {
+  const m = cell.match(
+    /(\d{1,3}(?:,\d{3})+|\d+)\s+units?(?:\s+\([^)]*\))?,?\s+at\s+\$\s*(\d+(?:\.\d+)?)\s+per\s+unit/i
+  );
+  if (!m) return undefined;
+  const units = parseNumeric(m[1]);
+  const price = parseNumeric(m[2]);
+  if (units === undefined || price === undefined) return undefined;
+  return { units, price };
+}
+
+function founderPercent(blob: string): number | undefined {
+  const patterns = [
+    /founder shares at\s+(?:approximately\s+)?(\d+(?:\.\d+)?)\s*%/i,
+    /(?:initial shareholders|sponsor) will (?:beneficially )?own\s+(?:approximately\s+)?(\d+(?:\.\d+)?)\s*%/i,
+  ];
+  for (const re of patterns) {
+    const m = blob.match(re);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 50) return n / 100;
+  }
+  return undefined;
 }
 
 function firstPercentFraction(cell: string): number | undefined {

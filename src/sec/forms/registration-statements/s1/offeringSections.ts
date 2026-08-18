@@ -43,6 +43,29 @@ import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 
 /**
+ * Concatenate the sections production hands the offering-terms parser, so eval
+ * and persist cannot drift.
+ */
+export function offeringParseText(byName: ReadonlyMap<string, string>): string {
+  return [byName.get(S1_SECTIONS.THE_OFFERING), byName.get(S1_SECTIONS.UNDERWRITING)]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+}
+
+/**
+ * Concatenate the sections production hands the sponsor-promote parser.
+ */
+export function promoteParseText(byName: ReadonlyMap<string, string>): string {
+  return [
+    byName.get(S1_SECTIONS.THE_OFFERING),
+    byName.get(S1_SECTIONS.THE_SPONSOR),
+    byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
+  ]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+}
+
+/**
  * Section names used by the offering-related dead letters. `sponsor-promote` is
  * SPAC-only — {@link runOfferingSections} skips it for a non-SPAC filing, and a
  * skipped section never markResolves — so a non-SPAC dead letter recorded under
@@ -217,9 +240,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   // --- Offering terms (read from The Offering + Underwriting) ---
   // The extractor returns a single object; adapt it onto runSection by treating
   // a null result as an empty array and wrapping a present result as `[terms]`.
-  const offeringText = [byName.get(S1_SECTIONS.THE_OFFERING), byName.get(S1_SECTIONS.UNDERWRITING)]
-    .filter((t): t is string => typeof t === "string")
-    .join("\n\n");
+  const offeringText = offeringParseText(byName);
   await runSection<OfferingTermsRow>({
     sectionName: "offering-terms",
     text: offeringText,
@@ -365,13 +386,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   // These live in "The Offering" and "The Sponsor" prose; read both (falling back
   // to the concatenated offering/underwriting text when a dedicated sponsor
   // heading is absent). Skipped for non-SPAC filings.
-  const promoteText = [
-    byName.get(S1_SECTIONS.THE_OFFERING),
-    byName.get(S1_SECTIONS.THE_SPONSOR),
-    byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
-  ]
-    .filter((t): t is string => typeof t === "string")
-    .join("\n\n");
+  const promoteText = promoteParseText(byName);
   await runSection<SponsorPromoteRow>({
     sectionName: "sponsor-promote",
     skip: !isSpac,
