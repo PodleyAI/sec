@@ -39,7 +39,9 @@ import {
   EVAL_S1_CONCURRENCY_DEFAULTS,
 } from "../../task/eval/evalS1Concurrency";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
+import { EvalOfferingTablesTask } from "../../task/eval/EvalOfferingTablesTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
+import type { OfferingTablesReport } from "../../eval/runOfferingTablesEval";
 
 /**
  * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
@@ -180,6 +182,26 @@ function pad(s: string, w: number): string {
 function truncate(s: string, max = 60): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
+}
+
+function printOfferingTablesReport(report: OfferingTablesReport): void {
+  const { counts } = report;
+  console.log(
+    `offering/promote parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.kind} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
 }
 
 function hasDiff(d: ExtractionDiff): boolean {
@@ -923,6 +945,47 @@ export function addEvalCommands(program: Command): void {
             console.log("\nskipped:");
             for (const sMsg of report.skipped) console.log(`  ${sMsg}`);
           }
+        });
+      }
+    );
+
+  cmd
+    .command("offering-tables")
+    .description(
+      "Score the deterministic SPAC offering/promote table parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<OfferingTablesReport>([
+            new EvalOfferingTablesTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printOfferingTablesReport(report);
         });
       }
     );

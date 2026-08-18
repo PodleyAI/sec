@@ -79,6 +79,20 @@ describe("looksLikeUnitIpo", () => {
   it("is false on a resale-shaped table with no unit price/count", () => {
     expect(looksLikeUnitIpo("| Founder shares | 5,750,000 |")).toBe(false);
   });
+  it("is false on a share-only securities-offered row", () => {
+    const text = `
+| Securities offered | 12,000,000 ordinary shares, at $10.00 per share |
+`.trim();
+    expect(parseSpacOfferingTerms(text)).toBeNull();
+    expect(looksLikeUnitIpo(text)).toBe(false);
+  });
+  it("is false on a placeholder units cell with no count", () => {
+    const text = `
+| Securities Offered | units (or units if the underwriters’ over-allotment option is exercised in full), at $10.00 per unit |
+`.trim();
+    expect(parseSpacOfferingTerms(text)).toBeNull();
+    expect(looksLikeUnitIpo(text)).toBe(false);
+  });
 });
 
 describe("parseSpacOfferingTerms optional fields", () => {
@@ -137,6 +151,28 @@ describe("parseSpacOfferingTerms optional fields", () => {
 `.trim()
     )!;
     expect(row.warrant_fraction_per_unit).toBe(1);
+    expect(row.right_fraction_per_unit).toBe(1);
+  });
+
+  it("reads three-quarters of one warrant, not the trailing 'one warrant'", () => {
+    const row = parseSpacOfferingTerms(
+      `
+| Offering price | $10.00 |
+| Number of units offered | 9,000,000 |
+| Securities offered | 9,000,000 units, at $10.00 per unit, each unit consisting of one share of common stock and three-quarters (3/4) of one redeemable warrant |
+`.trim()
+    )!;
+    expect(row.warrant_fraction_per_unit).toBe(0.75);
+  });
+
+  it("counts one Share Right as 1, not the tenth-of-a-share conversion", () => {
+    const row = parseSpacOfferingTerms(
+      `
+| Offering price | $10.00 |
+| Number of units offered | 20,000,000 |
+| Securities offered | 20,000,000 units, at $10.00 per unit, each unit consisting of: one Class A ordinary share; and one Share Right to receive one tenth (1/10) of a Class A ordinary share |
+`.trim()
+    )!;
     expect(row.right_fraction_per_unit).toBe(1);
   });
 });
@@ -299,6 +335,18 @@ describe("parseSpacPromoteTerms", () => {
     expect(parseSpacPromoteTerms(text)!.private_placement_warrants).toBe(188_333);
   });
 
+  it("takes shares outstanding before the offering when the cell says shares, not Class B", () => {
+    const text = `
+| Offering price | $10.00 |
+| Number of units offered | 7,500,000 |
+| Number outstanding before this offering and the private placement | 0 Units |
+| Number outstanding before this offering and the private placement | 2,156,250 shares(2) |
+| Number outstanding before this offering and the private placement | 0 warrants |
+| Prior Issuance of Founders Shares | On August 19, 2021, our initial shareholders purchased 1,450,000 founder shares |
+`.trim();
+    expect(parseSpacPromoteTerms(text)!.founder_shares).toBe(2_156_250);
+  });
+
   it("takes Class B shares outstanding before the offering over an earlier purchase price", () => {
     const text = `
 | Offering price | $10.00 |
@@ -368,5 +416,25 @@ describe("nested offering table cells", () => {
     expect(row.units_offered).toBe(20_000_000);
     expect(row.price_per_unit).toBe(10);
     expect(row.warrant_fraction_per_unit).toBe(0.3333);
+  });
+
+  it("reads units-at-price when the cell says at a price of $10 per unit", () => {
+    const text = `
+| Securities offered | 15,000,000 units (or 17,250,000 units if the underwriters’ over-allotment option is exercised in full), at a price of $10.00 per unit, each unit consisting of: |
+|  | • one-half of one redeemable warrant. |
+`.trim();
+    const row = parseSpacOfferingTerms(text)!;
+    expect(row.units_offered).toBe(15_000_000);
+    expect(row.price_per_unit).toBe(10);
+    expect(row.warrant_fraction_per_unit).toBe(0.5);
+  });
+
+  it("skips an empty spacer value column before the units-at-price cell", () => {
+    const text = `
+| Securities offered |  | 20,000,000 units (or 23,000,000 units if the underwriters’ over-allotment option is exercised in full), at $10.00 per unit, each unit consisting of: |
+`.trim();
+    const row = parseSpacOfferingTerms(text)!;
+    expect(row.units_offered).toBe(20_000_000);
+    expect(row.price_per_unit).toBe(10);
   });
 });

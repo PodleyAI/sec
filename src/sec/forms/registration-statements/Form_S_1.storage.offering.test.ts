@@ -12,7 +12,9 @@ import { OfferingTermsRepo } from "../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../storage/offering/SpacUnitTermsRepo";
 import { SpacPromoteTermsRepo } from "../../../storage/offering/SpacPromoteTermsRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { FieldProvenanceRepo } from "../../../storage/provenance/FieldProvenanceRepo";
 import { processFormS1 } from "./Form_S_1.storage";
+import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const OFFERING_HTML = [
@@ -369,5 +371,50 @@ describe("processFormS1 offering terms", () => {
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
     const offering = dl.find((d) => d.section_name === "offering-terms");
     expect(offering?.detail).toMatch(/NO issuer ticker rows/);
+  });
+
+  it("persists a markdown-table hit as deterministic without calling the offering model", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1>",
+      "<table>",
+      "<tr><td>Offering price</td><td>$10.00</td></tr>",
+      "<tr><td>Number of units offered</td><td>20,000,000</td></tr>",
+      "<tr><td>Founder shares</td><td>5,750,000</td></tr>",
+      "<tr><td>Proceeds to be held in trust account</td><td>$10.00 per unit</td></tr>",
+      "</table>",
+      "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC is the representative.</p>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([{ underwriters: [] }]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-10",
+      accession_number: "0000000000-26-000010",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const unit = await new SpacUnitTermsRepo().get("S-1", "0000000000-26-000010");
+    expect(unit?.price_per_unit).toBe(10);
+    expect(unit?.units_offered).toBe(20_000_000);
+    const promote = await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000010");
+    expect(promote?.founder_shares).toBe(5_750_000);
+    expect(promote?.trust_per_public_share).toBe(10);
+    const prov = await new FieldProvenanceRepo().listByAccession("0000000000-26-000010");
+    const unitProv = prov.filter((p) => p.table_name === "spac_unit_terms");
+    const promoteProv = prov.filter((p) => p.table_name === "spac_promote_terms");
+    expect(unitProv.length).toBeGreaterThan(0);
+    expect(unitProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
+    expect(promoteProv.length).toBeGreaterThan(0);
+    expect(promoteProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
   });
 });

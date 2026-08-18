@@ -26,6 +26,10 @@ export class SpacUnitTermsRepo {
     return this.storage.get({ extractor_id, accession_number });
   }
 
+  async listAll(): Promise<SpacUnitTerms[]> {
+    return (await this.storage.getAll()) ?? [];
+  }
+
   /** All rows for an issuer (across extractor ids and filings), newest extract first. */
   async listByCik(cik: number): Promise<SpacUnitTerms[]> {
     const rows = (await this.storage.query({ cik })) ?? [];

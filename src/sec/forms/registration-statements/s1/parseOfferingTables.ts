@@ -17,7 +17,7 @@ const PRICE_MAX = 12;
 const PLACEHOLDER = /^(?:\[●\]|●|\[•\]|•|—|–|-|\*|\u25cf)?$/;
 
 const WORD_FRACTIONS: ReadonlyArray<{ readonly re: RegExp; readonly value: number }> = [
-  { re: /\b(?:three[\s-]fourths?|3\/4)\b/i, value: 0.75 },
+  { re: /\b(?:three[\s-](?:fourths?|quarters?)|3\/4)\b/i, value: 0.75 },
   { re: /\b(?:two[\s-]thirds?|2\/3)\b/i, value: 0.6667 },
   { re: /\b(?:one[\s-]half|1\/2)\b/i, value: 0.5 },
   { re: /\b(?:one[\s-]third|1\/3)\b/i, value: 0.3333 },
@@ -109,7 +109,7 @@ export function parseSpacPromoteTerms(text: string): SponsorPromoteRow | null {
 
 export function looksLikeUnitIpo(text: string): boolean {
   const fields = walkFields(text);
-  return fields.price_per_unit !== null || fields.units_offered !== null;
+  return fields.price_per_unit !== null && fields.units_offered !== null;
 }
 
 function emptyWalk(): WalkedFields {
@@ -154,41 +154,43 @@ function walkFields(text: string): WalkedFields {
       section = row.label;
       continue;
     }
-    const unitAt = unitsAtPrice(row.value);
+    const unitAt = unitsAtPrice(row.value) ?? firstUnitsAtPrice(row.cells);
     if (unitAt) {
+      const span = unitsAtPrice(row.value) ? row.value : unitAtSpan(row.cells);
       if (out.units_offered === null) {
         out.units_offered = unitAt.units;
-        take(row.value);
+        take(span);
       }
       if (out.price_per_unit === null && unitAt.price >= PRICE_MIN && unitAt.price <= PRICE_MAX) {
         out.price_per_unit = unitAt.price;
-        take(row.value);
+        take(span);
       }
     }
+    const valueBlob = row.value !== "" ? row.value : (firstNonEmpty(row.cells.slice(1)) ?? "");
     const compositionCell =
       isCompositionLabel(row.label) ||
-      /consisting of/i.test(row.value) ||
+      /consisting of/i.test(valueBlob) ||
       (isBulletLabel(row.label) && isCompositionBullet(row.value));
     if (compositionCell) {
       if (out.unit_composition === null) {
-        const clause = compositionClause(row.value);
+        const clause = compositionClause(valueBlob);
         if (clause !== null) {
           out.unit_composition = clause;
-          take(row.value);
+          take(valueBlob);
         }
       }
       if (out.warrant_fraction_per_unit === null) {
-        const w = warrantFraction(row.value);
+        const w = warrantFraction(valueBlob);
         if (w !== undefined) {
           out.warrant_fraction_per_unit = w;
-          take(row.value);
+          take(valueBlob);
         }
       }
       if (out.right_fraction_per_unit === null) {
-        const r = rightFraction(row.value);
+        const r = rightFraction(valueBlob);
         if (r !== undefined) {
           out.right_fraction_per_unit = r;
-          take(row.value);
+          take(valueBlob);
         }
       }
     }
@@ -200,7 +202,7 @@ function walkFields(text: string): WalkedFields {
       }
     }
     if (out.units_offered === null && isUnitsOfferedLabel(row.label)) {
-      const n = firstInteger(row.value);
+      const n = unitsOfferedCount(row.label, row.value);
       if (n !== undefined) {
         out.units_offered = n;
         take(row.value);
@@ -408,6 +410,13 @@ function isUnitsOfferedLabel(label: string): boolean {
   return /number of units offered|units offered|^securities offered$/.test(label);
 }
 
+function unitsOfferedCount(label: string, cell: string): number | undefined {
+  const named = cell.match(/(\d{1,3}(?:,\d{3})+|\d+)\s+units?\b/i);
+  if (named) return parseNumeric(named[1]);
+  if (/^securities offered$/.test(label)) return undefined;
+  return firstInteger(cell);
+}
+
 function isTrustLabel(label: string): boolean {
   return /trust account|held in trust|proceeds to be held/.test(label);
 }
@@ -424,7 +433,7 @@ function isFounderRow(row: TableRow): boolean {
   if (isFounderLabel(row.label)) return true;
   return (
     /number outstanding before this offering/.test(row.label) &&
-    /class b|founder shares|ordinary shares/i.test(row.value)
+    /class b|founder shares|ordinary shares|\bshares\b/i.test(row.value)
   );
 }
 
@@ -487,13 +496,6 @@ function headlineTotal(cell: string): number | undefined {
   return undefined;
 }
 
-function wordFraction(cell: string): number | undefined {
-  for (const { re, value } of WORD_FRACTIONS) {
-    if (re.test(cell)) return value;
-  }
-  return undefined;
-}
-
 function warrantFraction(cell: string): number | undefined {
   if (!/warrant/i.test(cell)) return undefined;
   for (const { re, value } of WORD_FRACTIONS) {
@@ -503,14 +505,23 @@ function warrantFraction(cell: string): number | undefined {
     );
     if (attached.test(cell)) return value;
   }
-  if (/\bone (?:redeemable )?warrant\b/i.test(cell)) return 1;
+  // "three-quarters of one warrant" is a fraction, not a whole warrant.
+  if (/(?<!\bof\s+)\bone (?:redeemable )?warrant\b/i.test(cell)) return 1;
   return undefined;
 }
 
 function rightFraction(cell: string): number | undefined {
-  if (/\bone right\b/i.test(cell)) return 1;
   if (!/\brights?\b/i.test(cell)) return undefined;
-  return wordFraction(cell);
+  for (const { re, value } of WORD_FRACTIONS) {
+    const attached = new RegExp(
+      `${re.source}(?:\\s*\\([^)]*\\))?\\s+(?:of\\s+(?:one\\s+)?)?(?:share\\s+)?rights?`,
+      "i"
+    );
+    if (attached.test(cell)) return value;
+  }
+  // "one Share Right to receive one tenth of a share" is one right, not 0.1.
+  if (/(?<!\bof\s+)\bone(?:\s+share)?\s+rights?\b/i.test(cell)) return 1;
+  return undefined;
 }
 
 function compositionClause(cell: string): string | null {
@@ -564,9 +575,25 @@ function placementWarrantCount(cell: string): number | undefined {
   return parseNumeric(m[1]);
 }
 
+function firstNonEmpty(cells: readonly string[]): string | undefined {
+  return cells.find((c) => c !== "");
+}
+
+function firstUnitsAtPrice(cells: readonly string[]): { units: number; price: number } | undefined {
+  for (const cell of cells) {
+    const hit = unitsAtPrice(cell);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+function unitAtSpan(cells: readonly string[]): string {
+  return cells.find((cell) => unitsAtPrice(cell) !== undefined) ?? "";
+}
+
 function unitsAtPrice(cell: string): { units: number; price: number } | undefined {
   const m = cell.match(
-    /(\d{1,3}(?:,\d{3})+|\d+)\s+units?(?:\s+\([^)]*\))?,?\s+at\s+\$\s*(\d+(?:\.\d+)?)\s+per\s+unit/i
+    /(\d{1,3}(?:,\d{3})+|\d+)\s+units?(?:\s+\([^)]*\))?,?\s+at(?:\s+a\s+price\s+of)?\s+\$\s*(\d+(?:\.\d+)?)\s+per\s+unit/i
   );
   if (!m) return undefined;
   const units = parseNumeric(m[1]);

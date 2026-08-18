@@ -228,4 +228,97 @@ describe("parseToBlocks", () => {
       expect(text).not.toContain(LEAK);
     });
   });
+
+  describe("CSS two-column offering summaries", () => {
+    function tableMarkdown(html: string): string {
+      return parseToBlocks(html)
+        .filter((b) => b.type === "table")
+        .map((b) => (b.type === "table" ? b.node.text : ""))
+        .join("\n");
+    }
+
+    it("emits a GFM table from Donnelley sum1/sum2 hanging-indent pairs", () => {
+      const md = tableMarkdown(`
+        <html><body>
+          <div class="sum1" style="width: 216pt; margin-top: 8pt; margin-left: 0pt; text-align: left;">Securities offered:</div>
+          <div class="sum2" style="margin-top: -10pt; margin-left: 240pt;">25,000,000 units, at $10.00 per unit, each unit consisting of:</div>
+          <table style="margin-left: 260pt;"><tr><td>•</td><td>one Class A ordinary share;</td></tr></table>
+          <table style="margin-left: 260pt;"><tr><td>•</td><td>one-half of one redeemable warrant.</td></tr></table>
+          <div class="sum1" style="width: 216pt; margin-top: 8pt; margin-left: 0pt;">Proposed Nasdaq symbols:</div>
+          <div class="sum2" style="margin-top: -10pt; margin-left: 240pt;">Units: “AACBU”</div>
+        </body></html>`);
+      expect(md).toMatch(/\|\s*Securities offered:\s*\|\s*25,000,000 units, at \$10\.00 per unit/);
+      expect(md).toMatch(/one-half of one redeemable warrant/);
+      expect(md).toMatch(/\|\s*Proposed Nasdaq symbols:\s*\|\s*Units:/);
+    });
+
+    it("emits a GFM table from Workiva width / negative-margin-top pairs", () => {
+      const md = tableMarkdown(`
+        <html><body>
+          <div style="width:144pt;">
+            <div style="margin-left:10pt;">Securities offered</div>
+          </div>
+          <div style="margin-left:168pt; margin-top:-12pt; width:288pt;">
+            20,000,000 units, at $10.00 per unit, each unit consisting of:
+          </div>
+          <div style="float:left; margin-left:188pt; width:20pt;">•</div>
+          <div style="margin-left:208pt;">one Class A ordinary share;</div>
+          <div style="clear:both; font-size:0pt; line-height:0pt;">&#8203;</div>
+          <div style="width:144pt;">
+            <div style="margin-left:10pt;">Proposed Nasdaq symbols</div>
+          </div>
+          <div style="margin-left:168pt; margin-top:-12pt;">Units: “XXXXU”</div>
+        </body></html>`);
+      expect(md).toMatch(/\|\s*Securities offered\s*\|\s*20,000,000 units, at \$10\.00 per unit/);
+      expect(md).toMatch(/one Class A ordinary share/);
+      expect(md).toMatch(/\|\s*Proposed Nasdaq symbols\s*\|\s*Units:/);
+    });
+  });
+
+  it("peels THE OFFERING out of a 2-column table's caption row so the units row survives", () => {
+    const blocks = parseToBlocks(`
+      <html><body>
+        <table>
+          <tr><td colspan="2">
+            <p align="center" style="text-align:center;font-weight:700"><b>THE OFFERING</b></p>
+            <p><em>In making your decision on whether to invest in our securities, you should take into account not only the background of the members of our management team, but also the special risks we face as a blank check company.</em></p>
+          </td></tr>
+          <tr><td>Securities offered:</td>
+              <td>7,500,000 units, at $10.00 per unit, each unit consisting of:</td></tr>
+        </table>
+      </body></html>`);
+    const headings = blocks
+      .filter((b) => b.type === "heading")
+      .map((b) => (b.type === "heading" ? b.text : ""));
+    expect(headings).toContain("THE OFFERING");
+    const md = blocks
+      .filter((b) => b.type === "table")
+      .map((b) => (b.type === "table" ? b.node.text : ""))
+      .join("\n");
+    expect(md).toMatch(/\|\s*Securities offered:\s*\|\s*7,500,000 units, at \$10\.00 per unit/);
+  });
+
+  it("unwraps a 1-column layout table so a nested heading and sibling data table survive", () => {
+    const blocks = parseToBlocks(`
+      <html><body>
+        <table>
+          <tr><td>
+            <p style="text-align:center;font-weight:700"><b>The Offering</b></p>
+            <p>In making your decision on whether to invest in our securities, you should take into account the risks.</p>
+          </td></tr>
+        </table>
+        <table>
+          <tr><td>Securities offered</td><td>7,500,000 units, at $10.00 per unit</td></tr>
+        </table>
+      </body></html>`);
+    const headings = blocks
+      .filter((b) => b.type === "heading")
+      .map((b) => (b.type === "heading" ? b.text : ""));
+    expect(headings).toContain("The Offering");
+    const md = blocks
+      .filter((b) => b.type === "table")
+      .map((b) => (b.type === "table" ? b.node.text : ""))
+      .join("\n");
+    expect(md).toMatch(/\|\s*Securities offered\s*\|\s*7,500,000 units, at \$10\.00 per unit/);
+  });
 });

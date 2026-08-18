@@ -10,7 +10,8 @@ import type { EdgarBlock, ResolvedStyle } from "./types";
 import { resolveStyle } from "./StyleResolver";
 import { isHeadingCandidate, assignHeadingLevels } from "./HeadingDetector";
 import { isPageFurniture } from "./pageFurniture";
-import { extractTable } from "./TableExtractor";
+import { extractTable, isLayoutTable, leadingOfferingCaption } from "./TableExtractor";
+import { consumeCssTwoColumnRun } from "./cssTwoColumnTable";
 
 const BLOCK_TAGS = new Set(["p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"]);
 
@@ -146,6 +147,17 @@ export function parseToBlocks(html: string): EdgarBlock[] {
 
     if (tag === "table") {
       emitProse(prose, out);
+      if (isLayoutTable($, el)) {
+        descend(el);
+        return;
+      }
+      const caption = leadingOfferingCaption($, el);
+      if (caption !== undefined) {
+        descend(caption.cell);
+        $(caption.row as never).remove();
+        out.push({ type: "table", node: extractTable($, el) });
+        return;
+      }
       out.push({ type: "table", node: extractTable($, el) });
       return; // do not descend; cells handled inside extractTable
     }
@@ -246,16 +258,30 @@ export function parseToBlocks(html: string): EdgarBlock[] {
   };
 
   // Walk an element's children in document order: text nodes feed the prose
-  // buffer, element nodes recurse through `walk`.
+  // buffer, element nodes recurse through `walk`. CSS hanging-indent
+  // two-column runs are consumed as one table before any child is walked, so
+  // a label/value pair cannot split into adjacent paragraphs.
   function descend(el: unknown): void {
-    for (const child of (el as { children?: unknown[] }).children ?? []) {
+    const children = (el as { children?: unknown[] }).children ?? [];
+    let i = 0;
+    while (i < children.length) {
+      const child = children[i];
       const cn = child as { type?: string; data?: string };
       if (cn.type === "text") {
         const t = (cn.data ?? "").replace(/\s+/g, " ").trim();
         if (t.length > 0) prose.push(t);
-      } else {
-        walk(child);
+        i += 1;
+        continue;
       }
+      const run = consumeCssTwoColumnRun($, children, i);
+      if (run !== undefined) {
+        emitProse(prose, out);
+        out.push({ type: "table", node: run.table });
+        i = run.nextIndex;
+        continue;
+      }
+      walk(child);
+      i += 1;
     }
   }
 

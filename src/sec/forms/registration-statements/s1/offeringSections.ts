@@ -41,6 +41,11 @@ import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
 import { verifyNumericObjectSpan } from "./verifyNumericObjectSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
+import {
+  DETERMINISTIC_MODEL_ID,
+  parseSpacOfferingTerms,
+  parseSpacPromoteTerms,
+} from "./parseOfferingTables";
 
 /**
  * Concatenate the sections production hands the offering-terms parser, so eval
@@ -264,12 +269,19 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
     ...modelExtractChain(models, async (text, m) => {
+      if (isSpac) {
+        const det = parseSpacOfferingTerms(text);
+        if (det !== null) return [det];
+      }
       const terms = await extractOfferingTerms(text, m, context);
       return terms === null ? [] : [terms];
     }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
       const terms = rows[0];
+      const model_id =
+        terms.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
       if (isSpac) {
         await spacUnitTermsRepo.save({
@@ -409,12 +421,17 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
     ...modelExtractChain(models, async (text, m) => {
+      const det = parseSpacPromoteTerms(text);
+      if (det !== null) return [det];
       const promote = await extractSponsorPromote(text, m, context);
       return promote === null ? [] : [promote];
     }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
       const promote = rows[0];
+      const model_id =
+        promote.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       await spacPromoteTermsRepo.save({
         extractor_id,
         accession_number,

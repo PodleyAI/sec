@@ -5,7 +5,7 @@
  */
 import * as cheerio from "cheerio";
 import { describe, expect, it } from "vitest";
-import { extractTable } from "./TableExtractor";
+import { extractTable, isLayoutTable } from "./TableExtractor";
 
 function tableFrom(html: string) {
   const $ = cheerio.load(html);
@@ -51,5 +51,19 @@ describe("extractTable", () => {
       </table>`);
     expect(t.columnCount).toBe(2);
     expect(t.rows[0].map((c) => c.text)).toEqual(["X", "Y"]);
+  });
+
+  it("does not treat a 1-column data table as a layout wrapper", () => {
+    const $ = cheerio.load(`<table><tr><th>H</th></tr><tr><td>1</td></tr></table>`);
+    expect(isLayoutTable($, $("table").get(0)!)).toBe(false);
+  });
+
+  it("treats a 1-column cell with two block children as a layout wrapper", () => {
+    const $ = cheerio.load(`
+      <table><tr><td>
+        <p><b>The Offering</b></p>
+        <p>Intro.</p>
+      </td></tr></table>`);
+    expect(isLayoutTable($, $("table").get(0)!)).toBe(true);
   });
 });
