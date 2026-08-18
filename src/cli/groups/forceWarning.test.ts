@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { cliEnv, runCliProcess } from "../testing/runCliProcess";
 
 interface RunResult {
   stdout: string;
@@ -84,13 +84,15 @@ function spawnUntilWarning(
 }
 
 describe("--force warning on commands that no longer reprocess forms", () => {
-  it("sync --force prints the version-gate warning", async () => {
+  it("sync all --force prints the version-gate warning", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sec-force-warn-"));
     try {
       const setup = await runCli(["db", "setup"], dir);
       expect(setup.exitCode).toBe(0);
 
-      const { output, sawWarning } = await spawnUntilWarning(["sync", "--force"], dir);
+      // Bare `sync` is a command group (help only). `--force` on `all` still
+      // reprocesses submissions/facts watermarks, not forms.
+      const { output, sawWarning } = await spawnUntilWarning(["sync", "all", "--force"], dir);
       expect(sawWarning).toBe(true);
       expect(output).toMatch(/--force no longer affects form processing/i);
     } finally {

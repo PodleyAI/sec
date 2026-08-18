@@ -162,6 +162,11 @@ export function addSyncLeafCommands(program: Command): void {
       )
       .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3)
       .action(async (opts: AllSyncOpts) => {
+        if (opts.force) {
+          console.warn(
+            "Note: --force no longer affects form processing. Forms re-run only via version bumps (see 'sec version')."
+          );
+        }
         await runCommand(
           async () => {
             await runSyncLeaves(
