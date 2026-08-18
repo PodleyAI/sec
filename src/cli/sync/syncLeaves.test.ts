@@ -16,6 +16,7 @@ import {
   type SyncRunContext,
   type SyncStep,
 } from "./syncLeaves";
+import { registerSecSyncLeaves } from "./registerSecSyncLeaves";
 
 function makeStep(id: string, run: SyncStep["run"] = async () => {}): SyncStep {
   return { id, title: id, run };
@@ -65,6 +66,19 @@ describe("syncLeaves registry", () => {
 
     expect(getSyncLeaf("facts")).toBe(second);
     expect(getSyncLeaf("facts")?.description).toBe("second");
+  });
+
+  it("registerSecSyncLeaves pins sync all leaf identity", () => {
+    registerSecSyncLeaves();
+
+    expect(listSyncLeaves().filter((l) => l.inAll).map((l) => l.id)).toEqual([
+      "submissions",
+      "facts",
+      "portals",
+      "crowdfunding",
+      "reg-a",
+      "spacs",
+    ]);
   });
 });
 
