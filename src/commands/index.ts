@@ -13,7 +13,6 @@ import { addFetchCommands } from "../cli/groups/fetch";
 import { addInitCommand } from "../cli/groups/init";
 import { addQueryCommands } from "../cli/groups/query";
 import { addSyncCommand } from "../cli/groups/sync";
-import { addUpdateCommands } from "../cli/groups/update";
 import { addVersionCommands } from "../cli/groups/version";
 import { addResolveCommands } from "../cli/groups/resolve";
 import { addCanonicalCommands } from "../cli/groups/canonical";
@@ -100,7 +99,6 @@ export const AddCommands = (program: Command): void => {
 
   addBootstrapCommands(program);
   addSyncCommand(program);
-  addUpdateCommands(program);
   addFetchCommands(program);
   addQueryCommands(program);
   addDbCommands(program);

@@ -227,7 +227,7 @@ describe("DownloadSpacCandidateDocsTask", () => {
     // Thrown, the workflow renderer answers it with process.exit(1) on a TTY,
     // skipping the command's error handling and the CLI's teardown.
     const out = await runDownload({ set: "registration" });
-    expect(out.error).toMatch(/sec update spacs/);
+    expect(out.error).toMatch(/sec sync spacs/);
     expect(out.candidates).toBe(0);
     expect(out.matched).toBe(0);
     expect(out.downloaded).toBe(0);

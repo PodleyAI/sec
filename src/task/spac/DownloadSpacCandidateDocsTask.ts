@@ -408,7 +408,7 @@ export class DownloadSpacCandidateDocsTask extends Task<
       return {
         ...emptyResult(0, 0),
         error:
-          "No SPAC candidates in the requested confidence tier(s). Run `sec update spacs` first.",
+          "No SPAC candidates in the requested confidence tier(s). Run `sec sync spacs` first.",
       };
     }
 
