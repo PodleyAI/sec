@@ -201,4 +201,33 @@ describe("CatchUpDailyIndexTask", () => {
       .get({ id: DAILY_INDEX_CURSOR_ID });
     expect(cursor?.last_success).toBe("2026-08-14");
   });
+
+  it("seeds from max cik_last_update when the cursor is empty", async () => {
+    await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).delete({
+      id: DAILY_INDEX_CURSOR_ID,
+    });
+    await globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN).put({
+      cik: 1018724,
+      last_update: "2026-08-10",
+    });
+
+    const runSpy = vi.spyOn(FetchDailyIndexTask.prototype, "run").mockResolvedValue({
+      updateList: [],
+    });
+
+    await new CatchUpDailyIndexTask().execute({ lookback: 3 }, ctx());
+
+    const fetchedDates = runSpy.mock.calls
+      .map((call) => call[0]?.date)
+      .filter((date): date is string => typeof date === "string");
+    expect(fetchedDates).not.toContain("2026-08-10");
+    expect(fetchedDates).toContain("2026-08-11");
+    expect(fetchedDates).toContain("2026-08-17");
+    expect(fetchedDates).toContain(TODAY);
+
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
+  });
 });

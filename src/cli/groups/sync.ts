@@ -18,7 +18,7 @@ interface AllSyncOpts {
   readonly lookback: number;
 }
 
-function validateLookback(lookback: number): number {
+export function validateLookback(lookback: number): number {
   if (lookback < 1) {
     throw new Error("--lookback must be at least 1");
   }
@@ -67,7 +67,10 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
   if (leaf.id === "submissions") {
     cmd
       .option("--force", "Reprocess submissions, ignoring processed state", false)
-      .option("--from <date>", "Override daily-index catch-up start (YYYY-MM-DD)")
+      .option(
+        "--from <date>",
+        "Exclusive catch-up start (YYYY-MM-DD); fetch begins the day after this date"
+      )
       .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3);
   }
 
@@ -106,34 +109,34 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
     full?: boolean;
     shard?: string;
   }) => {
-    const shard = parseShardOption(opts.shard);
-    let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
-
-    if (leaf.id === "submissions") {
-      ctx = {
-        ...ctx,
-        force: opts.force ?? false,
-        from: opts.from,
-        lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
-      };
-    }
-
-    if (leaf.id === "facts") {
-      ctx = {
-        ...ctx,
-        force: opts.force ?? false,
-        retryFailed: opts.retryFailed ?? false,
-      };
-    }
-
-    if (leaf.id === "spacs") {
-      ctx = {
-        ...ctx,
-        full: opts.full ?? false,
-      };
-    }
-
     await runCommand(async () => {
+      const shard = parseShardOption(opts.shard);
+      let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
+
+      if (leaf.id === "submissions") {
+        ctx = {
+          ...ctx,
+          force: opts.force ?? false,
+          from: opts.from,
+          lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
+        };
+      }
+
+      if (leaf.id === "facts") {
+        ctx = {
+          ...ctx,
+          force: opts.force ?? false,
+          retryFailed: opts.retryFailed ?? false,
+        };
+      }
+
+      if (leaf.id === "spacs") {
+        ctx = {
+          ...ctx,
+          full: opts.full ?? false,
+        };
+      }
+
       await runSyncLeaves([leaf.id], ctx, opts.step);
     }, leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined);
   });
@@ -152,7 +155,10 @@ export function addSyncLeafCommands(program: Command): void {
       .description("Run every inAll sync leaf in order")
       .option("--force", "Reprocess submissions/facts watermarks", false)
       .option("--retry-failed", "Also retry failed facts fetches", false)
-      .option("--from <date>", "Override daily-index catch-up start (YYYY-MM-DD)")
+      .option(
+        "--from <date>",
+        "Exclusive catch-up start (YYYY-MM-DD); fetch begins the day after this date"
+      )
       .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3)
       .action(async (opts: AllSyncOpts) => {
         await runCommand(async () => {
