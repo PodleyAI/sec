@@ -62,10 +62,7 @@ function minimalSpac(cik: number): Spac {
   };
 }
 
-function candidateRow(
-  cik: number,
-  confidence: SpacCandidate["confidence"]
-): SpacCandidate {
+function candidateRow(cik: number, confidence: SpacCandidate["confidence"]): SpacCandidate {
   return {
     cik,
     name: `Candidate ${cik}`,

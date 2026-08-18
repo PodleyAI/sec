@@ -249,9 +249,7 @@ export function resolveStyle($: CheerioAPI, el: unknown): ResolvedStyle {
   // Raw domhandler traversal rather than `cur.parent()`: the cheerio wrapper
   // allocated an object per ancestor, per block.
   let cur = el as
-    | { name?: string; attribs?: Record<string, string>; parent?: unknown }
-    | null
-    | undefined;
+    { name?: string; attribs?: Record<string, string>; parent?: unknown } | null | undefined;
   while (cur) {
     const tag = (cur.name ?? "").toLowerCase();
     tagNames.push(tag);

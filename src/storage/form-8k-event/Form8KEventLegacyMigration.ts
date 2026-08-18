@@ -56,10 +56,9 @@ export async function migrateLegacyForm8KEventsTable(): Promise<void> {
 function migrateSqlite(): void {
   const db = getDb();
   const tableExistsRow = db
-    .prepare<
-      [],
-      { name: string }
-    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`)
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='form_8k_events'`
+    )
     .get();
   if (!tableExistsRow) return;
   const columns = db.prepare<[], { name: string }>(`PRAGMA table_info(form_8k_events)`).all();

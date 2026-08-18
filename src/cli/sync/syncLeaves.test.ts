@@ -71,14 +71,11 @@ describe("syncLeaves registry", () => {
   it("registerSecSyncLeaves pins sync all leaf identity", () => {
     registerSecSyncLeaves();
 
-    expect(listSyncLeaves().filter((l) => l.inAll).map((l) => l.id)).toEqual([
-      "submissions",
-      "facts",
-      "portals",
-      "crowdfunding",
-      "reg-a",
-      "spacs",
-    ]);
+    expect(
+      listSyncLeaves()
+        .filter((l) => l.inAll)
+        .map((l) => l.id)
+    ).toEqual(["submissions", "facts", "portals", "crowdfunding", "reg-a", "spacs"]);
   });
 });
 
@@ -142,9 +139,7 @@ describe("runSyncLeaves", () => {
   it("throws when stepId is unknown, listing valid step ids", async () => {
     const ctx: SyncRunContext = EMPTY_SYNC_CONTEXT;
 
-    registerSyncLeaf(
-      makeLeaf("multi", [makeStep("one"), makeStep("two"), makeStep("three")])
-    );
+    registerSyncLeaf(makeLeaf("multi", [makeStep("one"), makeStep("two"), makeStep("three")]));
 
     await expect(runSyncLeaves(["multi"], ctx, "nope")).rejects.toThrow(
       /Unknown --step 'nope' for sync multi/

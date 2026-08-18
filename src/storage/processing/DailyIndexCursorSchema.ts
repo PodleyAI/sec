@@ -28,6 +28,4 @@ export type DailyIndexCursorRepositoryStorage = ITabularStorage<
 >;
 
 export const DAILY_INDEX_CURSOR_REPOSITORY_TOKEN =
-  createServiceToken<DailyIndexCursorRepositoryStorage>(
-    "sec.storage.dailyIndexCursorRepository"
-  );
+  createServiceToken<DailyIndexCursorRepositoryStorage>("sec.storage.dailyIndexCursorRepository");

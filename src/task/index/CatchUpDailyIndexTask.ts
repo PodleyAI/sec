@@ -163,9 +163,7 @@ export class CatchUpDailyIndexTask extends Task<
     await unlinkCacheFile(plan.today);
     try {
       const fetchResult = await context.own(new FetchDailyIndexTask()).run({ date: plan.today });
-      await context
-        .own(new StoreCikLastUpdatedTask())
-        .run({ updateList: fetchResult.updateList });
+      await context.own(new StoreCikLastUpdatedTask()).run({ updateList: fetchResult.updateList });
       todayFetched = true;
       fetched++;
     } catch (err) {

@@ -28,15 +28,7 @@ export type TheNadas =
   | "...";
 
 export type TheConfused =
-  | ","
-  | '"'
-  | "'"
-  | "ETC"
-  | "SAME"
-  | '("ETC")'
-  | "(SAME)"
-  | "[SAME]"
-  | "See Comments";
+  "," | '"' | "'" | "ETC" | "SAME" | '("ETC")' | "(SAME)" | "[SAME]" | "See Comments";
 
 export type TheEntities =
   | "CORP"

@@ -61,13 +61,15 @@ describe("CatchUpDailyIndexTask", () => {
   });
 
   it("advances cursor through 404 on a completed Saturday and finishes on 2xx days", async () => {
-    const runSpy = vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
-      const date = input?.date;
-      if (date === "2026-08-16" || date === TODAY) {
-        throw httpError(404);
-      }
-      return { updateList: [[1018724, date!] as [number, string]] };
-    });
+    const runSpy = vi
+      .spyOn(FetchDailyIndexTask.prototype, "run")
+      .mockImplementation(async (input) => {
+        const date = input?.date;
+        if (date === "2026-08-16" || date === TODAY) {
+          throw httpError(404);
+        }
+        return { updateList: [[1018724, date!] as [number, string]] };
+      });
 
     const result = await new CatchUpDailyIndexTask().execute({}, ctx());
 
@@ -192,9 +194,7 @@ describe("CatchUpDailyIndexTask", () => {
       todayFetched: false,
       lastSuccess: "2026-08-14",
     });
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Would fetch completed")
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Would fetch completed"));
 
     const cursor = await globalServiceRegistry
       .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)

@@ -113,17 +113,17 @@ flowchart LR
 
 ### 0.3 Command → Data Mapping
 
-| Command                  | Reads                                  | Writes                                                                                                             |
-| ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `sec bootstrap download` | SEC bulk archives                      | Raw files (filesystem)                                                                                             |
-| `sec bootstrap ingest`   | Raw files (filesystem)                 | CIK Names, Entity, Filings, Addresses, Phones, Tickers, SIC, Company Facts, Processed Submissions, Processed Facts |
-| `sec bootstrap`          | Raw files + SEC APIs                   | All core + form tables                                                                                             |
-| `sec sync`               | SEC daily index + APIs                 | CIK Last Update, Entity, Filings, Company Facts, Form tables, SPAC candidates                                      |
-| `sec fetch submissions`  | SEC submissions API                    | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions                                            |
-| `sec fetch facts`        | SEC facts API                          | Company Facts, Processed Facts                                                                                     |
-| `sec fetch form`         | Filings table, SEC filing docs         | Form-specific tables, Processed Filings                                                                            |
-| `sec fetch doc`          | SEC filing document                    | Form-specific tables                                                                                               |
-| `sec query *`            | Database tables                        | _(read-only)_                                                                                                      |
+| Command                  | Reads                          | Writes                                                                                                             |
+| ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `sec bootstrap download` | SEC bulk archives              | Raw files (filesystem)                                                                                             |
+| `sec bootstrap ingest`   | Raw files (filesystem)         | CIK Names, Entity, Filings, Addresses, Phones, Tickers, SIC, Company Facts, Processed Submissions, Processed Facts |
+| `sec bootstrap`          | Raw files + SEC APIs           | All core + form tables                                                                                             |
+| `sec sync`               | SEC daily index + APIs         | CIK Last Update, Entity, Filings, Company Facts, Form tables, SPAC candidates                                      |
+| `sec fetch submissions`  | SEC submissions API            | Entity, Filings, Addresses, Phones, Tickers, SIC, Processed Submissions                                            |
+| `sec fetch facts`        | SEC facts API                  | Company Facts, Processed Facts                                                                                     |
+| `sec fetch form`         | Filings table, SEC filing docs | Form-specific tables, Processed Filings                                                                            |
+| `sec fetch doc`          | SEC filing document            | Form-specific tables                                                                                               |
+| `sec query *`            | Database tables                | _(read-only)_                                                                                                      |
 
 ---
 
@@ -182,28 +182,28 @@ Bring local SEC data forward to today. `sync` is a **command group** — bare `s
 
 **Leaves** (each is `sec sync <leaf>`):
 
-| Leaf | Steps (`--step`) | What it runs |
-| ---- | ---------------- | ------------ |
-| `submissions` | `index`, `submissions` | Daily-index catch-up + lookback, then submissions refresh |
-| `facts` | (single) | Company-facts refresh |
-| `portals` | (single) | Forms sweep: CFPORTAL family |
-| `crowdfunding` | (single) | Forms sweep: Form C family |
-| `reg-a` | (single) | Forms sweep: Reg A family |
-| `forms <types>` | (single) | Generic forms sweep (comma-separated types). Not in `all` |
-| `spacs` | `identify`, `process` | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates |
-| `all` | (none) | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` |
+| Leaf            | Steps (`--step`)       | What it runs                                                                                                      |
+| --------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `submissions`   | `index`, `submissions` | Daily-index catch-up + lookback, then submissions refresh                                                         |
+| `facts`         | (single)               | Company-facts refresh                                                                                             |
+| `portals`       | (single)               | Forms sweep: CFPORTAL family                                                                                      |
+| `crowdfunding`  | (single)               | Forms sweep: Form C family                                                                                        |
+| `reg-a`         | (single)               | Forms sweep: Reg A family                                                                                         |
+| `forms <types>` | (single)               | Generic forms sweep (comma-separated types). Not in `all`                                                         |
+| `spacs`         | `identify`, `process`  | SPAC candidate identification, then SPAC-chain forms for known SPACs ∪ high/medium candidates                     |
+| `all`           | (none)                 | Every leaf with `inAll: true`, in order: `submissions` → `facts` → `portals` → `crowdfunding` → `reg-a` → `spacs` |
 
 **Common flags:**
 
-| Flag | Leaves | Description |
-| ---- | ------ | ----------- |
-| `--step <name>` | Multi-step leaves only | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list |
-| `--from <date>` | `submissions`, `all` | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success` |
-| `--lookback <n>` | `submissions`, `all` | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**) |
-| `--force` | `submissions`, `facts`, `all` | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step) |
-| `--retry-failed` | `facts`, `all` | Also re-fetch CIKs whose last facts processing failed |
-| `--full` | `spacs` | Rescan every entity on the `identify` step (default is incremental) |
-| `--shard <i/N>` | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based) |
+| Flag             | Leaves                                               | Description                                                                                                                         |
+| ---------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `--step <name>`  | Multi-step leaves only                               | Run one step (`index` / `submissions` on `submissions`; `identify` / `process` on `spacs`). Unknown name errors with the valid list |
+| `--from <date>`  | `submissions`, `all`                                 | Exclusive daily-index catch-up start (`YYYY-MM-DD`); fetch begins the day after this date, like the cursor's `last_success`         |
+| `--lookback <n>` | `submissions`, `all`                                 | Re-fetch the last _n_ **completed** calendar days, bypassing cache (default **3**)                                                  |
+| `--force`        | `submissions`, `facts`, `all`                        | Reprocess submissions/facts, ignoring processed state (`--force` on `submissions` applies to the `submissions` step)                |
+| `--retry-failed` | `facts`, `all`                                       | Also re-fetch CIKs whose last facts processing failed                                                                               |
+| `--full`         | `spacs`                                              | Rescan every entity on the `identify` step (default is incremental)                                                                 |
+| `--shard <i/N>`  | `portals`, `crowdfunding`, `reg-a`, `spacs`, `forms` | Process shard _i_ of _N_ (1-based)                                                                                                  |
 
 **Daily path:** `sec sync all` (or `sec sync submissions` then other leaves as needed).
 

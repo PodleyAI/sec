@@ -129,11 +129,13 @@ describe("parseSpacOfferingTerms optional fields", () => {
   });
 
   it("counts a whole warrant as 1 even when the same cell states a right conversion fraction", () => {
-    const row = parseSpacOfferingTerms(`
+    const row = parseSpacOfferingTerms(
+      `
 | Offering price | $10.00 |
 | Number of units offered | 10,000,000 |
 | Securities offered | each unit consisting of one ordinary share, one redeemable warrant, and one right. Each right entitles the holder thereof to receive one-fourth (1/4) of one ordinary share |
-`.trim())!;
+`.trim()
+    )!;
     expect(row.warrant_fraction_per_unit).toBe(1);
     expect(row.right_fraction_per_unit).toBe(1);
   });

@@ -56,10 +56,9 @@ function addressHashIds(): string[] {
 
 function tableExists(name: string): boolean {
   const row = getDb()
-    .prepare<
-      [],
-      { name: string }
-    >(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`
+    )
     .get();
   return Boolean(row);
 }
@@ -117,26 +116,23 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
     expect(regionColumnIsNullable()).toBe(true);
 
     const rows = db
-      .prepare<
-        [],
-        { address_hash_id: string; city: string; state_or_country: string | null }
-      >(`SELECT address_hash_id, city, state_or_country FROM addresses`)
+      .prepare<[], { address_hash_id: string; city: string; state_or_country: string | null }>(
+        `SELECT address_hash_id, city, state_or_country FROM addresses`
+      )
       .all();
     expect(rows).toEqual([{ address_hash_id: "hash-1", city: "NEW YORK", state_or_country: "NY" }]);
 
     // The rebuild must not leave the table unindexed, and the scratch table is gone.
     const indexes = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='addresses' AND sql IS NOT NULL`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='addresses' AND sql IS NOT NULL`
+      )
       .all();
     expect(indexes.length).toBeGreaterThan(0);
     const leftover = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='addresses__legacy_region'`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='addresses__legacy_region'`
+      )
       .get();
     expect(leftover).toBeUndefined();
 
@@ -380,10 +376,9 @@ describe("migrateAddressRegionNullable (sqlite)", () => {
       expect(columnIsNullable(column)).toBe(true);
     }
     const leftover = db
-      .prepare<
-        [],
-        { name: string }
-      >(`SELECT name FROM sqlite_master WHERE type='table' AND name='addresses__legacy_region'`)
+      .prepare<[], { name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='addresses__legacy_region'`
+      )
       .get();
     expect(leftover).toBeUndefined();
   });

@@ -57,8 +57,7 @@ export class EvalS1CandidateTask extends Task<
     const section = { filing: input.filing, extractor: input.extractor, text: input.text };
     const tag = `${input.filing} ${input.extractor}`;
     const candModel = (await getGlobalModelRepository().findByName(input.modelId)) as
-      | ModelConfig
-      | undefined;
+      ModelConfig | undefined;
     if (!candModel) {
       const result: OracleRunResult = {
         filing: input.filing,

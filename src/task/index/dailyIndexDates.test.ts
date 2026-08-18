@@ -5,11 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  dailyIndexCacheRelPath,
-  planIndexDays,
-  todayEtYYYYdMMdDD,
-} from "./dailyIndexDates";
+import { dailyIndexCacheRelPath, planIndexDays, todayEtYYYYdMMdDD } from "./dailyIndexDates";
 
 const TODAY = "2026-08-18";
 
@@ -99,8 +95,6 @@ describe("planIndexDays", () => {
 
 describe("dailyIndexCacheRelPath", () => {
   it("matches SecFetchDailyIndexTask cache layout", () => {
-    expect(dailyIndexCacheRelPath("2026-08-17")).toBe(
-      "daily-index/2026/2026-08-17.master.idx"
-    );
+    expect(dailyIndexCacheRelPath("2026-08-17")).toBe("daily-index/2026/2026-08-17.master.idx");
   });
 });

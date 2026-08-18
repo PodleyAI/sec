@@ -4,11 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  formsSweepLoop,
-  newFormsWorklistTask,
-  type FormsShard,
-} from "../../task/forms/formsSweep";
+import { formsSweepLoop, newFormsWorklistTask, type FormsShard } from "../../task/forms/formsSweep";
 import { runWorkflowCli } from "../runWorkflow";
 
 export async function runFormsSweep(options: {

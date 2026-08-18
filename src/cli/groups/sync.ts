@@ -48,11 +48,7 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
         await runCommand(async () => {
           const formTypes = types.split(",");
           const shard = parseShardOption(opts.shard);
-          await runSyncLeaves(
-            ["forms"],
-            { ...EMPTY_SYNC_CONTEXT, shard, formTypes },
-            undefined
-          );
+          await runSyncLeaves(["forms"], { ...EMPTY_SYNC_CONTEXT, shard, formTypes }, undefined);
         });
       });
     return;
@@ -100,46 +96,51 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
     );
   }
 
-  cmd.action(async (opts: {
-    step?: string;
-    force?: boolean;
-    retryFailed?: boolean;
-    from?: string;
-    lookback?: number;
-    full?: boolean;
-    shard?: string;
-  }) => {
-    await runCommand(async () => {
-      const shard = parseShardOption(opts.shard);
-      let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
+  cmd.action(
+    async (opts: {
+      step?: string;
+      force?: boolean;
+      retryFailed?: boolean;
+      from?: string;
+      lookback?: number;
+      full?: boolean;
+      shard?: string;
+    }) => {
+      await runCommand(
+        async () => {
+          const shard = parseShardOption(opts.shard);
+          let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
 
-      if (leaf.id === "submissions") {
-        ctx = {
-          ...ctx,
-          force: opts.force ?? false,
-          from: opts.from,
-          lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
-        };
-      }
+          if (leaf.id === "submissions") {
+            ctx = {
+              ...ctx,
+              force: opts.force ?? false,
+              from: opts.from,
+              lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
+            };
+          }
 
-      if (leaf.id === "facts") {
-        ctx = {
-          ...ctx,
-          force: opts.force ?? false,
-          retryFailed: opts.retryFailed ?? false,
-        };
-      }
+          if (leaf.id === "facts") {
+            ctx = {
+              ...ctx,
+              force: opts.force ?? false,
+              retryFailed: opts.retryFailed ?? false,
+            };
+          }
 
-      if (leaf.id === "spacs") {
-        ctx = {
-          ...ctx,
-          full: opts.full ?? false,
-        };
-      }
+          if (leaf.id === "spacs") {
+            ctx = {
+              ...ctx,
+              full: opts.full ?? false,
+            };
+          }
 
-      await runSyncLeaves([leaf.id], ctx, opts.step);
-    }, leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined);
-  });
+          await runSyncLeaves([leaf.id], ctx, opts.step);
+        },
+        leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined
+      );
+    }
+  );
 }
 
 export function addSyncLeafCommands(program: Command): void {
@@ -161,15 +162,18 @@ export function addSyncLeafCommands(program: Command): void {
       )
       .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3)
       .action(async (opts: AllSyncOpts) => {
-        await runCommand(async () => {
-          await runSyncLeaves(
-            listSyncLeaves()
-              .filter((leaf) => leaf.inAll)
-              .map((leaf) => leaf.id),
-            contextFromAllOpts(opts),
-            undefined
-          );
-        }, { force: opts.force });
+        await runCommand(
+          async () => {
+            await runSyncLeaves(
+              listSyncLeaves()
+                .filter((leaf) => leaf.inAll)
+                .map((leaf) => leaf.id),
+              contextFromAllOpts(opts),
+              undefined
+            );
+          },
+          { force: opts.force }
+        );
       });
   }
 

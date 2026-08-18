@@ -6,10 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { FORM_TO_EXTRACTOR_ID } from "../../storage/versioning/extractorIds";
-import {
-  SYNC_FORM_DOMAINS,
-  formsForExtractorIds,
-} from "./syncFormDomains";
+import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
 
 type SyncFormDomain = keyof typeof SYNC_FORM_DOMAINS;
 
@@ -55,16 +52,7 @@ describe("SYNC_FORM_DOMAINS", () => {
   it("includes key SPAC timeline forms and excludes unrelated extractors", () => {
     const spacForms = formsForExtractorIds(SYNC_FORM_DOMAINS.spacs);
 
-    for (const form of [
-      "S-1",
-      "S-1/A",
-      "424B4",
-      "8-K",
-      "DEFM14A",
-      "DEF 14A",
-      "25-NSE",
-      "20-F",
-    ]) {
+    for (const form of ["S-1", "S-1/A", "424B4", "8-K", "DEFM14A", "DEF 14A", "25-NSE", "20-F"]) {
       expect(spacForms, `expected ${form} in spacs`).toContain(form);
     }
 

@@ -12,11 +12,7 @@ import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
 import { listSpacProcessCiks } from "./spacSyncCiks";
 import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
-import {
-  getSyncLeaf,
-  registerSyncLeaf,
-  type SyncRunContext,
-} from "./syncLeaves";
+import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
 
 export function registerSecSyncLeaves(): void {
   if (getSyncLeaf("submissions") !== undefined) {
@@ -44,9 +40,7 @@ export function registerSecSyncLeaves(): void {
         id: "submissions",
         title: "Update submissions for all CIKs",
         run: async (ctx: SyncRunContext) => {
-          await runWorkflowCli([
-            new UpdateAllSubmissionsTask({ defaults: { force: ctx.force } }),
-          ]);
+          await runWorkflowCli([new UpdateAllSubmissionsTask({ defaults: { force: ctx.force } })]);
         },
       },
     ],
@@ -158,9 +152,7 @@ export function registerSecSyncLeaves(): void {
         id: "identify",
         title: "Identify SPAC candidates",
         run: async (ctx: SyncRunContext) => {
-          await runWorkflowCli([
-            new IdentifySpacsTask({ defaults: { full: ctx.full } }),
-          ]);
+          await runWorkflowCli([new IdentifySpacsTask({ defaults: { full: ctx.full } })]);
         },
       },
       {

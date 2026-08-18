@@ -75,15 +75,12 @@ export class StoreCikLastUpdatedTask extends Task<
       const ciks = batch.map((row) => row.cik);
       const existingRows =
         (await cikLastUpdateRepo.query({ cik: { value: ciks, operator: "in" } })) ?? [];
-      const existingByCik = new Map(
-        existingRows.map((row) => [row.cik, row.last_update] as const)
-      );
+      const existingByCik = new Map(existingRows.map((row) => [row.cik, row.last_update] as const));
       const mergedBatch = batch.map(({ cik, last_update }) => {
         const existing = existingByCik.get(cik);
         return {
           cik,
-          last_update:
-            existing !== undefined && existing > last_update ? existing : last_update,
+          last_update: existing !== undefined && existing > last_update ? existing : last_update,
         };
       });
 
