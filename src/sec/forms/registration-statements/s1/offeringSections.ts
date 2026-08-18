@@ -596,38 +596,47 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   }
 
   // --- Use of proceeds ---
-  await runSection<UseOfProceedsLineRow>({
-    sectionName: "use-of-proceeds",
-    text: byName.get(S1_SECTIONS.USE_OF_PROCEEDS),
-    emptyDetail: "no line items returned",
-    lowConfidenceDetail: "all rows below confidence floor",
-    // Prompt-injection backstop: refuse to persist any use-of-proceeds row whose
-    // source_span is not a verbatim substring of the Use of Proceeds section text.
-    verifyRow: (text, r) => classifySpan(text, r.source_span),
-    unverifiedAllDetail:
-      "all $T confident use-of-proceeds rows had source_span not present in section text",
-    unverifiedPartialDetail:
-      "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),
-    persist: async (rows) => {
-      const now = new Date().toISOString();
-      let lineIndex = 0;
-      for (const r of rows) {
-        await useOfProceedsRepo.save({
-          extractor_id,
-          accession_number,
-          line_index: lineIndex++,
-          cik,
-          purpose: r.purpose,
-          amount: r.amount,
-          percent: r.percent,
-          note: r.note,
-          confidence: r.confidence,
-          source_span: boundSourceSpan(r.source_span),
-          created_at: now,
-        });
-      }
-      return rows.length;
-    },
-  });
+  const useOfProceedsText = byName.get(S1_SECTIONS.USE_OF_PROCEEDS);
+  if (isSpac && !unitIpo) {
+    await markSectionResolved("use-of-proceeds");
+  } else {
+    await runSection<UseOfProceedsLineRow>({
+      sectionName: "use-of-proceeds",
+      text: useOfProceedsText,
+      emptyDetail: "no line items returned",
+      lowConfidenceDetail: "all rows below confidence floor",
+      verifyRow: (text, r) => classifySpan(text, r.source_span),
+      unverifiedAllDetail:
+        "all $T confident use-of-proceeds rows had source_span not present in section text",
+      unverifiedPartialDetail:
+        "$N of $T confident use-of-proceeds rows had source_span not present in section text",
+      ...modelExtractChain(models, async (text, m) => {
+        if (isSpac) {
+          const det = parseSpacUseOfProceeds(text);
+          if (det.length >= 2) return det;
+        }
+        return extractUseOfProceeds(text, m, context);
+      }),
+      persist: async (rows) => {
+        const now = new Date().toISOString();
+        let lineIndex = 0;
+        for (const r of rows) {
+          await useOfProceedsRepo.save({
+            extractor_id,
+            accession_number,
+            line_index: lineIndex++,
+            cik,
+            purpose: r.purpose,
+            amount: r.amount,
+            percent: r.percent,
+            note: r.note,
+            confidence: r.confidence,
+            source_span: boundSourceSpan(r.source_span),
+            created_at: now,
+          });
+        }
+        return rows.length;
+      },
+    });
+  }
 }

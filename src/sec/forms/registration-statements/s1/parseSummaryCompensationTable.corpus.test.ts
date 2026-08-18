@@ -12,11 +12,11 @@ import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 import { S1_SECTIONS } from "./DocumentSegmenter";
-import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
+import { parseSummaryCompensationTable } from "./parseSummaryCompensationTable";
 
 const MOCK_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "../../../html/mock_data/s1");
 
-function purposeKey(s: string): string {
+function nameKey(s: string): string {
   return s.replace(/\s+/g, "").toLowerCase();
 }
 
@@ -41,35 +41,36 @@ function cases(): ReturnType<typeof fixtures> {
   return corpus;
 }
 
-describe("parseSpacUseOfProceeds golden corpus", () => {
+describe("parseSummaryCompensationTable golden corpus", () => {
   it("loads committed S-1 fixtures", () => {
     expect(cases().length).toBeGreaterThan(0);
   });
 
-  it("never false-hits a golden empty use-of-proceeds label", () => {
+  it("never false-hits a golden empty executive-compensation label", () => {
     for (const { filing, byName } of cases()) {
-      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      const labels = getGoldenLabels(filing, "executive-compensation");
       if (!labels || labels.length !== 0) continue;
-      const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
-      expect(parseSpacUseOfProceeds(text), filing).toEqual([]);
+      const text = byName.get(S1_SECTIONS.EXECUTIVE_COMPENSATION) ?? "";
+      expect(parseSummaryCompensationTable(text), filing).toEqual([]);
     }
   });
 
-  it("does not invent purposes outside the golden set when it hits", () => {
+  it("does not invent officers outside the golden set when it hits", () => {
     for (const { filing, byName } of cases()) {
-      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      const labels = getGoldenLabels(filing, "executive-compensation");
       if (!labels || labels.length === 0) continue;
-      const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
-      const parsed = parseSpacUseOfProceeds(text);
+      const text = byName.get(S1_SECTIONS.EXECUTIVE_COMPENSATION) ?? "";
+      const parsed = parseSummaryCompensationTable(text);
       if (parsed.length === 0) continue;
       const allowed = new Set(
         labels
-          .map((r) => (typeof r.purpose === "string" ? purposeKey(r.purpose) : ""))
+          .map((r) => (typeof r.person_name === "string" ? nameKey(r.person_name) : ""))
           .filter((k) => k !== "")
       );
       const extras = parsed
-        .map((row) => row.purpose ?? "")
-        .filter((p) => p !== "" && !allowed.has(purposeKey(p)));
+        .map((row) => row.person_name)
+        .filter((n, i, arr) => arr.indexOf(n) === i)
+        .filter((n) => n !== "" && !allowed.has(nameKey(n)));
       expect(extras, filing).toEqual([]);
     }
   });

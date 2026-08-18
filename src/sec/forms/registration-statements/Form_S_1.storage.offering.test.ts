@@ -15,6 +15,7 @@ import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/Extractio
 import { FieldProvenanceRepo } from "../../../storage/provenance/FieldProvenanceRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
 import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkRepo";
+import { UseOfProceedsRepo } from "../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
@@ -529,5 +530,118 @@ describe("processFormS1 offering terms", () => {
     expect(await new UnderwriterLinkRepo().listByAccession("0000000000-26-000012")).toEqual([]);
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
     expect(dl.filter((d) => d.section_name === "underwriters")).toEqual([]);
+  });
+
+  it("persists a use-of-proceeds table hit as deterministic without calling the model", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1>",
+      "<table>",
+      "<tr><td>Offering price</td><td>$10.00</td></tr>",
+      "<tr><td>Number of units offered</td><td>20,000,000</td></tr>",
+      "<tr><td>Founder shares</td><td>5,750,000</td></tr>",
+      "<tr><td>Proceeds to be held in trust account</td><td>$10.00 per unit</td></tr>",
+      "</table>",
+      "<h1>USE OF PROCEEDS</h1>",
+      "<table>",
+      "<tr><td>Underwriting discounts and commissions (excluding deferred portion)</td><td>$</td><td>4,500,000</td></tr>",
+      "<tr><td>Legal fees and expenses</td><td></td><td>325,000</td></tr>",
+      "<tr><td>Held in trust account</td><td>$</td><td>300,000,000</td></tr>",
+      "<tr><td>Not held in trust account</td><td>$</td><td>1,000,000</td></tr>",
+      "</table>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-13",
+      accession_number: "0000000000-26-000013",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const rows = await new UseOfProceedsRepo().queryByAccession("0000000000-26-000013");
+    expect(rows.map((r) => r.purpose)).toEqual([
+      "Underwriting discounts and commissions (excluding deferred portion)",
+      "Legal fees and expenses",
+      "Held in trust account",
+      "Not held in trust account",
+    ]);
+    expect(rows.find((r) => r.purpose === "Held in trust account")?.amount).toBe(300_000_000);
+  });
+
+  it("skips the use-of-proceeds model on a SPAC resale with no unit IPO", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
+      "<h1>USE OF PROCEEDS</h1>",
+      "<table>",
+      "<tr><td>Held in trust account</td><td>$</td><td>200,000,000</td></tr>",
+      "<tr><td>Legal fees and expenses</td><td>$</td><td>325,000</td></tr>",
+      "</table>",
+    ].join("");
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: 10,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 50000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        par_value: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [],
+      },
+      {
+        founder_shares: null,
+        founder_percent: null,
+        private_placement_warrants: null,
+        private_placement_warrant_price: null,
+        public_warrant_coverage: null,
+        trust_per_public_share: null,
+        trust_total: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+      },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-14",
+      accession_number: "0000000000-26-000014",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    expect(await new UseOfProceedsRepo().queryByAccession("0000000000-26-000014")).toEqual([]);
+    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
+    expect(dl.filter((d) => d.section_name === "use-of-proceeds")).toEqual([]);
   });
 });

@@ -47,6 +47,8 @@ import {
 } from "./s1/sectionExtractors";
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
+import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
+import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { issuerHasCombinationListing } from "./s1/newcoListing";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
@@ -1003,11 +1005,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "all $T confident compensation rows had source_span not present in section text",
       unverifiedPartialDetail:
         "$N of $T confident compensation rows had source_span not present in section text",
-      ...modelExtractChain(models, (text, m) =>
-        extractExecutiveCompensation(text, m, args.context)
-      ),
+      ...modelExtractChain(models, async (text, m) => {
+        const det = parseSummaryCompensationTable(text);
+        if (det.length > 0) return det;
+        return extractExecutiveCompensation(text, m, args.context);
+      }),
       persist: async (rows, meta) => {
-        const model_id = persistModelId(models, meta.modelIndex);
+        const model_id =
+          rows[0]?.source === "deterministic"
+            ? DETERMINISTIC_MODEL_ID
+            : persistModelId(models, meta.modelIndex);
         // An officer shown for two fiscal years is two table rows but ONE
         // mention of that person, so the observation is minted once and reused;
         // the row key is positional and independent of it.

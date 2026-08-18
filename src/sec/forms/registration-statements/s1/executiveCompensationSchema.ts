@@ -68,4 +68,6 @@ export interface ExecutiveCompensationRow {
   footnote: string | null;
   confidence: number;
   source_span: string;
+  /** Persist-only; never part of the model JSON schema. */
+  source?: "deterministic";
 }

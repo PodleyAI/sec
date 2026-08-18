@@ -54,16 +54,25 @@ describe("parseSpacUseOfProceeds", () => {
 
   it("uses the without-over-allotment amount, not the over-allotment column", () => {
     const rows = parseSpacUseOfProceeds(CHURCHILL);
-    expect(
-      rows.find((r) => r.purpose?.startsWith("Underwriting discounts"))?.amount
-    ).toBe(4_500_000);
+    expect(rows.find((r) => r.purpose?.startsWith("Underwriting discounts"))?.amount).toBe(
+      4_500_000
+    );
   });
 
   it("returns empty when fewer than two amount lines exist", () => {
-    const text = [
-      "| Legal fees and expenses | $ | 325,000 |",
-      "| --- | --- | --- |",
-    ].join("\n");
+    const text = ["| Legal fees and expenses | $ | 325,000 |", "| --- | --- | --- |"].join("\n");
     expect(parseSpacUseOfProceeds(text)).toEqual([]);
+  });
+
+  it("skips source-of-funds rows", () => {
+    const text = [
+      "| From sale of units via private placement | $ | 7,000,000 |",
+      "| Underwriting discounts and commissions | $ | 4,500,000 |",
+      "| Held in trust account | $ | 300,000,000 |",
+    ].join("\n");
+    expect(purposes(text)).toEqual([
+      "Underwriting discounts and commissions",
+      "Held in trust account",
+    ]);
   });
 });

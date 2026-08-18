@@ -10,7 +10,10 @@ import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
 const MIN_LINES = 2;
 const MIN_AMOUNT = 1_000;
 const SKIP_PURPOSE =
-  /gross proceeds|^totals?\b|proceeds after|reimbursed expenses|% public offering|offering expenses\b(?! \()/i;
+  /gross proceeds|^proceeds from\b|^from\b|^totals?\b|proceeds after|reimbursed expenses|% public offering|offering expenses\b(?! \()|per (?:public )?share|per unit|^(?:revenues?|cost of sales|gross profit|operating loss|net loss|ebitda|adjusted ebitda|net cash)\b/i;
+const DATE_PURPOSE =
+  /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4}$|^\d{4}$/i;
+const SPAC_USE = /held in trust|not held in trust|underwriting discounts?|deferred underwriting/i;
 
 export function parseSpacUseOfProceeds(text: string): UseOfProceedsLineRow[] {
   try {
@@ -21,13 +24,32 @@ export function parseSpacUseOfProceeds(text: string): UseOfProceedsLineRow[] {
 }
 
 function parseInner(text: string): UseOfProceedsLineRow[] {
+  const out = collectLines(text);
+  if (out.length < MIN_LINES) return [];
+  if (!out.some((r) => SPAC_USE.test(r.purpose ?? ""))) return [];
+  return out;
+}
+
+/** True when a SPAC expense/trust table is present, even if parse would return []. */
+export function hasSpacUseOfProceedsTable(text: string): boolean {
+  return collectLines(text).some((r) => SPAC_USE.test(r.purpose ?? ""));
+}
+
+function collectLines(text: string): UseOfProceedsLineRow[] {
   const out: UseOfProceedsLineRow[] = [];
   for (const table of splitGfmTables(text)) {
     for (const row of table) {
       const cells = row.map(cleanCell).filter((c, i, arr) => !(c === "" && i > 0 && arr[0] === ""));
       const purposeRaw = cells.find((c) => c !== "" && c !== "$" && c !== "%") ?? "";
       const purpose = tidyPurpose(purposeRaw);
-      if (purpose === "" || SKIP_PURPOSE.test(purpose) || isHeaderRow(cells)) continue;
+      if (
+        purpose === "" ||
+        SKIP_PURPOSE.test(purpose) ||
+        DATE_PURPOSE.test(purpose) ||
+        isHeaderRow(cells)
+      ) {
+        continue;
+      }
       const amount = firstAmount(cells);
       if (amount === null) continue;
       if (!text.includes(purposeRaw) && !text.includes(purpose)) continue;
@@ -43,7 +65,6 @@ function parseInner(text: string): UseOfProceedsLineRow[] {
       });
     }
   }
-  if (out.length < MIN_LINES) return [];
   return out;
 }
 

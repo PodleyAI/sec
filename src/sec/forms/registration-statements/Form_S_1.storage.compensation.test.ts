@@ -23,10 +23,20 @@ const HTML_WITH_TABLE = [
   "<h1>MANAGEMENT</h1>",
   "<p>Alina Kowalczyk — Chief Executive Officer</p>",
   "<h1>EXECUTIVE COMPENSATION</h1>",
+  "<p>Summary Compensation Table. Name and Principal Position. Salary.</p>",
+  "<p>| Alina Kowalczyk |  | 2025 |</p>",
+  "<h1>LEGAL MATTERS</h1><p>x</p>",
+].join("");
+
+const HTML_PARSEABLE_TABLE = [
+  "<h1>MANAGEMENT</h1>",
+  "<p>Alina Kowalczyk — Chief Executive Officer</p>",
+  "<h1>EXECUTIVE COMPENSATION</h1>",
   "<p>Summary Compensation Table</p>",
   "<table>",
   "<tr><td>Name and Principal Position</td><td>Year</td><td>Salary ($)</td><td>Total ($)</td></tr>",
-  "<tr><td>Alina Kowalczyk</td><td></td><td>2025</td><td></td><td>612,500</td><td></td><td>4,230,200</td></tr>",
+  "<tr><td>Alina Kowalczyk</td><td>2025</td><td>612,500</td><td>4,230,200</td></tr>",
+  "<tr><td>Chief Executive Officer</td><td></td><td></td><td></td></tr>",
   "</table>",
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
@@ -243,5 +253,19 @@ describe("processFormS1 executive compensation", () => {
     expect((await deadLetters.get("S-1", "acc-comp-6", "Executive Compensation"))?.status).toBe(
       "resolved"
     );
+  });
+
+  it("persists a parseable table as deterministic without calling the compensation model", async () => {
+    const { unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD]);
+    cleanup = unregister;
+
+    await run(HTML_PARSEABLE_TABLE, "acc-comp-7");
+
+    const rows = await new ExecutiveCompensationRepo().queryByAccession("acc-comp-7");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.fiscal_year).toBe(2025);
+    expect(rows[0]!.salary).toBe(612500);
+    expect(rows[0]!.total).toBe(4230200);
+    expect(rows[0]!.principal_position).toBe("Chief Executive Officer");
   });
 });

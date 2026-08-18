@@ -112,6 +112,16 @@ describe("eval value-less options", () => {
     expect(await runEval(["underwriters", "--format"])).toContain("one of: table, json");
   });
 
+  it("covers eval use-of-proceeds' value options", async () => {
+    expect(await runEval(["use-of-proceeds", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["use-of-proceeds", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval executive-compensation' value options", async () => {
+    expect(await runEval(["executive-compensation", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["executive-compensation", "--format"])).toContain("one of: table, json");
+  });
+
   it("lists print-prompts modes for a bare --print-prompts on extract", async () => {
     const err = await runEval(["extract", "--print-prompts"]);
     expect(err).toContain("--print-prompts needs a value");

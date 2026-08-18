@@ -26,6 +26,10 @@ export class ExecutiveCompensationRepo {
     return (await this.storage.query({ accession_number })) ?? [];
   }
 
+  async listAll(): Promise<ExecutiveCompensation[]> {
+    return (await this.storage.getAll()) ?? [];
+  }
+
   /**
    * Removes every compensation row for a filing. Rows are keyed by a positional
    * `(accession_number, extractor_id, row_index)`, so re-extracting a filing
