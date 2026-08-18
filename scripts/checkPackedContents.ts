@@ -14,6 +14,11 @@
  * whole 77 MB source tree — 267 `*.test.ts`, ~15 MB of committed EDGAR HTML
  * mock_data, and the golden-truth SPAC corpus. This script blocks a repeat.
  *
+ * `*.map` is also refused: declaration maps point at unpublished `src/`, so they
+ * cannot "Go to definition" for consumers. They are how dist-only first crossed
+ * the original 5 MB ceiling (~650 KB / 953 files). `files` therefore lists
+ * `"dist"` plus a negation glob that drops every `.map`.
+ *
  * Strategy:
  *   1. Try `bun pm pack --dry-run --json` (bun currently ignores `--json` and
  *      emits its plain-text listing; the JSON.parse fails and we fall through).
@@ -26,8 +31,11 @@
 import { spawnSync } from "node:child_process";
 import { findSourceStubs } from "./sourceStubs";
 
-const MAX_UNPACKED_BYTES = 5_000_000; // 5 MB
-const FORBIDDEN_SUFFIXES = [".test.ts"] as const;
+// Dist-only is currently ~4.5 MB (JS + .d.ts). src/ is ~77 MB. This ceiling is a
+// src-leak tripwire, not a "keep dist tiny" budget — bump it when dist grows,
+// not when src sneaks back in.
+const MAX_UNPACKED_BYTES = 8_000_000; // 8 MB
+const FORBIDDEN_SUFFIXES = [".test.ts", ".map"] as const;
 const FORBIDDEN_PREFIXES = ["src/sec/html/mock_data/", "src/eval/mock_data/"] as const;
 const FORBIDDEN_SUBSTRINGS = ["/mock_data/"] as const;
 
@@ -215,8 +223,8 @@ async function main(): Promise<void> {
     // dist itself and has its own remedy in the message above.
     if (violations.length > (stubs.length > 0 ? 1 : 0)) {
       console.error(
-        "\nCheck the `files` array in package.json — likely 'src' or a similar " +
-          "path was re-added. Only 'dist' should ship."
+        "\nCheck the `files` array in package.json — only 'dist' should ship " +
+          "(and not '*.map'; those point at unpublished src/)."
       );
     }
     process.exit(1);

@@ -1,5 +1,165 @@
 # Changelog
 
+## 0.0.25
+
+### Features
+
+#### s1
+
+- implement offering and sponsor promote text parsing functions
+- parse SPAC warrant/rights fractions and sponsor promote tables
+- parse SPAC offering price and unit count from markdown tables
+
+#### fetch
+
+- implement Retry-After cap in SecFetchJob
+- let a sec fetch ask for a byte stream, and give the cache a sink
+
+#### forms
+
+- enhance Form 1-A processing and schema definitions
+- add support for new Reg A offering events and forms
+- enhance SEC STAFF ACTION and 20-F handling
+- add support for new forms 1-SA, Form 1-U, and Form QUALIF
+
+#### tests
+
+- enhance handling of MODEL_INVALID_OUTPUT and MODEL_EMPTY in 8-K processing
+- enhance Form 424 tests and processing logic for IPO handling
+- add tests for equity class substance validation in Form 1-A
+- add null fields to various schemas and test cases
+
+#### ipo
+
+- enhance ipoTrustAmount function to handle missing unit trust_per_unit
+
+#### goldenS1Labels
+
+- add Karman Line Acquisition Corp. management and executive compensation details
+
+#### spac
+
+- enhance classifyListingRemoval to recognize prior completed events
+- implement issuer combination listing check for newcos
+- introduce nonfatal filing handling for ownership forms
+- sec spac download streams instead of materializing
+
+#### model
+
+- enhance model ID handling with fallback options
+
+#### link-workglow-packages
+
+- enhance local linking of workglow packages
+
+#### bootstrap
+
+- add quarterly index command and integrate CIK last update tracking
+- the bulk archives download through SecFetchTask
+- the Feed tarball downloads through SecFetchTask
+
+#### classifyListingRemoval
+
+- enhance classification logic for listing removals and add tests for completed status
+
+### Bug Fixes
+
+#### reg-a
+
+- replace the literal NUL separator that made the file binary
+
+#### spac
+
+- bound the listing-removal completion inference to a recent proxy/vote
+- stop a post-IPO 424 repricing the SPAC's IPO figures
+- stop the download path materializing every filing it streams
+- update withdrawal logic to account for later registrations
+- order the unknown-floor allowance after the 20-F FPI-close check
+- an unknown IPO floor no longer demotes a 25-NSE to deregistration
+
+#### dead-letter
+
+- stop treating MODEL_INVALID_OUTPUT as an expected negative
+
+#### address
+
+- store a null city rather than inventing one from the country
+
+#### tests
+
+- enhance Reg A report document selection logic
+
+#### fetch
+
+- say out loud when no fetch cache is installed
+- time the per-attempt timeout by stall, not by total elapsed
+- declare the real output schema, so a cached fetch can actually stream
+
+### Refactors
+
+- clarify default model handling and update related tests
+
+#### exempt-offerings
+
+- normalize company names in storage and tests
+
+#### spac
+
+- own the accession-doc fetch directly instead of wrapping it
+
+### Performance
+
+#### fetch
+
+- answer a cached stream read without reading the file
+
+#### spac
+
+- one indexed pass over s1_classification; default resolve's version
+
+### Style
+
+- run prettier over the repo
+- revert an incidental reformat of feedTarball
+
+### Tests
+
+#### RegAOfferingRepo
+
+- add qualification and concurrent offering aggregates to test cases
+
+#### submissions
+
+- drive cik_last_update and the refresh filter through production code
+
+#### reg-a
+
+- make the array-typed securities_offered_type type-checked
+
+### Documentation
+
+- describe the streaming fetch layer and the two bulk downloads
+
+#### extractor-ids
+
+- put the QUALIF note back above QUALIF
+
+#### claude
+
+- correct the ipo_date gate and document the address re-key
+
+### Build
+
+- pin prettier, ignore golden fixtures, run format-check in CI
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.46
+- `typebox`: 1.3.15
+- `workglow`: 0.3.46
+- `@types/pg`: ^8.23.1
+- `vitest`: ^4.1.11
+
 ## 0.0.24
 
 ### Features
