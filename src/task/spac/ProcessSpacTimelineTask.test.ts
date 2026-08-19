@@ -14,6 +14,7 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
@@ -38,7 +39,8 @@ async function seedFiling(
   accession: string,
   form: string,
   filingDate: string,
-  primaryDoc: string | null = null
+  primaryDoc: string | null = null,
+  items: string | null = null
 ): Promise<void> {
   const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
   await repo.put({
@@ -55,8 +57,44 @@ async function seedFiling(
     size: null,
     is_xbrl: null,
     is_inline_xbrl: null,
-    items: null,
+    items,
     act: null,
+  });
+}
+
+async function seedSuccessfulRun(
+  accession: string,
+  form: string,
+  extractor_id: string
+): Promise<void> {
+  const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  await repo.recordRun({
+    cik: CIK,
+    accession_number: accession,
+    form,
+    extractor_id,
+    extractor_version: "1.0.0",
+    slot_at_run: "current",
+    success: true,
+    error: null,
+  });
+}
+
+async function seedIpoEvent(accession: string): Promise<void> {
+  await new SpacRepo().saveEvent({
+    cik: CIK,
+    accession_number: accession,
+    event_type: "ipo",
+    event_date: "2021-01-15",
+    form: "424B4",
+    primary_document: null,
+    source_document_url: null,
+    deal_index: null,
+    amount: null,
+    shares: null,
+    detail: null,
+    confidence: null,
+    created_at: new Date().toISOString(),
   });
 }
 
@@ -298,9 +336,87 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.processed).toBe(0);
     expect(out.failed).toBe(0);
     expect(out.partial).toBe(0);
+    expect(out.skipped).toBe(0);
     expect(out.firstDate).toBe("2021-01-04");
     expect(out.lastDate).toBe("2021-02-04");
     expect(out.error).toBe("");
+  });
+
+  it("skips a filing that already succeeded at the active version", async () => {
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+    await seedSuccessfulRun("0000000000-26-000001", "D", "D");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]?.accessionNumber).toBe("0000000000-26-000002");
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+    expect(out.processed).toBe(1);
+  });
+
+  it("dry-run with a successful filing reports skipped and does not call the processor", async () => {
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+    await seedSuccessfulRun("0000000000-26-000001", "D", "D");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+    expect(out.processed).toBe(0);
+    expect(out.failed).toBe(0);
+  });
+
+  it("force all dry-run does not wipe derived events", async () => {
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedIpoEvent("ipo");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK, force: "all" });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect((await new SpacRepo().getEvents(CIK)).map((e) => e.event_type)).toEqual(["ipo"]);
+    expect(out.skipped).toBe(0);
+    expect(out.matched).toBe(1);
+  });
+
+  it("force all live wipes events before replaying every filing", async () => {
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+    await seedSuccessfulRun("0000000000-26-000001", "D", "D");
+    await seedIpoEvent("ipo");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK, force: "all" });
+
+    expect(await new SpacRepo().getEvents(CIK)).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(out.skipped).toBe(0);
+    expect(out.matched).toBe(2);
+  });
+
+  it("force redemption does not delete a sibling ipo event", async () => {
+    await seedFiling("0000000000-26-000001", "S-1", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", null, "5.07,9.01");
+    await seedSuccessfulRun("0000000000-26-000001", "S-1", "S-1");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    await seedIpoEvent("ipo");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK, force: "redemption" });
+
+    expect((await new SpacRepo().getEvents(CIK)).map((e) => e.event_type)).toEqual(["ipo"]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]?.accessionNumber).toBe("0000000000-26-000002");
+    expect(out.skipped).toBe(1);
+    expect(out.matched).toBe(2);
   });
 
   it("echoes the cik so a fan-out's result columns are self-labelling", async () => {

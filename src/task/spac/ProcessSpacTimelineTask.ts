@@ -18,18 +18,25 @@ import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import {
   formToExtractorId,
   isNonfatalTimelineExtractor,
 } from "../../storage/versioning/extractorIds";
+import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
+import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
+import { parseSpacProcessForce, type SpacProcessForce } from "./parseSpacProcessForce";
+import { resetSpacProcessState } from "./resetSpacProcessState";
+import { shouldReplaySpacFiling } from "./shouldReplaySpacFiling";
 
 const InputSchema = () =>
   Type.Object({
     cik: TypeSecCik(),
+    force: Type.Optional(Type.String()),
   });
 
 export type ProcessSpacTimelineTaskInput = Static<ReturnType<typeof InputSchema>>;
@@ -138,7 +145,7 @@ export class ProcessSpacTimelineTask extends Task<
     const { cik } = input;
     if (!cik) throw new TaskError("Invalid input");
     try {
-      return await this.replay(cik, context);
+      return await this.replay(cik, parseSpacProcessForce(input.force), context);
     } catch (e) {
       // Cooperative cancellation and a misconfigured CLI are wrong for the
       // whole batch, not for this issuer, so they keep escaping. Checked in
@@ -157,6 +164,7 @@ export class ProcessSpacTimelineTask extends Task<
 
   private async replay(
     cik: number,
+    force: SpacProcessForce,
     context: IExecuteContext
   ): Promise<ProcessSpacTimelineTaskOutput> {
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -186,6 +194,21 @@ export class ProcessSpacTimelineTask extends Task<
     const firstDate = timeline[0]!.filing_date ?? "";
     const lastDate = timeline[timeline.length - 1]!.filing_date ?? "";
 
+    const successfulKeys = await loadSuccessfulKeys(timeline);
+    const toProcess = timeline.filter(
+      (f) =>
+        f.form !== null &&
+        shouldReplaySpacFiling({
+          form: f.form,
+          items: f.items,
+          cik,
+          accession_number: f.accession_number,
+          force,
+          successfulKeys,
+        })
+    );
+    const skipped = timeline.length - toProcess.length;
+
     // `--dry-run` already no-ops writes via ReadOnlyTabularStorage. Replaying
     // still makes live model.info / extraction calls, then reads outcome
     // counts from extractor_runs rows that were never written, so every
@@ -199,7 +222,7 @@ export class ProcessSpacTimelineTask extends Task<
         failed: 0,
         nonfatal: 0,
         triage: 0,
-        skipped: 0,
+        skipped,
         triageExtractors: "",
         firstDate,
         lastDate,
@@ -207,22 +230,32 @@ export class ProcessSpacTimelineTask extends Task<
       };
     }
 
-    const wf = context.own(new Workflow(), {
-      title: `Replay ${timeline.length} filings for CIK ${cik} in date order`,
-    });
-    // concurrencyLimit 1 is the whole point: this is a replay, not a batch.
-    const loop = wf.map({ concurrencyLimit: 1, maxIterations: timeline.length });
-    loop.pipe(new ProcessAccessionDocFormTask());
-    loop.endMap();
-    await wf.run({
-      cik: timeline.map(() => cik),
-      form: timeline.map((f) => f.form),
-      accessionNumber: timeline.map((f) => f.accession_number),
-      // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
-      // without a primary document threw out of the whole issuer's replay.
-      // Left absent, the form task resolves it or dead-letters that one filing.
-      fileName: timeline.map((f) => resolvePrimaryDocName(f.primary_doc)),
-    });
+    if (force.kind === "all") {
+      try {
+        await resetSpacProcessState(cik);
+      } catch (e) {
+        return emptyOutcome(cik, e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    if (toProcess.length > 0) {
+      const wf = context.own(new Workflow(), {
+        title: `Replay ${toProcess.length} filings for CIK ${cik} in date order`,
+      });
+      // concurrencyLimit 1 is the whole point: this is a replay, not a batch.
+      const loop = wf.map({ concurrencyLimit: 1, maxIterations: toProcess.length });
+      loop.pipe(new ProcessAccessionDocFormTask());
+      loop.endMap();
+      await wf.run({
+        cik: toProcess.map(() => cik),
+        form: toProcess.map((f) => f.form),
+        accessionNumber: toProcess.map((f) => f.accession_number),
+        // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
+        // without a primary document threw out of the whole issuer's replay.
+        // Left absent, the form task resolves it or dead-letters that one filing.
+        fileName: toProcess.map((f) => resolvePrimaryDocName(f.primary_doc)),
+      });
+    }
 
     // Counts come from the persisted `extractor_runs` rows rather than the
     // sub-task's boolean. ProcessAccessionDocFormTask returns `{ success: true }`
@@ -238,13 +271,35 @@ export class ProcessSpacTimelineTask extends Task<
       failed: counts.failed,
       nonfatal: counts.nonfatal,
       triage: counts.triage,
-      skipped: 0,
+      skipped,
       triageExtractors: counts.triageExtractors,
       firstDate,
       lastDate,
       error: "",
     };
   }
+}
+
+async function loadSuccessfulKeys(
+  timeline: readonly Filing[]
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const versionRegistry = new VersionRegistry(
+    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
+  );
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  const extractorIds = new Set<string>();
+  for (const f of timeline) {
+    if (f.form === null) continue;
+    const id = formToExtractorId(f.form);
+    if (id !== undefined) extractorIds.add(id);
+  }
+  const successfulKeys = new Map<string, ReadonlySet<string>>();
+  for (const id of extractorIds) {
+    const slot = await getActiveSlot(versionRegistry, "extractor", id);
+    if (slot === undefined) continue;
+    successfulKeys.set(id, await runRepo.successfulRunKeys(id, slot.semver));
+  }
+  return successfulKeys;
 }
 
 function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput {
