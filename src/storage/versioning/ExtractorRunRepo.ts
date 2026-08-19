@@ -117,6 +117,39 @@ export class ExtractorRunRepo {
   }
 
   /**
+   * Deletes every extractor_runs row for one issuer, all extractor ids and
+   * versions. Used when a full `spac process --force` rebuilds that CIK's
+   * derived timeline from a clean slate.
+   */
+  async deleteForCik(cik: number): Promise<void> {
+    const rows = (await this.storage.query({ cik })) ?? [];
+    for (const r of rows) {
+      await this.storage.delete({
+        cik: r.cik,
+        accession_number: r.accession_number,
+        extractor_id: r.extractor_id,
+        extractor_version: r.extractor_version,
+      });
+    }
+  }
+
+  async deleteForExtractorVersion(
+    extractor_id: string,
+    extractor_version: string
+  ): Promise<number> {
+    const rows = (await this.storage.query({ extractor_id, extractor_version })) ?? [];
+    for (const r of rows) {
+      await this.storage.delete({
+        cik: r.cik,
+        accession_number: r.accession_number,
+        extractor_id: r.extractor_id,
+        extractor_version: r.extractor_version,
+      });
+    }
+    return rows.length;
+  }
+
+  /**
    * Given a list of candidate filings, returns those WITHOUT a successful
    * run for the given (extractor_id, extractor_version). A failed run
    * still counts as "unprocessed" — it should be retried.
@@ -136,22 +169,6 @@ export class ExtractorRunRepo {
    * ComputeFormsWorklistTask always passes `form`. The no-form path is retained
    * for coverage queries that may need to count across an extractor's variants.
    */
-  async deleteForExtractorVersion(
-    extractor_id: string,
-    extractor_version: string
-  ): Promise<number> {
-    const rows = (await this.storage.query({ extractor_id, extractor_version })) ?? [];
-    for (const r of rows) {
-      await this.storage.delete({
-        cik: r.cik,
-        accession_number: r.accession_number,
-        extractor_id: r.extractor_id,
-        extractor_version: r.extractor_version,
-      });
-    }
-    return rows.length;
-  }
-
   async listFilingsWithoutSuccessfulRun<T extends FilingKey>(
     filings: ReadonlyArray<T>,
     extractor_id: string,

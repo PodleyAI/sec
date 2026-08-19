@@ -490,4 +490,47 @@ describe("ExtractorRunRepo with SQLite backend", () => {
     });
     expect(await repo.countSuccessfulAtVersion("D", "1.0.0")).toBe(1);
   });
+
+  it("deleteForCik removes this CIK's runs and leaves another CIK's", async () => {
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    await repo.recordRun({
+      cik: 1000001,
+      accession_number: "0001000001-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    await repo.recordRun({
+      cik: 1000001,
+      accession_number: "0001000001-25-000002",
+      form: "8-K",
+      extractor_id: "redemption",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+    await repo.recordRun({
+      cik: 2000002,
+      accession_number: "0002000002-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: "1.0.0",
+      slot_at_run: "current",
+      success: true,
+      error: null,
+    });
+
+    await repo.deleteForCik(1000001);
+
+    expect(await repo.findRun(1000001, "0001000001-25-000001", "S-1", "1.0.0")).toBeUndefined();
+    expect(
+      await repo.findRun(1000001, "0001000001-25-000002", "redemption", "1.0.0")
+    ).toBeUndefined();
+    const remaining = await repo.findRun(2000002, "0002000002-25-000001", "S-1", "1.0.0");
+    expect(remaining?.success).toBe(true);
+  });
 });
