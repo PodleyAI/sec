@@ -57,7 +57,8 @@ export class EvalOfferingTablesTask extends Task<
     context: IExecuteContext
   ): Promise<EvalOfferingTablesTaskOutput> {
     const report = await runOfferingTablesEval({
-      extractorId: input.extractorId === "424" || input.extractorId === "S-1" ? input.extractorId : undefined,
+      extractorId:
+        input.extractorId === "424" || input.extractorId === "S-1" ? input.extractorId : undefined,
       limit: input.limit,
       cik: input.cik,
       signal: context.signal,

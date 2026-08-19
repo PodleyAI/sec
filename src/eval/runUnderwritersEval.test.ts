@@ -35,7 +35,8 @@ describe("bucketWhenParserEmpty", () => {
       bucketWhenParserEmpty({
         stored: { names: ["Needham & Company, LLC"], roles: ["lead"] },
         offeringText: unitIpo,
-        underwritingText: "Needham & Company, LLC is acting as the sole underwriter of this offering.",
+        underwritingText:
+          "Needham & Company, LLC is acting as the sole underwriter of this offering.",
       })
     ).toEqual({ bucket: "skip", reason: "no-table" });
   });
