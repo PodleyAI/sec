@@ -33,6 +33,7 @@ import {
   ProcessSpacTimelineTask,
   type ProcessSpacTimelineTaskOutput,
 } from "../task/spac/ProcessSpacTimelineTask";
+import { parseSpacProcessForce } from "../task/spac/parseSpacProcessForce";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
 import type { ExtractorBackfillResult } from "../task/forms/BackfillExtractorTask";
@@ -240,8 +241,8 @@ export function registerSpacCommands(program: Command): void {
   spacCmd
     .command("process <ciks...>")
     .description(
-      "Replay each SPAC's filings in filing-date order (the whole timeline, not one " +
-        "form at a time). Issuers run in parallel; one issuer's filings run serially."
+      "Replay each SPAC's filings in filing-date order (incremental by default; " +
+        "--force rebuilds). Issuers run in parallel; one issuer's filings run serially."
     )
     .option(
       "-c, --concurrency <n>",
@@ -250,8 +251,17 @@ export function registerSpacCommands(program: Command): void {
       parseIntOption,
       3
     )
-    .action(async (ciks: string[], opts: { concurrency: number }) => {
+    .option(
+      "--force [extractors]",
+      "Re-process even when a successful run exists. Bare --force = all extractors; " +
+        "--force=S-1,8-K = only those ids."
+    )
+    .action(async (ciks: string[], opts: { concurrency: number; force?: boolean | string }) => {
       await runCommand(async () => {
+        // Fail unknown extractor ids before any wipe or workflow starts.
+        const force = parseSpacProcessForce(opts.force);
+        const forceInput: string | undefined =
+          force.kind === "none" ? undefined : force.kind === "all" ? "all" : force.ids.join(",");
         // parseCikArg reports and returns null on a bad value; drop those so one
         // typo does not abandon the rest of the batch.
         const parsed = ciks.map((c) => parseCikArg(c)).filter((c): c is number => c !== null);
@@ -271,7 +281,12 @@ export function registerSpacCommands(program: Command): void {
             maxIterations: parsed.length,
             preserveOrder: true,
           });
-          loop.pipe(new ProcessSpacTimelineTask() as ITask<DataPorts, DataPorts>);
+          loop.pipe(
+            new ProcessSpacTimelineTask({ defaults: { force: forceInput } }) as ITask<
+              DataPorts,
+              DataPorts
+            >
+          );
           loop.endMap();
         });
         const rows = spacProcessRows(results);
@@ -281,7 +296,12 @@ export function registerSpacCommands(program: Command): void {
           } else if (row.matched === 0) {
             console.log(`${row.cik}: no processable filings`);
           } else {
-            console.log(formatSpacProcessSummary(row, { dryRun: isDryRun() }));
+            console.log(
+              formatSpacProcessSummary(row, {
+                dryRun: isDryRun(),
+                rebuild: force.kind === "all",
+              })
+            );
             if (row.partial > 0 || row.failed > 0) {
               console.error(
                 statusMessage(
