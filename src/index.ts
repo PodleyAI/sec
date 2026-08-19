@@ -29,8 +29,6 @@ export {
 export { isDryRun } from "./cli/isDryRun";
 export { isJsonOutput } from "./cli/isJsonOutput";
 export * from "./cli/output";
-export { runCommand } from "./cli/runCommand";
-export { runWorkflowCli } from "./cli/runWorkflow";
 export {
   getDbStats,
   isMissingRelationError,
@@ -40,31 +38,33 @@ export {
   type DbStatsTable,
   type TableStat,
 } from "./cli/queries/DbStatus";
+export { runCommand } from "./cli/runCommand";
+export { runWorkflowCli } from "./cli/runWorkflow";
 export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
-export {
-  registerSyncLeaf,
-  getSyncLeaf,
-  listSyncLeaves,
-  clearSyncLeavesForTesting,
-  runSyncLeaves,
-  EMPTY_SYNC_CONTEXT,
-  type SyncLeaf,
-  type SyncStep,
-  type SyncRunContext,
-} from "./cli/sync/syncLeaves";
 export { addSyncLeafCommands } from "./cli/groups/sync";
 export { runFormsSweep } from "./cli/sync/runFormsSweep";
 export { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./cli/sync/syncFormDomains";
+export {
+  EMPTY_SYNC_CONTEXT,
+  clearSyncLeavesForTesting,
+  getSyncLeaf,
+  listSyncLeaves,
+  registerSyncLeaf,
+  runSyncLeaves,
+  type SyncLeaf,
+  type SyncRunContext,
+  type SyncStep,
+} from "./cli/sync/syncLeaves";
 
 // ── Config / dependency injection ───────────────────────────────────────────
 export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
-export { setupAllDatabases } from "./config/setupAllDatabases";
 export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
 export { registerSecModels } from "./config/registerModels";
 export { registerSecProviders } from "./config/registerProviders";
+export { setupAllDatabases } from "./config/setupAllDatabases";
 export * from "./config/tokens";
 
 // ── Fetch job queue + fetch task bases ──────────────────────────────────────
@@ -99,19 +99,35 @@ export {
 // `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
 // different TypeBox instance, so its DI registrations and schemas would not be
 // visible to sec. Import these from `@workglow/sec` to share sec's instances.
-export { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
-export type { ServiceToken } from "workglow";
+export type { TaskPorts } from "./task/taskPorts";
+export { isStaleByAsOf } from "./util/asOfGuard";
 export { Type, type Static } from "typebox";
 export { Value } from "typebox/value";
-export { Task, Workflow } from "workglow";
-export type { IExecuteContext, TaskOutput } from "workglow";
-export { isStaleByAsOf } from "./util/asOfGuard";
-export type { TaskPorts } from "./task/taskPorts";
+export {
+  FetchUrlTask,
+  Sqlite,
+  Task,
+  Workflow,
+  getTaskQueueRegistry,
+  globalServiceRegistry,
+} from "workglow";
+export type {
+  FetchUrlTaskInput,
+  FetchUrlTaskOutput,
+  IExecuteContext,
+  ServiceToken,
+  TaskOutput,
+} from "workglow";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
 // A downstream feature package (e.g. `embarc-data`) registers its own resolver
 // ids and DB-extension repo tokens through these seams, then reuses the
 // versioning / observation / normalization internals below.
+export {
+  listDatabaseExtensionTokens,
+  registerDatabaseExtension,
+  registerDatabaseSetupHook,
+} from "./config/databaseExtensions";
 export {
   getResolverExtension,
   isFamilyResolverId,
@@ -119,11 +135,6 @@ export {
   registerResolverExtension,
   type ResolverExtension,
 } from "./resolver/resolverExtensions";
-export {
-  listDatabaseExtensionTokens,
-  registerDatabaseExtension,
-  registerDatabaseSetupHook,
-} from "./config/databaseExtensions";
 
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
@@ -134,37 +145,37 @@ export {
 
 // ── Versioning internals ────────────────────────────────────────────────────
 export { computeResolverCoverage } from "./cli/queries/ResolverCoverage";
+export { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./storage/versioning/ComponentVersionSchema";
 export { getActiveSlot } from "./storage/versioning/getActiveSlot";
 export { VersionRegistry } from "./storage/versioning/VersionRegistry";
-export { COMPONENT_VERSION_REPOSITORY_TOKEN } from "./storage/versioning/ComponentVersionSchema";
 
 // ── Observation + filing repos / tokens ─────────────────────────────────────
+export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
 export { CompanyObservationRepo } from "./storage/observation/CompanyObservationRepo";
-export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
 export { COMPANY_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/CompanyObservationSchema";
+export { PersonObservationRepo } from "./storage/observation/PersonObservationRepo";
 export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/PersonObservationSchema";
 export { PersonObservationTitleRepo } from "./storage/observation/PersonObservationTitleRepo";
 export {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
   type PersonObservationTitle,
 } from "./storage/observation/PersonObservationTitleSchema";
-export { FILING_REPOSITORY_TOKEN } from "./storage/filing/FilingSchema";
 
 // ── Canonical person identity tier (observation → canonical id, merge aliases)
 // The join a downstream superset needs to get from a person observation to the
 // canonical id `person_role` and the junction tables are keyed by: the identity
 // link resolves it at a given `resolver_version`, and the alias table redirects
 // an id that a later merge retired.
+export {
+  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
+  type CanonicalPersonAlias,
+} from "./storage/canonical/CanonicalAliasSchemas";
+export { CanonicalPersonAliasRepo } from "./storage/canonical/CanonicalPersonAliasRepo";
 export { PersonIdentityLinkRepo } from "./storage/canonical/PersonIdentityLinkRepo";
 export {
   PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
   type PersonIdentityLink,
 } from "./storage/canonical/PersonIdentityLinkSchema";
-export { CanonicalPersonAliasRepo } from "./storage/canonical/CanonicalPersonAliasRepo";
-export {
-  CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  type CanonicalPersonAlias,
-} from "./storage/canonical/CanonicalAliasSchemas";
 
 // ── Dated person roles (person↔company title tenures) ───────────────────────
 export { PersonRoleRepo } from "./storage/canonical/PersonRoleRepo";
@@ -184,27 +195,27 @@ export {
 } from "./storage/canonical/CanonicalCompanySchema";
 
 // ── Normalization helpers ───────────────────────────────────────────────────
+export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
+export { companyFamilyName } from "./storage/company/CompanyFamilyName";
 export {
   generateCompanyHash,
   hasCompanyEnding,
   normalizeCompanyName,
 } from "./storage/company/CompanyNormalization";
-export { companyFamilyName } from "./storage/company/CompanyFamilyName";
-export { normalizeAddress, type AddressImport } from "./storage/address/AddressNormalization";
 export { normalizePhone } from "./storage/phone/PhoneNormalization";
 
 // ── Typed schema / util helpers ─────────────────────────────────────────────
-export { isBadPersonField } from "./types/edgar/bad-data";
-export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
-export { TypeNullable } from "./util/TypeBoxUtil";
 export { streamMatchingRows } from "./cli/queries/_streamMatches";
+export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
+export { isBadPersonField } from "./types/edgar/bad-data";
 export { KeyedMutex } from "./util/KeyedMutex";
 export { parseCikSafely as parseCik } from "./util/parseCik";
+export { TypeNullable } from "./util/TypeBoxUtil";
 
 // ── Re-exported workglow storage primitives a feature package builds on ──────
 export {
-  createServiceToken,
   InMemoryTabularStorage,
+  createServiceToken,
   type AnyTabularStorage,
   type ITabularStorage,
 } from "workglow";
