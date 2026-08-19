@@ -126,6 +126,7 @@ export function spacProcessRows(
   const failed = column("failed");
   const nonfatal = column("nonfatal");
   const triage = column("triage");
+  const skipped = column("skipped");
   const triageExtractors = column("triageExtractors");
   const firstDate = column("firstDate");
   const lastDate = column("lastDate");
@@ -142,6 +143,7 @@ export function spacProcessRows(
       failed: failed[i] ?? 0,
       nonfatal: nonfatal[i] ?? 0,
       triage: triage[i] ?? 0,
+      skipped: skipped[i] ?? 0,
       triageExtractors: triageExtractors[i] ?? "",
       firstDate: firstDate[i] ?? "",
       lastDate: lastDate[i] ?? "",
@@ -157,13 +159,22 @@ export function spacProcessRows(
  */
 export function formatSpacProcessSummary(
   row: ProcessSpacTimelineTaskOutput,
-  opts?: { readonly dryRun?: boolean }
+  opts?: { readonly dryRun?: boolean; readonly rebuild?: boolean }
 ): string {
+  const range = `(${row.firstDate} \u2192 ${row.lastDate})`;
   if (opts?.dryRun === true) {
-    return `${row.cik}: would replay ${row.matched} filings (${row.firstDate} \u2192 ${row.lastDate})`;
+    if (opts.rebuild === true) {
+      return `${row.cik}: would rebuild ${row.matched} filings ${range}`;
+    }
+    if (row.skipped > 0) {
+      return `${row.cik}: would replay ${row.matched - row.skipped}/${row.matched} filings (${row.skipped} reused) ${range}`;
+    }
+    return `${row.cik}: would replay ${row.matched} filings ${range}`;
   }
   const parts = [
-    `${row.processed}/${row.matched} filings (${row.firstDate} \u2192 ${row.lastDate})`,
+    row.skipped > 0
+      ? `${row.matched - row.skipped}/${row.matched} filings (${row.skipped} reused) ${range}`
+      : `${row.processed}/${row.matched} filings ${range}`,
   ];
   if (row.partial > 0) parts.push(`${row.partial} partial`);
   if (row.failed > 0) parts.push(`${row.failed} failed`);

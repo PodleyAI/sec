@@ -58,6 +58,10 @@ const OutputSchema = () =>
       description:
         "Ownership-form filings (3/4/5/144) whose latest run was `failure` or that wrote no run row. Off the SPAC timeline's critical path; does not fail `spac process`.",
     }),
+    skipped: Type.Number({
+      title: "Skipped",
+      description: "Filings not sent to the form processor because they already succeeded.",
+    }),
     triage: Type.Number({
       title: "Triage entries",
       description: "Pending dead-letter entries across the replayed filings.",
@@ -195,6 +199,7 @@ export class ProcessSpacTimelineTask extends Task<
         failed: 0,
         nonfatal: 0,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate,
         lastDate,
@@ -233,6 +238,7 @@ export class ProcessSpacTimelineTask extends Task<
       failed: counts.failed,
       nonfatal: counts.nonfatal,
       triage: counts.triage,
+      skipped: 0,
       triageExtractors: counts.triageExtractors,
       firstDate,
       lastDate,
@@ -250,6 +256,7 @@ function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput
     failed: 0,
     nonfatal: 0,
     triage: 0,
+    skipped: 0,
     triageExtractors: "",
     firstDate: "",
     lastDate: "",

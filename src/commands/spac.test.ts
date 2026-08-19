@@ -66,6 +66,7 @@ describe("spacProcessRows", () => {
         failed: [0, 0, 0],
         nonfatal: [0, 0, 0],
         triage: [0, 0, 0],
+        skipped: [0, 0, 0],
         triageExtractors: ["", "", ""],
         firstDate: ["2021-01-01", "", "2022-01-01"],
         lastDate: ["2021-12-31", "", "2022-06-30"],
@@ -80,6 +81,7 @@ describe("spacProcessRows", () => {
         failed: 0,
         nonfatal: 0,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate: "2021-01-01",
         lastDate: "2021-12-31",
@@ -93,6 +95,7 @@ describe("spacProcessRows", () => {
         failed: 0,
         nonfatal: 0,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate: "",
         lastDate: "",
@@ -106,6 +109,7 @@ describe("spacProcessRows", () => {
         failed: 0,
         nonfatal: 0,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate: "2022-01-01",
         lastDate: "2022-06-30",
@@ -147,6 +151,7 @@ describe("spacProcessRows", () => {
           failed: 0,
           nonfatal: 0,
           triage: 0,
+          skipped: 0,
           triageExtractors: "",
           firstDate: "",
           lastDate: "",
@@ -168,6 +173,7 @@ describe("formatSpacProcessSummary", () => {
         failed: 0,
         nonfatal: 0,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate: "2020-09-23",
         lastDate: "2023-10-03",
@@ -186,6 +192,7 @@ describe("formatSpacProcessSummary", () => {
         failed: 0,
         nonfatal: 0,
         triage: 11,
+        skipped: 0,
         triageExtractors: "S-1,424",
         firstDate: "2020-09-23",
         lastDate: "2023-10-03",
@@ -207,6 +214,7 @@ describe("formatSpacProcessSummary", () => {
           failed: 0,
           nonfatal: 0,
           triage: 0,
+          skipped: 0,
           triageExtractors: "",
           firstDate: "2020-09-23",
           lastDate: "2023-10-03",
@@ -215,6 +223,69 @@ describe("formatSpacProcessSummary", () => {
         { dryRun: true }
       )
     ).toBe("1822912: would replay 52 filings (2020-09-23 \u2192 2023-10-03)");
+  });
+
+  it("dry-run names reused filings when the skip set is non-empty", () => {
+    expect(
+      formatSpacProcessSummary(
+        {
+          cik: 1800001,
+          matched: 52,
+          processed: 0,
+          partial: 0,
+          failed: 0,
+          nonfatal: 0,
+          triage: 0,
+          skipped: 40,
+          triageExtractors: "",
+          firstDate: "2021-01-04",
+          lastDate: "2024-06-01",
+          error: "",
+        },
+        { dryRun: true }
+      )
+    ).toBe("1800001: would replay 12/52 filings (40 reused) (2021-01-04 \u2192 2024-06-01)");
+  });
+
+  it("dry-run names a full force as rebuild, not replay", () => {
+    expect(
+      formatSpacProcessSummary(
+        {
+          cik: 1800001,
+          matched: 52,
+          processed: 0,
+          partial: 0,
+          failed: 0,
+          nonfatal: 0,
+          triage: 0,
+          skipped: 0,
+          triageExtractors: "",
+          firstDate: "2021-01-04",
+          lastDate: "2024-06-01",
+          error: "",
+        },
+        { dryRun: true, rebuild: true }
+      )
+    ).toBe("1800001: would rebuild 52 filings (2021-01-04 \u2192 2024-06-01)");
+  });
+
+  it("names reused filings on a live incremental run", () => {
+    expect(
+      formatSpacProcessSummary({
+        cik: 1800001,
+        matched: 52,
+        processed: 52,
+        partial: 0,
+        failed: 0,
+        nonfatal: 0,
+        triage: 0,
+        skipped: 40,
+        triageExtractors: "",
+        firstDate: "2021-01-04",
+        lastDate: "2024-06-01",
+        error: "",
+      })
+    ).toBe("1800001: 12/52 filings (40 reused) (2021-01-04 \u2192 2024-06-01)");
   });
 
   it("names ownership-form misses as nonfatal so they cannot read as failed", () => {
@@ -227,6 +298,7 @@ describe("formatSpacProcessSummary", () => {
         failed: 0,
         nonfatal: 2,
         triage: 0,
+        skipped: 0,
         triageExtractors: "",
         firstDate: "2020-09-23",
         lastDate: "2023-10-03",
@@ -266,6 +338,7 @@ describe("spacProcessFailureCount", () => {
     failed: 0,
     nonfatal: 0,
     triage: 0,
+    skipped: 0,
     triageExtractors: "",
     firstDate: "2020-09-23",
     lastDate: "2023-10-03",
