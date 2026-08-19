@@ -49,6 +49,11 @@ import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema"
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
 import { parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
+import { parseManagementRoster } from "./s1/parseManagementRoster";
+import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
+import { parseSpacSponsors } from "./s1/parseSpacSponsors";
+import { parseSpacProfile } from "./s1/parseSpacProfile";
+import { parseSpacClassification } from "./s1/parseSpacClassification";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { issuerHasCombinationListing } from "./s1/newcoListing";
@@ -624,7 +629,10 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         await recordFail("spac-classification", "MODEL_RESOLUTION_ERROR", classifierError);
       } else {
         const classifierModelResolved = classifierModel;
-        const classifierHolder = { upgraded: false };
+        const classifierHolder: { upgraded: boolean; source: "ai" | "deterministic" } = {
+          upgraded: false,
+          source: "ai",
+        };
         const classifierRunSection = makeRunSection({
           deadLetters,
           extractor_id: EXTRACTOR_ID,
@@ -642,11 +650,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           unverifiedAllDetail:
             "the confident SPAC classification had source_span not present in section text",
           extract: async (text) => {
+            const det = parseSpacClassification(text);
+            if (det !== null) return [det];
             const c = await extractSpacClassification(text, classifierModelResolved, args.context);
             return c === null ? [] : [c];
           },
-          persist: async () => {
+          persist: async (rows) => {
             classifierHolder.upgraded = true;
+            if (rows[0]?.source === "deterministic") classifierHolder.source = "deterministic";
             return 1;
           },
         });
@@ -659,7 +670,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             sic: headerSic,
             sic_description: formS1.header?.sicDescription ?? null,
             is_spac: true,
-            classifier_source: "ai",
+            classifier_source: classifierHolder.source,
             created_at: new Date().toISOString(),
           });
         } else {
@@ -701,6 +712,8 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       verifyRow: (text, r) => classifySpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
       ...modelExtractChain(models, async (text, m) => {
+        const det = parseSpacProfile(text);
+        if (det !== null) return [det];
         const p = await extractSpacProfile(text, m, args.context);
         return p === null ? [] : [p];
       }),
@@ -741,9 +754,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context)),
+    ...modelExtractChain(models, async (text, m) => {
+      const det = parseManagementRoster(text);
+      if (det.length > 0) return det;
+      return extractManagement(text, m, args.context);
+    }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
+      const model_id =
+        rows[0]?.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
@@ -881,9 +901,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context)),
+    ...modelExtractChain(models, async (text, m) => {
+      const det = parseRelatedPartyTables(text);
+      if (det.length > 0) return det;
+      return extractRelatedParty(text, m, args.context);
+    }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
+      const model_id =
+        rows[0]?.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       // Check every row against the storage schema's own declared bounds BEFORE
       // writing any of them. This persist spans three storages (observations,
       // provenance, transactions) and `withTransaction` is scoped to a single
@@ -1273,9 +1300,16 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident sponsor rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context)),
+    ...modelExtractChain(models, async (text, m) => {
+      const det = parseSpacSponsors(text);
+      if (det.length > 0) return det;
+      return extractSpacSponsors(text, m, args.context);
+    }),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
+      const model_id =
+        rows[0]?.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
       let wrote = 0;
       const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
       const extractedNames = splits.map((s) => s.observationName);

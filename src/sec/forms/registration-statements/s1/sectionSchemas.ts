@@ -132,6 +132,8 @@ export interface ManagementPersonRow {
   bio: string | null;
   confidence: number;
   source_span: string;
+  /** Persist-only; never part of the model JSON schema. */
+  source?: "deterministic";
 }
 export interface BeneficialOwnerRow {
   name: string;
@@ -161,4 +163,6 @@ export interface RelatedPartyRow {
     period: string | null;
     footnote: string | null;
   }>;
+  /** Persist-only; never part of the model JSON schema. */
+  source?: "deterministic";
 }

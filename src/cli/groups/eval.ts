@@ -44,12 +44,22 @@ import { EvalUnderwritersTask } from "../../task/eval/EvalUnderwritersTask";
 import { EvalUseOfProceedsTask } from "../../task/eval/EvalUseOfProceedsTask";
 import { EvalExecutiveCompensationTask } from "../../task/eval/EvalExecutiveCompensationTask";
 import { EvalBeneficialOwnershipTask } from "../../task/eval/EvalBeneficialOwnershipTask";
+import { EvalManagementTask } from "../../task/eval/EvalManagementTask";
+import { EvalRelatedPartyTask } from "../../task/eval/EvalRelatedPartyTask";
+import { EvalSpacSponsorsTask } from "../../task/eval/EvalSpacSponsorsTask";
+import { EvalSpacProfileTask } from "../../task/eval/EvalSpacProfileTask";
+import { EvalSpacClassificationTask } from "../../task/eval/EvalSpacClassificationTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
 import type { OfferingTablesReport } from "../../eval/runOfferingTablesEval";
 import type { UnderwritersReport } from "../../eval/runUnderwritersEval";
 import type { UseOfProceedsReport } from "../../eval/runUseOfProceedsEval";
 import type { ExecutiveCompensationReport } from "../../eval/runExecutiveCompensationEval";
 import type { BeneficialOwnershipReport } from "../../eval/runBeneficialOwnershipEval";
+import type { ManagementReport } from "../../eval/runManagementEval";
+import type { RelatedPartyReport } from "../../eval/runRelatedPartyEval";
+import type { SpacSponsorsReport } from "../../eval/runSpacSponsorsEval";
+import type { SpacProfileReport } from "../../eval/runSpacProfileEval";
+import type { SpacClassificationReport } from "../../eval/runSpacClassificationEval";
 
 /**
  * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
@@ -190,6 +200,106 @@ function pad(s: string, w: number): string {
 function truncate(s: string, max = 60): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
+}
+
+function printSpacClassificationReport(report: SpacClassificationReport): void {
+  const { counts } = report;
+  console.log(
+    `spac-classification parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
+}
+
+function printSpacProfileReport(report: SpacProfileReport): void {
+  const { counts } = report;
+  console.log(
+    `spac-profile parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
+}
+
+function printSpacSponsorsReport(report: SpacSponsorsReport): void {
+  const { counts } = report;
+  console.log(
+    `spac-sponsors parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
+}
+
+function printRelatedPartyReport(report: RelatedPartyReport): void {
+  const { counts } = report;
+  console.log(
+    `related-party parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
+}
+
+function printManagementReport(report: ManagementReport): void {
+  const { counts } = report;
+  console.log(
+    `management parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
 }
 
 function printBeneficialOwnershipReport(report: BeneficialOwnershipReport): void {
@@ -1238,6 +1348,211 @@ export function addEvalCommands(program: Command): void {
             return;
           }
           printBeneficialOwnershipReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("management")
+    .description(
+      "Score the deterministic management roster parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<ManagementReport>([
+            new EvalManagementTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printManagementReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("related-party")
+    .description(
+      "Score the deterministic related-party table parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<RelatedPartyReport>([
+            new EvalRelatedPartyTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printRelatedPartyReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("spac-sponsors")
+    .description(
+      "Score the deterministic SPAC sponsor parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<SpacSponsorsReport>([
+            new EvalSpacSponsorsTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printSpacSponsorsReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("spac-profile")
+    .description(
+      "Score the deterministic SPAC profile parser against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<SpacProfileReport>([
+            new EvalSpacProfileTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printSpacProfileReport(report);
+        });
+      }
+    );
+
+  cmd
+    .command("spac-classification")
+    .description(
+      "Score the deterministic SPAC classifier against stored rows (on-disk cache only; no EDGAR fetch)"
+    )
+    .option("--extractor-id [id]", "limit to S-1 or 424")
+    .option("--limit [n]", "max stored rows to score")
+    .option("--cik [n]", "limit to one issuer CIK")
+    .option("--format [fmt]", "table | json (default: table)")
+    .action(
+      async (opts: {
+        extractorId?: string | boolean;
+        limit?: string | boolean;
+        cik?: string | boolean;
+        format: string | boolean;
+      }) => {
+        await runCommand(async () => {
+          const format = requireFormat(opts.format);
+          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+            throw new Error("--extractor-id needs a value — S-1, 424");
+          }
+          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+          const input = {
+            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+          };
+          const report = await runWorkflowCli<SpacClassificationReport>([
+            new EvalSpacClassificationTask({ defaults: input }),
+          ]);
+          if (format === "json") {
+            console.log(JSON.stringify(report, null, 2));
+            return;
+          }
+          printSpacClassificationReport(report);
         });
       }
     );
