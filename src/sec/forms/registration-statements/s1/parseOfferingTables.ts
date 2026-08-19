@@ -139,6 +139,7 @@ function walkFields(text: string): WalkedFields {
     if (out.source_span === "") out.source_span = value;
   };
   let section = "";
+  let outstandingBeforeShares: number | undefined;
   for (const row of iterTableRows(text)) {
     if (row.label === "continuation") {
       if (out.founder_percent === null) {
@@ -281,6 +282,13 @@ function walkFields(text: string): WalkedFields {
         take(row.value);
       }
     }
+    if (outstandingBeforeShares === undefined && isOutstandingBeforeSharesRow(row)) {
+      const n = founderShareCount(row.value);
+      if (n !== undefined) outstandingBeforeShares = n;
+    }
+  }
+  if (out.founder_shares === null && outstandingBeforeShares !== undefined) {
+    out.founder_shares = outstandingBeforeShares;
   }
   return out;
 }
@@ -429,11 +437,24 @@ function isFounderLabel(label: string): boolean {
   return /founder shares|class b/.test(label);
 }
 
+function isOutstandingBeforeLabel(label: string): boolean {
+  return /number outstanding before this offering/.test(label);
+}
+
+function isNamedFounderValue(value: string): boolean {
+  return /class b|founder shares|ordinary shares/i.test(value);
+}
+
 function isFounderRow(row: TableRow): boolean {
   if (isFounderLabel(row.label)) return true;
+  return isOutstandingBeforeLabel(row.label) && isNamedFounderValue(row.value);
+}
+
+function isOutstandingBeforeSharesRow(row: TableRow): boolean {
   return (
-    /number outstanding before this offering/.test(row.label) &&
-    /class b|founder shares|ordinary shares|\bshares\b/i.test(row.value)
+    isOutstandingBeforeLabel(row.label) &&
+    /\bshares\b/i.test(row.value) &&
+    !isNamedFounderValue(row.value)
   );
 }
 

@@ -347,6 +347,17 @@ describe("parseSpacPromoteTerms", () => {
     expect(parseSpacPromoteTerms(text)!.founder_shares).toBe(2_156_250);
   });
 
+  it("does not take outstanding-before shares that mix founder shares with underwriter founder shares", () => {
+    const text = `
+| Offering price | $10.00 |
+| Number of units offered | 7,500,000 |
+| Number outstanding before this offering | 3,093,750 shares(3) |
+| (3) | Represents 2,875,000 founder shares and 218,750 EBC founder shares. |
+| Founder shares and EBC founder shares | In December 2025, our sponsors acquired an aggregate of 2,300,000 ordinary shares for an aggregate purchase price of $25,000. In June 2026, we effected a share capitalization to increase the number of founder shares to 2,875,000. |
+`.trim();
+    expect(parseSpacPromoteTerms(text)!.founder_shares).toBe(2_875_000);
+  });
+
   it("takes Class B shares outstanding before the offering over an earlier purchase price", () => {
     const text = `
 | Offering price | $10.00 |
