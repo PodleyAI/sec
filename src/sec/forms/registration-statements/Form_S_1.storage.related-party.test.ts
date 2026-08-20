@@ -8,9 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
-import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
+import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { processFormS1 } from "./Form_S_1.storage";
-import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML_PARSEABLE = [
@@ -30,6 +29,26 @@ const NULL_HEADER = {
   cik: null,
   companyName: null,
   filingDate: null,
+};
+
+const RELATED_PARTY_PAYLOAD = {
+  parties: [
+    {
+      name: "Stellantis Ventures B.V.",
+      party_kind: "company",
+      confidence: 0.9,
+      source_span: "Stellantis Ventures B.V.",
+      transactions: [
+        {
+          counterparty: null,
+          nature: "Convertible note purchase",
+          amount: 5000000,
+          period: null,
+          footnote: null,
+        },
+      ],
+    },
+  ],
 };
 
 const MANAGEMENT_PAYLOAD = {
@@ -57,8 +76,14 @@ describe("processFormS1 related-party tables", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("persists a parseable party table as deterministic without calling the related-party model", async () => {
-    const { calls, unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD]);
+  it("runs the related-party model even when the party table parses, because the parse carries no transaction", async () => {
+    // The table walk names the parties and reads no figures, but the section
+    // clears `related_party_transaction` before it writes. Preempting on the
+    // names alone empties the disclosure and resolves the section clean.
+    const { calls, unregister } = registerFakeStructuredProvider([
+      MANAGEMENT_PAYLOAD,
+      RELATED_PARTY_PAYLOAD,
+    ]);
     cleanup = unregister;
 
     await processFormS1({
@@ -77,11 +102,11 @@ describe("processFormS1 related-party tables", () => {
       model: fakeS1Model(),
     });
 
+    expect(calls.some((p) => /Extract related parties/.test(p))).toBe(true);
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => /Stellantis Ventures/i.test(c.name ?? ""))).toBe(true);
-    expect(calls.some((p) => /Extract related parties/.test(p))).toBe(false);
-    const party = companies.find((c) => /Stellantis Ventures/i.test(c.name ?? ""));
-    const provenance = await new ObservationProvenanceRepo().get("company", party!.observation_id);
-    expect(provenance?.model_id).toBe(DETERMINISTIC_MODEL_ID);
+    const transactions = await new RelatedPartyTransactionRepo().queryByAccession("acc-rp-1");
+    expect(transactions.length).toBeGreaterThanOrEqual(1);
+    expect(transactions[0]!.amount).toBe(5_000_000);
   });
 });
