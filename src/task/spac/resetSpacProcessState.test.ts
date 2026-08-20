@@ -59,18 +59,28 @@ function deal(cik: number, deal_index: number): SpacDeal {
   };
 }
 
-async function seedRun(cik: number, accession: string, extractor_id: string): Promise<void> {
+async function seedRun(
+  cik: number,
+  accession: string,
+  extractor_id: string,
+  extractor_version = "1.0.0"
+): Promise<void> {
   const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   await repo.recordRun({
     cik,
     accession_number: accession,
     form: extractor_id,
     extractor_id,
-    extractor_version: "1.0.0",
+    extractor_version,
     slot_at_run: "current",
     success: true,
     error: null,
   });
+}
+
+/** The active-version map a `spac process --force` over these forms would build. */
+function versions(...extractorIds: readonly string[]): ReadonlyMap<string, string> {
+  return new Map(extractorIds.map((id) => [id, "1.0.0"]));
 }
 
 describe("resetSpacProcessState", () => {
@@ -116,17 +126,23 @@ describe("resetSpacProcessState", () => {
     await repo.saveDeal(deal(CIK, 0));
     await seedRun(CIK, "reg", "S-1");
     await seedRun(CIK, "8k", "redemption");
+    // Off the replayed timeline, and an older generation of one that is on it:
+    // both are audit trail the coverage gate counts and nothing can rebuild.
+    await seedRun(CIK, "form-d", "D");
+    await seedRun(CIK, "old-reg", "S-1", "0.9.0");
 
     const historyBefore = await repo.getHistory(CIK);
     expect(historyBefore.length).toBeGreaterThan(0);
 
-    await resetSpacProcessState(CIK);
+    await resetSpacProcessState(CIK, versions("S-1", "redemption"));
 
     expect(await repo.getEvents(CIK)).toEqual([]);
     expect(await repo.getDeals(CIK)).toEqual([]);
     const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
     expect(await runs.findRun(CIK, "reg", "S-1", "1.0.0")).toBeUndefined();
     expect(await runs.findRun(CIK, "8k", "redemption", "1.0.0")).toBeUndefined();
+    expect((await runs.findRun(CIK, "form-d", "D", "1.0.0"))?.success).toBe(true);
+    expect((await runs.findRun(CIK, "old-reg", "S-1", "0.9.0"))?.success).toBe(true);
 
     const row = await repo.getSpac(CIK);
     expect(row).toBeDefined();
@@ -155,7 +171,7 @@ describe("resetSpacProcessState", () => {
     await repo.saveDeal(deal(CIK, 0));
     await seedRun(CIK, "ipo", "424");
 
-    await resetSpacProcessState(CIK);
+    await resetSpacProcessState(CIK, versions("424"));
 
     expect(await repo.getSpac(CIK)).toBeUndefined();
     expect(await repo.getEvents(CIK)).toEqual([]);
@@ -175,7 +191,7 @@ describe("resetSpacProcessState", () => {
       spac_sic: 6770,
     });
     await seedRun(OTHER, "other-reg", "S-1");
-    await resetSpacProcessState(CIK);
+    await resetSpacProcessState(CIK, versions("S-1"));
 
     expect((await repo.getEvents(OTHER)).length).toBe(1);
     expect((await repo.getSpac(OTHER))?.spac_name).toBe("Other SPAC");

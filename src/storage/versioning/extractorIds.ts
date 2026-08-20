@@ -292,6 +292,26 @@ export function formsForExtractorIds(ids: readonly ExtractorId[]): string[] {
 }
 
 /**
+ * The extractors whose storage handlers are gated on an existing `spac` row and
+ * record a SUCCESSFUL run when they find none — writing nothing while looking
+ * processed to every anti-join.
+ *
+ * A sweep that reaches these before the registration statement that mints the
+ * row therefore drops their events permanently. {@link sortFormsForSweep} keeps
+ * a single sweep in dependency order; this set is what lets `spac process`
+ * re-select a filing that was gated in an EARLIER sweep, once the row exists.
+ */
+export const SPAC_ROW_GATED_EXTRACTORS: ReadonlySet<string> = new Set([
+  "8-K",
+  "merger-proxy",
+  "25-15",
+]);
+
+export function isSpacRowGatedExtractor(extractorId: string): boolean {
+  return SPAC_ROW_GATED_EXTRACTORS.has(extractorId);
+}
+
+/**
  * Ownership forms are off the SPAC timeline's critical path (S-1 → 424 → 8-K →
  * proxy → 25/15). A fetch miss on Form 3/4/5/144 must not fail `spac process`.
  */

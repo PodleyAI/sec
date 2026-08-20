@@ -140,9 +140,17 @@ export class ExtractionDeadLetterRepo {
     return (await this.storage.query({ extractor_id, reason_code })) ?? [];
   }
 
+  /**
+   * Every entry for an extractor, in any status. A RESOLVED row is not noise:
+   * {@link markResolved} keeps it, so an auto-resolved expected negative is
+   * durable evidence that the detector ran on that accession and answered.
+   */
+  async listAll(extractor_id: string): Promise<ExtractionDeadLetter[]> {
+    return (await this.storage.query({ extractor_id })) ?? [];
+  }
+
   async listPending(extractor_id: string): Promise<ExtractionDeadLetter[]> {
-    const rows = (await this.storage.query({ extractor_id })) ?? [];
-    return rows.filter((r) => r.status === "pending");
+    return (await this.listAll(extractor_id)).filter((r) => r.status === "pending");
   }
 
   /**

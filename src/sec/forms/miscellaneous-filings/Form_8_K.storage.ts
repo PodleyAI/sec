@@ -58,7 +58,19 @@ function extractItemCodes(filingItems: string | undefined | null, form8K: Form8K
   return [...itemSet].sort();
 }
 
-const MILESTONE_ITEM_CODES = new Set(["1.01", "1.02", "2.01", "5.03", "5.07"]);
+/**
+ * 8-K item codes that can carry a de-SPAC lifecycle milestone. An 8-K whose
+ * items include none of these writes no event whether or not the issuer has a
+ * spac row, which is what lets `spac process` tell a filing gated by a missing
+ * row from one that simply had nothing to say.
+ */
+export const MILESTONE_ITEM_CODES: ReadonlySet<string> = new Set([
+  "1.01",
+  "1.02",
+  "2.01",
+  "5.03",
+  "5.07",
+]);
 
 /**
  * Whether the submissions-only SPAC screen has flagged this CIK. Read

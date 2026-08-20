@@ -29,6 +29,7 @@ import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
+import { loadGatedNoOpAccessions } from "./gatedNoOpAccessions";
 import { parseSpacProcessForce, type SpacProcessForce } from "./parseSpacProcessForce";
 import { resetSpacProcessState } from "./resetSpacProcessState";
 import { shouldReplaySpacFiling } from "./shouldReplaySpacFiling";
@@ -194,7 +195,9 @@ export class ProcessSpacTimelineTask extends Task<
     const firstDate = timeline[0]!.filing_date ?? "";
     const lastDate = timeline[timeline.length - 1]!.filing_date ?? "";
 
-    const successfulKeys = await loadSuccessfulKeys(timeline);
+    const activeVersions = await loadActiveExtractorVersions(timeline);
+    const successfulKeys = await loadSuccessfulKeys(activeVersions);
+    const gatedNoOpAccessions = await loadGatedNoOpAccessions(cik, timeline);
     const toProcess = timeline.filter(
       (f) =>
         f.form !== null &&
@@ -205,6 +208,7 @@ export class ProcessSpacTimelineTask extends Task<
           accession_number: f.accession_number,
           force,
           successfulKeys,
+          gatedNoOpAccessions,
         })
     );
     const skipped = timeline.length - toProcess.length;
@@ -232,7 +236,7 @@ export class ProcessSpacTimelineTask extends Task<
 
     if (force.kind === "all") {
       try {
-        await resetSpacProcessState(cik);
+        await resetSpacProcessState(cik, activeVersions);
       } catch (e) {
         return emptyOutcome(cik, e instanceof Error ? e.message : String(e));
       }
@@ -280,24 +284,39 @@ export class ProcessSpacTimelineTask extends Task<
   }
 }
 
-async function loadSuccessfulKeys(
+/**
+ * The active version of every extractor the issuer's timeline routes to. One
+ * map, read once: it decides both which runs already count as successful and
+ * which rows a `--force` reset may clear.
+ */
+async function loadActiveExtractorVersions(
   timeline: readonly Filing[]
-): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+): Promise<ReadonlyMap<string, string>> {
   const versionRegistry = new VersionRegistry(
     globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
   );
-  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
   const extractorIds = new Set<string>();
   for (const f of timeline) {
     if (f.form === null) continue;
     const id = formToExtractorId(f.form);
     if (id !== undefined) extractorIds.add(id);
   }
-  const successfulKeys = new Map<string, ReadonlySet<string>>();
+  const versions = new Map<string, string>();
   for (const id of extractorIds) {
     const slot = await getActiveSlot(versionRegistry, "extractor", id);
     if (slot === undefined) continue;
-    successfulKeys.set(id, await runRepo.successfulRunKeys(id, slot.semver));
+    versions.set(id, slot.semver);
+  }
+  return versions;
+}
+
+async function loadSuccessfulKeys(
+  activeVersionByExtractorId: ReadonlyMap<string, string>
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  const successfulKeys = new Map<string, ReadonlySet<string>>();
+  for (const [id, semver] of activeVersionByExtractorId) {
+    successfulKeys.set(id, await runRepo.successfulRunKeys(id, semver));
   }
   return successfulKeys;
 }
