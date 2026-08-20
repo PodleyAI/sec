@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.28
+
+### Bug Fixes
+
+- update exports in index.ts and add SafeFetch to tests
+
 ## 0.0.27
 
 ### Features
