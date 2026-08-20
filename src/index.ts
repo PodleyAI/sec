@@ -24,7 +24,7 @@ export {
   applyGlobalOptions,
   parseGlobalOptions,
   parseIntOption,
-  type GlobalOptions,
+  type GlobalOptions
 } from "./cli/GlobalOptions";
 export { isDryRun } from "./cli/isDryRun";
 export { isJsonOutput } from "./cli/isJsonOutput";
@@ -36,7 +36,7 @@ export {
   resetDbStatsTablesForTesting,
   type CountableRepository,
   type DbStatsTable,
-  type TableStat,
+  type TableStat
 } from "./cli/queries/DbStatus";
 export { runCommand } from "./cli/runCommand";
 export { runWorkflowCli } from "./cli/runWorkflow";
@@ -54,7 +54,7 @@ export {
   runSyncLeaves,
   type SyncLeaf,
   type SyncRunContext,
-  type SyncStep,
+  type SyncStep
 } from "./cli/sync/syncLeaves";
 
 // ── Config / dependency injection ───────────────────────────────────────────
@@ -71,7 +71,7 @@ export * from "./config/tokens";
 export {
   SecCachedFetchTask,
   type response_type,
-  type SecCachedFetchTaskInput,
+  type SecCachedFetchTaskInput
 } from "./task/fetch/SecCachedFetchTask";
 export { SecFetchTask } from "./task/fetch/SecFetchTask";
 export { getSecJobQueue, setupSecFetchRateLimiter } from "./task/fetch/SecJobQueue";
@@ -89,7 +89,7 @@ export {
   resolveSqlBackend,
   type MaybeDurable,
   type SqlAccess,
-  type SqlBackend,
+  type SqlBackend
 } from "./util/sqlBackend";
 
 // ── Re-exported workglow primitives a superset commonly needs ────────────────
@@ -109,7 +109,7 @@ export {
   registerSafeFetch,
   Sqlite,
   Task,
-  Workflow,
+  Workflow
 } from "workglow";
 export type {
   FetchUrlTaskInput,
@@ -117,7 +117,7 @@ export type {
   IExecuteContext,
   SafeFetchFn,
   ServiceToken,
-  TaskOutput,
+  TaskOutput
 } from "workglow";
 export type { TaskPorts } from "./task/taskPorts";
 export { isStaleByAsOf } from "./util/asOfGuard";
@@ -129,21 +129,21 @@ export { isStaleByAsOf } from "./util/asOfGuard";
 export {
   listDatabaseExtensionTokens,
   registerDatabaseExtension,
-  registerDatabaseSetupHook,
+  registerDatabaseSetupHook
 } from "./config/databaseExtensions";
 export {
   getResolverExtension,
   isFamilyResolverId,
   listResolverIds,
   registerResolverExtension,
-  type ResolverExtension,
+  type ResolverExtension
 } from "./resolver/resolverExtensions";
 
 // ── Family-tier primitives for downstream resolvers ────────────────────────
 export { FamilyResolver, normalizeFamilyName } from "./resolver/FamilyResolver";
 export {
   CanonicalFamilyAliasRepo,
-  type FamilyAliasRow,
+  type FamilyAliasRow
 } from "./storage/canonical/CanonicalFamilyAliasRepo";
 
 // ── Versioning internals ────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export { PERSON_OBSERVATION_REPOSITORY_TOKEN } from "./storage/observation/Perso
 export { PersonObservationTitleRepo } from "./storage/observation/PersonObservationTitleRepo";
 export {
   PERSON_OBSERVATION_TITLE_REPOSITORY_TOKEN,
-  type PersonObservationTitle,
+  type PersonObservationTitle
 } from "./storage/observation/PersonObservationTitleSchema";
 
 // ── Canonical person identity tier (observation → canonical id, merge aliases)
@@ -171,20 +171,20 @@ export {
 // an id that a later merge retired.
 export {
   CANONICAL_PERSON_ALIAS_REPOSITORY_TOKEN,
-  type CanonicalPersonAlias,
+  type CanonicalPersonAlias
 } from "./storage/canonical/CanonicalAliasSchemas";
 export { CanonicalPersonAliasRepo } from "./storage/canonical/CanonicalPersonAliasRepo";
 export { PersonIdentityLinkRepo } from "./storage/canonical/PersonIdentityLinkRepo";
 export {
   PERSON_IDENTITY_LINK_REPOSITORY_TOKEN,
-  type PersonIdentityLink,
+  type PersonIdentityLink
 } from "./storage/canonical/PersonIdentityLinkSchema";
 
 // ── Dated person roles (person↔company title tenures) ───────────────────────
 export { PersonRoleRepo } from "./storage/canonical/PersonRoleRepo";
 export {
   PERSON_ROLE_REPOSITORY_TOKEN,
-  type PersonRole,
+  type PersonRole
 } from "./storage/canonical/PersonRoleSchema";
 
 // ── Canonical company (CIK/CRD → canonical entity) ──────────────────────────
@@ -194,7 +194,7 @@ export {
 export { CanonicalCompanyRepo } from "./storage/canonical/CanonicalCompanyRepo";
 export {
   CANONICAL_COMPANY_REPOSITORY_TOKEN,
-  type CanonicalCompany,
+  type CanonicalCompany
 } from "./storage/canonical/CanonicalCompanySchema";
 
 // ── Normalization helpers ───────────────────────────────────────────────────
@@ -203,7 +203,7 @@ export { companyFamilyName } from "./storage/company/CompanyFamilyName";
 export {
   generateCompanyHash,
   hasCompanyEnding,
-  normalizeCompanyName,
+  normalizeCompanyName
 } from "./storage/company/CompanyNormalization";
 export { normalizePhone } from "./storage/phone/PhoneNormalization";
 
@@ -220,11 +220,12 @@ export {
   createServiceToken,
   InMemoryTabularStorage,
   type AnyTabularStorage,
-  type ITabularStorage,
+  type ITabularStorage
 } from "workglow";
 
 // ── Test helpers a downstream feature package needs in its own test setup ────
 export {
   clearEnvDerivedTokensForTesting,
-  resetDependencyInjectionsForTesting,
+  resetDependencyInjectionsForTesting
 } from "./config/TestingDI";
+

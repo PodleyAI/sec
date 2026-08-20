@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.0.28
+
+### Bug Fixes
+
+- update exports in index.ts and add SafeFetch to tests
+
+## 0.0.27
+
+### Features
+
+- add spac process --force extractor list
+- spac process skips successful filings unless --force
+- reset derived SPAC state for a forced spac-process rebuild
+- skip successful spac-process filings unless forced
+- parse spac process --force extractor list
+
+### Bug Fixes
+
+- report reused filings in spac process summary
+
+#### spac
+
+- three lifecycle classification defects
+- stop spac process destroying and skipping extractor state
+
+#### sync
+
+- update --force warning message and test case
+
+### Refactors
+
+- reorganize exports in index.ts for improved clarity
+
+### Chores
+
+- update deps
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.48
+- `typebox`: 1.3.16
+- `workglow`: 0.3.48
+
 ## 0.0.26
 
 ### Bug Fixes
