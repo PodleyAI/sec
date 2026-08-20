@@ -23,19 +23,6 @@ const HTML_PARSEABLE = [
   "<h1>LEGAL MATTERS</h1><p>x</p>",
 ].join("");
 
-// The roster the parser reads: one person it can see. The prose line below it
-// names an officer no table row carries, which the AI path reads and the table
-// walk cannot.
-const HTML_PARTIAL_ROSTER = [
-  "<h1>MANAGEMENT</h1>",
-  "<table>",
-  "<tr><td>Name</td><td>Age</td><td>Title</td></tr>",
-  "<tr><td>Jane Roe</td><td>52</td><td>Director</td></tr>",
-  "</table>",
-  "<p>John Doe continues to serve as our Chief Financial Officer.</p>",
-  "<h1>LEGAL MATTERS</h1><p>x</p>",
-].join("");
-
 const HTML_PROSE_ROSTER = [
   "<h1>MANAGEMENT</h1>",
   "<p>Jane Roe — Director. John Doe — Chief Financial Officer.</p>",
@@ -82,8 +69,26 @@ describe("processFormS1 management roster", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("persists a parseable roster as deterministic without calling the management model", async () => {
-    const { calls, unregister } = registerFakeStructuredProvider([{}]);
+  it("still calls the management model on a roster the table walk can read", async () => {
+    // `observePerson` upserts the observation, so this section rewrites `bio` —
+    // and an officer's biography is the paragraphs BELOW the roster table, which
+    // the table walk never reads. A pass standing in here would replace a filed
+    // biography with null on every re-run.
+    const { calls, unregister } = registerFakeStructuredProvider([
+      {
+        people: [
+          {
+            full_name: "Jane Roe",
+            titles: ["Director"],
+            relationship: null,
+            age: 52,
+            bio: "Ms. Roe has served on our board since 2024.",
+            confidence: 0.9,
+            source_span: "Jane Roe",
+          },
+        ],
+      },
+    ]);
     cleanup = unregister;
 
     await processFormS1({
@@ -106,19 +111,28 @@ describe("processFormS1 management roster", () => {
       (o) => o.relationship === "s1:management"
     );
     expect(people.map((p) => [p.first_name, p.last_name])).toEqual([["Jane", "Roe"]]);
-    expect(calls.some((p) => /Extract every director and executive officer/.test(p))).toBe(false);
+    expect(calls.some((p) => /Extract every director and executive officer/.test(p))).toBe(true);
+    expect(people[0]!.bio).toBe("Ms. Roe has served on our board since 2024.");
     const provenance = await new ObservationProvenanceRepo().get(
       "person",
       people[0]!.observation_id
     );
-    expect(provenance?.model_id).toBe(DETERMINISTIC_MODEL_ID);
+    expect(provenance?.model_id).not.toBe(DETERMINISTIC_MODEL_ID);
   });
 
-  it("does not close a role the roster parse never claimed to have enumerated", async () => {
-    const { unregister } = registerFakeStructuredProvider([BOTH_OFFICERS_PAYLOAD]);
+  it("closes a role dropped from an amended roster", async () => {
+    // `s1:management` is one of only two populations that close a dated role,
+    // and a pass that stood in for the model here would silently disable that:
+    // `complete` is computed from the model path's own filtering, so a section
+    // the model never runs can never report a complete population. This test
+    // fails if the management pass starts preempting again.
+    const { unregister } = registerFakeStructuredProvider([
+      BOTH_OFFICERS_PAYLOAD,
+      { people: [BOTH_OFFICERS_PAYLOAD.people[0]!] },
+    ]);
     cleanup = unregister;
 
-    // First filing (prose roster, AI path): both officers hold open roles.
+    // S-1 names both officers: two open roles.
     await processFormS1({
       cik: 1018724,
       file_number: "333-2",
@@ -138,19 +152,18 @@ describe("processFormS1 management roster", () => {
     const opened = await new PersonRoleRepo().listForCompany(1018724, "1.0.0");
     expect(opened.map((r) => r.title).sort()).toEqual(["Chief Financial Officer", "Director"]);
 
-    // Second filing: the table walk reads one of the two, and the filing still
-    // names the other. The parser filters its own output, so "every row I
-    // returned survived" is not evidence that it read the whole roster.
+    // The S-1/A names only the director. The roster is a complete population,
+    // so the officer it stopped naming has departed.
     await processFormS1({
       cik: 1018724,
       file_number: "333-2",
       accession_number: "acc-mgmt-role-2",
       filing_date: "2026-02-02",
-      primary_doc: "s1.htm",
-      form: "S-1",
+      primary_doc: "s1a.htm",
+      form: "S-1/A",
       formS1: {
         header: NULL_HEADER,
-        html: HTML_PARTIAL_ROSTER,
+        html: HTML_PROSE_ROSTER,
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
@@ -160,6 +173,8 @@ describe("processFormS1 management roster", () => {
     const roles = await new PersonRoleRepo().listForCompany(1018724, "1.0.0");
     const cfo = roles.find((r) => r.title === "Chief Financial Officer");
     expect(cfo).toBeDefined();
-    expect(cfo!.end_date).toBeNull();
+    expect(cfo!.end_date).not.toBeNull();
+    const director = roles.find((r) => r.title === "Director");
+    expect(director!.end_date).toBeNull();
   });
 });

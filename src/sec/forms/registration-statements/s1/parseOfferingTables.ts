@@ -107,6 +107,37 @@ export function parseSpacPromoteTerms(text: string): SponsorPromoteRow | null {
   };
 }
 
+/**
+ * The promote columns this walk actually reads out of `text`, as
+ * `spac_promote_terms.<column>` destinations.
+ *
+ * `parseSpacPromoteTerms` returns a row on EITHER of two anchors, so a table
+ * stating founder shares and nothing else yields a row whose other five columns
+ * are null — and a fixed coverage set would let that row overwrite figures the
+ * model reads from the surrounding prose. Coverage is therefore computed from
+ * the same {@link walkFields} pass the parse runs: a column is claimed only when
+ * this filing's tables state it. A second walk over one section's text is a
+ * pure scan and costs nothing worth caching — and a cache keyed on text would
+ * outlive the filing it was computed for.
+ */
+export function promoteCoverage(text: string): ReadonlySet<string> {
+  const fields = walkFields(text);
+  const out = new Set<string>(["field_provenance:spac_promote_terms"]);
+  const columns: ReadonlyArray<readonly [string, number | null]> = [
+    ["founder_shares", fields.founder_shares],
+    ["founder_percent", fields.founder_percent],
+    ["private_placement_warrants", fields.private_placement_warrants],
+    ["private_placement_warrant_price", fields.private_placement_warrant_price],
+    ["public_warrant_coverage", fields.warrant_fraction_per_unit],
+    ["trust_per_public_share", fields.trust_per_public_share],
+    ["trust_total", fields.trust_total],
+  ];
+  for (const [column, value] of columns) {
+    if (value !== null) out.add(`spac_promote_terms.${column}`);
+  }
+  return out;
+}
+
 export function looksLikeUnitIpo(text: string): boolean {
   const fields = walkFields(text);
   return fields.price_per_unit !== null && fields.units_offered !== null;
