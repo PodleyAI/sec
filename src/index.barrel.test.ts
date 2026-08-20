@@ -53,6 +53,7 @@ test("exports task + temporal primitives downstream ingestion needs", () => {
   expect(typeof (sec as Record<string, unknown>).Task).toBe("function");
   expect(typeof (sec as Record<string, unknown>).Workflow).toBe("function");
   expect(typeof (sec as Record<string, unknown>).isStaleByAsOf).toBe("function");
+  expect(typeof (sec as Record<string, unknown>).registerSafeFetch).toBe("function");
 });
 
 test("exports family-tier primitives for a downstream family resolver", () => {
