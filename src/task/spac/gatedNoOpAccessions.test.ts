@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { SpacMergerExtractionRepo } from "../../storage/spac/SpacMergerExtractionRepo";
 import { SpacRedemptionExtractionRepo } from "../../storage/spac/SpacRedemptionExtractionRepo";
@@ -49,12 +51,16 @@ async function mintSpacRow(): Promise<void> {
   });
 }
 
-async function saveEvent(accession: string, event_type: "vote" | "unit_split"): Promise<void> {
+async function saveEvent(
+  accession: string,
+  event_type: "vote" | "unit_split" | "completed",
+  event_date = "2022-03-01"
+): Promise<void> {
   await new SpacRepo().saveEvent({
     cik: CIK,
     accession_number: accession,
     event_type,
-    event_date: "2022-03-01",
+    event_date,
     form: null,
     primary_document: null,
     source_document_url: null,
@@ -198,6 +204,116 @@ describe("loadGatedNoOpAccessions", () => {
     ]);
 
     expect([...out]).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("never selects an annual 20-F that the classifier ignores", async () => {
+    // 20-F routes to the 25-15 extractor so an FPI CLOSE filing can record its
+    // combination. An ORDINARY annual report classifies `ignore` and
+    // `processDeregistration` returns without writing — so an event-only test
+    // re-selects it every single year, for the life of the issuer, and a
+    // foreign private issuer files one annually forever.
+    await mintSpacRow();
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "20-F")]);
+
+    expect([...out]).toEqual([]);
+  });
+
+  it("never selects a post-completion 20-F", async () => {
+    // Once a completion is on the stream, no later 20-F is the filing that
+    // records it — the classifier says `ignore` on that ground alone.
+    await mintSpacRow();
+    await saveEvent("0000000000-26-000000", "completed", "2021-06-01");
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "20-F")]);
+
+    expect([...out]).toEqual([]);
+  });
+
+  it("never selects a 5.03-only 8-K, whose narrative is never fetched", async () => {
+    // 5.03 maps to an event only when the 8-K NARRATIVE names a new registrant,
+    // and the narrative exists only for a fetch escalated to the full
+    // submission — which happens for the redemption / LOI trigger items alone.
+    // A 5.03-only 8-K therefore writes no event on any run and, having no full
+    // submission text, runs neither detector, so it leaves no dead letter
+    // either: nothing it can produce would ever deselect it.
+    await mintSpacRow();
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "8-K", "5.03")]);
+
+    expect([...out]).toEqual([]);
+  });
+
+  it("still selects a 5.03 8-K that also carries an LOI trigger", async () => {
+    // The exclusion is of the STANDALONE code, not of the filing: 8.01
+    // escalates the fetch, so this 8-K really can produce a detector answer.
+    await mintSpacRow();
+
+    const out = await loadGatedNoOpAccessions(CIK, [
+      filing("0000000000-26-000001", "8-K", "5.03,8.01"),
+    ]);
+
+    expect([...out]).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("never selects an optional-form proxy whose merger section was legitimately absent", async () => {
+    // A `DEF 14A` is usually an annual or extension vote with no merger section
+    // at all, and the processor writes no extraction row for one — by design.
+    // The resolved SECTION_NOT_FOUND trace it records instead is the evidence
+    // that it ran; without reading it, every general proxy of all 575 SPACs
+    // that file one is replayed on every sweep, forever.
+    await mintSpacRow();
+    await new ExtractionDeadLetterRepo().recordResolved({
+      extractor_id: "merger-proxy",
+      accession_number: "0000000000-26-000001",
+      section_name: "merger",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "no merger / business-combination / PIPE section text",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "DEF 14A")]);
+
+    expect([...out]).toEqual([]);
+  });
+
+  it("still selects a merger proxy with neither an extraction row nor a dead-letter entry", async () => {
+    // The gated no-op this branch exists for: nothing ran at all.
+    await mintSpacRow();
+
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "DEF 14A")]);
+
+    expect([...out]).toEqual(["0000000000-26-000001"]);
+  });
+
+  it("reads dead letters scoped to the issuer's accessions", async () => {
+    // The detector lookup used to load every row of both extractors, memoized
+    // only within one call — i.e. per CIK — so a batch over ~1,500 SPACs read
+    // the whole table 1,500 times. Scoping it to the accessions on this
+    // issuer's timeline is the fix, and an unrelated row must neither be read
+    // nor answer for this issuer's filing.
+    await mintSpacRow();
+    const deadLetters = new ExtractionDeadLetterRepo();
+    await deadLetters.recordResolved({
+      extractor_id: "redemption",
+      accession_number: "9999999999-26-999999",
+      section_name: "redemption",
+      reason_code: "MODEL_EMPTY",
+      detail: null,
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const storage = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+    const spy = vi.spyOn(storage, "query");
+    const out = await loadGatedNoOpAccessions(CIK, [filing("0000000000-26-000001", "8-K", "5.07")]);
+
+    expect([...out]).toEqual(["0000000000-26-000001"]);
+    expect(spy).toHaveBeenCalled();
+    for (const [criteria] of spy.mock.calls) {
+      expect(criteria).toHaveProperty("accession_number");
+    }
   });
 
   it("never selects a filing whose extractor is not spac-row gated", async () => {

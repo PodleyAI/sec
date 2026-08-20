@@ -132,6 +132,38 @@ export class ExtractionDeadLetterRepo {
     });
   }
 
+  /**
+   * A durable "ran, and there was legitimately nothing to do" trace.
+   *
+   * {@link markResolved} cannot express this: it no-ops when no row exists, and
+   * an expected no-op never wrote one. Without a trace, a selection predicate
+   * keyed on "did this section produce anything" cannot tell a handler that
+   * legitimately wrote nothing from one that was gated and dropped its work, so
+   * it re-selects the filing on every sweep forever.
+   *
+   * A single `put`, so no reader ever observes a spurious `pending` row
+   * mid-update, and `first_seen_at` is preserved when an earlier failure left
+   * one. The entry never reaches `sec extractor dead-letters`, which lists
+   * pending entries only.
+   */
+  async recordResolved(input: DeadLetterInput): Promise<void> {
+    const now = new Date().toISOString();
+    const existing = await this.get(input.extractor_id, input.accession_number, input.section_name);
+    await this.storage.put({
+      extractor_id: input.extractor_id,
+      accession_number: input.accession_number,
+      section_name: input.section_name,
+      reason_code: input.reason_code,
+      detail: input.detail,
+      failed_extractor_version: input.failed_extractor_version,
+      status: "resolved",
+      attempts: 0,
+      first_seen_at: existing?.first_seen_at ?? now,
+      last_attempt_at: now,
+      source_run_id: input.source_run_id,
+    });
+  }
+
   /** Entries for an extractor carrying a reason code, in any status. */
   async listByReasonCode(
     extractor_id: string,
@@ -176,6 +208,42 @@ export class ExtractionDeadLetterRepo {
           ...(extractor_id !== undefined ? { extractor_id } : {}),
         })) ?? [];
       out.push(...rows);
+    }
+    return out;
+  }
+
+  /**
+   * Entries for the given extractors whose accession is in
+   * `accession_numbers`, in ANY status — a RESOLVED row is the evidence here,
+   * not noise: an auto-resolved expected negative, or a
+   * {@link recordResolved} trace, is the only mark a handler that legitimately
+   * wrote nothing leaves.
+   *
+   * Scoped by accession because the caller already holds one issuer's timeline:
+   * reading every row of an extractor to answer a question about a dozen
+   * filings costs the whole table per issuer, and a batch pays that per SPAC.
+   *
+   * The extractor ids are looped rather than nested as a second `in` list, so
+   * each query binds one list; an empty list on either side returns
+   * immediately (`IN ()` is invalid SQL).
+   */
+  async listByAccessions(
+    accession_numbers: readonly string[],
+    extractor_ids: readonly string[]
+  ): Promise<ExtractionDeadLetter[]> {
+    if (accession_numbers.length === 0 || extractor_ids.length === 0) return [];
+    const distinct = [...new Set(accession_numbers)];
+    const out: ExtractionDeadLetter[] = [];
+    for (const extractor_id of extractor_ids) {
+      for (let start = 0; start < distinct.length; start += MAX_IDS_PER_QUERY) {
+        const chunk = distinct.slice(start, start + MAX_IDS_PER_QUERY);
+        const rows =
+          (await this.storage.query({
+            accession_number: { value: chunk, operator: "in" },
+            extractor_id,
+          })) ?? [];
+        out.push(...rows);
+      }
     }
     return out;
   }

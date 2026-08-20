@@ -41,6 +41,7 @@ import type { FormS1Parsed } from "../registration-statements/Form_S_1";
 import {
   GENERAL_DEFINITIVE_PROXY_FORMS,
   MERGER_PROXY_OPTIONAL_FORMS,
+  MERGER_PROXY_SECTION,
 } from "../../../storage/versioning/extractorIds";
 import { seeksCombinationApproval } from "./seeksCombinationApproval";
 
@@ -48,7 +49,7 @@ const EXTRACTOR_ID = "merger-proxy";
 // Stays 1.0.0: no persisted data to re-extract, so the target_description
 // addition needs no version bump (see the S-1 processor for the rationale).
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
-const MERGER_SECTION = "merger";
+const MERGER_SECTION = MERGER_PROXY_SECTION;
 /**
  * Definitive MERGER statements: the form symbol itself says the meeting is
  * about a combination, so these emit the `proxy` lifecycle event whether or not
@@ -197,7 +198,29 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   let extractedDeal = false;
 
   if (skipMergerSection) {
-    // Nothing to extract, and nothing wrong. Fall through to the proxy event.
+    // Nothing to extract, and nothing wrong — but the skip still needs a
+    // durable trace. Every predicate that asks "did this proxy produce
+    // anything" reads the extraction row, and a legitimately absent merger
+    // section writes none; without a trace, an ordinary annual or extension
+    // proxy of a known SPAC is indistinguishable from one whose handler was
+    // gated on a missing spac row and dropped its work, so `spac process` and
+    // `sec extractor backfill merger-proxy` re-select all 575 SPACs' general
+    // proxies on every run, forever.
+    //
+    // Recorded RESOLVED: this is an answer, not a failure. It never reaches
+    // `sec extractor dead-letters`, which lists pending entries, so the
+    // worklist an operator reads is untouched — the same shape as the
+    // auto-resolved `MODEL_EMPTY` rows the redemption / LOI detectors already
+    // write per trigger 8-K.
+    await deadLetters.recordResolved({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: MERGER_SECTION,
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "no merger / business-combination / PIPE section text",
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
   } else if (!model) {
     // No model: dead-letter the merger section but still emit the proxy event
     // (deterministic, definitive statements only) so the SPAC timeline advances.

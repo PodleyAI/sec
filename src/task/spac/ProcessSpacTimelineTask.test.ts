@@ -405,6 +405,118 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.skipped).toBe(1);
   });
 
+  /**
+   * Stands in for the real form pipeline: the S-1 mints the `spac` row, the
+   * 8-K records its vote event, and both record a successful run at the active
+   * version — the artifacts each selection predicate keys on. Installed as a
+   * spy so `vi.restoreAllMocks()` in `afterEach` puts the real method back.
+   */
+  function mockFormProcessor() {
+    return vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockImplementation(async (input) => {
+        const accession = input.accessionNumber!;
+        const isRegistration = input.form === "S-1";
+        if (isRegistration) {
+          await new SpacReportWriter().recordRegistration({
+            cik: CIK,
+            accession_number: accession,
+            filing_date: "2021-01-04",
+            form: "S-1",
+            primary_document: "s1.htm",
+            spac_name: "Gated SPAC",
+            spac_sic: 6770,
+          });
+        } else {
+          await new SpacRepo().saveEvent({
+            cik: CIK,
+            accession_number: accession,
+            event_type: "vote",
+            event_date: "2021-02-04",
+            form: "8-K",
+            primary_document: null,
+            source_document_url: null,
+            deal_index: null,
+            amount: null,
+            shares: null,
+            detail: null,
+            confidence: null,
+            created_at: new Date().toISOString(),
+          });
+        }
+        await new ExtractorRunRepo(
+          globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN)
+        ).recordRun({
+          cik: CIK,
+          accession_number: accession,
+          form: isRegistration ? "S-1" : "8-K",
+          extractor_id: isRegistration ? "S-1" : "8-K",
+          extractor_version: "1.0.0",
+          slot_at_run: "current",
+          success: true,
+          error: null,
+        });
+        return { success: true };
+      });
+  }
+
+  /** An S-1 that will mint the row, and an 8-K already gated by its absence. */
+  async function seedGatedTimeline(): Promise<void> {
+    await seedFiling("0000000000-26-000001", "S-1", "2021-01-04", "s1.htm");
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+  }
+
+  it("processes gated 8-Ks in the same run as the S-1 that mints the spac row", async () => {
+    // The canonical broken state: 8-Ks swept before the registration statement.
+    // The gated set is empty while the CIK has no `spac` row — and the S-1 that
+    // mints it is on this very timeline, replayed moments after the set was
+    // computed. Every gated 8-K was therefore filtered out of the one run that
+    // could repair it, and only a second identical invocation fixed it, with
+    // nothing anywhere saying so.
+    await seedGatedTimeline();
+    const spy = mockFormProcessor();
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    const accessions = spy.mock.calls.map((c) => c[0]?.accessionNumber);
+    expect(accessions).toContain("0000000000-26-000002");
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(0);
+  });
+
+  it("reaches a fixpoint: a second invocation processes nothing", async () => {
+    // The invariant every gated predicate must hold: processing a filing writes
+    // the artifact the predicate keys on, so it leaves the selected set. This
+    // one property covers the 20-F, the 5.03-only 8-K, the optional-form proxy
+    // and the same-run repair pass at once — any of them re-selecting means the
+    // second invocation replays work that the first already did.
+    await seedGatedTimeline();
+    const spy = mockFormProcessor();
+
+    await new ProcessSpacTimelineTask().run({ cik: CIK });
+    spy.mockClear();
+    const second = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(second.matched).toBe(2);
+    expect(second.skipped).toBe(second.matched);
+  });
+
+  it("does not run a second pass under --dry-run", async () => {
+    // `--dry-run` no-ops every write, so a repair pass would make live model
+    // calls and then read its outcome counts back from rows that never landed.
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    await seedGatedTimeline();
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+  });
+
   it("dry-run with a successful filing reports skipped and does not call the processor", async () => {
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
     await seedFiling("0000000000-26-000001", "D", "2021-01-04");

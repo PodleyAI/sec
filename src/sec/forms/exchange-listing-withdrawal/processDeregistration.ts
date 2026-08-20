@@ -95,6 +95,49 @@ export async function resolveListingRemovalKind(args: {
 }
 
 /**
+ * Whether replaying this listing-removal filing can still write something.
+ *
+ * The single predicate `sec spac process` and `sec extractor backfill 25-15`
+ * both select on, so the two cannot drift apart. It is MONOTONE: the only way
+ * to answer true is that the event the live classifier names is not yet
+ * recorded on this accession, and processing the filing records exactly that
+ * event — so a processed filing leaves the set.
+ *
+ * Two shapes answer false because {@link processDeregistration} would write
+ * nothing for them, and re-selecting a filing nothing can be written for is
+ * pure waste repeated on every sweep:
+ *
+ * - a missing `form` or `filing_date` — the handler returns before writing;
+ * - a classifier verdict of `ignore`, which covers every annual 20-F (the form
+ *   routes here so the FPI CLOSE filing can record a completion) and every
+ *   20-F filed once a completion is already on the stream. A de-SPAC'd foreign
+ *   private issuer files one of those every year, forever.
+ */
+export async function listingRemovalNeedsWork(args: {
+  readonly cik: number;
+  readonly form: string | null;
+  readonly filingDate: string | null;
+  readonly accession_number: string;
+  readonly ipoDate: string | null;
+  readonly events: readonly SpacEvent[];
+}): Promise<boolean> {
+  if (args.form == null || args.form === "") return false;
+  if (args.filingDate == null || args.filingDate === "") return false;
+  const kind = await resolveListingRemovalKind({
+    cik: args.cik,
+    form: args.form,
+    filingDate: args.filingDate,
+    accession_number: args.accession_number,
+    ipoDate: args.ipoDate,
+    events: args.events,
+  });
+  if (kind === "ignore") return false;
+  return !args.events.some(
+    (e) => e.event_type === kind && e.accession_number === args.accession_number
+  );
+}
+
+/**
  * Record Form 25 / 25-NSE / Form 15 family as a lifecycle event. Exchange
  * 25-NSE shortly after IPO is `unit_split` (units unbundle; the vehicle
  * keeps searching — a second 25-NSE in that window is still a split).
