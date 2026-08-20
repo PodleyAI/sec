@@ -44,10 +44,10 @@ export { AddCommands, DI_EXEMPT_COMMANDS } from "./commands";
 
 export { addSyncLeafCommands } from "./cli/groups/sync";
 export { runFormsSweep } from "./cli/sync/runFormsSweep";
-export { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./cli/sync/syncFormDomains";
+export { formsForExtractorIds, SYNC_FORM_DOMAINS } from "./cli/sync/syncFormDomains";
 export {
-  EMPTY_SYNC_CONTEXT,
   clearSyncLeavesForTesting,
+  EMPTY_SYNC_CONTEXT,
   getSyncLeaf,
   listSyncLeaves,
   registerSyncLeaf,
@@ -70,8 +70,8 @@ export * from "./config/tokens";
 // ── Fetch job queue + fetch task bases ──────────────────────────────────────
 export {
   SecCachedFetchTask,
-  type SecCachedFetchTaskInput,
   type response_type,
+  type SecCachedFetchTaskInput,
 } from "./task/fetch/SecCachedFetchTask";
 export { SecFetchTask } from "./task/fetch/SecFetchTask";
 export { getSecJobQueue, setupSecFetchRateLimiter } from "./task/fetch/SecJobQueue";
@@ -99,25 +99,27 @@ export {
 // `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
 // different TypeBox instance, so its DI registrations and schemas would not be
 // visible to sec. Import these from `@workglow/sec` to share sec's instances.
-export type { TaskPorts } from "./task/taskPorts";
-export { isStaleByAsOf } from "./util/asOfGuard";
 export { Type, type Static } from "typebox";
 export { Value } from "typebox/value";
 export {
   FetchUrlTask,
+  getTaskQueueRegistry,
+  globalServiceRegistry,
+  registerSafeFetch,
   Sqlite,
   Task,
   Workflow,
-  getTaskQueueRegistry,
-  globalServiceRegistry,
 } from "workglow";
 export type {
   FetchUrlTaskInput,
   FetchUrlTaskOutput,
   IExecuteContext,
+  SafeFetchFn,
   ServiceToken,
   TaskOutput,
 } from "workglow";
+export type { TaskPorts } from "./task/taskPorts";
+export { isStaleByAsOf } from "./util/asOfGuard";
 
 // ── Extension seams for downstream feature packages ─────────────────────────
 // A downstream feature package (e.g. `embarc-data`) registers its own resolver
@@ -214,8 +216,8 @@ export { TypeNullable } from "./util/TypeBoxUtil";
 
 // ── Re-exported workglow storage primitives a feature package builds on ──────
 export {
-  InMemoryTabularStorage,
   createServiceToken,
+  InMemoryTabularStorage,
   type AnyTabularStorage,
   type ITabularStorage,
 } from "workglow";
