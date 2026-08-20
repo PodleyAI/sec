@@ -364,8 +364,6 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
     activeUnderwriterFamilyVersion,
     byName,
     context: args.context,
-    markSectionResolved: (section) =>
-      deadLetters.markResolved(EXTRACTOR_ID, accession_number, section),
   });
 
   await recordSpacIpoEventIfEligible();

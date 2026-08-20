@@ -376,7 +376,10 @@ describe("processFormS1 offering terms", () => {
     expect(offering?.detail).toMatch(/NO issuer ticker rows/);
   });
 
-  it("persists a markdown-table hit as deterministic without calling the offering model", async () => {
+  it("keeps the issuer ticker series on a markdown-table SPAC offering the walker can read", async () => {
+    // The walker reads the unit table but never the listing sentence, and the
+    // section clears `issuer_ticker` before it writes. Preempting on the terms
+    // alone empties the point-in-time ticker series nothing else reconstructs.
     const html = [
       "<h1>THE OFFERING</h1>",
       "<table>",
@@ -385,9 +388,34 @@ describe("processFormS1 offering terms", () => {
       "<tr><td>Founder shares</td><td>5,750,000</td></tr>",
       "<tr><td>Proceeds to be held in trust account</td><td>$10.00 per unit</td></tr>",
       "</table>",
+      "<p>Our units are expected to be listed on Nasdaq under the symbol ACQU.</p>",
       "<h1>UNDERWRITING</h1><p>Goldman Sachs &amp; Co. LLC is the representative.</p>",
     ].join("");
-    const { unregister } = registerFakeStructuredProvider([{ underwriters: [] }]);
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Units",
+        shares_offered: null,
+        price: null,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 200000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: 20000000,
+        price_per_unit: 10,
+        unit_composition: "one share and one-half warrant",
+        warrant_fraction_per_unit: 0.5,
+        right_fraction_per_unit: null,
+        trust_per_unit: 10,
+        over_allotment_units: null,
+        exchange: "NASDAQ",
+        par_value: null,
+        confidence: 0.9,
+        source_span: "20,000,000",
+        tickers: [{ ticker: "ACQU", exchange: "NASDAQ", security_type: "Units", is_primary: true }],
+      },
+      { underwriters: [] },
+    ]);
     cleanup = unregister;
 
     await processFormS1({
@@ -407,16 +435,17 @@ describe("processFormS1 offering terms", () => {
     });
 
     const unit = await new SpacUnitTermsRepo().get("S-1", "0000000000-26-000010");
-    expect(unit?.price_per_unit).toBe(10);
     expect(unit?.units_offered).toBe(20_000_000);
+    expect(unit?.ticker).toBe("ACQU");
+    const tickers = await new IssuerTickerRepo().history(1848507);
+    expect(tickers.map((t) => t.ticker)).toEqual(["ACQU"]);
+    // The promote parse supplies every column its own section rewrites, so it
+    // still stands in for the model.
     const promote = await new SpacPromoteTermsRepo().get("S-1", "0000000000-26-000010");
     expect(promote?.founder_shares).toBe(5_750_000);
     expect(promote?.trust_per_public_share).toBe(10);
     const prov = await new FieldProvenanceRepo().listByAccession("0000000000-26-000010");
-    const unitProv = prov.filter((p) => p.table_name === "spac_unit_terms");
     const promoteProv = prov.filter((p) => p.table_name === "spac_promote_terms");
-    expect(unitProv.length).toBeGreaterThan(0);
-    expect(unitProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
     expect(promoteProv.length).toBeGreaterThan(0);
     expect(promoteProv.every((p) => p.model_id === DETERMINISTIC_MODEL_ID)).toBe(true);
   });
@@ -465,7 +494,10 @@ describe("processFormS1 offering terms", () => {
     expect(links[0]!.role_detail).toBeNull();
   });
 
-  it("skips the underwriters model on a SPAC resale with no unit IPO", async () => {
+  it("extracts underwriters on a SPAC whose offering section is prose, not a unit table", async () => {
+    // A parser that cannot recognise a unit IPO says nothing about the
+    // Underwriting section. Skipping it here emptied `underwriter_link` and
+    // recorded the section as clean.
     const html = [
       "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
       "<h1>UNDERWRITING</h1>",
@@ -473,6 +505,7 @@ describe("processFormS1 offering terms", () => {
       "<tr><td>Selling Stockholder</td><td>Number of Shares</td></tr>",
       "<tr><td>Acme Holdings LLC</td><td>1,000,000</td></tr>",
       "</table>",
+      "<p>Cantor Fitzgerald &amp; Co. is acting as sole book-running manager.</p>",
     ].join("");
     const { unregister } = registerFakeStructuredProvider([
       {
@@ -508,6 +541,18 @@ describe("processFormS1 offering terms", () => {
         confidence: 0.9,
         source_span: "5,000,000 shares",
       },
+      {
+        underwriters: [
+          {
+            legal_name: "Cantor Fitzgerald & Co.",
+            role: "bookrunner",
+            shares_allocated: null,
+            over_allotment_shares: null,
+            confidence: 0.9,
+            source_span: "Cantor Fitzgerald & Co. is acting as sole book-running manager.",
+          },
+        ],
+      },
     ]);
     cleanup = unregister;
 
@@ -527,9 +572,85 @@ describe("processFormS1 offering terms", () => {
       model: fakeS1Model(),
     });
 
-    expect(await new UnderwriterLinkRepo().listByAccession("0000000000-26-000012")).toEqual([]);
+    const links = await new UnderwriterLinkRepo().listByAccession("0000000000-26-000012");
+    expect(links).toHaveLength(1);
+    expect(links[0]!.role_detail).toBe("bookrunner");
+  });
+
+  it("leaves a pending underwriters dead letter pending when the section really does fail", async () => {
+    const html = [
+      "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
+      "<h1>UNDERWRITING</h1><p>The underwriting arrangements are described elsewhere.</p>",
+    ].join("");
+    await new ExtractionDeadLetterRepo().record({
+      extractor_id: "S-1",
+      accession_number: "0000000000-26-000015",
+      section_name: "underwriters",
+      reason_code: "MODEL_EMPTY",
+      detail: "no underwriters returned",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        security_type: "Common Stock",
+        shares_offered: 5000000,
+        price: 10,
+        price_low: null,
+        price_high: null,
+        gross_proceeds: 50000000,
+        net_proceeds: null,
+        over_allotment_shares: null,
+        units_offered: null,
+        price_per_unit: null,
+        unit_composition: null,
+        warrant_fraction_per_unit: null,
+        right_fraction_per_unit: null,
+        trust_per_unit: null,
+        over_allotment_units: null,
+        exchange: null,
+        par_value: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+        tickers: [],
+      },
+      {
+        founder_shares: null,
+        founder_percent: null,
+        private_placement_warrants: null,
+        private_placement_warrant_price: null,
+        public_warrant_coverage: null,
+        trust_per_public_share: null,
+        trust_total: null,
+        confidence: 0.9,
+        source_span: "5,000,000 shares",
+      },
+      { underwriters: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1848507,
+      file_number: "333-15",
+      accession_number: "0000000000-26-000015",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: SPAC_HEADER,
+        html,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
-    expect(dl.filter((d) => d.section_name === "underwriters")).toEqual([]);
+    expect(
+      dl.filter(
+        (d) => d.section_name === "underwriters" && d.accession_number === "0000000000-26-000015"
+      )
+    ).toHaveLength(1);
   });
 
   it("persists a use-of-proceeds table hit as deterministic without calling the model", async () => {
@@ -578,7 +699,7 @@ describe("processFormS1 offering terms", () => {
     expect(rows.find((r) => r.purpose === "Held in trust account")?.amount).toBe(300_000_000);
   });
 
-  it("skips the use-of-proceeds model on a SPAC resale with no unit IPO", async () => {
+  it("extracts use of proceeds on a SPAC whose offering section is prose, not a unit table", async () => {
     const html = [
       "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
       "<h1>USE OF PROCEEDS</h1>",
@@ -640,8 +761,10 @@ describe("processFormS1 offering terms", () => {
       model: fakeS1Model(),
     });
 
-    expect(await new UseOfProceedsRepo().queryByAccession("0000000000-26-000014")).toEqual([]);
-    const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
-    expect(dl.filter((d) => d.section_name === "use-of-proceeds")).toEqual([]);
+    const rows = await new UseOfProceedsRepo().queryByAccession("0000000000-26-000014");
+    expect(rows.map((r) => r.purpose)).toEqual([
+      "Held in trust account",
+      "Legal fees and expenses",
+    ]);
   });
 });

@@ -39,8 +39,20 @@ describe("processFormS1 spac-profile", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("persists a parseable focus sentence as deterministic without calling the profile model", async () => {
+  it("runs the profile model when the focus parse cannot supply the narrative fields", async () => {
+    // The parser reads focus tags and geography and returns null description /
+    // team. Preempting on that leaves those fields unfilled on this filing and
+    // on every replay, with the section resolving clean.
     const { calls, unregister } = registerFakeStructuredProvider([
+      {
+        focus: ["Healthcare", "Biopharmaceuticals"],
+        focus_location: [],
+        description: "A blank check company targeting healthcare businesses.",
+        team: "Led by a team of healthcare operators.",
+        url_spac: null,
+        confidence: 0.9,
+        source_span: "healthcare and biopharmaceuticals",
+      },
       { people: [] },
       { owners: [] },
       { parties: [] },
@@ -63,8 +75,10 @@ describe("processFormS1 spac-profile", () => {
       model: fakeS1Model(),
     });
 
+    expect(calls.some((p) => /Extract the SPAC's acquisition profile/.test(p))).toBe(true);
     const spac = await new SpacRepo().getSpac(1018724);
     expect(JSON.parse(spac?.focus ?? "[]")).toEqual(["Healthcare", "Biopharmaceuticals"]);
-    expect(calls.some((p) => /Extract the SPAC's acquisition profile/.test(p))).toBe(false);
+    expect(spac?.description).toBe("A blank check company targeting healthcare businesses.");
+    expect(spac?.team).toBe("Led by a team of healthcare operators.");
   });
 });

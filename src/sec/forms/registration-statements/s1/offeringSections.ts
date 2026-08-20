@@ -43,7 +43,6 @@ import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 import {
   DETERMINISTIC_MODEL_ID,
-  looksLikeUnitIpo,
   parseSpacOfferingTerms,
   parseSpacPromoteTerms,
 } from "./parseOfferingTables";
@@ -195,7 +194,6 @@ export interface OfferingSectionsArgs {
   readonly byName: ReadonlyMap<S1SectionName, string>;
   /** Running task context, threaded to the generation calls for CLI progress. */
   readonly context?: IExecuteContext;
-  readonly markSectionResolved: (sectionName: string) => Promise<void>;
 }
 
 /**
@@ -221,7 +219,6 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     activeUnderwriterFamilyVersion,
     byName,
     context,
-    markSectionResolved,
   } = args;
   const models = args.models ?? [model];
   const base = { accession_number, extractor_id, extractor_version };
@@ -251,6 +248,10 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   // The extractor returns a single object; adapt it onto runSection by treating
   // a null result as an empty array and wrapping a present result as `[terms]`.
   const offeringText = offeringParseText(byName);
+  // The two destinations are mutually exclusive: a SPAC's unit terms, or an
+  // equity issuer's share terms. Naming the one in play keeps the coverage
+  // contract exact rather than asserting the section rewrites both.
+  const termsTable = isSpac ? "spac_unit_terms" : "offering_terms";
   await runSection<OfferingTermsRow>({
     sectionName: "offering-terms",
     text: offeringText,
@@ -273,18 +274,34 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedAllDetail: `all $T confident offering-terms rows had source_span not present in section text${OFFERING_TERMS_LOSS}`,
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
+    clears: new Set([
+      termsTable,
+      `field_provenance:${termsTable}`,
+      "issuer_ticker",
+      "field_provenance:issuer_ticker",
+    ]),
+    // SPAC-only: the walker reads a unit/price table a non-SPAC equity
+    // prospectus does not have. As declared it never stands in for the model —
+    // it reads the offering table, not the listing sentence naming the issuer's
+    // symbols, so the ticker series cleared above would be left empty. Teaching
+    // it to read that sentence is what would let `issuer_ticker` join `covers`.
+    deterministic: isSpac
+      ? {
+          extract: (text) => {
+            const det = parseSpacOfferingTerms(text);
+            return det === null ? [] : [det];
+          },
+          covers: new Set([termsTable, `field_provenance:${termsTable}`]),
+        }
+      : undefined,
     ...modelExtractChain(models, async (text, m) => {
-      if (isSpac) {
-        const det = parseSpacOfferingTerms(text);
-        if (det !== null) return [det];
-      }
       const terms = await extractOfferingTerms(text, m, context);
       return terms === null ? [] : [terms];
     }),
     persist: async (rows, meta) => {
       const terms = rows[0];
       const model_id =
-        terms.source === "deterministic"
+        meta.source === "deterministic"
           ? DETERMINISTIC_MODEL_ID
           : persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
@@ -425,16 +442,22 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       ]),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
+    clears: new Set(["spac_promote_terms", "field_provenance:spac_promote_terms"]),
+    deterministic: {
+      extract: (text) => {
+        const det = parseSpacPromoteTerms(text);
+        return det === null ? [] : [det];
+      },
+      covers: new Set(["spac_promote_terms", "field_provenance:spac_promote_terms"]),
+    },
     ...modelExtractChain(models, async (text, m) => {
-      const det = parseSpacPromoteTerms(text);
-      if (det !== null) return [det];
       const promote = await extractSponsorPromote(text, m, context);
       return promote === null ? [] : [promote];
     }),
     persist: async (rows, meta) => {
       const promote = rows[0];
       const model_id =
-        promote.source === "deterministic"
+        meta.source === "deterministic"
           ? DETERMINISTIC_MODEL_ID
           : persistModelId(models, meta.modelIndex);
       await spacPromoteTermsRepo.save({
@@ -486,157 +509,158 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
 
   // --- Underwriters (Underwriting section; all filings) ---
   const underwritingText = byName.get(S1_SECTIONS.UNDERWRITING);
-  const unitIpo = looksLikeUnitIpo(offeringText);
-  if (isSpac && !unitIpo) {
-    await markSectionResolved("underwriters");
-  } else {
-    await runSection<UnderwriterRowOut>({
-      sectionName: "underwriters",
-      text: underwritingText,
-      emptyDetail: "no underwriters returned",
-      lowConfidenceDetail: "all rows below confidence floor",
-      invalidWriteDetail: "no underwriter rows had a usable legal name",
-      // Prompt-injection backstop: refuse to persist any underwriter row whose
-      // source_span is not a verbatim substring of the Underwriting section text.
-      verifyRow: (text, r) => classifySpan(text, r.source_span),
-      unverifiedAllDetail:
-        "all $T confident underwriter rows had source_span not present in section text",
-      unverifiedPartialDetail:
-        "$N of $T confident underwriter rows had source_span not present in section text",
-      ...modelExtractChain(models, async (text, m) => {
-        if (isSpac) {
-          const det = parseSpacUnderwriters(text);
-          if (det.length > 0) return det;
+  await runSection<UnderwriterRowOut>({
+    sectionName: "underwriters",
+    text: underwritingText,
+    emptyDetail: "no underwriters returned",
+    lowConfidenceDetail: "all rows below confidence floor",
+    invalidWriteDetail: "no underwriter rows had a usable legal name",
+    // Prompt-injection backstop: refuse to persist any underwriter row whose
+    // source_span is not a verbatim substring of the Underwriting section text.
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident underwriter rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident underwriter rows had source_span not present in section text",
+    clears: new Set(["underwriter_link", "company_observation", "observation_provenance"]),
+    // SPAC-only: the parser reads the syndicate table a unit IPO prints.
+    deterministic: isSpac
+      ? {
+          extract: parseSpacUnderwriters,
+          covers: new Set(["underwriter_link", "company_observation", "observation_provenance"]),
         }
-        return extractUnderwriters(text, m, context);
-      }),
-      persist: async (rows, meta) => {
-        const model_id =
-          rows[0]?.source === "deterministic"
-            ? DETERMINISTIC_MODEL_ID
-            : persistModelId(models, meta.modelIndex);
-        let wrote = 0;
-        // One underwriter, one link row. The model repeats an underwriter across
-        // rows more often than not — a sole-underwriter filing came back with the
-        // same bank once, twice, and three times on three consecutive runs — and
-        // every duplicate previously minted its own observation, family
-        // membership and link row, inflating `sec underwriter by-family` counts by
-        // however many times the model stuttered. Deduped on the LEGAL name, not
-        // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
-        // Markets Limited" are two entities that share one family, and collapsing
-        // on the family would silently drop the second.
-        const seenLegalNames = new Set<string>();
-        const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
-        const extractedNames = splits.map((s) => s.observationName);
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i]!;
-          const split = splits[i]!;
-          if (split.observationName === "") continue;
-          if (isUnnamedCompanyName(split.observationName)) continue;
-          // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
-          // & Co.") is one house, not two. Inc vs Limited of the same house are
-          // equal-length family keys and are not dropped.
-          if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
-          const dedupeKey = normalizeEntityName(split.observationName);
-          if (seenLegalNames.has(dedupeKey)) continue;
-          seenLegalNames.add(dedupeKey);
-          // companyFamilyName wipes non-ASCII and punctuation, so "[●]" (a
-          // still-blank F-1 table cell) and a CJK legal name both have no family
-          // key. A letterless placeholder is not an entity — skip it before
-          // observeCompany. A name that still has letters (CJK) is observed
-          // without a family rather than throwing "empty name" and aborting the
-          // rest of the table.
-          const familyKey = normalizeFamilyName(split.familyName);
-          if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
-          const observation_index = nextIndex();
-          const { observation_id, canonical_company_id } = await observer.observeCompany({
-            ...base,
-            observation_index,
-            name: split.observationName,
-            source_context: parentClauseSourceContext(`${relationPrefix}:underwriter`, split),
-          });
-          await provenance.save({
-            kind: "company",
-            observation_id,
-            confidence: r.confidence,
-            source_span: boundSourceSpan(r.source_span),
-            section_name: "underwriters",
-            model_id,
-            prompt_version: extractor_version,
-            extra: null,
-          });
-          if (!familyKey) {
-            wrote++;
-            continue;
-          }
-          const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
-          await underwriterMembershipRepo.record({
-            resolver_version: activeUnderwriterFamilyVersion,
-            canonical_company_id,
-            canonical_underwriter_family_id: underwriter_family_id,
-            seen_at: new Date().toISOString(),
-          });
-          await underwriterLinkRepo.save({
-            accession_number,
-            extractor_id,
-            observation_index,
-            issuer_cik: cik,
-            underwriter_canonical_company_id: canonical_company_id,
-            underwriter_family_id,
-            role_detail: r.role,
-            shares_allocated: toIntCount(r.shares_allocated),
-            over_allotment_shares: toIntCount(r.over_allotment_shares),
-            resolver_version: activeUnderwriterFamilyVersion,
-          });
+      : undefined,
+    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
+    persist: async (rows, meta) => {
+      const model_id =
+        meta.source === "deterministic"
+          ? DETERMINISTIC_MODEL_ID
+          : persistModelId(models, meta.modelIndex);
+      let wrote = 0;
+      // One underwriter, one link row. The model repeats an underwriter across
+      // rows more often than not — a sole-underwriter filing came back with the
+      // same bank once, twice, and three times on three consecutive runs — and
+      // every duplicate previously minted its own observation, family
+      // membership and link row, inflating `sec underwriter by-family` counts by
+      // however many times the model stuttered. Deduped on the LEGAL name, not
+      // the common name: "Citigroup Global Markets Inc." and "Citigroup Global
+      // Markets Limited" are two entities that share one family, and collapsing
+      // on the family would silently drop the second.
+      const seenLegalNames = new Set<string>();
+      const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
+      const extractedNames = splits.map((s) => s.observationName);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]!;
+        const split = splits[i]!;
+        if (split.observationName === "") continue;
+        if (isUnnamedCompanyName(split.observationName)) continue;
+        // Brand stub next to the full legal name ("Cantor" + "Cantor Fitzgerald
+        // & Co.") is one house, not two. Inc vs Limited of the same house are
+        // equal-length family keys and are not dropped.
+        if (isCompanyFamilyPrefixEcho(split.observationName, extractedNames)) continue;
+        const dedupeKey = normalizeEntityName(split.observationName);
+        if (seenLegalNames.has(dedupeKey)) continue;
+        seenLegalNames.add(dedupeKey);
+        // companyFamilyName wipes non-ASCII and punctuation, so "[●]" (a
+        // still-blank F-1 table cell) and a CJK legal name both have no family
+        // key. A letterless placeholder is not an entity — skip it before
+        // observeCompany. A name that still has letters (CJK) is observed
+        // without a family rather than throwing "empty name" and aborting the
+        // rest of the table.
+        const familyKey = normalizeFamilyName(split.familyName);
+        if (!familyKey && !/\p{L}/u.test(split.observationName)) continue;
+        const observation_index = nextIndex();
+        const { observation_id, canonical_company_id } = await observer.observeCompany({
+          ...base,
+          observation_index,
+          name: split.observationName,
+          source_context: parentClauseSourceContext(`${relationPrefix}:underwriter`, split),
+        });
+        await provenance.save({
+          kind: "company",
+          observation_id,
+          confidence: r.confidence,
+          source_span: boundSourceSpan(r.source_span),
+          section_name: "underwriters",
+          model_id,
+          prompt_version: extractor_version,
+          extra: null,
+        });
+        if (!familyKey) {
           wrote++;
+          continue;
         }
-        return wrote;
-      },
-    });
-  }
+        const underwriter_family_id = await underwriterFamilyResolver.resolve(split.familyName);
+        await underwriterMembershipRepo.record({
+          resolver_version: activeUnderwriterFamilyVersion,
+          canonical_company_id,
+          canonical_underwriter_family_id: underwriter_family_id,
+          seen_at: new Date().toISOString(),
+        });
+        await underwriterLinkRepo.save({
+          accession_number,
+          extractor_id,
+          observation_index,
+          issuer_cik: cik,
+          underwriter_canonical_company_id: canonical_company_id,
+          underwriter_family_id,
+          role_detail: r.role,
+          shares_allocated: toIntCount(r.shares_allocated),
+          over_allotment_shares: toIntCount(r.over_allotment_shares),
+          resolver_version: activeUnderwriterFamilyVersion,
+        });
+        wrote++;
+      }
+      return wrote;
+    },
+  });
 
   // --- Use of proceeds ---
   const useOfProceedsText = byName.get(S1_SECTIONS.USE_OF_PROCEEDS);
-  if (isSpac && !unitIpo) {
-    await markSectionResolved("use-of-proceeds");
-  } else {
-    await runSection<UseOfProceedsLineRow>({
-      sectionName: "use-of-proceeds",
-      text: useOfProceedsText,
-      emptyDetail: "no line items returned",
-      lowConfidenceDetail: "all rows below confidence floor",
-      verifyRow: (text, r) => classifySpan(text, r.source_span),
-      unverifiedAllDetail:
-        "all $T confident use-of-proceeds rows had source_span not present in section text",
-      unverifiedPartialDetail:
-        "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-      ...modelExtractChain(models, async (text, m) => {
-        if (isSpac) {
-          const det = parseSpacUseOfProceeds(text);
-          if (det.length >= 2) return det;
+  await runSection<UseOfProceedsLineRow>({
+    sectionName: "use-of-proceeds",
+    text: useOfProceedsText,
+    emptyDetail: "no line items returned",
+    lowConfidenceDetail: "all rows below confidence floor",
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident use-of-proceeds rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident use-of-proceeds rows had source_span not present in section text",
+    clears: new Set(["use_of_proceeds"]),
+    // SPAC-only: the parser reads the offering-expenses table a unit IPO
+    // prints. A single line is not one of those tables — it is one figure the
+    // row scan happened to match — so it is reported as no parse at all rather
+    // than as a one-line use of proceeds.
+    deterministic: isSpac
+      ? {
+          extract: (text) => {
+            const det = parseSpacUseOfProceeds(text);
+            return det.length >= 2 ? det : [];
+          },
+          covers: new Set(["use_of_proceeds"]),
         }
-        return extractUseOfProceeds(text, m, context);
-      }),
-      persist: async (rows) => {
-        const now = new Date().toISOString();
-        let lineIndex = 0;
-        for (const r of rows) {
-          await useOfProceedsRepo.save({
-            extractor_id,
-            accession_number,
-            line_index: lineIndex++,
-            cik,
-            purpose: r.purpose,
-            amount: r.amount,
-            percent: r.percent,
-            note: r.note,
-            confidence: r.confidence,
-            source_span: boundSourceSpan(r.source_span),
-            created_at: now,
-          });
-        }
-        return rows.length;
-      },
-    });
-  }
+      : undefined,
+    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),
+    persist: async (rows) => {
+      const now = new Date().toISOString();
+      let lineIndex = 0;
+      for (const r of rows) {
+        await useOfProceedsRepo.save({
+          extractor_id,
+          accession_number,
+          line_index: lineIndex++,
+          cik,
+          purpose: r.purpose,
+          amount: r.amount,
+          percent: r.percent,
+          note: r.note,
+          confidence: r.confidence,
+          source_span: boundSourceSpan(r.source_span),
+          created_at: now,
+        });
+      }
+      return rows.length;
+    },
+  });
 }

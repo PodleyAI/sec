@@ -14,6 +14,8 @@ import {
   RateLimitExhaustedError,
 } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
+import type { DeterministicPass } from "./deterministicPass";
+import { preempts } from "./deterministicPass";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -121,6 +123,23 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
   /**
+   * Every destination {@link persist} rewrites for this section: rows cleared
+   * before the run, or overwritten in place. Only read to decide whether
+   * {@link deterministic} may stand in for {@link extract}; see
+   * {@link DeterministicPass}.
+   */
+  readonly clears?: ReadonlySet<string>;
+  /**
+   * A model-free parse tried ONCE, before {@link extract}, and only when it
+   * covers everything {@link clears} names.
+   *
+   * All-or-nothing: its rows persist only when every one of them clears the
+   * confidence floor and {@link verifyRow}. A shortfall records nothing and
+   * falls through to the model — re-asking a pure function cannot change its
+   * answer, and dead-lettering here would blame the model for a parser miss.
+   */
+  readonly deterministic?: DeterministicPass<TRow>;
+  /**
    * Tried in order when {@link extract} (and any earlier fallback) returns `[]`
    * **or throws** a provider/extraction error. Abort, an already-aborted
    * signal, {@link SecCliConfigurationError}, and {@link MixedRiskCaptionShapeError}
@@ -152,6 +171,13 @@ export interface SectionPersistMeta {
   readonly complete: boolean;
   /** 0 = primary {@link RunSectionArgs.extract}; 1+ = {@link RunSectionArgs.emptyExtracts} index + 1. */
   readonly modelIndex: number;
+  /**
+   * Which path produced the rows. `"deterministic"` means
+   * {@link RunSectionArgs.deterministic} supplied them and no model was called,
+   * so `modelIndex` names nothing — persist callbacks record the provenance
+   * model id from this, never from a field on a row.
+   */
+  readonly source: "deterministic" | "model";
 }
 
 export type RunSection = <TRow extends { confidence: number }>(
@@ -262,62 +288,92 @@ export function makeRunSection(opts: {
         if (lastError !== undefined) throw lastError;
         return lastRaw;
       };
-      for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
-        try {
+      // The deterministic pass runs ONCE, ahead of the retry loop and outside
+      // it. It is a pure function of the section text, so a second identical
+      // call cannot produce a different answer; re-asking it would only burn
+      // attempts, and dead-lettering its shortfall would record the model as
+      // having failed a section it was never given.
+      let source: "deterministic" | "model" = "model";
+      let deterministicComplete = false;
+      const pass = sargs.deterministic;
+      if (pass !== undefined && preempts(pass, sargs.clears)) {
+        const detRaw = pass.extract(text);
+        const detConfident = detRaw.filter((r) => r.confidence >= floor);
+        const detRows =
+          verifyRow === undefined
+            ? detConfident
+            : detConfident.filter((r) => {
+                const verdict = verifyRow(text, r);
+                return verdict === true || verdict === "ok";
+              });
+        // All or nothing. A partial parse persists a subset of a section the
+        // caller has already cleared, and resolves it as complete.
+        if (detRaw.length > 0 && detRows.length === detRaw.length) {
+          raw = [...detRaw];
+          confident = [...detConfident];
+          rows = [...detRows];
+          source = "deterministic";
+          deterministicComplete = pass.complete?.(detRows, text) ?? false;
+        }
+      }
+      if (source === "model") {
+        for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
           try {
-            raw = await extractFn(text);
-            if (
-              raw.length === 0 &&
-              fallbackOnEmpty &&
-              !triedEmptyFallbacks &&
-              fallbacks !== undefined &&
-              fallbacks.length > 0
-            ) {
-              raw = await runEmptyFallbacks(undefined);
+            try {
+              raw = await extractFn(text);
+              if (
+                raw.length === 0 &&
+                fallbackOnEmpty &&
+                !triedEmptyFallbacks &&
+                fallbacks !== undefined &&
+                fallbacks.length > 0
+              ) {
+                raw = await runEmptyFallbacks(undefined);
+              }
+            } catch (e) {
+              if (isImmediateExtractFailure(e)) throw e;
+              if (!triedEmptyFallbacks && fallbacks !== undefined && fallbacks.length > 0) {
+                raw = await runEmptyFallbacks(e);
+              } else {
+                throw e;
+              }
             }
           } catch (e) {
-            if (isImmediateExtractFailure(e)) throw e;
-            if (!triedEmptyFallbacks && fallbacks !== undefined && fallbacks.length > 0) {
-              raw = await runEmptyFallbacks(e);
-            } else {
+            // A mixed caption shape is a property of ONE generation, not a verdict
+            // about the section: the model echoed a category heading back as a
+            // row, and the next call usually does not. Without this the throw
+            // escapes the loop entirely and the section gets zero re-asks, unlike
+            // every other recoverable response-shape failure here.
+            if (!(e instanceof MixedRiskCaptionShapeError)) throw e;
+            mixedShapeAttempts++;
+            if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
+              // Say what the re-ask cost, so the dead-letter detail records it
+              // rather than reading as a single unlucky generation.
+              e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
               throw e;
             }
+            continue;
           }
-        } catch (e) {
-          // A mixed caption shape is a property of ONE generation, not a verdict
-          // about the section: the model echoed a category heading back as a
-          // row, and the next call usually does not. Without this the throw
-          // escapes the loop entirely and the section gets zero re-asks, unlike
-          // every other recoverable response-shape failure here.
-          if (!(e instanceof MixedRiskCaptionShapeError)) throw e;
-          mixedShapeAttempts++;
-          if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
-            // Say what the re-ask cost, so the dead-letter detail records it
-            // rather than reading as a single unlucky generation.
-            e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
-            throw e;
+          confident = raw.filter((r) => r.confidence >= floor);
+          droppedUnverified = 0;
+          droppedTooLong = 0;
+          if (verifyRow !== undefined && confident.length > 0) {
+            rows = confident.filter((r) => {
+              const verdict = verifyRow(text, r);
+              if (verdict === true || verdict === "ok") return true;
+              if (verdict === "too-long") droppedTooLong++;
+              return false;
+            });
+            droppedUnverified = confident.length - rows.length;
+          } else {
+            rows = confident;
           }
-          continue;
-        }
-        confident = raw.filter((r) => r.confidence >= floor);
-        droppedUnverified = 0;
-        droppedTooLong = 0;
-        if (verifyRow !== undefined && confident.length > 0) {
-          rows = confident.filter((r) => {
-            const verdict = verifyRow(text, r);
-            if (verdict === true || verdict === "ok") return true;
-            if (verdict === "too-long") droppedTooLong++;
-            return false;
-          });
-          droppedUnverified = confident.length - rows.length;
-        } else {
-          rows = confident;
-        }
-        // Only a total verification wipeout is worth re-asking. An empty or
-        // all-low-confidence response is a judgement about the text rather
-        // than a malformed citation, and re-rolling it just burns calls.
-        if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
-          break;
+          // Only a total verification wipeout is worth re-asking. An empty or
+          // all-low-confidence response is a judgement about the text rather
+          // than a malformed citation, and re-rolling it just burns calls.
+          if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
+            break;
+          }
         }
       }
       if (rows.length === 0) {
@@ -349,8 +405,12 @@ export function makeRunSection(opts: {
         return;
       }
       const wrote = await sargs.persist(rows, {
-        complete: rows.length === raw.length,
+        // On the deterministic path `raw` is already the parser's surviving
+        // output, so counting it would report every parse as complete. The
+        // pass says so itself, or it does not say so at all.
+        complete: source === "deterministic" ? deterministicComplete : rows.length === raw.length,
         modelIndex,
+        source,
       });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
