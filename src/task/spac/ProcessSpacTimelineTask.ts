@@ -112,6 +112,16 @@ export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchem
  * Serial and in date order, all three disappear — the state machine simply
  * replays history in the order it happened.
  *
+ * Case 1 also needs a second, capped pass. The filings gated by a missing SPAC
+ * row are selected by {@link loadGatedNoOpAccessions}, which answers the empty
+ * set while the row is absent — and the S-1 that mints it is normally on this
+ * very timeline, replayed moments after the set was computed. So the run that
+ * creates the row is also the run whose gated 8-Ks were all filtered out of it.
+ * The set is recomputed after the replay and whatever it still names, minus
+ * what this invocation already processed, is replayed once more, serially, in
+ * timeline order. One extra pass, never a loop: the gated predicates are
+ * monotone, so a filing that is processed leaves the set.
+ *
  * Concurrency belongs BETWEEN issuers, not within one: SPACs are independent and
  * the writer already serializes per-CIK via `withCikLock`. Run this task once
  * per CIK and fan those out.
@@ -242,23 +252,46 @@ export class ProcessSpacTimelineTask extends Task<
       }
     }
 
+    const processedAccessions = new Set<string>();
     if (toProcess.length > 0) {
-      const wf = context.own(new Workflow(), {
-        title: `Replay ${toProcess.length} filings for CIK ${cik} in date order`,
-      });
-      // concurrencyLimit 1 is the whole point: this is a replay, not a batch.
-      const loop = wf.map({ concurrencyLimit: 1, maxIterations: toProcess.length });
-      loop.pipe(new ProcessAccessionDocFormTask());
-      loop.endMap();
-      await wf.run({
-        cik: toProcess.map(() => cik),
-        form: toProcess.map((f) => f.form),
-        accessionNumber: toProcess.map((f) => f.accession_number),
-        // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
-        // without a primary document threw out of the whole issuer's replay.
-        // Left absent, the form task resolves it or dead-letters that one filing.
-        fileName: toProcess.map((f) => resolvePrimaryDocName(f.primary_doc)),
-      });
+      await this.replayFilings(toProcess, cik, context);
+      for (const f of toProcess) processedAccessions.add(f.accession_number);
+    }
+
+    // The repair pass, and the reason `spac process` exists at all.
+    //
+    // `gatedNoOpAccessions` returns the empty set for a CIK with no `spac` row,
+    // and the canonical broken state this command targets is "8-Ks swept before
+    // the registration statement was processed" — where the row does not exist
+    // when the set is computed and the S-1 that mints it is replayed a moment
+    // later, in THIS run. Every gated filing was therefore filtered out before
+    // the row appeared: a CIK with 58 gated 8-Ks reported `skipped: 58` and an
+    // empty timeline, and only a second, identical invocation repaired it, with
+    // nothing anywhere saying so.
+    //
+    // Recompute now that the replay has run, minus everything already sent to
+    // the processor in this invocation. Capped at ONE extra pass and
+    // deliberately not a fixpoint loop: every gated predicate is monotone
+    // (processing a filing writes the event / extraction row / dead-letter
+    // entry the predicate keys on), so one pass suffices for the
+    // row-minted-mid-run case, while a cap cannot spin if a non-convergent
+    // shape is ever reintroduced.
+    //
+    // `--force all` replayed every timeline filing, so the remainder is empty
+    // by construction; the size guard states that rather than special-casing it.
+    if (processedAccessions.size < timeline.length) {
+      const gatedAfterReplay = await loadGatedNoOpAccessions(cik, timeline);
+      // Timeline order is preserved by the filter, and the pass stays serial:
+      // it replays an early 8-K after a later S-1, which is exactly the
+      // ordering the two-invocation workaround already produced.
+      const repair = timeline.filter(
+        (f) =>
+          !processedAccessions.has(f.accession_number) && gatedAfterReplay.has(f.accession_number)
+      );
+      if (repair.length > 0) {
+        await this.replayFilings(repair, cik, context);
+        for (const f of repair) processedAccessions.add(f.accession_number);
+      }
     }
 
     // Counts come from the persisted `extractor_runs` rows rather than the
@@ -275,12 +308,40 @@ export class ProcessSpacTimelineTask extends Task<
       failed: counts.failed,
       nonfatal: counts.nonfatal,
       triage: counts.triage,
-      skipped,
+      // Counted against what was actually sent to the processor, across both
+      // passes — a filing the repair pass picked up was not skipped.
+      skipped: timeline.length - processedAccessions.size,
       triageExtractors: counts.triageExtractors,
       firstDate,
       lastDate,
       error: "",
     };
+  }
+
+  /**
+   * One serial pass over `filings`, in the order given. `concurrencyLimit: 1`
+   * is the whole point: this is a replay, not a batch.
+   */
+  private async replayFilings(
+    filings: readonly Filing[],
+    cik: number,
+    context: IExecuteContext
+  ): Promise<void> {
+    const wf = context.own(new Workflow(), {
+      title: `Replay ${filings.length} filings for CIK ${cik} in date order`,
+    });
+    const loop = wf.map({ concurrencyLimit: 1, maxIterations: filings.length });
+    loop.pipe(new ProcessAccessionDocFormTask());
+    loop.endMap();
+    await wf.run({
+      cik: filings.map(() => cik),
+      form: filings.map((f) => f.form),
+      accessionNumber: filings.map((f) => f.accession_number),
+      // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
+      // without a primary document threw out of the whole issuer's replay.
+      // Left absent, the form task resolves it or dead-letters that one filing.
+      fileName: filings.map((f) => resolvePrimaryDocName(f.primary_doc)),
+    });
   }
 }
 

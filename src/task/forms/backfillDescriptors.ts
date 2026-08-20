@@ -5,6 +5,7 @@
  */
 import { globalServiceRegistry } from "workglow";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { loadAnsweredMergerSections } from "../../storage/dead-letter/answeredMergerSections";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import type { SpacEvent } from "../../storage/spac/SpacEventSchema";
@@ -17,7 +18,7 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
-import { resolveListingRemovalKind } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
+import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
 import { hasLoiTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kLoiTriggers";
@@ -195,17 +196,28 @@ function spacTrigger8KDescriptor(
 /**
  * Candidates for merger-proxy recovery: known-SPAC merger proxies, queried by
  * `(form, cik)` (the filings storage is indexed on it) so only each SPAC's
- * proxies load. `filterTodo` keeps those with no extraction row: the known-SPAC
- * gate records a `success: true` no-op run when the spac row does not exist at
- * ingestion, so the default extractor-runs anti-join would never revisit them.
+ * proxies load. `filterTodo` keeps those with no extraction row and no
+ * dead-letter entry for the merger section: the known-SPAC gate records a
+ * `success: true` no-op run when the spac row does not exist at ingestion, so
+ * the default extractor-runs anti-join would never revisit them.
+ *
+ * The dead-letter conjunct is what makes the predicate converge. On the
+ * {@link MERGER_PROXY_OPTIONAL_FORMS} an absent merger section is the expected
+ * case — a `DEF 14A` reaches 575 distinct SPACs, most of them annual and
+ * extension votes — and the processor deliberately writes no extraction row for
+ * one. On the extraction row alone every such proxy is selected again on every
+ * sweep, forever; the resolved `SECTION_NOT_FOUND` trace the processor records
+ * is the evidence that it ran and had nothing to extract.
  */
 const mergerProxyDescriptor: BackfillDescriptor = {
   extractorId: "merger-proxy",
   selectCandidates: () => selectKnownSpacFilings("merger-proxy"),
   filterTodo: async (candidates) => {
     const extractions = new SpacMergerExtractionRepo();
+    const answered = await loadAnsweredMergerSections(candidates.map((c) => c.accession_number));
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
+      if (answered.has(c.accession_number)) continue;
       if (!(await extractions.getByAccession(c.accession_number))) todo.push(c);
     }
     return todo;
@@ -214,15 +226,16 @@ const mergerProxyDescriptor: BackfillDescriptor = {
 
 /**
  * Candidates for Form 25/15 recovery: known-SPAC listing-withdrawal and
- * Exchange Act termination filings. `filterTodo` keeps those with no
- * `deregistration`, `unit_split`, or `completed` event matching how the
- * classifier would label the filing today: the known-SPAC gate records a
- * `success: true` no-op when the spac row does not exist at ingestion, so the
- * default extractor-runs anti-join would never revisit them after the S-1
- * lands. A 25-NSE shortly after IPO writes `unit_split`; a close-day 25-NSE
- * or Form 15 after a vote/proxy writes `completed`. A previously recorded
- * `deregistration` that would now classify as `unit_split` or `completed`
- * is re-selected so replay can reclassify.
+ * Exchange Act termination filings, plus the 20-Fs routed here so an FPI close
+ * can record its completion. `filterTodo` delegates to
+ * {@link listingRemovalNeedsWork}, the same predicate `sec spac process`
+ * selects on: the known-SPAC gate records a `success: true` no-op when the spac
+ * row does not exist at ingestion, so the default extractor-runs anti-join
+ * would never revisit them after the S-1 lands. A 25-NSE shortly after IPO
+ * writes `unit_split`; a close-day 25-NSE or Form 15 after a vote/proxy writes
+ * `completed`. A previously recorded `deregistration` that would now classify
+ * as `unit_split` or `completed` is re-selected so replay can reclassify, and a
+ * filing the classifier ignores is never selected at all.
  */
 const deregistrationDescriptor: BackfillDescriptor = {
   extractorId: "25-15",
@@ -238,39 +251,18 @@ const deregistrationDescriptor: BackfillDescriptor = {
         events = await repo.getEvents(c.cik);
         eventsByCik.set(c.cik, events);
       }
-      const hasDeregistration = events.some(
-        (e) => e.event_type === "deregistration" && e.accession_number === c.accession_number
-      );
-      const hasUnitSplit = events.some(
-        (e) => e.event_type === "unit_split" && e.accession_number === c.accession_number
-      );
-      const hasCompleted = events.some(
-        (e) => e.event_type === "completed" && e.accession_number === c.accession_number
-      );
-      if (c.form && c.filing_date) {
-        if (!ipoByCik.has(c.cik)) {
-          ipoByCik.set(c.cik, (await repo.getSpac(c.cik))?.ipo_date ?? null);
-        }
-        const kind = await resolveListingRemovalKind({
-          cik: c.cik,
-          form: c.form,
-          filingDate: c.filing_date,
-          accession_number: c.accession_number,
-          ipoDate: ipoByCik.get(c.cik) ?? null,
-          events,
-        });
-        if (kind === "ignore") continue;
-        const alreadyRecorded =
-          kind === "unit_split"
-            ? hasUnitSplit
-            : kind === "completed"
-              ? hasCompleted
-              : hasDeregistration;
-        if (alreadyRecorded) continue;
-        todo.push(c);
-        continue;
+      if (!ipoByCik.has(c.cik)) {
+        ipoByCik.set(c.cik, (await repo.getSpac(c.cik))?.ipo_date ?? null);
       }
-      if (!hasDeregistration && !hasUnitSplit && !hasCompleted) todo.push(c);
+      const needsWork = await listingRemovalNeedsWork({
+        cik: c.cik,
+        form: c.form ?? null,
+        filingDate: c.filing_date ?? null,
+        accession_number: c.accession_number,
+        ipoDate: ipoByCik.get(c.cik) ?? null,
+        events,
+      });
+      if (needsWork) todo.push(c);
     }
     return todo;
   },
