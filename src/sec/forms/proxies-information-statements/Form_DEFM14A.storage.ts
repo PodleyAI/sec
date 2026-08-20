@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry, type IExecuteContext, type ModelConfig } from "workglow";
+import {
+  globalServiceRegistry,
+  renderMarkdown,
+  type IExecuteContext,
+  type ModelConfig,
+} from "workglow";
 import { prefetchModel } from "../../../task/model/EnsureModelDownloadedTask";
 import { buildEntityObserver } from "../../../resolver/buildEntityObserver";
 import { CanonicalCompanyRepo } from "../../../storage/canonical/CanonicalCompanyRepo";
@@ -33,35 +38,24 @@ import {
   resolveModelId,
 } from "../registration-statements/s1/mergerModel";
 import type { FormS1Parsed } from "../registration-statements/Form_S_1";
-import { MERGER_PROXY_OPTIONAL_FORMS } from "../../../storage/versioning/extractorIds";
+import {
+  GENERAL_DEFINITIVE_PROXY_FORMS,
+  MERGER_PROXY_OPTIONAL_FORMS,
+  MERGER_PROXY_SECTION,
+} from "../../../storage/versioning/extractorIds";
+import { seeksCombinationApproval } from "./seeksCombinationApproval";
 
 const EXTRACTOR_ID = "merger-proxy";
 // Stays 1.0.0: no persisted data to re-extract, so the target_description
 // addition needs no version bump (see the S-1 processor for the rationale).
 const DEFAULT_EXTRACTOR_VERSION = "1.0.0";
-const MERGER_SECTION = "merger";
+const MERGER_SECTION = MERGER_PROXY_SECTION;
 /**
  * Definitive MERGER statements: the form symbol itself says the meeting is
  * about a combination, so these emit the `proxy` lifecycle event whether or not
  * the deal extraction succeeded.
  */
 const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A", "DEFM14C"]);
-
-/**
- * General definitive statements. Most SPACs never file a `DEFM14A` at all —
- * across SIC 6770 filers a plain `DEF 14A` reaches 575 distinct SPACs against
- * `DEFM14A`'s 234 — so refusing these dropped the proxy stage for the majority
- * of vehicles, and with it every downstream rule anchored on `proxy_date` (the
- * 5.07 vote mapping, the post-approval listing-removal window).
- *
- * The form symbol alone is NOT evidence here: most filings on these forms are
- * annual meetings and charter-extension votes. They emit the event only when
- * this filing actually IS a merger proxy, evidenced by an extracted deal.
- * Preliminary (`PRE*`), revised (`DEFR14A`/`PRER14A`) and supplemental
- * (`DEFA14A`) statements stay out either way: only a definitive statement is an
- * approval-stage signal.
- */
-const GENERAL_DEFINITIVE_PROXY_FORMS = new Set(["DEF 14A", "DEF 14C"]);
 
 export interface ProcessMergerProxyArgs {
   readonly cik: number;
@@ -88,7 +82,7 @@ export interface ProcessMergerProxyArgs {
  * it on the form symbol alone, so it still advances `proxy_date` when the
  * merger section is absent or low-confidence and the section dead-letters; a
  * {@link GENERAL_DEFINITIVE_PROXY_FORMS} one emits it only when this run
- * extracted a deal.
+ * extracted a deal AND the document asks shareholders to approve it.
  */
 export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<void> {
   const { cik, accession_number, form, filing_date, formMergerProxy } = args;
@@ -151,10 +145,17 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
 
   // Segment; PARSE_ERROR dead-letters the merger section so a retry can resolve it.
   let byName: Map<S1SectionName, string>;
+  // null = not evaluated. Rendering the whole document is worth paying for only
+  // on the general definitive forms, whose symbol does not say the meeting is
+  // about a combination; the "M" forms decide on the symbol alone.
+  let seeks_combination_approval: boolean | null = null;
   try {
     const doc = parseEdgarHtml(formMergerProxy.html, `${form} ${accession_number}`);
     const sections = new DocumentTreeSegmenter().segment(doc);
     byName = new Map<S1SectionName, string>(sections.map((s) => [s.name, s.text]));
+    if (GENERAL_DEFINITIVE_PROXY_FORMS.has(form)) {
+      seeks_combination_approval = seeksCombinationApproval(renderMarkdown(doc));
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deadLetters.record({
@@ -197,7 +198,29 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   let extractedDeal = false;
 
   if (skipMergerSection) {
-    // Nothing to extract, and nothing wrong. Fall through to the proxy event.
+    // Nothing to extract, and nothing wrong — but the skip still needs a
+    // durable trace. Every predicate that asks "did this proxy produce
+    // anything" reads the extraction row, and a legitimately absent merger
+    // section writes none; without a trace, an ordinary annual or extension
+    // proxy of a known SPAC is indistinguishable from one whose handler was
+    // gated on a missing spac row and dropped its work, so `spac process` and
+    // `sec extractor backfill merger-proxy` re-select all 575 SPACs' general
+    // proxies on every run, forever.
+    //
+    // Recorded RESOLVED: this is an answer, not a failure. It never reaches
+    // `sec extractor dead-letters`, which lists pending entries, so the
+    // worklist an operator reads is untouched — the same shape as the
+    // auto-resolved `MODEL_EMPTY` rows the redemption / LOI detectors already
+    // write per trigger 8-K.
+    await deadLetters.recordResolved({
+      extractor_id: EXTRACTOR_ID,
+      accession_number,
+      section_name: MERGER_SECTION,
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "no merger / business-combination / PIPE section text",
+      failed_extractor_version: extractor_version,
+      source_run_id: null,
+    });
   } else if (!model) {
     // No model: dead-letter the merger section but still emit the proxy event
     // (deterministic, definitive statements only) so the SPAC timeline advances.
@@ -278,6 +301,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
             merger_consideration: deal.merger_consideration,
             confidence: deal.confidence,
             source_span: boundSourceSpan(deal.source_span),
+            seeks_combination_approval,
             model_id,
             created_at: now,
           });
@@ -302,7 +326,9 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
       primary_document: args.primary_doc ?? null,
       emitProxyEvent:
         DEFINITIVE_PROXY_FORMS.has(form) ||
-        (GENERAL_DEFINITIVE_PROXY_FORMS.has(form) && extractedDeal),
+        (GENERAL_DEFINITIVE_PROXY_FORMS.has(form) &&
+          extractedDeal &&
+          seeks_combination_approval === true),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

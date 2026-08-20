@@ -254,6 +254,25 @@ export const FORM_TO_EXTRACTOR_ID: Readonly<Record<string, ExtractorId>> = {
  * one would bury the genuine failures under thousands of entries that require
  * no action.
  */
+/**
+ * General DEFINITIVE proxy / consent statements routed to the merger-proxy
+ * extractor. Most SPACs never file a `DEFM14A` at all — across SIC 6770 filers
+ * a plain `DEF 14A` reaches 575 distinct SPACs against `DEFM14A`'s 234 — so
+ * refusing these drops the proxy stage for the majority of vehicles, and with it
+ * every downstream rule anchored on `proxy_date` (the 5.07 vote mapping, the
+ * post-approval listing-removal window).
+ *
+ * Their form symbol says nothing about what the meeting decides, though — most
+ * filings on them are annual meetings and charter-extension votes — so the
+ * `proxy` lifecycle event is gated on document evidence instead: an extracted
+ * deal AND approval-shaped proposal language (`seeksCombinationApproval`). The
+ * "M" variants decide on the symbol alone and are deliberately absent, as are
+ * the preliminary (`PRE*`), revised (`DEFR14A`/`PRER14A`) and supplemental
+ * (`DEFA14A`) statements: only a definitive statement is an approval-stage
+ * signal.
+ */
+export const GENERAL_DEFINITIVE_PROXY_FORMS: ReadonlySet<string> = new Set(["DEF 14A", "DEF 14C"]);
+
 export const MERGER_PROXY_OPTIONAL_FORMS: ReadonlySet<string> = new Set([
   "DEF 14A",
   "PRE 14A",
@@ -267,6 +286,15 @@ export const MERGER_PROXY_OPTIONAL_FORMS: ReadonlySet<string> = new Set([
   "PRE 14C",
   "PREA14C",
 ]);
+
+/**
+ * Section name the merger-proxy extractor records its deal — and every
+ * dead-letter entry about it — under. Declared here rather than inside the
+ * processor because the selection predicates that key on those entries live
+ * elsewhere: a second spelling makes the trace unreadable to them, which is
+ * indistinguishable from no trace at all.
+ */
+export const MERGER_PROXY_SECTION = "merger";
 
 /**
  * Short-form registration statements that incorporate an already-filed

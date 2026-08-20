@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacMergerExtractionRepo } from "../../../storage/spac/SpacMergerExtractionRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -158,11 +159,45 @@ describe("processMergerProxy (e2e)", () => {
     expect(row?.target_name).toBe("Acme Target Inc.");
   });
 
+  /** The merger prose the stub model's source_span must verify against. */
+  const MERGER_PROSE =
+    "<h1>The Business Combination</h1>\n" +
+    "<p>\n" +
+    "Merge SPAC Inc., a blank check company, has entered into a business combination\n" +
+    "with Acme Target Inc., a leading operating company in its sector. Upon the closing\n" +
+    "of the business combination with Acme Target Inc., the post-combination company\n" +
+    "will continue the business of Acme Target Inc.\n" +
+    "</p>";
+
+  /**
+   * A real DEF 14A combination vote: the notice enumerates the combination as a
+   * ballot item, and the section the extractor reads sits below it. The two are
+   * separate lines in a real filing — the segmenter's `The Business
+   * Combination` heading is a section title, not a proposal — so the approval
+   * evidence and the extracted deal genuinely come from different places.
+   */
+  const APPROVAL_BODY =
+    "<h1>Proposal No. 1 — The Business Combination Proposal</h1>\n" +
+    "<p>To approve and adopt the Business Combination Agreement, dated as of March 1, 2021.</p>\n" +
+    MERGER_PROSE;
+
+  /**
+   * An extension proxy that RECITES the announced combination: the segmenter
+   * finds the same business-combination section and the extractor returns the
+   * same deal, but the only thing on this ballot is the charter extension.
+   */
+  const EXTENSION_BODY =
+    MERGER_PROSE +
+    "\n<h1>Extension Amendment Proposal</h1>\n" +
+    "<p>To amend the Company's charter to extend the date by which it must consummate\n" +
+    "an initial business combination from May 1, 2021 to November 1, 2021.</p>";
+
   it("emits a proxy event for a DEF 14A whose merger section yields a deal", async () => {
     // Most SPACs vote their combination on a plain DEF 14A, never a DEFM14A.
+    // The heading is the ballot item, so the approval gate passes too.
     await seedSpacWithOpenDeal(120);
     cleanup = scriptMergerDeal();
-    await runProxy(120, "120-def14a", "DEF 14A");
+    await runProxy(120, "120-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
 
     const events = await repo.getEvents(120);
     expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1);
@@ -170,6 +205,64 @@ describe("processMergerProxy (e2e)", () => {
     expect(row?.status).toBe("proxy");
     expect(row?.proxy_date).toBe("2021-05-01");
     expect(row?.target_name).toBe("Acme Target Inc.");
+  });
+
+  it("emits no proxy event for an extension DEF 14A that describes the announced combination", async () => {
+    // The failure this gate exists to prevent. The merger section is present
+    // and yields a deal, so the extracted-deal test alone passes — but the
+    // meeting approves only the extension. A proxy event here opens a deal on
+    // its own, which turns the next item 5.07 into a merger vote and makes any
+    // Form 25/15 inside 90 days read as a completed de-SPAC.
+    await seedSpacWithOpenDeal(124);
+    cleanup = scriptMergerDeal();
+    await runProxy(
+      124,
+      "124-def14a-ext",
+      "DEF 14A",
+      "2021-05-01",
+      submissionWithBody(EXTENSION_BODY)
+    );
+
+    const events = await repo.getEvents(124);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    // Extraction is unchanged: the row is still written, with the verdict.
+    const extraction = await new SpacMergerExtractionRepo().getByAccession("124-def14a-ext");
+    expect(extraction?.target_name).toBe("Acme Target Inc.");
+    expect(extraction?.seeks_combination_approval).toBe(false);
+
+    const row = await repo.getSpac(124);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.proxy_date).toBeNull();
+  });
+
+  it("a retracted proxy event demotes the deal on replay", async () => {
+    // Reclassification runs in both directions: reprocessing the same
+    // accession with a body the gate rejects must remove the event the earlier
+    // run wrote, not leave the stale approval stage standing.
+    await seedSpacWithOpenDeal(125);
+    cleanup = scriptMergerDeal();
+    await runProxy(125, "125-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+    expect((await repo.getSpac(125))?.status).toBe("proxy");
+
+    await runProxy(125, "125-def14a", "DEF 14A", "2021-05-01", submissionWithBody(EXTENSION_BODY));
+
+    const events = await repo.getEvents(125);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(125);
+    expect(row?.proxy_date).toBeNull();
+    expect(row?.status).toBe("deal_announced");
+  });
+
+  it("records the gate verdict only for the forms it governs", async () => {
+    // The "M" forms decide on the symbol alone and must not pay a full-document
+    // render, so their verdict stays null — which is also what the backfill
+    // keys on to re-select the general definitive proxies that need one.
+    await seedSpacWithOpenDeal(126);
+    cleanup = scriptMergerDeal();
+    await runProxy(126, "126-defm", "DEFM14A");
+    expect(
+      (await new SpacMergerExtractionRepo().getByAccession("126-defm"))?.seeks_combination_approval
+    ).toBeNull();
   });
 
   it("emits no proxy event for a DEF 14A extension proxy with no merger section", async () => {
@@ -194,6 +287,19 @@ describe("processMergerProxy (e2e)", () => {
     expect(events.some((e) => e.event_type === "proxy")).toBe(false);
     expect(await new SpacMergerExtractionRepo().getByAccession("121-def14a-ext")).toBeUndefined();
     expect((await repo.getSpac(121))?.status).toBe("deal_announced");
+
+    // The skip leaves a durable trace, because "no extraction row" is otherwise
+    // indistinguishable from "the handler was gated and dropped its work" — and
+    // every general proxy of every known SPAC would be re-selected on every
+    // sweep, forever. Recorded RESOLVED, so it stays off the worklist an
+    // operator reads.
+    const deadLetters = new ExtractionDeadLetterRepo();
+    const entry = await deadLetters.get("merger-proxy", "121-def14a-ext", "merger");
+    expect(entry?.status).toBe("resolved");
+    expect(entry?.reason_code).toBe("SECTION_NOT_FOUND");
+    expect(
+      (await deadLetters.listPending("merger-proxy")).map((e) => e.accession_number)
+    ).not.toContain("121-def14a-ext");
   });
 
   it("does not emit a proxy event for a preliminary proxy (PRE 14A) that yields a deal", async () => {
@@ -211,7 +317,7 @@ describe("processMergerProxy (e2e)", () => {
   it("a DEF 14A proxy event makes the following item 5.07 a merger vote", async () => {
     await seedSpacWithOpenDeal(123);
     cleanup = scriptMergerDeal();
-    await runProxy(123, "123-def14a", "DEF 14A");
+    await runProxy(123, "123-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
 
     const form8K = await Form_8_K.parse("8-K", "<html/>");
     await processForm8K({
