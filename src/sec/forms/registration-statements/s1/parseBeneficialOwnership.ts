@@ -22,6 +22,60 @@ export function hasBeneficialOwnershipTable(text: string | undefined): boolean {
   return splitGfmTables(text).some((table) => findOwnershipHeader(table) !== undefined);
 }
 
+const CLASS_HEADER = /\bclass\b|\bseries\b|title of (?:class|security)/i;
+const OFFERED_HEADER = /\boffered\b|being offered|to be sold/i;
+const AFTER_HEADER = /\bafter\b|\bfollowing\b/i;
+const SELLING_TABLE = /selling (?:stockholder|shareholder|securityholder)/i;
+const FOOTNOTE_MARKER = /\(\d+\)/;
+
+/**
+ * The ownership columns this parse fills for THIS table, as
+ * `beneficial_ownership.<column>` destinations.
+ *
+ * Six of the nine columns are hardcoded null by {@link parseBeneficialOwnership}
+ * — but a null is only a loss when the table had something to say. A SPAC's
+ * pre-IPO ownership table prints one class, no "Shares Offered" and no "after
+ * the offering" columns, carries no selling stockholders and no footnote
+ * markers: there `null` IS the disclosure, and the parse is complete. A resale
+ * registration's table prints all of them, and there the same nulls delete
+ * figures the filing states. The question can only be answered by reading the
+ * table, so coverage is read off the same headers and rows the parse walks.
+ */
+export function ownershipCoverage(text: string): ReadonlySet<string> {
+  const out = new Set<string>([
+    "beneficial_ownership.owner_kind",
+    "beneficial_ownership.shares_owned",
+    "beneficial_ownership.percent_owned",
+    "person_observation",
+    "company_observation",
+    "observation_provenance",
+  ]);
+  let headers = "";
+  let footnoted = false;
+  for (const table of splitGfmTables(text)) {
+    const header = findOwnershipHeader(table);
+    if (header === undefined) continue;
+    headers += ` ${table
+      .slice(0, header.startIdx + 1)
+      .flat()
+      .join(" ")}`;
+    for (const row of table.slice(header.startIdx + 1)) {
+      if (row.some((cell) => FOOTNOTE_MARKER.test(cell))) footnoted = true;
+    }
+  }
+  if (!CLASS_HEADER.test(headers)) out.add("beneficial_ownership.security_class");
+  if (!OFFERED_HEADER.test(headers)) out.add("beneficial_ownership.shares_offered");
+  if (!AFTER_HEADER.test(headers)) {
+    out.add("beneficial_ownership.shares_after");
+    out.add("beneficial_ownership.percent_after");
+  }
+  // `is_selling_stockholder: false` is a positive claim, not an absent one, so
+  // it may only be asserted for a section that registers no resale at all.
+  if (!SELLING_TABLE.test(text)) out.add("beneficial_ownership.is_selling_stockholder");
+  if (!footnoted) out.add("beneficial_ownership.footnote");
+  return out;
+}
+
 function parseInner(text: string): BeneficialOwnerRow[] {
   const out: BeneficialOwnerRow[] = [];
   for (const table of splitGfmTables(text)) {

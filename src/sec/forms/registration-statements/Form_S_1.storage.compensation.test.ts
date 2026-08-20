@@ -255,8 +255,23 @@ describe("processFormS1 executive compensation", () => {
     );
   });
 
-  it("persists a parseable table as deterministic without calling the compensation model", async () => {
-    const { unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD]);
+  it("still calls the compensation model on a table the grid walk can read", async () => {
+    // Every money column is read off the grid, but `footnote` is not — and the
+    // prompt tells the model to strip footnote markers out of `person_name` and
+    // out of every money field, so a footnote's text lands on the row in no
+    // other column. Nulling it deletes what the filing said, so this parse does
+    // not stand in for the model.
+    const { calls, unregister } = registerFakeStructuredProvider([
+      MANAGEMENT_PAYLOAD,
+      {
+        rows: [
+          compensationRow({
+            footnote: "Represents 401(k) matching contributions paid by the Company.",
+            source_span: "Alina Kowalczyk",
+          }),
+        ],
+      },
+    ]);
     cleanup = unregister;
 
     await run(HTML_PARSEABLE_TABLE, "acc-comp-7");
@@ -267,5 +282,7 @@ describe("processFormS1 executive compensation", () => {
     expect(rows[0]!.salary).toBe(612500);
     expect(rows[0]!.total).toBe(4230200);
     expect(rows[0]!.principal_position).toBe("Chief Executive Officer");
+    expect(rows[0]!.footnote).toBe("Represents 401(k) matching contributions paid by the Company.");
+    expect(calls.some((p) => /SUMMARY COMPENSATION TABLE/.test(p))).toBe(true);
   });
 });

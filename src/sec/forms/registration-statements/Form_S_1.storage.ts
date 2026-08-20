@@ -48,7 +48,7 @@ import {
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
 import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
-import { parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
+import { ownershipCoverage, parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
 import { parseManagementRoster } from "./s1/parseManagementRoster";
 import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
 import { parseSpacSponsors } from "./s1/parseSpacSponsors";
@@ -770,17 +770,31 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    clears: new Set(["person_observation", "observation_provenance"]),
+    // `observePerson` UPSERTS the observation row, so every column of it that
+    // this section states is rewritten — `bio` included, and the roster table
+    // has no bio column. The officer's biography is the paragraphs BELOW the
+    // table, which the table walk never reads, so a table-granular claim here
+    // replaced a filed biography with null on every re-run.
+    //
+    // The gap is not closable by a better parse, either, which is why there is
+    // no `complete` here: the roster TABLE is not the roster POPULATION. A
+    // director named only in the prose beneath it is invisible to the walk, so
+    // even a parse that declined nothing could not assert it had enumerated
+    // everyone — and `s1:management` closure writes a departure from exactly
+    // that assertion.
+    clears: new Set([
+      "person_observation.titles",
+      "person_observation.birth_year",
+      "person_observation.bio",
+      "observation_provenance",
+    ]),
     deterministic: {
       extract: parseManagementRoster,
-      covers: new Set(["person_observation", "observation_provenance"]),
-      // The roster parse is never a complete population, so it never closes a
-      // role. It drops rows it cannot read — a name that does not look like a
-      // person, a row with no title — before it returns, so its output cannot
-      // distinguish an officer the filing stopped naming from one it named in
-      // a shape the parser skipped. Closing on it writes a departure the
-      // filing does not disclose.
-      complete: () => false,
+      covers: new Set([
+        "person_observation.titles",
+        "person_observation.birth_year",
+        "observation_provenance",
+      ]),
     },
     ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context)),
     persist: async (rows, meta) => {
@@ -849,20 +863,31 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
+    // Six of the nine ownership columns are hardcoded null by the table walk,
+    // and one of them — `is_selling_stockholder: false` — is a POSITIVE claim
+    // that this owner registers no resale, not an absent one. Whether those
+    // nulls are losses depends on the table: a SPAC's pre-IPO table prints one
+    // class and no offered/after columns, so null is the disclosure; a resale
+    // registration prints all of them, so the same nulls delete stated figures.
+    // `ownershipCoverage` answers that per filing off the same headers the
+    // parse walks.
     clears: new Set([
-      "beneficial_ownership",
+      "beneficial_ownership.owner_kind",
+      "beneficial_ownership.security_class",
+      "beneficial_ownership.shares_owned",
+      "beneficial_ownership.percent_owned",
+      "beneficial_ownership.shares_offered",
+      "beneficial_ownership.shares_after",
+      "beneficial_ownership.percent_after",
+      "beneficial_ownership.is_selling_stockholder",
+      "beneficial_ownership.footnote",
       "person_observation",
       "company_observation",
       "observation_provenance",
     ]),
     deterministic: {
       extract: parseBeneficialOwnership,
-      covers: new Set([
-        "beneficial_ownership",
-        "person_observation",
-        "company_observation",
-        "observation_provenance",
-      ]),
+      covers: ownershipCoverage,
     },
     ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context)),
     persist: async (rows, meta) => {
@@ -1085,10 +1110,43 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "all $T confident compensation rows had source_span not present in section text",
       unverifiedPartialDetail:
         "$N of $T confident compensation rows had source_span not present in section text",
-      clears: new Set(["executive_compensation", "person_observation", "observation_provenance"]),
+      // Every money column is read off the grid; `footnote` is not, and the
+      // prompt gives it nowhere else to go — it tells the model to STRIP
+      // footnote markers out of `person_name` and out of every money field, so
+      // whatever a footnote says about a row appears on that row in no other
+      // column. Nulling it is a real loss, so the table is named column by
+      // column and this parse does not stand in for the model.
+      clears: new Set([
+        "executive_compensation.principal_position",
+        "executive_compensation.fiscal_year",
+        "executive_compensation.salary",
+        "executive_compensation.bonus",
+        "executive_compensation.stock_awards",
+        "executive_compensation.option_awards",
+        "executive_compensation.non_equity_incentive",
+        "executive_compensation.pension_and_nqdc",
+        "executive_compensation.all_other_compensation",
+        "executive_compensation.total",
+        "executive_compensation.footnote",
+        "person_observation",
+        "observation_provenance",
+      ]),
       deterministic: {
         extract: parseSummaryCompensationTable,
-        covers: new Set(["executive_compensation", "person_observation", "observation_provenance"]),
+        covers: new Set([
+          "executive_compensation.principal_position",
+          "executive_compensation.fiscal_year",
+          "executive_compensation.salary",
+          "executive_compensation.bonus",
+          "executive_compensation.stock_awards",
+          "executive_compensation.option_awards",
+          "executive_compensation.non_equity_incentive",
+          "executive_compensation.pension_and_nqdc",
+          "executive_compensation.all_other_compensation",
+          "executive_compensation.total",
+          "person_observation",
+          "observation_provenance",
+        ]),
       },
       ...modelExtractChain(models, (text, m) =>
         extractExecutiveCompensation(text, m, args.context)

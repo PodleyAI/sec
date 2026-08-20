@@ -296,7 +296,7 @@ export function makeRunSection(opts: {
       let source: "deterministic" | "model" = "model";
       let deterministicComplete = false;
       const pass = sargs.deterministic;
-      if (pass !== undefined && preempts(pass, sargs.clears)) {
+      if (pass !== undefined && preempts(pass, sargs.clears, text)) {
         const detRaw = pass.extract(text);
         const detConfident = detRaw.filter((r) => r.confidence >= floor);
         const detRows =

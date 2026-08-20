@@ -45,6 +45,7 @@ import {
   DETERMINISTIC_MODEL_ID,
   parseSpacOfferingTerms,
   parseSpacPromoteTerms,
+  promoteCoverage,
 } from "./parseOfferingTables";
 import { parseSpacUnderwriters } from "./parseSpacUnderwriters";
 import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
@@ -442,13 +443,27 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       ]),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
-    clears: new Set(["spac_promote_terms", "field_provenance:spac_promote_terms"]),
+    // Column-granular because the parse is column-granular: `parseSpacPromoteTerms`
+    // returns a row on EITHER a founder-share or a trust-per-share anchor, so a
+    // table stating one of them yields a row whose other columns are null. Named
+    // as a table, that row would overwrite the five figures the model reads out
+    // of the surrounding prose with nulls, on this filing and on every replay.
+    clears: new Set([
+      "spac_promote_terms.founder_shares",
+      "spac_promote_terms.founder_percent",
+      "spac_promote_terms.private_placement_warrants",
+      "spac_promote_terms.private_placement_warrant_price",
+      "spac_promote_terms.public_warrant_coverage",
+      "spac_promote_terms.trust_per_public_share",
+      "spac_promote_terms.trust_total",
+      "field_provenance:spac_promote_terms",
+    ]),
     deterministic: {
       extract: (text) => {
         const det = parseSpacPromoteTerms(text);
         return det === null ? [] : [det];
       },
-      covers: new Set(["spac_promote_terms", "field_provenance:spac_promote_terms"]),
+      covers: promoteCoverage,
     },
     ...modelExtractChain(models, async (text, m) => {
       const promote = await extractSponsorPromote(text, m, context);
@@ -522,12 +537,33 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident underwriter rows had source_span not present in section text",
-    clears: new Set(["underwriter_link", "company_observation", "observation_provenance"]),
-    // SPAC-only: the parser reads the syndicate table a unit IPO prints.
+    // `underwriter_family_membership` is derived from the legal name, so the
+    // parse supplies it wherever it supplies the observation — it stays a bare
+    // table in both sets. `underwriter_link` does not: the syndicate table
+    // states an allocation and nothing else, while the ROLE ("sole book-running
+    // manager", "co-manager") is prose beside the table and the over-allotment
+    // column is often a separate table entirely. Named as a table, an S-1
+    // re-run would empty the links and rewrite a filed bookrunner as NULL.
+    clears: new Set([
+      "underwriter_link.role_detail",
+      "underwriter_link.shares_allocated",
+      "underwriter_link.over_allotment_shares",
+      "underwriter_family_membership",
+      "company_observation",
+      "observation_provenance",
+    ]),
+    // SPAC-only: the parser reads the syndicate table a unit IPO prints. As
+    // declared it never stands in for the model — teaching it to read the role
+    // sentence is what would let `role_detail` join `covers`.
     deterministic: isSpac
       ? {
           extract: parseSpacUnderwriters,
-          covers: new Set(["underwriter_link", "company_observation", "observation_provenance"]),
+          covers: new Set([
+            "underwriter_link.shares_allocated",
+            "underwriter_family_membership",
+            "company_observation",
+            "observation_provenance",
+          ]),
         }
       : undefined,
     ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
@@ -627,6 +663,12 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident use-of-proceeds rows had source_span not present in section text",
+    // Bare on both sides, including the `note` the parse hardcodes null. The
+    // prompt directs every qualifier a line item carries into `purpose` ("the
+    // row label copied WHOLE, including any parenthetical the cell carries"),
+    // and the parse copies that same cell verbatim — so `note` holds nothing
+    // the row does not still say, which is not true of any other null in this
+    // change.
     clears: new Set(["use_of_proceeds"]),
     // SPAC-only: the parser reads the offering-expenses table a unit IPO
     // prints. A single line is not one of those tables — it is one figure the
