@@ -124,15 +124,19 @@ function pendingReachedApproval(
  * same lifecycle event.
  *
  * Priority:
+ * 0. A Form 20-F once a `completed` event exists on an earlier accession is
+ *    `ignore`. A de-SPAC'd foreign private issuer files an annual 20-F every
+ *    year; only the CLOSE filing records the combination, and a completion
+ *    already on the stream is proof this one is not it.
  * 1. A pending deal whose merger proxy (and any later vote) is within
- *    {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing, or a
- *    `completed` event already on an earlier accession — the listing removal is
- *    post-close housekeeping (newco/FPI closes have no Item 2.01; Form 15 after
- *    the close-day 25-NSE is the same paperwork). A 5.07 without a DEFM14A /
- *    DEFM14C is not approval: extension meetings leave a `vote_date` on a deal
- *    that never reached the ballot. Reaching the ballot alone, at any distance,
- *    is also NOT evidence of a close: a deal that died after its vote stays
- *    `pending` with a `vote_date` indefinitely.
+ *    {@link LISTING_REMOVAL_MAX_DAYS_AFTER_APPROVAL} of this filing, or — for a
+ *    listing removal, not a 20-F — a `completed` event already on an earlier
+ *    accession: the removal is post-close housekeeping (newco/FPI closes have
+ *    no Item 2.01; Form 15 after the close-day 25-NSE is the same paperwork).
+ *    A 5.07 without a DEFM14A / DEFM14C is not approval: extension meetings
+ *    leave a `vote_date` on a deal that never reached the ballot. Reaching the
+ *    ballot alone, at any distance, is also NOT evidence of a close: a deal
+ *    that died after its vote stays `pending` with a `vote_date` indefinitely.
  * 2. Exchange 25-NSE shortly after a KNOWN IPO — units unbundle; the vehicle
  *    keeps searching (a second 25-NSE in that window is still a split).
  * 3. Exchange 25-NSE with a nearby Form 20-F — FPI close (the 20-F is the
@@ -169,9 +173,17 @@ function pendingReachedApproval(
  */
 export function classifyListingRemoval(args: ClassifyListingRemovalArgs): ListingRemovalKind {
   if (is20F(args.form)) {
+    // A completion is already on the stream, so this 20-F is the de-SPAC'd
+    // issuer's ORDINARY annual report — it files one every year, and each was
+    // re-recording the close on its own accession, advancing `as_of` to the
+    // annual report's date and then rejecting genuinely older filing-sourced
+    // scalars on replay. This precedes the other three disjuncts because a
+    // first post-close 20-F can satisfy `hasNearby25Nse` too, and by then the
+    // 25-NSE has already recorded the completion: once one exists, the 20-F is
+    // never the filing that records it.
+    if (args.hasPriorCompleted === true) return "ignore";
     if (
       pendingReachedApproval(args.pendingDeal, args.filingDate) ||
-      args.hasPriorCompleted === true ||
       args.hasNearby25Nse === true ||
       args.isFirst20FAfterCombination === true
     ) {

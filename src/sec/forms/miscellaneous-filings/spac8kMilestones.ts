@@ -177,17 +177,51 @@ const FROM_TO_NAME = new RegExp(
   "i"
 );
 
-const CHANGED_TO_NAME =
-  /(?:name of the (?:Company|Registrant|Issuer)|its name)\s+has been changed to\s+["“']?([A-Z][A-Za-z0-9.&'’\-]*(?:\s+[A-Z0-9][A-Za-z0-9.&'’\-]*)*)/i;
+/**
+ * `spac.current_name`'s own `maxLength`. A clause longer than this is prose,
+ * not a registrant name, and is dropped rather than cut down: a truncated name
+ * is a wrong fact, a dropped one only costs a `name_change` event.
+ */
+const CHANGED_NAME_MAX = 200;
+
+/**
+ * The lead-in carries the `i` flag; the name itself must not. Under `/i` the
+ * capitalized-token run matches lowercase words too, so it never terminates —
+ * it ran through the rest of the sentence and into the next one (`.` is inside
+ * the token class, so the sentence period is consumed as well).
+ */
+const CHANGED_TO_LEAD_IN =
+  /(?:name of the (?:Company|Registrant|Issuer)|its name)\s+has been changed to\s+/i;
+
+const CHANGED_NAME_TOKEN = `[A-Za-z0-9.&'’\\-]*`;
+
+/**
+ * A name that ends in a legal form terminates there. The middle is LAZY so it
+ * stops at the FIRST legal form rather than one further down the paragraph,
+ * which is also what stops a capitalized continuation ("… Corp. The Board …").
+ */
+const CHANGED_TO_WITH_LEGAL_FORM = new RegExp(
+  `^["“']?([A-Z]${CHANGED_NAME_TOKEN}(?:\\s+[A-Z0-9]${CHANGED_NAME_TOKEN})*?,?\\s+(?:${legalFormProseSuffixAlternation}))`
+);
+
+/** Fallback for a name carrying no recognized legal form ("Rumble"). */
+const CHANGED_TO_BARE = new RegExp(
+  `^["“']?([A-Z]${CHANGED_NAME_TOKEN}(?:\\s+[A-Z0-9]${CHANGED_NAME_TOKEN})*)`
+);
 
 /** New registrant name from an Item 5.03 name-change 8-K. */
 export function extractNameChange(text: string): string | null {
   const collapsed = text.replace(/\s+/g, " ");
   const fromTo = collapsed.match(FROM_TO_NAME);
   if (fromTo) return tidyChangedName(fromTo[2]);
-  const changedTo = collapsed.match(CHANGED_TO_NAME);
-  if (changedTo) return tidyChangedName(changedTo[1]);
-  return null;
+  const leadIn = collapsed.match(CHANGED_TO_LEAD_IN);
+  if (leadIn?.index == null) return null;
+  const rest = collapsed.slice(leadIn.index + leadIn[0].length);
+  const named = rest.match(CHANGED_TO_WITH_LEGAL_FORM) ?? rest.match(CHANGED_TO_BARE);
+  if (!named) return null;
+  const name = tidyChangedName(named[1]);
+  if (name === "" || name.length > CHANGED_NAME_MAX) return null;
+  return name;
 }
 
 /** Operating-company counterparty named in a merger 8-K Item 1.01 narrative. */

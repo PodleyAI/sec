@@ -897,6 +897,32 @@ describe("processDeregistration", () => {
     expect(events.some((e) => e.event_type === "completed" && e.form === "20-F")).toBe(true);
   });
 
+  it("ignores an annual 20-F once the close is already recorded", async () => {
+    await seedSpac(2074852);
+    await new SpacReportWriter().recordDealMilestones({
+      cik: 2074852,
+      accession_number: "2074852-close",
+      filing_date: "2025-06-16",
+      form: "8-K",
+      primary_document: null,
+      events: [{ event_type: "completed", event_date: "2025-06-15" }],
+    });
+    const before = await repo.getSpac(2074852);
+
+    await processDeregistration({
+      cik: 2074852,
+      accession_number: "2074852-20f",
+      form: "20-F",
+      filing_date: "2026-03-31",
+    });
+
+    const events = await repo.getEvents(2074852);
+    expect(events.filter((e) => e.event_type === "completed").map((e) => e.form)).toEqual(["8-K"]);
+    const after = await repo.getSpac(2074852);
+    expect(after?.as_of).toBe(before?.as_of);
+    expect(after?.completed_date).toBe("2025-06-15");
+  });
+
   it("does not liquidate an FPI SPAC on an annual 20-F with no close signal", async () => {
     await seedSpac(2074851);
     await processDeregistration({
