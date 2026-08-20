@@ -13,8 +13,17 @@ import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/Extract
  * Wipe this CIK's derived SPAC timeline so a full `spac process --force` can
  * replay filings against an empty event/deal stream. Does not mint a spac
  * row, and leaves editorial columns, current-trust facts, and spac_history.
+ *
+ * `activeVersionByExtractorId` maps each extractor id on the issuer's timeline
+ * to the version the replay will record at. Only those extractors' runs, at
+ * that version generation, are cleared: every other extractor's rows and every
+ * earlier generation are part of an audit trail nothing can rebuild, and the
+ * replay does not need them gone.
  */
-export async function resetSpacProcessState(cik: number): Promise<void> {
+export async function resetSpacProcessState(
+  cik: number,
+  activeVersionByExtractorId: ReadonlyMap<string, string>
+): Promise<void> {
   const repo = new SpacRepo();
   const events = await repo.getEvents(cik);
   for (const e of events) {
@@ -25,7 +34,7 @@ export async function resetSpacProcessState(cik: number): Promise<void> {
     await repo.deleteDeal(cik, d.deal_index);
   }
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-  await runRepo.deleteForCik(cik);
+  await runRepo.deleteForCikExtractors(cik, activeVersionByExtractorId);
 
   const existing = await repo.getSpac(cik);
   if (existing === undefined) return;

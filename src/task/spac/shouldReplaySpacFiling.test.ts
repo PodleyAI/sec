@@ -9,6 +9,7 @@ import { filingRunKey } from "../../storage/versioning/ExtractorRunRepo";
 import { shouldReplaySpacFiling } from "./shouldReplaySpacFiling";
 
 const CIK = 1800001;
+const NO_GATED: ReadonlySet<string> = new Set<string>();
 const S1 = "0000000000-26-000001";
 const B424 = "0000000000-26-000002";
 const EIGHT_K_TRIGGER = "0000000000-26-000003";
@@ -33,6 +34,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: S1,
         force: { kind: "none" },
         successfulKeys: keysFor("S-1", [S1]),
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(false);
   });
@@ -46,6 +48,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: EIGHT_K_OTHER,
         force: { kind: "none" },
         successfulKeys: keysFor("S-1", [S1]),
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
   });
@@ -59,6 +62,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: S1,
         force: { kind: "all" },
         successfulKeys: keysFor("S-1", [S1]),
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
   });
@@ -73,6 +77,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: S1,
         force: { kind: "extractors", ids: ["S-1"] },
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
     expect(
@@ -83,6 +88,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: B424,
         force: { kind: "extractors", ids: ["S-1"] },
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(false);
   });
@@ -98,6 +104,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: EIGHT_K_TRIGGER,
         force,
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
     expect(
@@ -108,6 +115,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: EIGHT_K_OTHER,
         force,
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(false);
   });
@@ -123,6 +131,7 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: EIGHT_K_OTHER,
         force,
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
     expect(
@@ -133,7 +142,55 @@ describe("shouldReplaySpacFiling", () => {
         accession_number: EIGHT_K_TRIGGER,
         force,
         successfulKeys,
+        gatedNoOpAccessions: NO_GATED,
       })
     ).toBe(true);
+  });
+
+  it("replays a successful gated 8-K that produced no artifact", () => {
+    // The whole point of `spac process`: the 8-K handler is gated on a `spac`
+    // row and records success while writing nothing when the row is absent, so
+    // the already-succeeded skip left the filing unrepairable forever.
+    expect(
+      shouldReplaySpacFiling({
+        form: "8-K",
+        items: "5.07",
+        cik: CIK,
+        accession_number: EIGHT_K_TRIGGER,
+        force: { kind: "none" },
+        successfulKeys: keysFor("8-K", [EIGHT_K_TRIGGER]),
+        gatedNoOpAccessions: new Set([EIGHT_K_TRIGGER]),
+      })
+    ).toBe(true);
+  });
+
+  it("still skips a successful gated 8-K that did produce an artifact", () => {
+    expect(
+      shouldReplaySpacFiling({
+        form: "8-K",
+        items: "5.07",
+        cik: CIK,
+        accession_number: EIGHT_K_TRIGGER,
+        force: { kind: "none" },
+        successfulKeys: keysFor("8-K", [EIGHT_K_TRIGGER]),
+        gatedNoOpAccessions: new Set([EIGHT_K_OTHER]),
+      })
+    ).toBe(false);
+  });
+
+  it("still skips a successful S-1 even when its accession is in the gated set", () => {
+    // Only the known-SPAC-gated extractors record a no-op success; an S-1 that
+    // succeeded really did mint the row, so the exemption must not reach it.
+    expect(
+      shouldReplaySpacFiling({
+        form: "S-1",
+        items: null,
+        cik: CIK,
+        accession_number: S1,
+        force: { kind: "none" },
+        successfulKeys: keysFor("S-1", [S1]),
+        gatedNoOpAccessions: new Set([S1]),
+      })
+    ).toBe(false);
   });
 });
