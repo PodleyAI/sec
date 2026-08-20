@@ -269,6 +269,15 @@ export const MERGER_PROXY_OPTIONAL_FORMS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Section name the merger-proxy extractor records its deal — and every
+ * dead-letter entry about it — under. Declared here rather than inside the
+ * processor because the selection predicates that key on those entries live
+ * elsewhere: a second spelling makes the trace unreadable to them, which is
+ * indistinguishable from no trace at all.
+ */
+export const MERGER_PROXY_SECTION = "merger";
+
+/**
  * Short-form registration statements that incorporate an already-filed
  * prospectus by reference (Securities Act Rule 462(b)).
  *

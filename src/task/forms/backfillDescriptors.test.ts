@@ -332,6 +332,30 @@ describe("merger-proxy descriptor", () => {
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-prem"]);
   });
+
+  it("does not re-select a general proxy whose merger section was legitimately absent", async () => {
+    // A `DEF 14A` is usually an annual or extension vote carrying no merger
+    // section, and the processor writes no extraction row for one — by design.
+    // Selecting on the extraction row alone re-queues every general proxy of
+    // every known SPAC on every backfill, forever, each one re-paying the
+    // segmentation and AI cost to conclude again that there is nothing there.
+    // The resolved SECTION_NOT_FOUND trace is what makes the predicate
+    // converge.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-def14a", form: "DEF 14A" });
+    await new ExtractionDeadLetterRepo().recordResolved({
+      extractor_id: "merger-proxy",
+      accession_number: "acc-def14a",
+      section_name: "merger",
+      reason_code: "SECTION_NOT_FOUND",
+      detail: "no merger / business-combination / PIPE section text",
+      failed_extractor_version: "1.0.0",
+      source_run_id: null,
+    });
+
+    const descriptor = getBackfillDescriptor("merger-proxy")!;
+    expect(await descriptor.filterTodo!(await descriptor.selectCandidates())).toEqual([]);
+  });
 });
 
 describe("25-15 descriptor", () => {
@@ -358,6 +382,25 @@ describe("25-15 descriptor", () => {
       form: "25-NSE",
       filing_date: "2026-03-20",
     });
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-15"]);
+  });
+
+  it("skips a 20-F the classifier ignores", async () => {
+    // 20-F routes to this extractor so an FPI CLOSE filing can record its
+    // combination; an ORDINARY annual report classifies `ignore` and writes
+    // nothing. Selecting it re-runs every annual report of every de-SPAC'd
+    // foreign private issuer on every backfill — six 20-Fs is six filings
+    // re-processed forever — so the shared predicate refuses it, while the
+    // Form 15 beside it is still selected.
+    await seedSpac(5);
+    await seedFiling({ cik: 5, accession_number: "acc-20f", form: "20-F" });
+    await seedFiling({ cik: 5, accession_number: "acc-15", form: "15-12G" });
+
+    const descriptor = getBackfillDescriptor("25-15")!;
+    const candidates = await descriptor.selectCandidates();
+    expect(candidates.map((c) => c.accession_number).sort()).toEqual(["acc-15", "acc-20f"]);
+
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-15"]);
   });

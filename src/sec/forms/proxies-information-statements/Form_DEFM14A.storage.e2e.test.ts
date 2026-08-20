@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
+import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { SpacMergerExtractionRepo } from "../../../storage/spac/SpacMergerExtractionRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -194,6 +195,19 @@ describe("processMergerProxy (e2e)", () => {
     expect(events.some((e) => e.event_type === "proxy")).toBe(false);
     expect(await new SpacMergerExtractionRepo().getByAccession("121-def14a-ext")).toBeUndefined();
     expect((await repo.getSpac(121))?.status).toBe("deal_announced");
+
+    // The skip leaves a durable trace, because "no extraction row" is otherwise
+    // indistinguishable from "the handler was gated and dropped its work" — and
+    // every general proxy of every known SPAC would be re-selected on every
+    // sweep, forever. Recorded RESOLVED, so it stays off the worklist an
+    // operator reads.
+    const deadLetters = new ExtractionDeadLetterRepo();
+    const entry = await deadLetters.get("merger-proxy", "121-def14a-ext", "merger");
+    expect(entry?.status).toBe("resolved");
+    expect(entry?.reason_code).toBe("SECTION_NOT_FOUND");
+    expect(
+      (await deadLetters.listPending("merger-proxy")).map((e) => e.accession_number)
+    ).not.toContain("121-def14a-ext");
   });
 
   it("does not emit a proxy event for a preliminary proxy (PRE 14A) that yields a deal", async () => {
