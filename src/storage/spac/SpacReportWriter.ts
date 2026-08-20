@@ -272,6 +272,13 @@ export class SpacReportWriter {
    * extractions (correlation derives target/pipe), then rebuild the row. The
    * extraction itself is persisted by the caller (`processMergerProxy`) before
    * this runs.
+   *
+   * Reclassification runs in both directions: when the caller now decides the
+   * filing is not an approval-stage statement, a `proxy` event a previous run
+   * of it wrote is deleted, so a replay demotes the deal instead of leaving the
+   * old verdict standing. The delete is scoped to THIS accession, so it can
+   * only retract what a previous run of the same filing wrote — a genuine
+   * merger proxy elsewhere in the CIK's stream keeps its event.
    */
   async recordMergerProxy(args: RecordMergerProxyArgs): Promise<void> {
     await withCikLock(args.cik, async () => {
@@ -284,6 +291,8 @@ export class SpacReportWriter {
           form: args.form,
           primary_document: args.primary_document,
         });
+      } else {
+        await this.repo.deleteEvent(args.cik, args.accession_number, "proxy");
       }
       await this.recomputeAndSaveDeals(args.cik);
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {});

@@ -17,7 +17,11 @@ import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
+import {
+  FORM_TO_EXTRACTOR_ID,
+  GENERAL_DEFINITIVE_PROXY_FORMS,
+  type ExtractorId,
+} from "../../storage/versioning/extractorIds";
 import { listingRemovalNeedsWork } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -196,18 +200,30 @@ function spacTrigger8KDescriptor(
 /**
  * Candidates for merger-proxy recovery: known-SPAC merger proxies, queried by
  * `(form, cik)` (the filings storage is indexed on it) so only each SPAC's
- * proxies load. `filterTodo` keeps those with no extraction row and no
- * dead-letter entry for the merger section: the known-SPAC gate records a
- * `success: true` no-op run when the spac row does not exist at ingestion, so
- * the default extractor-runs anti-join would never revisit them.
+ * proxies load. `filterTodo` keeps two sets.
  *
- * The dead-letter conjunct is what makes the predicate converge. On the
- * {@link MERGER_PROXY_OPTIONAL_FORMS} an absent merger section is the expected
- * case — a `DEF 14A` reaches 575 distinct SPACs, most of them annual and
- * extension votes — and the processor deliberately writes no extraction row for
- * one. On the extraction row alone every such proxy is selected again on every
- * sweep, forever; the resolved `SECTION_NOT_FOUND` trace the processor records
- * is the evidence that it ran and had nothing to extract.
+ * First, those with no extraction row AND no dead-letter entry for the merger
+ * section: the known-SPAC gate records a `success: true` no-op run when the
+ * spac row does not exist at ingestion, so the default extractor-runs anti-join
+ * would never revisit them.
+ *
+ * The dead-letter conjunct is what makes the no-extraction-row set converge. On
+ * the {@link MERGER_PROXY_OPTIONAL_FORMS} an absent merger section is the
+ * expected case — a `DEF 14A` reaches 575 distinct SPACs, most of them annual
+ * and extension votes — and the processor deliberately writes no extraction row
+ * for one. On the extraction row alone every such proxy is selected again on
+ * every sweep, forever; the resolved `SECTION_NOT_FOUND` trace the processor
+ * records is the evidence that it ran and had nothing to extract.
+ *
+ * Second, the general definitive statements (`DEF 14A` / `DEF 14C`) that DID
+ * produce an extraction row but whose `seeks_combination_approval` verdict was
+ * never recorded. Those rows were written when an extracted deal alone emitted
+ * the `proxy` event, so a stale false close may be standing on them; re-running
+ * re-derives the verdict from the document with no model call, and the replay
+ * retracts the event when the meeting turns out not to have approved anything.
+ * The clause extinguishes itself — the re-run writes a non-null verdict — so
+ * the widening converges instead of re-selecting the same proxies on every
+ * sweep.
  */
 const mergerProxyDescriptor: BackfillDescriptor = {
   extractorId: "merger-proxy",
@@ -217,8 +233,20 @@ const mergerProxyDescriptor: BackfillDescriptor = {
     const answered = await loadAnsweredMergerSections(candidates.map((c) => c.accession_number));
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
-      if (answered.has(c.accession_number)) continue;
-      if (!(await extractions.getByAccession(c.accession_number))) todo.push(c);
+      const row = await extractions.getByAccession(c.accession_number);
+      if (!row) {
+        // No extraction row: select unless the processor already answered for
+        // the merger section (a resolved `SECTION_NOT_FOUND` trace on the
+        // optional forms), which is what makes this set converge.
+        if (!answered.has(c.accession_number)) todo.push(c);
+        continue;
+      }
+      // Has an extraction row. Membership first, so the verdict column is only
+      // consulted for the forms the gate governs.
+      if (!c.form || !GENERAL_DEFINITIVE_PROXY_FORMS.has(c.form)) continue;
+      // `== null` rather than `=== null`: a row written before the column
+      // existed reads back as undefined from a storage that keeps whole objects.
+      if (row.seeks_combination_approval == null) todo.push(c);
     }
     return todo;
   },

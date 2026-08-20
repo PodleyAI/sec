@@ -297,6 +297,33 @@ describe("merger-proxy descriptor", () => {
     await setupAllDatabases();
   });
 
+  async function saveMergerExtraction(
+    accession_number: string,
+    cik: number,
+    form: string,
+    seeks_combination_approval: boolean | null
+  ): Promise<void> {
+    await new SpacMergerExtractionRepo().save({
+      accession_number,
+      cik,
+      form,
+      filing_date: "2026-03-20",
+      extractor_id: "merger-proxy",
+      extractor_version: "1.0.0",
+      target_name: "Target Co",
+      target_cik: null,
+      target_observation_id: null,
+      target_description: null,
+      pipe_amount: null,
+      merger_consideration: null,
+      confidence: 0.9,
+      source_span: null,
+      seeks_combination_approval,
+      model_id: null,
+      created_at: "2026-03-20T00:00:00.000Z",
+    });
+  }
+
   it("selects known-SPAC merger proxies; filterTodo keeps those lacking an extraction row", async () => {
     await seedSpac(5);
     await seedFiling({ cik: 5, accession_number: "acc-defm", form: "DEFM14A" });
@@ -326,11 +353,50 @@ describe("merger-proxy descriptor", () => {
       merger_consideration: null,
       confidence: 0.9,
       source_span: null,
+      seeks_combination_approval: null,
       model_id: null,
       created_at: "2026-03-20T00:00:00.000Z",
     });
     const todo = await descriptor.filterTodo!(candidates);
     expect(todo.map((c) => c.accession_number)).toEqual(["acc-prem"]);
+  });
+
+  it("re-selects a general definitive proxy whose gate verdict was never recorded", async () => {
+    // Rows written before the approval gate carry a null verdict, so a stale
+    // proxy event may be standing on them; re-running re-derives the verdict
+    // from the document with no model call.
+    await seedSpac(7);
+    await seedFiling({ cik: 7, accession_number: "acc-def14a", form: "DEF 14A" });
+    await saveMergerExtraction("acc-def14a", 7, "DEF 14A", null);
+
+    const descriptor = getBackfillDescriptor("merger-proxy")!;
+    const candidates = await descriptor.selectCandidates();
+    const todo = await descriptor.filterTodo!(candidates);
+    expect(todo.map((c) => c.accession_number)).toEqual(["acc-def14a"]);
+  });
+
+  it("does not re-select it once the verdict is recorded", async () => {
+    // The convergence assertion: the widening clause extinguishes itself, so a
+    // repeated sweep does not re-process the same proxies forever.
+    await seedSpac(8);
+    await seedFiling({ cik: 8, accession_number: "acc-def14a", form: "DEF 14A" });
+    await saveMergerExtraction("acc-def14a", 8, "DEF 14A", false);
+
+    const descriptor = getBackfillDescriptor("merger-proxy")!;
+    const candidates = await descriptor.selectCandidates();
+    expect(await descriptor.filterTodo!(candidates)).toEqual([]);
+  });
+
+  it("does not re-select an M-form proxy, whose verdict is null by design", async () => {
+    // DEFM14A decides on the form symbol, so it never renders the document and
+    // never records a verdict; the widening must not chase those forever.
+    await seedSpac(9);
+    await seedFiling({ cik: 9, accession_number: "acc-defm", form: "DEFM14A" });
+    await saveMergerExtraction("acc-defm", 9, "DEFM14A", null);
+
+    const descriptor = getBackfillDescriptor("merger-proxy")!;
+    const candidates = await descriptor.selectCandidates();
+    expect(await descriptor.filterTodo!(candidates)).toEqual([]);
   });
 
   it("does not re-select a general proxy whose merger section was legitimately absent", async () => {

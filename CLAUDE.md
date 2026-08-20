@@ -1695,7 +1695,7 @@ which no deal walk reads):
 | `2.01` | `completed`            | unconditional                                                                                        |
 | `1.01` | `definitive_agreement` | the submission carries a merger-shaped EX-2 exhibit AND the event is not dated before the date floor |
 | `1.02` | `terminated`           | a deal was pending as of that filing, or the exhibits are merger-shaped                              |
-| `5.07` | `vote`                 | the pending deal had a definitive-agreement or proxy date                                            |
+| `5.07` | `vote`                 | a deal was pending as of that filing AND it had a proxy date                                         |
 
 Item `8.01` carries **no lifecycle mapping at all** — `mapItemCodesToSpacEvents`
 falls through its `default: break` and writes nothing. A termination disclosed
@@ -1842,14 +1842,122 @@ consideration) and observes the target company (`relation: "merger-proxy:target"
 correlates each extraction onto the matching `spac_deal` by filing-date window —
 _deriving_ `target_name` / `target_cik` / `pipe_amount` (a later filing supersedes
 an earlier one — definitive over preliminary, revised over definitive), which
-retires the 8-K path's positional merge-preserve. Only the **definitive merger**
-statements `DEFM14A` and `DEFM14C` emit the `proxy` event (→ `proxy_date` /
-`status = proxy`): a consent deal (14C) has no `8-K 5.07` vote, so the definitive
-14C is its only approval-stage signal. Preliminary (`PREM14A`/`PREM14C`) and revised
-(`DEFR14A`/`PRER14A`) proxies are extraction-only. S-4 is deferred (newco-CIK linkage). Configure the
+retires the 8-K path's positional merge-preserve. Preliminary (`PREM14A`/`PREM14C`)
+and revised (`DEFR14A`/`PRER14A`) proxies are extraction-only. S-4 is deferred
+(newco-CIK linkage). Configure the
 model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-5`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
+
+#### Which statements emit the `proxy` event
+
+The `proxy` event (→ `proxy_date` / `status = proxy`) is **two-tier**, and the
+tiers differ in what counts as evidence:
+
+- The **definitive merger** statements `DEFM14A` / `DEFM14C` emit it on the form
+  symbol alone — the symbol says the meeting is about a combination, so the
+  event still lands when the merger section is absent or low-confidence and the
+  section dead-letters. (A consent deal (14C) has no `8-K 5.07` vote, so the
+  definitive 14C is its only approval-stage signal.)
+- The **general definitive** statements `DEF 14A` / `DEF 14C` — which is where
+  most SPACs actually vote their combination — emit it only on **two**
+  conjunctive pieces of document evidence: an extracted deal AND
+  `seeksCombinationApproval` (`proxies-information-statements/seeksCombinationApproval.ts`),
+  a deterministic scan for a numbered proposal item naming the filer's defined
+  `Business Combination Proposal`, or a request to approve/adopt the **agreement**
+  (business combination agreement / agreement and plan of merger / merger
+  agreement).
+
+The extracted deal alone is not evidence, because an **extension** proxy recites
+the announced combination at length: `S1_SECTIONS.BUSINESS_COMBINATION` accepts a
+bare `The Business Combination` heading, so the section is found, the model
+returns a target, and the filing looked exactly like a merger proxy. That is a
+silent corruption, not a missing row — a `proxy` event OPENS a deal by itself in
+`spacDealGrouping.ts`, which makes the vehicle's next item `5.07` a merger
+`vote`, which makes any Form 25/15 inside the 90-day post-approval window a
+`completed` de-SPAC, with `surviving_name` promoted onto `current_name`.
+
+The gate is deliberately **deterministic rather than a model schema field**.
+The failure costs are asymmetric: a false positive corrupts the primary answer
+with no trace, while a false negative only degrades a fallback — a real close
+files an Item 2.01, which maps to `completed` unconditionally. A model field
+also could not repair existing rows without re-paying the AI bill, and making it
+required would force an extractor version cycle. Same reasoning as the ownership
+subtotal and risk-caption heading guards: enforce it, don't trust the prompt.
+
+Two rules the patterns must keep, both measured over 348 real SIC-6770
+`DEF 14A` / `DEF 14C` statements (9 merger proxies, 339 extension / annual /
+other; the rule scores 9/9 recall at **0 false positives**):
+
+- **Never match the term anywhere in the document.** Every extension proxy
+  carries "as if they had voted against a business combination proposal", and
+  many cross-reference the combination's own proposal in another filing. A
+  whole-document test for `business combination proposal` fired on 24 of the
+  348, **all** of them extension or annual meetings. Both patterns are therefore
+  line-shaped (≤ 300 chars) and the defined-term one is anchored at line start.
+- **The approval object must be the AGREEMENT.** A bare
+  `to approve … business combination` is the standard extension wording — "to
+  approve an amendment … to extend the date by which the Company must consummate
+  a business combination".
+
+There is deliberately no extension-exclusion term: a proxy asking for an
+extension AND for approval of the combination is a genuine merger proxy and must
+still emit.
+
+Extraction is unchanged either way — the `spac_merger_extraction` row is written
+whether or not the gate passes — and the verdict is recorded on it as
+`seeks_combination_approval`. `NULL` means the gate was not evaluated: the row
+predates it, or the form symbol alone decides (the "M" forms never pay the
+full-document render). The backfill keys on that NULL, so it must stay
+distinguishable from a recorded `false`.
+
+**Retraction.** `recordMergerProxy` deletes a `proxy` event for the accession
+when the caller now decides the filing is not approval-stage, mirroring the
+sibling deletes in `recordDeregistration` / `recordUnitSplit` / `recordCompleted`.
+Reclassification therefore runs in both directions and a replay demotes the deal
+instead of leaving the old verdict standing. The delete is scoped to that one
+accession, so it can only retract what a previous run of the same filing wrote.
+
+No extractor version bump: the persisted extraction rows are unchanged and still
+correct, and the derived event is rebuildable from the document with no model
+call.
+
+**Recovery ceremony.** Databases populated before the gate existed carry false
+closes. Re-run the proxies, then let the listing-removal classifier re-derive
+the Form 25/15 verdicts that were built on them:
+
+```bash
+sec extractor backfill merger-proxy   # re-derives the verdict; retracts stale proxy events
+sec extractor backfill 25-15          # repeat until it reports `processed 0`
+```
+
+The first re-selects exactly the general definitive proxies whose
+`seeks_combination_approval` is still NULL, and extinguishes itself once each
+has a verdict. The second is the fixpoint sweep documented above: `filterTodo`
+re-derives each accession's kind against the live classifier, so a stale
+`completed` on an earlier accession keeps a later one classifying `completed`
+until the earlier one is corrected.
+
+Find the affected rows first — every `proxy` event on a general definitive form,
+and the closes standing on one:
+
+```sql
+SELECT cik, accession_number, event_date, form FROM spac_event
+WHERE event_type = 'proxy' AND form IN ('DEF 14A','DEF 14C') ORDER BY cik, event_date;
+
+SELECT p.cik, c.accession_number AS close_accession, c.form, c.event_date
+FROM spac_event p JOIN spac_event c ON c.cik = p.cik AND c.event_type = 'completed'
+WHERE p.event_type = 'proxy' AND p.form IN ('DEF 14A','DEF 14C')
+  AND c.form IN ('25','25/A','25-NSE','25-NSE/A','15-12B','15-12G','15-15D','20-F','20-F/A');
+```
+
+⚠️ Expect status **regressions** on real CIKs as the false closes unwind —
+`completed` back to `searching` / `deal_announced`, and `surviving_name` /
+`post_merger_*` / the `current_*` promotion dropping back to the `spac_*` mirror
+(those five columns are derived strictly from a completed deal and are never
+merged forward). That is the correction, not a loss: every change is captured in
+`spac_history` / `ChangeLog`, and genuinely completed SPACs are re-filled by
+`sec spac backfill-despac`.
 
 A proxy ingested before its issuer's `spac` row exists (e.g. the S-1 lands later)
 hits the known-SPAC gate and no-ops — recording a successful run, so the normal
@@ -2141,7 +2249,9 @@ by default over all filings of its forms; extractors whose candidate set is
 narrower add a descriptor entry (the `redemption` / `loi` sub-extractors select
 known-SPAC trigger-item 8-Ks) and extractors whose recorded success can be a
 gated no-op override `filterTodo` (`merger-proxy` keeps candidates lacking a
-`spac_merger_extraction` row, since its known-SPAC gate records `success: true`).
+`spac_merger_extraction` row, since its known-SPAC gate records `success: true`,
+plus the general definitive proxies whose `seeks_combination_approval` verdict is
+still NULL — a self-extinguishing clause, since the re-run records one).
 The default needing-work predicate is a bulk anti-join against `extractor_runs`
 at the active version, exported as `defaultFilterTodo` so a descriptor that only
 WIDENS it does not restate it. The `redemption` / `loi` descriptors do exactly
