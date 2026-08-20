@@ -15,6 +15,8 @@ import {
   fakeS1Model,
   registerFakeStructuredProvider,
 } from "../registration-statements/s1/testing/fakeStructuredProvider";
+import { Form_8_K } from "../miscellaneous-filings/Form_8_K";
+import { processForm8K } from "../miscellaneous-filings/Form_8_K.storage";
 import { Form_DEFM14A } from "./Form_DEFM14A";
 import { processMergerProxy } from "./Form_DEFM14A.storage";
 import { fileURLToPath } from "node:url";
@@ -73,13 +75,19 @@ describe("processMergerProxy (e2e)", () => {
     });
   }
 
+  /** The fixture submission with its prospectus body swapped out. */
+  function submissionWithBody(body: string): string {
+    const txt = readFileSync(FIXTURE, "utf-8");
+    return txt.replace(/<body>[\s\S]*<\/body>/, `<body>\n${body}\n</body>`);
+  }
+
   async function runProxy(
     cik: number,
     accession_number: string,
     form = "DEFM14A",
-    filing_date = "2021-05-01"
+    filing_date = "2021-05-01",
+    txt = readFileSync(FIXTURE, "utf-8")
   ): Promise<void> {
-    const txt = readFileSync(FIXTURE, "utf-8");
     const parsed = await Form_DEFM14A.parse(form, txt);
     await processMergerProxy({
       cik,
@@ -148,6 +156,79 @@ describe("processMergerProxy (e2e)", () => {
     const row = await repo.getSpac(110);
     expect(row?.status).toBe("proxy");
     expect(row?.target_name).toBe("Acme Target Inc.");
+  });
+
+  it("emits a proxy event for a DEF 14A whose merger section yields a deal", async () => {
+    // Most SPACs vote their combination on a plain DEF 14A, never a DEFM14A.
+    await seedSpacWithOpenDeal(120);
+    cleanup = scriptMergerDeal();
+    await runProxy(120, "120-def14a", "DEF 14A");
+
+    const events = await repo.getEvents(120);
+    expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1);
+    const row = await repo.getSpac(120);
+    expect(row?.status).toBe("proxy");
+    expect(row?.proxy_date).toBe("2021-05-01");
+    expect(row?.target_name).toBe("Acme Target Inc.");
+  });
+
+  it("emits no proxy event for a DEF 14A extension proxy with no merger section", async () => {
+    // The form symbol is not evidence: an extension vote is the common DEF 14A.
+    // Its proposal heading matches none of the merger section patterns, so no
+    // deal is extracted and the approval stage must not advance.
+    await seedSpacWithOpenDeal(121);
+    cleanup = scriptMergerDeal();
+    await runProxy(
+      121,
+      "121-def14a-ext",
+      "DEF 14A",
+      "2021-05-01",
+      submissionWithBody(
+        "<h1>Extension Amendment Proposal</h1>\n" +
+          "<p>To amend the Company's charter to extend the date by which it must " +
+          "consummate an initial business combination.</p>"
+      )
+    );
+
+    const events = await repo.getEvents(121);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    expect(await new SpacMergerExtractionRepo().getByAccession("121-def14a-ext")).toBeUndefined();
+    expect((await repo.getSpac(121))?.status).toBe("deal_announced");
+  });
+
+  it("does not emit a proxy event for a preliminary proxy (PRE 14A) that yields a deal", async () => {
+    await seedSpacWithOpenDeal(122);
+    cleanup = scriptMergerDeal();
+    await runProxy(122, "122-pre14a", "PRE 14A");
+
+    const events = await repo.getEvents(122);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(122);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.target_name).toBe("Acme Target Inc."); // extraction-only, still correlated
+  });
+
+  it("a DEF 14A proxy event makes the following item 5.07 a merger vote", async () => {
+    await seedSpacWithOpenDeal(123);
+    cleanup = scriptMergerDeal();
+    await runProxy(123, "123-def14a", "DEF 14A");
+
+    const form8K = await Form_8_K.parse("8-K", "<html/>");
+    await processForm8K({
+      cik: 123,
+      accession_number: "123-vote",
+      filing_date: "2021-06-01",
+      form: "8-K",
+      items: "5.07",
+      report_date: "2021-06-01",
+      form8K,
+      extractor_id: "8-K",
+      extractor_version: "1.0.0",
+    });
+
+    const events = await repo.getEvents(123);
+    expect(events.some((e) => e.event_type === "vote")).toBe(true);
+    expect((await repo.getSpac(123))?.vote_date).toBe("2021-06-01");
   });
 
   it("does not emit a proxy event for a preliminary consent statement (PREM14C)", async () => {

@@ -14,6 +14,7 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
@@ -357,6 +358,53 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.processed).toBe(1);
   });
 
+  it("replays a gated 8-K whose success row wrote nothing, rather than skipping it", async () => {
+    // The 8-K handler is gated on a `spac` row and records `success: true`
+    // while writing nothing when the row does not exist yet — which is exactly
+    // the state `spac process` exists to repair. Reading that row as "already
+    // processed" made the repair command skip the only filings it was for.
+    await new SpacReportWriter().recordRegistration({
+      cik: CIK,
+      accession_number: "0000000000-26-000001",
+      filing_date: "2021-01-04",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Gated SPAC",
+      spac_sic: 6770,
+    });
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]?.accessionNumber).toBe("0000000000-26-000002");
+    expect(out.skipped).toBe(0);
+  });
+
+  it("still skips a gated 8-K that carries no known-SPAC item code", async () => {
+    // A 2.02 earnings 8-K writes nothing either way, so re-selecting it would
+    // replay half the issuer's 8-Ks on every sweep forever.
+    await new SpacReportWriter().recordRegistration({
+      cik: CIK,
+      accession_number: "0000000000-26-000001",
+      filing_date: "2021-01-04",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Gated SPAC",
+      spac_sic: 6770,
+    });
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "2.02");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.skipped).toBe(1);
+  });
+
   it("dry-run with a successful filing reports skipped and does not call the processor", async () => {
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
     await seedFiling("0000000000-26-000001", "D", "2021-01-04");
@@ -391,11 +439,17 @@ describe("ProcessSpacTimelineTask", () => {
     await seedFiling("0000000000-26-000001", "D", "2021-01-04");
     await seedFiling("0000000000-26-000002", "D", "2021-02-04");
     await seedSuccessfulRun("0000000000-26-000001", "D", "D");
+    // Off this timeline entirely: extractor_runs is an audit trail the
+    // coverage gate counts and nothing can rebuild, so a per-issuer reset must
+    // not reach an extractor the replay is not about to rewrite.
+    await seedSuccessfulRun("0000000000-26-000003", "424B4", "424");
     await seedIpoEvent("ipo");
 
     const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK, force: "all" });
 
+    const runs = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    expect((await runs.findRun(CIK, "0000000000-26-000003", "424", "1.0.0"))?.success).toBe(true);
     expect(await new SpacRepo().getEvents(CIK)).toEqual([]);
     expect(spy).toHaveBeenCalledTimes(2);
     expect(out.skipped).toBe(0);

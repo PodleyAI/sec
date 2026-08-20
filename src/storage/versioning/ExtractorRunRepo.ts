@@ -117,13 +117,29 @@ export class ExtractorRunRepo {
   }
 
   /**
-   * Deletes every extractor_runs row for one issuer, all extractor ids and
-   * versions. Used when a full `spac process --force` rebuilds that CIK's
-   * derived timeline from a clean slate.
+   * Deletes one issuer's runs for the named extractors only, and only at the
+   * version generation each is active at (major.minor prefix, the same rule
+   * {@link successfulRunKeys} reads by). Rows for any other extractor id, and
+   * rows from an older or newer generation, survive.
+   *
+   * The scope is the point. `extractor_runs` is the production ledger the
+   * major-promote coverage gate counts, and nothing can rebuild it: an
+   * unscoped per-issuer wipe took that CIK's Form D, ownership and
+   * prior-version history with it. A full `spac process --force` needs only
+   * the generation it is about to replay cleared, so that a filing which
+   * throws before recording cannot leave a stale success row behind for the
+   * outcome counter to report as processed.
    */
-  async deleteForCik(cik: number): Promise<void> {
+  async deleteForCikExtractors(
+    cik: number,
+    activeVersionByExtractorId: ReadonlyMap<string, string>
+  ): Promise<void> {
+    if (activeVersionByExtractorId.size === 0) return;
     const rows = (await this.storage.query({ cik })) ?? [];
     for (const r of rows) {
+      const active = activeVersionByExtractorId.get(r.extractor_id);
+      if (active === undefined) continue;
+      if (!r.extractor_version.startsWith(semverMajorMinorPrefix(active))) continue;
       await this.storage.delete({
         cik: r.cik,
         accession_number: r.accession_number,

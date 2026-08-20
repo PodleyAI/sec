@@ -362,6 +362,38 @@ describe("classifyListingRemoval", () => {
     ).toBe("completed");
   });
 
+  it("ignores an annual 20-F once a completion is already recorded", () => {
+    // A de-SPAC'd FPI files a 20-F every year. Re-recording the close on each
+    // one appended a `completed` event per annual report and advanced `as_of`
+    // to that report's date, after which genuinely older filing-sourced scalars
+    // were rejected on replay.
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2021-01-19",
+        filingDate: "2024-04-30",
+        pendingDeal: null,
+        hasPriorCompleted: true,
+      })
+    ).toBe("ignore");
+  });
+
+  it("ignores a later 20-F even when a 25-NSE is nearby", () => {
+    // The prior-completion check has to precede the other disjuncts: the FIRST
+    // post-close 20-F satisfies hasNearby25Nse too, and by then the 25-NSE has
+    // already written the completion.
+    expect(
+      classifyListingRemoval({
+        form: "20-F",
+        ipoDate: "2025-09-04",
+        filingDate: "2026-07-16",
+        pendingDeal: null,
+        hasPriorCompleted: true,
+        hasNearby25Nse: true,
+      })
+    ).toBe("ignore");
+  });
+
   it("ignores an annual 20-F with no close signal", () => {
     expect(
       classifyListingRemoval({

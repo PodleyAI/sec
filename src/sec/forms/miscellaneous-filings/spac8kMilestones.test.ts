@@ -310,6 +310,46 @@ describe("extractNameChange", () => {
     ).toBe("Zalatoris II Acquisition Corp");
   });
 
+  it("stops at the end of the name when the sentence continues", () => {
+    expect(
+      extractNameChange(
+        "the name of the Company has been changed to Zalatoris II Acquisition Corp. " +
+          "and the Company's units will cease trading on the Nasdaq Capital Market as " +
+          "of the close of business on July 28, 2023."
+      )
+    ).toBe("Zalatoris II Acquisition Corp");
+  });
+
+  it("stops before a capitalized continuation sentence", () => {
+    expect(
+      extractNameChange(
+        "the name of the Company has been changed to Zalatoris II Acquisition Corp. " +
+          "The Board of Directors approved the change effective immediately."
+      )
+    ).toBe("Zalatoris II Acquisition Corp");
+  });
+
+  it("keeps a dotted legal form and drops the prose after it", () => {
+    expect(
+      extractNameChange(
+        "the name of the Registrant has been changed to Foo Holdings L.P. and the " +
+          "units will trade separately."
+      )
+    ).toBe("Foo Holdings L.P.");
+    expect(
+      extractNameChange(
+        "its name has been changed to SuperBac Biotechnology Solutions S.A. effective immediately."
+      )
+    ).toBe("SuperBac Biotechnology Solutions S.A.");
+  });
+
+  it("drops a clause longer than the stored column rather than truncating it", () => {
+    // A truncated registrant name is a wrong fact; a dropped one only costs the
+    // name_change event. `spac.current_name` would reject the long value anyway.
+    const clause = Array.from({ length: 40 }, (_, i) => `Word${i}`).join(" ");
+    expect(extractNameChange(`the name of the Issuer has been changed to ${clause}.`)).toBeNull();
+  });
+
   it("returns null when the 8-K does not rename the company", () => {
     expect(
       extractNameChange(
