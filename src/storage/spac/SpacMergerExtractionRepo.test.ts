@@ -26,6 +26,7 @@ function row(
     target_description: null,
     confidence: 0.9,
     source_span: null,
+    seeks_combination_approval: null,
     model_id: null,
     created_at: "2026-01-01T00:00:00.000Z",
     ...p,

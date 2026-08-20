@@ -340,6 +340,7 @@ describe("SpacReportWriter", () => {
       target_description: null,
       confidence: 0.95,
       source_span: "merger with Acme Target Inc.",
+      seeks_combination_approval: null,
       model_id: "claude-sonnet-5",
       created_at: new Date().toISOString(),
     });
@@ -396,6 +397,7 @@ describe("SpacReportWriter", () => {
       target_description: null,
       confidence: 0.9,
       source_span: null,
+      seeks_combination_approval: null,
       model_id: null,
       created_at: new Date().toISOString(),
     });

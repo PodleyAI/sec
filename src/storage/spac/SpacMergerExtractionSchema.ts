@@ -33,6 +33,17 @@ export const SpacMergerExtractionSchema = Type.Object({
   merger_consideration: TypeNullable(Type.String({ maxLength: 2000 })),
   confidence: Type.Number(),
   source_span: TypeNullable(Type.String({ maxLength: 2000 })),
+  seeks_combination_approval: TypeNullable(
+    Type.Boolean({
+      description:
+        "Deterministic verdict: does this statement ask shareholders to APPROVE the combination? " +
+        "Required conjunctively with an extracted deal before a general definitive statement " +
+        "(DEF 14A / DEF 14C) emits a proxy event. NULL means the gate was not evaluated — the row " +
+        "predates it, or the form symbol alone decides (DEFM14A / DEFM14C). The backfill keys on " +
+        "NULL to re-select the general definitive proxies that need a verdict, so it must stay " +
+        "distinguishable from a recorded false.",
+    })
+  ),
   model_id: TypeNullable(Type.String({ maxLength: 128 })),
   created_at: Type.String({ format: "date-time" }),
 });

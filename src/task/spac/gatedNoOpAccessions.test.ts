@@ -175,6 +175,7 @@ describe("loadGatedNoOpAccessions", () => {
       merger_consideration: null,
       confidence: 0.9,
       source_span: null,
+      seeks_combination_approval: null,
       model_id: null,
       created_at: new Date().toISOString(),
     });

@@ -16,7 +16,11 @@ import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
-import { FORM_TO_EXTRACTOR_ID, type ExtractorId } from "../../storage/versioning/extractorIds";
+import {
+  FORM_TO_EXTRACTOR_ID,
+  GENERAL_DEFINITIVE_PROXY_FORMS,
+  type ExtractorId,
+} from "../../storage/versioning/extractorIds";
 import { resolveListingRemovalKind } from "../../sec/forms/exchange-listing-withdrawal/processDeregistration";
 import { staffActionAbandonsRegistration } from "../../sec/forms/registration-withdrawal-termination/staffActionAbandonsRegistration";
 import { hasRedemptionTriggerItem } from "../../sec/forms/miscellaneous-filings/spac8kRedemptionTriggers";
@@ -195,9 +199,20 @@ function spacTrigger8KDescriptor(
 /**
  * Candidates for merger-proxy recovery: known-SPAC merger proxies, queried by
  * `(form, cik)` (the filings storage is indexed on it) so only each SPAC's
- * proxies load. `filterTodo` keeps those with no extraction row: the known-SPAC
- * gate records a `success: true` no-op run when the spac row does not exist at
- * ingestion, so the default extractor-runs anti-join would never revisit them.
+ * proxies load. `filterTodo` keeps two sets.
+ *
+ * First, those with no extraction row: the known-SPAC gate records a
+ * `success: true` no-op run when the spac row does not exist at ingestion, so
+ * the default extractor-runs anti-join would never revisit them.
+ *
+ * Second, the general definitive statements (`DEF 14A` / `DEF 14C`) whose
+ * `seeks_combination_approval` verdict was never recorded. Those rows were
+ * written when an extracted deal alone emitted the `proxy` event, so a stale
+ * false close may be standing on them; re-running re-derives the verdict from
+ * the document with no model call, and the replay retracts the event when the
+ * meeting turns out not to have approved anything. The clause extinguishes
+ * itself — the re-run writes a non-null verdict — so the widening converges
+ * instead of re-selecting the same proxies on every sweep.
  */
 const mergerProxyDescriptor: BackfillDescriptor = {
   extractorId: "merger-proxy",
@@ -206,7 +221,17 @@ const mergerProxyDescriptor: BackfillDescriptor = {
     const extractions = new SpacMergerExtractionRepo();
     const todo: BackfillCandidate[] = [];
     for (const c of candidates) {
-      if (!(await extractions.getByAccession(c.accession_number))) todo.push(c);
+      const row = await extractions.getByAccession(c.accession_number);
+      if (!row) {
+        todo.push(c);
+        continue;
+      }
+      // Membership first, so the verdict column is only consulted for the forms
+      // the gate governs.
+      if (!c.form || !GENERAL_DEFINITIVE_PROXY_FORMS.has(c.form)) continue;
+      // `== null` rather than `=== null`: a row written before the column
+      // existed reads back as undefined from a storage that keeps whole objects.
+      if (row.seeks_combination_approval == null) todo.push(c);
     }
     return todo;
   },
