@@ -12,7 +12,7 @@ import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 import { S1_SECTIONS } from "./DocumentSegmenter";
-import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
+import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
 
 const MOCK_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "../../../html/mock_data/s1");
 
@@ -72,5 +72,38 @@ describe("parseSpacUseOfProceeds golden corpus", () => {
         .filter((p) => p !== "" && !allowed.has(purposeKey(p)));
       expect(extras, filing).toEqual([]);
     }
+  });
+
+  // Recall, not precision. A skip rule matching a phrase ANYWHERE in the label
+  // deleted the underwriting-commission row from 13 filings and 16 line items
+  // in this corpus — the largest expense in each — while every precision
+  // assertion above stayed green, because a dropped row invents nothing.
+  it("finds every golden line item on a filing it claims to have enumerated", () => {
+    const misses: string[] = [];
+    for (const { filing, byName } of cases()) {
+      const labels = getGoldenLabels(filing, "use-of-proceeds");
+      if (!labels || labels.length === 0) continue;
+      const text = byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "";
+      if (!useOfProceedsIsComplete(text)) continue;
+      const found = new Set(parseSpacUseOfProceeds(text).map((r) => purposeKey(r.purpose ?? "")));
+      for (const label of labels) {
+        const purpose = typeof label.purpose === "string" ? label.purpose : "";
+        if (purpose !== "" && !found.has(purposeKey(purpose))) misses.push(`${filing}: ${purpose}`);
+      }
+    }
+    expect(misses).toEqual([]);
+  });
+
+  // The predicate above is only worth anything if it says yes to real filings.
+  it("claims a complete enumeration on most of the corpus it parses", () => {
+    const parsing = cases().filter(
+      ({ byName }) =>
+        parseSpacUseOfProceeds(byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "").length > 0
+    );
+    const complete = parsing.filter(({ byName }) =>
+      useOfProceedsIsComplete(byName.get(S1_SECTIONS.USE_OF_PROCEEDS) ?? "")
+    );
+    expect(parsing.length).toBeGreaterThanOrEqual(20);
+    expect(complete.length).toBeGreaterThanOrEqual(16);
   });
 });

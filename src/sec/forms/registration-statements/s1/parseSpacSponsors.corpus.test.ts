@@ -91,4 +91,37 @@ describe("parseSpacSponsors golden corpus", () => {
       expect(extras, filing).toEqual([]);
     }
   });
+
+  // Recall, not precision. The precision assertion above passes on a parse that
+  // found one of two sponsors, and `spac_sponsor_link` is cleared per accession
+  // before the rows are rewritten — so a shortfall here would be a deleted
+  // sponsor, not a missing hit, if this parse were ever allowed to preempt.
+  it("finds every golden sponsor on a filing it hits", () => {
+    const misses: string[] = [];
+    for (const { filing, byName } of cases()) {
+      const labels = getGoldenLabels(filing, "spac-sponsors");
+      if (!labels || labels.length === 0) continue;
+      const parsed = parseSpacSponsors(sponsorText(byName));
+      if (parsed.length === 0) continue;
+      const found = new Set(parsed.map((r) => nameKey(r.legal_name)));
+      for (const label of labels) {
+        const name = typeof label.legal_name === "string" ? label.legal_name : "";
+        if (name !== "" && !coveredName(name, found)) misses.push(`${filing}: ${name}`);
+      }
+    }
+    expect(misses).toEqual([]);
+  });
+
+  // The two patterns both require `our|the` immediately before `sponsor`, so a
+  // "our co-sponsor, Beta Holdings LLC, is …" introduction matches neither and
+  // nothing derived from them can report that the prose named no one else.
+  // Pinned because the pass is wired with no completeness claim for exactly
+  // this reason, and a stray `complete: () => true` would read as a tidy-up.
+  it("cannot see a sponsor the prose introduces as a co-sponsor", () => {
+    const text =
+      "Our sponsor, Alpha Sponsor LLC, is a Delaware limited liability company. " +
+      "Our co-sponsor, Beta Holdings LLC, is an affiliate of our chief executive officer.";
+
+    expect(parseSpacSponsors(text).map((r) => r.legal_name)).toEqual(["Alpha Sponsor LLC"]);
+  });
 });

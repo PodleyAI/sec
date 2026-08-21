@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { DeterministicPass } from "./deterministicPass";
-import { preempts } from "./deterministicPass";
+import { assertsCompletePopulation, preempts } from "./deterministicPass";
 
 interface Row {
   readonly confidence: number;
@@ -34,9 +34,10 @@ describe("preempts", () => {
     expect(preempts(pass(covers), clears, TEXT)).toBe(false);
   });
 
-  it("still preempts a table-granularity pair", () => {
+  it("accepts a table-granularity pair as covering every column", () => {
     // spac-sponsors: the parse fills every column persist writes, so naming the
-    // tables bare on both sides is the honest declaration and keeps working.
+    // tables bare on both sides is the honest COLUMN declaration. Whether it
+    // found every sponsor ROW is `assertsCompletePopulation`'s question.
     const both = new Set([
       "spac_sponsor_link",
       "sponsor_family_membership",
@@ -100,5 +101,37 @@ describe("preempts", () => {
     // A caller that never said what the section rewrites has not shown the
     // parse can supply it.
     expect(preempts(pass(new Set(["use_of_proceeds"])), undefined, TEXT)).toBe(false);
+  });
+});
+
+describe("assertsCompletePopulation", () => {
+  const rows: readonly Row[] = [{ confidence: 1 }];
+
+  it("claims nothing for a pass that declares no completeness", () => {
+    expect(assertsCompletePopulation(pass(new Set(["use_of_proceeds"])), rows, TEXT)).toBe(false);
+  });
+
+  it("reads the claim against this filing's rows and text", () => {
+    const p: DeterministicPass<Row> = {
+      extract: () => [],
+      covers: new Set(["use_of_proceeds"]),
+      complete: (r, text) => r.length > 0 && !text.includes("unreadable row"),
+    };
+
+    expect(assertsCompletePopulation(p, rows, TEXT)).toBe(true);
+    expect(assertsCompletePopulation(p, rows, "a table with an unreadable row")).toBe(false);
+    expect(assertsCompletePopulation(p, [], TEXT)).toBe(false);
+  });
+
+  it("claims nothing when the completeness function throws", () => {
+    const p: DeterministicPass<Row> = {
+      extract: () => [],
+      covers: new Set(["use_of_proceeds"]),
+      complete: () => {
+        throw new Error("unreadable table");
+      },
+    };
+
+    expect(assertsCompletePopulation(p, rows, TEXT)).toBe(false);
   });
 });

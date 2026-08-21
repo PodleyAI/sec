@@ -656,6 +656,9 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
               return det === null ? [] : [det];
             },
             covers: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
+            // A filing is classified once, so the row IS the population: there
+            // is no second verdict the walk could have missed.
+            complete: (rows) => rows.length === 1,
           },
           extract: async (text) => {
             const c = await extractSpacClassification(text, classifierModelResolved, args.context);
@@ -885,6 +888,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "company_observation",
       "observation_provenance",
     ]),
+    // `ownershipCoverage` answers the COLUMN question and nothing else. The
+    // walk also drops a data row whose stub fails `looksLikeOwner` (a
+    // single-token owner name) and truncates one whose stub carries a street
+    // number, so the rows it returns are not the table's roster and no
+    // `complete` can be derived from the same walk. It therefore does not
+    // preempt, whatever the coverage function answers.
     deterministic: {
       extract: parseBeneficialOwnership,
       covers: ownershipCoverage,
@@ -1410,6 +1419,13 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "company_observation",
       "observation_provenance",
     ]),
+    // Never preempts: `spac_sponsor_link` holds one row per sponsor, and the
+    // parse is two prose patterns that both require `our|the` immediately
+    // before `sponsor`. A vehicle whose second sponsor is introduced as "our
+    // co-sponsor, Beta Holdings LLC, is …" matches neither, and the link table
+    // the caller has already cleared would be rebuilt with one of two sponsors
+    // and resolved clean. Nothing derived from those two patterns can say the
+    // prose named no other sponsor, so no `complete` is declared.
     deterministic: {
       extract: parseSpacSponsors,
       covers: new Set([

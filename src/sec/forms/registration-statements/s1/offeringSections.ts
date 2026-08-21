@@ -48,7 +48,7 @@ import {
   promoteCoverage,
 } from "./parseOfferingTables";
 import { parseSpacUnderwriters } from "./parseSpacUnderwriters";
-import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
+import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
 
 /**
  * Concatenate the sections production hands the offering-terms parser, so eval
@@ -464,6 +464,10 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
         return det === null ? [] : [det];
       },
       covers: promoteCoverage,
+      // `spac_promote_terms` is keyed by (extractor, accession): one row per
+      // filing, so producing it IS enumerating the population. Which of its
+      // columns that row may state is `promoteCoverage`'s question.
+      complete: (rows) => rows.length === 1,
     },
     ...modelExtractChain(models, async (text, m) => {
       const promote = await extractSponsorPromote(text, m, context);
@@ -681,6 +685,11 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
             return det.length >= 2 ? det : [];
           },
           covers: new Set(["use_of_proceeds"]),
+          // `use_of_proceeds` holds one row per line item, so covering its
+          // columns says nothing about the rows. The walk's own decline log
+          // does: a labelled row it could not represent means the table was
+          // not enumerated, and the model gets the section.
+          complete: (_rows, text) => useOfProceedsIsComplete(text),
         }
       : undefined,
     ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),

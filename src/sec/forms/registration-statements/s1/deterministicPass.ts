@@ -31,6 +31,16 @@
  * any non-empty result, and the section resolves clean: the destination is
  * emptied and refilled with a strict subset, no dead letter is recorded, and
  * every replay takes the same path, so nothing ever self-corrects.
+ *
+ * **Columns are only half of it.** {@link covers} names destinations, so it can
+ * say the parse fills every column `persist` writes — never that the parse
+ * found every ROW. For a destination holding many rows (`use_of_proceeds`,
+ * `spac_sponsor_link`, `beneficial_ownership`) that is the same silent
+ * truncation one level up: the caller has already cleared the table, so a walk
+ * that reads N of M rows persists N and resolves the section as complete.
+ * {@link complete} is therefore required as well — a pass that cannot assert
+ * its rows are the whole population does not preempt, and the section costs a
+ * model call instead of losing filed rows.
  */
 export interface DeterministicPass<TRow> {
   /** Pure and synchronous — no model, no I/O. Returns `[]` when it reads nothing. */
@@ -50,11 +60,17 @@ export interface DeterministicPass<TRow> {
    */
   readonly covers: ReadonlySet<string> | ((text: string) => ReadonlySet<string>);
   /**
-   * Whether the returned rows are the section's COMPLETE population, which is
-   * what `SectionPersistMeta.complete` reports and what roster closure keys on.
+   * Whether the returned rows are the section's COMPLETE population — the ROW
+   * half of the contract, and a precondition of preempting the model at all.
+   * It is also what `SectionPersistMeta.complete` reports and what roster
+   * closure keys on.
+   *
    * Omitted means false: a parser that filters its own output cannot tell a row
    * it dropped from a row the section never had, so it must not be read as
-   * having enumerated everything.
+   * having enumerated everything. Like {@link covers}, an honest answer is
+   * derived from the same walk {@link extract} performs — a decline log, not a
+   * second reading of the section. A single-valued destination (one row per
+   * accession) answers it by the row being there at all.
    */
   readonly complete?: (rows: readonly TRow[], text: string) => boolean;
 }
@@ -62,8 +78,11 @@ export interface DeterministicPass<TRow> {
 const COVERS_NOTHING: ReadonlySet<string> = new Set<string>();
 
 /**
- * Whether `pass` may stand in for the model on a section that rewrites
- * `clears`. True only when `covers` is a superset of `clears`.
+ * Whether `pass` covers every column of every destination a section rewrites.
+ * The COLUMN half of the preemption test — {@link assertsCompletePopulation}
+ * is the row half, and both have to hold. Kept separate because this one is
+ * answerable before {@link DeterministicPass.extract} runs, so a pass that
+ * cannot supply the columns never walks the section at all.
  *
  * An undeclared `clears` is false, not vacuously true: a caller that never said
  * what the section rewrites has not shown the parse can supply it, and the
@@ -80,6 +99,28 @@ export function preempts<TRow>(
     if (!covers.has(destination)) return false;
   }
   return true;
+}
+
+/**
+ * Whether `pass` claims `rows` are the section's whole population. A pass that
+ * declares no {@link DeterministicPass.complete} claims nothing, which is the
+ * fail-safe answer: the model runs.
+ *
+ * A throw is treated as no claim, for the same reason a throwing coverage
+ * function covers nothing — declining costs a model call, while aborting loses
+ * a section the model could still have extracted.
+ */
+export function assertsCompletePopulation<TRow>(
+  pass: DeterministicPass<TRow>,
+  rows: readonly TRow[],
+  text: string
+): boolean {
+  if (pass.complete === undefined) return false;
+  try {
+    return pass.complete(rows, text) === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
