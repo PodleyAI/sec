@@ -39,7 +39,6 @@ describe("modelExtractChain", () => {
           extract: () => [{ confidence: 1, via: "walk" }],
           covers: new Set(["t"]),
         },
-        clears: new Set(["t"]),
       }
     );
     expect(chain.modelIds).toEqual(["deterministic", "claude-haiku-4-5"]);
@@ -56,15 +55,26 @@ describe("modelExtractChain", () => {
     expect(await chain.extract("x")).toEqual([]);
   });
 
-  it("returns [] when covers does not preempt clears", async () => {
+  it("hands the pass to the runner rather than testing coverage itself", async () => {
+    // The chain does not know `clears` — the section that declares what
+    // `persist` rewrites does, and it states it once, on `runSection`. Stating
+    // it here too meant the copy that gated preemption was the one nobody read.
+    const pass = {
+      extract: () => [{ confidence: 1, via: "walk" }],
+      covers: new Set(["a"]),
+    };
     const chain = modelExtractChain([deterministicModelConfig()], async () => [{ confidence: 1 }], {
-      deterministic: {
-        extract: () => [{ confidence: 1, via: "walk" }],
-        covers: new Set(["a"]),
-      },
-      clears: new Set(["a", "b"]),
+      deterministic: pass,
     });
-    expect(await chain.extract("x")).toEqual([]);
+    expect(chain.deterministic).toBe(pass);
+    // The slot runs the parse unconditionally; the runner is what decides
+    // whether to call it.
+    expect(await chain.extract("x")).toEqual([{ confidence: 1, via: "walk" }]);
+  });
+
+  it("omits `deterministic` entirely when the section declares no pass", async () => {
+    const chain = modelExtractChain([ai("claude-haiku-4-5")], async () => [{ confidence: 1 }]);
+    expect(chain.deterministic).toBeUndefined();
   });
 
   it("places the walk last when deterministic is last in the list", async () => {
@@ -76,7 +86,6 @@ describe("modelExtractChain", () => {
           extract: () => [{ confidence: 1, via: "walk" }],
           covers: new Set(["t"]),
         },
-        clears: new Set(["t"]),
       }
     );
     expect(await chain.extract("x")).toEqual([{ confidence: 0.9, via: "ai" }]);

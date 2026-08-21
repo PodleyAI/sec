@@ -7,7 +7,6 @@
 import { describe, expect, it } from "vitest";
 import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
-import { preempts } from "./deterministicPass";
 import { makeRunSection } from "./sectionRunner";
 import type { SectionPersistMeta } from "./sectionRunner";
 
@@ -71,11 +70,11 @@ function harness(overrides: {
   const persisted: Array<{ rows: Row[]; meta: SectionPersistMeta }> = [];
   const detRows = overrides.detRows ?? [{ confidence: 1, span: "alpha" }];
   const covers = overrides.covers ?? new Set(["person_observation"]);
-  const walk = async (text: string): Promise<Row[]> => {
+  // The slot closure `modelExtractChain` builds: it runs the parse and nothing
+  // else. Whether the parse MAY run — `covers` against `clears` — is the
+  // runner's call now, so a pass that cannot supply the columns never gets here.
+  const walk = async (): Promise<Row[]> => {
     detCalls++;
-    if (!preempts({ extract: () => detRows, covers }, overrides.clears, text)) {
-      return [];
-    }
     return [...detRows];
   };
   const model = async (): Promise<Row[]> => {
@@ -98,7 +97,15 @@ function harness(overrides: {
       ...(overrides.verify === false ? {} : { verifyRow: (text, r) => text.includes(r.span) }),
       clears: overrides.clears,
       modelIds,
-      deterministicComplete: overrides.complete,
+      ...(overrides.omitWalk
+        ? {}
+        : {
+            deterministic: {
+              extract: () => detRows,
+              covers,
+              ...(overrides.complete !== undefined ? { complete: overrides.complete } : {}),
+            },
+          }),
       ...(overrides.omitWalk
         ? { extract: model }
         : overrides.walkLast
@@ -124,6 +131,20 @@ describe("makeRunSection deterministic pass", () => {
     expect(h.persisted).toHaveLength(1);
     expect(h.persisted[0]!.meta.source).toBe("model");
     expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["bravo"]);
+    // The column test is answerable before the walk runs, so a parse that
+    // cannot supply the destinations never reads the section at all.
+    expect(h.detCalls()).toBe(0);
+  });
+
+  it("declines every pass when the section never said what it rewrites", async () => {
+    // An undeclared `clears` is false, not vacuously true: a caller that has
+    // not said what `persist` rewrites has not shown a parse can supply it.
+    const h = harness({ covers: new Set(["person_observation"]), complete: () => true });
+    await h.run();
+
+    expect(h.detCalls()).toBe(0);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
   });
 
   it("preempts the model when covers is a superset of clears and the rows are complete", async () => {

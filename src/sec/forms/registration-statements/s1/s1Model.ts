@@ -9,7 +9,6 @@ import { getGlobalModelRepository } from "workglow";
 import { DETERMINISTIC_MODEL_ID, modelIdsFromEnv } from "../../../../config/Constants";
 import { deterministicModelRecord } from "../../../../config/registerModels";
 import type { DeterministicPass } from "./deterministicPass";
-import { preempts } from "./deterministicPass";
 import type { RunSectionArgs } from "./sectionRunner";
 
 /** The model ids used for S-1 extraction; overridable via SEC_S1_MODEL (CSV). */
@@ -106,11 +105,10 @@ export function modelExtractChain<TRow extends { confidence: number }>(
   options?: {
     readonly fallbackOnEmpty?: boolean;
     readonly deterministic?: DeterministicPass<TRow>;
-    readonly clears?: ReadonlySet<string>;
   }
 ): Pick<
   RunSectionArgs<TRow>,
-  "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty" | "deterministicComplete"
+  "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty" | "deterministic"
 > {
   const primary = models[0];
   if (primary === undefined) {
@@ -120,9 +118,13 @@ export function modelExtractChain<TRow extends { confidence: number }>(
     (model: ModelConfig) =>
     async (text: string): Promise<TRow[]> => {
       if (!isDeterministicModel(model)) return extract(text, model);
+      // Whether the pass may stand in for the model is the RUNNER's question:
+      // it is the side that knows `clears`, the set of destinations `persist`
+      // rewrites. Asking it here meant every section declared that set twice —
+      // once on `runSection`, once here — with only this copy read, so the two
+      // could disagree about what the section rewrites and nothing would say so.
       const pass = options?.deterministic;
       if (pass === undefined) return [];
-      if (!preempts(pass, options?.clears, text)) return [];
       return [...pass.extract(text)];
     };
   return {
@@ -134,7 +136,10 @@ export function modelExtractChain<TRow extends { confidence: number }>(
     // dropping an unresolvable id here would shift every later slot onto the
     // wrong model. An id that does not resolve becomes "" rather than a hole.
     modelIds: models.map((m) => resolveModelId(m) ?? ""),
-    deterministicComplete: options?.deterministic?.complete,
+    // Handed to the runner whole rather than reduced to its `complete`
+    // callback: the runner tests `covers` against its own `clears` before the
+    // walk runs, and claims completeness from the same pass afterwards.
+    ...(options?.deterministic !== undefined ? { deterministic: options.deterministic } : {}),
     ...(options?.fallbackOnEmpty === false ? { fallbackOnEmpty: false as const } : {}),
   };
 }

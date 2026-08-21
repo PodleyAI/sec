@@ -673,7 +673,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
                 // is no second verdict the walk could have missed.
                 complete: (rows) => rows.length === 1,
               },
-              clears: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
             }
           ),
           persist: async (_rows, meta) => {
@@ -751,7 +750,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             },
             covers: new Set(["spac.focus", "spac.focus_location"]),
           },
-          clears: new Set(["spac.focus", "spac.focus_location", "spac.description", "spac.team"]),
         }
       ),
       persist: async (rows) => {
@@ -818,12 +816,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           "observation_provenance",
         ]),
       },
-      clears: new Set([
-        "person_observation.titles",
-        "person_observation.birth_year",
-        "person_observation.bio",
-        "observation_provenance",
-      ]),
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
@@ -926,20 +918,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // missing `owner_kind` and `security_class`, so a filing whose coverage
       // function happened to claim the rest would have preempted on a set that
       // understated what persist rewrites.
-      clears: new Set([
-        "beneficial_ownership.owner_kind",
-        "beneficial_ownership.security_class",
-        "beneficial_ownership.shares_owned",
-        "beneficial_ownership.percent_owned",
-        "beneficial_ownership.shares_offered",
-        "beneficial_ownership.shares_after",
-        "beneficial_ownership.percent_after",
-        "beneficial_ownership.is_selling_stockholder",
-        "beneficial_ownership.footnote",
-        "person_observation",
-        "company_observation",
-        "observation_provenance",
-      ]),
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
@@ -1024,12 +1002,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         extract: parseRelatedPartyTables,
         covers: new Set(["person_observation", "company_observation", "observation_provenance"]),
       },
-      clears: new Set([
-        "related_party_transaction",
-        "person_observation",
-        "company_observation",
-        "observation_provenance",
-      ]),
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
@@ -1204,21 +1176,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
               "observation_provenance",
             ]),
           },
-          clears: new Set([
-            "executive_compensation.principal_position",
-            "executive_compensation.fiscal_year",
-            "executive_compensation.salary",
-            "executive_compensation.bonus",
-            "executive_compensation.stock_awards",
-            "executive_compensation.option_awards",
-            "executive_compensation.non_equity_incentive",
-            "executive_compensation.pension_and_nqdc",
-            "executive_compensation.all_other_compensation",
-            "executive_compensation.total",
-            "executive_compensation.footnote",
-            "person_observation",
-            "observation_provenance",
-          ]),
         }
       ),
       persist: async (rows, meta) => {
@@ -1494,12 +1451,6 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           "observation_provenance",
         ]),
       },
-      clears: new Set([
-        "spac_sponsor_link",
-        "sponsor_family_membership",
-        "company_observation",
-        "observation_provenance",
-      ]),
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);

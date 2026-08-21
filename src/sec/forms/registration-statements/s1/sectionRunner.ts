@@ -9,7 +9,8 @@ import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
-import { claimsCompletePopulation } from "./deterministicPass";
+import type { DeterministicPass } from "./deterministicPass";
+import { assertsCompletePopulation, preempts } from "./deterministicPass";
 import {
   MixedRiskCaptionShapeError,
   NonceMismatchError,
@@ -124,8 +125,16 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly extract: (text: string) => Promise<TRow[]>;
   /**
    * Every destination {@link persist} rewrites for this section: rows cleared
-   * before the run, or overwritten in place. Copied into the extract chain so a
-   * `deterministic` list slot can test coverage against the same set.
+   * before the run, or overwritten in place.
+   *
+   * This is the set a {@link deterministic} pass must cover before it may stand
+   * in for the model, and it is declared HERE because this is the side that
+   * knows what `persist` writes. It used to be stated twice — once here and
+   * once on `modelExtractChain` — with only the chain's copy read, so a section
+   * could describe two different sets of destinations and the one that gated
+   * preemption was the one nobody was reading. Undeclared means no pass may
+   * preempt: a caller that has not said what the section rewrites has not shown
+   * a parse can supply it.
    */
   readonly clears?: ReadonlySet<string>;
   /**
@@ -148,10 +157,15 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
   readonly modelIds?: readonly string[];
   /**
-   * When the persisted rows came from a `deterministic` list slot,
-   * `SectionPersistMeta.complete` is this callback (or false if omitted).
+   * The model-free parse behind a `deterministic` slot in {@link modelIds}.
+   *
+   * The runner owns both halves of the preemption test: `covers` against
+   * {@link clears} before the walk runs, and {@link DeterministicPass.complete}
+   * against the rows it produced afterwards — which is also what
+   * `SectionPersistMeta.complete` reports. Absent, a `deterministic` slot
+   * yields nothing and the section falls through to the next model.
    */
-  readonly deterministicComplete?: (rows: readonly NoInfer<TRow>[], text: string) => boolean;
+  readonly deterministic?: DeterministicPass<NoInfer<TRow>>;
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
@@ -296,6 +310,14 @@ export function makeRunSection(opts: {
         const extractFn = slots[i]!;
         modelIndex = i;
         if (isWalkSlot(i)) {
+          const pass = sargs.deterministic;
+          // The COLUMN half of the preemption test, and it is answerable before
+          // the walk runs — a parse that cannot supply every destination
+          // `persist` rewrites never reads the section at all.
+          if (pass === undefined || !preempts(pass, sargs.clears, text)) {
+            clearSlot();
+            continue;
+          }
           try {
             applyRowFilters(await extractFn(text));
             lastError = undefined;
@@ -305,7 +327,9 @@ export function makeRunSection(opts: {
             clearSlot();
             continue;
           }
-          const complete = claimsCompletePopulation(sargs.deterministicComplete, rows, text);
+          // The ROW half: covering the columns says nothing about having found
+          // every row, and the caller has already cleared the destination.
+          const complete = assertsCompletePopulation(pass, rows, text);
           if (complete && raw.length > 0 && rows.length === raw.length) {
             source = "deterministic";
             walkComplete = true;

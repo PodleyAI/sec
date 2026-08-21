@@ -301,12 +301,6 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
               covers: new Set([termsTable, `field_provenance:${termsTable}`]),
             }
           : undefined,
-        clears: new Set([
-          termsTable,
-          `field_provenance:${termsTable}`,
-          "issuer_ticker",
-          "field_provenance:issuer_ticker",
-        ]),
       }
     ),
     persist: async (rows, meta) => {
@@ -483,16 +477,6 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
           // columns that row may state is `promoteCoverage`'s question.
           complete: (rows) => rows.length === 1,
         },
-        clears: new Set([
-          "spac_promote_terms.founder_shares",
-          "spac_promote_terms.founder_percent",
-          "spac_promote_terms.private_placement_warrants",
-          "spac_promote_terms.private_placement_warrant_price",
-          "spac_promote_terms.public_warrant_coverage",
-          "spac_promote_terms.trust_per_public_share",
-          "spac_promote_terms.trust_total",
-          "field_provenance:spac_promote_terms",
-        ]),
       }
     ),
     persist: async (rows, meta) => {
@@ -590,14 +574,6 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
             ]),
           }
         : undefined,
-      clears: new Set([
-        "underwriter_link.role_detail",
-        "underwriter_link.shares_allocated",
-        "underwriter_link.over_allotment_shares",
-        "underwriter_family_membership",
-        "company_observation",
-        "observation_provenance",
-      ]),
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
@@ -719,7 +695,6 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
             complete: (_rows, text) => useOfProceedsIsComplete(text),
           }
         : undefined,
-      clears: new Set(["use_of_proceeds"]),
     }),
     persist: async (rows) => {
       const now = new Date().toISOString();
