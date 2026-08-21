@@ -107,10 +107,11 @@ describe("makeRunSection deterministic pass", () => {
     expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["bravo"]);
   });
 
-  it("preempts the model when covers is a superset of clears", async () => {
+  it("preempts the model when covers is a superset of clears and the rows are complete", async () => {
     const h = harness({
       clears: new Set(["person_observation"]),
       covers: new Set(["person_observation", "observation_provenance"]),
+      complete: () => true,
     });
     await h.run();
 
@@ -118,6 +119,49 @@ describe("makeRunSection deterministic pass", () => {
     expect(h.persisted).toHaveLength(1);
     expect(h.persisted[0]!.meta.source).toBe("deterministic");
     expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["alpha"]);
+  });
+
+  // `covers` names destinations, so full coverage of a many-row table only says
+  // every COLUMN would be filled. The caller has already cleared that table, so
+  // a walk that found some of the rows would refill it with a subset and
+  // resolve the section clean.
+  it("does not preempt on full column coverage alone", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("does not preempt when the completeness claim is false for this filing", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+      complete: () => false,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  // Declining costs a model call; aborting would lose a section the model can
+  // still extract, which is how a throwing `covers` is already treated.
+  it("does not preempt when the completeness claim throws", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+      complete: () => {
+        throw new Error("walk failed");
+      },
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
   });
 
   it("falls through to the model on a partial parse, once, with no dead letter", async () => {
@@ -139,17 +183,21 @@ describe("makeRunSection deterministic pass", () => {
     expect(h.persisted[0]!.meta.source).toBe("model");
   });
 
-  it("reports an incomplete population when the pass declares no completeness", async () => {
+  // Every returned row surviving says nothing about the section's population:
+  // a parser that filters its own output cannot tell a row it dropped from a
+  // row the section never had. So the model runs, and its own filtering
+  // decides `meta.complete`.
+  it("falls through to the model when the pass declares no completeness", async () => {
     const h = harness({
       clears: new Set(["person_observation"]),
       covers: new Set(["person_observation"]),
     });
     await h.run();
 
-    expect(h.persisted[0]!.meta.source).toBe("deterministic");
-    // Every returned row survived, but the parser filters its own output, so
-    // "all of them survived" says nothing about the section's population.
-    expect(h.persisted[0]!.meta.complete).toBe(false);
+    expect(h.detCalls()).toBe(1);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.letters).toEqual([]);
+    expect(h.persisted[0]!.meta.source).toBe("model");
   });
 
   it("reports a complete population only when the pass says so", async () => {

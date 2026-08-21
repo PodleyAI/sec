@@ -12,7 +12,11 @@ import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
 import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
 import { offeringParseText, promoteParseText } from "./offeringSections";
-import { parseSpacOfferingTerms, parseSpacPromoteTerms } from "./parseOfferingTables";
+import {
+  parseSpacOfferingTerms,
+  parseSpacPromoteTerms,
+  promoteCoverage,
+} from "./parseOfferingTables";
 
 const MOCK_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "../../../html/mock_data/s1");
 
@@ -138,5 +142,34 @@ describe("parseOfferingTables golden corpus", () => {
       const got = scored(parsed as unknown as Record<string, unknown>, PROMOTE_FIELDS);
       expectScoredFields(filing, got, expected, PROMOTE_FIELDS);
     }
+  });
+
+  // `spac_promote_terms` holds one row per filing, so the promote pass answers
+  // the row question by producing that row and `promoteCoverage` carries the
+  // whole risk: a column it claims is a column the model will not be asked for
+  // and that persist will write. The assertion above forgives a null the walk
+  // returned; a CLAIMED column may not be null and may not disagree.
+  it("is right about every promote column its coverage claims", () => {
+    const wrong: string[] = [];
+    for (const { filing, byName } of cases()) {
+      const labels = getGoldenLabels(filing, "sponsor-promote");
+      if (!labels || labels.length === 0) continue;
+      const text = promoteParseText(byName);
+      const parsed = parseSpacPromoteTerms(text);
+      if (parsed === null) continue;
+      const claimed = promoteCoverage(text);
+      const expected = scored(labels[0] as Record<string, unknown>, PROMOTE_FIELDS);
+      const got = scored(parsed as unknown as Record<string, unknown>, PROMOTE_FIELDS);
+      for (const field of PROMOTE_FIELDS) {
+        if (!claimed.has(`spac_promote_terms.${field}`)) continue;
+        if (expected[field] == null) continue;
+        if (got[field] !== expected[field]) {
+          wrong.push(
+            `${filing} ${field}: parsed ${String(got[field])}, golden ${String(expected[field])}`
+          );
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });

@@ -50,4 +50,25 @@ describe("parseSpacClassification golden corpus", () => {
       expect(parseSpacClassification(summary), filing).toBeNull();
     }
   });
+
+  // This pass DOES stand in for the model — a filing is classified once, so the
+  // row it returns is the whole population — which makes it the one wired parse
+  // whose verdict is never checked against a model. It has to agree with the
+  // labels on every filing it answers for.
+  it("agrees with the golden classification on every filing it answers", () => {
+    const disagreements: string[] = [];
+    for (const { filing, summary } of cases()) {
+      const labels = getGoldenLabels(filing, "spac-classification");
+      if (!labels || labels.length === 0) continue;
+      const parsed = parseSpacClassification(summary);
+      if (parsed === null) continue;
+      const label = labels[0]!;
+      if (parsed.is_spac !== label.is_spac || parsed.entity_kind !== label.entity_kind) {
+        disagreements.push(
+          `${filing}: parsed ${parsed.entity_kind}/${parsed.is_spac}, golden ${String(label.entity_kind)}/${String(label.is_spac)}`
+        );
+      }
+    }
+    expect(disagreements).toEqual([]);
+  });
 });

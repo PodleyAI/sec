@@ -15,7 +15,7 @@ import {
 } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 import type { DeterministicPass } from "./deterministicPass";
-import { preempts } from "./deterministicPass";
+import { assertsCompletePopulation, preempts } from "./deterministicPass";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -131,7 +131,8 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly clears?: ReadonlySet<string>;
   /**
    * A model-free parse tried ONCE, before {@link extract}, and only when it
-   * covers everything {@link clears} names.
+   * covers every column {@link clears} names AND asserts its rows are the
+   * section's whole population.
    *
    * All-or-nothing: its rows persist only when every one of them clears the
    * confidence floor and {@link verifyRow}. A shortfall records nothing and
@@ -306,14 +307,19 @@ export function makeRunSection(opts: {
                 const verdict = verifyRow(text, r);
                 return verdict === true || verdict === "ok";
               });
-        // All or nothing. A partial parse persists a subset of a section the
-        // caller has already cleared, and resolves it as complete.
-        if (detRaw.length > 0 && detRows.length === detRaw.length) {
+        // All or nothing, on two axes. Every row the parse returned has to
+        // survive filtering — a partial parse persists a subset of a section
+        // the caller has already cleared — and the parse has to claim those
+        // rows are the whole population. `covers` speaks only for columns, so
+        // without the second test a walk that found some of the rows fills a
+        // cleared table with them and resolves the section as complete.
+        const complete = assertsCompletePopulation(pass, detRows, text);
+        if (complete && detRaw.length > 0 && detRows.length === detRaw.length) {
           raw = [...detRaw];
           confident = [...detConfident];
           rows = [...detRows];
           source = "deterministic";
-          deterministicComplete = pass.complete?.(detRows, text) ?? false;
+          deterministicComplete = true;
         }
       }
       if (source === "model") {

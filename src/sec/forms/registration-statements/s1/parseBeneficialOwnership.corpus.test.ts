@@ -91,4 +91,37 @@ describe("parseBeneficialOwnership golden corpus", () => {
       expect(garbage, filing).toEqual([]);
     }
   });
+
+  // Recall, which the precision assertions above cannot see: a dropped owner
+  // invents nothing. These four are the walk's own filters, not the table's
+  // contents — `looksLikeOwner` refuses a single-token stub, and `peelName`
+  // reads a street number in a stub as the start of an address and cuts there.
+  //
+  // They are pinned rather than fixed because the pass they back is wired with
+  // no completeness claim and therefore never stands in for the model: nothing
+  // is lost today. The list is the bar — a NEW gap fails here, and closing one
+  // of these fails here too, which is the prompt to reconsider the claim.
+  const KNOWN_RECALL_GAPS: readonly string[] = [
+    "s1_1507957_000143774926010088: AIGH",
+    "s1_1602409_000152013826000232: Acuitas Group Holdings, LLC",
+    "s1_1602409_000152013826000232: Acuitas Capital LLC",
+    "s1_1602409_000152013826000232: Dorado Goose, LLC",
+  ];
+
+  it("misses only the owners its own filters are known to drop", () => {
+    const misses: string[] = [];
+    for (const { filing, byName } of cases()) {
+      const labels = getGoldenLabels(filing, "beneficial-ownership");
+      if (!labels || labels.length === 0) continue;
+      const text = byName.get(S1_SECTIONS.BENEFICIAL_OWNERSHIP) ?? "";
+      const parsed = parseBeneficialOwnership(text);
+      if (parsed.length === 0) continue;
+      const found = new Set(parsed.map((r) => nameKey(r.name)));
+      for (const label of labels) {
+        const name = typeof label.name === "string" ? label.name : "";
+        if (name !== "" && !coveredName(name, found)) misses.push(`${filing}: ${name}`);
+      }
+    }
+    expect(misses.sort()).toEqual([...KNOWN_RECALL_GAPS].sort());
+  });
 });
