@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseSpacUseOfProceeds } from "./parseSpacUseOfProceeds";
+import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
 
 function purposes(text: string): string[] {
   return parseSpacUseOfProceeds(text).map((r) => r.purpose ?? "");
@@ -42,6 +42,7 @@ describe("parseSpacUseOfProceeds", () => {
       "Underwriting discounts and commissions (excluding deferred portion)",
       "Legal fees and expenses",
       "Miscellaneous",
+      "Reimbursed expenses",
       "Held in trust account",
       "Not held in trust account",
       "Legal, accounting, due diligence, travel and other expenses in connection with business combination",
@@ -74,5 +75,81 @@ describe("parseSpacUseOfProceeds", () => {
       "Underwriting discounts and commissions",
       "Held in trust account",
     ]);
+  });
+
+  // The way most filers write the largest expense row in the table. A skip rule
+  // matching "gross proceeds" anywhere in the label deletes it — silently, and
+  // on every replay, because this parse replaces the model call for the section.
+  it("keeps an underwriting row whose parenthetical cites gross proceeds", () => {
+    const text = [
+      "| Gross proceeds from units offered to public | $ | 100,000,000 |",
+      "| Underwriting commissions (2.0% of gross proceeds from units offered to public, excluding deferred portion) | $ | 2,000,000 |",
+      "| Held in trust account | $ | 100,000,000 |",
+    ].join("\n");
+    expect(purposes(text)).toEqual([
+      "Underwriting commissions (2.0% of gross proceeds from units offered to public, excluding deferred portion)",
+      "Held in trust account",
+    ]);
+  });
+
+  it("keeps the residual trust row that names offering expenses", () => {
+    const text = [
+      "| Offering expenses |  |  |",
+      "| Underwriting discounts and commissions | $ | 4,500,000 |",
+      "| Not held in trust account after offering expenses | $ | 525,000 |",
+    ].join("\n");
+    expect(purposes(text)).toContain("Not held in trust account after offering expenses");
+  });
+
+  it("keeps a line item whose parenthetical states a per-unit rate", () => {
+    const text = [
+      "| Underwriting discounts and commissions | $ | 4,500,000 |",
+      "| Held in trust account ($10.20 per unit) | $ | 306,000,000 |",
+      "| Amount held in trust per share | $ | 10.20 |",
+    ].join("\n");
+    expect(purposes(text)).toEqual([
+      "Underwriting discounts and commissions",
+      "Held in trust account ($10.20 per unit)",
+    ]);
+  });
+
+  // Some filers factor the sources into a block under a bare heading, so the
+  // rows beneath it read as ordinary labels ("Offering", "Private Units") and
+  // only the heading says they are where the money came from.
+  it("skips the children of a bare gross-proceeds heading but not of an expenses heading", () => {
+    const text = [
+      "| Gross proceeds |  |  |",
+      "| Offering(1) | $ | 200,000,000 |",
+      "| Private Units(2) |  | 6,500,000 |",
+      "| Total gross proceeds | $ | 206,500,000 |",
+      "| Offering expenses(3) |  |  |",
+      "| Underwriting discount | $ | 4,000,000 |",
+      "| Held in the trust account from this offering | $ | 200,000,000 |",
+    ].join("\n");
+    expect(purposes(text)).toEqual([
+      "Underwriting discount",
+      "Held in the trust account from this offering",
+    ]);
+  });
+});
+
+describe("useOfProceedsIsComplete", () => {
+  it("is true when every labelled row of the table was represented", () => {
+    expect(useOfProceedsIsComplete(CHURCHILL)).toBe(true);
+  });
+
+  it("is false when a line item inside the table carries no readable figure", () => {
+    const text = [
+      "| Underwriting discounts and commissions | $ | 4,500,000 |",
+      "| Miscellaneous |  | 385,641 |",
+      "| Held in trust account(3) |  |  |",
+      "| Not held in trust account | $ | 750,000 |",
+    ].join("\n");
+    expect(parseSpacUseOfProceeds(text).length).toBe(3);
+    expect(useOfProceedsIsComplete(text)).toBe(false);
+  });
+
+  it("is false when the parse read nothing", () => {
+    expect(useOfProceedsIsComplete("")).toBe(false);
   });
 });
