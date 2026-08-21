@@ -5,7 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { preempts } from "./deterministicPass";
 import { makeRunSection } from "./sectionRunner";
 import type { SectionPersistMeta } from "./sectionRunner";
 
@@ -47,6 +49,9 @@ function harness(overrides: {
   readonly complete?: (rows: readonly Row[], text: string) => boolean;
   readonly modelRows?: readonly Row[];
   readonly verify?: boolean;
+  readonly modelIds?: readonly string[];
+  readonly walkLast?: boolean;
+  readonly omitWalk?: boolean;
 }): {
   readonly run: () => Promise<void>;
   readonly modelCalls: () => number;
@@ -65,6 +70,27 @@ function harness(overrides: {
   let detCalls = 0;
   const persisted: Array<{ rows: Row[]; meta: SectionPersistMeta }> = [];
   const detRows = overrides.detRows ?? [{ confidence: 1, span: "alpha" }];
+  const covers = overrides.covers ?? new Set(["person_observation"]);
+  const walk = async (text: string): Promise<Row[]> => {
+    detCalls++;
+    if (
+      !preempts({ extract: () => detRows, covers }, overrides.clears, text)
+    ) {
+      return [];
+    }
+    return [...detRows];
+  };
+  const model = async (): Promise<Row[]> => {
+    modelCalls++;
+    return [...(overrides.modelRows ?? [{ confidence: 1, span: "bravo" }])];
+  };
+  const modelIds =
+    overrides.modelIds ??
+    (overrides.omitWalk
+      ? ["fake-s1-model"]
+      : overrides.walkLast
+        ? ["fake-s1-model", DETERMINISTIC_MODEL_ID]
+        : [DETERMINISTIC_MODEL_ID, "fake-s1-model"]);
   const run = () =>
     runSection<Row>({
       sectionName: "management",
@@ -73,18 +99,13 @@ function harness(overrides: {
       lowConfidenceDetail: "low",
       ...(overrides.verify === false ? {} : { verifyRow: (text, r) => text.includes(r.span) }),
       clears: overrides.clears,
-      deterministic: {
-        extract: () => {
-          detCalls++;
-          return detRows;
-        },
-        covers: overrides.covers ?? new Set(["person_observation"]),
-        ...(overrides.complete === undefined ? {} : { complete: overrides.complete }),
-      },
-      extract: async () => {
-        modelCalls++;
-        return [...(overrides.modelRows ?? [{ confidence: 1, span: "bravo" }])];
-      },
+      modelIds,
+      deterministicComplete: overrides.complete,
+      ...(overrides.omitWalk
+        ? { extract: model }
+        : overrides.walkLast
+          ? { extract: model, emptyExtracts: [walk] }
+          : { extract: walk, emptyExtracts: [model] }),
       persist: async (rows, meta) => {
         persisted.push({ rows, meta });
         return rows.length;
@@ -168,6 +189,7 @@ describe("makeRunSection deterministic pass", () => {
     const h = harness({
       clears: new Set(["person_observation"]),
       covers: new Set(["person_observation"]),
+      complete: () => true,
       detRows: [
         { confidence: 1, span: "alpha" },
         { confidence: 1, span: "bravo" },
@@ -211,5 +233,30 @@ describe("makeRunSection deterministic pass", () => {
     expect(h.modelCalls()).toBe(0);
     expect(h.persisted[0]!.meta.source).toBe("deterministic");
     expect(h.persisted[0]!.meta.complete).toBe(true);
+  });
+
+  it("does not run the walk when deterministic is omitted from modelIds", async () => {
+    const h = harness({ omitWalk: true });
+    await h.run();
+
+    expect(h.detCalls()).toBe(0);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("runs the walk only after an empty primary when deterministic is last", async () => {
+    const h = harness({
+      walkLast: true,
+      modelRows: [],
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation"]),
+      complete: () => true,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.detCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("deterministic");
+    expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["alpha"]);
   });
 });

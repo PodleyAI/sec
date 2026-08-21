@@ -5,6 +5,7 @@
  */
 
 import { TaskAbortedError } from "workglow";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
@@ -15,7 +16,6 @@ import {
 } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
 import type { DeterministicPass } from "./deterministicPass";
-import { assertsCompletePopulation, preempts } from "./deterministicPass";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -27,6 +27,19 @@ export function parseConfidenceFloor(raw: string | undefined, fallback: number):
   if (raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function walkClaimsComplete<TRow>(
+  fn: ((rows: readonly TRow[], text: string) => boolean) | undefined,
+  rows: readonly TRow[],
+  text: string
+): boolean {
+  if (fn === undefined) return false;
+  try {
+    return fn(rows, text) === true;
+  } catch {
+    return false;
+  }
 }
 
 const REJECTED_SPAN_DETAIL_CHARS = 300;
@@ -268,127 +281,114 @@ export function makeRunSection(opts: {
       // own, smaller budget, and an attempt spent on one question must not
       // spend the other's.
       let mixedShapeAttempts = 0;
-      let extractFn = sargs.extract;
       let modelIndex = 0;
-      let triedEmptyFallbacks = false;
-      const fallbacks = sargs.emptyExtracts;
+      const slots: ReadonlyArray<(text: string) => Promise<TRow[]>> = [
+        sargs.extract,
+        ...(sargs.emptyExtracts ?? []),
+      ];
       const fallbackOnEmpty = sargs.fallbackOnEmpty !== false;
       const isImmediateExtractFailure = (e: unknown): boolean =>
         e instanceof TaskAbortedError ||
         e instanceof SecCliConfigurationError ||
         e instanceof MixedRiskCaptionShapeError ||
         opts.signal?.aborted === true;
-      const runEmptyFallbacks = async (priorError: unknown | undefined): Promise<TRow[]> => {
-        triedEmptyFallbacks = true;
-        let lastError: unknown = priorError;
-        let lastRaw: TRow[] = [];
-        for (let i = 0; i < fallbacks!.length; i++) {
-          extractFn = fallbacks![i]!;
-          modelIndex = i + 1;
-          try {
-            lastRaw = await extractFn(text);
-            lastError = undefined;
-            if (lastRaw.length > 0) return lastRaw;
-          } catch (fe) {
-            if (isImmediateExtractFailure(fe)) throw fe;
-            lastError = fe;
-          }
+      const isWalkSlot = (i: number): boolean =>
+        sargs.modelIds?.[i] === DETERMINISTIC_MODEL_ID;
+      const applyRowFilters = (incoming: TRow[]): void => {
+        raw = incoming;
+        confident = raw.filter((r) => r.confidence >= floor);
+        droppedUnverified = 0;
+        droppedTooLong = 0;
+        if (verifyRow !== undefined && confident.length > 0) {
+          rows = confident.filter((r) => {
+            const verdict = verifyRow(text, r);
+            if (verdict === true || verdict === "ok") return true;
+            if (verdict === "too-long") droppedTooLong++;
+            return false;
+          });
+          droppedUnverified = confident.length - rows.length;
+        } else {
+          rows = confident;
         }
-        if (lastError !== undefined) throw lastError;
-        return lastRaw;
       };
-      // The deterministic pass runs ONCE, ahead of the retry loop and outside
-      // it. It is a pure function of the section text, so a second identical
-      // call cannot produce a different answer; re-asking it would only burn
-      // attempts, and dead-lettering its shortfall would record the model as
-      // having failed a section it was never given.
+      const clearSlot = (): void => {
+        raw = [];
+        confident = [];
+        rows = [];
+        droppedUnverified = 0;
+        droppedTooLong = 0;
+      };
       let source: "deterministic" | "model" = "model";
-      let deterministicComplete = false;
-      const pass = sargs.deterministic;
-      if (pass !== undefined && preempts(pass, sargs.clears, text)) {
-        const detRaw = pass.extract(text);
-        const detConfident = detRaw.filter((r) => r.confidence >= floor);
-        const detRows =
-          verifyRow === undefined
-            ? detConfident
-            : detConfident.filter((r) => {
-                const verdict = verifyRow(text, r);
-                return verdict === true || verdict === "ok";
-              });
-        // All or nothing, on two axes. Every row the parse returned has to
-        // survive filtering — a partial parse persists a subset of a section
-        // the caller has already cleared — and the parse has to claim those
-        // rows are the whole population. `covers` speaks only for columns, so
-        // without the second test a walk that found some of the rows fills a
-        // cleared table with them and resolves the section as complete.
-        const complete = assertsCompletePopulation(pass, detRows, text);
-        if (complete && detRaw.length > 0 && detRows.length === detRaw.length) {
-          raw = [...detRaw];
-          confident = [...detConfident];
-          rows = [...detRows];
-          source = "deterministic";
-          deterministicComplete = true;
-        }
-      }
-      if (source === "model") {
-        for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
+      let walkComplete = false;
+      let lastError: unknown;
+      for (let i = 0; i < slots.length; i++) {
+        const extractFn = slots[i]!;
+        modelIndex = i;
+        if (isWalkSlot(i)) {
           try {
-            try {
-              raw = await extractFn(text);
-              if (
-                raw.length === 0 &&
-                fallbackOnEmpty &&
-                !triedEmptyFallbacks &&
-                fallbacks !== undefined &&
-                fallbacks.length > 0
-              ) {
-                raw = await runEmptyFallbacks(undefined);
-              }
-            } catch (e) {
-              if (isImmediateExtractFailure(e)) throw e;
-              if (!triedEmptyFallbacks && fallbacks !== undefined && fallbacks.length > 0) {
-                raw = await runEmptyFallbacks(e);
-              } else {
-                throw e;
-              }
-            }
+            applyRowFilters(await extractFn(text));
+            lastError = undefined;
           } catch (e) {
-            // A mixed caption shape is a property of ONE generation, not a verdict
-            // about the section: the model echoed a category heading back as a
-            // row, and the next call usually does not. Without this the throw
-            // escapes the loop entirely and the section gets zero re-asks, unlike
-            // every other recoverable response-shape failure here.
-            if (!(e instanceof MixedRiskCaptionShapeError)) throw e;
-            mixedShapeAttempts++;
-            if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
-              // Say what the re-ask cost, so the dead-letter detail records it
-              // rather than reading as a single unlucky generation.
-              e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
-              throw e;
-            }
+            if (isImmediateExtractFailure(e)) throw e;
+            lastError = e;
+            clearSlot();
             continue;
           }
-          confident = raw.filter((r) => r.confidence >= floor);
-          droppedUnverified = 0;
-          droppedTooLong = 0;
-          if (verifyRow !== undefined && confident.length > 0) {
-            rows = confident.filter((r) => {
-              const verdict = verifyRow(text, r);
-              if (verdict === true || verdict === "ok") return true;
-              if (verdict === "too-long") droppedTooLong++;
-              return false;
-            });
-            droppedUnverified = confident.length - rows.length;
-          } else {
-            rows = confident;
+          const complete = walkClaimsComplete(sargs.deterministicComplete, rows, text);
+          if (complete && raw.length > 0 && rows.length === raw.length) {
+            source = "deterministic";
+            walkComplete = true;
+            lastError = undefined;
+            break;
           }
-          // Only a total verification wipeout is worth re-asking. An empty or
-          // all-low-confidence response is a judgement about the text rather
-          // than a malformed citation, and re-rolling it just burns calls.
+          clearSlot();
+          continue;
+        }
+        mixedShapeAttempts = 0;
+        let slotFailed = false;
+        for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
+          try {
+            applyRowFilters(await extractFn(text));
+            lastError = undefined;
+            slotFailed = false;
+          } catch (e) {
+            if (e instanceof MixedRiskCaptionShapeError) {
+              mixedShapeAttempts++;
+              if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
+                e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
+                throw e;
+              }
+              continue;
+            }
+            if (isImmediateExtractFailure(e)) throw e;
+            lastError = e;
+            slotFailed = true;
+            clearSlot();
+            break;
+          }
           if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
             break;
           }
         }
+        if (rows.length > 0) {
+          source = "model";
+          lastError = undefined;
+          break;
+        }
+        if (droppedUnverified > 0 && droppedUnverified === confident.length) {
+          lastError = undefined;
+          break;
+        }
+        if (raw.length > 0) {
+          lastError = undefined;
+          break;
+        }
+        if (!fallbackOnEmpty && !slotFailed) {
+          break;
+        }
+      }
+      if (lastError !== undefined && rows.length === 0 && raw.length === 0) {
+        throw lastError;
       }
       if (rows.length === 0) {
         const allDroppedUnverified =
@@ -422,7 +422,7 @@ export function makeRunSection(opts: {
         // On the deterministic path `raw` is already the parser's surviving
         // output, so counting it would report every parse as complete. The
         // pass says so itself, or it does not say so at all.
-        complete: source === "deterministic" ? deterministicComplete : rows.length === raw.length,
+        complete: source === "deterministic" ? walkComplete : rows.length === raw.length,
         modelIndex,
         source,
       });
