@@ -84,9 +84,10 @@ export function parseSpacProfile(text: string): SpacProfileRow | null {
   }
 }
 
+/** Asks the parser, so a throw is a "no" here exactly as it is there. */
 export function hasProfileIdentification(text: string | undefined): boolean {
   if (text === undefined || text.trim() === "") return false;
-  return findProfile(text) !== null;
+  return parseSpacProfile(text) !== null;
 }
 
 function findProfile(text: string): SpacProfileRow | null {

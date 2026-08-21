@@ -214,50 +214,35 @@ function truncate(s: string, max = 60): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
 }
 
-function printSpacClassificationReport(report: SpacClassificationReport): void {
-  const { counts } = report;
-  console.log(
-    `spac-classification parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
+/**
+ * One scored case from a deterministic-parser eval. Every `run*Eval` report
+ * shares this shape; `kind` is present only where one command scores two
+ * destinations (offering terms vs sponsor promote).
+ */
+interface ParserEvalCase {
+  readonly bucket: string;
+  readonly accession_number: string;
+  readonly cik: number | null;
+  readonly cachePath: string | undefined;
+  readonly kind?: string;
+  readonly parsed?: unknown;
+  readonly stored?: unknown;
 }
 
-function printSpacProfileReport(report: SpacProfileReport): void {
-  const { counts } = report;
-  console.log(
-    `spac-profile parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
+interface ParserEvalReport {
+  readonly cases: readonly ParserEvalCase[];
+  readonly counts: Record<string, number>;
 }
 
-function printSpacSponsorsReport(report: SpacSponsorsReport): void {
+/**
+ * The parser-vs-stored-rows table every `sec eval <parser>` command prints.
+ * One implementation: the ten commands differed only in the label, so ten
+ * copies of it could only drift.
+ */
+function printParserEvalReport(label: string, report: ParserEvalReport): void {
   const { counts } = report;
   console.log(
-    `spac-sponsors parser vs stored rows  ` +
+    `${label} parser vs stored rows  ` +
       `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
       `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
   );
@@ -266,147 +251,8 @@ function printSpacSponsorsReport(report: SpacSponsorsReport): void {
   console.log("\nmiss / hit-disagree:");
   for (const c of flagged) {
     const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printRelatedPartyReport(report: RelatedPartyReport): void {
-  const { counts } = report;
-  console.log(
-    `related-party parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printManagementReport(report: ManagementReport): void {
-  const { counts } = report;
-  console.log(
-    `management parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printBeneficialOwnershipReport(report: BeneficialOwnershipReport): void {
-  const { counts } = report;
-  console.log(
-    `beneficial-ownership parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printExecutiveCompensationReport(report: ExecutiveCompensationReport): void {
-  const { counts } = report;
-  console.log(
-    `executive-compensation parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printUseOfProceedsReport(report: UseOfProceedsReport): void {
-  const { counts } = report;
-  console.log(
-    `use-of-proceeds parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printUnderwritersReport(report: UnderwritersReport): void {
-  const { counts } = report;
-  console.log(
-    `underwriters parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
-    if (c.bucket === "hit-disagree") {
-      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
-      console.log(`    stored  ${JSON.stringify(c.stored)}`);
-    }
-  }
-}
-
-function printOfferingTablesReport(report: OfferingTablesReport): void {
-  const { counts } = report;
-  console.log(
-    `offering/promote parser vs stored rows  ` +
-      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
-      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
-  );
-  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
-  if (flagged.length === 0) return;
-  console.log("\nmiss / hit-disagree:");
-  for (const c of flagged) {
-    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
-    console.log(`  ${c.bucket} ${c.kind} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    const kind = c.kind === undefined ? "" : ` ${c.kind}`;
+    console.log(`  ${c.bucket}${kind} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
     if (c.bucket === "hit-disagree") {
       console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
       console.log(`    stored  ${JSON.stringify(c.stored)}`);
@@ -1167,413 +1013,145 @@ export function addEvalCommands(program: Command): void {
       }
     );
 
-  cmd
-    .command("offering-tables")
-    .description(
-      "Score the deterministic SPAC offering/promote table parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<OfferingTablesReport>([
-            new EvalOfferingTablesTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printOfferingTablesReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("underwriters")
-    .description(
-      "Score the deterministic SPAC underwriter table parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<UnderwritersReport>([
-            new EvalUnderwritersTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printUnderwritersReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("use-of-proceeds")
-    .description(
-      "Score the deterministic SPAC use-of-proceeds table parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<UseOfProceedsReport>([
-            new EvalUseOfProceedsTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printUseOfProceedsReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("executive-compensation")
-    .description(
-      "Score the deterministic Summary Compensation Table parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<ExecutiveCompensationReport>([
-            new EvalExecutiveCompensationTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printExecutiveCompensationReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("beneficial-ownership")
-    .description(
-      "Score the deterministic beneficial-ownership parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<BeneficialOwnershipReport>([
-            new EvalBeneficialOwnershipTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printBeneficialOwnershipReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("management")
-    .description(
-      "Score the deterministic management roster parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<ManagementReport>([
-            new EvalManagementTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printManagementReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("related-party")
-    .description(
-      "Score the deterministic related-party table parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<RelatedPartyReport>([
-            new EvalRelatedPartyTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printRelatedPartyReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("spac-sponsors")
-    .description(
-      "Score the deterministic SPAC sponsor parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<SpacSponsorsReport>([
-            new EvalSpacSponsorsTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printSpacSponsorsReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("spac-profile")
-    .description(
-      "Score the deterministic SPAC profile parser against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<SpacProfileReport>([
-            new EvalSpacProfileTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printSpacProfileReport(report);
-        });
-      }
-    );
-
-  cmd
-    .command("spac-classification")
-    .description(
-      "Score the deterministic SPAC classifier against stored rows (on-disk cache only; no EDGAR fetch)"
-    )
-    .option("--extractor-id [id]", "limit to S-1 or 424")
-    .option("--limit [n]", "max stored rows to score")
-    .option("--cik [n]", "limit to one issuer CIK")
-    .option("--format [fmt]", "table | json (default: table)")
-    .action(
-      async (opts: {
-        extractorId?: string | boolean;
-        limit?: string | boolean;
-        cik?: string | boolean;
-        format: string | boolean;
-      }) => {
-        await runCommand(async () => {
-          const format = requireFormat(opts.format);
-          const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
-          if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
-            throw new Error("--extractor-id needs a value — S-1, 424");
-          }
-          const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
-          const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
-          const input = {
-            ...(extractorRaw ? { extractorId: extractorRaw } : {}),
-            ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
-            ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
-          };
-          const report = await runWorkflowCli<SpacClassificationReport>([
-            new EvalSpacClassificationTask({ defaults: input }),
-          ]);
-          if (format === "json") {
-            console.log(JSON.stringify(report, null, 2));
-            return;
-          }
-          printSpacClassificationReport(report);
-        });
-      }
-    );
+  for (const spec of PARSER_EVAL_COMMANDS) {
+    cmd
+      .command(spec.name)
+      .description(spec.description)
+      .option("--extractor-id [id]", "limit to S-1 or 424")
+      .option("--limit [n]", "max stored rows to score")
+      .option("--cik [n]", "limit to one issuer CIK")
+      .option("--format [fmt]", "table | json (default: table)")
+      .action(
+        async (opts: {
+          extractorId?: string | boolean;
+          limit?: string | boolean;
+          cik?: string | boolean;
+          format: string | boolean;
+        }) => {
+          await runCommand(async () => {
+            const format = requireFormat(opts.format);
+            const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+            if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+              throw new Error("--extractor-id needs a value — S-1, 424");
+            }
+            const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+            const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+            const input: ParserEvalInput = {
+              ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+              ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+              ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+            };
+            const report = await spec.run(input);
+            if (format === "json") {
+              console.log(JSON.stringify(report, null, 2));
+              return;
+            }
+            printParserEvalReport(spec.label, report);
+          });
+        }
+      );
+  }
 }
+
+/**
+ * The three narrowing options every deterministic-parser eval command takes.
+ * A type alias, not an interface: each task's `defaults` is a `DataPorts`
+ * subtype, and only an alias picks up the implicit string index signature that
+ * assignment needs.
+ */
+type ParserEvalInput = {
+  readonly extractorId?: string;
+  readonly limit?: number;
+  readonly cik?: number;
+};
+
+/**
+ * The `sec eval <parser>` commands that score a deterministic parser against
+ * the rows already stored for a filing. They differ only in which task runs and
+ * how the table is labelled, so they are declared rather than repeated: ten
+ * copies of the same option parsing drifted apart the moment one was edited.
+ */
+const PARSER_EVAL_COMMANDS: ReadonlyArray<{
+  readonly name: string;
+  readonly label: string;
+  readonly description: string;
+  readonly run: (defaults: ParserEvalInput) => Promise<ParserEvalReport>;
+}> = [
+  {
+    name: "offering-tables",
+    label: "offering/promote",
+    description:
+      "Score the deterministic SPAC offering/promote table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<OfferingTablesReport>([new EvalOfferingTablesTask({ defaults })]),
+  },
+  {
+    name: "underwriters",
+    label: "underwriters",
+    description:
+      "Score the deterministic SPAC underwriter table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<UnderwritersReport>([new EvalUnderwritersTask({ defaults })]),
+  },
+  {
+    name: "use-of-proceeds",
+    label: "use-of-proceeds",
+    description:
+      "Score the deterministic SPAC use-of-proceeds table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<UseOfProceedsReport>([new EvalUseOfProceedsTask({ defaults })]),
+  },
+  {
+    name: "executive-compensation",
+    label: "executive-compensation",
+    description:
+      "Score the deterministic Summary Compensation Table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<ExecutiveCompensationReport>([
+        new EvalExecutiveCompensationTask({ defaults }),
+      ]),
+  },
+  {
+    name: "beneficial-ownership",
+    label: "beneficial-ownership",
+    description:
+      "Score the deterministic beneficial-ownership parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<BeneficialOwnershipReport>([new EvalBeneficialOwnershipTask({ defaults })]),
+  },
+  {
+    name: "management",
+    label: "management",
+    description:
+      "Score the deterministic management roster parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<ManagementReport>([new EvalManagementTask({ defaults })]),
+  },
+  {
+    name: "related-party",
+    label: "related-party",
+    description:
+      "Score the deterministic related-party table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<RelatedPartyReport>([new EvalRelatedPartyTask({ defaults })]),
+  },
+  {
+    name: "spac-sponsors",
+    label: "spac-sponsors",
+    description:
+      "Score the deterministic SPAC sponsor parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<SpacSponsorsReport>([new EvalSpacSponsorsTask({ defaults })]),
+  },
+  {
+    name: "spac-profile",
+    label: "spac-profile",
+    description:
+      "Score the deterministic SPAC profile parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<SpacProfileReport>([new EvalSpacProfileTask({ defaults })]),
+  },
+  {
+    name: "spac-classification",
+    label: "spac-classification",
+    description:
+      "Score the deterministic SPAC classifier against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<SpacClassificationReport>([new EvalSpacClassificationTask({ defaults })]),
+  },
+];

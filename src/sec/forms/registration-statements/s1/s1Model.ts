@@ -122,13 +122,18 @@ export function modelExtractChain<TRow extends { confidence: number }>(
       if (!isDeterministicModel(model)) return extract(text, model);
       const pass = options?.deterministic;
       if (pass === undefined) return [];
-      if (!preempts(pass, options.clears, text)) return [];
+      if (!preempts(pass, options?.clears, text)) return [];
       return [...pass.extract(text)];
     };
   return {
     extract: slot(primary),
     emptyExtracts: models.slice(1).map((m) => slot(m)),
-    modelIds: models.map((m) => resolveModelId(m)).filter((id): id is string => id !== null),
+    // Index-aligned with `models` (and therefore with the extract slots the
+    // runner builds): `sectionRunner` identifies the deterministic slot by
+    // `modelIds[i]`, and `persistModelId` reads `models[modelIndex]`, so
+    // dropping an unresolvable id here would shift every later slot onto the
+    // wrong model. An id that does not resolve becomes "" rather than a hole.
+    modelIds: models.map((m) => resolveModelId(m) ?? ""),
     deterministicComplete: options?.deterministic?.complete,
     ...(options?.fallbackOnEmpty === false ? { fallbackOnEmpty: false as const } : {}),
   };

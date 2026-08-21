@@ -88,9 +88,17 @@ function parseInner(text: string): UseOfProceedsParse {
   return parsed;
 }
 
-/** True when a SPAC expense/trust table is present, even if parse would return []. */
+/**
+ * True when a SPAC expense/trust table is present, even if parse would return
+ * []. Declines on a throw, like every other reader of this walk: it is called
+ * from the eval bucketer, where a throw would abort the whole run.
+ */
 export function hasSpacUseOfProceedsTable(text: string): boolean {
-  return collectLines(text).rows.some((r) => SPAC_USE.test(r.purpose ?? ""));
+  try {
+    return collectLines(text).rows.some((r) => SPAC_USE.test(r.purpose ?? ""));
+  } catch {
+    return false;
+  }
 }
 
 function collectLines(text: string): UseOfProceedsParse {

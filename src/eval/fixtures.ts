@@ -140,7 +140,9 @@ export interface EvalExtractor {
 
 function asRows<T>(value: readonly T[] | T | null): T[] {
   if (value === null) return [];
-  return Array.isArray(value) ? [...value] : [value];
+  // `Array.isArray` cannot narrow `readonly T[] | T` — `T` may itself be an
+  // array — so the branch is asserted rather than inferred.
+  return Array.isArray(value) ? [...(value as readonly T[])] : [value as T];
 }
 
 function runWithDeterministic<T>(

@@ -9,6 +9,7 @@ import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
+import { claimsCompletePopulation } from "./deterministicPass";
 import {
   MixedRiskCaptionShapeError,
   NonceMismatchError,
@@ -26,19 +27,6 @@ export function parseConfidenceFloor(raw: string | undefined, fallback: number):
   if (raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function walkClaimsComplete<TRow>(
-  fn: ((rows: readonly TRow[], text: string) => boolean) | undefined,
-  rows: readonly TRow[],
-  text: string
-): boolean {
-  if (fn === undefined) return false;
-  try {
-    return fn(rows, text) === true;
-  } catch {
-    return false;
-  }
 }
 
 const REJECTED_SPAN_DETAIL_CHARS = 300;
@@ -317,7 +305,7 @@ export function makeRunSection(opts: {
             clearSlot();
             continue;
           }
-          const complete = walkClaimsComplete(sargs.deterministicComplete, rows, text);
+          const complete = claimsCompletePopulation(sargs.deterministicComplete, rows, text);
           if (complete && raw.length > 0 && rows.length === raw.length) {
             source = "deterministic";
             walkComplete = true;

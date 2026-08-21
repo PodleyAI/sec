@@ -921,7 +921,14 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         extract: parseBeneficialOwnership,
         covers: ownershipCoverage,
       },
+      // Must name exactly what the section-level `clears` above names — this is
+      // the copy `preempts` actually tests, and the two had drifted: it was
+      // missing `owner_kind` and `security_class`, so a filing whose coverage
+      // function happened to claim the rest would have preempted on a set that
+      // understated what persist rewrites.
       clears: new Set([
+        "beneficial_ownership.owner_kind",
+        "beneficial_ownership.security_class",
         "beneficial_ownership.shares_owned",
         "beneficial_ownership.percent_owned",
         "beneficial_ownership.shares_offered",

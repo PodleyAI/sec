@@ -143,8 +143,20 @@ function isHeaderlessAllocation(table: readonly (readonly string[])[]): boolean 
   return table.some((row) => looksLikeFirmName(tidyName(row[0] ?? "")));
 }
 
-/** True when a syndicate allocation table contains at least one firm-like name. */
+/**
+ * True when a syndicate allocation table contains at least one firm-like name.
+ * Declines on a throw, like {@link parseSpacUnderwriters}: it is called from the
+ * eval bucketer, where a throw would abort the whole run.
+ */
 export function hasSpacSyndicateTable(text: string): boolean {
+  try {
+    return findSyndicateTable(text);
+  } catch {
+    return false;
+  }
+}
+
+function findSyndicateTable(text: string): boolean {
   for (const table of splitGfmTables(text)) {
     const blob = table.flat().join(" ");
     if (SELLING_HEADER.test(blob)) continue;
@@ -215,7 +227,6 @@ function dedupe(rows: readonly Candidate[]): Candidate[] {
 function cleanCell(raw: string): string {
   return raw
     .replace(/[\u200b\u200c\u200d\ufeff\u00a0]/g, " ")
-    .replace(/​/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }

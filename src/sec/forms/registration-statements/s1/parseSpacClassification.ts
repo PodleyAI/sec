@@ -19,17 +19,18 @@ export function parseSpacClassification(text: string): SpacClassificationRow | n
   }
 }
 
+/** Asks the parser, so a throw is a "no" here exactly as it is there. */
 export function hasSpacFormationIdentification(text: string | undefined): boolean {
   if (text === undefined || text.trim() === "") return false;
-  return findClassification(text) !== null;
+  return parseSpacClassification(text) !== null;
 }
 
 function findClassification(text: string): SpacClassificationRow | null {
   const vehicle = VEHICLE.exec(text);
   const purpose = PURPOSE.exec(text);
   if (vehicle === null || purpose === null) return null;
-  const source_span = text.includes(vehicle[0]!) ? vehicle[0]! : purpose[0]!;
-  if (!text.includes(source_span)) return null;
+  // `exec` returned it out of `text`, so it is verbatim by construction.
+  const source_span = vehicle[0]!;
   return {
     is_spac: true,
     entity_kind: "spac",

@@ -115,9 +115,23 @@ export function assertsCompletePopulation<TRow>(
   rows: readonly TRow[],
   text: string
 ): boolean {
-  if (pass.complete === undefined) return false;
+  return claimsCompletePopulation(pass.complete, rows, text);
+}
+
+/**
+ * {@link assertsCompletePopulation} against a bare callback, for the section
+ * runner — which is handed `DeterministicPass.complete` through the extract
+ * chain rather than the pass itself. One implementation, so the runner and the
+ * pass cannot disagree about what an omitted or throwing claim means.
+ */
+export function claimsCompletePopulation<TRow>(
+  complete: ((rows: readonly TRow[], text: string) => boolean) | undefined,
+  rows: readonly TRow[],
+  text: string
+): boolean {
+  if (complete === undefined) return false;
   try {
-    return pass.complete(rows, text) === true;
+    return complete(rows, text) === true;
   } catch {
     return false;
   }

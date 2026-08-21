@@ -47,8 +47,15 @@ interface WalkedFields {
   source_span: string;
 }
 
+/** The unit-IPO anchor: a per-unit price and a unit count, both off one walk. */
+function isUnitIpoWalk(fields: WalkedFields): boolean {
+  return fields.price_per_unit !== null && fields.units_offered !== null;
+}
+
 export function parseSpacOfferingTerms(text: string): OfferingTermsRow | null {
   const fields = walkFields(text);
+  // Spelled out rather than via `isUnitIpoWalk` so the two fields narrow to
+  // `number` for the `locates` calls below.
   if (fields.price_per_unit === null || fields.units_offered === null) return null;
   if (!locates(text, fields.price_per_unit, "per unit")) return null;
   if (!locates(text, fields.units_offered, "units")) return null;
@@ -80,8 +87,11 @@ export function parseSpacOfferingTerms(text: string): OfferingTermsRow | null {
 }
 
 export function parseSpacPromoteTerms(text: string): SponsorPromoteRow | null {
-  if (!looksLikeUnitIpo(text)) return null;
+  // One walk, not two: `looksLikeUnitIpo` re-scans the whole section to ask a
+  // question this walk already answers, and this parse is run per filing behind
+  // a coverage function that walks it a second time.
   const fields = walkFields(text);
+  if (!isUnitIpoWalk(fields)) return null;
   if (fields.founder_shares === null && fields.trust_per_public_share === null) return null;
   if (fields.founder_shares !== null && !locates(text, fields.founder_shares, "founder")) {
     return null;
@@ -140,8 +150,7 @@ export function promoteCoverage(text: string): ReadonlySet<string> {
 }
 
 export function looksLikeUnitIpo(text: string): boolean {
-  const fields = walkFields(text);
-  return fields.price_per_unit !== null && fields.units_offered !== null;
+  return isUnitIpoWalk(walkFields(text));
 }
 
 function emptyWalk(): WalkedFields {

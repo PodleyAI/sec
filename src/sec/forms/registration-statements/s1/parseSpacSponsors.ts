@@ -18,9 +18,15 @@ export function parseSpacSponsors(text: string): SpacSponsorRow[] {
   }
 }
 
+/**
+ * Whether {@link parseSpacSponsors} would name a sponsor. Asks the parser
+ * itself: `findCandidates` skips both the source-span presence filter and the
+ * try/catch, so it answered "there is a sponsor here" for text the parser
+ * returns `[]` for, and threw out of an eval run instead of bucketing one case.
+ */
 export function hasSponsorIdentification(text: string | undefined): boolean {
   if (text === undefined || text.trim() === "") return false;
-  return findCandidates(text).length > 0;
+  return parseSpacSponsors(text).length > 0;
 }
 
 const APPOSITIVE = /(?<!\bof\s)(?:our|the)\s+sponsor,\s+(.+?)\s*,\s+(?:is|was|a\s|an\s)/gi;
