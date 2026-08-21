@@ -9,6 +9,7 @@ import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
+import { isSeparatorRow, splitPipeRow } from "./gfmTables";
 
 export { DETERMINISTIC_MODEL_ID };
 
@@ -350,7 +351,9 @@ function iterTableRows(text: string): TableRow[] {
     const trimmed = line.trim();
     if (!trimmed.startsWith("|")) continue;
     if (isSeparatorRow(trimmed)) continue;
-    const cells = splitPipeRow(trimmed);
+    // The shared split returns cells verbatim; this walk has no `cleanCell`
+    // pass of its own, so it trims here exactly where its private copy did.
+    const cells = splitPipeRow(trimmed).map((cell) => cell.trim());
     const picked = pickLabelValue(cells);
     if (picked === null) continue;
     const { label, value } = picked;
@@ -393,31 +396,6 @@ function pickLabelValue(cells: string[]): TableRow | null {
     value = c[2]!;
   }
   return { label, value, cells: c };
-}
-
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] === "\\" && inner[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (inner[i] === "|") {
-      cells.push(cur.trim());
-      cur = "";
-      continue;
-    }
-    cur += inner[i];
-  }
-  cells.push(cur.trim());
-  return cells;
 }
 
 function normalizeLabel(raw: string): string {

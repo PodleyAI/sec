@@ -228,45 +228,6 @@ describe("forms sweep wiring", () => {
     }
   });
 
-  it("when eightKItems is set, emits only 8-Ks carrying one of those item codes", async () => {
-    await seed({
-      cik: 1,
-      accession_number: "0000000001-26-000001",
-      form: "8-K",
-      primary_doc: "a.htm",
-      items: "2.02,9.01",
-    });
-    await seed({
-      cik: 1,
-      accession_number: "0000000001-26-000002",
-      form: "8-K",
-      primary_doc: "b.htm",
-      items: "5.07,9.01",
-    });
-    await seed({
-      cik: 1,
-      accession_number: "0000000001-26-000003",
-      form: "S-1",
-      primary_doc: "c.htm",
-    });
-
-    const producer = new ComputeFormsWorklistTask({
-      defaults: { form: ["8-K", "S-1"], eightKItems: ["5.07", "2.01"], batchSize: 10 },
-    });
-    const emitted: Array<{ form: string; accession: string }> = [];
-    while (!producer.exhausted) {
-      const out = await producer.run({});
-      for (let i = 0; i < out.count; i++) {
-        emitted.push({ form: out.form[i]!, accession: out.accessionNumber[i]! });
-      }
-    }
-
-    expect(emitted).toEqual([
-      { form: "S-1", accession: "0000000001-26-000003" },
-      { form: "8-K", accession: "0000000001-26-000002" },
-    ]);
-  });
-
   it("when filedOnOrAfter is set, emits only filings on or after that date", async () => {
     await seed({
       cik: 1,

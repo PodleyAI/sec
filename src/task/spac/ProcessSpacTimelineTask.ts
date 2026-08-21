@@ -136,6 +136,13 @@ export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchem
  * about this issuer, and swallowing them would turn Ctrl-C into a batch of
  * per-issuer "failures".
  */
+/**
+ * Finished filing rows kept on the issuer's subgraph. Well above any timeline a
+ * person watches scroll past, and far below the thousands a de-SPAC'd operating
+ * company accumulates.
+ */
+export const MAX_RETAINED_FILING_ROWS = 250;
+
 export class ProcessSpacTimelineTask extends Task<
   ProcessSpacTimelineTaskInput,
   ProcessSpacTimelineTaskOutput
@@ -343,6 +350,21 @@ export class ProcessSpacTimelineTask extends Task<
     cik: number,
     context: IExecuteContext
   ): Promise<void> {
+    // `own` is add-only and the subgraph is cleared only between graph runs, so
+    // one child per filing retains every child — and everything each child
+    // owned in turn — for the whole of `execute()`. That is unbounded in the
+    // length of the timeline: a de-SPAC'd operating company runs to thousands
+    // of filings (the 424B2 shelf-takedown case), multiplied by `--concurrency`
+    // issuers in flight.
+    //
+    // The completed rows are not merely debris, though — they are why these are
+    // owned directly rather than through the inner Workflow+Map this replaced,
+    // which the CLI stops recursing into, leaving the issuer row with no filing
+    // children at all. So the cap keeps the nesting for the timelines a person
+    // actually watches and releases the tail, rather than trading one defect
+    // for the other. Past it the in-flight filing is still owned while it runs;
+    // only its finished row is dropped.
+    let retained = 0;
     for (const filing of filings) {
       const form = filing.form ?? "";
       const child = context.own(
@@ -350,12 +372,20 @@ export class ProcessSpacTimelineTask extends Task<
           title: `${form} ${filing.accession_number}`,
         })
       );
-      await child.run({
-        cik,
-        form,
-        accessionNumber: filing.accession_number,
-        fileName: resolvePrimaryDocName(filing.primary_doc),
-      });
+      try {
+        await child.run({
+          cik,
+          form,
+          accessionNumber: filing.accession_number,
+          fileName: resolvePrimaryDocName(filing.primary_doc),
+        });
+      } finally {
+        if (retained < MAX_RETAINED_FILING_ROWS) {
+          retained++;
+        } else {
+          context.disown(child);
+        }
+      }
     }
   }
 }

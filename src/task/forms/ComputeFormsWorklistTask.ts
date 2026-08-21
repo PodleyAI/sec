@@ -43,14 +43,6 @@ export type ComputeFormsWorklistTaskInput = {
   /** When non-empty, only filings whose CIK is in this list are emitted. */
   readonly ciks?: number[];
   /**
-   * When non-empty, `8-K` / `8-K/A` filings are emitted only if their
-   * submissions `items` string contains one of these codes. Other forms are
-   * unaffected. Used by the SPAC process sweep so earnings 2.02s of a
-   * de-SPAC'd operating company are not fetched as if they were lifecycle
-   * events.
-   */
-  readonly eightKItems?: string[];
-  /**
    * When set, filings whose `filing_date` is strictly before this YYYY-MM-DD
    * are consumed but not emitted. Used by `sync spacs --only updates` so a
    * daily run is new filings, not the historical leftover on already-touched
@@ -121,29 +113,6 @@ function accessionShard(accession: string, shardCount: number): number {
   return (h >>> 0) % shardCount;
 }
 
-/** True when a comma/semicolon-separated EDGAR `items` string names any code. */
-function filingHasAnyItem(items: string | null | undefined, codes: ReadonlySet<string>): boolean {
-  if (!items) return false;
-  for (const raw of items.split(/[,;]/)) {
-    if (codes.has(raw.trim())) return true;
-  }
-  return false;
-}
-
-/**
- * When `eightKItems` is set, 8-Ks that do not carry one of those codes are
- * consumed (resume advances past them) but not emitted.
- */
-function skipEightKWithoutItems(
-  form: string | null | undefined,
-  items: string | null | undefined,
-  codes: ReadonlySet<string> | undefined
-): boolean {
-  if (codes === undefined) return false;
-  if (form !== "8-K" && form !== "8-K/A") return false;
-  return !filingHasAnyItem(items, codes);
-}
-
 /** True when `filedOnOrAfter` is set and this filing is dated strictly earlier. */
 function skipFiledBefore(
   filingDate: string | null | undefined,
@@ -193,7 +162,6 @@ export class ComputeFormsWorklistTask extends Task<
       shardIndex: Type.Optional(Type.Integer({ minimum: 0 })),
       shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
       ciks: Type.Optional(Type.Array(TypeSecCik())),
-      eightKItems: Type.Optional(Type.Array(Type.String())),
       filedOnOrAfter: Type.Optional(Type.String()),
       batchSize: Type.Optional(Type.Integer({ minimum: 1 })),
     });
@@ -263,10 +231,6 @@ export class ComputeFormsWorklistTask extends Task<
       input.ciks !== undefined && input.ciks.length > 0 ? new Set(input.ciks) : undefined;
     const allowCiks =
       cikAllowList !== undefined ? [...cikAllowList].sort((a, b) => a - b) : undefined;
-    const eightKItemSet =
-      input.eightKItems !== undefined && input.eightKItems.length > 0
-        ? new Set(input.eightKItems)
-        : undefined;
     const filedOnOrAfter = input.filedOnOrAfter;
     const dryRun = isDryRun();
     const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
@@ -335,7 +299,6 @@ export class ComputeFormsWorklistTask extends Task<
           for (const f of rows) {
             if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
             if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
-            if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
             if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
             if (keys.has(filingRunKey(f))) continue;
             total++;
@@ -418,7 +381,6 @@ export class ComputeFormsWorklistTask extends Task<
         // (shardCount-1)/shardCount of candidates before any other test.
         if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
         if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
-        if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
         if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
         if (this.successfulKeys.has(filingRunKey(f))) continue;
         accessionNumber.push(f.accession_number);

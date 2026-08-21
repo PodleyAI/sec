@@ -19,7 +19,7 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
-import { ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
+import { MAX_RETAINED_FILING_ROWS, ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
 
 const CIK = 1800001;
 
@@ -607,6 +607,26 @@ describe("ProcessSpacTimelineTask", () => {
       "D 0000000000-26-000001",
       "D 0000000000-26-000002",
     ]);
+  });
+
+  it("bounds the retained filing rows so a long timeline cannot grow the graph without limit", async () => {
+    // `own` is add-only, so an issuer with thousands of filings held one live
+    // task node per filing for the whole run. The nesting above is kept for
+    // the timelines a person watches; past the cap the finished row is
+    // released and the in-flight filing is still owned while it runs.
+    const total = MAX_RETAINED_FILING_ROWS + 5;
+    for (let i = 0; i < total; i++) {
+      await seedFiling(`0000000000-26-${String(i).padStart(6, "0")}`, "D", "2021-01-04");
+    }
+    vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute").mockResolvedValue({
+      success: true,
+    });
+
+    const task = new ProcessSpacTimelineTask();
+    const out = await task.run({ cik: CIK });
+
+    expect(out.matched).toBe(total);
+    expect(task.subGraph?.getTasks().length ?? 0).toBe(MAX_RETAINED_FILING_ROWS);
   });
 
   it("labels the issuer row with the CIK so map iterations are distinguishable", async () => {

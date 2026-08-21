@@ -11,6 +11,13 @@ import {
   normalizeFiscalYear,
 } from "./sectionExtractors";
 import type { ExecutiveCompensationRow } from "./executiveCompensationSchema";
+import {
+  cleanCell,
+  isSeparatorRow,
+  mergeHeaderRows,
+  splitGfmTables,
+  splitPipeRow,
+} from "./gfmTables";
 
 const MONEY_KINDS = [
   "salary",
@@ -248,26 +255,6 @@ function findSctHeader(
   return undefined;
 }
 
-function mergeHeaderRows(a: readonly string[], b: readonly string[]): string[] {
-  const n = Math.max(a.length, b.length);
-  const a0 = cleanCell(a[0] ?? "");
-  const out: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const left = cleanCell(a[i] ?? "");
-    const right = cleanCell(b[i] ?? "");
-    if (left === "" || (i > 0 && left === a0)) {
-      out.push(right);
-      continue;
-    }
-    if (right === "" || right === left) {
-      out.push(left);
-      continue;
-    }
-    out.push(`${left} ${right}`);
-  }
-  return out;
-}
-
 function isSctHeader(row: readonly string[]): boolean {
   if (row.some((c) => /^term(?:s|\(s\))?$/i.test(cleanCell(c)))) return false;
   const kinds = headerKinds(row);
@@ -388,56 +375,4 @@ function isHeaderish(stub: string): boolean {
 
 function isFootnoteOnly(cell: string): boolean {
   return /^\(\d+\)$/.test(cell.trim());
-}
-
-function cleanCell(raw: string): string {
-  return raw
-    .replace(/[\u200b\u200c\u200d\ufeff\u00a0]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function splitGfmTables(text: string): string[][][] {
-  const tables: string[][][] = [];
-  let current: string[][] = [];
-  const flush = (): void => {
-    if (current.length > 0) tables.push(current);
-    current = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) {
-      flush();
-      continue;
-    }
-    if (isSeparatorRow(trimmed)) continue;
-    current.push(splitPipeRow(trimmed).map(cleanCell));
-  }
-  flush();
-  return tables;
-}
-
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] === "\\" && inner[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (inner[i] === "|") {
-      cells.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += inner[i];
-  }
-  cells.push(cur);
-  return cells;
 }

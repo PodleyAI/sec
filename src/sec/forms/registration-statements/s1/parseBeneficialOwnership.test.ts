@@ -92,4 +92,33 @@ describe("parseBeneficialOwnership", () => {
       ["Peter McKellar", 479167],
     ]);
   });
+  it("never reads a cell that states a percentage as a share count", () => {
+    // `parseNumeric` strips a trailing `%`, so an integral "10%" satisfied the
+    // share test and a 10% holder was recorded as owning ten shares. The
+    // magnitude is not the discriminator — the `%` is.
+    const text = [
+      "| Name and Address of Beneficial Owner | Shares | Percent |",
+      "| --- | --- | --- |",
+      "| Bellweather Sponsor LLC | — | 10% |",
+      "| Ordinary Holder LLC | 1,000 | 12% |",
+    ].join("\n");
+    const rows = parseBeneficialOwnership(text);
+    const bell = rows.find((r) => r.name === "Bellweather Sponsor LLC");
+    expect(bell?.shares_owned).toBeNull();
+    // The row that DOES state a share count still reads both figures.
+    const ordinary = rows.find((r) => r.name === "Ordinary Holder LLC");
+    expect(ordinary?.shares_owned).toBe(1000);
+    expect(ordinary?.percent_owned).toBe(12);
+  });
+
+  it("still reads a percentage split into its own column", () => {
+    const text = [
+      "| Name and Address of Beneficial Owner | Shares | Percent |",
+      "| --- | --- | --- |",
+      "| Split Column Sponsor LLC | 2,820,000 | 98.09 | % |",
+    ].join("\n");
+    const rows = parseBeneficialOwnership(text);
+    expect(rows[0]?.shares_owned).toBe(2820000);
+    expect(rows[0]?.percent_owned).toBeCloseTo(98.09);
+  });
 });

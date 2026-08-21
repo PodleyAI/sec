@@ -18,12 +18,7 @@ import {
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { TypeSecDate } from "../../util/parseDate";
 import { getHttpErrorStatus } from "../fetch/SecFetchJob";
-
-/** EDGAR's daily-index bucket 403s unpublished days (weekends/holidays); some paths still 404. */
-function isUnpublishedDailyIndex(err: unknown): boolean {
-  const status = getHttpErrorStatus(err);
-  return status === 404 || status === 403;
-}
+import { dailyIndexWasPublished, isWeekendDate } from "./dailyIndexPublication";
 import {
   dailyIndexCacheRelPath,
   DEFAULT_DAILY_INDEX_LOOKBACK,
@@ -32,6 +27,55 @@ import {
 } from "./dailyIndexDates";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 import { StoreCikLastUpdatedTask } from "./StoreCikLastUpdatedTask";
+
+/**
+ * Whether a failed day's error means "EDGAR published no index for this day",
+ * as opposed to "EDGAR refused this client".
+ *
+ * Both are 403 (some paths still 404), and the difference is the whole ballgame:
+ * the unpublished branch advances `last_success` past the day, and nothing ever
+ * goes back for it. A blocked client — rejected User-Agent, rate limit, an
+ * egress EDGAR does not serve — would otherwise walk the cursor over every real
+ * trading day in the lookback and report `success: true`.
+ *
+ * Weekends are free: EDGAR has never published one, so no request is made. A
+ * weekday is the ambiguous case (Friday 2026-07-03, Independence Day observed,
+ * is a genuine 403) and is settled against the quarter's own file listing,
+ * which distinguishes the two directly. A probe that cannot answer throws,
+ * because "unknown" must not be recorded as "unpublished".
+ */
+async function isUnpublishedDailyIndex(
+  err: unknown,
+  date: string,
+  context: IExecuteContext
+): Promise<boolean> {
+  const status = getHttpErrorStatus(err);
+  if (status !== 404 && status !== 403) return false;
+  if (isWeekendDate(date)) return true;
+  let published: boolean;
+  try {
+    published = await dailyIndexWasPublished(date, context);
+  } catch (probeErr) {
+    const detail = probeErr instanceof Error ? probeErr.message : String(probeErr);
+    throw new Error(
+      `EDGAR returned ${status} for the ${date} daily index and its quarter listing could ` +
+        `not be read either (${detail}). That is the signature of a blocked client, not an ` +
+        `unpublished day, so the cursor is left at ${date} rather than advanced past it. ` +
+        `Check the SEC User-Agent and request rate, then re-run.`,
+      { cause: err }
+    );
+  }
+  if (published) {
+    throw new Error(
+      `EDGAR returned ${status} for the ${date} daily index, but its quarter listing names ` +
+        `that day's master index — the day published and this client is being refused. ` +
+        `Refusing to advance the cursor past ${date}. Check the SEC User-Agent and request ` +
+        `rate, then re-run.`,
+      { cause: err }
+    );
+  }
+  return true;
+}
 
 export type CatchUpDailyIndexTaskInput = {
   readonly from?: string;
@@ -144,18 +188,35 @@ export class CatchUpDailyIndexTask extends Task<
       await unlinkCacheFile(date);
     };
 
+    // Owned per day and released per day: a cursor seeded from an old
+    // `cik_last_update` plans one entry per calendar day since, so holding
+    // every child for the whole of `execute()` is unbounded in the length of
+    // the catch-up. `disown` is how a loop hands them back.
+    const runDay = async (date: string): Promise<void> => {
+      const fetchTask = context.own(new FetchDailyIndexTask());
+      let updateList;
+      try {
+        ({ updateList } = await fetchTask.run({ date }));
+      } finally {
+        context.disown(fetchTask);
+      }
+      const storeTask = context.own(new StoreCikLastUpdatedTask());
+      try {
+        await storeTask.run({ updateList });
+      } finally {
+        context.disown(storeTask);
+      }
+    };
+
     for (const date of plan.completed) {
       await bypassCacheIfNeeded(date);
       try {
-        const fetchResult = await context.own(new FetchDailyIndexTask()).run({ date });
-        await context
-          .own(new StoreCikLastUpdatedTask())
-          .run({ updateList: fetchResult.updateList });
+        await runDay(date);
         lastSuccess = date;
         await cursorRepo.put({ id: DAILY_INDEX_CURSOR_ID, last_success: date });
         fetched++;
       } catch (err) {
-        if (isUnpublishedDailyIndex(err)) {
+        if (await isUnpublishedDailyIndex(err, date, context)) {
           skipped404++;
           lastSuccess = date;
           await cursorRepo.put({ id: DAILY_INDEX_CURSOR_ID, last_success: date });
@@ -168,12 +229,11 @@ export class CatchUpDailyIndexTask extends Task<
     let todayFetched = false;
     await unlinkCacheFile(plan.today);
     try {
-      const fetchResult = await context.own(new FetchDailyIndexTask()).run({ date: plan.today });
-      await context.own(new StoreCikLastUpdatedTask()).run({ updateList: fetchResult.updateList });
+      await runDay(plan.today);
       todayFetched = true;
       fetched++;
     } catch (err) {
-      if (!isUnpublishedDailyIndex(err)) {
+      if (!(await isUnpublishedDailyIndex(err, plan.today, context))) {
         throw err;
       }
     }

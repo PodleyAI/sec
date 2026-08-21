@@ -37,7 +37,6 @@ export function newFormsWorklistTask(
   form?: string[],
   shard?: FormsShard,
   ciks?: number[],
-  eightKItems?: readonly string[],
   filedOnOrAfter?: string
 ): ComputeFormsWorklistTask {
   return new ComputeFormsWorklistTask({
@@ -46,7 +45,6 @@ export function newFormsWorklistTask(
       shardIndex: shard?.index,
       shardCount: shard?.count,
       ciks,
-      eightKItems: eightKItems !== undefined ? [...eightKItems] : undefined,
       filedOnOrAfter,
     },
   });

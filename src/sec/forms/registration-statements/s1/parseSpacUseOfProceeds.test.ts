@@ -5,7 +5,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
+import {
+  parseSpacUseOfProceeds,
+  resetUseOfProceedsParseCacheForTesting,
+  useOfProceedsIsComplete,
+} from "./parseSpacUseOfProceeds";
 
 function purposes(text: string): string[] {
   return parseSpacUseOfProceeds(text).map((r) => r.purpose ?? "");
@@ -151,5 +155,38 @@ describe("useOfProceedsIsComplete", () => {
 
   it("is false when the parse read nothing", () => {
     expect(useOfProceedsIsComplete("")).toBe(false);
+  });
+});
+
+describe("the extract and complete readers share one walk", () => {
+  // The runner calls both for the same section on the same pass. The
+  // completeness verdict counts the rows the walk could NOT represent, which
+  // never reach the returned array — so `complete` re-read the section, both
+  // doubling the work and leaving two answers that could disagree.
+  const TABLE = [
+    "| Use of Proceeds | Amount |",
+    "| --- | --- |",
+    "| Held in trust account | $100,000,000 |",
+    "| Underwriting discounts | $2,000,000 |",
+  ].join("\n");
+
+  it("answers identically whichever reader asks first", () => {
+    resetUseOfProceedsParseCacheForTesting();
+    const completeFirst = useOfProceedsIsComplete(TABLE);
+    const rowsAfter = parseSpacUseOfProceeds(TABLE);
+    resetUseOfProceedsParseCacheForTesting();
+    const rowsFirst = parseSpacUseOfProceeds(TABLE);
+    const completeAfter = useOfProceedsIsComplete(TABLE);
+    expect(completeFirst).toBe(completeAfter);
+    expect(rowsFirst).toEqual(rowsAfter);
+  });
+
+  it("is not a stale cache — a different section gets its own answer", () => {
+    resetUseOfProceedsParseCacheForTesting();
+    expect(parseSpacUseOfProceeds(TABLE).length).toBeGreaterThan(0);
+    expect(parseSpacUseOfProceeds("no table here at all")).toEqual([]);
+    expect(useOfProceedsIsComplete("no table here at all")).toBe(false);
+    // ...and asking for the first one again still reads it.
+    expect(parseSpacUseOfProceeds(TABLE).length).toBeGreaterThan(0);
   });
 });

@@ -9,6 +9,14 @@ import { hasCompanyEnding } from "../../../../storage/company/CompanyNormalizati
 import { normalizeManagementTitles } from "./normalizeTitle";
 import { isCollectivePartyName, isCompensationPositionLabel } from "./sectionExtractors";
 import type { ManagementPersonRow } from "./sectionSchemas";
+import {
+  cleanCell,
+  collapseRow,
+  isSeparatorRow,
+  mergeHeaderRows,
+  splitGfmTables,
+  splitPipeRow,
+} from "./gfmTables";
 
 export function parseManagementRoster(text: string): ManagementPersonRow[] {
   try {
@@ -176,72 +184,4 @@ function tidyName(raw: string): string {
     .replace(/,+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function collapseRow(row: readonly string[]): string[] {
-  const out: string[] = [];
-  for (const raw of row) {
-    const cell = cleanCell(raw);
-    if (cell === "") continue;
-    if (out[out.length - 1] === cell) continue;
-    out.push(cell);
-  }
-  return out;
-}
-
-function mergeHeaderRows(a: readonly string[], b: readonly string[]): string[] {
-  const n = Math.max(a.length, b.length);
-  const a0 = cleanCell(a[0] ?? "");
-  const out: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const left = cleanCell(a[i] ?? "");
-    const right = cleanCell(b[i] ?? "");
-    if (left === "" || (i > 0 && left === a0)) {
-      out.push(right);
-      continue;
-    }
-    if (right === "" || right === left) {
-      out.push(left);
-      continue;
-    }
-    out.push(`${left} ${right}`);
-  }
-  return out;
-}
-
-function cleanCell(raw: string): string {
-  return raw
-    .replace(/[\u200b\u200c\u200d\ufeff\u00a0]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function splitGfmTables(text: string): string[][][] {
-  const tables: string[][][] = [];
-  let current: string[][] = [];
-  const flush = (): void => {
-    if (current.length > 0) tables.push(current);
-    current = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) {
-      flush();
-      continue;
-    }
-    if (isSeparatorRow(trimmed)) continue;
-    current.push(splitPipeRow(trimmed).map(cleanCell));
-  }
-  flush();
-  return tables;
-}
-
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.startsWith("|") ? line.slice(1) : line;
-  const end = inner.endsWith("|") ? inner.slice(0, -1) : inner;
-  return end.split("|");
 }

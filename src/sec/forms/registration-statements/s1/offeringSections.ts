@@ -706,15 +706,16 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context), {
       deterministic: isSpac
         ? {
-            extract: (text) => {
-              const det = parseSpacUseOfProceeds(text);
-              return det.length >= 2 ? det : [];
-            },
+            extract: (text) => parseSpacUseOfProceeds(text),
             covers: new Set(["use_of_proceeds"]),
             // `use_of_proceeds` holds one row per line item, so covering its
             // columns says nothing about the rows. The walk's own decline log
             // does: a labelled row it could not represent means the table was
-            // not enumerated, and the model gets the section.
+            // not enumerated, and the model gets the section. It reads the
+            // section rather than `rows` because the count of rows the walk
+            // DECLINED is not recoverable from the ones it returned — and it
+            // is the same walk, not a second reading: `parseInner` is cached on
+            // the text `extract` just passed it.
             complete: (_rows, text) => useOfProceedsIsComplete(text),
           }
         : undefined,

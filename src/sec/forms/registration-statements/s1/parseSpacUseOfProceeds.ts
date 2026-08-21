@@ -6,6 +6,7 @@
 
 import { parseNumeric } from "../../../html/parseNumeric";
 import type { UseOfProceedsLineRow } from "./useOfProceedsSchema";
+import { cleanCell, isSeparatorRow, splitGfmTables, splitPipeRow } from "./gfmTables";
 
 const MIN_LINES = 2;
 const MIN_AMOUNT = 1_000;
@@ -81,7 +82,36 @@ interface UseOfProceedsParse {
 
 const EMPTY_PARSE: UseOfProceedsParse = { rows: [], unrepresented: 0 };
 
+/**
+ * One walk per section text, shared by every reader of it.
+ *
+ * {@link parseSpacUseOfProceeds} and {@link useOfProceedsIsComplete} are both
+ * called for the same section on the same pass — the runner's `extract` slot
+ * and its `complete` callback — and the completeness verdict is not derivable
+ * from the rows: it counts the labelled rows the walk could NOT represent,
+ * which by definition never reach the returned array. So the second reader had
+ * to walk the section again, which both doubled the work and left two answers
+ * that could disagree about one filing.
+ *
+ * A single-entry cache is enough because the two calls are adjacent: the entry
+ * is replaced by the next section, so nothing accumulates and the section text
+ * is held no longer than the caller already holds it. The walk is pure, so a
+ * hit is indistinguishable from a re-walk apart from not doing it twice.
+ */
+let lastParse: { readonly text: string; readonly parse: UseOfProceedsParse } | undefined;
+
 function parseInner(text: string): UseOfProceedsParse {
+  if (lastParse !== undefined && lastParse.text === text) return lastParse.parse;
+  const parse = parseUncached(text);
+  lastParse = { text, parse };
+  return parse;
+}
+
+export function resetUseOfProceedsParseCacheForTesting(): void {
+  lastParse = undefined;
+}
+
+function parseUncached(text: string): UseOfProceedsParse {
   const parsed = collectLines(text);
   if (parsed.rows.length < MIN_LINES) return EMPTY_PARSE;
   if (!parsed.rows.some((r) => SPAC_USE.test(r.purpose ?? ""))) return EMPTY_PARSE;
@@ -191,56 +221,4 @@ function firstPercent(cells: readonly string[]): number | null {
     if (n !== undefined && Number.isFinite(n)) return n;
   }
   return null;
-}
-
-function cleanCell(raw: string): string {
-  return raw
-    .replace(/[\u200b\u200c\u200d\ufeff\u00a0]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function splitGfmTables(text: string): string[][][] {
-  const tables: string[][][] = [];
-  let current: string[][] = [];
-  const flush = (): void => {
-    if (current.length > 0) tables.push(current);
-    current = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) {
-      flush();
-      continue;
-    }
-    if (isSeparatorRow(trimmed)) continue;
-    current.push(splitPipeRow(trimmed).map(cleanCell));
-  }
-  flush();
-  return tables;
-}
-
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] === "\\" && inner[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (inner[i] === "|") {
-      cells.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += inner[i];
-  }
-  cells.push(cur);
-  return cells;
 }

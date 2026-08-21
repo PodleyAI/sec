@@ -8,6 +8,7 @@ import { parseNumeric } from "../../../html/parseNumeric";
 import { isCompanyFamilyPrefixEcho } from "../../../../storage/company/CompanyFamilyName";
 import { isUnnamedCompanyName } from "../../../../storage/company/CompanyNormalization";
 import type { UnderwriterRowOut } from "./underwriterSchema";
+import { cleanCell, isSeparatorRow, splitGfmTables, splitPipeRow } from "./gfmTables";
 
 function nameKey(name: string): string {
   return name
@@ -222,56 +223,4 @@ function dedupe(rows: readonly Candidate[]): Candidate[] {
     kept.push(row);
   }
   return kept;
-}
-
-function cleanCell(raw: string): string {
-  return raw
-    .replace(/[\u200b\u200c\u200d\ufeff\u00a0]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function splitGfmTables(text: string): string[][][] {
-  const tables: string[][][] = [];
-  let current: string[][] = [];
-  const flush = (): void => {
-    if (current.length > 0) tables.push(current);
-    current = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) {
-      flush();
-      continue;
-    }
-    if (isSeparatorRow(trimmed)) continue;
-    current.push(splitPipeRow(trimmed).map(cleanCell));
-  }
-  flush();
-  return tables;
-}
-
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] === "\\" && inner[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (inner[i] === "|") {
-      cells.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += inner[i];
-  }
-  cells.push(cur);
-  return cells;
 }
