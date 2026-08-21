@@ -6,9 +6,12 @@
 
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { FILING_REPOSITORY_TOKEN } from "../../../storage/filing/FilingSchema";
+import { getBackfillDescriptor } from "../../../task/forms/backfillDescriptors";
 import { SpacMergerExtractionRepo } from "../../../storage/spac/SpacMergerExtractionRepo";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
@@ -251,6 +254,138 @@ describe("processMergerProxy (e2e)", () => {
     const row = await repo.getSpac(125);
     expect(row?.proxy_date).toBeNull();
     expect(row?.status).toBe("deal_announced");
+  });
+
+  /**
+   * A provider error that is NOT a throttle: `isRateLimitError` would otherwise
+   * make the extractor wait out real backoff sleeps before failing.
+   */
+  function scriptExtractionFailure(): () => void {
+    return registerFakeStructuredProvider([new Error("upstream provider failure")]).unregister;
+  }
+
+  it("leaves a recorded proxy event standing when the re-run's extraction fails", async () => {
+    // A failed model call is not a verdict about the filing. The approval
+    // evidence (`seeks_combination_approval`) is deterministic and still reads
+    // true here — only the extraction failed — so retracting would delete an
+    // event an earlier run recorded from real evidence, and losing the `proxy`
+    // event cascades: the vehicle's next Form 25/15 inside the post-approval
+    // window stops reading as a completed de-SPAC.
+    await seedSpacWithOpenDeal(130);
+    cleanup = scriptMergerDeal();
+    await runProxy(130, "130-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+    expect((await repo.getSpac(130))?.status).toBe("proxy");
+    cleanup();
+
+    cleanup = scriptExtractionFailure();
+    await runProxy(130, "130-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+
+    const events = await repo.getEvents(130);
+    expect(events.filter((e) => e.event_type === "proxy")).toHaveLength(1);
+    const row = await repo.getSpac(130);
+    expect(row?.status).toBe("proxy");
+    expect(row?.proxy_date).toBe("2021-05-01");
+
+    // The failure is on the worklist — left for retry, not read as an answer.
+    const entry = await new ExtractionDeadLetterRepo().get("merger-proxy", "130-def14a", "merger");
+    expect(entry?.status).toBe("pending");
+  });
+
+  it("retracts on the document verdict even when the extraction failed", async () => {
+    // The other half of the same rule: `seeks_combination_approval` is derived
+    // from the document with no model call, and the gate is conjunctive — a
+    // statement asking for no approval can never emit, so a false verdict
+    // retracts whether or not the model was reachable. That is what keeps the
+    // recovery ceremony able to unwind a stale close during a provider outage.
+    await seedSpacWithOpenDeal(131);
+    cleanup = scriptMergerDeal();
+    await runProxy(131, "131-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+    expect((await repo.getSpac(131))?.status).toBe("proxy");
+    cleanup();
+
+    cleanup = scriptExtractionFailure();
+    await runProxy(131, "131-def14a", "DEF 14A", "2021-05-01", submissionWithBody(EXTENSION_BODY));
+
+    const events = await repo.getEvents(131);
+    expect(events.some((e) => e.event_type === "proxy")).toBe(false);
+    const row = await repo.getSpac(131);
+    expect(row?.status).toBe("deal_announced");
+    expect(row?.proxy_date).toBeNull();
+  });
+
+  it("leaves a recorded proxy event standing when no model could be resolved", async () => {
+    // The same invariant one stage earlier: the section never reaches a model,
+    // so the run has nothing to say about the document.
+    await seedSpacWithOpenDeal(132);
+    cleanup = scriptMergerDeal();
+    await runProxy(132, "132-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+    expect((await repo.getSpac(132))?.status).toBe("proxy");
+    cleanup();
+    cleanup = undefined;
+
+    // No `model` argument, and no merger-proxy model id is registered here.
+    const parsed = await Form_DEFM14A.parse("DEF 14A", submissionWithBody(APPROVAL_BODY));
+    await processMergerProxy({
+      cik: 132,
+      file_number: "",
+      accession_number: "132-def14a",
+      filing_date: "2021-05-01",
+      primary_doc: "proxy.htm",
+      form: "DEF 14A",
+      formMergerProxy: parsed,
+    });
+
+    const entry = await new ExtractionDeadLetterRepo().get("merger-proxy", "132-def14a", "merger");
+    expect(entry?.reason_code).toBe("MODEL_RESOLUTION_ERROR");
+    expect((await repo.getEvents(132)).filter((e) => e.event_type === "proxy")).toHaveLength(1);
+    expect((await repo.getSpac(132))?.status).toBe("proxy");
+  });
+
+  it("records the gate verdict even when the run extracted nothing", async () => {
+    // The backfill re-selects a general definitive proxy whose verdict is NULL.
+    // A run that could not reach the model still evaluated the deterministic
+    // gate, so it must record the verdict — otherwise the clause never
+    // extinguishes and every sweep re-runs the same filing forever.
+    await seedSpacWithOpenDeal(133);
+    cleanup = scriptMergerDeal();
+    await runProxy(133, "133-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+    cleanup();
+
+    // Model the pre-gate row the recovery ceremony targets: verdict never set.
+    const extractions = new SpacMergerExtractionRepo();
+    const before = await extractions.getByAccession("133-def14a");
+    await extractions.save({ ...before!, seeks_combination_approval: null });
+
+    cleanup = scriptExtractionFailure();
+    await runProxy(133, "133-def14a", "DEF 14A", "2021-05-01", submissionWithBody(APPROVAL_BODY));
+
+    const after = await extractions.getByAccession("133-def14a");
+    expect(after?.seeks_combination_approval).toBe(true);
+    // The extraction the earlier run persisted is untouched by the failed one.
+    expect(after?.target_name).toBe("Acme Target Inc.");
+
+    // And the backfill's null-verdict clause no longer selects it.
+    await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+      cik: 133,
+      accession_number: "133-def14a",
+      form: "DEF 14A",
+      primary_doc: "proxy.htm",
+      file_number: "",
+      filing_date: "2021-05-01",
+      acceptance_date: "2021-05-01T00:00:00.000Z",
+      report_date: "2021-05-01",
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    } as never);
+    const descriptor = getBackfillDescriptor("merger-proxy")!;
+    const candidates = await descriptor.selectCandidates();
+    expect(candidates.map((c) => c.accession_number)).toContain("133-def14a");
+    expect(await descriptor.filterTodo!(candidates)).toEqual([]);
   });
 
   it("records the gate verdict only for the forms it governs", async () => {

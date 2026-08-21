@@ -221,9 +221,9 @@ function spacTrigger8KDescriptor(
  * the `proxy` event, so a stale false close may be standing on them; re-running
  * re-derives the verdict from the document with no model call, and the replay
  * retracts the event when the meeting turns out not to have approved anything.
- * The clause extinguishes itself — the re-run writes a non-null verdict — so
- * the widening converges instead of re-selecting the same proxies on every
- * sweep.
+ * The clause extinguishes itself — the re-run records the verdict on the
+ * existing row whether or not it extracted anything, so a proxy whose model
+ * call failed converges too rather than being re-selected on every sweep.
  */
 const mergerProxyDescriptor: BackfillDescriptor = {
   extractorId: "merger-proxy",
