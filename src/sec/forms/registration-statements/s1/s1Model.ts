@@ -6,7 +6,10 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { modelIdsFromEnv } from "../../../../config/Constants";
+import { DETERMINISTIC_MODEL_ID, modelIdsFromEnv } from "../../../../config/Constants";
+import { deterministicModelRecord } from "../../../../config/registerModels";
+import type { DeterministicPass } from "./deterministicPass";
+import { preempts } from "./deterministicPass";
 import type { RunSectionArgs } from "./sectionRunner";
 
 /** The model ids used for S-1 extraction; overridable via SEC_S1_MODEL (CSV). */
@@ -80,26 +83,51 @@ export function persistModelId(models: readonly ModelConfig[], modelIndex: numbe
   return resolveModelId(models[modelIndex] ?? models[0]!);
 }
 
+export function deterministicModelConfig(): ModelConfig {
+  return deterministicModelRecord() as ModelConfig;
+}
+
+export function isDeterministicModel(model: ModelConfig): boolean {
+  return resolveModelId(model) === DETERMINISTIC_MODEL_ID;
+}
+
 /**
  * Primary extract plus fallbacks for {@link makeRunSection}. Later models run
  * when the previous extract returned `[]` **or threw** a provider/extraction
  * error (abort, config, and mixed-shape re-asks stay on the throwing model).
  * Pass `{ fallbackOnEmpty: false }` for detectors where `[]` is the expected
  * negative (redemption / LOI) so a later model only runs on a throw.
+ * A list id of {@link DETERMINISTIC_MODEL_ID} runs {@link options.deterministic}
+ * (or `[]` if omitted / if it does not cover `clears`).
  */
 export function modelExtractChain<TRow extends { confidence: number }>(
   models: readonly ModelConfig[],
   extract: (text: string, model: ModelConfig) => Promise<TRow[]>,
-  options?: { readonly fallbackOnEmpty?: boolean }
-): Pick<RunSectionArgs<TRow>, "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty"> {
+  options?: {
+    readonly fallbackOnEmpty?: boolean;
+    readonly deterministic?: DeterministicPass<TRow>;
+    readonly clears?: ReadonlySet<string>;
+  }
+): Pick<
+  RunSectionArgs<TRow>,
+  "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty" | "deterministicComplete"
+> {
   const primary = models[0];
   if (primary === undefined) {
     throw new Error("modelExtractChain requires at least one model");
   }
+  const slot = (model: ModelConfig) => async (text: string): Promise<TRow[]> => {
+    if (!isDeterministicModel(model)) return extract(text, model);
+    const pass = options?.deterministic;
+    if (pass === undefined) return [];
+    if (!preempts(pass, options.clears, text)) return [];
+    return [...pass.extract(text)];
+  };
   return {
-    extract: (text) => extract(text, primary),
-    emptyExtracts: models.slice(1).map((m) => (text: string) => extract(text, m)),
+    extract: slot(primary),
+    emptyExtracts: models.slice(1).map((m) => slot(m)),
     modelIds: models.map((m) => resolveModelId(m)).filter((id): id is string => id !== null),
+    deterministicComplete: options?.deterministic?.complete,
     ...(options?.fallbackOnEmpty === false ? { fallbackOnEmpty: false as const } : {}),
   };
 }

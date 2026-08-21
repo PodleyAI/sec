@@ -159,6 +159,14 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly fallbackOnEmpty?: boolean;
   /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
   readonly modelIds?: readonly string[];
+  /**
+   * When the persisted rows came from a `deterministic` list slot,
+   * `SectionPersistMeta.complete` is this callback (or false if omitted).
+   */
+  readonly deterministicComplete?: (
+    rows: readonly NoInfer<TRow>[],
+    text: string
+  ) => boolean;
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
