@@ -10,7 +10,8 @@ import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
-import { listSpacProcessCiks } from "./spacSyncCiks";
+import { spacProcessSweeps } from "./spacProcessSweeps";
+import { listKnownSpacCiks, listSpacProcessCiks } from "./spacSyncCiks";
 import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
 import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
 
@@ -159,16 +160,20 @@ export function registerSecSyncLeaves(): void {
         id: "process",
         title: "Process SPAC filings",
         run: async (ctx: SyncRunContext) => {
-          const ciks = await listSpacProcessCiks();
-          if (ciks.length === 0) {
+          const processCiks = await listSpacProcessCiks();
+          const knownCiks = await listKnownSpacCiks();
+          if (processCiks.length === 0) {
             console.log("No known SPACs or high/medium candidates");
             return;
           }
-          await runFormsSweep({
-            formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.spacs]),
-            shard: ctx.shard,
-            ciks,
-          });
+          for (const sweep of spacProcessSweeps(processCiks, knownCiks)) {
+            await runFormsSweep({
+              formTypes: sweep.formTypes,
+              shard: ctx.shard,
+              ciks: sweep.ciks,
+              eightKItems: sweep.eightKItems,
+            });
+          }
         },
       },
     ],

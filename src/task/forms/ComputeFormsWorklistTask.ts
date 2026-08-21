@@ -43,6 +43,14 @@ export type ComputeFormsWorklistTaskInput = {
   /** When non-empty, only filings whose CIK is in this list are emitted. */
   readonly ciks?: number[];
   /**
+   * When non-empty, `8-K` / `8-K/A` filings are emitted only if their
+   * submissions `items` string contains one of these codes. Other forms are
+   * unaffected. Used by the SPAC process sweep so earnings 2.02s of a
+   * de-SPAC'd operating company are not fetched as if they were lifecycle
+   * events.
+   */
+  readonly eightKItems?: string[];
+  /**
    * Filings emitted per batch. Defaults to {@link WORKLIST_BATCH_SIZE}; exposed
    * mainly so tests can drive the batching/resume path with a handful of rows
    * instead of thousands.
@@ -56,14 +64,24 @@ export type ComputeFormsWorklistTaskInput = {
  * The candidate set is far too large to materialize: form 4 alone is ~4.6M
  * filings and the full 55-form worklist ~6.4M, at a measured ~460 bytes per
  * 15-column row — ~3 GB per process, multiplied again by every `--shard`
- * process, since each one scans the whole set.
+ * process, since each one scans the whole set. 10k holds ~5 MB in flight.
  *
- * Must also stay above the largest single (form, cik) group, currently 4,628,
- * so the last-key resume in {@link ComputeFormsWorklistTask.readPage} can
- * always advance past a group. 10k gives ~2x headroom on that and holds ~5 MB
- * in flight.
+ * Page size does not have to exceed a single (form, cik) group:
+ * {@link ComputeFormsWorklistTask.readPage} resumes with a keyset, so a CIK
+ * with tens of thousands of 424B2s (shelf takedowns) is several pages rather
+ * than a stall. When `ciks` is set, those pages are also narrowed to that
+ * allow-list (`cik IN (...)`), so a SPAC sweep never loads a non-SPAC
+ * issuer's forms.
  */
 const FILING_PAGE_SIZE = 10_000;
+
+/**
+ * CIKs per `in` list. SQLite binds one parameter per value and stays subject
+ * to `SQLITE_MAX_VARIABLE_NUMBER` (999 on older builds); Postgres binds the
+ * list as one array. 900 matches the other `in`-list callers (observation
+ * titles, SPAC download). The other bind in these queries is `form`.
+ */
+const WORKLIST_CIK_CHUNK = 900;
 
 /**
  * Filings emitted per batch — the ceiling on what the producer holds and hands
@@ -94,6 +112,29 @@ function accessionShard(accession: string, shardCount: number): number {
   }
   // `>>> 0` coerces to unsigned before the modulo so the shard is non-negative.
   return (h >>> 0) % shardCount;
+}
+
+/** True when a comma/semicolon-separated EDGAR `items` string names any code. */
+function filingHasAnyItem(items: string | null | undefined, codes: ReadonlySet<string>): boolean {
+  if (!items) return false;
+  for (const raw of items.split(/[,;]/)) {
+    if (codes.has(raw.trim())) return true;
+  }
+  return false;
+}
+
+/**
+ * When `eightKItems` is set, 8-Ks that do not carry one of those codes are
+ * consumed (resume advances past them) but not emitted.
+ */
+function skipEightKWithoutItems(
+  form: string | null | undefined,
+  items: string | null | undefined,
+  codes: ReadonlySet<string> | undefined
+): boolean {
+  if (codes === undefined) return false;
+  if (form !== "8-K" && form !== "8-K/A") return false;
+  return !filingHasAnyItem(items, codes);
 }
 
 export type ComputeFormsWorklistTaskOutput = {
@@ -135,6 +176,7 @@ export class ComputeFormsWorklistTask extends Task<
       shardIndex: Type.Optional(Type.Integer({ minimum: 0 })),
       shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
       ciks: Type.Optional(Type.Array(TypeSecCik())),
+      eightKItems: Type.Optional(Type.Array(Type.String())),
       batchSize: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
@@ -201,6 +243,12 @@ export class ComputeFormsWorklistTask extends Task<
     const sharding = shardCount > 1;
     const cikAllowList =
       input.ciks !== undefined && input.ciks.length > 0 ? new Set(input.ciks) : undefined;
+    const allowCiks =
+      cikAllowList !== undefined ? [...cikAllowList].sort((a, b) => a - b) : undefined;
+    const eightKItemSet =
+      input.eightKItems !== undefined && input.eightKItems.length > 0
+        ? new Set(input.eightKItems)
+        : undefined;
     const dryRun = isDryRun();
     const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
 
@@ -264,10 +312,11 @@ export class ComputeFormsWorklistTask extends Task<
         let from: number | undefined;
         let seen: string | undefined;
         for (;;) {
-          const { rows, full } = await this.readPage(filingRepo, form, from, seen);
+          const { rows, full } = await this.readPage(filingRepo, form, from, seen, allowCiks);
           for (const f of rows) {
             if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
             if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
+            if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
             if (keys.has(filingRunKey(f))) continue;
             total++;
           }
@@ -319,7 +368,8 @@ export class ComputeFormsWorklistTask extends Task<
         filingRepo,
         form,
         this.lastCik,
-        this.lastAccession
+        this.lastAccession,
+        allowCiks
       );
       if (rows.length === 0 && !full) {
         // Form drained — advance and reset its per-form resume state.
@@ -346,6 +396,7 @@ export class ComputeFormsWorklistTask extends Task<
         // (shardCount-1)/shardCount of candidates before any other test.
         if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
         if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
+        if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
         if (this.successfulKeys.has(filingRunKey(f))) continue;
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);
@@ -389,47 +440,122 @@ export class ComputeFormsWorklistTask extends Task<
    *
    * `SearchCriteria` allows one condition per column and has no OR, so the
    * exact keyset predicate `(cik, accession) > (lastCik, lastAccession)` is
-   * not expressible. Resuming at `cik >= lastCik` and dropping the already-
-   * emitted head of that cik in memory is equivalent, and the re-read is
-   * bounded by the largest single (form, cik) group — 4,628 rows at the
-   * extreme, ~19 typical.
+   * two queries: remaining filings of this CIK after `afterAccession`, then
+   * later CIKs, concatenated up to {@link FILING_PAGE_SIZE}. That is what
+   * lets a single CIK hold more filings of one form than the page size
+   * (424B2 shelf takedowns) without stalling the scan.
+   *
+   * When `allowCiks` is set, later CIKs are `cik IN (remaining allow-list)`
+   * rather than `cik > lastCik`, so a SPAC process sweep never reads a
+   * non-SPAC issuer. The JS allow-list check on the caller is then only a
+   * belt; the database already scoped the page.
    */
   private async readPage(
     filingRepo: FilingRepositoryStorage,
     form: string,
     fromCik: number | undefined,
-    afterAccession: string | undefined
+    afterAccession: string | undefined,
+    allowCiks: readonly number[] | undefined
   ): Promise<{ rows: Filing[]; full: boolean }> {
-    const criteria =
-      fromCik === undefined ? { form } : { form, cik: { value: fromCik, operator: ">=" as const } };
-    const page = ((await filingRepo.query(criteria as never, {
-      orderBy: [
-        { column: "cik", direction: "ASC" },
-        { column: "accession_number", direction: "ASC" },
-      ],
-      limit: FILING_PAGE_SIZE,
-    })) ?? []) as Filing[];
+    const orderBy = [
+      { column: "cik" as const, direction: "ASC" as const },
+      { column: "accession_number" as const, direction: "ASC" as const },
+    ];
 
-    // `full` reports whether the DATABASE returned a full page, which is what
-    // says more rows may exist. It must not be derived from the returned row
-    // count: the resume head is trimmed below, so a full page routinely yields
-    // fewer rows and would otherwise read as "form drained" — silently ending
-    // the scan after a couple of pages.
-    const full = page.length === FILING_PAGE_SIZE;
-
-    if (fromCik === undefined || afterAccession === undefined) return { rows: page, full };
-
-    const fresh = page.filter((f) => f.cik !== fromCik || f.accession_number > afterAccession);
-    // A full page consumed entirely by the resume head would leave the scan
-    // unable to advance. FILING_PAGE_SIZE is chosen to exceed the largest
-    // (form, cik) group precisely so this cannot happen; fail loudly rather
-    // than spin if that assumption ever stops holding.
-    if (fresh.length === 0 && full) {
-      throw new Error(
-        `Forms worklist cannot advance: form '${form}' has more than ${FILING_PAGE_SIZE} filings ` +
-          `for cik ${fromCik}. Raise FILING_PAGE_SIZE above that group's size.`
-      );
+    if (allowCiks !== undefined) {
+      return this.readAllowlistedPage(filingRepo, form, fromCik, afterAccession, allowCiks, orderBy);
     }
-    return { rows: fresh, full };
+
+    if (fromCik === undefined || afterAccession === undefined) {
+      const page = ((await filingRepo.query({ form } as never, {
+        orderBy,
+        limit: FILING_PAGE_SIZE,
+      })) ?? []) as Filing[];
+      return { rows: page, full: page.length === FILING_PAGE_SIZE };
+    }
+
+    const restOfCik = ((await filingRepo.query(
+      {
+        form,
+        cik: fromCik,
+        accession_number: { value: afterAccession, operator: ">" as const },
+      } as never,
+      {
+        orderBy: [{ column: "accession_number", direction: "ASC" }],
+        limit: FILING_PAGE_SIZE,
+      }
+    )) ?? []) as Filing[];
+
+    if (restOfCik.length === FILING_PAGE_SIZE) {
+      return { rows: restOfCik, full: true };
+    }
+
+    const laterLimit = FILING_PAGE_SIZE - restOfCik.length;
+    const laterCiks = ((await filingRepo.query(
+      {
+        form,
+        cik: { value: fromCik, operator: ">" as const },
+      } as never,
+      {
+        orderBy,
+        limit: laterLimit,
+      }
+    )) ?? []) as Filing[];
+
+    return {
+      rows: restOfCik.length === 0 ? laterCiks : [...restOfCik, ...laterCiks],
+      full: laterCiks.length === laterLimit,
+    };
+  }
+
+  /**
+   * Allow-listed variant of {@link readPage}: every query names the CIK set,
+   * chunked so an `in` list stays under SQLite's bind cap.
+   */
+  private async readAllowlistedPage(
+    filingRepo: FilingRepositoryStorage,
+    form: string,
+    fromCik: number | undefined,
+    afterAccession: string | undefined,
+    allowCiks: readonly number[],
+    orderBy: ReadonlyArray<{ column: "cik" | "accession_number"; direction: "ASC" }>
+  ): Promise<{ rows: Filing[]; full: boolean }> {
+    const rows: Filing[] = [];
+
+    if (fromCik !== undefined && afterAccession !== undefined && allowCiks.includes(fromCik)) {
+      const restOfCik = ((await filingRepo.query(
+        {
+          form,
+          cik: fromCik,
+          accession_number: { value: afterAccession, operator: ">" as const },
+        } as never,
+        {
+          orderBy: [{ column: "accession_number", direction: "ASC" }],
+          limit: FILING_PAGE_SIZE,
+        }
+      )) ?? []) as Filing[];
+      rows.push(...restOfCik);
+      if (rows.length === FILING_PAGE_SIZE) return { rows, full: true };
+    }
+
+    const remaining =
+      fromCik === undefined ? allowCiks : allowCiks.filter((cik) => cik > fromCik);
+
+    for (let i = 0; i < remaining.length; ) {
+      const need = FILING_PAGE_SIZE - rows.length;
+      const chunk = remaining.slice(i, i + WORKLIST_CIK_CHUNK);
+      const part = ((await filingRepo.query(
+        {
+          form,
+          cik: { value: chunk, operator: "in" as const },
+        } as never,
+        { orderBy, limit: need }
+      )) ?? []) as Filing[];
+      rows.push(...part);
+      if (part.length === need) return { rows, full: true };
+      i += chunk.length;
+    }
+
+    return { rows, full: false };
   }
 }

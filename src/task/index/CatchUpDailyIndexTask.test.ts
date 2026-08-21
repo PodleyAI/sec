@@ -60,6 +60,37 @@ describe("CatchUpDailyIndexTask", () => {
     resetDependencyInjectionsForTesting();
   });
 
+  it("advances cursor through 403 on a completed Saturday (EDGAR's missing-day status) and finishes on 2xx days", async () => {
+    const runSpy = vi
+      .spyOn(FetchDailyIndexTask.prototype, "run")
+      .mockImplementation(async (input) => {
+        const date = input?.date;
+        if (date === "2026-08-16" || date === TODAY) {
+          throw httpError(403);
+        }
+        return { updateList: [[1018724, date!] as [number, string]] };
+      });
+
+    const result = await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    expect(runSpy).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      skipped404: 1,
+      todayFetched: false,
+      lastSuccess: "2026-08-17",
+    });
+    expect(result.fetched).toBe(2);
+
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
+
+    const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    expect((await cikRepo.get({ cik: 1018724 }))?.last_update).toBe("2026-08-17");
+  });
+
   it("advances cursor through 404 on a completed Saturday and finishes on 2xx days", async () => {
     const runSpy = vi
       .spyOn(FetchDailyIndexTask.prototype, "run")
@@ -131,6 +162,29 @@ describe("CatchUpDailyIndexTask", () => {
 
     const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
     expect((await cikRepo.get({ cik: 320193 }))?.last_update).toBe(TODAY);
+  });
+
+  it("treats 403 today as success without changing the cursor", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
+      const date = input?.date;
+      if (date === TODAY) {
+        throw httpError(403);
+      }
+      return { updateList: [] };
+    });
+
+    const result = await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    expect(result).toMatchObject({
+      success: true,
+      todayFetched: false,
+      lastSuccess: "2026-08-17",
+    });
+
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
   });
 
   it("treats 404 today as success without changing the cursor", async () => {

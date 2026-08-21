@@ -21,10 +21,9 @@ const PROCESS_CONFIDENCES: ReadonlySet<string> = new Set<SpacCandidateConfidence
 
 /** Known spac rows ∪ spac_candidate rows with confidence high|medium. */
 export async function listSpacProcessCiks(): Promise<number[]> {
-  const spacRepo = globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
+  const known = await listKnownSpacCiks();
+  const ciks = new Set<number>(known);
   const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
-
-  const ciks = new Set<number>((await spacRepo.getAll())?.map((row) => row.cik) ?? []);
 
   let candidates = await candidateRepo.query({
     confidence: { value: ["high", "medium"], operator: "in" },
@@ -40,4 +39,11 @@ export async function listSpacProcessCiks(): Promise<number[]> {
   }
 
   return [...ciks].sort((a, b) => a - b);
+}
+
+/** CIKs that already have a `spac` row — the 8-K / proxy / 25-15 handlers' gate. */
+export async function listKnownSpacCiks(): Promise<number[]> {
+  const spacRepo = globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
+  const ciks = (await spacRepo.getAll())?.map((row) => row.cik) ?? [];
+  return [...new Set(ciks)].sort((a, b) => a - b);
 }

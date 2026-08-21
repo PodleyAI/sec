@@ -17,6 +17,7 @@ import {
 } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { SEC_DRY_RUN } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -33,6 +34,7 @@ interface SeedFiling {
   accession_number: string;
   form: string;
   primary_doc: string;
+  items?: string | null;
 }
 
 async function seed(f: SeedFiling): Promise<void> {
@@ -51,7 +53,7 @@ async function seed(f: SeedFiling): Promise<void> {
     size: null,
     is_xbrl: null,
     is_inline_xbrl: null,
-    items: null,
+    items: f.items ?? null,
     act: null,
   } as never);
 }
@@ -162,6 +164,108 @@ describe("forms sweep wiring", () => {
     expect(emittedCiks).toEqual([1]);
   });
 
+  it("does not read filings for CIKs outside the allow-list", async () => {
+    // `sync spacs` passes the known-SPAC CIK set, but the worklist used to
+    // page every filing of each SPAC form (every 424B2 in EDGAR) and only
+    // then drop other CIKs. Bank of America's 10k+ 424B2s are not SPACs and
+    // must never be loaded.
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000001",
+      form: "D",
+      primary_doc: "a.xml",
+    });
+    await seed({
+      cik: 9631,
+      accession_number: "0000009631-26-000001",
+      form: "D",
+      primary_doc: "b.xml",
+    });
+
+    const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    const criteria: unknown[] = [];
+    const realQuery = repo.query.bind(repo);
+    repo.query = ((c: unknown, options: unknown) => {
+      criteria.push(c);
+      return realQuery(c as never, options as never);
+    }) as typeof repo.query;
+
+    try {
+      const producer = new ComputeFormsWorklistTask({
+        defaults: { form: ["D"], ciks: [1], batchSize: 10 },
+      });
+      const emittedCiks: number[] = [];
+      while (!producer.exhausted) {
+        const out = await producer.run({});
+        emittedCiks.push(...out.cik);
+      }
+      expect(emittedCiks).toEqual([1]);
+    } finally {
+      repo.query = realQuery;
+    }
+
+    expect(criteria.length).toBeGreaterThan(0);
+    for (const c of criteria) {
+      expect(c).toMatchObject({ form: "D" });
+      const cik = (c as { cik?: unknown }).cik;
+      expect(cik).toBeDefined();
+      if (typeof cik === "number") {
+        expect(cik).toBe(1);
+        continue;
+      }
+      const cond = cik as { value?: unknown; operator?: string };
+      if (cond.operator === "in") {
+        const values = Array.isArray(cond.value) ? cond.value : [cond.value];
+        expect(values).toEqual([1]);
+        continue;
+      }
+      if (cond.operator === "=") {
+        expect(cond.value).toBe(1);
+        continue;
+      }
+      throw new Error(`unbounded cik constraint: ${JSON.stringify(cik)}`);
+    }
+  });
+
+  it("when eightKItems is set, emits only 8-Ks carrying one of those item codes", async () => {
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000001",
+      form: "8-K",
+      primary_doc: "a.htm",
+      items: "2.02,9.01",
+    });
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000002",
+      form: "8-K",
+      primary_doc: "b.htm",
+      items: "5.07,9.01",
+    });
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000003",
+      form: "S-1",
+      primary_doc: "c.htm",
+    });
+
+    const producer = new ComputeFormsWorklistTask({
+      defaults: { form: ["8-K", "S-1"], eightKItems: ["5.07", "2.01"], batchSize: 10 },
+    });
+    const emitted: Array<{ form: string; accession: string }> = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      for (let i = 0; i < out.count; i++) {
+        emitted.push({ form: out.form[i]!, accession: out.accessionNumber[i]! });
+      }
+    }
+
+    expect(emitted).toEqual([
+      { form: "S-1", accession: "0000000001-26-000003" },
+      { form: "8-K", accession: "0000000001-26-000002" },
+    ]);
+  });
+
   it("includes all CIKs when ciks is omitted", async () => {
     await seed({
       cik: 1,
@@ -261,6 +365,71 @@ describe("forms sweep wiring", () => {
     } finally {
       repo.query = realQuery;
     }
+  });
+
+  it("advances past a (form, cik) group larger than the filing page", async () => {
+    // Resume used to re-read `cik >= lastCik` and drop the already-emitted head
+    // in memory, which requires the page to be larger than every (form, cik)
+    // group. CIK 9631 has >10k 424B2s, so a full page is consumed by that head
+    // and the scan throws rather than walking the rest of the form.
+    // `--dry-run` examines every row of each page, so the second page is the
+    // one that used to stall.
+    globalServiceRegistry.registerInstance(SEC_DRY_RUN, true);
+    const repo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+    const groupSize = 10_001;
+    const rows = [];
+    for (let i = 1; i <= groupSize; i++) {
+      rows.push({
+        cik: 111,
+        accession_number: `0000000111-26-${String(i).padStart(6, "0")}`,
+        form: "3",
+        primary_doc: "a.xml",
+        file_number: "333-1",
+        filing_date: "2026-01-02",
+        acceptance_date: "2026-01-02T00:00:00.000Z",
+        report_date: null,
+        film_number: null,
+        primary_doc_description: null,
+        size: null,
+        is_xbrl: null,
+        is_inline_xbrl: null,
+        items: null,
+        act: null,
+      });
+    }
+    rows.push({
+      cik: 222,
+      accession_number: "0000000222-26-000001",
+      form: "3",
+      primary_doc: "b.xml",
+      file_number: "333-1",
+      filing_date: "2026-01-02",
+      acceptance_date: "2026-01-02T00:00:00.000Z",
+      report_date: null,
+      film_number: null,
+      primary_doc_description: null,
+      size: null,
+      is_xbrl: null,
+      is_inline_xbrl: null,
+      items: null,
+      act: null,
+    });
+    await repo.putBulk(rows as never);
+
+    const logs: string[] = [];
+    const originalLog = console.log;
+    console.log = (message?: unknown) => {
+      logs.push(String(message ?? ""));
+    };
+    try {
+      await expect(
+        new ComputeFormsWorklistTask({ defaults: { form: ["3"] } }).run({})
+      ).resolves.toMatchObject({ count: 0 });
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(logs.some((line) => line.includes(`Would process ${groupSize + 1}`))).toBe(true);
   });
 
   it("emits bounded batches and resumes across them, covering every filing once", async () => {

@@ -13,7 +13,7 @@ import {
   type SpacCandidate,
 } from "../../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN, type Spac } from "../../storage/spac/SpacSchema";
-import { listSpacProcessCiks } from "./spacSyncCiks";
+import { listKnownSpacCiks, listSpacProcessCiks } from "./spacSyncCiks";
 
 function minimalSpac(cik: number): Spac {
   return {
@@ -110,5 +110,16 @@ describe("listSpacProcessCiks", () => {
     ]);
 
     await expect(listSpacProcessCiks()).resolves.toEqual([2, 3]);
+  });
+
+  it("listKnownSpacCiks is the spac table only", async () => {
+    const spacRepo = globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+
+    await spacRepo.put(minimalSpac(1));
+    await candidateRepo.putBulk([candidateRow(1, "high"), candidateRow(2, "high")]);
+
+    await expect(listKnownSpacCiks()).resolves.toEqual([1]);
+    await expect(listSpacProcessCiks()).resolves.toEqual([1, 2]);
   });
 });

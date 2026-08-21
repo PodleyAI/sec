@@ -18,6 +18,12 @@ import {
 import { CIK_LAST_UPDATE_REPOSITORY_TOKEN } from "../../storage/processing/CikLastUpdateSchema";
 import { TypeSecDate } from "../../util/parseDate";
 import { getHttpErrorStatus } from "../fetch/SecFetchJob";
+
+/** EDGAR's daily-index bucket 403s unpublished days (weekends/holidays); some paths still 404. */
+function isUnpublishedDailyIndex(err: unknown): boolean {
+  const status = getHttpErrorStatus(err);
+  return status === 404 || status === 403;
+}
 import {
   dailyIndexCacheRelPath,
   DEFAULT_DAILY_INDEX_LOOKBACK,
@@ -149,7 +155,7 @@ export class CatchUpDailyIndexTask extends Task<
         await cursorRepo.put({ id: DAILY_INDEX_CURSOR_ID, last_success: date });
         fetched++;
       } catch (err) {
-        if (getHttpErrorStatus(err) === 404) {
+        if (isUnpublishedDailyIndex(err)) {
           skipped404++;
           lastSuccess = date;
           await cursorRepo.put({ id: DAILY_INDEX_CURSOR_ID, last_success: date });
@@ -167,7 +173,7 @@ export class CatchUpDailyIndexTask extends Task<
       todayFetched = true;
       fetched++;
     } catch (err) {
-      if (getHttpErrorStatus(err) !== 404) {
+      if (!isUnpublishedDailyIndex(err)) {
         throw err;
       }
     }
