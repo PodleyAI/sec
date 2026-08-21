@@ -84,6 +84,9 @@ export const SecFetchMaxConcurrent = ((): number => {
  */
 export const DEFAULT_SEC_MODEL = "claude-sonnet-5";
 
+/** Reserved extract id for the sync section walk. Same string stored as provenance `model_id`. */
+export const DETERMINISTIC_MODEL_ID = "deterministic";
+
 /**
  * Split a model env value into distinct ids. A scalar is a one-element list.
  * Empty / unset input falls back to `fallback` as a single id.

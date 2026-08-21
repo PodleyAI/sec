@@ -8,6 +8,17 @@ import { describe, expect, it } from "vitest";
 import { listPricingForModelId } from "./listPricing";
 
 describe("listPricingForModelId", () => {
+  it("prices deterministic at $0", () => {
+    expect(listPricingForModelId("deterministic")).toEqual({
+      currency: "USD",
+      input: 0,
+      output: 0,
+      cached: 0,
+      cacheWrite: 0,
+      cacheStoragePerHour: undefined,
+    });
+  });
+
   it("prices Anthropic families by name", () => {
     // Sonnet 5's $2/$10 is permanent and distinct from 4.x at $3/$15.
     expect(listPricingForModelId("claude-sonnet-5")).toEqual({

@@ -5,11 +5,12 @@
  */
 
 import { parseNumeric } from "../../../html/parseNumeric";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
 
-export const DETERMINISTIC_MODEL_ID = "deterministic";
+export { DETERMINISTIC_MODEL_ID };
 
 const PRICE_MIN = 8;
 const PRICE_MAX = 12;

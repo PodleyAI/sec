@@ -11,7 +11,12 @@ import {
   InMemoryModelRepository,
   setGlobalModelRepository,
 } from "workglow";
-import { DEFAULT_SEC_MODEL, SecHftModelDefault, SecModelDefault } from "./Constants";
+import {
+  DEFAULT_SEC_MODEL,
+  DETERMINISTIC_MODEL_ID,
+  SecHftModelDefault,
+  SecModelDefault,
+} from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import {
   anthropicModelRecord,
@@ -22,6 +27,8 @@ import {
   llamaCppModelRecord,
   openAiModelRecord,
   openRouterModelRecord,
+  KNOWN_MODEL_ID_SHAPES,
+  modelApiKeyEnvVar,
   registerModelIds,
   registerSecModels,
   secModelRecord,
@@ -55,6 +62,28 @@ describe("registerSecModels", () => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+  });
+
+  it("mints a stub record for deterministic with no provider and $0 pricing", () => {
+    const record = secModelRecord(DETERMINISTIC_MODEL_ID);
+    expect(record.model_id).toBe("deterministic");
+    expect(record.provider).toBeFalsy();
+    expect(record.pricing?.input).toBe(0);
+    expect(record.pricing?.output).toBe(0);
+  });
+
+  it("lists deterministic among known id shapes", () => {
+    expect(KNOWN_MODEL_ID_SHAPES).toContain("deterministic");
+  });
+
+  it("does not require an API key for deterministic", () => {
+    expect(modelApiKeyEnvVar(DETERMINISTIC_MODEL_ID)).toBeUndefined();
+  });
+
+  it("registerSecModels always registers deterministic", async () => {
+    await registerSecModels();
+    const found = await getGlobalModelRepository().findByName(DETERMINISTIC_MODEL_ID);
+    expect(found?.model_id).toBe(DETERMINISTIC_MODEL_ID);
   });
 
   it("builds a routable Anthropic record", () => {
@@ -388,8 +417,8 @@ describe("registerSecModels", () => {
     await registerSecModels();
     const repo = getGlobalModelRepository();
     expect((await repo.findByName("claude-haiku-4-5"))?.provider).toBe("ANTHROPIC");
-    // The two always-registered defaults (cloud + local HFT) plus the override.
-    expect(await repo.size()).toBe(3);
+    // Always-registered: cloud default + local HFT + deterministic, plus the override.
+    expect(await repo.size()).toBe(4);
   });
 });
 

@@ -12,6 +12,7 @@ import {
   parseModelIdList,
   SecHftModelDefault,
   DEFAULT_SEC_MODEL,
+  DETERMINISTIC_MODEL_ID,
 } from "./Constants";
 import { SecCliConfigurationError } from "./EnvToDI";
 import { listPricingForModelId } from "./listPricing";
@@ -588,7 +589,21 @@ export const KNOWN_MODEL_ID_SHAPES =
   "onnx:org/name (local HuggingFace ONNX), " +
   "llama:… / node-llama:… / gguf:… (local node-llama-cpp), " +
   "hfi:[provider:]org/name (HuggingFace Inference), " +
-  "open-router:[provider:]vendor/model (OpenRouter)";
+  "open-router:[provider:]vendor/model (OpenRouter), " +
+  "deterministic (sync parser, no provider)";
+
+export function deterministicModelRecord(): ModelRecord {
+  return {
+    model_id: DETERMINISTIC_MODEL_ID,
+    provider: "",
+    title: "Deterministic parser",
+    description: "Sync table/prose walk; no provider",
+    capabilities: [],
+    provider_config: {},
+    metadata: {},
+    pricing: listPricingForModelId(DETERMINISTIC_MODEL_ID),
+  };
+}
 
 /**
  * {@link secModelRecord} without the unknown-id throw: `undefined` when no
@@ -599,6 +614,7 @@ export const KNOWN_MODEL_ID_SHAPES =
  * simply isn't ours to route, so those callers must not treat it as a failure.
  */
 export function trySecModelRecord(modelId: string): ModelRecord | undefined {
+  if (modelId === DETERMINISTIC_MODEL_ID) return deterministicModelRecord();
   if (isLlamaCppModelId(modelId)) return llamaCppModelRecord(modelId);
   if (isHftModelId(modelId)) return hftModelRecord(modelId);
   if (isHfInferenceModelId(modelId)) return hfInferenceModelRecord(modelId);
@@ -678,7 +694,7 @@ export function secModelRecord(modelId: string): ModelRecord {
  * this config module decoupled from `src/sec/`.
  */
 function secModelIds(): string[] {
-  const ids = new Set<string>([...defaultModelIds(), SecHftModelDefault]);
+  const ids = new Set<string>([...defaultModelIds(), SecHftModelDefault, DETERMINISTIC_MODEL_ID]);
   for (const key of [
     "SEC_S1_MODEL",
     "SEC_S1_CLASSIFIER_MODEL",

@@ -92,6 +92,7 @@ const DEEPSEEK_PRICING: ReadonlyArray<readonly [match: string, ModelPricing]> = 
  * cloud gateways (`hfi:`, `open-router:`) and unrecognized ids are unpriced.
  */
 export function listPricingForModelId(modelId: string): ModelPricing | undefined {
+  if (modelId === "deterministic") return FREE_LOCAL;
   if (modelId.startsWith("onnx:")) return FREE_LOCAL;
   if (/^(gguf:|llama:|node-llama:)/.test(modelId)) return FREE_LOCAL;
   if (modelId.startsWith("hfi:") || modelId.startsWith("open-router:")) return undefined;
