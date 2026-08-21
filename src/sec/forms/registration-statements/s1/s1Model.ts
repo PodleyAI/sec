@@ -116,13 +116,15 @@ export function modelExtractChain<TRow extends { confidence: number }>(
   if (primary === undefined) {
     throw new Error("modelExtractChain requires at least one model");
   }
-  const slot = (model: ModelConfig) => async (text: string): Promise<TRow[]> => {
-    if (!isDeterministicModel(model)) return extract(text, model);
-    const pass = options?.deterministic;
-    if (pass === undefined) return [];
-    if (!preempts(pass, options.clears, text)) return [];
-    return [...pass.extract(text)];
-  };
+  const slot =
+    (model: ModelConfig) =>
+    async (text: string): Promise<TRow[]> => {
+      if (!isDeterministicModel(model)) return extract(text, model);
+      const pass = options?.deterministic;
+      if (pass === undefined) return [];
+      if (!preempts(pass, options.clears, text)) return [];
+      return [...pass.extract(text)];
+    };
   return {
     extract: slot(primary),
     emptyExtracts: models.slice(1).map((m) => slot(m)),

@@ -15,7 +15,6 @@ import {
   RateLimitExhaustedError,
 } from "./sectionExtractors";
 import type { SpanVerdict } from "./verifySourceSpan";
-import type { DeterministicPass } from "./deterministicPass";
 
 /**
  * Parse a confidence-floor env value. Undefined, empty, or non-numeric input
@@ -137,22 +136,10 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly extract: (text: string) => Promise<TRow[]>;
   /**
    * Every destination {@link persist} rewrites for this section: rows cleared
-   * before the run, or overwritten in place. Only read to decide whether
-   * {@link deterministic} may stand in for {@link extract}; see
-   * {@link DeterministicPass}.
+   * before the run, or overwritten in place. Copied into the extract chain so a
+   * `deterministic` list slot can test coverage against the same set.
    */
   readonly clears?: ReadonlySet<string>;
-  /**
-   * A model-free parse tried ONCE, before {@link extract}, and only when it
-   * covers every column {@link clears} names AND asserts its rows are the
-   * section's whole population.
-   *
-   * All-or-nothing: its rows persist only when every one of them clears the
-   * confidence floor and {@link verifyRow}. A shortfall records nothing and
-   * falls through to the model — re-asking a pure function cannot change its
-   * answer, and dead-lettering here would blame the model for a parser miss.
-   */
-  readonly deterministic?: DeterministicPass<TRow>;
   /**
    * Tried in order when {@link extract} (and any earlier fallback) returns `[]`
    * **or throws** a provider/extraction error. Abort, an already-aborted
@@ -176,10 +163,7 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
    * When the persisted rows came from a `deterministic` list slot,
    * `SectionPersistMeta.complete` is this callback (or false if omitted).
    */
-  readonly deterministicComplete?: (
-    rows: readonly NoInfer<TRow>[],
-    text: string
-  ) => boolean;
+  readonly deterministicComplete?: (rows: readonly NoInfer<TRow>[], text: string) => boolean;
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
@@ -194,10 +178,10 @@ export interface SectionPersistMeta {
   /** 0 = primary {@link RunSectionArgs.extract}; 1+ = {@link RunSectionArgs.emptyExtracts} index + 1. */
   readonly modelIndex: number;
   /**
-   * Which path produced the rows. `"deterministic"` means
-   * {@link RunSectionArgs.deterministic} supplied them and no model was called,
-   * so `modelIndex` names nothing — persist callbacks record the provenance
-   * model id from this, never from a field on a row.
+   * Which path produced the rows. `"deterministic"` means the winning list
+   * slot was the reserved `deterministic` id and no model was called, so persist
+   * callbacks record the provenance model id from this, never from a field on a
+   * row.
    */
   readonly source: "deterministic" | "model";
 }
@@ -292,8 +276,7 @@ export function makeRunSection(opts: {
         e instanceof SecCliConfigurationError ||
         e instanceof MixedRiskCaptionShapeError ||
         opts.signal?.aborted === true;
-      const isWalkSlot = (i: number): boolean =>
-        sargs.modelIds?.[i] === DETERMINISTIC_MODEL_ID;
+      const isWalkSlot = (i: number): boolean => sargs.modelIds?.[i] === DETERMINISTIC_MODEL_ID;
       const applyRowFilters = (incoming: TRow[]): void => {
         raw = incoming;
         confident = raw.filter((r) => r.confidence >= floor);

@@ -42,7 +42,6 @@ import { verifyNumericObjectSpan } from "./verifyNumericObjectSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
 import {
-  DETERMINISTIC_MODEL_ID,
   parseSpacOfferingTerms,
   parseSpacPromoteTerms,
   promoteCoverage,
@@ -286,25 +285,33 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     // it reads the offering table, not the listing sentence naming the issuer's
     // symbols, so the ticker series cleared above would be left empty. Teaching
     // it to read that sentence is what would let `issuer_ticker` join `covers`.
-    deterministic: isSpac
-      ? {
-          extract: (text) => {
-            const det = parseSpacOfferingTerms(text);
-            return det === null ? [] : [det];
-          },
-          covers: new Set([termsTable, `field_provenance:${termsTable}`]),
-        }
-      : undefined,
-    ...modelExtractChain(models, async (text, m) => {
-      const terms = await extractOfferingTerms(text, m, context);
-      return terms === null ? [] : [terms];
-    }),
+    ...modelExtractChain(
+      models,
+      async (text, m) => {
+        const terms = await extractOfferingTerms(text, m, context);
+        return terms === null ? [] : [terms];
+      },
+      {
+        deterministic: isSpac
+          ? {
+              extract: (text) => {
+                const det = parseSpacOfferingTerms(text);
+                return det === null ? [] : [det];
+              },
+              covers: new Set([termsTable, `field_provenance:${termsTable}`]),
+            }
+          : undefined,
+        clears: new Set([
+          termsTable,
+          `field_provenance:${termsTable}`,
+          "issuer_ticker",
+          "field_provenance:issuer_ticker",
+        ]),
+      }
+    ),
     persist: async (rows, meta) => {
       const terms = rows[0];
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
       if (isSpac) {
         await spacUnitTermsRepo.save({
@@ -458,27 +465,39 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "spac_promote_terms.trust_total",
       "field_provenance:spac_promote_terms",
     ]),
-    deterministic: {
-      extract: (text) => {
-        const det = parseSpacPromoteTerms(text);
-        return det === null ? [] : [det];
+    ...modelExtractChain(
+      models,
+      async (text, m) => {
+        const promote = await extractSponsorPromote(text, m, context);
+        return promote === null ? [] : [promote];
       },
-      covers: promoteCoverage,
-      // `spac_promote_terms` is keyed by (extractor, accession): one row per
-      // filing, so producing it IS enumerating the population. Which of its
-      // columns that row may state is `promoteCoverage`'s question.
-      complete: (rows) => rows.length === 1,
-    },
-    ...modelExtractChain(models, async (text, m) => {
-      const promote = await extractSponsorPromote(text, m, context);
-      return promote === null ? [] : [promote];
-    }),
+      {
+        deterministic: {
+          extract: (text) => {
+            const det = parseSpacPromoteTerms(text);
+            return det === null ? [] : [det];
+          },
+          covers: promoteCoverage,
+          // `spac_promote_terms` is keyed by (extractor, accession): one row per
+          // filing, so producing it IS enumerating the population. Which of its
+          // columns that row may state is `promoteCoverage`'s question.
+          complete: (rows) => rows.length === 1,
+        },
+        clears: new Set([
+          "spac_promote_terms.founder_shares",
+          "spac_promote_terms.founder_percent",
+          "spac_promote_terms.private_placement_warrants",
+          "spac_promote_terms.private_placement_warrant_price",
+          "spac_promote_terms.public_warrant_coverage",
+          "spac_promote_terms.trust_per_public_share",
+          "spac_promote_terms.trust_total",
+          "field_provenance:spac_promote_terms",
+        ]),
+      }
+    ),
     persist: async (rows, meta) => {
       const promote = rows[0];
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       await spacPromoteTermsRepo.save({
         extractor_id,
         accession_number,
@@ -559,23 +578,29 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     // SPAC-only: the parser reads the syndicate table a unit IPO prints. As
     // declared it never stands in for the model — teaching it to read the role
     // sentence is what would let `role_detail` join `covers`.
-    deterministic: isSpac
-      ? {
-          extract: parseSpacUnderwriters,
-          covers: new Set([
-            "underwriter_link.shares_allocated",
-            "underwriter_family_membership",
-            "company_observation",
-            "observation_provenance",
-          ]),
-        }
-      : undefined,
-    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
+    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context), {
+      deterministic: isSpac
+        ? {
+            extract: parseSpacUnderwriters,
+            covers: new Set([
+              "underwriter_link.shares_allocated",
+              "underwriter_family_membership",
+              "company_observation",
+              "observation_provenance",
+            ]),
+          }
+        : undefined,
+      clears: new Set([
+        "underwriter_link.role_detail",
+        "underwriter_link.shares_allocated",
+        "underwriter_link.over_allotment_shares",
+        "underwriter_family_membership",
+        "company_observation",
+        "observation_provenance",
+      ]),
+    }),
     persist: async (rows, meta) => {
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
       // One underwriter, one link row. The model repeats an underwriter across
       // rows more often than not — a sole-underwriter filing came back with the
@@ -678,21 +703,23 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     // prints. A single line is not one of those tables — it is one figure the
     // row scan happened to match — so it is reported as no parse at all rather
     // than as a one-line use of proceeds.
-    deterministic: isSpac
-      ? {
-          extract: (text) => {
-            const det = parseSpacUseOfProceeds(text);
-            return det.length >= 2 ? det : [];
-          },
-          covers: new Set(["use_of_proceeds"]),
-          // `use_of_proceeds` holds one row per line item, so covering its
-          // columns says nothing about the rows. The walk's own decline log
-          // does: a labelled row it could not represent means the table was
-          // not enumerated, and the model gets the section.
-          complete: (_rows, text) => useOfProceedsIsComplete(text),
-        }
-      : undefined,
-    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),
+    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context), {
+      deterministic: isSpac
+        ? {
+            extract: (text) => {
+              const det = parseSpacUseOfProceeds(text);
+              return det.length >= 2 ? det : [];
+            },
+            covers: new Set(["use_of_proceeds"]),
+            // `use_of_proceeds` holds one row per line item, so covering its
+            // columns says nothing about the rows. The walk's own decline log
+            // does: a labelled row it could not represent means the table was
+            // not enumerated, and the model gets the section.
+            complete: (_rows, text) => useOfProceedsIsComplete(text),
+          }
+        : undefined,
+      clears: new Set(["use_of_proceeds"]),
+    }),
     persist: async (rows) => {
       const now = new Date().toISOString();
       let lineIndex = 0;

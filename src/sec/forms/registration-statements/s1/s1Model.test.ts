@@ -57,17 +57,13 @@ describe("modelExtractChain", () => {
   });
 
   it("returns [] when covers does not preempt clears", async () => {
-    const chain = modelExtractChain(
-      [deterministicModelConfig()],
-      async () => [{ confidence: 1 }],
-      {
-        deterministic: {
-          extract: () => [{ confidence: 1, via: "walk" }],
-          covers: new Set(["a"]),
-        },
-        clears: new Set(["a", "b"]),
-      }
-    );
+    const chain = modelExtractChain([deterministicModelConfig()], async () => [{ confidence: 1 }], {
+      deterministic: {
+        extract: () => [{ confidence: 1, via: "walk" }],
+        covers: new Set(["a"]),
+      },
+      clears: new Set(["a", "b"]),
+    });
     expect(await chain.extract("x")).toEqual([]);
   });
 

@@ -54,7 +54,6 @@ import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
 import { parseSpacSponsors } from "./s1/parseSpacSponsors";
 import { parseSpacProfile } from "./s1/parseSpacProfile";
 import { parseSpacClassification } from "./s1/parseSpacClassification";
-import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { issuerHasCombinationListing } from "./s1/newcoListing";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
@@ -69,7 +68,10 @@ import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModels } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
 import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
-import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
+import {
+  getSpacClassifierConfidenceFloor,
+  getSpacClassifierModels,
+} from "./s1/spacClassifierModel";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
@@ -182,6 +184,7 @@ export interface ProcessFormS1Args {
   readonly form: string;
   readonly formS1: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly models?: readonly ModelConfig[];
   readonly context?: IExecuteContext;
   readonly extractRiskFactors?: boolean;
 }
@@ -196,7 +199,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   let models: ModelConfig[] = [];
   let modelError: string | null = null;
   try {
-    models = args.model ? [args.model] : await getS1Models();
+    models = args.models ? [...args.models] : args.model ? [args.model] : await getS1Models();
   } catch (err) {
     modelError = err instanceof Error ? err.message : String(err);
   }
@@ -618,17 +621,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // (markResolved no-ops when no entry exists.)
       await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
     } else {
-      let classifierModel: ModelConfig | null = null;
+      let classifierModels: ModelConfig[] = [];
       let classifierError: string | null = null;
       try {
-        classifierModel = args.model ?? (await getSpacClassifierModel());
+        classifierModels = args.models
+          ? [...args.models]
+          : args.model
+            ? [args.model]
+            : await getSpacClassifierModels();
       } catch (err) {
         classifierError = err instanceof Error ? err.message : String(err);
       }
-      if (classifierModel === null) {
+      if (classifierModels.length === 0) {
         await recordFail("spac-classification", "MODEL_RESOLUTION_ERROR", classifierError);
       } else {
-        const classifierModelResolved = classifierModel;
         const classifierHolder: { upgraded: boolean; source: "ai" | "deterministic" } = {
           upgraded: false,
           source: "ai",
@@ -650,20 +656,26 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           unverifiedAllDetail:
             "the confident SPAC classification had source_span not present in section text",
           clears: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
-          deterministic: {
-            extract: (text) => {
-              const det = parseSpacClassification(text);
-              return det === null ? [] : [det];
+          ...modelExtractChain(
+            classifierModels,
+            async (text, m) => {
+              const c = await extractSpacClassification(text, m, args.context);
+              return c === null ? [] : [c];
             },
-            covers: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
-            // A filing is classified once, so the row IS the population: there
-            // is no second verdict the walk could have missed.
-            complete: (rows) => rows.length === 1,
-          },
-          extract: async (text) => {
-            const c = await extractSpacClassification(text, classifierModelResolved, args.context);
-            return c === null ? [] : [c];
-          },
+            {
+              deterministic: {
+                extract: (text) => {
+                  const det = parseSpacClassification(text);
+                  return det === null ? [] : [det];
+                },
+                covers: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
+                // A filing is classified once, so the row IS the population: there
+                // is no second verdict the walk could have missed.
+                complete: (rows) => rows.length === 1,
+              },
+              clears: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
+            }
+          ),
           persist: async (_rows, meta) => {
             classifierHolder.upgraded = true;
             if (meta.source === "deterministic") classifierHolder.source = "deterministic";
@@ -725,17 +737,23 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // sentences and nothing else, so the narrative fields would be handed to
       // `recordRegistration` as nulls on this filing and on every replay, with
       // the section resolving clean and nothing flagging the gap.
-      deterministic: {
-        extract: (text) => {
-          const det = parseSpacProfile(text);
-          return det === null ? [] : [det];
+      ...modelExtractChain(
+        models,
+        async (text, m) => {
+          const p = await extractSpacProfile(text, m, args.context);
+          return p === null ? [] : [p];
         },
-        covers: new Set(["spac.focus", "spac.focus_location"]),
-      },
-      ...modelExtractChain(models, async (text, m) => {
-        const p = await extractSpacProfile(text, m, args.context);
-        return p === null ? [] : [p];
-      }),
+        {
+          deterministic: {
+            extract: (text) => {
+              const det = parseSpacProfile(text);
+              return det === null ? [] : [det];
+            },
+            covers: new Set(["spac.focus", "spac.focus_location"]),
+          },
+          clears: new Set(["spac.focus", "spac.focus_location", "spac.description", "spac.team"]),
+        }
+      ),
       persist: async (rows) => {
         profileHolder.row = rows[0];
         return 1;
@@ -791,20 +809,24 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "person_observation.bio",
       "observation_provenance",
     ]),
-    deterministic: {
-      extract: parseManagementRoster,
-      covers: new Set([
+    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context), {
+      deterministic: {
+        extract: parseManagementRoster,
+        covers: new Set([
+          "person_observation.titles",
+          "person_observation.birth_year",
+          "observation_provenance",
+        ]),
+      },
+      clears: new Set([
         "person_observation.titles",
         "person_observation.birth_year",
+        "person_observation.bio",
         "observation_provenance",
       ]),
-    },
-    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context)),
+    }),
     persist: async (rows, meta) => {
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
@@ -894,16 +916,26 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // number, so the rows it returns are not the table's roster and no
     // `complete` can be derived from the same walk. It therefore does not
     // preempt, whatever the coverage function answers.
-    deterministic: {
-      extract: parseBeneficialOwnership,
-      covers: ownershipCoverage,
-    },
-    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context)),
+    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context), {
+      deterministic: {
+        extract: parseBeneficialOwnership,
+        covers: ownershipCoverage,
+      },
+      clears: new Set([
+        "beneficial_ownership.shares_owned",
+        "beneficial_ownership.percent_owned",
+        "beneficial_ownership.shares_offered",
+        "beneficial_ownership.shares_after",
+        "beneficial_ownership.percent_after",
+        "beneficial_ownership.is_selling_stockholder",
+        "beneficial_ownership.footnote",
+        "person_observation",
+        "company_observation",
+        "observation_provenance",
+      ]),
+    }),
     persist: async (rows, meta) => {
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
         if (r.owner_kind === "company" && isUnnamedCompanyName(r.name)) continue;
         const observation_index = idx++;
@@ -980,16 +1012,20 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // transaction, and `related_party_transaction` is cleared above. The
     // disclosure IS the transaction — a party with no dollar figure, period or
     // nature records that someone was mentioned, not what they were paid.
-    deterministic: {
-      extract: parseRelatedPartyTables,
-      covers: new Set(["person_observation", "company_observation", "observation_provenance"]),
-    },
-    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context)),
+    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context), {
+      deterministic: {
+        extract: parseRelatedPartyTables,
+        covers: new Set(["person_observation", "company_observation", "observation_provenance"]),
+      },
+      clears: new Set([
+        "related_party_transaction",
+        "person_observation",
+        "company_observation",
+        "observation_provenance",
+      ]),
+    }),
     persist: async (rows, meta) => {
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       // Check every row against the storage schema's own declared bounds BEFORE
       // writing any of them. This persist spans three storages (observations,
       // provenance, transactions) and `withTransaction` is scoped to a single
@@ -1140,31 +1176,46 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "person_observation",
         "observation_provenance",
       ]),
-      deterministic: {
-        extract: parseSummaryCompensationTable,
-        covers: new Set([
-          "executive_compensation.principal_position",
-          "executive_compensation.fiscal_year",
-          "executive_compensation.salary",
-          "executive_compensation.bonus",
-          "executive_compensation.stock_awards",
-          "executive_compensation.option_awards",
-          "executive_compensation.non_equity_incentive",
-          "executive_compensation.pension_and_nqdc",
-          "executive_compensation.all_other_compensation",
-          "executive_compensation.total",
-          "person_observation",
-          "observation_provenance",
-        ]),
-      },
-      ...modelExtractChain(models, (text, m) =>
-        extractExecutiveCompensation(text, m, args.context)
+      ...modelExtractChain(
+        models,
+        (text, m) => extractExecutiveCompensation(text, m, args.context),
+        {
+          deterministic: {
+            extract: parseSummaryCompensationTable,
+            covers: new Set([
+              "executive_compensation.principal_position",
+              "executive_compensation.fiscal_year",
+              "executive_compensation.salary",
+              "executive_compensation.bonus",
+              "executive_compensation.stock_awards",
+              "executive_compensation.option_awards",
+              "executive_compensation.non_equity_incentive",
+              "executive_compensation.pension_and_nqdc",
+              "executive_compensation.all_other_compensation",
+              "executive_compensation.total",
+              "person_observation",
+              "observation_provenance",
+            ]),
+          },
+          clears: new Set([
+            "executive_compensation.principal_position",
+            "executive_compensation.fiscal_year",
+            "executive_compensation.salary",
+            "executive_compensation.bonus",
+            "executive_compensation.stock_awards",
+            "executive_compensation.option_awards",
+            "executive_compensation.non_equity_incentive",
+            "executive_compensation.pension_and_nqdc",
+            "executive_compensation.all_other_compensation",
+            "executive_compensation.total",
+            "executive_compensation.footnote",
+            "person_observation",
+            "observation_provenance",
+          ]),
+        }
       ),
       persist: async (rows, meta) => {
-        const model_id =
-          meta.source === "deterministic"
-            ? DETERMINISTIC_MODEL_ID
-            : persistModelId(models, meta.modelIndex);
+        const model_id = persistModelId(models, meta.modelIndex);
         // An officer shown for two fiscal years is two table rows but ONE
         // mention of that person, so the observation is minted once and reused;
         // the row key is positional and independent of it.
@@ -1426,21 +1477,25 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     // the caller has already cleared would be rebuilt with one of two sponsors
     // and resolved clean. Nothing derived from those two patterns can say the
     // prose named no other sponsor, so no `complete` is declared.
-    deterministic: {
-      extract: parseSpacSponsors,
-      covers: new Set([
+    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context), {
+      deterministic: {
+        extract: parseSpacSponsors,
+        covers: new Set([
+          "spac_sponsor_link",
+          "sponsor_family_membership",
+          "company_observation",
+          "observation_provenance",
+        ]),
+      },
+      clears: new Set([
         "spac_sponsor_link",
         "sponsor_family_membership",
         "company_observation",
         "observation_provenance",
       ]),
-    },
-    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context)),
+    }),
     persist: async (rows, meta) => {
-      const model_id =
-        meta.source === "deterministic"
-          ? DETERMINISTIC_MODEL_ID
-          : persistModelId(models, meta.modelIndex);
+      const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
       const splits = rows.map((r) => splitParentClause(r.legal_name?.trim() ?? ""));
       const extractedNames = splits.map((s) => s.observationName);

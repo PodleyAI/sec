@@ -73,9 +73,7 @@ function harness(overrides: {
   const covers = overrides.covers ?? new Set(["person_observation"]);
   const walk = async (text: string): Promise<Row[]> => {
     detCalls++;
-    if (
-      !preempts({ extract: () => detRows, covers }, overrides.clears, text)
-    ) {
+    if (!preempts({ extract: () => detRows, covers }, overrides.clears, text)) {
       return [];
     }
     return [...detRows];

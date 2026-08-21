@@ -5,29 +5,35 @@
  */
 
 import type { ModelConfig } from "workglow";
-import { getGlobalModelRepository } from "workglow";
 import { modelIdsFromEnv } from "../../../../config/Constants";
-import { resolveModelId } from "./s1Model";
+import { resolveConfiguredModels, resolveModelId } from "./s1Model";
 import { CONFIDENCE_FLOOR, parseConfidenceFloor } from "./sectionRunner";
 
 export { resolveModelId };
 
-/** The model id used for the SPAC content classifier; overridable via SEC_S1_CLASSIFIER_MODEL. */
-export function getSpacClassifierModelId(): string {
-  return modelIdsFromEnv(process.env.SEC_S1_CLASSIFIER_MODEL)[0]!;
+/** The model ids used for the SPAC content classifier; overridable via SEC_S1_CLASSIFIER_MODEL. */
+export function getSpacClassifierModelIds(): string[] {
+  return modelIdsFromEnv(process.env.SEC_S1_CLASSIFIER_MODEL);
 }
 
-/** Resolves the configured SPAC-classifier model into a ModelConfig. */
+/** First id of {@link getSpacClassifierModelIds}. */
+export function getSpacClassifierModelId(): string {
+  return getSpacClassifierModelIds()[0]!;
+}
+
+/** Resolves the configured SPAC-classifier model list. */
+export async function getSpacClassifierModels(): Promise<ModelConfig[]> {
+  return resolveConfiguredModels(
+    getSpacClassifierModelIds(),
+    "SPAC classifier",
+    "SEC_S1_CLASSIFIER_MODEL"
+  );
+}
+
+/** Primary (first) configured SPAC-classifier model. */
 export async function getSpacClassifierModel(): Promise<ModelConfig> {
-  const id = getSpacClassifierModelId();
-  const record = await getGlobalModelRepository().findByName(id);
-  if (!record) {
-    throw new Error(
-      `SPAC classifier model '${id}' is not registered. Register it or set ` +
-        `SEC_S1_CLASSIFIER_MODEL to a known model id.`
-    );
-  }
-  return record as ModelConfig;
+  const [model] = await getSpacClassifierModels();
+  return model!;
 }
 
 /**
