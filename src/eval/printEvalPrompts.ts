@@ -9,6 +9,7 @@ import {
   isNonceEnabled,
   stripNonceSeen,
 } from "../sec/forms/registration-statements/s1/sectionExtractors";
+import { DETERMINISTIC_MODEL_ID } from "../config/Constants";
 import { EVAL_EXTRACTORS } from "./fixtures";
 
 export type PrintPromptsMode = "instructions" | "template" | "document" | "schema" | "full";
@@ -42,9 +43,19 @@ function writeSchema(write: (line: string) => void, extractor: string, schema: o
 export function printEvalPrompts(args: {
   readonly mode: PrintPromptsMode;
   readonly items: readonly PrintPromptItem[];
+  readonly modelIds?: readonly string[] | undefined;
   readonly write?: (line: string) => void;
 }): void {
   const write = args.write ?? ((line: string) => console.log(line));
+  const namedDeterministic = args.modelIds?.includes(DETERMINISTIC_MODEL_ID) === true;
+  const promptModels = args.modelIds?.filter((id) => id !== DETERMINISTIC_MODEL_ID);
+  if (namedDeterministic) {
+    write("deterministic: sync parser (no prompt)");
+    write("");
+  }
+  if (args.modelIds !== undefined && (promptModels?.length ?? 0) === 0) {
+    return;
+  }
   if (args.items.length === 0) {
     throw new Error("nothing to print — no extractors/sections matched the selection");
   }

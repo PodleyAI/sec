@@ -145,6 +145,18 @@ function parseModels(ids: readonly string[] | undefined): string[] {
 }
 
 /**
+ * `--models` as given, or `undefined` when the flag was omitted. Print-prompts
+ * must not default the list: a bare `--print-prompts` still dumps AI prompts,
+ * and only an explicit `deterministic` skips that dump.
+ */
+function printPromptModelIds(
+  modelsOpt: string | boolean | undefined,
+  defaults: readonly string[]
+): readonly string[] | undefined {
+  return csvOptionValue("--models", modelsOpt, () => modelIdsHint(defaults));
+}
+
+/**
  * What `--models` / `--reference` accept. Model ids are not a closed set — any
  * id whose shape a provider claims works — so the hint names the defaults and
  * the shapes rather than pretending to enumerate.
@@ -814,7 +826,11 @@ export function addEvalCommands(program: Command): void {
                   extractor: name,
                   label: name,
                 }));
-            printEvalPrompts({ mode: printMode, items });
+            printEvalPrompts({
+              mode: printMode,
+              items,
+              modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
+            });
             return;
           }
           const format = requireFormat(opts.format);
@@ -985,11 +1001,13 @@ export function addEvalCommands(program: Command): void {
                   label: `${s.filing} [${s.extractor}]`,
                   sectionText: preparedSectionText(s.extractor, s.text),
                 })),
+                modelIds: printPromptModelIds(opts.models, [ORACLE_DEFAULT_CANDIDATE]),
               });
             } else {
               printEvalPrompts({
                 mode: printMode,
                 items: extractors.map((extractor) => ({ extractor, label: extractor })),
+                modelIds: printPromptModelIds(opts.models, [ORACLE_DEFAULT_CANDIDATE]),
               });
             }
             return;
@@ -1101,11 +1119,13 @@ export function addEvalCommands(program: Command): void {
                   label: s.filing,
                   sectionText: s.text,
                 })),
+                modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
               });
             } else {
               printEvalPrompts({
                 mode: printMode,
                 items: [{ extractor: "offering-terms", label: "offering-terms" }],
+                modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
               });
             }
             return;

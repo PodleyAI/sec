@@ -189,4 +189,17 @@ describe("printEvalPrompts", () => {
       })
     ).not.toThrow();
   });
+
+  it("notes the sync parser instead of dumping instructions for deterministic", () => {
+    const lines: string[] = [];
+    printEvalPrompts({
+      mode: "instructions",
+      items: [{ extractor: "management", label: "management" }],
+      modelIds: ["deterministic"],
+      write: (l) => lines.push(l),
+    });
+    const out = lines.join("\n");
+    expect(out).toContain("sync parser");
+    expect(out).not.toContain(EVAL_EXTRACTORS.management.instructions().slice(0, 40));
+  });
 });
