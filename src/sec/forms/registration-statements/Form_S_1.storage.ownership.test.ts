@@ -9,7 +9,14 @@ import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { BeneficialOwnershipRepo } from "../../../storage/beneficial-ownership/BeneficialOwnershipRepo";
 import { CompanyObservationRepo } from "../../../storage/observation/CompanyObservationRepo";
+import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
+import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { processFormS1 } from "./Form_S_1.storage";
+import { S1_SECTIONS } from "./s1/DocumentSegmenter";
+import { DocumentTreeSegmenter } from "./s1/DocumentTreeSegmenter";
+import { parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
+import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
+import { resolveModelId } from "./s1/s1Model";
 import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
 
 const HTML_PARSEABLE = [
@@ -56,6 +63,44 @@ const MANAGEMENT_PAYLOAD = {
   ],
 };
 
+const SPAC_OWNERS_PAYLOAD = {
+  owners: [
+    {
+      name: "Halyard Sponsor III LLC",
+      owner_kind: "company",
+      security_class: null,
+      shares_owned: 4312500,
+      percent_owned: 100,
+      shares_offered: null,
+      shares_after: null,
+      percent_after: null,
+      is_selling_stockholder: false,
+      footnote: null,
+      confidence: 0.9,
+      source_span: "Halyard Sponsor III LLC",
+    },
+    {
+      name: "Eleanor Vasquez",
+      owner_kind: "person",
+      security_class: null,
+      shares_owned: 4312500,
+      percent_owned: 100,
+      shares_offered: null,
+      shares_after: null,
+      percent_after: null,
+      is_selling_stockholder: false,
+      footnote: null,
+      confidence: 0.9,
+      source_span: "Eleanor Vasquez",
+    },
+  ],
+};
+
+function ownershipSectionText(html: string): string {
+  const segmented = new DocumentTreeSegmenter().segment(parseEdgarHtml(html, "s1.htm"));
+  return segmented.find((s) => s.name === S1_SECTIONS.BENEFICIAL_OWNERSHIP)?.text ?? "";
+}
+
 let cleanup: (() => void) | undefined;
 
 describe("processFormS1 beneficial ownership", () => {
@@ -69,8 +114,30 @@ describe("processFormS1 beneficial ownership", () => {
     resetDependencyInjectionsForTesting();
   });
 
-  it("persists a SPAC ownership table with no offered/after columns as deterministic", async () => {
-    const { unregister } = registerFakeStructuredProvider([MANAGEMENT_PAYLOAD]);
+  // The table walk covers every column this table prints — a SPAC's pre-IPO
+  // table states one class and no offered/after position, so the six columns
+  // the parse hardcodes null are the disclosure — and it still does not stand
+  // in for the model. `ownershipCoverage` answers the COLUMN question only; the
+  // walk drops a stub failing `looksLikeOwner` and truncates one carrying a
+  // street number, so it cannot report that these two are the whole roster, and
+  // `beneficial_ownership` is cleared before persist. This filing is the case
+  // that makes the rule visible: the parse reads the table outright and the
+  // model runs anyway.
+  it("sends a fully covered SPAC ownership table to the model, because the walk cannot claim it read every row", async () => {
+    expect(
+      parseBeneficialOwnership(ownershipSectionText(HTML_PARSEABLE)).map((r) => [
+        r.owner_kind,
+        r.shares_owned,
+      ])
+    ).toEqual([
+      ["company", 4312500],
+      ["person", 4312500],
+    ]);
+
+    const { calls, unregister } = registerFakeStructuredProvider([
+      MANAGEMENT_PAYLOAD,
+      SPAC_OWNERS_PAYLOAD,
+    ]);
     cleanup = unregister;
 
     await processFormS1({
@@ -89,6 +156,8 @@ describe("processFormS1 beneficial ownership", () => {
       model: fakeS1Model(),
     });
 
+    expect(calls.some((p) => /Extract every beneficial owner/.test(p))).toBe(true);
+
     const rows = await new BeneficialOwnershipRepo().queryByAccession("acc-own-1");
     expect(rows.map((r) => [r.owner_kind, r.shares_owned])).toEqual([
       ["company", 4312500],
@@ -96,16 +165,22 @@ describe("processFormS1 beneficial ownership", () => {
     ]);
     const companies = await new CompanyObservationRepo().listAll();
     expect(companies.some((c) => /Halyard Sponsor/i.test(c.name ?? ""))).toBe(true);
-    // The table prints one class, no offered/after columns and no selling
-    // stockholders, so the six columns the parse hardcodes null are what this
-    // filing actually discloses — nothing is lost by writing them.
     expect(rows[0]!.security_class).toBeNull();
     expect(rows[0]!.shares_after).toBeNull();
     expect(rows[0]!.is_selling_stockholder).toBe(false);
+    // The rows are the model's, not the walk's, and provenance says so.
+    const provenance = await new ObservationProvenanceRepo().get(
+      "company",
+      rows[0]!.observation_id!
+    );
+    expect(provenance?.model_id).not.toBe(DETERMINISTIC_MODEL_ID);
+    expect(provenance?.model_id).toBe(resolveModelId(fakeS1Model()));
   });
 
-  it("does not preempt the ownership model on a resale table with Shares Offered / Shares After columns", async () => {
-    // The same parse, the same table shape, the opposite verdict: here the
+  it("persists the class / offered / after figures a resale table states, which the walk would have written null", async () => {
+    // The row half above already sends every ownership section to the model, so
+    // this filing gets there for a second, independent reason: `ownershipCoverage`
+    // declines the column half outright, and the walk never even runs. Here the
     // filing DOES state a class, an offered count and an after-offering
     // position, so the parse's hardcoded nulls would delete three disclosed
     // figures — and `is_selling_stockholder: false` would assert this holder
