@@ -20,8 +20,10 @@ import { ExtractorRunRepo } from "../../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../../storage/versioning/ExtractorRunSchema";
 import { ObservationProvenanceRepo } from "../../../storage/provenance/ObservationProvenanceRepo";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SpacRepo } from "../../../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../../../storage/spac/SpacReportWriter";
+import type { ProxyEventVerdict } from "../../../storage/spac/SpacReportWriter";
 import { SpacMergerExtractionRepo } from "../../../storage/spac/SpacMergerExtractionRepo";
 import { parseEdgarHtml } from "../../html/parseEdgarHtml";
 import { DocumentTreeSegmenter } from "../registration-statements/s1/DocumentTreeSegmenter";
@@ -57,6 +59,47 @@ const MERGER_SECTION = MERGER_PROXY_SECTION;
  */
 const DEFINITIVE_PROXY_FORMS = new Set(["DEFM14A", "DEFM14C"]);
 
+/**
+ * The dead-letter reasons that ARE a verdict about the document: the merger
+ * section is absent, or a model read it and found no deal. Every other reason
+ * — an unresolved model, a throttle, a nonce mismatch, the
+ * `MODEL_INVALID_OUTPUT` catch-all — reports that this run never reached an
+ * answer. Low-confidence and unverified-span rows are deliberately absent too:
+ * the model did return a deal there, and only its citation or its certainty
+ * failed.
+ */
+const NO_DEAL_REASONS = new Set<DeadLetterReasonCode>(["SECTION_NOT_FOUND", "MODEL_EMPTY"]);
+
+/**
+ * Which way this run moves the accession's `proxy` event.
+ *
+ * Both writes require evidence about the DOCUMENT. `seeks_combination_approval`
+ * is deterministic and decides on its own when false: the gate is conjunctive,
+ * so a statement that asks shareholders to approve nothing can never emit, with
+ * or without a deal — which is what lets the recovery ceremony unwind a stale
+ * close while a provider is down. A true verdict still needs the deal, and
+ * there the distinction matters: a run whose extraction FAILED knows nothing
+ * about the filing, so it leaves the stream alone rather than deleting an event
+ * an earlier run recorded. Retracting there loses the whole approval stage —
+ * the vehicle's next Form 25/15 inside the post-approval window stops reading
+ * as a completed de-SPAC — and the failure re-occurs on every sweep.
+ */
+export function resolveProxyEventVerdict(args: {
+  readonly form: string;
+  readonly extractedDeal: boolean;
+  /** This run concluded the filing discloses no deal (not merely: it failed). */
+  readonly concludedNoDeal: boolean;
+  readonly seeksCombinationApproval: boolean | null;
+}): ProxyEventVerdict {
+  if (DEFINITIVE_PROXY_FORMS.has(args.form)) return "emit";
+  // Preliminary / revised statements never emit; retracting keeps a replay able
+  // to clear an event some earlier generation of this code wrote for one.
+  if (!GENERAL_DEFINITIVE_PROXY_FORMS.has(args.form)) return "retract";
+  if (args.seeksCombinationApproval !== true) return "retract";
+  if (args.extractedDeal) return "emit";
+  return args.concludedNoDeal ? "retract" : "leave";
+}
+
 export interface ProcessMergerProxyArgs {
   readonly cik: number;
   readonly file_number: string;
@@ -82,7 +125,9 @@ export interface ProcessMergerProxyArgs {
  * it on the form symbol alone, so it still advances `proxy_date` when the
  * merger section is absent or low-confidence and the section dead-letters; a
  * {@link GENERAL_DEFINITIVE_PROXY_FORMS} one emits it only when this run
- * extracted a deal AND the document asks shareholders to approve it.
+ * extracted a deal AND the document asks shareholders to approve it. Which way
+ * the event moves — including the case where this run reached no verdict at all
+ * — is {@link resolveProxyEventVerdict}.
  */
 export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<void> {
   const { cik, accession_number, form, filing_date, formMergerProxy } = args;
@@ -196,6 +241,10 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
   // Evidence that this filing IS a merger proxy, for the general definitive
   // forms whose symbol does not say so.
   let extractedDeal = false;
+  // Whether this run answered the question at all. A section that never reached
+  // the model is not a filing that discloses no deal, and only the second of
+  // those may move the proxy event.
+  let concludedNoDeal = false;
 
   if (skipMergerSection) {
     // Nothing to extract, and nothing wrong — but the skip still needs a
@@ -221,6 +270,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
       failed_extractor_version: extractor_version,
       source_run_id: null,
     });
+    concludedNoDeal = true;
   } else if (!model) {
     // No model: dead-letter the merger section but still emit the proxy event
     // (deterministic, definitive statements only) so the SPAC timeline advances.
@@ -243,7 +293,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
       signal: args.context?.signal,
     });
     try {
-      await runSection<MergerDealRow>({
+      const outcome = await runSection<MergerDealRow>({
         sectionName: MERGER_SECTION,
         text: mergerText === "" ? undefined : mergerText,
         notFoundDetail: "no merger / business-combination / PIPE section text",
@@ -309,6 +359,7 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
           return 1;
         },
       });
+      concludedNoDeal = outcome.status === "dead-lettered" && NO_DEAL_REASONS.has(outcome.reason);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await recordMergerProxyRun(false, message);
@@ -316,19 +367,30 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
     }
   }
 
-  // Emit the proxy event (definitive only) + recompute/correlate + rebuild.
+  // Emit / retract the proxy event + recompute/correlate + rebuild.
   try {
+    // The gate verdict is deterministic from the document, so a run that
+    // extracted nothing still has one to record on a row an earlier run wrote.
+    // Left NULL, the backfill's null-verdict clause re-selects this filing on
+    // every sweep instead of extinguishing itself.
+    if (seeks_combination_approval !== null && !extractedDeal) {
+      await new SpacMergerExtractionRepo().recordApprovalVerdict(
+        accession_number,
+        seeks_combination_approval
+      );
+    }
     await new SpacReportWriter().recordMergerProxy({
       cik,
       accession_number,
       filing_date,
       form,
       primary_document: args.primary_doc ?? null,
-      emitProxyEvent:
-        DEFINITIVE_PROXY_FORMS.has(form) ||
-        (GENERAL_DEFINITIVE_PROXY_FORMS.has(form) &&
-          extractedDeal &&
-          seeks_combination_approval === true),
+      proxyEvent: resolveProxyEventVerdict({
+        form,
+        extractedDeal,
+        concludedNoDeal,
+        seeksCombinationApproval: seeks_combination_approval,
+      }),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

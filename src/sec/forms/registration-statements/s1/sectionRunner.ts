@@ -154,9 +154,21 @@ export interface SectionPersistMeta {
   readonly modelIndex: number;
 }
 
+/**
+ * How a section run ended. Most callers ignore it: the ceremony's whole point
+ * is that a failure is contained as a dead letter. It matters where a caller's
+ * OTHER writes depend on what the section concluded — a `dead-lettered` outcome
+ * naming a model or transport reason says nothing about the document, and must
+ * not be read as "the filing does not disclose this".
+ */
+export type SectionOutcome =
+  | { readonly status: "skipped" }
+  | { readonly status: "persisted" }
+  | { readonly status: "dead-lettered"; readonly reason: DeadLetterReasonCode };
+
 export type RunSection = <TRow extends { confidence: number }>(
   sargs: RunSectionArgs<TRow>
-) => Promise<void>;
+) => Promise<SectionOutcome>;
 
 /**
  * Builds the shared per-section ceremony bound to one filing + extractor:
@@ -191,8 +203,8 @@ export function makeRunSection(opts: {
 
   return async function runSection<TRow extends { confidence: number }>(
     sargs: RunSectionArgs<TRow>
-  ): Promise<void> {
-    if (sargs.skip) return;
+  ): Promise<SectionOutcome> {
+    if (sargs.skip) return { status: "skipped" };
 
     const record = (reason: DeadLetterReasonCode, detail: string | null) =>
       deadLetters.record({
@@ -207,7 +219,7 @@ export function makeRunSection(opts: {
 
     if (sargs.text === undefined || sargs.text.trim() === "") {
       await record("SECTION_NOT_FOUND", sargs.notFoundDetail ?? null);
-      return;
+      return { status: "dead-lettered", reason: "SECTION_NOT_FOUND" };
     }
 
     try {
@@ -346,7 +358,7 @@ export function makeRunSection(opts: {
               : sargs.emptyDetail
             : sargs.lowConfidenceDetail;
         await record(reason, detail);
-        return;
+        return { status: "dead-lettered", reason };
       }
       const wrote = await sargs.persist(rows, {
         complete: rows.length === raw.length,
@@ -354,7 +366,7 @@ export function makeRunSection(opts: {
       });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);
-        return;
+        return { status: "dead-lettered", reason: "MODEL_INVALID_OUTPUT" };
       }
       await deadLetters.markResolved(extractor_id, accession_number, sargs.sectionName);
       // Reconcile the sibling `-partial` triage entry (only sections that can
@@ -385,6 +397,7 @@ export function makeRunSection(opts: {
           await deadLetters.markResolved(extractor_id, accession_number, partialSection);
         }
       }
+      return { status: "persisted" };
     } catch (e) {
       // Three escapes run ahead of the reason-code mapping, in this order.
       //
@@ -436,6 +449,7 @@ export function makeRunSection(opts: {
               ? "RATE_LIMITED"
               : "MODEL_INVALID_OUTPUT";
       await record(reason, (e instanceof Error ? e.message : String(e)).slice(0, 1024));
+      return { status: "dead-lettered", reason };
     }
   };
 }

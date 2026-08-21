@@ -693,7 +693,7 @@ describe("makeRunSection failure classification", () => {
   const run = (
     opts: { readonly signal?: AbortSignal },
     thrown: unknown
-  ): { promise: Promise<void>; letters: RecordedLetter[] } => {
+  ): { promise: Promise<unknown>; letters: RecordedLetter[] } => {
     const { repo, letters } = stubDeadLetters();
     const promise = makeRunSection({
       deadLetters: repo,
@@ -752,5 +752,70 @@ describe("makeRunSection failure classification", () => {
     expect(letters).toEqual([
       { section_name: "underwriters", reason_code: "MODEL_INVALID_OUTPUT" },
     ]);
+  });
+});
+
+describe("makeRunSection outcome", () => {
+  const runner = (accession: string) => {
+    const { repo, letters } = stubDeadLetters();
+    return {
+      letters,
+      runSection: makeRunSection({
+        deadLetters: repo,
+        extractor_id: "merger-proxy",
+        extractor_version: "1.0.0",
+        accession_number: accession,
+      }),
+    };
+  };
+
+  it("reports the reason a section dead-lettered, so a caller can tell a verdict from a failure", async () => {
+    // The distinction the merger-proxy gate reads: MODEL_EMPTY is the model
+    // saying the document discloses nothing, while MODEL_INVALID_OUTPUT is the
+    // catch-all for a run that never reached an answer. Both leave zero rows.
+    const { runSection } = runner("acc-outcome");
+    const base = {
+      sectionName: "merger",
+      text: "Some merger prose.",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      persist: async () => 1,
+    };
+
+    expect(await runSection<{ confidence: number }>({ ...base, extract: async () => [] })).toEqual({
+      status: "dead-lettered",
+      reason: "MODEL_EMPTY",
+    });
+    expect(
+      await runSection<{ confidence: number }>({
+        ...base,
+        extract: async () => {
+          throw new Error("upstream provider failure");
+        },
+      })
+    ).toEqual({ status: "dead-lettered", reason: "MODEL_INVALID_OUTPUT" });
+    expect(
+      await runSection<{ confidence: number }>({
+        ...base,
+        text: undefined,
+        extract: async () => [],
+      })
+    ).toEqual({ status: "dead-lettered", reason: "SECTION_NOT_FOUND" });
+  });
+
+  it("reports persisted and skipped runs", async () => {
+    const { runSection } = runner("acc-outcome-ok");
+    const base = {
+      sectionName: "merger",
+      text: "Some merger prose.",
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      extract: async () => [{ confidence: 0.9 }],
+      persist: async () => 1,
+    };
+    expect(await runSection<{ confidence: number }>(base)).toEqual({ status: "persisted" });
+    expect(await runSection<{ confidence: number }>({ ...base, skip: true })).toEqual({
+      status: "skipped",
+    });
   });
 });

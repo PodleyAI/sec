@@ -1918,6 +1918,34 @@ Reclassification therefore runs in both directions and a replay demotes the deal
 instead of leaving the old verdict standing. The delete is scoped to that one
 accession, so it can only retract what a previous run of the same filing wrote.
 
+**Only a verdict about the DOCUMENT moves the event, which is why the writer
+takes a tri-state rather than a boolean** (`ProxyEventVerdict`:
+`emit | retract | leave`, decided by `resolveProxyEventVerdict`). `runSection`
+contains every model and transport failure as a dead letter and returns
+normally, so "the model said this filing discloses no deal" and "the provider
+throttled us" both arrive as an unset `extractedDeal`. Read as a boolean the
+second retracted a `proxy` event an earlier successful run had recorded from
+real evidence — and losing it takes the whole approval stage with it, since the
+vehicle's next Form 25/15 inside the 90-day post-approval window then classifies
+`deregistration` instead of `completed` and `recordDeregistration` deletes the
+`completed` event: a genuinely de-SPAC'd vehicle recorded as a wind-up, from a
+run that merely could not reach a model. So a general definitive statement
+retracts only on `seeks_combination_approval === false` — deterministic, and
+conjunctive with the deal, so it decides alone and keeps the recovery ceremony
+working during a provider outage — or on a dead letter that IS an answer
+(`SECTION_NOT_FOUND` / `MODEL_EMPTY`, `NO_DEAL_REASONS`). Everything else,
+including `LOW_CONFIDENCE_ALL` and `UNVERIFIED_SOURCE_SPAN` (where the model did
+return a deal and only its certainty or its citation failed), leaves the stream
+untouched.
+
+The deterministic verdict is recorded on an existing extraction row **even when
+the run extracted nothing** (`SpacMergerExtractionRepo.recordApprovalVerdict`),
+because the gate really was evaluated — it is a property of the document, not of
+the model call. Left NULL, the backfill's null-verdict clause re-selects the
+same filing on every sweep, which is what made the failure repeat rather than
+happen once. No row is invented where none exists: every predicate downstream
+reads an extraction row as "this proxy produced something".
+
 No extractor version bump: the persisted extraction rows are unchanged and still
 correct, and the derived event is rebuildable from the document with no model
 call.

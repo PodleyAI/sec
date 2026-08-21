@@ -98,14 +98,27 @@ interface RecordDealMilestonesArgs {
   }[];
 }
 
+/**
+ * What this run of a proxy concluded about the `proxy` event, which is not a
+ * boolean: "this filing is not approval-stage" and "this run reached no verdict
+ * about it" call for opposite writes on the same accession.
+ *
+ * - `emit` — an approval-stage statement (DEFM14A, or a general definitive one
+ *   whose document evidence holds).
+ * - `retract` — the document says this filing is not one, so an event a
+ *   previous run wrote for it is removed.
+ * - `leave` — the run answered nothing (no model, a throttle, an
+ *   unclassifiable throw). Whatever the stream already holds stands.
+ */
+export type ProxyEventVerdict = "emit" | "retract" | "leave";
+
 interface RecordMergerProxyArgs {
   readonly cik: number;
   readonly accession_number: string;
   readonly filing_date: string;
   readonly form: string;
   readonly primary_document: string | null;
-  /** true for DEFM14A (definitive); false for PREM14A (preliminary). */
-  readonly emitProxyEvent: boolean;
+  readonly proxyEvent: ProxyEventVerdict;
 }
 
 /**
@@ -273,16 +286,17 @@ export class SpacReportWriter {
    * extraction itself is persisted by the caller (`processMergerProxy`) before
    * this runs.
    *
-   * Reclassification runs in both directions: when the caller now decides the
-   * filing is not an approval-stage statement, a `proxy` event a previous run
-   * of it wrote is deleted, so a replay demotes the deal instead of leaving the
-   * old verdict standing. The delete is scoped to THIS accession, so it can
-   * only retract what a previous run of the same filing wrote — a genuine
-   * merger proxy elsewhere in the CIK's stream keeps its event.
+   * Reclassification runs in both directions: on `retract` a `proxy` event a
+   * previous run of this filing wrote is deleted, so a replay demotes the deal
+   * instead of leaving the old verdict standing. The delete is scoped to THIS
+   * accession, so it can only retract what a previous run of the same filing
+   * wrote — a genuine merger proxy elsewhere in the CIK's stream keeps its
+   * event. `leave` writes no event either way; the deals and the row are still
+   * recomputed, which is a no-op when nothing about the stream changed.
    */
   async recordMergerProxy(args: RecordMergerProxyArgs): Promise<void> {
     await withCikLock(args.cik, async () => {
-      if (args.emitProxyEvent) {
+      if (args.proxyEvent === "emit") {
         await this.appendEvent({
           cik: args.cik,
           accession_number: args.accession_number,
@@ -291,7 +305,7 @@ export class SpacReportWriter {
           form: args.form,
           primary_document: args.primary_document,
         });
-      } else {
+      } else if (args.proxyEvent === "retract") {
         await this.repo.deleteEvent(args.cik, args.accession_number, "proxy");
       }
       await this.recomputeAndSaveDeals(args.cik);

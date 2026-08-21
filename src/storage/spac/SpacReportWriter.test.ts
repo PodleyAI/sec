@@ -350,7 +350,7 @@ describe("SpacReportWriter", () => {
       filing_date: "2021-05-01",
       form: "DEFM14A",
       primary_document: "defm.htm",
-      emitProxyEvent: true,
+      proxyEvent: "emit",
     });
 
     const row = await repo.getSpac(20);
@@ -407,7 +407,7 @@ describe("SpacReportWriter", () => {
       filing_date: "2021-04-01",
       form: "PREM14A",
       primary_document: "prem.htm",
-      emitProxyEvent: false,
+      proxyEvent: "retract",
     });
 
     const events = await repo.getEvents(21);
