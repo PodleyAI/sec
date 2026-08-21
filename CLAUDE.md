@@ -238,17 +238,17 @@ CLI startup registers these model ids (the default plus any set overrides, plus 
 the full list is `KNOWN_MODEL_ID_SHAPES` in that file — the string the
 unknown-id error prints, so it cannot drift from the dispatch:
 
-| id shape                                     | provider               |
-| -------------------------------------------- | ---------------------- |
-| `llama:…` / `node-llama:…` / `gguf:…`        | `LOCAL_LLAMACPP`       |
-| `onnx:org/name`                              | `HF_TRANSFORMERS_ONNX` |
-| `hfi:[provider:]org/name`                    | `HF_INFERENCE`         |
-| `open-router:[provider:]vendor/model`        | `OPENROUTER`           |
-| `claude-*`                                   | `ANTHROPIC`            |
-| `gpt-*` / `chatgpt-*` / `o1-*`/`o3-*`/`o4-*` | `OPENAI`               |
-| `gemini-*`                                   | `GOOGLE_GEMINI`        |
-| `grok-*`                                     | `XAI`                  |
-| `deepseek-*`                                 | `DEEPSEEK`             |
+| id shape                                     | provider                |
+| -------------------------------------------- | ----------------------- |
+| `llama:…` / `node-llama:…` / `gguf:…`        | `LOCAL_LLAMACPP`        |
+| `onnx:org/name`                              | `HF_TRANSFORMERS_ONNX`  |
+| `hfi:[provider:]org/name`                    | `HF_INFERENCE`          |
+| `open-router:[provider:]vendor/model`        | `OPENROUTER`            |
+| `claude-*`                                   | `ANTHROPIC`             |
+| `gpt-*` / `chatgpt-*` / `o1-*`/`o3-*`/`o4-*` | `OPENAI`                |
+| `gemini-*`                                   | `GOOGLE_GEMINI`         |
+| `grok-*`                                     | `XAI`                   |
+| `deepseek-*`                                 | `DEEPSEEK`              |
 | `deterministic`                              | sync walk (no provider) |
 
 Every record explicitly declares the `json-mode` capability
