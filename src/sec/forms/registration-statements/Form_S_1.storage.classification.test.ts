@@ -9,7 +9,10 @@ import { resetDependencyInjectionsForTesting } from "../../../config/TestingDI";
 import { setupAllDatabases } from "../../../config/setupAllDatabases";
 import { S1ClassificationRepo } from "../../../storage/classification/S1ClassificationRepo";
 import { processFormS1 } from "./Form_S_1.storage";
-import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
+import {
+  s1ModelsWithWalk,
+  registerFakeStructuredProvider,
+} from "./s1/testing/fakeStructuredProvider";
 
 const HTML_PARSEABLE = [
   "<h1>PROSPECTUS SUMMARY</h1>",
@@ -60,7 +63,7 @@ describe("processFormS1 spac-classification", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
+      models: s1ModelsWithWalk(),
     });
 
     const row = await new S1ClassificationRepo().get("S-1", "acc-cls-1");

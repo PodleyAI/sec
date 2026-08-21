@@ -11,6 +11,7 @@ import type {
   ModelConfig,
 } from "workglow";
 import { AiProvider, getAiProviderRegistry } from "workglow";
+import { deterministicModelConfig } from "../s1Model";
 
 const JSON_MODE = ["text.generation", "json-mode"] as const satisfies Capability[];
 const FAKE_PROVIDER = "fake-structured";
@@ -38,6 +39,11 @@ export function fakeS1Model(): ModelConfig {
     capabilities: JSON_MODE,
     provider_config: {},
   } as ModelConfig;
+}
+
+/** Walk first, then the fake AI model — today's production wrap, opt-in for tests. */
+export function s1ModelsWithWalk(ai: ModelConfig = fakeS1Model()): ModelConfig[] {
+  return [deterministicModelConfig(), ai];
 }
 
 /**

@@ -19,7 +19,11 @@ import { UnderwriterLinkRepo } from "../../../storage/canonical/UnderwriterLinkR
 import { UseOfProceedsRepo } from "../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { processFormS1 } from "./Form_S_1.storage";
 import { DETERMINISTIC_MODEL_ID } from "./s1/parseOfferingTables";
-import { fakeS1Model, registerFakeStructuredProvider } from "./s1/testing/fakeStructuredProvider";
+import {
+  fakeS1Model,
+  registerFakeStructuredProvider,
+  s1ModelsWithWalk,
+} from "./s1/testing/fakeStructuredProvider";
 
 const OFFERING_HTML = [
   "<h1>THE OFFERING</h1><p>We are offering 5,000,000 shares.</p>",
@@ -438,7 +442,7 @@ describe("processFormS1 offering terms", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
+      models: s1ModelsWithWalk(),
     });
 
     const unit = await new SpacUnitTermsRepo().get("S-1", "0000000000-26-000010");
@@ -808,7 +812,7 @@ describe("processFormS1 offering terms", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
+      models: s1ModelsWithWalk(),
     });
 
     const rows = await new UseOfProceedsRepo().queryByAccession("0000000000-26-000013");
@@ -880,7 +884,7 @@ describe("processFormS1 offering terms", () => {
         xbrlInstanceXml: null,
         feeExhibitHtml: null,
       },
-      model: fakeS1Model(),
+      models: s1ModelsWithWalk(),
     });
 
     const rows = await new UseOfProceedsRepo().queryByAccession("0000000000-26-000014");
