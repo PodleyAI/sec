@@ -11,7 +11,6 @@ import {
   Task,
   TaskAbortedError,
   TaskError,
-  Workflow,
 } from "workglow";
 import { isDryRun } from "../../cli/isDryRun";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
@@ -38,6 +37,11 @@ const InputSchema = () =>
   Type.Object({
     cik: TypeSecCik(),
     force: Type.Optional(Type.String()),
+    // Inclusive filing-date floor. `sync spacs --only updates` uses this so a
+    // daily delta does not replay leftover historical filings of an already
+    // processed issuer. Undated filings are never excluded: they sort last on
+    // the timeline and dropping them would hide work with no date to compare.
+    filedOnOrAfter: Type.Optional(Type.String()),
   });
 
 export type ProcessSpacTimelineTaskInput = Static<ReturnType<typeof InputSchema>>;
@@ -155,8 +159,14 @@ export class ProcessSpacTimelineTask extends Task<
   ): Promise<ProcessSpacTimelineTaskOutput> {
     const { cik } = input;
     if (!cik) throw new TaskError("Invalid input");
+    this.setTitle(`CIK ${cik}`);
     try {
-      return await this.replay(cik, parseSpacProcessForce(input.force), context);
+      return await this.replay(
+        cik,
+        parseSpacProcessForce(input.force),
+        emptyToUndefined(input.filedOnOrAfter),
+        context
+      );
     } catch (e) {
       // Cooperative cancellation and a misconfigured CLI are wrong for the
       // whole batch, not for this issuer, so they keep escaping. Checked in
@@ -176,6 +186,7 @@ export class ProcessSpacTimelineTask extends Task<
   private async replay(
     cik: number,
     force: SpacProcessForce,
+    filedOnOrAfter: string | undefined,
     context: IExecuteContext
   ): Promise<ProcessSpacTimelineTaskOutput> {
     const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
@@ -211,6 +222,7 @@ export class ProcessSpacTimelineTask extends Task<
     const toProcess = timeline.filter(
       (f) =>
         f.form !== null &&
+        filingMeetsDateFloor(f.filing_date, filedOnOrAfter) &&
         shouldReplaySpacFiling({
           form: f.form,
           items: f.items,
@@ -286,7 +298,9 @@ export class ProcessSpacTimelineTask extends Task<
       // ordering the two-invocation workaround already produced.
       const repair = timeline.filter(
         (f) =>
-          !processedAccessions.has(f.accession_number) && gatedAfterReplay.has(f.accession_number)
+          !processedAccessions.has(f.accession_number) &&
+          gatedAfterReplay.has(f.accession_number) &&
+          filingMeetsDateFloor(f.filing_date, filedOnOrAfter)
       );
       if (repair.length > 0) {
         await this.replayFilings(repair, cik, context);
@@ -319,29 +333,30 @@ export class ProcessSpacTimelineTask extends Task<
   }
 
   /**
-   * One serial pass over `filings`, in the order given. `concurrencyLimit: 1`
-   * is the whole point: this is a replay, not a batch.
+   * One serial pass over `filings`, in the order given. Each filing is an owned
+   * child of this issuer so the CLI nests `form accession` rows under the CIK
+   * — an inner Workflow+Map sat below the renderer's recursion cap and the
+   * issuer row had no children.
    */
   private async replayFilings(
     filings: readonly Filing[],
     cik: number,
     context: IExecuteContext
   ): Promise<void> {
-    const wf = context.own(new Workflow(), {
-      title: `Replay ${filings.length} filings for CIK ${cik} in date order`,
-    });
-    const loop = wf.map({ concurrencyLimit: 1, maxIterations: filings.length });
-    loop.pipe(new ProcessAccessionDocFormTask());
-    loop.endMap();
-    await wf.run({
-      cik: filings.map(() => cik),
-      form: filings.map((f) => f.form),
-      accessionNumber: filings.map((f) => f.accession_number),
-      // `primary_doc` is nullable and `stripXslPrefix` is not: one filing
-      // without a primary document threw out of the whole issuer's replay.
-      // Left absent, the form task resolves it or dead-letters that one filing.
-      fileName: filings.map((f) => resolvePrimaryDocName(f.primary_doc)),
-    });
+    for (const filing of filings) {
+      const form = filing.form ?? "";
+      const child = context.own(
+        new ProcessAccessionDocFormTask({
+          title: `${form} ${filing.accession_number}`,
+        })
+      );
+      await child.run({
+        cik,
+        form,
+        accessionNumber: filing.accession_number,
+        fileName: resolvePrimaryDocName(filing.primary_doc),
+      });
+    }
   }
 }
 
@@ -380,6 +395,24 @@ async function loadSuccessfulKeys(
     successfulKeys.set(id, await runRepo.successfulRunKeys(id, semver));
   }
   return successfulKeys;
+}
+
+function emptyToUndefined(value: string | undefined): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  return value;
+}
+
+/**
+ * Inclusive `filing_date` floor. An undated filing sorts last on the timeline
+ * and is kept: dropping it would hide work that has no date to compare.
+ */
+function filingMeetsDateFloor(
+  filingDate: string | null | undefined,
+  filedOnOrAfter: string | undefined
+): boolean {
+  if (filedOnOrAfter === undefined) return true;
+  if (filingDate === null || filingDate === undefined || filingDate === "") return true;
+  return filingDate >= filedOnOrAfter;
 }
 
 function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput {

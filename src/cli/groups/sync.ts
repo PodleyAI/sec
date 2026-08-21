@@ -3,6 +3,8 @@ import { parseShardOption } from "../../task/forms/formsSweep";
 import { parseIntOption } from "../GlobalOptions";
 import { runCommand } from "../runCommand";
 import { registerSecSyncLeaves } from "../sync/registerSecSyncLeaves";
+import { DEFAULT_SPAC_ISSUER_CONCURRENCY } from "../sync/runSpacTimelineIssuers";
+import { parseSpacProcessOnly } from "../sync/spacSyncCiks";
 import {
   EMPTY_SYNC_CONTEXT,
   listSyncLeaves,
@@ -57,7 +59,8 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
   const cmd = sync.command(leaf.id).description(leaf.description);
 
   if (leaf.steps.length > 1) {
-    cmd.option("--step <name>", "Run only this step");
+    const names = leaf.steps.map((step) => step.id).join(" | ");
+    cmd.option("--step <name>", `Run only this step (${names})`);
   }
 
   if (leaf.id === "submissions") {
@@ -86,6 +89,17 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
       .option(
         "--shard <i/N>",
         "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
+      )
+      .option(
+        "--only <kind>",
+        "never-processed = SPACs with no successful run yet; updates = already-processed SPACs, filings since the last SPAC process run (default: both, including historical leftover)",
+        parseSpacProcessOnly
+      )
+      .option(
+        "-c, --concurrency <n>",
+        "How many ISSUERS to process at once (default 3). Filings within an issuer are always serial.",
+        parseIntOption,
+        DEFAULT_SPAC_ISSUER_CONCURRENCY
       );
   }
 
@@ -105,6 +119,8 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
       lookback?: number;
       full?: boolean;
       shard?: string;
+      only?: ReturnType<typeof parseSpacProcessOnly>;
+      concurrency?: number;
     }) => {
       await runCommand(
         async () => {
@@ -132,6 +148,8 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
             ctx = {
               ...ctx,
               full: opts.full ?? false,
+              only: opts.only,
+              concurrency: Math.max(1, opts.concurrency ?? DEFAULT_SPAC_ISSUER_CONCURRENCY),
             };
           }
 

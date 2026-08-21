@@ -5,6 +5,8 @@
  */
 
 import type { FormsShard } from "../../task/forms/formsSweep";
+import { DEFAULT_SPAC_ISSUER_CONCURRENCY } from "./runSpacTimelineIssuers";
+import type { SpacProcessOnly } from "./spacSyncCiks";
 
 export interface SyncRunContext {
   readonly force: boolean;
@@ -14,6 +16,10 @@ export interface SyncRunContext {
   readonly lookback: number;
   readonly shard: FormsShard | undefined;
   readonly formTypes: string[] | undefined;
+  /** `sync spacs --only`: restrict process CIKs. Undefined means both. */
+  readonly only: SpacProcessOnly | undefined;
+  /** How many SPAC issuers to replay at once. Filings within an issuer stay serial. */
+  readonly concurrency: number;
 }
 
 export interface SyncStep {
@@ -38,6 +44,8 @@ export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
   lookback: 3,
   shard: undefined,
   formTypes: undefined,
+  only: undefined,
+  concurrency: DEFAULT_SPAC_ISSUER_CONCURRENCY,
 };
 
 const syncLeaves = new Map<string, SyncLeaf>();

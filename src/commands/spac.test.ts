@@ -5,15 +5,11 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { DataPorts, ITask } from "workglow";
-import { runWorkflowCli } from "../cli/runWorkflow";
+import { runSpacTimelineIssuers } from "../cli/sync/runSpacTimelineIssuers";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { setupAllDatabases } from "../config/setupAllDatabases";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
-import {
-  ProcessSpacTimelineTask,
-  type ProcessSpacTimelineTaskOutput,
-} from "../task/spac/ProcessSpacTimelineTask";
+import type { ProcessSpacTimelineTaskOutput } from "../task/spac/ProcessSpacTimelineTask";
 import {
   assembleSpacReport,
   formatSpacProcessDeadLetterHint,
@@ -124,25 +120,19 @@ describe("spacProcessRows", () => {
   ])(
     "renders what the real %s fan-out actually merges to",
     async (_label, ciks: readonly number[]) => {
-      // The shape `spacProcessRows` consumes is produced by `runWorkflowCli`,
-      // not asserted anywhere else — so build the graph `sec spac process`
-      // builds and read the sink. Notably a ONE-iteration map still merges to a
-      // one-element array per port rather than a bare scalar, which is the
-      // commonest invocation and was previously assumed to be the other way.
-      const merged = await runWorkflowCli<Record<string, unknown>>([], { cik: [...ciks] }, (wf) => {
-        const loop = wf.map({
-          concurrencyLimit: ciks.length,
-          maxIterations: ciks.length,
-          preserveOrder: true,
-        });
-        loop.pipe(new ProcessSpacTimelineTask() as ITask<DataPorts, DataPorts>);
-        loop.endMap();
+      // The shape `spacProcessRows` consumes is produced by `runSpacTimelineIssuers`,
+      // not asserted anywhere else — so run the same graph `sec spac process` and
+      // `sync spacs --step process` build. Notably a ONE-iteration map still
+      // merges to a one-element array per port rather than a bare scalar.
+      const rows = await runSpacTimelineIssuers({
+        ciks,
+        concurrency: ciks.length,
       });
 
-      expect(merged.cik).toEqual([...ciks]);
+      expect(rows.map((row) => row.cik)).toEqual([...ciks]);
       // None of these CIKs has a filing, so every issuer reports an empty
       // timeline — the point here is the shape and the per-issuer labelling.
-      expect(spacProcessRows(merged as never)).toEqual(
+      expect(rows).toEqual(
         ciks.map((cik) => ({
           cik,
           matched: 0,

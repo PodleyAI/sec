@@ -35,6 +35,7 @@ interface SeedFiling {
   form: string;
   primary_doc: string;
   items?: string | null;
+  filing_date?: string;
 }
 
 async function seed(f: SeedFiling): Promise<void> {
@@ -45,7 +46,7 @@ async function seed(f: SeedFiling): Promise<void> {
     form: f.form,
     primary_doc: f.primary_doc,
     file_number: "333-1",
-    filing_date: "2026-01-02",
+    filing_date: f.filing_date ?? "2026-01-02",
     acceptance_date: "2026-01-02T00:00:00.000Z",
     report_date: null,
     film_number: null,
@@ -264,6 +265,36 @@ describe("forms sweep wiring", () => {
       { form: "S-1", accession: "0000000001-26-000003" },
       { form: "8-K", accession: "0000000001-26-000002" },
     ]);
+  });
+
+  it("when filedOnOrAfter is set, emits only filings on or after that date", async () => {
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000001",
+      form: "8-K",
+      primary_doc: "old.htm",
+      items: "5.07",
+      filing_date: "2026-01-02",
+    });
+    await seed({
+      cik: 1,
+      accession_number: "0000000001-26-000002",
+      form: "8-K",
+      primary_doc: "new.htm",
+      items: "5.07",
+      filing_date: "2026-08-20",
+    });
+
+    const producer = new ComputeFormsWorklistTask({
+      defaults: { form: ["8-K"], filedOnOrAfter: "2026-08-19", batchSize: 10 },
+    });
+    const emitted: string[] = [];
+    while (!producer.exhausted) {
+      const out = await producer.run({});
+      emitted.push(...out.accessionNumber);
+    }
+
+    expect(emitted).toEqual(["0000000001-26-000002"]);
   });
 
   it("includes all CIKs when ciks is omitted", async () => {

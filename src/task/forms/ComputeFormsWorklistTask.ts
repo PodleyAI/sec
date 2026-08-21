@@ -51,6 +51,13 @@ export type ComputeFormsWorklistTaskInput = {
    */
   readonly eightKItems?: string[];
   /**
+   * When set, filings whose `filing_date` is strictly before this YYYY-MM-DD
+   * are consumed but not emitted. Used by `sync spacs --only updates` so a
+   * daily run is new filings, not the historical leftover on already-touched
+   * SPACs. An empty filing_date is kept.
+   */
+  readonly filedOnOrAfter?: string;
+  /**
    * Filings emitted per batch. Defaults to {@link WORKLIST_BATCH_SIZE}; exposed
    * mainly so tests can drive the batching/resume path with a handful of rows
    * instead of thousands.
@@ -137,6 +144,16 @@ function skipEightKWithoutItems(
   return !filingHasAnyItem(items, codes);
 }
 
+/** True when `filedOnOrAfter` is set and this filing is dated strictly earlier. */
+function skipFiledBefore(
+  filingDate: string | null | undefined,
+  onOrAfter: string | undefined
+): boolean {
+  if (onOrAfter === undefined) return false;
+  if (!filingDate) return false;
+  return filingDate < onOrAfter;
+}
+
 export type ComputeFormsWorklistTaskOutput = {
   /** Parallel arrays, aligned by index — one entry per filing to process. */
   accessionNumber: string[];
@@ -177,6 +194,7 @@ export class ComputeFormsWorklistTask extends Task<
       shardCount: Type.Optional(Type.Integer({ minimum: 1 })),
       ciks: Type.Optional(Type.Array(TypeSecCik())),
       eightKItems: Type.Optional(Type.Array(Type.String())),
+      filedOnOrAfter: Type.Optional(Type.String()),
       batchSize: Type.Optional(Type.Integer({ minimum: 1 })),
     });
   }
@@ -249,6 +267,7 @@ export class ComputeFormsWorklistTask extends Task<
       input.eightKItems !== undefined && input.eightKItems.length > 0
         ? new Set(input.eightKItems)
         : undefined;
+    const filedOnOrAfter = input.filedOnOrAfter;
     const dryRun = isDryRun();
     const batchSize = input.batchSize ?? WORKLIST_BATCH_SIZE;
 
@@ -317,6 +336,7 @@ export class ComputeFormsWorklistTask extends Task<
             if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
             if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
             if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
+            if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
             if (keys.has(filingRunKey(f))) continue;
             total++;
           }
@@ -328,8 +348,10 @@ export class ComputeFormsWorklistTask extends Task<
       }
       this.exhausted = true;
       const shardNote = sharding ? ` (shard ${shardIndex + 1}/${shardCount})` : "";
+      const sinceNote =
+        filedOnOrAfter !== undefined ? ` (filed on or after ${filedOnOrAfter})` : "";
       console.log(
-        `Would process ${total} unprocessed filings for forms: ${[...formSet].join(", ")}${shardNote}`
+        `Would process ${total} unprocessed filings for forms: ${[...formSet].join(", ")}${shardNote}${sinceNote}`
       );
       return { accessionNumber: [], cik: [], form: [], fileName: [], count: 0 };
     }
@@ -397,6 +419,7 @@ export class ComputeFormsWorklistTask extends Task<
         if (sharding && accessionShard(f.accession_number, shardCount) !== shardIndex) continue;
         if (cikAllowList !== undefined && !cikAllowList.has(f.cik)) continue;
         if (skipEightKWithoutItems(f.form, f.items, eightKItemSet)) continue;
+        if (skipFiledBefore(f.filing_date, filedOnOrAfter)) continue;
         if (this.successfulKeys.has(filingRunKey(f))) continue;
         accessionNumber.push(f.accession_number);
         cik.push(f.cik);
@@ -463,7 +486,14 @@ export class ComputeFormsWorklistTask extends Task<
     ];
 
     if (allowCiks !== undefined) {
-      return this.readAllowlistedPage(filingRepo, form, fromCik, afterAccession, allowCiks, orderBy);
+      return this.readAllowlistedPage(
+        filingRepo,
+        form,
+        fromCik,
+        afterAccession,
+        allowCiks,
+        orderBy
+      );
     }
 
     if (fromCik === undefined || afterAccession === undefined) {
@@ -538,10 +568,9 @@ export class ComputeFormsWorklistTask extends Task<
       if (rows.length === FILING_PAGE_SIZE) return { rows, full: true };
     }
 
-    const remaining =
-      fromCik === undefined ? allowCiks : allowCiks.filter((cik) => cik > fromCik);
+    const remaining = fromCik === undefined ? allowCiks : allowCiks.filter((cik) => cik > fromCik);
 
-    for (let i = 0; i < remaining.length; ) {
+    for (let i = 0; i < remaining.length;) {
       const need = FILING_PAGE_SIZE - rows.length;
       const chunk = remaining.slice(i, i + WORKLIST_CIK_CHUNK);
       const part = ((await filingRepo.query(

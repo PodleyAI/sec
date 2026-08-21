@@ -585,6 +585,36 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.matched).toBe(2);
   });
 
+  it("owns each filing as a child of the issuer so the CLI can nest them", async () => {
+    // An owned inner Workflow+Map sits two layers down; the CLI stops
+    // recursing there, so the issuer map row had no filing children. Directly
+    // owned form tasks are the issuer's subgraph.
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+    vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute").mockResolvedValue({
+      success: true,
+    });
+
+    const task = new ProcessSpacTimelineTask();
+    await task.run({ cik: CIK });
+
+    const children = task.subGraph?.getTasks() ?? [];
+    expect(children.map((child) => child.type)).toEqual([
+      "ProcessAccessionDocFormTask",
+      "ProcessAccessionDocFormTask",
+    ]);
+    expect(children.map((child) => child.title)).toEqual([
+      "D 0000000000-26-000001",
+      "D 0000000000-26-000002",
+    ]);
+  });
+
+  it("labels the issuer row with the CIK so map iterations are distinguishable", async () => {
+    const task = new ProcessSpacTimelineTask();
+    await task.run({ cik: CIK });
+    expect(task.title).toContain(String(CIK));
+  });
+
   it("echoes the cik so a fan-out's result columns are self-labelling", async () => {
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
     // No filings at all is still an answer about THIS issuer.
@@ -596,5 +626,31 @@ describe("ProcessSpacTimelineTask", () => {
       failed: 0,
       error: "",
     });
+  });
+
+  it("filedOnOrAfter skips older unprocessed filings, keeping date order for the rest", async () => {
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2026-08-20");
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+
+    const out = await new ProcessSpacTimelineTask().run({
+      cik: CIK,
+      filedOnOrAfter: "2026-08-19",
+    });
+
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000002"]);
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+  });
+
+  it("filedOnOrAfter also keeps the repair pass from replaying older gated 8-Ks", async () => {
+    await seedFiling("0000000000-26-000001", "S-1", "2026-08-20", "s1.htm");
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    const spy = mockFormProcessor();
+
+    await new ProcessSpacTimelineTask().run({ cik: CIK, filedOnOrAfter: "2026-08-19" });
+
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000001"]);
   });
 });

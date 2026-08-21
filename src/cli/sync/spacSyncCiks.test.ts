@@ -13,7 +13,17 @@ import {
   type SpacCandidate,
 } from "../../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN, type Spac } from "../../storage/spac/SpacSchema";
-import { listKnownSpacCiks, listSpacProcessCiks } from "./spacSyncCiks";
+import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
+import {
+  dayBeforeUtc,
+  filterSpacCiksByHistory,
+  listKnownSpacCiks,
+  listSpacProcessCiks,
+  parseSpacProcessOnly,
+  shardCiks,
+  spacUpdatesFiledOnOrAfter,
+} from "./spacSyncCiks";
 
 function minimalSpac(cik: number): Spac {
   return {
@@ -121,5 +131,97 @@ describe("listSpacProcessCiks", () => {
 
     await expect(listKnownSpacCiks()).resolves.toEqual([1]);
     await expect(listSpacProcessCiks()).resolves.toEqual([1, 2]);
+  });
+});
+
+async function recordRun(args: {
+  cik: number;
+  extractor_id: string;
+  success?: boolean;
+  outcome?: "success" | "partial" | "failure";
+  extractor_version?: string;
+}): Promise<void> {
+  const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+  await repo.recordRun({
+    cik: args.cik,
+    accession_number: `${String(args.cik).padStart(10, "0")}-26-000001`,
+    form: args.extractor_id,
+    extractor_id: args.extractor_id,
+    extractor_version: args.extractor_version ?? "1.0.0",
+    slot_at_run: "current",
+    success: args.success ?? true,
+    outcome: args.outcome,
+    error: null,
+  });
+}
+
+describe("parseSpacProcessOnly", () => {
+  it("accepts never-processed and updates", () => {
+    expect(parseSpacProcessOnly("never-processed")).toBe("never-processed");
+    expect(parseSpacProcessOnly("updates")).toBe("updates");
+  });
+
+  it("rejects other values", () => {
+    expect(() => parseSpacProcessOnly("both")).toThrow(/Invalid --only/);
+  });
+});
+
+describe("filterSpacCiksByHistory", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("returns the input list when only is omitted", async () => {
+    await expect(filterSpacCiksByHistory([1, 2], undefined)).resolves.toEqual([1, 2]);
+  });
+
+  it("never-processed is CIKs with no successful SPAC extractor run", async () => {
+    await recordRun({ cik: 1, extractor_id: "S-1" });
+    await recordRun({ cik: 2, extractor_id: "S-1", success: false, outcome: "failure" });
+    await recordRun({ cik: 3, extractor_id: "D" });
+
+    await expect(filterSpacCiksByHistory([1, 2, 3, 4], "never-processed")).resolves.toEqual([
+      2, 3, 4,
+    ]);
+  });
+
+  it("updates is CIKs with at least one successful SPAC run, including an older version", async () => {
+    await recordRun({ cik: 1, extractor_id: "8-K", extractor_version: "0.9.0" });
+    await recordRun({ cik: 2, extractor_id: "S-1", outcome: "partial" });
+
+    await expect(filterSpacCiksByHistory([1, 2, 3], "updates")).resolves.toEqual([1]);
+  });
+});
+
+describe("shardCiks", () => {
+  it("returns the full list when sharding is off", () => {
+    expect(shardCiks([1, 2, 3], undefined)).toEqual([1, 2, 3]);
+    expect(shardCiks([1, 2, 3], { index: 0, count: 1 })).toEqual([1, 2, 3]);
+  });
+
+  it("partitions issuers disjointly and completely so one CIK never splits", () => {
+    const ciks = [10, 11, 12, 13, 14];
+    const shards = [0, 1, 2].map((index) => shardCiks(ciks, { index, count: 3 }));
+    expect(shards.flat().toSorted((a, b) => a - b)).toEqual(ciks);
+    expect(new Set(shards.flat()).size).toBe(ciks.length);
+    for (const shard of shards) {
+      expect(new Set(shard).size).toBe(shard.length);
+    }
+  });
+});
+
+describe("spacUpdatesFiledOnOrAfter", () => {
+  beforeEach(async () => {
+    resetDependencyInjectionsForTesting();
+    await setupAllDatabases();
+  });
+
+  it("is the UTC day before the latest successful SPAC extractor run", async () => {
+    expect(dayBeforeUtc("2026-08-20T22:33:50.884Z")).toBe("2026-08-19");
+    await recordRun({ cik: 1, extractor_id: "S-1" });
+    const repo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const row = await repo.findRun(1, "0000000001-26-000001", "S-1", "1.0.0");
+    await expect(spacUpdatesFiledOnOrAfter()).resolves.toBe(dayBeforeUtc(row!.ran_at));
   });
 });
