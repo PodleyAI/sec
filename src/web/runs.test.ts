@@ -7,7 +7,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { withModelOverrides } from "./data/models";
-import { RunRegistry, type RunRecord } from "./runs";
+import { globalServiceRegistry } from "workglow";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
+import { recordedOutcome, RunRegistry, type RunRecord } from "./runs";
 
 async function settle(registry: RunRegistry, id: string): Promise<RunRecord> {
   for (let i = 0; i < 200; i++) {
@@ -144,5 +146,51 @@ describe("withModelOverrides", () => {
     await withModelOverrides({ "not-a-slot": "x" }, async () => {
       expect(process.env["not-a-slot"]).toBeUndefined();
     });
+  });
+});
+
+describe("recordedOutcome", () => {
+  beforeEach(() => {
+    resetDependencyInjectionsForTesting();
+  });
+
+  async function addRun(outcome: "success" | "partial" | "failure", ranAt: string): Promise<void> {
+    await globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN).put({
+      cik: 42,
+      accession_number: "0000000000-25-000001",
+      form: "S-1",
+      extractor_id: "S-1",
+      extractor_version: outcome === "partial" ? "1.0.0" : "1.0.1",
+      slot_at_run: "current",
+      ran_at: ranAt,
+      success: outcome === "success",
+      outcome,
+      error: null,
+    });
+  }
+
+  it("reports what the pipeline recorded, not the task's boolean", async () => {
+    // `ProcessAccessionDocFormTask` returns `{ success: true }` whenever store
+    // did not throw — including when a section dead-lettered and the run was
+    // written `partial`. Reporting the boolean is what printed "52/52 filings"
+    // for a CIK whose underwriters section came back MODEL_EMPTY.
+    await addRun("partial", "2026-08-01T00:00:00.000Z");
+    expect(await recordedOutcome(42, "0000000000-25-000001", "S-1")).toBe("partial");
+  });
+
+  it("reads the newest run when a filing has been replayed", async () => {
+    await addRun("partial", "2026-08-01T00:00:00.000Z");
+    await addRun("success", "2026-08-02T00:00:00.000Z");
+    expect(await recordedOutcome(42, "0000000000-25-000001", "S-1")).toBe("success");
+  });
+
+  it("trusts the task's return when no run row exists", async () => {
+    // The task came back without throwing, so claiming a failure on the
+    // strength of a missing bookkeeping row would be the worse guess.
+    expect(await recordedOutcome(42, "0000000000-25-999999", "S-1")).toBe("success");
+  });
+
+  it("says success for a form no extractor handles", async () => {
+    expect(await recordedOutcome(42, "0000000000-25-000001", "SC 13G")).toBe("success");
   });
 });

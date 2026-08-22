@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { uuid4 } from "workglow";
+import { globalServiceRegistry, uuid4 } from "workglow";
 import { registerModelIds } from "../config/registerModels";
 import { resetSpacProcessState } from "../task/spac/resetSpacProcessState";
 import { IdentifySpacsTask } from "../task/spac/IdentifySpacsTask";
@@ -12,6 +12,10 @@ import { ProcessAccessionDocFormTask } from "../task/forms/ProcessAccessionDocFo
 import { parseSpacProcessForce } from "../task/spac/parseSpacProcessForce";
 import { planSpacTimeline, planSpacTimelineRepair } from "../task/spac/planSpacTimeline";
 import type { Filing } from "../storage/filing/FilingSchema";
+import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../storage/dead-letter/ExtractionDeadLetterSchema";
+import { ExtractorRunRepo } from "../storage/versioning/ExtractorRunRepo";
+import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
+import { formToExtractorId } from "../storage/versioning/extractorIds";
 import { resolvePrimaryDocName } from "../util/accessionDocPath";
 import { describeOverrides, withModelOverrides, type ModelOverrides } from "./data/models";
 
@@ -391,6 +395,20 @@ export function enqueueTimelineRun(
         ctx.log("info", `repair pass: ${repair.length} gated filing(s) now runnable`);
         await replay(ctx, args.cik, repair, processed);
       }
+
+      // A partial filing is the documented NORMAL outcome of one AI section
+      // dead-lettering, so it must not read as a failed run — but it does leave
+      // work on the triage list, and the run transcript is where an operator is
+      // looking when it happens.
+      let triage = 0;
+      for (const accession of processed) triage += await pendingTriage(accession);
+      if (triage > 0) {
+        ctx.log(
+          "warn",
+          `${triage} section(s) pending triage across the filings just run — ` +
+            `open a filing's Extraction results tab, or \`sec extractor dead-letters <id>\``
+        );
+      }
     },
   });
 }
@@ -424,11 +442,12 @@ async function replay(
       // `success: false` is a CONTAINED failure — the task records the dead
       // letter and returns rather than throwing — so it must be reported as a
       // failed step, not swallowed because no exception reached here.
-      if (out.success) {
-        ctx.step(accession, "done", `${form} ${accession} ok in ${seconds}s`);
-      } else {
-        ctx.step(accession, "failed", `${form} ${accession} failed in ${seconds}s`);
-      }
+      const outcome = out.success ? await recordedOutcome(cik, accession, form) : "failure";
+      ctx.step(
+        accession,
+        outcome === "failure" ? "failed" : "done",
+        `${form} ${accession} ${outcome} in ${seconds}s`
+      );
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       ctx.step(accession, "failed", `${form} ${accession} threw: ${message}`);
@@ -437,5 +456,46 @@ async function replay(
     } finally {
       processed.add(accession);
     }
+  }
+}
+
+/**
+ * The outcome the pipeline actually RECORDED for a filing, not the boolean the
+ * form task returned.
+ *
+ * `ProcessAccessionDocFormTask` returns `{ success: true }` whenever store did
+ * not throw — including when a section dead-lettered and the run was written
+ * `partial`. Reporting that boolean is what printed "52/52 filings" for a CIK
+ * whose DRS underwriters section came back MODEL_EMPTY, and it is the same
+ * mistake on a page whose entire job is telling an operator which sections did
+ * not extract.
+ *
+ * Falls back to `success` when no run row can be read: the task returned
+ * without throwing, so claiming a failure on the strength of a missing
+ * bookkeeping row would be a worse guess than trusting the return.
+ */
+export async function recordedOutcome(
+  cik: number,
+  accession: string,
+  form: string
+): Promise<"success" | "partial" | "failure"> {
+  const extractorId = form === "" ? undefined : formToExtractorId(form);
+  if (extractorId === undefined) return "success";
+  try {
+    const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
+    const latest = await runRepo.findLatestRun(cik, accession, extractorId);
+    return latest?.outcome ?? "success";
+  } catch {
+    return "success";
+  }
+}
+
+/** Pending dead-letter entries on a filing, for the run's closing summary. */
+async function pendingTriage(accession: string): Promise<number> {
+  try {
+    const repo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+    return ((await repo.query({ accession_number: accession, status: "pending" })) ?? []).length;
+  } catch {
+    return 0;
   }
 }
