@@ -100,6 +100,7 @@ import { ISSUER_TICKER_REPOSITORY_TOKEN } from "../storage/offering/IssuerTicker
 import { OFFERING_TERMS_REPOSITORY_TOKEN } from "../storage/offering/OfferingTermsSchema";
 import { SPAC_UNIT_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacUnitTermsSchema";
 import { SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacPromoteTermsSchema";
+import { SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN } from "../storage/offering/SpacLockupTermsSchema";
 import { FIELD_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/FieldProvenanceSchema";
 import { OBSERVATION_PROVENANCE_REPOSITORY_TOKEN } from "../storage/provenance/ObservationProvenanceSchema";
 import { RELATED_PARTY_TRANSACTION_REPOSITORY_TOKEN } from "../storage/related-party/RelatedPartyTransactionSchema";
@@ -461,6 +462,7 @@ async function truncateAllRepositories(): Promise<void> {
   await globalServiceRegistry.get(OFFERING_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_UNIT_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN).deleteAll();
+  await globalServiceRegistry.get(SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(RISK_FACTOR_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(USE_OF_PROCEEDS_REPOSITORY_TOKEN).deleteAll();
   await globalServiceRegistry.get(XBRL_FACT_REPOSITORY_TOKEN).deleteAll();

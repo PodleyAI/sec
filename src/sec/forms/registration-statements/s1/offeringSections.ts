@@ -14,18 +14,21 @@ import { UnderwriterLinkRepo } from "../../../../storage/canonical/UnderwriterLi
 import { OfferingTermsRepo } from "../../../../storage/offering/OfferingTermsRepo";
 import { SpacUnitTermsRepo } from "../../../../storage/offering/SpacUnitTermsRepo";
 import { SpacPromoteTermsRepo } from "../../../../storage/offering/SpacPromoteTermsRepo";
+import { SpacLockupTermsRepo } from "../../../../storage/offering/SpacLockupTermsRepo";
 import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo";
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import {
+  extractLockups,
   extractOfferingTerms,
   extractSponsorPromote,
   extractUnderwriters,
   extractUseOfProceeds,
 } from "./sectionExtractors";
 import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
+import { LOCKUP_HOLDER_CLASSES, type LockupRow } from "./lockupSchema";
 import type { RunSection } from "./sectionRunner";
 import { modelExtractChain, persistModelId } from "./s1Model";
 import type { UnderwriterRowOut } from "./underwriterSchema";
@@ -68,6 +71,21 @@ export function promoteParseText(byName: ReadonlyMap<string, string>): string {
     byName.get(S1_SECTIONS.THE_SPONSOR),
     byName.get(S1_SECTIONS.PROSPECTUS_SUMMARY),
   ]
+    .filter((t): t is string => typeof t === "string")
+    .join("\n\n");
+}
+
+/**
+ * Concatenate the sections production hands the lock-up parser.
+ *
+ * The Item 12 heading first, then Underwriting: 14 of the 42 committed S-1
+ * fixtures carry an "Shares Eligible for Future Sale" section and 32 disclose a
+ * lock-up somewhere, so the dedicated heading is worth reading first and cannot
+ * be the only way in — a filer who omits Item 12 states the underwriters'
+ * lock-up inside Underwriting instead.
+ */
+export function lockupParseText(byName: ReadonlyMap<string, string>): string {
+  return [byName.get(S1_SECTIONS.LOCK_UP), byName.get(S1_SECTIONS.UNDERWRITING)]
     .filter((t): t is string => typeof t === "string")
     .join("\n\n");
 }
@@ -137,6 +155,7 @@ export function offeringSectionNames(isSpac: boolean): readonly string[] {
     ...(isSpac ? ["sponsor-promote"] : []),
     "underwriters",
     "use-of-proceeds",
+    "lockups",
   ];
 }
 
@@ -228,6 +247,7 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   const offeringTermsRepo = new OfferingTermsRepo();
   const spacUnitTermsRepo = new SpacUnitTermsRepo();
   const spacPromoteTermsRepo = new SpacPromoteTermsRepo();
+  const spacLockupTermsRepo = new SpacLockupTermsRepo();
   const issuerTickerRepo = new IssuerTickerRepo();
   const useOfProceedsRepo = new UseOfProceedsRepo();
   const fieldProvenanceRepo = new FieldProvenanceRepo();
@@ -526,6 +546,63 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
         ],
       });
       return 1;
+    },
+  });
+
+  // --- Lock-ups (Item 12 / Underwriting; all filings) ---
+  // Stated as filed — a duration with its anchor, a price test with its window
+  // — never as a date. Turning either into a release date needs a price series
+  // this extractor does not have, so that step lives downstream and this one
+  // can never emit a computed-looking date it did not compute.
+  await runSection<LockupRow>({
+    sectionName: "lockups",
+    text: lockupParseText(byName) || undefined,
+    notFoundDetail: "no Shares Eligible for Future Sale / Underwriting section text",
+    emptyDetail: "no lock-ups returned",
+    lowConfidenceDetail: "all rows below confidence floor",
+    invalidWriteDetail: "no lock-up rows named a holder class",
+    // Prompt-injection backstop, same as every other row-shaped section here.
+    verifyRow: (text, r) => classifySpan(text, r.source_span),
+    unverifiedAllDetail:
+      "all $T confident lock-up rows had source_span not present in section text",
+    unverifiedPartialDetail:
+      "$N of $T confident lock-up rows had source_span not present in section text",
+    // Whole-table: `replaceForFiling` deletes the filing's rows before writing,
+    // because they are POSITIONAL. A re-extraction finding three lock-ups where
+    // the last found four would otherwise leave the fourth standing, and a
+    // stale row here states a restriction on a class the filing does not lock.
+    clears: new Set(["spac_lockup_terms"]),
+    ...modelExtractChain(models, (text, m) => extractLockups(text, m, context)),
+    persist: async (rows) => {
+      const now = new Date().toISOString();
+      // Against the declared vocabulary, not against emptiness: the model can
+      // return a class outside the enum, and a lock-up filed under a name
+      // nothing downstream knows is a restriction nobody will ever evaluate.
+      const usable = rows.filter((r) =>
+        (LOCKUP_HOLDER_CLASSES as readonly string[]).includes(r.holder_class)
+      );
+      await spacLockupTermsRepo.replaceForFiling(
+        extractor_id,
+        accession_number,
+        usable.map((r, lockup_index) => ({
+          extractor_id,
+          accession_number,
+          lockup_index,
+          cik,
+          holder_class: r.holder_class,
+          security: r.security ?? null,
+          duration_days: toIntCount(r.duration_days),
+          anchor_event: r.anchor_event ?? null,
+          price_trigger: r.price_trigger ?? null,
+          trigger_days_at_or_above: toIntCount(r.trigger_days_at_or_above),
+          trigger_window_days: toIntCount(r.trigger_window_days),
+          trigger_start_delay_days: toIntCount(r.trigger_start_delay_days),
+          confidence: r.confidence,
+          source_span: boundSourceSpan(r.source_span),
+          created_at: now,
+        }))
+      );
+      return usable.length;
     },
   });
 

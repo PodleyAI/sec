@@ -31,6 +31,7 @@ import {
 } from "./spacProfileSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { SponsorPromoteOutputSchema, type SponsorPromoteRow } from "./sponsorPromoteSchema";
+import { LockupOutputSchema, type LockupRow } from "./lockupSchema";
 import {
   SPAC_ENTITY_KINDS,
   SpacClassificationOutputSchema,
@@ -1410,6 +1411,64 @@ export async function extractSponsorPromote(
     confidence: obj.confidence as number,
     source_span: obj.source_span as string,
   };
+}
+
+export function lockupInstructions(): string {
+  return (
+    "The text between the tags below is from a prospectus. Extract every LOCK-UP " +
+    "the text states, one row each. A filing states several with different terms " +
+    "— the underwriters' lock-up on the whole float, the sponsor's on its founder " +
+    "shares, often a longer one on the private placement warrants — so do NOT " +
+    "merge them into a single row. " +
+    "For each give holder_class (who is restricted: 'founder-shares' for founder / " +
+    "Class B / founders' shares, 'private-placement-warrants' for the sponsor " +
+    "warrants, 'sponsor' when the sponsor entity is restricted without naming a " +
+    "security, 'target-shareholders' for the target company's holders in a " +
+    "combination, 'pipe' for private-placement subscribers, 'management' for " +
+    "officers and directors, else 'other'), security (the restricted security as " +
+    "the filing names it, or null), duration_days (the length in DAYS — convert: " +
+    "six months is 180, one year is 365 — or null), anchor_event (what the clock " +
+    "runs from: 'closing' for the closing of the business combination, 'ipo' for " +
+    "the pricing or closing of this offering, 'effective-date' for effectiveness " +
+    "of the registration statement, else 'other'; null if the text does not say). " +
+    "When the lock-up also releases early on a price test, give price_trigger (the " +
+    "dollar price the security must reach, e.g. 12.00), trigger_days_at_or_above " +
+    "(how many trading days at or above it are required — the '20' in '20 trading " +
+    "days within any 30-trading-day period'), trigger_window_days (the window those " +
+    "days are counted in — the '30'), and trigger_start_delay_days (how long after " +
+    "the anchor the price test may begin — the '150' in 'commencing at least 150 " +
+    "days after the closing'); null for any the text does not state. " +
+    "A duration and a price trigger are ALTERNATIVES on one lock-up, not two " +
+    "lock-ups: 'one year, or earlier if the shares trade at or above $12.00 …' is " +
+    "ONE row carrying both. " +
+    "Report only what the text states; do not compute a release date and do not " +
+    "assume a customary term the filing omits. Give a confidence in [0,1] and the " +
+    "verbatim source_span for each row. Return JSON matching the schema."
+  );
+}
+
+/**
+ * Extracts the lock-ups a prospectus states, one row per restricted class.
+ *
+ * Returns them as filed rather than as dates: a duration means nothing without
+ * its anchor, and a price trigger is a condition on a series nobody has here.
+ * Evaluating either against a real price series is a separate step, downstream,
+ * so that this extractor never has to produce a computed-looking release date.
+ */
+export async function extractLockups(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<LockupRow[]> {
+  const obj = await runGuardedExtraction(
+    "lockups",
+    model,
+    lockupInstructions(),
+    sectionText,
+    LockupOutputSchema,
+    context
+  );
+  return (obj.lockups as LockupRow[] | undefined) ?? [];
 }
 
 export function underwritersInstructions(): string {
