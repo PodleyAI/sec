@@ -2696,20 +2696,29 @@ truncated file into place. Two consequences worth knowing:
   empty" rather than "no entry", so the fetch was skipped and the caller parsed
   nothing.
 
-#### EDGAR's rate-limit block arrives as a 403, and renews itself
+#### EDGAR's rate-limit block renews itself
 
-Exceeding EDGAR's 10 req/s answers with **403 and an HTML interstitial**
-("Your request rate has exceeded the SEC's maximum allowable requests per
-second. Your access to SEC.gov will be limited for 10 minutes.") at least as
-often as with a 429. Every layer reads the status, and `403` maps to
-`HTTP_CLIENT_ERROR` — a permanent client error — so the block used to arrive as
-a terminal failure that was never retried and never signalled the cluster
-cooldown. SEC's guidance is that requests made **during** the time-out extend
-it, so the sweep kept firing at full rate for the whole window and renewed the
-block: the failure was self-sustaining rather than transient, which is why it
-recurred instead of passing.
+Exceeding EDGAR's 10 req/s serves an HTML interstitial ("Your request rate has
+exceeded the SEC's maximum allowable requests per second. Your access to SEC.gov
+will be limited for 10 minutes.") under **429 and, per SEC's own guidance, 403**.
+SEC states that requests made **during** the time-out extend it, so a client that
+keeps firing does not merely lose those requests: it renews the ban. That is what
+made this recur rather than pass, and the block is IP-wide — a captured 429 shows
+an ordinary browser on the same IP being refused mid-sweep.
 
-Three things close that loop, and they are separate fixes for separate halves:
+The **429 path alone was sufficient** to sustain it, and that is the half worth
+understanding first. A 429 was already retryable and did arm the cluster
+cooldown, so it looked handled; but the cooldown was 60s against a 600-second
+penalty, and each of the up-to-`SEC_FETCH_MAX_CONCURRENT` in-flight jobs then
+retried on its own ≤30s backoff — every one of those a fresh violation inside a
+live window. The cluster then resumed at full rate nine minutes early. The 403
+handling below is real hardening, not the load-bearing fix.
+
+Captured 429s carry **no `Retry-After`** and an empty reason phrase (HTTP/2
+carries none), so `DEFAULT_COOLDOWN_MS` is the only thing sizing the wait. It is
+**600s**, EDGAR's stated penalty, not a tuning knob at 60s.
+
+Three things close the loop, separate fixes for separate halves:
 
 - **`translateEdgarBlockResponse`** (`edgarBlockResponse.ts`, installed onto
   SafeFetch by `getSecJobQueue`) re-labels the interstitial as the `429` it
@@ -2735,11 +2744,6 @@ Three things close that loop, and they are separate fixes for separate halves:
   other fetch can start during the cooldown. The jitter spreads the wake-ups over
   `ceil(maxConcurrent / maxPerSec)` seconds, since they would otherwise all fire
   in one tick from the same 403 and re-trip the ceiling the wait just served.
-
-`DEFAULT_COOLDOWN_MS` is **600s**, EDGAR's stated penalty, not a tuning knob at
-60s — our observed blocks carry no `Retry-After`, so it is the only thing sizing
-the wait, and a minute resumed the whole cluster nine minutes early into a block
-still in force.
 
 `SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
 **only before the first byte reaches a stream receiver**. Past that point the

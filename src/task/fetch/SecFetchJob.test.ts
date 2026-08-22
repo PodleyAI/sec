@@ -397,11 +397,14 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
   });
 
   it("waits out the cluster cooldown on a bare 429, not the ordinary backoff", async () => {
-    // EDGAR's real 429s carry no Retry-After, so nothing but the applied
-    // cooldown sizes this wait. The cluster sentinel gates DISPATCH and this
-    // job is already dispatched — its retry loop never re-consults the limiter
-    // — so an ~30s backoff put every in-flight request back on the wire deep
-    // inside the ten-minute penalty window, extending it for everyone.
+    // Modelled on a captured EDGAR 429: no Retry-After, a text/html
+    // interstitial, and an empty reason phrase (HTTP/2 carries none). The
+    // missing header is the point — nothing but the applied cooldown sizes
+    // this wait. The cluster sentinel gates DISPATCH and this job is already
+    // dispatched, its retry loop never re-consulting the limiter, so an ~30s
+    // backoff put every in-flight request back on the wire deep inside the
+    // ten-minute penalty window and extended it for everyone — including, as
+    // observed, an ordinary browser sharing the IP.
     vi.useFakeTimers();
     const writes: Date[] = [];
     setSecFetchLimiter({
@@ -413,7 +416,13 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     let attempts = 0;
     const previous = registerSafeFetch((async () => {
       attempts += 1;
-      if (attempts === 1) return new Response("slow down", { status: 429 });
+      if (attempts === 1) {
+        return new Response(EDGAR_RATE_LIMIT_PAGE, {
+          status: 429,
+          statusText: "",
+          headers: { "Content-Type": "text/html" },
+        });
+      }
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
