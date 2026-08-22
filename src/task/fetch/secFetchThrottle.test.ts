@@ -32,11 +32,13 @@ describe("signalSecFetchThrottle", () => {
     const before = Date.now();
     const cooldown = await signalSecFetchThrottle();
 
-    expect(cooldown).toBe(60_000);
+    // EDGAR's stated penalty is ten minutes, and requests inside it extend the
+    // block — a shorter default resumed the cluster into a live block.
+    expect(cooldown).toBe(600_000);
     expect(writes).toHaveLength(1);
     const ahead = writes[0].getTime() - before;
-    expect(ahead).toBeGreaterThanOrEqual(59_000);
-    expect(ahead).toBeLessThanOrEqual(61_000);
+    expect(ahead).toBeGreaterThanOrEqual(599_000);
+    expect(ahead).toBeLessThanOrEqual(601_000);
   });
 
   it("honors a server Retry-After exactly", async () => {

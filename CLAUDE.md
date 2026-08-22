@@ -2696,6 +2696,51 @@ truncated file into place. Two consequences worth knowing:
   empty" rather than "no entry", so the fetch was skipped and the caller parsed
   nothing.
 
+#### EDGAR's rate-limit block arrives as a 403, and renews itself
+
+Exceeding EDGAR's 10 req/s answers with **403 and an HTML interstitial**
+("Your request rate has exceeded the SEC's maximum allowable requests per
+second. Your access to SEC.gov will be limited for 10 minutes.") at least as
+often as with a 429. Every layer reads the status, and `403` maps to
+`HTTP_CLIENT_ERROR` — a permanent client error — so the block used to arrive as
+a terminal failure that was never retried and never signalled the cluster
+cooldown. SEC's guidance is that requests made **during** the time-out extend
+it, so the sweep kept firing at full rate for the whole window and renewed the
+block: the failure was self-sustaining rather than transient, which is why it
+recurred instead of passing.
+
+Three things close that loop, and they are separate fixes for separate halves:
+
+- **`translateEdgarBlockResponse`** (`edgarBlockResponse.ts`, installed onto
+  SafeFetch by `getSecJobQueue`) re-labels the interstitial as the `429` it
+  describes, with `Retry-After: 600`. It belongs at the transport seam because
+  the status is the only thing the fetch layer carries forward — `buildHttpError`
+  reads a `{message}` out of a JSON body and discards everything else, so an
+  origin explaining itself in HTML loses its reason before any caller sees it.
+  Translating there means nothing downstream needs a second notion of "blocked".
+  It is narrow on purpose: sec.gov only, `403` only, and only when the body
+  matches. The **other** 403 EDGAR serves — the "Undeclared Automated Tool"
+  User-Agent rejection — shares a headline with it but not the rate sentence, and
+  must keep failing fast, since no cooldown fixes a misconfigured `SEC_USER_AGENT`.
+- **The cooldown is signalled before the retry decision, not after it.** A block
+  landing on a job's last attempt is the same evidence about the cluster as any
+  other, and under a sustained block that is most of them — every in-flight job
+  exhausts its attempts at once. Deciding the job's own fate first meant the
+  cluster learned nothing from precisely the jobs that saw the block most clearly.
+- **A blocked job sleeps the applied cooldown, plus anti-herd jitter.** The
+  cluster sentinel gates DISPATCH, and a job that already started never
+  re-consults the limiter, so the ordinary ≤30s backoff put all
+  `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on the wire deep inside the
+  penalty window. Sleeping it out costs nothing that was available anyway: no
+  other fetch can start during the cooldown. The jitter spreads the wake-ups over
+  `ceil(maxConcurrent / maxPerSec)` seconds, since they would otherwise all fire
+  in one tick from the same 403 and re-trip the ceiling the wait just served.
+
+`DEFAULT_COOLDOWN_MS` is **600s**, EDGAR's stated penalty, not a tuning knob at
+60s — our observed blocks carry no `Retry-After`, so it is the only thing sizing
+the wait, and a minute resumed the whole cluster nine minutes early into a block
+still in force.
+
 `SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
 **only before the first byte reaches a stream receiver**. Past that point the
 receiver's subscription outlives the attempt, so a re-issue starts again at byte

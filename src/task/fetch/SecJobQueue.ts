@@ -25,6 +25,7 @@ import {
 import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
 import { SEC_DB_TYPE } from "../../config/tokens";
 import { getPgPool } from "../../util/pg";
+import { installEdgarBlockTranslation } from "./edgarBlockResponse";
 import { SecFetchJob } from "./SecFetchJob";
 import { SecFetchRateLimiterOptions } from "./secFetchRateLimiterConfig";
 import { setSecFetchLimiter } from "./secFetchThrottle";
@@ -113,6 +114,11 @@ let handles: SecJobQueueHandles | undefined;
  */
 export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
   if (handles) return handles;
+
+  // Every EDGAR fetch converges here, so this is where the 403 rate-limit
+  // interstitial gets re-labelled as the 429 it describes — otherwise a block
+  // reads as a permanent client error and the cooldown below is never armed.
+  installEdgarBlockTranslation();
 
   const rateLimiterStorage: IRateLimiterStorage = isPostgres()
     ? createSecFetchRateLimiterStorage(getPgPool())

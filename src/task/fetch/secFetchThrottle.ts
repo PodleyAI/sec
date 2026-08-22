@@ -11,8 +11,17 @@ import type { RateLimiter } from "workglow";
 // cycle (SecJobQueue imports SecFetchJob to construct the server).
 let sharedLimiter: RateLimiter | undefined;
 
-/** Cluster cooldown applied on an EDGAR 429 when no Retry-After is supplied. */
-const DEFAULT_COOLDOWN_MS = 60_000;
+/**
+ * Cluster cooldown applied on an EDGAR block when no Retry-After is supplied.
+ *
+ * EDGAR states the penalty: exceeding the rate ceiling limits the IP "for 10
+ * minutes", and requests made inside that window EXTEND it. Our observed blocks
+ * carry no Retry-After, so this default is the only thing sizing the wait — and
+ * at a minute it resumed the whole cluster nine minutes early, into a block
+ * still in force, which renewed it. Waiting the stated period costs nothing that
+ * was available anyway: every request sent during it would have been refused.
+ */
+const DEFAULT_COOLDOWN_MS = 600_000;
 const MAX_COOLDOWN_MS = 600_000;
 
 /** Registered by {@link getSecJobQueue} once the shared limiter is built. */
@@ -21,7 +30,8 @@ export function setSecFetchLimiter(limiter: RateLimiter): void {
 }
 
 /**
- * On an EDGAR 429, pause the ENTIRE fetch cluster — every shard process — for a
+ * On an EDGAR rate-limit block (a 429, or the 403 interstitial — see
+ * `isEdgarRateLimitBlock`), pause the ENTIRE fetch cluster — every shard process — for a
  * cooldown by pushing the rate limiter's cluster-visible next-available-time
  * into the future (via the shared `rate_limit_next_available` table). Without
  * this, each of the up-to-(N shards × concurrency) in-flight jobs retries on
@@ -34,7 +44,7 @@ export function setSecFetchLimiter(limiter: RateLimiter): void {
 export async function signalSecFetchThrottle(retryAfterMs?: number): Promise<number> {
   // Honor a server-provided Retry-After exactly (0 is valid — "retry now" — and
   // must NOT be floored); fall back to the default only when EDGAR gives no
-  // guidance (our observed 429s carry no Retry-After). Cap at MAX so a bogus
+  // guidance (our observed blocks carry no Retry-After). Cap at MAX so a bogus
   // header can't wedge the whole cluster.
   const cooldown = Math.min(
     MAX_COOLDOWN_MS,
