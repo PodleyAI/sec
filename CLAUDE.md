@@ -1034,6 +1034,58 @@ shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
 S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
 `EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
 
+#### Lock-ups
+
+A prospectus's lock-up disclosure yields one `spac_lockup_terms` row per
+restricted class, keyed `(extractor_id, accession_number, lockup_index)` —
+several per filing, because a filing states several: the underwriters' lock-up
+on the whole float, the sponsor's on its founder shares, often a longer one on
+the private-placement warrants. They have different durations, different anchors
+and different price tests, and folding them into one row would state a release
+date that applies to none of them.
+
+The row is what the filing SAYS, never a date. A duration (`duration_days`) is
+meaningless without its `anchor_event` — a founder lock-up runs from the CLOSING
+of the combination, an underwriter lock-up from the pricing of the offering —
+and the price test is a condition on a series this extractor does not have:
+`price_trigger` at or above on `trigger_days_at_or_above` sessions within any
+`trigger_window_days`, no earlier than `trigger_start_delay_days` after the
+anchor. Evaluating that against real prices is a separate step downstream, which
+is what keeps this extractor from ever emitting a computed-looking release date
+it did not compute.
+
+Two things the prompt has to say, and does:
+
+- **A duration and a price trigger are ALTERNATIVES on one lock-up, not two
+  lock-ups.** "One year, or earlier if the shares close at or above $12.00 for
+  20 trading days within any 30-trading-day period" is one row carrying both. A
+  model that splits it invents a restriction the filing does not impose.
+- **Do not assume a customary term the filing omits.** The customary founder
+  lock-up is so standard that a model will supply it for a prospectus that
+  states only an underwriter lock-up, and the `lockup-underwriter-only-no-price-test`
+  fixture exists to measure exactly that.
+
+`holder_class` is constrained by the schema rather than by the prompt, and
+`persist` filters against the same vocabulary: a lock-up filed under a class
+nothing downstream knows is a restriction nobody will ever evaluate.
+
+The section text is the Item 12 `Shares Eligible for Future Sale` block, falling
+back to `Underwriting`. Both are needed, on measurement: of the 42 committed S-1
+fixtures, 14 carry the Item 12 heading and 32 disclose a lock-up somewhere — so
+the dedicated heading is worth reading first and cannot be the only way in.
+Unlike `sponsor-promote` the section is never skipped for a non-SPAC filing,
+since every registrant locks somebody up.
+
+Adding the section is a **minor bump** on the S-1 extractor — previously
+processed filings have no lock-up rows until they are re-run:
+
+```bash
+sec version start-dev extractor S-1 --minor
+sec version promote extractor S-1
+sec extractor backfill S-1 --force
+sec eval extract --extractor lockups     # rank the prompt
+```
+
 #### Risk factors (Item 105 list)
 
 The prospectus risk-factor section yields one `risk_factor` row per disclosed
