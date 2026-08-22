@@ -275,6 +275,29 @@ describe("web handler", () => {
     expect(registry.list()[0]!.label).toContain("rebuild every filing");
   });
 
+  it("says a named filing is not on the timeline rather than 'nothing outstanding'", async () => {
+    await addFiling({
+      cik: 561,
+      accession: "0000000000-25-000020",
+      form: "S-1",
+      date: "2025-01-01",
+    });
+    await handleWebRequest(
+      post("/api/process", { cik: "561", accession: "0000000000-25-999999" }),
+      registry
+    );
+    const run = registry.list()[0]!;
+    for (let i = 0; i < 200; i++) {
+      if (registry.get(run.id)!.status === "succeeded") break;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    const messages = registry.get(run.id)!.events.map((e) => e.message);
+    // A sweep with nothing to do is the healthy steady state; a named filing
+    // this issuer does not have is a request that asked for the wrong thing.
+    expect(messages.some((m) => m.includes("are on this issuer's timeline"))).toBe(true);
+    expect(messages.some((m) => m.includes("nothing outstanding"))).toBe(false);
+  });
+
   it("rejects a non-numeric CIK rather than querying with it", async () => {
     const response = await handleWebRequest(post("/api/process", { cik: "abc" }), registry);
     expect(response.kind === "response" && response.status).toBe(400);

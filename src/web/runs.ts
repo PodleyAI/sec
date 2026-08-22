@@ -369,7 +369,16 @@ export function enqueueTimelineRun(
           ? plan.toProcess
           : plan.timeline.filter((f) => only.has(f.accession_number));
       if (selected.length === 0) {
-        ctx.log("info", "nothing outstanding — every filing already ran at the active version");
+        // The two ways this happens want opposite responses, so they must not
+        // share a message: a sweep with nothing to do is the healthy steady
+        // state, while a named filing that is not on the timeline means the
+        // request asked for something this issuer does not have.
+        ctx.log(
+          "info",
+          only === undefined
+            ? "nothing outstanding — every filing already ran at the active version"
+            : `none of the requested filing(s) are on this issuer's timeline: ${[...only].join(", ")}`
+        );
         return;
       }
       ctx.log(
