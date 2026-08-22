@@ -9,7 +9,7 @@ import "workglow";
 import type { FetchUrlTaskInput, RateLimiter, SafeFetchFn } from "workglow";
 import { registerSafeFetch } from "workglow";
 
-import { SecUserAgent } from "../../config/Constants";
+import { SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
 import { SecFetchJob } from "./SecFetchJob";
 import {
   installEdgarBlockTranslation,
@@ -43,6 +43,10 @@ function wholeBody(): Response {
     headers: { "content-type": "application/octet-stream", "content-length": "3" },
   });
 }
+
+// Retries are spread uniformly over two drain windows:
+// ceil(SEC_FETCH_MAX_CONCURRENT / SEC_FETCH_MAX_PER_SEC) * 2s.
+const DRAIN_WINDOW_MS = 4_000;
 
 describe("SecFetchJob", () => {
   it("merges SEC User-Agent onto job input", () => {
@@ -230,7 +234,10 @@ describe("SecFetchJob", () => {
         // must still not park a sweep for a day.
         await vi.advanceTimersByTimeAsync(30_000);
         expect(attempts).toBe(1);
+        // The cap bounds the WAIT; the anti-herd spread is added on top of it,
+        // so a re-issue lands within one drain window after the ceiling.
         await vi.advanceTimersByTimeAsync(570_000);
+        await vi.advanceTimersByTimeAsync(DRAIN_WINDOW_MS);
         expect(attempts).toBe(2);
         const out = await promise;
         expect((out as { json?: { ok?: boolean } }).json?.ok).toBe(true);
@@ -453,6 +460,111 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     } finally {
       ac.abort();
       await promise?.catch(() => {});
+      registerSafeFetch(previous);
+    }
+  });
+
+  it("still spreads when the cooldown already sits at the retry ceiling", async () => {
+    // The default block case exactly: a 600s cooldown against a 600s cap.
+    // Capping the SUM of wait and spread silently ate the spread here — the
+    // one place it matters most, since every blocked job applies the same
+    // cooldown from the same response and would wake in the same tick.
+    vi.useFakeTimers();
+    const realRandom = Math.random;
+    Math.random = () => 0.5; // a spread of exactly half the window
+    setSecFetchLimiter({ setNextAvailableTime: async () => {} } as unknown as RateLimiter);
+
+    let attempts = 0;
+    const previous = registerSafeFetch((async () => {
+      attempts += 1;
+      if (attempts === 1) return new Response("slow down", { status: 429 });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as unknown as SafeFetchFn);
+
+    const ac = new AbortController();
+    let promise: Promise<unknown> | undefined;
+    try {
+      const job = new SecFetchJob({
+        input: {
+          url: "https://www.sec.gov/Archives/edgar/x.json",
+          response_type: "json",
+        } satisfies FetchUrlTaskInput,
+      });
+      promise = job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} });
+
+      // At the cap itself the spread must not yet have elapsed.
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(attempts).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(DRAIN_WINDOW_MS / 2 + 1);
+      expect(attempts).toBe(2);
+    } finally {
+      Math.random = realRandom;
+      ac.abort();
+      await promise?.catch(() => {});
+      registerSafeFetch(previous);
+    }
+  });
+
+  it("spreads a shared 5xx failure's retries wider than one tick", async () => {
+    // The concurrency limiter bounds SIMULTANEITY, not rate, and a retry
+    // re-issues from inside the job where no limiter governs it. Every
+    // in-flight job fails on the same upstream event and computes the same
+    // backoff, so the recovery arrives as a burst: `backoffDelay(0)` alone
+    // spreads the first retry across only 500ms, which for a full set of
+    // in-flight fetches is far over EDGAR's 10/s ceiling.
+    vi.useFakeTimers();
+    const FLEET = 16;
+    // A uniform sweep in place of Math.random, so this asserts the spreading
+    // FORMULA rather than one draw's luck. Each job consumes exactly one
+    // random (the backoff itself is deterministic), so the sweep maps 1:1.
+    let draw = 0;
+    const realRandom = Math.random;
+    Math.random = () => (draw++ % FLEET) / FLEET;
+    // Per-URL timestamps, so the measurement is each job's FIRST retry rather
+    // than whatever attempts happen to fall inside the window — later attempts
+    // back off further and would flatter the result.
+    const attemptsByUrl = new Map<string, number[]>();
+    const previous = registerSafeFetch((async (url: string) => {
+      const seen = attemptsByUrl.get(url) ?? [];
+      seen.push(Date.now());
+      attemptsByUrl.set(url, seen);
+      return new Response("upstream blip", { status: 503 });
+    }) as unknown as SafeFetchFn);
+
+    const ac = new AbortController();
+    const runs: Array<Promise<unknown>> = [];
+    try {
+      for (let i = 0; i < FLEET; i++) {
+        const job = new SecFetchJob({
+          input: {
+            url: `https://www.sec.gov/Archives/edgar/retry-${i}.json`,
+            response_type: "json",
+          } satisfies FetchUrlTaskInput,
+        });
+        runs.push(job.execute(job.input, { signal: ac.signal, updateProgress: async () => {} }));
+      }
+      await vi.advanceTimersByTimeAsync(1);
+      expect(attemptsByUrl.size).toBe(FLEET);
+
+      // Past the first backoff plus one full drain window.
+      await vi.advanceTimersByTimeAsync(1_000 + DRAIN_WINDOW_MS + 1);
+      const firstRetries = [...attemptsByUrl.values()].map((ts) => ts[1]);
+      expect(firstRetries.every((t) => typeof t === "number")).toBe(true);
+
+      // No 1s slice of those re-issues may exceed the configured rate. Without
+      // the spread all 16 land inside 500ms — ~32/s.
+      const worstPerSecond = Math.max(
+        ...firstRetries.map((t) => firstRetries.filter((u) => u >= t && u < t + 1_000).length)
+      );
+      expect(worstPerSecond).toBeLessThanOrEqual(SecFetchMaxPerSec);
+    } finally {
+      Math.random = realRandom;
+      ac.abort();
+      await Promise.allSettled(runs);
       registerSafeFetch(previous);
     }
   });

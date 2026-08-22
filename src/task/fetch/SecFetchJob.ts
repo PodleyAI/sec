@@ -161,25 +161,46 @@ function getRetryAfterMs(error: MaybeHttpError): number | undefined {
 }
 
 /**
- * Spread over the window the cluster needs to drain one full set of in-flight
- * fetches, added to a block cooldown.
+ * Spread added to EVERY retry, over the window the cluster needs to drain one
+ * full set of in-flight fetches.
  *
- * Every blocked job applies the same cooldown from the same 403 and would
- * otherwise wake within milliseconds of the others — up to
- * {@link SecFetchMaxConcurrent} requests hitting EDGAR in one tick, past the
- * 10/s ceiling, re-tripping the block the wait just served. Their retries
- * bypass the limiter (already dispatched), so nothing else spaces them.
+ * A retry re-issues from inside the job, downstream of all three limiters, so
+ * none of them governs it — and the concurrency limiter, which does still hold
+ * this job's slot, bounds SIMULTANEITY rather than rate. Up to
+ * {@link SecFetchMaxConcurrent} requests are fine spread across the drain
+ * window and a violation arriving in one tick, which is exactly what a shared
+ * failure produces: every in-flight job fails on the same upstream event and
+ * computes the same delay. `backoffDelay`'s own 0.5–1.0x jitter only spreads
+ * the first retry across 500 ms — 16 requests in half a second is ~32/s, over
+ * EDGAR's ceiling, so the recovery from a transient 5xx tripped the very block
+ * it was recovering from.
  */
-function blockJitter(): number {
-  const drainMs = Math.ceil(SecFetchMaxConcurrent / SecFetchMaxPerSec) * 1_000;
-  return Math.floor(Math.random() * drainMs);
+function retrySpread(): number {
+  return Math.floor(Math.random() * RETRY_SPREAD_MS);
 }
 
+/**
+ * How wide to spread retries: two full drain windows.
+ *
+ * One window is the arithmetic minimum — `SecFetchMaxConcurrent` re-issues
+ * spread uniformly across `maxConcurrent / maxPerSec` seconds arrive at exactly
+ * `maxPerSec`. Sitting exactly on the ceiling is not a margin, since uniform
+ * draws clump; doubling it halves the expected rate and leaves room for the
+ * clumping without materially delaying recovery.
+ */
+const RETRY_SPREAD_MS = Math.ceil(SecFetchMaxConcurrent / SecFetchMaxPerSec) * 2_000;
+
+/**
+ * Deterministic exponential backoff. De-synchronizing concurrent retries is
+ * {@link retrySpread}'s job, and doing it in both places is worse than doing it
+ * in one: summing two independent jitters CONCENTRATES the result toward the
+ * middle instead of spreading it, so a full set of in-flight fetches still
+ * cleared EDGAR's ceiling in the densest second. One uniform spread over a
+ * known window is the thing that can be reasoned about.
+ */
 function backoffDelay(attempt: number): number {
   const exponent = Math.min(attempt, 10);
-  const base = Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
-  // Jitter to avoid lockstep retries when many jobs fail at once.
-  return Math.floor(base * (0.5 + Math.random() * 0.5));
+  return Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
 }
 
 /**
@@ -347,10 +368,13 @@ export class SecFetchJob<
         // the wire deep inside EDGAR's ten-minute penalty window, extending it
         // for the whole cluster. Sleeping the full cooldown costs nothing that
         // was available anyway: no other fetch can start during it.
-        const delay = Math.min(
-          cooldown !== undefined ? cooldown + blockJitter() : (retryAfter ?? backoffDelay(attempt)),
-          MAX_RETRY_AFTER_MS
-        );
+        //
+        // Cap the wait FIRST and spread AFTER: capping the sum silently ate the
+        // spread whenever the base was already at the ceiling — which is the
+        // default block case exactly, a 600s cooldown against a 600s cap — so
+        // the herd it exists to disperse woke in one tick anyway.
+        const base = Math.min(cooldown ?? retryAfter ?? backoffDelay(attempt), MAX_RETRY_AFTER_MS);
+        const delay = base + retrySpread();
         await sleepWithAbort(delay, context.signal);
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);

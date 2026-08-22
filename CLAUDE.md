@@ -2736,14 +2736,35 @@ Three things close the loop, separate fixes for separate halves:
   other, and under a sustained block that is most of them — every in-flight job
   exhausts its attempts at once. Deciding the job's own fate first meant the
   cluster learned nothing from precisely the jobs that saw the block most clearly.
-- **A blocked job sleeps the applied cooldown, plus anti-herd jitter.** The
-  cluster sentinel gates DISPATCH, and a job that already started never
-  re-consults the limiter, so the ordinary ≤30s backoff put all
-  `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on the wire deep inside the
-  penalty window. Sleeping it out costs nothing that was available anyway: no
-  other fetch can start during the cooldown. The jitter spreads the wake-ups over
-  `ceil(maxConcurrent / maxPerSec)` seconds, since they would otherwise all fire
-  in one tick from the same 403 and re-trip the ceiling the wait just served.
+- **A blocked job sleeps the applied cooldown.** The cluster sentinel gates
+  DISPATCH, and a job that already started never re-consults the limiter, so the
+  ordinary ≤30s backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests
+  back on the wire deep inside the penalty window. Sleeping it out costs nothing
+  that was available anyway: no other fetch can start during the cooldown.
+
+**A concurrency bound is not a rate bound**, and that is the other half.
+`ConcurrencyLimiter(SecFetchMaxConcurrent)` sits first in the composite and holds
+its token until the job reaches a terminal state, so simultaneity really is
+capped — retries included. But 16 requests are fine spread over two seconds and a
+violation arriving in one tick, and a retry re-issues from inside the job,
+downstream of every limiter. A shared upstream failure is exactly the case that
+produces the tick: every in-flight job fails on the same event and computes the
+same delay. So `retrySpread()` adds a uniform spread over
+`ceil(maxConcurrent / maxPerSec) * 2` seconds to **every** retry, not just a
+blocked one — a transient 5xx burst otherwise re-issued 16 requests inside 500 ms
+(~32/s) and tripped the very block it was recovering from.
+
+Two details that pass a casual reading and were both wrong at first:
+
+- **`backoffDelay` is deterministic.** Jittering there _and_ in `retrySpread`
+  sums two independent uniforms, which concentrates the result toward the middle
+  instead of spreading it — measurably still over the ceiling in the densest
+  second. One uniform spread over a known window is the thing that can be
+  reasoned about.
+- **The cap is applied to the wait, then the spread is added** — never to the
+  sum. Capping the sum silently eats the spread whenever the base is already at
+  the ceiling, which is the default block case exactly (a 600s cooldown against a
+  600s cap), so the herd it exists to disperse woke in one tick anyway.
 
 `SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
 **only before the first byte reaches a stream receiver**. Past that point the
