@@ -16,24 +16,18 @@ import { isDryRun } from "../../cli/isDryRun";
 import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
-import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
-import { SpacRepo } from "../../storage/spac/SpacRepo";
-import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
+import { type Filing } from "../../storage/filing/FilingSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import {
   formToExtractorId,
   isNonfatalTimelineExtractor,
-  isSpacRowGatedExtractor,
 } from "../../storage/versioning/extractorIds";
-import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
-import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
 import { resolvePrimaryDocName } from "../../util/accessionDocPath";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
-import { loadGatedNoOpAccessions } from "./gatedNoOpAccessions";
 import { parseSpacProcessForce, type SpacProcessForce } from "./parseSpacProcessForce";
+import { planSpacTimeline, planSpacTimelineRepair } from "./planSpacTimeline";
 import { resetSpacProcessState } from "./resetSpacProcessState";
-import { shouldReplaySpacFiling } from "./shouldReplaySpacFiling";
 
 const InputSchema = () =>
   Type.Object({
@@ -199,69 +193,15 @@ export class ProcessSpacTimelineTask extends Task<
     filedOnOrAfter: string | undefined,
     context: IExecuteContext
   ): Promise<ProcessSpacTimelineTaskOutput> {
-    const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
-    const all = (await filingRepo.query({ cik })) ?? [];
-
-    // Only forms an extractor handles. Anything else has no storage handler and
-    // would dead-letter as a wiring error rather than advance the timeline.
-    const timeline = all
-      .filter((f: Filing) => f.form !== null && formToExtractorId(f.form) !== undefined)
-      // Sort by filing_date, then accession, so same-day filings still have a
-      // deterministic order — two 8-Ks filed the same day must not race.
-      .sort((a: Filing, b: Filing) => {
-        // filing_date is nullable in the schema; an undated filing sorts LAST
-        // rather than first, so it can never be replayed ahead of the S-1 that
-        // creates the SPAC row and have its events silently dropped.
-        const ad = a.filing_date ?? "9999-12-31";
-        const bd = b.filing_date ?? "9999-12-31";
-        return ad === bd
-          ? a.accession_number.localeCompare(b.accession_number)
-          : ad.localeCompare(bd);
-      });
+    // The selection itself lives in `planSpacTimeline`, shared with the web
+    // inspector so the checklist an operator sees and the work this replays are
+    // computed once rather than twice.
+    const plan = await planSpacTimeline({ cik, force, filedOnOrAfter });
+    const { timeline, toProcess, skipped, activeVersions, firstDate, lastDate } = plan;
 
     if (timeline.length === 0) {
       return emptyOutcome(cik, "");
     }
-
-    const firstDate = timeline[0]!.filing_date ?? "";
-    const lastDate = timeline[timeline.length - 1]!.filing_date ?? "";
-
-    const activeVersions = await loadActiveExtractorVersions(timeline);
-    const successfulKeys = await loadSuccessfulKeys(activeVersions);
-    const gatedNoOpAccessions = await loadGatedNoOpAccessions(cik, timeline);
-    // Gated extractors (8-K, merger-proxy, 25-15) no-op — and warn — when the
-    // `spac` row is missing. `sync spacs` worklist *is* high/medium candidates,
-    // so that warning fires on every milestone 8-K of a false-positive
-    // operating company that will never mint a row. A real SPAC's S-1 is on
-    // this timeline; skip the gated filings until it runs, then the repair
-    // pass below picks them up. `loadGatedNoOpAccessions` is empty while the
-    // row is absent, so it cannot be the skip.
-    const hasSpacRow = (await new SpacRepo().getSpac(cik)) !== undefined;
-    const toProcess = timeline.filter((f) => {
-      if (f.form === null) return false;
-      if (!filingMeetsDateFloor(f.filing_date, filedOnOrAfter)) return false;
-      const extractorId = formToExtractorId(f.form);
-      // `--force 8-K` / `--force redemption` is an explicit request to run the
-      // gated handler anyway; `--force all` still waits so the S-1 can mint.
-      if (
-        !hasSpacRow &&
-        force.kind !== "extractors" &&
-        extractorId !== undefined &&
-        isSpacRowGatedExtractor(extractorId)
-      ) {
-        return false;
-      }
-      return shouldReplaySpacFiling({
-        form: f.form,
-        items: f.items,
-        cik,
-        accession_number: f.accession_number,
-        force,
-        successfulKeys,
-        gatedNoOpAccessions,
-      });
-    });
-    const skipped = timeline.length - toProcess.length;
 
     // `--dry-run` already no-ops writes via ReadOnlyTabularStorage. Replaying
     // still makes live model.info / extraction calls, then reads outcome
@@ -319,21 +259,15 @@ export class ProcessSpacTimelineTask extends Task<
     //
     // `--force all` replayed every timeline filing, so the remainder is empty
     // by construction; the size guard states that rather than special-casing it.
-    if (processedAccessions.size < timeline.length) {
-      const gatedAfterReplay = await loadGatedNoOpAccessions(cik, timeline);
-      // Timeline order is preserved by the filter, and the pass stays serial:
-      // it replays an early 8-K after a later S-1, which is exactly the
-      // ordering the two-invocation workaround already produced.
-      const repair = timeline.filter(
-        (f) =>
-          !processedAccessions.has(f.accession_number) &&
-          gatedAfterReplay.has(f.accession_number) &&
-          filingMeetsDateFloor(f.filing_date, filedOnOrAfter)
-      );
-      if (repair.length > 0) {
-        await this.replayFilings(repair, cik, context);
-        for (const f of repair) processedAccessions.add(f.accession_number);
-      }
+    const repair = await planSpacTimelineRepair({
+      cik,
+      timeline,
+      processedAccessions,
+      filedOnOrAfter,
+    });
+    if (repair.length > 0) {
+      await this.replayFilings(repair, cik, context);
+      for (const f of repair) processedAccessions.add(f.accession_number);
     }
 
     // Counts come from the persisted `extractor_runs` rows rather than the
@@ -411,59 +345,9 @@ export class ProcessSpacTimelineTask extends Task<
   }
 }
 
-/**
- * The active version of every extractor the issuer's timeline routes to. One
- * map, read once: it decides both which runs already count as successful and
- * which rows a `--force` reset may clear.
- */
-async function loadActiveExtractorVersions(
-  timeline: readonly Filing[]
-): Promise<ReadonlyMap<string, string>> {
-  const versionRegistry = new VersionRegistry(
-    globalServiceRegistry.get(COMPONENT_VERSION_REPOSITORY_TOKEN)
-  );
-  const extractorIds = new Set<string>();
-  for (const f of timeline) {
-    if (f.form === null) continue;
-    const id = formToExtractorId(f.form);
-    if (id !== undefined) extractorIds.add(id);
-  }
-  const versions = new Map<string, string>();
-  for (const id of extractorIds) {
-    const slot = await getActiveSlot(versionRegistry, "extractor", id);
-    if (slot === undefined) continue;
-    versions.set(id, slot.semver);
-  }
-  return versions;
-}
-
-async function loadSuccessfulKeys(
-  activeVersionByExtractorId: ReadonlyMap<string, string>
-): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
-  const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-  const successfulKeys = new Map<string, ReadonlySet<string>>();
-  for (const [id, semver] of activeVersionByExtractorId) {
-    successfulKeys.set(id, await runRepo.successfulRunKeys(id, semver));
-  }
-  return successfulKeys;
-}
-
 function emptyToUndefined(value: string | undefined): string | undefined {
   if (value === undefined || value === "") return undefined;
   return value;
-}
-
-/**
- * Inclusive `filing_date` floor. An undated filing sorts last on the timeline
- * and is kept: dropping it would hide work that has no date to compare.
- */
-function filingMeetsDateFloor(
-  filingDate: string | null | undefined,
-  filedOnOrAfter: string | undefined
-): boolean {
-  if (filedOnOrAfter === undefined) return true;
-  if (filingDate === null || filingDate === undefined || filingDate === "") return true;
-  return filingDate >= filedOnOrAfter;
 }
 
 function emptyOutcome(cik: number, error: string): ProcessSpacTimelineTaskOutput {

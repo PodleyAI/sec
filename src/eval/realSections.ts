@@ -39,8 +39,13 @@ function s1MockDirCandidates(dir: string | undefined): string[] {
  * Maps an eval extractor name to the S-1 segmenter section it reads, so the
  * oracle eval can pull real section prose for each. Only sections a document
  * actually contains (non-empty after segmentation) are yielded.
+ *
+ * Exported because the web inspector's model comparison asks the same question
+ * of a live filing that the oracle asks of a fixture — "which segmented section
+ * does this extractor read?" — and a second copy of the mapping would let the
+ * two disagree about what a model was even shown.
  */
-const EXTRACTOR_TO_SECTION: Record<string, string> = {
+export const EXTRACTOR_TO_SECTION: Record<string, string> = {
   management: S1_SECTIONS.MANAGEMENT,
   "beneficial-ownership": S1_SECTIONS.BENEFICIAL_OWNERSHIP,
   "related-party": S1_SECTIONS.RELATED_PARTY,

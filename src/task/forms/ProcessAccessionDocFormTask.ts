@@ -100,8 +100,32 @@ export const REGISTRATION_PROSPECTUS_FORMS = new Set([
 export const REGA_FULL_SUBMISSION_FORMS = new Set(["1-K", "1-K/A"]);
 
 /** Full-submission text filename, e.g. 0001193125-21-066104 -> 0001193125-21-066104.txt */
-function fullSubmissionFileName(accessionNumber: string): string {
+export function fullSubmissionFileName(accessionNumber: string): string {
   return `${accessionNumber}.txt`;
+}
+
+/**
+ * True when a form's body is fetched (and cached) as the full submission `.txt`
+ * rather than as its primary document. Exported so a reader of the cache — the
+ * web inspector's document viewer — opens the same file the pipeline parsed,
+ * instead of guessing and reporting a healthy filing as an empty one.
+ *
+ * Does NOT cover the known-SPAC narrative 8-K escalation: that one additionally
+ * depends on a `spac` row existing, which is a database read rather than a
+ * property of the form. Callers compose it with {@link isSpacNarrativeTrigger8K}.
+ */
+export function isFullSubmissionForm(form: string): boolean {
+  return REGISTRATION_PROSPECTUS_FORMS.has(form) || REGA_FULL_SUBMISSION_FORMS.has(form);
+}
+
+/**
+ * True when an 8-K carries a redemption- or LOI-trigger item, i.e. the form
+ * half of the known-SPAC narrative escalation. The caller supplies the other
+ * half (the issuer has a `spac` row).
+ */
+export function isSpacNarrativeTrigger8K(form: string, items: string | null | undefined): boolean {
+  if (form !== "8-K" && form !== "8-K/A") return false;
+  return hasRedemptionTriggerItem(items) || hasLoiTriggerItem(items);
 }
 
 const ProcessAccessionDocFormTaskInputSchema = () =>
@@ -335,7 +359,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // Registration prospectus forms (S-1 / DRS family) are fetched as the full
     // submission .txt so Form.parse() can read the <SEC-HEADER> and select the
     // primary <DOCUMENT>. Other forms keep their primary-doc fetch.
-    if (REGISTRATION_PROSPECTUS_FORMS.has(form) || REGA_FULL_SUBMISSION_FORMS.has(form)) {
+    if (isFullSubmissionForm(form)) {
       fileName = fullSubmissionFileName(accessionNumber);
     }
 
@@ -351,8 +375,7 @@ export class ProcessAccessionDocFormTask extends Task<
     // is authoritative.
     let spacNarrativeFullSubmission = false;
     if (
-      (form === "8-K" || form === "8-K/A") &&
-      (hasRedemptionTriggerItem(items) || hasLoiTriggerItem(items)) &&
+      isSpacNarrativeTrigger8K(form, items) &&
       cik !== undefined &&
       (await new SpacRepo().getSpac(cik)) !== undefined
     ) {
