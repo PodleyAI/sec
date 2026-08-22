@@ -56,14 +56,15 @@ function documentPanel(doc: FilingDocument): Html {
     ${
       doc.sections.length === 0
         ? html`<p class="muted">The segmenter resolved no target sections in this document.</p>`
-        : doc.sections.map(
-            (s) =>
-              html`<details class="panel">
-                <summary>
-                  ${s.name} <span class="muted small">${s.chars.toLocaleString()} chars</span>
-                </summary>
-                <pre>${s.text}</pre>
-              </details>`
+        : doc.sections.map((s) =>
+            lazyPanel({
+              cik: doc.cik,
+              accessionNumber: doc.accessionNumber,
+              part: "section",
+              name: s.name,
+              summary: html`${s.name}
+                <span class="muted small">${s.chars.toLocaleString()} chars</span>`,
+            })
           )
     }
 
@@ -72,19 +73,51 @@ function documentPanel(doc: FilingDocument): Html {
       The converter's output for the whole document — the intermediate between the filing's HTML and
       the section prose above.
     </p>
-    <details class="panel" open>
-      <summary>Markdown (${doc.markdown.length.toLocaleString()} chars)</summary>
-      <pre>
-${doc.markdown.slice(0, RAW_PREVIEW_CHARS)}${doc.markdown.length > RAW_PREVIEW_CHARS ? "\n… truncated for display" : ""}</pre>
-    </details>
+    ${lazyPanel({
+      cik: doc.cik,
+      accessionNumber: doc.accessionNumber,
+      part: "markdown",
+      summary: html`Markdown
+        <span class="muted small">${doc.markdown.length.toLocaleString()} chars</span>`,
+    })}
 
     <h3>Source</h3>
-    <details class="panel">
-      <summary>Raw document as cached (${doc.raw.length.toLocaleString()} chars)</summary>
-      <pre>
-${doc.raw.slice(0, RAW_PREVIEW_CHARS)}${doc.raw.length > RAW_PREVIEW_CHARS ? "\n… truncated for display" : ""}</pre>
-    </details>
+    ${lazyPanel({
+      cik: doc.cik,
+      accessionNumber: doc.accessionNumber,
+      part: "raw",
+      summary: html`Raw document as cached
+        <span class="muted small">${doc.raw.length.toLocaleString()} chars</span>`,
+    })}
   `;
+}
+
+/**
+ * A `<details>` whose text is fetched the first time it is opened.
+ *
+ * Shipping every panel inline made the document page 745 KB of HTML for one
+ * S-1 — the whole raw source, the whole markdown and every section — almost all
+ * of it behind collapsed panels nobody had opened. The COUNTS stay in the page,
+ * because "this section is 0 chars" or "this section is missing" is the answer
+ * a reader is usually after and it must not cost a click to see.
+ */
+function lazyPanel(args: {
+  readonly cik: number;
+  readonly accessionNumber: string;
+  readonly part: "markdown" | "raw" | "section";
+  readonly name?: string | undefined;
+  readonly summary: Html;
+}): Html {
+  const params = new URLSearchParams({
+    cik: String(args.cik),
+    accession: args.accessionNumber,
+    part: args.part,
+  });
+  if (args.name !== undefined) params.set("name", args.name);
+  return html`<details class="panel" data-lazy="${raw(esc(params.toString()))}">
+    <summary>${args.summary}</summary>
+    <pre data-lazy-body>Loading…</pre>
+  </details>`;
 }
 
 function extractionsPanel(ex: AccessionExtractions): Html {
@@ -351,5 +384,27 @@ export function renderFilingPage(args: {
     }
   `;
 
-  return page({ title: `${args.doc.form} ${args.accessionNumber}`, body });
+  // Panels fetch their own text the first time they are opened. `toggle` fires
+  // per element rather than bubbling, so the listener is attached per panel; a
+  // panel that has already loaded (or is loading) is left alone.
+  const script = `
+for (const panel of document.querySelectorAll("details[data-lazy]")) {
+  panel.addEventListener("toggle", async () => {
+    if (!panel.open || panel.dataset.lazyState) return;
+    panel.dataset.lazyState = "loading";
+    const body = panel.querySelector("[data-lazy-body]");
+    try {
+      const res = await fetch("/api/document?" + panel.dataset.lazy);
+      const text = await res.text();
+      body.textContent = res.ok ? text : "could not load: " + text;
+      if (!res.ok) panel.dataset.lazyState = "";
+    } catch (e) {
+      body.textContent = "could not load: " + e;
+      panel.dataset.lazyState = "";
+    }
+  });
+}
+`;
+
+  return page({ title: `${args.doc.form} ${args.accessionNumber}`, body, script });
 }

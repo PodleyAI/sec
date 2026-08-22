@@ -5,7 +5,11 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { globalServiceRegistry } from "workglow";
+import { SEC_RAW_DATA_FOLDER } from "../config/tokens";
 import { resetDependencyInjectionsForTesting } from "../config/TestingDI";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { FILING_REPOSITORY_TOKEN } from "../storage/filing/FilingSchema";
@@ -370,6 +374,53 @@ describe("web handler", () => {
     expect(bodyOf(response)).not.toContain("no models selected");
   });
 
+  it("serves a document part as plain text and validates its arguments", async () => {
+    const bad = await handleWebRequest(
+      get("/api/document", { cik: "1", accession: "0000000000-25-000001", part: "nope" }),
+      registry
+    );
+    expect(bad.kind === "response" && bad.status).toBe(400);
+
+    const badAccession = await handleWebRequest(
+      get("/api/document", { cik: "1", accession: "../../etc", part: "raw" }),
+      registry
+    );
+    expect(badAccession.kind === "response" && badAccession.status).toBe(400);
+
+    // No filing ingested, so the part cannot be produced — reported as a 404
+    // with the reason, not as an empty 200 that reads like an empty document.
+    const missing = await handleWebRequest(
+      get("/api/document", { cik: "1", accession: "0000000000-25-000001", part: "raw" }),
+      registry
+    );
+    expect(missing.kind === "response" && missing.status).toBe(404);
+    expect(missing.kind === "response" && missing.headers["content-type"]).toContain("text/plain");
+  });
+
+  it("keeps the document text out of the page until a panel is opened", async () => {
+    const accession = "0000000000-25-000040";
+    await addEntity(563, "Lazy Acquisition Corp", 6770);
+    await addFiling({ cik: 563, accession, form: "S-1", date: "2025-01-01" });
+    cacheDocument(563, accession, `${accession}.txt`, LAZY_FIXTURE);
+
+    const body = bodyOf(await handleWebRequest(get(`/spac/563/filing/${accession}`), registry));
+    // Each panel carries the query that fetches it, not its text — which is the
+    // whole point: the page used to inline the raw source, the markdown and
+    // every section behind collapsed panels nobody had opened.
+    expect(body).toContain("data-lazy=");
+    expect(body).toContain("/api/document?");
+    expect(body).not.toContain(LAZY_MARKER);
+
+    // Opening a panel is what fetches it, as plain text.
+    const part = await handleWebRequest(
+      get("/api/document", { cik: "563", accession, part: "raw" }),
+      registry
+    );
+    expect(part.kind === "response" && part.status).toBe(200);
+    expect(part.kind === "response" && part.headers["content-type"]).toContain("text/plain");
+    expect(bodyOf(part)).toContain(LAZY_MARKER);
+  });
+
   it("404s an unknown path", async () => {
     const response = await handleWebRequest(get("/nope"), registry);
     expect(response.kind === "response" && response.status).toBe(404);
@@ -414,4 +465,17 @@ function spacRow(cik: number): Record<string, unknown> {
     as_of: "2025-01-01",
     updated_at: "2026-08-01T00:00:00.000Z",
   };
+}
+
+/** A body distinctive enough that finding it in a page proves it was inlined. */
+const LAZY_MARKER = "ZZQQ-lazy-panel-marker";
+const LAZY_FIXTURE = `<html><body><h1>Management</h1><p>${LAZY_MARKER}</p></body></html>`;
+
+/** Write a document where `cachedAccessionDocPath` will look for it. */
+function cacheDocument(cik: number, accession: string, fileName: string, body: string): void {
+  const root = mkdtempSync(join(tmpdir(), "sec-web-doc-"));
+  const dir = join(root, "accessiondocs", String(cik).padStart(10, "0"));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${accession.replaceAll("-", "")}-${fileName}`), body, "utf-8");
+  globalServiceRegistry.registerInstance(SEC_RAW_DATA_FOLDER, root);
 }

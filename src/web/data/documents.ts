@@ -125,6 +125,103 @@ export async function findFiling(
   return rows.find((f) => f.cik === cik) ?? rows[0];
 }
 
+/** One document's conversion, as the cache holds it. */
+interface ConvertedDocument {
+  readonly raw: string;
+  readonly markdown: string;
+  readonly sections: readonly DocumentSection[];
+  /** Conversion failure, or "" — cached too, so a broken document is not re-parsed on every panel. */
+  readonly error: string;
+  readonly weight: number;
+}
+
+/**
+ * Converted documents, keyed by path + size + mtime so a re-download evicts.
+ *
+ * The panels on the document tab are fetched one at a time as they are opened,
+ * and each fetch would otherwise re-read and re-convert the whole filing:
+ * Bridgetown's 3.2 MB prospectus takes seconds and is typeset inside 295
+ * tables. Bounded by BYTES rather than by count because that is what actually
+ * has to fit — one entry is the raw text plus its markdown plus every section,
+ * which for that filing is about 4 MB and for a Form 4 is a few KB.
+ */
+const CONVERSION_CACHE_BYTES = 96 * 1024 * 1024;
+const conversionCache = new Map<string, ConvertedDocument>();
+let conversionCacheBytes = 0;
+
+function cacheConversion(key: string, value: ConvertedDocument): ConvertedDocument {
+  const existing = conversionCache.get(key);
+  if (existing !== undefined) {
+    conversionCache.delete(key);
+    conversionCacheBytes -= existing.weight;
+  }
+  conversionCache.set(key, value);
+  conversionCacheBytes += value.weight;
+  // Map iterates in insertion order and every read re-inserts, so the first
+  // key is the least recently used.
+  while (conversionCacheBytes > CONVERSION_CACHE_BYTES && conversionCache.size > 1) {
+    const oldest = conversionCache.keys().next().value;
+    if (oldest === undefined) break;
+    conversionCacheBytes -= conversionCache.get(oldest)?.weight ?? 0;
+    conversionCache.delete(oldest);
+  }
+  return value;
+}
+
+/** Drop every cached conversion. For tests, and for a `--force` re-download. */
+export function clearConversionCacheForTesting(): void {
+  conversionCache.clear();
+  conversionCacheBytes = 0;
+}
+
+/**
+ * Read and convert one cached document, memoized.
+ *
+ * A conversion FAILURE is cached alongside a success: re-parsing a document
+ * that already threw, once per panel the reader opens, spends the same seconds
+ * to reach the same error.
+ */
+async function convertDocument(args: {
+  readonly path: string;
+  readonly title: string;
+  readonly size: number;
+  readonly mtimeMs: number;
+}): Promise<ConvertedDocument> {
+  const key = `${args.path}:${args.size}:${args.mtimeMs}`;
+  const hit = conversionCache.get(key);
+  if (hit !== undefined) {
+    // Re-insert so the LRU order reflects this read.
+    conversionCache.delete(key);
+    conversionCache.set(key, hit);
+    return hit;
+  }
+
+  const raw = await readFile(args.path, "utf-8");
+  try {
+    const doc = parseEdgarHtml(raw, args.title);
+    const segmented = new DocumentTreeSegmenter().segment(doc);
+    const markdown = renderMarkdown(doc);
+    const sections = segmented.map((s) => ({
+      name: String(s.name),
+      chars: s.text.length,
+      text: s.text,
+    }));
+    const weight =
+      raw.length + markdown.length + sections.reduce((sum, sec) => sum + sec.text.length, 0);
+    return cacheConversion(key, { raw, markdown, sections, error: "", weight });
+  } catch (e) {
+    // The bytes are still worth keeping: a converter failure is precisely when
+    // an operator wants to look at the source it choked on.
+    return cacheConversion(key, {
+      raw,
+      markdown: "",
+      sections: [],
+      error: `conversion failed: ${e instanceof Error ? e.message : String(e)}`,
+      weight: raw.length,
+    });
+  }
+}
+
 /**
  * Load and convert one filing's body.
  *
@@ -181,8 +278,11 @@ export async function loadFilingDocument(args: {
   }
 
   let bytes = 0;
+  let mtimeMs = 0;
   try {
-    bytes = (await stat(path)).size;
+    const stats = await stat(path);
+    bytes = stats.size;
+    mtimeMs = stats.mtimeMs;
   } catch {
     return {
       ...base,
@@ -196,9 +296,14 @@ export async function loadFilingDocument(args: {
     return { ...base, fileName, path, cached: true, bytes, error: "" };
   }
 
-  let raw: string;
+  let converted: ConvertedDocument;
   try {
-    raw = await readFile(path, "utf-8");
+    converted = await convertDocument({
+      path,
+      title: `${filing.form ?? ""} ${accessionNumber}`,
+      size: bytes,
+      mtimeMs,
+    });
   } catch (e) {
     return {
       ...base,
@@ -210,35 +315,79 @@ export async function loadFilingDocument(args: {
     };
   }
 
-  try {
-    const doc = parseEdgarHtml(raw, `${filing.form ?? ""} ${accessionNumber}`);
-    const segmented = new DocumentTreeSegmenter().segment(doc);
-    return {
-      ...base,
-      fileName,
-      path,
-      cached: true,
-      bytes,
-      error: "",
-      raw,
-      markdown: renderMarkdown(doc),
-      sections: segmented.map((s) => ({
-        name: String(s.name),
-        chars: s.text.length,
-        text: s.text,
-      })),
-    };
-  } catch (e) {
-    // The bytes are still worth showing: a converter failure is precisely when
-    // an operator wants to look at the source it choked on.
-    return {
-      ...base,
-      fileName,
-      path,
-      cached: true,
-      bytes,
-      raw,
-      error: `conversion failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
+  return {
+    ...base,
+    fileName,
+    path,
+    cached: true,
+    bytes,
+    error: converted.error,
+    raw: converted.raw,
+    markdown: converted.markdown,
+    sections: converted.sections,
+  };
+}
+
+/** The parts of a converted document the viewer fetches one at a time. */
+export type DocumentPart = "markdown" | "raw" | "section";
+
+/**
+ * One panel's text, fetched when the reader opens it.
+ *
+ * The document tab used to ship every section, the whole markdown and the whole
+ * source inside the page — 745 KB of HTML for a single S-1, almost all of it
+ * behind collapsed `<details>` nobody had opened. The counts are still computed
+ * on page load (they are what tells you a section is missing), but the text
+ * itself is now a request per panel.
+ */
+export async function loadDocumentPart(args: {
+  readonly cik: number;
+  readonly accessionNumber: string;
+  readonly part: DocumentPart;
+  /** Section name, required when `part` is `"section"`. */
+  readonly name?: string | undefined;
+  /** Skip the display cap. The panel never asks for this; a direct URL can. */
+  readonly full?: boolean | undefined;
+}): Promise<{ readonly text: string; readonly error: string }> {
+  const doc = await loadFilingDocument({
+    cik: args.cik,
+    accessionNumber: args.accessionNumber,
+    includeText: true,
+  });
+  if (doc.error !== "" && doc.raw === "") return { text: "", error: doc.error };
+  const cap = (text: string): { readonly text: string; readonly error: string } => ({
+    text: args.full === true ? text : capForDisplay(text),
+    error: "",
+  });
+  if (args.part === "raw") return cap(doc.raw);
+  if (args.part === "markdown") {
+    return doc.markdown === ""
+      ? { text: "", error: doc.error === "" ? "the converter produced no markdown" : doc.error }
+      : cap(doc.markdown);
   }
+  const section = doc.sections.find((s) => s.name === args.name);
+  if (section === undefined) {
+    return { text: "", error: `no "${args.name ?? ""}" section in this document` };
+  }
+  return cap(section.text);
+}
+
+/**
+ * Characters a panel renders before it is cut.
+ *
+ * A 3.2 MB source in one `<pre>` is not something anyone reads; the cap is what
+ * keeps opening the wrong panel from wedging the tab. The cut says how to get
+ * the rest rather than just announcing itself — a truncation with no way past
+ * it is the reason people go looking for the file on disk.
+ */
+export const DOCUMENT_PART_PREVIEW_CHARS = 200_000;
+
+function capForDisplay(text: string): string {
+  if (text.length <= DOCUMENT_PART_PREVIEW_CHARS) return text;
+  return (
+    `${text.slice(0, DOCUMENT_PART_PREVIEW_CHARS)}\n\n` +
+    `… truncated at ${DOCUMENT_PART_PREVIEW_CHARS.toLocaleString()} of ` +
+    `${text.length.toLocaleString()} characters — add &full=1 to this panel's ` +
+    `/api/document URL for the whole thing.`
+  );
 }

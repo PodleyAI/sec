@@ -9,7 +9,7 @@ import { SEC_DB_NAME, SEC_DB_TYPE } from "../config/tokens";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { isCandidateConfidence, loadCandidates } from "./data/candidates";
 import { comparableExtractors, compareModels, type CompareResult } from "./data/compare";
-import { loadFilingDocument } from "./data/documents";
+import { loadDocumentPart, loadFilingDocument, type DocumentPart } from "./data/documents";
 import { loadAccessionExtractions } from "./data/extractions";
 import { currentSlotModels, MODEL_SLOTS, modelOptions, type ModelOverrides } from "./data/models";
 import { loadSpacDetail } from "./data/spacDetail";
@@ -55,6 +55,15 @@ function htmlResponse(body: string, status = 200): WebResponse {
     kind: "response",
     status,
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    body,
+  };
+}
+
+function textResponse(body: string, status = 200): WebResponse {
+  return {
+    kind: "response",
+    status,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
     body,
   };
 }
@@ -278,6 +287,30 @@ export async function handleWebRequest(
     const tabRaw = request.query.get("tab") ?? "document";
     const tab = tabRaw === "extractions" || tabRaw === "compare" ? tabRaw : "document";
     return renderFiling(cik, accession, tab, undefined);
+  }
+
+  // One panel's text, fetched when the reader opens it — see `loadDocumentPart`.
+  if (path === "/api/document") {
+    const cik = parseCikSegment((request.query.get("cik") ?? "").trim());
+    const accession = (request.query.get("accession") ?? "").trim();
+    const partRaw = request.query.get("part") ?? "";
+    if (cik === undefined || !ACCESSION_PATTERN.test(accession)) {
+      return textResponse("missing or malformed CIK / accession", 400);
+    }
+    if (partRaw !== "markdown" && partRaw !== "raw" && partRaw !== "section") {
+      return textResponse(`unknown document part "${partRaw}"`, 400);
+    }
+    const result = await loadDocumentPart({
+      cik,
+      accessionNumber: accession,
+      part: partRaw as DocumentPart,
+      name: request.query.get("name") ?? undefined,
+      full: (request.query.get("full") ?? "") !== "",
+    });
+    // Plain text, not JSON: the browser drops it straight into a `<pre>`, and a
+    // 3.2 MB source re-encoded as a JSON string is the payload this exists to
+    // avoid paying twice.
+    return result.error === "" ? textResponse(result.text) : textResponse(result.error, 404);
   }
 
   if (path === "/api/state") {

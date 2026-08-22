@@ -2335,6 +2335,18 @@ Four things about it are load-bearing:
   extracted perfectly well — a viewer that disagrees with the pipeline about
   which bytes are the filing is worse than no viewer.
 
+  Its panels **fetch their text when they are opened** (`/api/document`, plain
+  text): inlining every one made the page 745 KB of HTML for a single S-1 — the
+  whole raw source, the whole markdown and every section — almost all of it
+  behind collapsed `<details>` nobody had opened, now 9.8 KB. The character
+  COUNTS stay in the page, because "this section is missing" is the answer a
+  reader is usually after and it must not cost a click. Conversions are memoized
+  by path + size + mtime under a byte budget, so opening a second panel does not
+  re-parse a 3.2 MB prospectus (measured: ~1 ms per panel after the first), and a
+  re-download evicts. A panel is capped at `DOCUMENT_PART_PREVIEW_CHARS` and the
+  cut names the `&full=1` that lifts it — a truncation with no way past it is why
+  people go looking for the file on disk.
+
 - **The extraction viewer derives its tables from `SEC_STORAGE_REGISTRY`**, not
   from a per-extractor list: every table carrying an `accession_number` column is
   searched, so a newly registered extraction table appears with no second place
