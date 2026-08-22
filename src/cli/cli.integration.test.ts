@@ -54,6 +54,8 @@ describe("CLI v2 integration", () => {
       "editorial",
       "extractor",
       "eval",
+      // Inherited from @workglow/cli, and the only evidence it registered.
+      "web",
     ]) {
       expect(output, group).toContain(group);
     }

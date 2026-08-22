@@ -5,6 +5,7 @@
  */
 
 import type { Command } from "commander";
+import { registerWebCommand } from "@workglow/cli";
 import { getTaskQueueRegistry, globalServiceRegistry, Sqlite } from "workglow";
 import { parseGlobalOptions } from "../cli/GlobalOptions";
 import { addBootstrapCommands } from "../cli/groups/bootstrap";
@@ -112,4 +113,7 @@ export const AddCommands = (program: Command): void => {
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addEvalCommands(program);
+  // The console over sec's own tree: `registerWebCommand` reads the commands
+  // registered above off the live program, so nothing here has to be restated.
+  registerWebCommand(program, { binaryName: "sec" });
 };
