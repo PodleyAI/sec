@@ -4,8 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globalServiceRegistry } from "workglow";
-import { SEC_STORAGE_REGISTRY, type StorageDefinition } from "../../config/storageRegistry";
+import {
+  globalServiceRegistry,
+  type AnyTabularStorage,
+  type DataPortSchemaObject,
+  type ServiceToken,
+} from "workglow";
+import { SEC_STORAGE_REGISTRY } from "../../config/storageRegistry";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import type { ExtractionDeadLetter } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
@@ -33,20 +38,62 @@ export interface AccessionExtractions {
 }
 
 /**
- * Every sec table keyed by (or carrying) `accession_number`.
+ * The three fields the extraction viewer needs of a table: what to read it
+ * through, what to call it, and which columns it declares.
  *
- * Derived from {@link SEC_STORAGE_REGISTRY} rather than listed, because the
- * point of the extraction viewer is to show what an extractor wrote WITHOUT a
- * per-extractor allow-list going stale the first time someone adds a table. A
- * new extraction table shows up in the viewer as soon as it is registered.
+ * Structurally a subset of both `StorageDefinition` and embarc-data's
+ * `RepoDescriptor`, so a downstream package registers the descriptors it
+ * already has rather than restating them.
  */
-export function accessionScopedStorages(): readonly StorageDefinition[] {
-  return SEC_STORAGE_REGISTRY.filter(
+export interface WebExtractionTable {
+  readonly token: ServiceToken<AnyTabularStorage>;
+  readonly table: string;
+  readonly schema: DataPortSchemaObject;
+}
+
+const extensionTables = new Map<string, WebExtractionTable>();
+
+/**
+ * Add a downstream package's tables to the per-filing extraction viewer, the
+ * companion to `registerDbStatsTables` for `db stats`.
+ *
+ * A superset's extraction output is invisible without this: the viewer reads
+ * `SEC_STORAGE_REGISTRY`, which by construction holds only the tables sec owns,
+ * so an `embarc-data` filing page would show every sec row for an accession and
+ * silently omit the superset's own — the shape most likely to be read as "that
+ * extractor wrote nothing". Tables with no `accession_number` column are
+ * accepted and ignored: registering a domain's whole descriptor list is the
+ * ergonomic call, and filtering is this module's job, not the caller's.
+ */
+export function registerWebExtractionTables(tables: readonly WebExtractionTable[]): void {
+  for (const table of tables) {
+    if (SEC_STORAGE_REGISTRY.some((def) => def.table === table.table)) {
+      throw new Error(`extraction table is already owned by sec: ${table.table}`);
+    }
+    extensionTables.set(table.table, table);
+  }
+}
+
+export function clearWebExtractionTablesForTesting(): void {
+  extensionTables.clear();
+}
+
+/**
+ * Every table keyed by (or carrying) `accession_number`.
+ *
+ * Derived from {@link SEC_STORAGE_REGISTRY} (plus whatever a superset
+ * registered) rather than listed, because the point of the extraction viewer is
+ * to show what an extractor wrote WITHOUT a per-extractor allow-list going
+ * stale the first time someone adds a table. A new extraction table shows up in
+ * the viewer as soon as it is registered.
+ */
+export function accessionScopedStorages(): readonly WebExtractionTable[] {
+  return [...SEC_STORAGE_REGISTRY, ...extensionTables.values()].filter(
     (def) => (def.schema.properties as Record<string, unknown>)["accession_number"] !== undefined
   );
 }
 
-function columnsOf(def: StorageDefinition): readonly string[] {
+function columnsOf(def: WebExtractionTable): readonly string[] {
   return Object.keys(def.schema.properties as Record<string, unknown>);
 }
 

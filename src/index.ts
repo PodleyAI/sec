@@ -131,6 +131,16 @@ export {
   registerDatabaseExtension,
   registerDatabaseSetupHook,
 } from "./config/databaseExtensions";
+// The web inspector's per-filing extraction viewer reads every table carrying
+// an `accession_number` column. It derives sec's own from `SEC_STORAGE_REGISTRY`;
+// a superset registers its own here, or its extraction output is invisible on
+// the filing page — which reads as "that extractor wrote nothing".
+export {
+  clearWebExtractionTablesForTesting,
+  registerWebExtractionTables,
+  type WebExtractionTable,
+} from "./web/data/extractions";
+export { startWebServer, type WebServerHandle } from "./web/server";
 export {
   getResolverExtension,
   isFamilyResolverId,

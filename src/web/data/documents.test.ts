@@ -9,7 +9,11 @@ import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import type { Filing } from "../../storage/filing/FilingSchema";
 import { SPAC_REPOSITORY_TOKEN, SpacSchema } from "../../storage/spac/SpacSchema";
-import { accessionScopedStorages } from "./extractions";
+import {
+  accessionScopedStorages,
+  clearWebExtractionTablesForTesting,
+  registerWebExtractionTables,
+} from "./extractions";
 import { resolveBodyFileName } from "./documents";
 
 function filing(overrides: Partial<Filing>): Filing {
@@ -87,6 +91,10 @@ describe("resolveBodyFileName", () => {
 });
 
 describe("accessionScopedStorages", () => {
+  beforeEach(() => {
+    clearWebExtractionTablesForTesting();
+  });
+
   it("derives the searched tables from the storage registry", () => {
     const tables = accessionScopedStorages().map((d) => d.table);
     // Derived rather than listed, so a newly registered extraction table shows
@@ -97,5 +105,41 @@ describe("accessionScopedStorages", () => {
     // A table with no accession column has nothing to show for one filing.
     expect(tables).not.toContain("entities");
     expect(tables).not.toContain("spac_candidate");
+  });
+
+  it("includes a superset's registered tables, and ignores ones with no accession column", () => {
+    // Without this seam an `embarc-data` filing page would show every sec row
+    // for an accession and silently omit the superset's own — the shape most
+    // likely to be read as "that extractor wrote nothing".
+    registerWebExtractionTables([
+      {
+        token: { id: "test.withAccession" } as never,
+        table: "downstream_with_accession",
+        schema: {
+          type: "object",
+          properties: { accession_number: { type: "string" }, value: { type: "string" } },
+        } as never,
+      },
+      {
+        token: { id: "test.withoutAccession" } as never,
+        table: "downstream_without_accession",
+        schema: { type: "object", properties: { cik: { type: "number" } } } as never,
+      },
+    ]);
+    const tables = accessionScopedStorages().map((d) => d.table);
+    expect(tables).toContain("downstream_with_accession");
+    expect(tables).not.toContain("downstream_without_accession");
+  });
+
+  it("refuses to shadow a table sec owns", () => {
+    expect(() =>
+      registerWebExtractionTables([
+        {
+          token: { id: "x" } as never,
+          table: "xbrl_fact",
+          schema: { type: "object", properties: {} } as never,
+        },
+      ])
+    ).toThrow(/already owned by sec/);
   });
 });

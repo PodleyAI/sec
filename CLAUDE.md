@@ -2339,7 +2339,11 @@ Four things about it are load-bearing:
   from a per-extractor list: every table carrying an `accession_number` column is
   searched, so a newly registered extraction table appears with no second place
   to remember. Tables holding nothing are counted rather than listed, so "nothing
-  was extracted" stays distinguishable from "not looked at".
+  was extracted" stays distinguishable from "not looked at". A superset adds its
+  own through `registerWebExtractionTables` (the companion to
+  `registerDbStatsTables`) — without it an `embarc-data` filing page shows every
+  sec row for an accession and silently omits the superset's own, which reads as
+  "that extractor wrote nothing".
 
 **The model comparison writes nothing.** It runs one filing's segmented section
 through each candidate model via `EVAL_EXTRACTORS` and scores the rest against
