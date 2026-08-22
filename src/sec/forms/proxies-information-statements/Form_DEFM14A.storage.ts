@@ -348,6 +348,8 @@ export async function processMergerProxy(args: ProcessMergerProxyArgs): Promise<
             target_observation_id,
             target_description: deal.target_description ?? null,
             pipe_amount: deal.pipe_amount,
+            equity_value: deal.equity_value ?? null,
+            enterprise_value: deal.enterprise_value ?? null,
             merger_consideration: deal.merger_consideration,
             confidence: deal.confidence,
             source_span: boundSourceSpan(deal.source_span),

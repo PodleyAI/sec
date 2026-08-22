@@ -47,6 +47,7 @@ import {
   stripHeadingMarkers,
 } from "./riskFactorChunks";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
+import { usableDealValue } from "./dealValueScale";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
@@ -1581,8 +1582,16 @@ export function mergerDealInstructions(): string {
     "operating company the SPAC will merge with), target_description (a concise 1-3 " +
     "sentence description of the target company's business, or null), pipe_amount (the " +
     "total PIPE investment in dollars, or null), merger_consideration (a short verbatim phrase " +
-    "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
+    "describing the consideration — e.g. cash, stock, exchange ratio — or null), " +
+    "equity_value (the announced equity value of the combined company, or null) and " +
+    "enterprise_value (the announced enterprise value of the combined company, or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
+    // Every money field is read from prose that states its own units ("$1.4
+    // billion"), and a figure returned in those units validates, stores, and
+    // becomes a valuation off by a factor of a million with nothing downstream
+    // able to tell. Say the unit at the point the number is produced.
+    "Every dollar amount must be a WHOLE NUMBER OF DOLLARS, never abbreviated into millions " +
+    "or billions: write 1400000000 for $1.4 billion, not 1.4 and not 1400. " +
     "Return JSON matching the schema."
   );
 }
@@ -1601,7 +1610,14 @@ export async function extractMergerDeal(
     context
   );
   if (obj.confidence == null || obj.source_span == null) return null;
-  return obj as unknown as MergerDealRow;
+  const row = obj as unknown as MergerDealRow;
+  // A value the model wrote in the units of the sentence it read is unusable,
+  // and unusable in a way only detectable here — see `dealValueScale`.
+  return {
+    ...row,
+    equity_value: usableDealValue(row.equity_value),
+    enterprise_value: usableDealValue(row.enterprise_value),
+  };
 }
 
 /**

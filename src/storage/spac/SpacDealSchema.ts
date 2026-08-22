@@ -29,6 +29,17 @@ export const SpacDealSchema = Type.Object({
   proxy_date: TypeNullable(Type.String({ format: "date" })),
   vote_date: TypeNullable(Type.String({ format: "date" })),
   pipe_amount: TypeNullable(Type.Number()),
+  /**
+   * The deal values the merger proxy announced, in whole dollars. Derived by
+   * correlating `spac_merger_extraction` onto this deal, exactly like
+   * `target_*` / `pipe_amount` — so a later filing supersedes an earlier one.
+   *
+   * They are what a completed combination can be valued on when the market
+   * never priced the target and its book equity is a private company's
+   * accounting rather than what was paid for it.
+   */
+  equity_value: TypeNullable(Type.Number()),
+  enterprise_value: TypeNullable(Type.Number()),
   redemption_amount: TypeNullable(Type.Number()),
   redemption_shares: TypeNullable(Type.Integer({ minimum: 0 })),
   outcome: TypeStringEnum(SPAC_DEAL_OUTCOMES, { description: "pending | completed | terminated" }),
