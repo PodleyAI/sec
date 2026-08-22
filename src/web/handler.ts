@@ -10,7 +10,7 @@ import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { isCandidateConfidence, loadCandidates } from "./data/candidates";
 import { comparableExtractors, compareModels, type CompareResult } from "./data/compare";
 import { loadDocumentPart, loadFilingDocument, type DocumentPart } from "./data/documents";
-import { loadAccessionExtractions } from "./data/extractions";
+import { loadAccessionExtractions, type AccessionExtractions } from "./data/extractions";
 import { currentSlotModels, MODEL_SLOTS, modelOptions, type ModelOverrides } from "./data/models";
 import { loadSpacDetail } from "./data/spacDetail";
 import { loadTimelineSteps } from "./data/steps";
@@ -332,7 +332,14 @@ async function renderFiling(
     // converting a multi-megabyte prospectus is seconds of work — so the other
     // tabs ask for the cache status only.
     loadFilingDocument({ cik, accessionNumber, includeText: tab === "document" }),
-    loadAccessionExtractions(accessionNumber),
+    // And only the extractions tab RENDERS them. That sweep asks every
+    // accession-keyed table for this filing's rows, and fifteen of them carry
+    // no index leading on `accession_number` — so on a real database it is
+    // fifteen full table scans. Paying that on the document tab bought
+    // nothing: the result was loaded and then dropped.
+    tab === "extractions"
+      ? loadAccessionExtractions(accessionNumber)
+      : emptyExtractions(accessionNumber),
     issuerName(cik),
   ]);
   return htmlResponse(
@@ -348,6 +355,11 @@ async function renderFiling(
       tab,
     })
   );
+}
+
+/** The shape the filing page expects when a tab does not display extractions. */
+function emptyExtractions(accessionNumber: string): AccessionExtractions {
+  return { accessionNumber, runs: [], deadLetters: [], tables: [], emptyTables: [] };
 }
 
 function activeRun(registry: RunRegistry) {

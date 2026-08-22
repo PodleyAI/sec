@@ -2351,7 +2351,16 @@ Four things about it are load-bearing:
   from a per-extractor list: every table carrying an `accession_number` column is
   searched, so a newly registered extraction table appears with no second place
   to remember. Tables holding nothing are counted rather than listed, so "nothing
-  was extracted" stays distinguishable from "not looked at". A superset adds its
+  was extracted" stays distinguishable from "not looked at". It runs on the
+  extractions tab ONLY — the sweep asks every accession-keyed table for this
+  filing's rows, and on a real database several of those are full scans, which
+  the document tab was paying for and then discarding. Three tables are skipped
+  outright (`SKIPPED_TABLES`): the two rendered in their own shape above, and
+  `company_facts` — the bulk companyfacts ingest for a whole CIK, where
+  `accession_number` is provenance rather than a key, unindexed, the largest
+  table in the database, and populated from 10-K/10-Q, none of which are forms
+  this UI opens. The filing's own XBRL is `xbrl_fact`, which is keyed by
+  accession and still shown. A superset adds its
   own through `registerWebExtractionTables` (the companion to
   `registerDbStatsTables`) — without it an `embarc-data` filing page shows every
   sec row for an accession and silently omits the superset's own, which reads as

@@ -824,7 +824,10 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "spac_event",
     schema: SpacEventSchema,
     primaryKeyNames: SpacEventPrimaryKeyNames,
-    indexes: [["cik"], ["event_type"]],
+    // `accession_number` leads no other index here, so "the rows recorded for
+    // this filing" — what the web inspector's filing page and the per-filing
+    // triage reads ask for — would otherwise scan the table once per lookup.
+    indexes: [["cik"], ["event_type"], ["accession_number"]],
   }),
   defineStorage({
     token: SPAC_HISTORY_REPOSITORY_TOKEN,
@@ -927,7 +930,10 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "extraction_dead_letter",
     schema: ExtractionDeadLetterSchema,
     primaryKeyNames: ExtractionDeadLetterPrimaryKeyNames,
-    indexes: [["extractor_id"], ["status"]],
+    // `accession_number` leads no other index here, so "the rows recorded for
+    // this filing" — what the web inspector's filing page and the per-filing
+    // triage reads ask for — would otherwise scan the table once per lookup.
+    indexes: [["extractor_id"], ["status"], ["accession_number"]],
   }),
   defineStorage({
     token: S1_CLASSIFICATION_REPOSITORY_TOKEN,
@@ -941,7 +947,9 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // so an existing database picks this up without a migration. The previous
     // `(cik, sic)` index is left standing on databases that already have it;
     // it is a prefix of this one and is unused by the scan once this exists.
-    indexes: [["cik", "sic", "is_spac", "created_at", "accession_number"]],
+    // A by-accession lookup cannot use the composite above (it leads on
+    // `cik`), so the filing page would scan; this is the index for that.
+    indexes: [["cik", "sic", "is_spac", "created_at", "accession_number"], ["accession_number"]],
   }),
   defineStorage({
     token: CANONICAL_PERSON_REPOSITORY_TOKEN,
@@ -1087,21 +1095,30 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "offering_terms",
     schema: OfferingTermsSchema,
     primaryKeyNames: OfferingTermsPrimaryKeyNames,
-    indexes: [["cik"]],
+    // `accession_number` leads no other index here, so "the rows recorded for
+    // this filing" — what the web inspector's filing page and the per-filing
+    // triage reads ask for — would otherwise scan the table once per lookup.
+    indexes: [["cik"], ["accession_number"]],
   }),
   defineStorage({
     token: SPAC_UNIT_TERMS_REPOSITORY_TOKEN,
     table: "spac_unit_terms",
     schema: SpacUnitTermsSchema,
     primaryKeyNames: SpacUnitTermsPrimaryKeyNames,
-    indexes: [["cik"]],
+    // `accession_number` leads no other index here, so "the rows recorded for
+    // this filing" — what the web inspector's filing page and the per-filing
+    // triage reads ask for — would otherwise scan the table once per lookup.
+    indexes: [["cik"], ["accession_number"]],
   }),
   defineStorage({
     token: SPAC_PROMOTE_TERMS_REPOSITORY_TOKEN,
     table: "spac_promote_terms",
     schema: SpacPromoteTermsSchema,
     primaryKeyNames: SpacPromoteTermsPrimaryKeyNames,
-    indexes: [["cik"]],
+    // `accession_number` leads no other index here, so "the rows recorded for
+    // this filing" — what the web inspector's filing page and the per-filing
+    // triage reads ask for — would otherwise scan the table once per lookup.
+    indexes: [["cik"], ["accession_number"]],
   }),
   defineStorage({
     token: ISSUER_TICKER_REPOSITORY_TOKEN,

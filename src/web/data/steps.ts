@@ -71,7 +71,15 @@ export async function loadTimelineSteps(cik: number): Promise<TimelineSteps> {
   const plan = await planSpacTimeline({ cik, force: NO_FORCE });
   const selected = new Set(plan.toProcess.map((f) => f.accession_number));
   const runRepo = new ExtractorRunRepo(globalServiceRegistry.get(EXTRACTOR_RUN_REPOSITORY_TOKEN));
-  const deadLetterRepo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+
+  // One query for the whole issuer rather than one per filing.
+  // `extraction_dead_letter` is keyed `(extractor_id, accession_number,
+  // section_name)`, so a lookup by accession alone cannot use that index and
+  // scans the table — once per step is N scans for a timeline that runs to
+  // hundreds of filings on a de-SPAC'd operating company.
+  const pendingByAccession = await loadPendingDeadLetters(
+    plan.timeline.map((f) => f.accession_number)
+  );
 
   const steps: TimelineStep[] = [];
   for (const [index, filing] of plan.timeline.entries()) {
@@ -79,14 +87,13 @@ export async function loadTimelineSteps(cik: number): Promise<TimelineSteps> {
     const extractorId = form === "" ? undefined : formToExtractorId(form);
     const activeVersion =
       extractorId === undefined ? undefined : plan.activeVersions.get(extractorId);
+    // Keyed `(cik, accession_number, extractor_id, …)`, so this one DOES use
+    // its index — the CIK prefix narrows it to the issuer's own runs.
     const latestRun =
       extractorId === undefined
         ? undefined
         : await runRepo.findLatestRun(cik, filing.accession_number, extractorId);
-    const pending = ((await deadLetterRepo.query({
-      accession_number: filing.accession_number,
-      status: "pending",
-    })) ?? []) as ExtractionDeadLetter[];
+    const pending = pendingByAccession.get(filing.accession_number) ?? [];
     steps.push({
       index,
       cik,
@@ -117,3 +124,36 @@ export async function loadTimelineSteps(cik: number): Promise<TimelineSteps> {
     outstanding: plan.toProcess.length,
   };
 }
+
+/**
+ * Pending dead letters for a set of accessions, grouped by accession.
+ *
+ * Issued as one `in`-list query per chunk rather than one query per accession:
+ * the table has no index leading on `accession_number`, so each lookup is a
+ * scan and the per-filing form turns a page render into N of them. Chunked
+ * because SQLite binds one parameter per value and stays subject to
+ * `SQLITE_MAX_VARIABLE_NUMBER`; Postgres binds the whole list as one array.
+ */
+async function loadPendingDeadLetters(
+  accessions: readonly string[]
+): Promise<ReadonlyMap<string, ExtractionDeadLetter[]>> {
+  const byAccession = new Map<string, ExtractionDeadLetter[]>();
+  if (accessions.length === 0) return byAccession;
+  const repo = globalServiceRegistry.get(EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN);
+  for (let i = 0; i < accessions.length; i += DEAD_LETTER_QUERY_CHUNK) {
+    const chunk = accessions.slice(i, i + DEAD_LETTER_QUERY_CHUNK);
+    const rows = ((await repo.query({
+      accession_number: { value: [...chunk], operator: "in" },
+      status: "pending",
+    } as never)) ?? []) as ExtractionDeadLetter[];
+    for (const row of rows) {
+      const list = byAccession.get(row.accession_number);
+      if (list === undefined) byAccession.set(row.accession_number, [row]);
+      else list.push(row);
+    }
+  }
+  return byAccession;
+}
+
+/** Values per `in`-list query, well under SQLite's default parameter ceiling. */
+const DEAD_LETTER_QUERY_CHUNK = 400;

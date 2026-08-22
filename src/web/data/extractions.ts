@@ -51,6 +51,28 @@ export interface WebExtractionTable {
   readonly schema: DataPortSchemaObject;
 }
 
+/**
+ * Accession-keyed tables the per-filing viewer does not sweep.
+ *
+ * `extractor_runs` and `extraction_dead_letter` are reported in their own shape
+ * above; repeating them as generic row dumps says nothing new.
+ *
+ * `company_facts` is not extraction output at all — it is the bulk
+ * companyfacts ingest for a whole CIK, where `accession_number` is provenance
+ * carried on each fact rather than the key anything reads it by. Two things
+ * follow. It is the largest table in an EDGAR database and carries no index
+ * leading on `accession_number`, so including it charged every filing page a
+ * full scan; and it is populated from 10-K/10-Q, none of which are forms this
+ * UI opens, so that scan almost always returned nothing. The filing's OWN
+ * XBRL — parsed from the document by the extractor — is `xbrl_fact`, which is
+ * keyed by accession and still shown.
+ */
+const SKIPPED_TABLES: ReadonlySet<string> = new Set([
+  "extractor_runs",
+  "extraction_dead_letter",
+  "company_facts",
+]);
+
 const extensionTables = new Map<string, WebExtractionTable>();
 
 /**
@@ -119,9 +141,7 @@ export async function loadAccessionExtractions(
   const tables: ExtractionTable[] = [];
   const emptyTables: string[] = [];
   for (const def of accessionScopedStorages()) {
-    // `extractor_runs` / `extraction_dead_letter` are reported above in their
-    // own shape; repeating them as generic row dumps says nothing new.
-    if (def.table === "extractor_runs" || def.table === "extraction_dead_letter") continue;
+    if (SKIPPED_TABLES.has(def.table)) continue;
     try {
       const storage = globalServiceRegistry.get(def.token);
       const rows = (await storage.query({ accession_number: accessionNumber })) ?? [];
