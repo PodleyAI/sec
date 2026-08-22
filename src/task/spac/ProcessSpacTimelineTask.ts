@@ -17,12 +17,14 @@ import { SecCliConfigurationError } from "../../config/EnvToDI";
 import { TypeSecCik } from "../../sec/submissions/EnititySubmissionSchema";
 import { EXTRACTION_DEAD_LETTER_REPOSITORY_TOKEN } from "../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { type Filing, FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { COMPONENT_VERSION_REPOSITORY_TOKEN } from "../../storage/versioning/ComponentVersionSchema";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import {
   formToExtractorId,
   isNonfatalTimelineExtractor,
+  isSpacRowGatedExtractor,
 } from "../../storage/versioning/extractorIds";
 import { getActiveSlot } from "../../storage/versioning/getActiveSlot";
 import { VersionRegistry } from "../../storage/versioning/VersionRegistry";
@@ -116,15 +118,16 @@ export type ProcessSpacTimelineTaskOutput = Static<ReturnType<typeof OutputSchem
  * Serial and in date order, all three disappear — the state machine simply
  * replays history in the order it happened.
  *
- * Case 1 also needs a second, capped pass. The filings gated by a missing SPAC
- * row are selected by {@link loadGatedNoOpAccessions}, which answers the empty
- * set while the row is absent — and the S-1 that mints it is normally on this
- * very timeline, replayed moments after the set was computed. So the run that
- * creates the row is also the run whose gated 8-Ks were all filtered out of it.
- * The set is recomputed after the replay and whatever it still names, minus
- * what this invocation already processed, is replayed once more, serially, in
- * timeline order. One extra pass, never a loop: the gated predicates are
- * monotone, so a filing that is processed leaves the set.
+ * Case 1 also needs a second, capped pass. Gated extractors are omitted from
+ * the first pass while the `spac` row is missing: otherwise a candidate that
+ * never mints (or an 8-K dated before the S-1) no-ops, records success, and
+ * warns. {@link loadGatedNoOpAccessions} then selects them once the row exists,
+ * including ones a prior sweep already no-op'd. The S-1 that mints the row is
+ * normally on this very timeline, so the set is empty when first computed and
+ * is recomputed after the replay. Whatever it still names, minus what this
+ * invocation already processed, is replayed once more, serially, in timeline
+ * order. One extra pass, never a loop: the gated predicates are monotone, so
+ * a filing that is processed leaves the set.
  *
  * Concurrency belongs BETWEEN issuers, not within one: SPACs are independent and
  * the writer already serializes per-CIK via `withCikLock`. Run this task once
@@ -226,20 +229,38 @@ export class ProcessSpacTimelineTask extends Task<
     const activeVersions = await loadActiveExtractorVersions(timeline);
     const successfulKeys = await loadSuccessfulKeys(activeVersions);
     const gatedNoOpAccessions = await loadGatedNoOpAccessions(cik, timeline);
-    const toProcess = timeline.filter(
-      (f) =>
-        f.form !== null &&
-        filingMeetsDateFloor(f.filing_date, filedOnOrAfter) &&
-        shouldReplaySpacFiling({
-          form: f.form,
-          items: f.items,
-          cik,
-          accession_number: f.accession_number,
-          force,
-          successfulKeys,
-          gatedNoOpAccessions,
-        })
-    );
+    // Gated extractors (8-K, merger-proxy, 25-15) no-op — and warn — when the
+    // `spac` row is missing. `sync spacs` worklist *is* high/medium candidates,
+    // so that warning fires on every milestone 8-K of a false-positive
+    // operating company that will never mint a row. A real SPAC's S-1 is on
+    // this timeline; skip the gated filings until it runs, then the repair
+    // pass below picks them up. `loadGatedNoOpAccessions` is empty while the
+    // row is absent, so it cannot be the skip.
+    const hasSpacRow = (await new SpacRepo().getSpac(cik)) !== undefined;
+    const toProcess = timeline.filter((f) => {
+      if (f.form === null) return false;
+      if (!filingMeetsDateFloor(f.filing_date, filedOnOrAfter)) return false;
+      const extractorId = formToExtractorId(f.form);
+      // `--force 8-K` / `--force redemption` is an explicit request to run the
+      // gated handler anyway; `--force all` still waits so the S-1 can mint.
+      if (
+        !hasSpacRow &&
+        force.kind !== "extractors" &&
+        extractorId !== undefined &&
+        isSpacRowGatedExtractor(extractorId)
+      ) {
+        return false;
+      }
+      return shouldReplaySpacFiling({
+        form: f.form,
+        items: f.items,
+        cik,
+        accession_number: f.accession_number,
+        force,
+        successfulKeys,
+        gatedNoOpAccessions,
+      });
+    });
     const skipped = timeline.length - toProcess.length;
 
     // `--dry-run` already no-ops writes via ReadOnlyTabularStorage. Replaying

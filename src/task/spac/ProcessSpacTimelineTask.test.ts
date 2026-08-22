@@ -14,6 +14,7 @@ import { setupAllDatabases } from "../../config/setupAllDatabases";
 import { SEC_DRY_RUN, SEC_RAW_DATA_FOLDER } from "../../config/tokens";
 import { ExtractionDeadLetterRepo } from "../../storage/dead-letter/ExtractionDeadLetterRepo";
 import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
+import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../../storage/spac/SpacCandidateSchema";
 import { SpacReportWriter } from "../../storage/spac/SpacReportWriter";
 import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
@@ -60,6 +61,23 @@ async function seedFiling(
     is_inline_xbrl: null,
     items,
     act: null,
+  });
+}
+
+async function seedSpacCandidate(): Promise<void> {
+  await globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN).put({
+    cik: CIK,
+    name: "Screened Acquisition Corp",
+    current_sic: 6770,
+    signal_sic_6770: true,
+    signal_name_match: true,
+    signal_renamed_from: null,
+    first_reg_form: "S-1",
+    first_reg_date: "2020-11-01",
+    reg_while_spac_named: true,
+    confidence: "high",
+    identified_at: "2026-01-01T00:00:00.000Z",
+    signal_filed_sic_6770: null,
   });
 }
 
@@ -268,6 +286,15 @@ describe("ProcessSpacTimelineTask", () => {
     // dead-letter under `redemption` / `loi` as well as `8-K`. Counting triage
     // without naming those ids left the operator with a placeholder.
     await seedFiling("0000000000-26-000001", "8-K", "2021-01-04", "d8k.htm");
+    await new SpacReportWriter().recordRegistration({
+      cik: CIK,
+      accession_number: "0000000000-26-000000",
+      filing_date: "2021-01-01",
+      form: "S-1",
+      primary_document: "s1.htm",
+      spac_name: "Gated SPAC",
+      spac_sic: 6770,
+    });
 
     const proto = ProcessAccessionDocFormTask.prototype;
     const real = proto.execute;
@@ -481,6 +508,50 @@ describe("ProcessSpacTimelineTask", () => {
 
     const accessions = spy.mock.calls.map((c) => c[0]?.accessionNumber);
     expect(accessions).toContain("0000000000-26-000002");
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(0);
+  });
+
+  it("does not process gated 8-Ks or Form 15s while the issuer has no spac row", async () => {
+    // `sync spacs` worklist IS high/medium candidates, so the handler's
+    // `isSpacCandidate` warning fires on every milestone 8-K / Form 15 of a
+    // false-positive operating company (VolitionRx, CIK 93314) that will never
+    // mint a row. Date-order replay plus the repair pass already handle a real
+    // SPAC: skip the gated extractors until the row exists, then pick them up.
+    await seedSpacCandidate();
+    await seedFiling("0000000000-26-000001", "8-K", "2011-03-01", "d8k.htm", "1.01");
+    await seedFiling("0000000000-26-000002", "15-12B", "2011-04-01", null);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(ProcessAccessionDocFormTask.prototype, "execute")
+      .mockResolvedValue({ success: true });
+    try {
+      const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+      expect(spy).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      expect(out.matched).toBe(2);
+      expect(out.skipped).toBe(2);
+      expect(out.processed).toBe(0);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("repair-passes a never-processed 8-K dated before the S-1 that mints the row", async () => {
+    // First-time replay (no success row) used to process the 8-K in the first
+    // pass because shouldReplay said "unprocessed". Date order then ran it
+    // before the S-1, dropped the milestone, and warned. The repair pass is
+    // how gated filings wait for the row — including ones never processed.
+    await seedFiling("0000000000-26-000001", "8-K", "2020-12-01", "d8k.htm", "5.07");
+    await seedFiling("0000000000-26-000002", "S-1", "2021-01-04", "s1.htm");
+    const spy = mockFormProcessor();
+
+    const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
+
+    const accessions = spy.mock.calls.map((c) => c[0]?.accessionNumber);
+    expect(accessions).toEqual(["0000000000-26-000002", "0000000000-26-000001"]);
     expect(out.matched).toBe(2);
     expect(out.skipped).toBe(0);
   });
