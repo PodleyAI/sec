@@ -22,6 +22,8 @@ function row(
     target_cik: null,
     target_observation_id: null,
     pipe_amount: null,
+    equity_value: null,
+    enterprise_value: null,
     merger_consideration: null,
     target_description: null,
     confidence: 0.9,

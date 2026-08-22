@@ -197,6 +197,8 @@ it("extractMergerDeal returns the parsed merger object", async () => {
     {
       target_name: "Acme Target Inc.",
       pipe_amount: 150000000,
+      equity_value: null,
+      enterprise_value: null,
       merger_consideration: "$10.00 per share in stock",
       confidence: 0.92,
       source_span: "merger with Acme Target Inc.",
