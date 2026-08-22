@@ -241,6 +241,11 @@ import {
   SpacPromoteTermsSchema,
 } from "../storage/offering/SpacPromoteTermsSchema";
 import {
+  SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
+  SpacLockupTermsPrimaryKeyNames,
+  SpacLockupTermsSchema,
+} from "../storage/offering/SpacLockupTermsSchema";
+import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
@@ -1119,6 +1124,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     // this filing" — what the web inspector's filing page and the per-filing
     // triage reads ask for — would otherwise scan the table once per lookup.
     indexes: [["cik"], ["accession_number"]],
+  }),
+  defineStorage({
+    token: SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
+    table: "spac_lockup_terms",
+    schema: SpacLockupTermsSchema,
+    primaryKeyNames: SpacLockupTermsPrimaryKeyNames,
+    indexes: [["cik"]],
   }),
   defineStorage({
     token: ISSUER_TICKER_REPOSITORY_TOKEN,

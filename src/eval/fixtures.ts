@@ -42,6 +42,7 @@ import {
   extractSpacClassification,
   extractSpacProfile,
   extractSpacSponsors,
+  extractLockups,
   extractSponsorPromote,
   extractUnderwriters,
   extractUseOfProceeds,
@@ -53,6 +54,7 @@ import {
   spacClassificationInstructions,
   spacProfileInstructions,
   spacSponsorsInstructions,
+  lockupInstructions,
   sponsorPromoteInstructions,
   underwritersInstructions,
   useOfProceedsInstructions,
@@ -61,6 +63,7 @@ import { SpacClassificationOutputSchema } from "../sec/forms/registration-statem
 import { SpacProfileOutputSchema } from "../sec/forms/registration-statements/s1/spacProfileSchema";
 import { SpacSponsorOutputSchema } from "../sec/forms/registration-statements/s1/spacSponsorSchema";
 import { SponsorPromoteOutputSchema } from "../sec/forms/registration-statements/s1/sponsorPromoteSchema";
+import { LockupOutputSchema } from "../sec/forms/registration-statements/s1/lockupSchema";
 import { UnderwriterOutputSchema } from "../sec/forms/registration-statements/s1/underwriterSchema";
 import { UseOfProceedsOutputSchema } from "../sec/forms/registration-statements/s1/useOfProceedsSchema";
 
@@ -233,6 +236,23 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
       "trust_per_public_share",
     ],
   },
+  // Multi-row extractor over a prospectus's lock-up disclosure. Keyed on
+  // `holder_class`, which is what distinguishes one lock-up from another in a
+  // filing that states three of them; scored on the terms an evaluator needs to
+  // turn a sentence into a date.
+  lockups: {
+    run: extractLockups,
+    instructions: lockupInstructions,
+    schema: () => LockupOutputSchema,
+    keyField: "holder_class",
+    compareFields: [
+      "duration_days",
+      "anchor_event",
+      "price_trigger",
+      "trigger_days_at_or_above",
+      "trigger_window_days",
+    ],
+  },
   // Detection-style classifier over a registration filing's summary prose: a
   // true SPAC yields one row; a shell or operating company yields none, so a
   // fixture with `expected: []` scores a false positive as lost precision.
@@ -391,6 +411,34 @@ On January 20, 2026, the Company announced that, in order to extend the period o
  * extractor. A customary 20% founder promote, half-warrant public coverage, and
  * a $10.00 trust deposit, with the sponsor's private-placement warrants at $1.00.
  */
+/**
+ * A prospectus lock-up block stating THREE lock-ups with different terms — the
+ * shape the extractor exists for. The founder lock-up carries both a duration
+ * and a price test, which are alternatives on one lock-up rather than two
+ * lock-ups; a model that splits them scores as a hallucinated row.
+ */
+const LOCKUP_FOUNDER_AND_UNDERWRITER = `Shares Eligible for Future Sale
+
+Lock-Up Agreements
+
+Our initial shareholders have agreed not to transfer, assign or sell any of their founder shares until the earlier of (A) one year after the completion of our initial business combination and (B) subsequent to our initial business combination, if the closing price of our Class A ordinary shares equals or exceeds $12.00 per share (as adjusted for share sub-divisions, share capitalizations, reorganizations, recapitalizations and the like) for any 20 trading days within any 30-trading day period commencing at least 150 days after our initial business combination.
+
+Our sponsor has agreed not to transfer, assign or sell any of the private placement warrants, including the Class A ordinary shares issuable upon exercise of the private placement warrants, until 30 days after the completion of our initial business combination.
+
+In addition, each of our officers and directors has agreed with the underwriters not to offer, sell, contract to sell or otherwise dispose of any ordinary shares for a period of 180 days after the date of this prospectus, without the prior written consent of the representative.`;
+
+/**
+ * The other common shape: a plain underwriter lock-up, no price test and no
+ * founder terms at all. A model that returns the customary founder lock-up here
+ * is inventing a term the filing does not state, which is what this fixture
+ * measures.
+ */
+const LOCKUP_UNDERWRITER_ONLY = `Underwriting
+
+We, our officers and directors have agreed that, without the prior written consent of the representatives, we will not, during the period ending 180 days after the date of this prospectus, offer, pledge, sell, contract to sell, or otherwise transfer or dispose of, directly or indirectly, any shares of common stock or any securities convertible into or exercisable or exchangeable for shares of common stock.
+
+The representatives, in their sole discretion, may release the securities subject to the lock-up agreements described above in whole or in part at any time.`;
+
 const SPONSOR_PROMOTE_STANDARD = `The Offering
 
 We are offering 20,000,000 units at a price of $10.00 per unit. Each unit consists of one Class A ordinary share and one-half of one redeemable warrant. Each whole warrant entitles the holder to purchase one Class A ordinary share at a price of $11.50 per share.
@@ -724,6 +772,52 @@ export const EVAL_FIXTURES: readonly EvalFixture[] = [
         private_placement_warrants: 8000000,
         public_warrant_coverage: 0.3333,
         trust_per_public_share: 10.2,
+      },
+    ],
+  },
+  {
+    name: "lockup-founder-and-underwriter",
+    extractor: "lockups",
+    text: LOCKUP_FOUNDER_AND_UNDERWRITER,
+    expected: [
+      {
+        holder_class: "founder-shares",
+        duration_days: 365,
+        anchor_event: "closing",
+        price_trigger: 12.0,
+        trigger_days_at_or_above: 20,
+        trigger_window_days: 30,
+      },
+      {
+        holder_class: "private-placement-warrants",
+        duration_days: 30,
+        anchor_event: "closing",
+        price_trigger: null,
+        trigger_days_at_or_above: null,
+        trigger_window_days: null,
+      },
+      {
+        holder_class: "management",
+        duration_days: 180,
+        anchor_event: "ipo",
+        price_trigger: null,
+        trigger_days_at_or_above: null,
+        trigger_window_days: null,
+      },
+    ],
+  },
+  {
+    name: "lockup-underwriter-only-no-price-test",
+    extractor: "lockups",
+    text: LOCKUP_UNDERWRITER_ONLY,
+    expected: [
+      {
+        holder_class: "management",
+        duration_days: 180,
+        anchor_event: "ipo",
+        price_trigger: null,
+        trigger_days_at_or_above: null,
+        trigger_window_days: null,
       },
     ],
   },
