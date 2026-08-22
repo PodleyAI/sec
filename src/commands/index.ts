@@ -22,6 +22,7 @@ import { registerSponsorFamilyCommands } from "./sponsorFamily";
 import { registerUnderwriterFamilyCommands } from "./underwriterFamily";
 import { registerSpacCommands } from "./spac";
 import { registerEditorialCommands } from "./editorial";
+import { registerWebCommand } from "./web";
 import { DefaultDI } from "../config/DefaultDI";
 import { EnvToDI } from "../config/EnvToDI";
 import { getExtractionTemperature } from "../config/extractionTemperature";
@@ -112,4 +113,7 @@ export const AddCommands = (program: Command): void => {
   registerEditorialCommands(program);
   addExtractorCommands(program);
   addEvalCommands(program);
+  // Registered last so it can be a leaf beside the groups it inspects. A
+  // superset CLI (embarc-data) inherits it through this same call.
+  registerWebCommand(program);
 };

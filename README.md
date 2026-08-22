@@ -18,6 +18,7 @@
   - [Code](#code-2)
   - [Usage](#usage-2)
 - [SPACs](#spacs)
+- [Web inspector](#web-inspector)
 - [Portals](#portals)
 - [Reg-A and Reg-A+](#reg-a-and-reg-a)
 - [Reg-CF](#reg-cf)
@@ -144,6 +145,23 @@ The SEC API provides **Company Facts**, delivering structured and normalized fin
 ## SPACs
 
 **Special Purpose Acquisition Companies (SPACs)** are formed to raise capital from public investors with the intent to acquire a private company and take it public.
+
+## Web inspector
+
+`sec web` serves a local interface over the SPAC pipeline — the candidate screen,
+one issuer's report and history, the per-filing process checklist with the
+controls to run it, the HTML-to-markdown conversion each filing goes through,
+every row the extractors wrote for it, and a side-by-side comparison of one
+section across several models.
+
+```sh
+sec web                 # http://127.0.0.1:8787
+sec web --port 9000
+```
+
+It binds to loopback by default and says so if you point it elsewhere: the
+server has no authentication, and its buttons start runs that spend model and
+EDGAR quota. Runs execute one at a time and stream their progress to the page.
 
 ## Portals
 

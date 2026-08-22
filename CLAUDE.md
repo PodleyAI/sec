@@ -2279,6 +2279,76 @@ Known false positives: transaction merger subsidiaries ("DEAC NV Merger Corp",
 "AECOM MERGER CORP") and operating companies that happen to fit ("Canopy Growth
 Corp"), roughly 6 of the 65 matches the non-"acquisition" patterns add.
 
+### The web inspector (`sec web`)
+
+```bash
+sec web [--port 8787] [--host 127.0.0.1]
+```
+
+A local, server-rendered interface over the SPAC pipeline: the candidate screen,
+one issuer's report and full history, the per-filing process checklist with the
+controls to run it, the HTML→markdown conversion each filing goes through, every
+row the extractors wrote for it, and a multi-model comparison of one section.
+It exists because verifying an extraction means moving between those views —
+a missing row is a segmentation miss, a conversion problem, or a model miss, and
+only having all three in front of you separates them. `embarc-data web` is the
+same command: the superset inherits it through `AddCommands`.
+
+**Loopback by default, and that is a security boundary rather than a default
+port choice.** The server has no authentication and its buttons start runs that
+spend real model quota and real EDGAR budget, so binding it where a network can
+reach it has to be typed (`--host 0.0.0.0`) and warns when it is.
+
+Pages:
+
+| path                             | what it answers                                                        |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `/candidates`                    | the `spac_candidate` screen, filterable; rebuild button; per-row links |
+| `/spac/<cik>`                    | the `spac` row, the deals and events it derives from, full history     |
+| `/spac/<cik>/process`            | the issuer's timeline as a checklist, with run controls                |
+| `/spac/<cik>/filing/<accession>` | document + conversion, extraction results, model comparison            |
+| `/runs`, `/runs/<id>`            | what has been run, with a live transcript                              |
+
+Four things about it are load-bearing:
+
+- **The checklist and the replay are computed by one function.**
+  `planSpacTimeline` (`src/task/spac/planSpacTimeline.ts`) owns the timeline
+  ordering and the already-succeeded / gated / date-floor selection, and both
+  `ProcessSpacTimelineTask` and the web run driver read it; the second, capped
+  repair pass is likewise `planSpacTimelineRepair`. A page that computed its own
+  answer would eventually disagree with the pipeline about what is outstanding,
+  which is the one thing a verification surface must never do. The
+  per-step-reporting driver is what the web adds, not a second selection rule.
+
+- **Runs execute strictly one at a time.** A model choice is applied by setting
+  the environment variable the extractor reads at call time
+  (`withModelOverrides`), which is process-global — two concurrent runs with
+  different models would each observe the other's. Serializing also keeps the
+  fetch budget and per-CIK write ordering behaving as they do under the CLI.
+  A run reports progress over an SSE stream rather than holding a request open:
+  a de-SPAC'd company's timeline runs for the better part of an hour.
+
+- **The document viewer opens the file the pipeline parsed**, through
+  `isFullSubmissionForm` / `isSpacNarrativeTrigger8K` exported from
+  `ProcessAccessionDocFormTask`. Reading the primary document for an S-1 instead
+  would show a cover page and report every section as missing on a filing that
+  extracted perfectly well — a viewer that disagrees with the pipeline about
+  which bytes are the filing is worse than no viewer.
+
+- **The extraction viewer derives its tables from `SEC_STORAGE_REGISTRY`**, not
+  from a per-extractor list: every table carrying an `accession_number` column is
+  searched, so a newly registered extraction table appears with no second place
+  to remember. Tables holding nothing are counted rather than listed, so "nothing
+  was extracted" stays distinguishable from "not looked at".
+
+**The model comparison writes nothing.** It runs one filing's segmented section
+through each candidate model via `EVAL_EXTRACTORS` and scores the rest against
+the FIRST one, which stands in as the reference — so it answers "would another
+model read this section better", and adopting one stays a separate, explicit act
+(pick it in the process page's model picker and re-run the filing). It is a
+comparison, not a verdict: `sec eval s1 --reference golden` is what scores a
+model against human-verified truth.
+
 ### Generalized extractor backfill
 
 When a new extractor lands, its historical filings are recovered with the
