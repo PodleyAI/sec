@@ -19,9 +19,6 @@ import type { SafeFetchFn } from "workglow";
 const EDGAR_RATE_LIMIT_BODY_PATTERN =
   /request rate threshold exceeded|your request rate has exceeded|exceeded the sec'?s?\s+(?:maximum allowable|threshold)/i;
 
-/** EDGAR's documented penalty: access "will be limited for 10 minutes". */
-const EDGAR_BLOCK_SECONDS = 600;
-
 /** Only a page is worth scanning; a real 403 body is small. */
 const MAX_BLOCK_PAGE_BYTES = 64 * 1024;
 
@@ -88,7 +85,10 @@ export async function translateEdgarBlockResponse(
     return new Response(body, { status: 403, statusText: response.statusText, headers });
   }
 
-  headers.set("Retry-After", String(EDGAR_BLOCK_SECONDS));
+  // Deliberately NO synthesized Retry-After. EDGAR's ten-minute figure
+  // describes the BAN it escalates to, not the first overshoot — stating it
+  // here would hand every first trip a ten-minute wait and bypass the
+  // escalation ladder that decides how long a block is actually worth waiting.
   return new Response(body, { status: 429, statusText: "Too Many Requests", headers });
 }
 

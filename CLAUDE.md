@@ -2715,8 +2715,36 @@ live window. The cluster then resumed at full rate nine minutes early. The 403
 handling below is real hardening, not the load-bearing fix.
 
 Captured 429s carry **no `Retry-After`** and an empty reason phrase (HTTP/2
-carries none), so `DEFAULT_COOLDOWN_MS` is the only thing sizing the wait. It is
-**600s**, EDGAR's stated penalty, not a tuning knob at 60s.
+carries none), so the cooldown policy is the only thing sizing the wait.
+
+**The first trip is not a ban, and is not treated as one.** EDGAR throttles the
+offending requests when a burst clears 10 req/s and escalates to the ~10-minute
+IP block only if the caller keeps pushing — and the budget is per IP, so an
+ordinary browser tab on the same address spends from it too. A flat ten minutes
+on the first 429 therefore stops the CLI dead over a condition a few seconds of
+quiet clears. `COOLDOWN_LADDER_MS` (`5s → 60s → 600s`) probes instead: back off
+briefly, and conclude we are genuinely banned only once a retry AFTER that pause
+is blocked again. Three rungs reach the full penalty after ~65s, which is the
+trade — each probe costs a round of requests and requests sent during a real ban
+extend it, so more rungs are gentler on a false alarm and worse on a true one.
+
+Two properties that policy depends on:
+
+- **A fleet blocking at once is ONE trip.** Every in-flight job sees the same
+  block and reports it, so escalating per caller would climb
+  `SEC_FETCH_MAX_CONCURRENT` rungs on the first overshoot and land on ten
+  minutes immediately — the exact behavior the ladder exists to avoid. A block
+  arriving while the cooldown is still in force is that same trip: the caller
+  gets the REMAINING time and the ladder does not move. Only a block that
+  survives a completed cooldown is new evidence.
+- **The quiet period that resets the ladder is anchored on the END of the last
+  cooldown**, not the block that caused it, so waiting out a full ban is not
+  itself counted as the clean run that earns a reset.
+
+`translateEdgarBlockResponse` deliberately synthesizes **no** `Retry-After`.
+EDGAR's ten-minute figure describes the ban it escalates to, not the first
+overshoot, so stating it would hand every first trip a ten-minute wait and
+bypass the ladder entirely.
 
 Three things close the loop, separate fixes for separate halves:
 
@@ -2738,8 +2766,8 @@ Three things close the loop, separate fixes for separate halves:
   cluster learned nothing from precisely the jobs that saw the block most clearly.
 - **A blocked job sleeps the applied cooldown.** The cluster sentinel gates
   DISPATCH, and a job that already started never re-consults the limiter, so the
-  ordinary ≤30s backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests
-  back on the wire deep inside the penalty window. Sleeping it out costs nothing
+  ordinary backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on
+  the wire inside the penalty window. Sleeping it out costs nothing
   that was available anyway: no other fetch can start during the cooldown.
 
 **A concurrency bound is not a rate bound**, and that is the other half.

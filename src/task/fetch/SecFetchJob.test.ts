@@ -16,7 +16,7 @@ import {
   isEdgarRateLimitBody,
   resetEdgarBlockTranslationForTesting,
 } from "./edgarBlockResponse";
-import { setSecFetchLimiter } from "./secFetchThrottle";
+import { resetSecFetchThrottleForTesting, setSecFetchLimiter } from "./secFetchThrottle";
 
 /** A 200 whose body errors part-way through, i.e. a mid-body socket reset. */
 function bodyFailsMidStream(): Response {
@@ -334,6 +334,10 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
   afterEach(() => {
     vi.useRealTimers();
     setSecFetchLimiter(undefined as unknown as RateLimiter);
+    // The escalation ladder is module state shared across callers, so a test
+    // that left a cooldown in force would coalesce the next test's block into
+    // it and see no cluster write at all.
+    resetSecFetchThrottleForTesting();
     resetEdgarBlockTranslationForTesting();
   });
 
@@ -381,17 +385,14 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
 
       // Untranslated this is a 403 — a permanent client error — so the job threw
       // here without ever signalling the cluster, leaving the sweep firing at
-      // full rate for the whole penalty window and renewing it.
+      // full rate and renewing the block. It must now both pause the cluster
+      // and stay retryable.
       await vi.advanceTimersByTimeAsync(1);
       expect(writes).toHaveLength(1);
-      expect(writes[0].getTime() - Date.now()).toBeGreaterThan(500_000);
+      expect(writes[0].getTime() - Date.now()).toBeGreaterThan(4_000);
 
-      // The ordinary backoff caps at 30s — deep inside EDGAR's ten minutes.
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(attempts).toBe(1);
-
-      // 600s cooldown plus the anti-herd jitter.
-      await vi.advanceTimersByTimeAsync(575_000);
+      // First trip: seconds, not the full ban.
+      await vi.advanceTimersByTimeAsync(5_000 + DRAIN_WINDOW_MS + 1);
       expect(attempts).toBe(2);
       expect((await promise) as { json?: { ok?: boolean } }).toMatchObject({
         json: { ok: true },
@@ -406,8 +407,8 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
   it("waits out the cluster cooldown on a bare 429, not the ordinary backoff", async () => {
     // Modelled on a captured EDGAR 429: no Retry-After, a text/html
     // interstitial, and an empty reason phrase (HTTP/2 carries none). The
-    // missing header is the point — nothing but the applied cooldown sizes
-    // this wait. The cluster sentinel gates DISPATCH and this job is already
+    // missing header is the point — nothing but the applied cooldown (the
+    // ladder's first rung) sizes this wait. The cluster sentinel gates DISPATCH and this job is already
     // dispatched, its retry loop never re-consulting the limiter, so an ~30s
     // backoff put every in-flight request back on the wire deep inside the
     // ten-minute penalty window and extended it for everyone — including, as
@@ -450,11 +451,12 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(writes).toHaveLength(1);
 
-      // The whole ordinary backoff range elapses with no re-issue.
-      await vi.advanceTimersByTimeAsync(60_000);
+      // The ordinary first backoff (1s) elapses with no re-issue: the applied
+      // cooldown governs, not the backoff.
+      await vi.advanceTimersByTimeAsync(1_000 + DRAIN_WINDOW_MS);
       expect(attempts).toBe(1);
 
-      await vi.advanceTimersByTimeAsync(545_000);
+      await vi.advanceTimersByTimeAsync(4_001);
       expect(attempts).toBe(2);
       expect((await promise) as { json?: { ok?: boolean } }).toMatchObject({ json: { ok: true } });
     } finally {
@@ -477,7 +479,12 @@ describe("EDGAR rate-limit block (403 interstitial)", () => {
     let attempts = 0;
     const previous = registerSafeFetch((async () => {
       attempts += 1;
-      if (attempts === 1) return new Response("slow down", { status: 429 });
+      if (attempts === 1) {
+        return new Response("slow down", {
+          status: 429,
+          headers: { "Retry-After": "86400" },
+        });
+      }
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },

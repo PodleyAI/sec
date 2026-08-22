@@ -5,8 +5,12 @@
  */
 
 import type { RateLimiter } from "workglow";
-import { afterEach, describe, expect, it } from "vitest";
-import { setSecFetchLimiter, signalSecFetchThrottle } from "./secFetchThrottle";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  resetSecFetchThrottleForTesting,
+  setSecFetchLimiter,
+  signalSecFetchThrottle,
+} from "./secFetchThrottle";
 
 // Captures the cluster-cooldown writes without a real limiter/DB.
 function makeFakeLimiter(): { limiter: RateLimiter; writes: Date[] } {
@@ -21,24 +25,97 @@ function makeFakeLimiter(): { limiter: RateLimiter; writes: Date[] } {
 
 describe("signalSecFetchThrottle", () => {
   afterEach(() => {
-    // Reset the module singleton so tests don't leak the fake into each other.
+    // Reset the module singletons so tests don't leak the fake — or the
+    // escalation ladder's position — into each other.
     setSecFetchLimiter(undefined as unknown as RateLimiter);
+    resetSecFetchThrottleForTesting();
   });
 
-  it("applies the default cooldown when no Retry-After is supplied", async () => {
+  it("costs seconds on the first trip, not the full ban", async () => {
     const { limiter, writes } = makeFakeLimiter();
     setSecFetchLimiter(limiter);
 
     const before = Date.now();
     const cooldown = await signalSecFetchThrottle();
 
-    // EDGAR's stated penalty is ten minutes, and requests inside it extend the
-    // block — a shorter default resumed the cluster into a live block.
-    expect(cooldown).toBe(600_000);
+    // A first overshoot is throttled, not banned — and the 10 req/s budget is
+    // per IP, so it may not even be all ours. Stopping the CLI for ten minutes
+    // over a condition a few seconds of quiet clears is the wrong trade.
+    expect(cooldown).toBe(5_000);
     expect(writes).toHaveLength(1);
     const ahead = writes[0].getTime() - before;
-    expect(ahead).toBeGreaterThanOrEqual(599_000);
-    expect(ahead).toBeLessThanOrEqual(601_000);
+    expect(ahead).toBeGreaterThanOrEqual(4_000);
+    expect(ahead).toBeLessThanOrEqual(6_000);
+  });
+
+  it("escalates only when a retry after a completed cooldown is blocked again", async () => {
+    vi.useFakeTimers();
+    try {
+      const { limiter } = makeFakeLimiter();
+      setSecFetchLimiter(limiter);
+
+      expect(await signalSecFetchThrottle()).toBe(5_000);
+      // Probe: let the cooldown expire, then get blocked again. That, and only
+      // that, is evidence the first backoff was not enough.
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(await signalSecFetchThrottle()).toBe(60_000);
+      await vi.advanceTimersByTimeAsync(60_001);
+      expect(await signalSecFetchThrottle()).toBe(600_000);
+      // Top rung holds; it never exceeds EDGAR's stated penalty.
+      await vi.advanceTimersByTimeAsync(600_001);
+      expect(await signalSecFetchThrottle()).toBe(600_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats a whole fleet blocking at once as ONE trip", async () => {
+    vi.useFakeTimers();
+    try {
+      const { limiter } = makeFakeLimiter();
+      setSecFetchLimiter(limiter);
+
+      // Every in-flight job sees the same block and reports it. Escalating per
+      // caller would jump straight to the top rung on the very first trip.
+      const first = await signalSecFetchThrottle();
+      expect(first).toBe(5_000);
+
+      await vi.advanceTimersByTimeAsync(10);
+      const stragglers = await Promise.all(
+        Array.from({ length: 15 }, () => signalSecFetchThrottle())
+      );
+      // Each straggler is told the time REMAINING, so it does not restart a
+      // fresh full cooldown of its own.
+      for (const c of stragglers) {
+        expect(c).toBeLessThanOrEqual(5_000);
+        expect(c).toBeGreaterThan(4_000);
+      }
+
+      // Still rung 1: the next NEW trip after this cooldown is only the second.
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(await signalSecFetchThrottle()).toBe(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resets to the first rung after a quiet period", async () => {
+    vi.useFakeTimers();
+    try {
+      const { limiter } = makeFakeLimiter();
+      setSecFetchLimiter(limiter);
+
+      expect(await signalSecFetchThrottle()).toBe(5_000);
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(await signalSecFetchThrottle()).toBe(60_000);
+
+      // Quiet is measured from the END of the cooldown, so waiting out a long
+      // block is not itself counted as the clean period that earns a reset.
+      await vi.advanceTimersByTimeAsync(60_000 + 600_001);
+      expect(await signalSecFetchThrottle()).toBe(5_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("honors a server Retry-After exactly", async () => {
