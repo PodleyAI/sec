@@ -18,6 +18,7 @@ const facts = (over: Partial<SpacCandidateFacts>): SpacCandidateFacts => ({
   name: null,
   current_sic: null,
   filed_sic_6770: null,
+  classified_as_spac: null,
   first_reg_form: null,
   first_reg_date: null,
   renamed_from: null,
@@ -415,5 +416,71 @@ describe("the as-filed header SIC signal", () => {
     );
     expect(row?.confidence).toBe("high");
     expect(row?.signal_filed_sic_6770).toBeNull();
+  });
+});
+
+describe("a parsed registration that is not a SPAC", () => {
+  it("demotes a weak-named lender to low once its S-1 classified is_spac=false", () => {
+    // ASSOCIATES FIRST CAPITAL CORP (CIK 7974): "%capital corp%" plus an S-1
+    // grades medium, but every registration the forms pipeline has read is an
+    // operating company. Process ignores `low`, so this is how it drops off
+    // the worklist without a new confidence enum.
+    const row = classifySpacCandidate(
+      facts({
+        cik: 7974,
+        name: "ASSOCIATES FIRST CAPITAL CORP",
+        current_sic: 6141,
+        first_reg_form: "S-1",
+        first_reg_date: "1996-02-09",
+        classified_as_spac: false,
+      }),
+      AT
+    );
+    expect(row).toMatchObject({ confidence: "low", signal_name_match: false });
+  });
+
+  it("does not demote when the classification has not been asked yet", () => {
+    const row = classifySpacCandidate(
+      facts({
+        cik: 7974,
+        name: "ASSOCIATES FIRST CAPITAL CORP",
+        current_sic: 6141,
+        first_reg_form: "S-1",
+        first_reg_date: "1996-02-09",
+        classified_as_spac: null,
+      }),
+      AT
+    );
+    expect(row?.confidence).toBe("medium");
+  });
+
+  it("does not demote a high SPAC whose latest registration classified is_spac=true", () => {
+    const row = classifySpacCandidate(
+      facts({
+        cik: 2082251,
+        name: "Yuanxiang Acquisition Corp.",
+        current_sic: 6770,
+        first_reg_form: "F-1",
+        first_reg_date: "2025-09-17",
+        classified_as_spac: true,
+      }),
+      AT
+    );
+    expect(row?.confidence).toBe("high");
+  });
+
+  it("caps even a 6770-coded name at low when the latest registration said it is not a SPAC", () => {
+    const row = classifySpacCandidate(
+      facts({
+        cik: 42,
+        name: "Someone Acquisition Corp",
+        current_sic: 6770,
+        first_reg_form: "S-1",
+        first_reg_date: "2021-01-01",
+        classified_as_spac: false,
+      }),
+      AT
+    );
+    expect(row?.confidence).toBe("low");
   });
 });

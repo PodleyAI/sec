@@ -183,6 +183,12 @@ export interface SpacCandidateFacts {
    * Null when none has been parsed — not the same as false.
    */
   readonly filed_sic_6770: boolean | null;
+  /**
+   * `is_spac` on the latest parsed registration, by filing date. Null when
+   * none has been parsed — not the same as false, which is a verdict that
+   * this filer is not a blank check.
+   */
+  readonly classified_as_spac: boolean | null;
   /** Earliest {@link SPAC_REGISTRATION_FORMS} filing, if any. */
   readonly first_reg_form: string | null;
   readonly first_reg_date: string | null;
@@ -199,6 +205,43 @@ export interface SpacCandidateFacts {
    * interval on it describes a variant it kept, not an era it left.
    */
   readonly spac_name_ended: string | null;
+}
+
+/** One `s1_classification` row, enough to pick the latest `is_spac` per CIK. */
+export interface ClassificationVerdict {
+  readonly accession_number: string;
+  readonly is_spac: boolean;
+  readonly created_at: string;
+}
+
+/**
+ * `is_spac` of the latest registration, or null when none has been parsed.
+ * Filing date wins; `created_at` then accession break ties and stand in when
+ * the filing row is missing.
+ */
+export function latestClassifiedAsSpac(
+  rows: readonly ClassificationVerdict[],
+  filingDateByAccession: ReadonlyMap<string, string>
+): boolean | null {
+  if (rows.length === 0) return null;
+  let best = rows[0]!;
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]!;
+    if (isLaterClassification(row, best, filingDateByAccession)) best = row;
+  }
+  return best.is_spac;
+}
+
+function isLaterClassification(
+  a: ClassificationVerdict,
+  b: ClassificationVerdict,
+  filingDateByAccession: ReadonlyMap<string, string>
+): boolean {
+  const aDate = filingDateByAccession.get(a.accession_number) ?? "";
+  const bDate = filingDateByAccession.get(b.accession_number) ?? "";
+  if (aDate !== bDate) return aDate > bDate;
+  if (a.created_at !== b.created_at) return a.created_at > b.created_at;
+  return a.accession_number > b.accession_number;
 }
 
 /**
@@ -225,6 +268,13 @@ export interface SpacCandidateFacts {
  *   (CIK 1348155, R&R ACQUISITION I → Global Employment Holdings). Kept rather
  *   than dropped because the same shape occasionally *is* a SPAC whose earlier
  *   filings we have not ingested.
+ *
+ * A parsed registration whose latest `is_spac` is false caps the grade at
+ * `low`, even when the name/SIC ladder would have said medium or high. That is
+ * how an operating company that merely *looks* like a blank check (Associates
+ * First Capital, Sprint Capital) leaves the process worklist without a fourth
+ * confidence rung. Null means the forms pipeline has not classified a
+ * registration yet, so the ladder stands. True leaves the ladder in place.
  *
  * Note what is deliberately NOT decided here: whether the as-filed SGML header
  * said 6770. That lives in the filing, not in submissions metadata, and reading
@@ -301,6 +351,10 @@ export function classifySpacCandidate(
   } else if (hasRegistration && (signal_sic_6770 || weakName)) {
     confidence = "medium";
   } else {
+    confidence = "low";
+  }
+
+  if (facts.classified_as_spac === false) {
     confidence = "low";
   }
 

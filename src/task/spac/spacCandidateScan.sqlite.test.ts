@@ -187,6 +187,17 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     await classifications.put(classification(10, 100, 6199));
     await classifications.put(classification(10, 101, 6770));
     await classifications.put(classification(10, 102, null));
+
+    // 11 — weak-class name whose parsed registration is not a SPAC. The
+    // accession matches the filing so latest-by-filing-date is exerciseable,
+    // not just the created_at fallback.
+    await entities.put(entity(11, "Associates First Capital Corp", 6141));
+    await filings.put(filing(11, "S-1", "1996-02-09", 11));
+    await classifications.put({
+      ...classification(11, 11, 6141),
+      accession_number: `0000000000-00-${String(11).padStart(6, "0")}`,
+      is_spac: false,
+    });
   }
 
   it("agrees with the repository twin on a full scan", async () => {
@@ -249,6 +260,10 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     expect(at(10).filed_sic_6770).toBe(true);
     // Nothing parsed at all is also null.
     expect(at(1).filed_sic_6770).toBeNull();
+    expect(at(1).classified_as_spac).toBeNull();
+    expect(at(8).classified_as_spac).toBe(true);
+    expect(at(9).classified_as_spac).toBe(false);
+    expect(at(10).classified_as_spac).toBe(false);
   });
 
   it("reads s1_classification once, through the covering index", async () => {
@@ -269,8 +284,9 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     // EXISTS) each re-read `s1_classification` per candidate entity, and would
     // show up here as two rows — including for a version that adds the index
     // but keeps them correlated, which is why the count is the assertion and
-    // the index is only half of it.
-    const reads = plan.filter((r) => /\bs1_classification\b/.test(r.detail));
+    // the index is only half of it. SQLite names the scan after the alias
+    // (`cls`) and the index (`s1_classification_…`), not the table.
+    const reads = plan.filter((r) => /\bs1_classification_/.test(r.detail));
     expect(reads.map((r) => r.detail)).toHaveLength(1);
     expect(reads[0]!.detail).toMatch(/COVERING INDEX/);
 
@@ -291,5 +307,7 @@ describe("scanSpacCandidates (sqlite) vs the repository twin", () => {
     expect(graded.get(3)).toMatchObject({ confidence: "high", reg_while_spac_named: true });
     // Weak-class name with a registration and nothing else.
     expect(graded.get(6)).toMatchObject({ confidence: "medium" });
+    // Latest registration classified is_spac=false — off the process worklist.
+    expect(graded.get(11)).toMatchObject({ confidence: "low" });
   });
 });

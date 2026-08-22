@@ -5,11 +5,17 @@
  */
 
 import { globalServiceRegistry } from "workglow";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   SPAC_CANDIDATE_REPOSITORY_TOKEN,
   type SpacCandidateConfidence,
 } from "../../storage/spac/SpacCandidateSchema";
 import { SPAC_REPOSITORY_TOKEN } from "../../storage/spac/SpacSchema";
+import {
+  latestClassifiedAsSpac,
+  type ClassificationVerdict,
+} from "../../task/spac/classifySpacCandidate";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { SYNC_FORM_DOMAINS } from "./syncFormDomains";
 
@@ -124,9 +130,10 @@ export async function filterSpacCiksByHistory(
   return ciks.filter((cik) => touched.has(cik));
 }
 
-/** Known spac rows ∪ spac_candidate rows with confidence high|medium. */
+/** Known spac rows ∪ high|medium candidates, minus classified-not-SPAC CIKs. */
 export async function listSpacProcessCiks(): Promise<number[]> {
   const known = await listKnownSpacCiks();
+  const knownSet = new Set(known);
   const ciks = new Set<number>(known);
   const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
 
@@ -139,11 +146,64 @@ export async function listSpacProcessCiks(): Promise<number[]> {
       [];
   }
 
+  const unknown = candidates.filter((row) => !knownSet.has(row.cik)).map((row) => row.cik);
+  const rejected = await listCiksLatestClassificationNotSpac(unknown);
+
   for (const row of candidates) {
+    if (rejected.has(row.cik)) continue;
     ciks.add(row.cik);
   }
 
   return [...ciks].sort((a, b) => a - b);
+}
+
+/**
+ * CIKs among `ciks` whose latest parsed registration classified `is_spac=false`.
+ * A CIK with no classification is not rejected — the forms pipeline has not
+ * answered yet.
+ */
+async function listCiksLatestClassificationNotSpac(ciks: readonly number[]): Promise<Set<number>> {
+  const rejected = new Set<number>();
+  if (ciks.length === 0) return rejected;
+
+  const classRepo = globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN);
+  const filingRepo = globalServiceRegistry.get(FILING_REPOSITORY_TOKEN);
+  const byCik = new Map<number, ClassificationVerdict[]>();
+  const accessions = new Set<string>();
+  const sorted = [...new Set(ciks)].sort((a, b) => a - b);
+  for (let i = 0; i < sorted.length; i += TOUCHED_CIK_CHUNK) {
+    const chunk = sorted.slice(i, i + TOUCHED_CIK_CHUNK);
+    const rows = (await classRepo.query({ cik: { value: chunk, operator: "in" } })) ?? [];
+    for (const row of rows) {
+      if (row.cik == null) continue;
+      accessions.add(row.accession_number);
+      const list = byCik.get(row.cik) ?? [];
+      list.push({
+        accession_number: row.accession_number,
+        is_spac: row.is_spac,
+        created_at: row.created_at,
+      });
+      byCik.set(row.cik, list);
+    }
+  }
+
+  const filingDateByAccession = new Map<string, string>();
+  const accessionList = [...accessions];
+  for (let i = 0; i < accessionList.length; i += TOUCHED_CIK_CHUNK) {
+    const chunk = accessionList.slice(i, i + TOUCHED_CIK_CHUNK);
+    const filings =
+      (await filingRepo.query({ accession_number: { value: chunk, operator: "in" } })) ?? [];
+    for (const filing of filings) {
+      filingDateByAccession.set(filing.accession_number, filing.filing_date);
+    }
+  }
+
+  for (const [cik, rows] of byCik) {
+    if (latestClassifiedAsSpac(rows, filingDateByAccession) === false) {
+      rejected.add(cik);
+    }
+  }
+  return rejected;
 }
 
 /** CIKs that already have a `spac` row — the 8-K / proxy / 25-15 handlers' gate. */

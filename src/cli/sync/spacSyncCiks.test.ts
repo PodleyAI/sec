@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { globalServiceRegistry } from "workglow";
 import { resetDependencyInjectionsForTesting } from "../../config/TestingDI";
 import { setupAllDatabases } from "../../config/setupAllDatabases";
+import { S1_CLASSIFICATION_REPOSITORY_TOKEN } from "../../storage/classification/S1ClassificationSchema";
+import { FILING_REPOSITORY_TOKEN } from "../../storage/filing/FilingSchema";
 import {
   SPAC_CANDIDATE_REPOSITORY_TOKEN,
   type SpacCandidate,
@@ -72,6 +74,42 @@ function minimalSpac(cik: number): Spac {
   };
 }
 
+async function putClassification(args: {
+  readonly cik: number;
+  readonly accession_number: string;
+  readonly filing_date: string;
+  readonly is_spac: boolean;
+  readonly created_at?: string;
+}): Promise<void> {
+  await globalServiceRegistry.get(FILING_REPOSITORY_TOKEN).put({
+    cik: args.cik,
+    accession_number: args.accession_number,
+    filing_date: args.filing_date,
+    report_date: null,
+    acceptance_date: `${args.filing_date}T12:00:00.000Z`,
+    form: "S-1",
+    file_number: null,
+    film_number: null,
+    primary_doc: "doc.htm",
+    primary_doc_description: null,
+    size: null,
+    is_xbrl: null,
+    is_inline_xbrl: null,
+    items: null,
+    act: null,
+  });
+  await globalServiceRegistry.get(S1_CLASSIFICATION_REPOSITORY_TOKEN).put({
+    extractor_id: "S-1",
+    accession_number: args.accession_number,
+    cik: args.cik,
+    sic: args.is_spac ? 6770 : 6141,
+    sic_description: null,
+    is_spac: args.is_spac,
+    classifier_source: "sgml-header",
+    created_at: args.created_at ?? "2026-08-17T00:00:00.000Z",
+  });
+}
+
 function candidateRow(cik: number, confidence: SpacCandidate["confidence"]): SpacCandidate {
   return {
     cik,
@@ -131,6 +169,74 @@ describe("listSpacProcessCiks", () => {
 
     await expect(listKnownSpacCiks()).resolves.toEqual([1]);
     await expect(listSpacProcessCiks()).resolves.toEqual([1, 2]);
+  });
+
+  it("drops a medium candidate whose latest registration classified is_spac=false", async () => {
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    await candidateRepo.put(candidateRow(7974, "medium"));
+    await putClassification({
+      cik: 7974,
+      accession_number: "0000950134-96-000313",
+      filing_date: "1996-02-09",
+      is_spac: false,
+    });
+
+    await expect(listSpacProcessCiks()).resolves.toEqual([]);
+  });
+
+  it("keeps a known SPAC whose later operating registration classified is_spac=false", async () => {
+    const spacRepo = globalServiceRegistry.get(SPAC_REPOSITORY_TOKEN);
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    await spacRepo.put(minimalSpac(1848507));
+    await candidateRepo.put(candidateRow(1848507, "medium"));
+    await putClassification({
+      cik: 1848507,
+      accession_number: "0001848507-26-000001",
+      filing_date: "2026-01-15",
+      is_spac: false,
+    });
+
+    await expect(listSpacProcessCiks()).resolves.toEqual([1848507]);
+  });
+
+  it("keeps a candidate when a later registration classified is_spac=true", async () => {
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    await candidateRepo.put(candidateRow(9001, "medium"));
+    await putClassification({
+      cik: 9001,
+      accession_number: "0000000000-21-000001",
+      filing_date: "2021-01-01",
+      is_spac: false,
+    });
+    await putClassification({
+      cik: 9001,
+      accession_number: "0000000000-21-000002",
+      filing_date: "2021-06-01",
+      is_spac: true,
+    });
+
+    await expect(listSpacProcessCiks()).resolves.toEqual([9001]);
+  });
+
+  it("uses the later filing date, not process order, as latest", async () => {
+    const candidateRepo = globalServiceRegistry.get(SPAC_CANDIDATE_REPOSITORY_TOKEN);
+    await candidateRepo.put(candidateRow(9002, "high"));
+    await putClassification({
+      cik: 9002,
+      accession_number: "0000000000-21-000010",
+      filing_date: "2021-01-01",
+      is_spac: true,
+      created_at: "2026-08-20T00:00:00.000Z",
+    });
+    await putClassification({
+      cik: 9002,
+      accession_number: "0000000000-21-000011",
+      filing_date: "2021-06-01",
+      is_spac: false,
+      created_at: "2026-08-01T00:00:00.000Z",
+    });
+
+    await expect(listSpacProcessCiks()).resolves.toEqual([]);
   });
 });
 

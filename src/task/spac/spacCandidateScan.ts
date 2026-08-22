@@ -23,6 +23,7 @@ import {
   looksLikeSpacName,
   MODERN_SPAC_NAME_PATTERNS,
   SPAC_REGISTRATION_FORMS,
+  latestClassifiedAsSpac,
   type SpacCandidateFacts,
 } from "./classifySpacCandidate";
 
@@ -143,12 +144,28 @@ export function buildScanSql(
   // projection and the WHERE predicate both read the same column. As two
   // correlated subqueries this was two full passes over `s1_classification`
   // PER candidate entity.
+  //
+  // `classified_as_spac` is the `is_spac` of the latest registration (filing
+  // date, then created_at, then accession). Packed into a sortable string so
+  // the same GROUP BY that answers the 6770 question can pick that row without
+  // a second pass. A CIK with only sic-null classifications still groups here
+  // so the verdict is false rather than "not asked"; `count(sic)` keeps the
+  // 6770 answer null in that case, matching the old `WHERE sic IS NOT NULL`.
   const filedSicJoin = `LEFT JOIN (
-        SELECT ${q("cik")} AS cik,
-          max(CASE WHEN ${q("sic")} = ${bind(BLANK_CHECK_SIC)} THEN 1 ELSE 0 END) AS filed_sic_6770
-        FROM ${q("s1_classification")}
-        WHERE ${q("sic")} IS NOT NULL
-        GROUP BY ${q("cik")}
+        SELECT cls.${q("cik")} AS cik,
+          CASE WHEN count(cls.${q("sic")}) = 0 THEN NULL
+            ELSE max(CASE WHEN cls.${q("sic")} = ${bind(BLANK_CHECK_SIC)} THEN 1 ELSE 0 END)
+          END AS filed_sic_6770,
+          CASE WHEN max(
+            coalesce(f.${q("filing_date")}, '') || '|' ||
+            cls.${q("created_at")} || '|' ||
+            cls.${q("accession_number")} || '|' ||
+            CASE WHEN cls.${q("is_spac")} THEN '1' ELSE '0' END
+          ) LIKE '%1' THEN 1 ELSE 0 END AS classified_as_spac
+        FROM ${q("s1_classification")} cls
+        LEFT JOIN ${q("filings")} f
+          ON f.${q("accession_number")} = cls.${q("accession_number")}
+        GROUP BY cls.${q("cik")}
       ) c ON c.cik = e.${q("cik")}`;
 
   // --- WHERE clause ---
@@ -171,7 +188,8 @@ export function buildScanSql(
       ${firstRegForm} AS first_reg_form,
       ${renamedFrom} AS renamed_from,
       ${spacNameEnded} AS spac_name_ended,
-      c.filed_sic_6770 AS filed_sic_6770
+      c.filed_sic_6770 AS filed_sic_6770,
+      c.classified_as_spac AS classified_as_spac
     FROM ${q("entities")} e
     ${filedSicJoin}
     WHERE (${sicMatch} OR (${entityNameMatch}) OR ${historyNameMatch} OR ${filedSicMatch})
@@ -189,6 +207,8 @@ function rowToFacts(row: Record<string, unknown>): SpacCandidateFacts {
     first_reg_date: toTextOrNull(row.first_reg_date),
     renamed_from: toTextOrNull(row.renamed_from),
     filed_sic_6770: row.filed_sic_6770 == null ? null : Number(row.filed_sic_6770) === 1,
+    classified_as_spac:
+      row.classified_as_spac == null ? null : Number(row.classified_as_spac) === 1,
     spac_name_ended: toIsoOrNull(row.spac_name_ended),
   };
 }
@@ -282,13 +302,15 @@ export async function scanRepository(
       if (!processed || processed.last_processed < options.since) continue;
     }
 
-    const registrations = ((await filingRepo.query({ cik: entity.cik })) ?? [])
+    const filings = (await filingRepo.query({ cik: entity.cik })) ?? [];
+    const registrations = filings
       .filter((f) => f.form !== null && registrationForms.has(f.form))
       .sort((a, b) =>
         a.filing_date === b.filing_date
           ? (a.form ?? "").localeCompare(b.form ?? "")
           : a.filing_date.localeCompare(b.filing_date)
       );
+    const filingDateByAccession = new Map(filings.map((f) => [f.accession_number, f.filing_date]));
 
     const renamedFrom = [...blankCheckHistory].sort((a, b) =>
       a.valid_from.localeCompare(b.valid_from)
@@ -306,6 +328,7 @@ export async function scanRepository(
       first_reg_date: registrations[0]?.filing_date ?? null,
       renamed_from: renamedFrom?.name ?? null,
       filed_sic_6770: filedSic,
+      classified_as_spac: latestClassifiedAsSpac(classifications, filingDateByAccession),
       spac_name_ended: endings.length > 0 ? endings[endings.length - 1] : null,
     });
   }

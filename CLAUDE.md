@@ -2196,6 +2196,14 @@ Graded into `confidence`:
   reverse-merge, then S-1 for the operating company's resale), OR 6770 with no
   registration on file at all.
 
+A latest `s1_classification.is_spac = false` (by filing date) also caps identify
+at `low`, and `sec sync spacs` process skips that CIK even if an older candidate
+row is still medium. That is how an operating company that only _looks_ like a
+blank check (Associates First Capital, Sprint Capital) leaves the worklist
+without a fourth confidence rung. A CIK that already has a `spac` row is never
+dropped this way — a post-de-SPAC operating S-1 must not eject the vehicle.
+`null` (no registration parsed yet) leaves the ladder in place.
+
 Why the screen is worth having at all: `entities.sic` is the _current_ code, and
 it drifts off 6770 at the de-SPAC — sometimes before the rename (Melar
 Acquisition Corp. I reads 7389 while its own S-1 header says 6770). The header
