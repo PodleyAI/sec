@@ -136,6 +136,7 @@ export {
 // a superset registers its own here, or its extraction output is invisible on
 // the filing page — which reads as "that extractor wrote nothing".
 export {
+  accessionScopedStorages,
   clearWebExtractionTablesForTesting,
   registerWebExtractionTables,
   type WebExtractionTable,

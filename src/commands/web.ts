@@ -38,9 +38,13 @@ export function registerWebCommand(program: Command): void {
         "buttons spend model and EDGAR quota, so exposing it is an explicit choice.",
       DEFAULT_WEB_HOST
     )
-    .action(async (opts: { port: number; host: string }) => {
+    .action(async (opts: { port: number; host: string }, command: Command) => {
       const handle = await startWebServer({ port: opts.port, host: opts.host });
-      console.log(statusMessage("success", `sec web listening on ${handle.url}`));
+      // The program's own name rather than a literal: this command is inherited
+      // by superset CLIs through `AddCommands`, and `embarc-data web`
+      // announcing itself as `sec web` names a binary nobody ran.
+      const cliName = command.parent?.name() ?? "sec";
+      console.log(statusMessage("success", `${cliName} web listening on ${handle.url}`));
       if (opts.host !== DEFAULT_WEB_HOST && opts.host !== "localhost") {
         console.error(
           statusMessage(

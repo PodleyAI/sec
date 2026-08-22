@@ -52,6 +52,10 @@ describe("CLI command graph", () => {
       "editorial",
       "extractor",
       "eval",
+      // Inherited verbatim by superset CLIs (embarc-data) through this same
+      // call, which is the whole reason it is registered here rather than in a
+      // downstream package.
+      "web",
     ]) {
       expect(names).toContain(expected);
     }
