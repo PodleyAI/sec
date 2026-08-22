@@ -11,13 +11,22 @@ import { globalServiceRegistry } from "workglow";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../storage/versioning/ExtractorRunSchema";
 import { recordedOutcome, RunRegistry, type RunRecord } from "./runs";
 
+/**
+ * Wait for a run to reach a terminal status.
+ *
+ * The budget is a safety net against a hang, not a timing assertion: every body
+ * here is trivial and settles in a tick or two, but the suite runs these files
+ * in parallel with hundreds of others, so a deadline tight enough to be
+ * meaningful would only measure how loaded the machine is.
+ */
 async function settle(registry: RunRegistry, id: string): Promise<RunRecord> {
-  for (let i = 0; i < 200; i++) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
     const run = registry.get(id)!;
     if (run.status !== "queued" && run.status !== "running") return run;
     await new Promise((r) => setTimeout(r, 5));
   }
-  throw new Error("run never settled");
+  throw new Error(`run never settled (status ${registry.get(id)?.status})`);
 }
 
 describe("RunRegistry", () => {

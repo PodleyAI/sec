@@ -287,8 +287,10 @@ describe("web handler", () => {
       registry
     );
     const run = registry.list()[0]!;
-    for (let i = 0; i < 200; i++) {
-      if (registry.get(run.id)!.status === "succeeded") break;
+    // A safety net against a hang, not a timing assertion — see `settle` in
+    // runs.test.ts. The body reads in-memory storage and settles immediately.
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline && registry.get(run.id)!.status !== "succeeded") {
       await new Promise((r) => setTimeout(r, 5));
     }
     const messages = registry.get(run.id)!.events.map((e) => e.message);
