@@ -2696,6 +2696,115 @@ truncated file into place. Two consequences worth knowing:
   empty" rather than "no entry", so the fetch was skipped and the caller parsed
   nothing.
 
+#### EDGAR's rate-limit block renews itself
+
+Exceeding EDGAR's 10 req/s serves an HTML interstitial ("Your request rate has
+exceeded the SEC's maximum allowable requests per second. Your access to SEC.gov
+will be limited for 10 minutes.") under **429 and, per SEC's own guidance, 403**.
+SEC states that requests made **during** the time-out extend it, so a client that
+keeps firing does not merely lose those requests: it renews the ban. That is what
+made this recur rather than pass, and the block is IP-wide — a captured 429 shows
+an ordinary browser on the same IP being refused mid-sweep.
+
+The **429 path alone was sufficient** to sustain it, and that is the half worth
+understanding first. A 429 was already retryable and did arm the cluster
+cooldown, so it looked handled; but the cooldown was 60s against a 600-second
+penalty, and each of the up-to-`SEC_FETCH_MAX_CONCURRENT` in-flight jobs then
+retried on its own ≤30s backoff — every one of those a fresh violation inside a
+live window. The cluster then resumed at full rate nine minutes early. The 403
+handling below is real hardening, not the load-bearing fix.
+
+Captured 429s carry **no `Retry-After`** and an empty reason phrase (HTTP/2
+carries none), so the cooldown policy is the only thing sizing the wait.
+
+**The first trip is not a ban, and is not treated as one.** EDGAR throttles the
+offending requests when a burst clears 10 req/s and escalates to the ~10-minute
+IP block only if the caller keeps pushing — and the budget is per IP, so an
+ordinary browser tab on the same address spends from it too. A flat ten minutes
+on the first 429 therefore stops the CLI dead over a condition a few seconds of
+quiet clears. `COOLDOWN_LADDER_MS` (`5s → 60s → 600s`) probes instead: back off
+briefly, and conclude we are genuinely banned only once a retry AFTER that pause
+is blocked again. Three rungs reach the full penalty after ~65s, which is the
+trade — each probe costs a round of requests and requests sent during a real ban
+extend it, so more rungs are gentler on a false alarm and worse on a true one.
+
+Two properties that policy depends on:
+
+- **A fleet blocking at once is ONE trip.** Every in-flight job sees the same
+  block and reports it, so escalating per caller would climb
+  `SEC_FETCH_MAX_CONCURRENT` rungs on the first overshoot and land on ten
+  minutes immediately — the exact behavior the ladder exists to avoid. A block
+  arriving while the cooldown is still in force is that same trip: the caller
+  gets the REMAINING time and the ladder does not move. Only a block that
+  survives a completed cooldown is new evidence.
+- **The quiet period that resets the ladder is anchored on the END of the last
+  cooldown**, not the block that caused it, so waiting out a full ban is not
+  itself counted as the clean run that earns a reset.
+- **The cluster pause only ever moves FORWARD.** The rung is process state while
+  the sentinel is cluster state, and the storage write is last-writer-wins, so a
+  second shard meeting the same block at rung 0 would otherwise replace another
+  shard's 600s pause with its own 5s one and resume the whole cluster nine
+  minutes inside a live ban. `signalSecFetchThrottle` reads the current
+  next-available time first, skips the write when it is already later, and
+  returns that longer remaining time as this job's own wait — a shard that
+  re-fires early is the ban-renewing behavior, whichever shard's ladder set it.
+  A `Retry-After: 0` ("retry now") is not a block: it climbs no rung and arms no
+  window, which also keeps a fleet handed one from climbing a rung per job.
+
+`translateEdgarBlockResponse` deliberately synthesizes **no** `Retry-After`.
+EDGAR's ten-minute figure describes the ban it escalates to, not the first
+overshoot, so stating it would hand every first trip a ten-minute wait and
+bypass the ladder entirely.
+
+Three things close the loop, separate fixes for separate halves:
+
+- **`translateEdgarBlockResponse`** (`edgarBlockResponse.ts`, installed onto
+  SafeFetch by `getSecJobQueue`) re-labels the interstitial as the `429` it
+  describes — and, as above, states no `Retry-After`, so the ladder rather than
+  EDGAR's ban figure sizes the first wait. It belongs at the transport seam because
+  the status is the only thing the fetch layer carries forward — `buildHttpError`
+  reads a `{message}` out of a JSON body and discards everything else, so an
+  origin explaining itself in HTML loses its reason before any caller sees it.
+  Translating there means nothing downstream needs a second notion of "blocked".
+  It is narrow on purpose: sec.gov only, `403` only, and only when the body
+  matches. The **other** 403 EDGAR serves — the "Undeclared Automated Tool"
+  User-Agent rejection — shares a headline with it but not the rate sentence, and
+  must keep failing fast, since no cooldown fixes a misconfigured `SEC_USER_AGENT`.
+- **The cooldown is signalled before the retry decision, not after it.** A block
+  landing on a job's last attempt is the same evidence about the cluster as any
+  other, and under a sustained block that is most of them — every in-flight job
+  exhausts its attempts at once. Deciding the job's own fate first meant the
+  cluster learned nothing from precisely the jobs that saw the block most clearly.
+- **A blocked job sleeps the applied cooldown.** The cluster sentinel gates
+  DISPATCH, and a job that already started never re-consults the limiter, so the
+  ordinary backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on
+  the wire inside the penalty window. Sleeping it out costs nothing
+  that was available anyway: no other fetch can start during the cooldown.
+
+**A concurrency bound is not a rate bound**, and that is the other half.
+`ConcurrencyLimiter(SecFetchMaxConcurrent)` sits first in the composite and holds
+its token until the job reaches a terminal state, so simultaneity really is
+capped — retries included. But 16 requests are fine spread over two seconds and a
+violation arriving in one tick, and a retry re-issues from inside the job,
+downstream of every limiter. A shared upstream failure is exactly the case that
+produces the tick: every in-flight job fails on the same event and computes the
+same delay. So `retrySpread()` adds a uniform spread over
+`ceil(maxConcurrent / maxPerSec) * 2` seconds to **every** retry, not just a
+blocked one — a transient 5xx burst otherwise re-issued 16 requests inside 500 ms
+(~32/s) and tripped the very block it was recovering from.
+
+Two details that pass a casual reading and were both wrong at first:
+
+- **`backoffDelay` is deterministic.** Jittering there _and_ in `retrySpread`
+  sums two independent uniforms, which concentrates the result toward the middle
+  instead of spreading it — measurably still over the ceiling in the densest
+  second. One uniform spread over a known window is the thing that can be
+  reasoned about.
+- **The cap is applied to the wait, then the spread is added** — never to the
+  sum. Capping the sum silently eats the spread whenever the base is already at
+  the ceiling, which is the default block case exactly (a 600s cooldown against a
+  600s cap), so the herd it exists to disperse woke in one tick anyway.
+
 `SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
 **only before the first byte reaches a stream receiver**. Past that point the
 receiver's subscription outlives the attempt, so a re-issue starts again at byte
