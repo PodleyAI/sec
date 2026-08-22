@@ -100,7 +100,11 @@ export async function loadTimelineSteps(cik: number): Promise<TimelineSteps> {
       state: stateOf(latestRun, activeVersion),
       selected: selected.has(filing.accession_number),
       pendingDeadLetters: pending,
-      document: await loadFilingDocument({ cik, accessionNumber: filing.accession_number }),
+      document: await loadFilingDocument({
+        cik,
+        accessionNumber: filing.accession_number,
+        filing,
+      }),
     });
   }
 

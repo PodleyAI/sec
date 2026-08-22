@@ -302,6 +302,24 @@ describe("web handler", () => {
     expect(body).not.toContain("No <code>spac</code> row");
   });
 
+  it("rejects a malformed accession rather than composing a cache path from it", async () => {
+    const bad = await handleWebRequest(get("/spac/1/filing/..%2F..%2Fetc%2Fpasswd"), registry);
+    expect(bad.kind === "response" && bad.status).toBe(400);
+
+    const badCompare = await handleWebRequest(
+      post("/api/compare", { cik: "1", accession: "../../etc/passwd", extractor: "management" }),
+      registry
+    );
+    expect(badCompare.kind === "response" && badCompare.status).toBe(400);
+
+    const badRun = await handleWebRequest(
+      post("/api/process", { cik: "1", accession: "../../etc" }),
+      registry
+    );
+    expect(badRun.kind === "response" && badRun.status).toBe(400);
+    expect(registry.list()).toHaveLength(0);
+  });
+
   it("404s an unknown path", async () => {
     const response = await handleWebRequest(get("/nope"), registry);
     expect(response.kind === "response" && response.status).toBe(404);

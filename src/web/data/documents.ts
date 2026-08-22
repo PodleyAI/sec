@@ -137,9 +137,16 @@ export async function loadFilingDocument(args: {
   readonly cik: number;
   readonly accessionNumber: string;
   readonly includeText?: boolean;
+  /**
+   * The already-loaded filing row, when the caller has one. The process page
+   * builds a card per step and would otherwise re-query the same row it just
+   * iterated — one extra round trip per filing, on timelines that run to
+   * thousands for a de-SPAC'd operating company.
+   */
+  readonly filing?: Filing | undefined;
 }): Promise<FilingDocument> {
   const { cik, accessionNumber } = args;
-  const filing = await findFiling(cik, accessionNumber);
+  const filing = args.filing ?? (await findFiling(cik, accessionNumber));
   const base = {
     cik,
     accessionNumber,

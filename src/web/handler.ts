@@ -89,6 +89,9 @@ function intParam(params: URLSearchParams, name: string, fallback: number): numb
   return Number.isFinite(value) ? Math.trunc(value) : fallback;
 }
 
+/** EDGAR accession numbers, dashed or bare. Anything else is not one. */
+const ACCESSION_PATTERN = /^[A-Za-z0-9-]{1,25}$/;
+
 /**
  * Parse a CIK from a path segment. Leading zeros are accepted because EDGAR
  * itself writes them both ways and a link copied from a filing index must not
@@ -200,6 +203,9 @@ export async function handleWebRequest(
     if (cik === undefined) return errorPage("Not a CIK.", 400);
     const { overrides, models } = overridesFromForm(request.form);
     const accession = (request.form.get("accession") ?? "").trim();
+    if (accession !== "" && !ACCESSION_PATTERN.test(accession)) {
+      return errorPage("Malformed accession number.", 400);
+    }
     const mode = request.form.get("mode") ?? "";
     const run = enqueueTimelineRun(registry, {
       cik,
@@ -217,7 +223,12 @@ export async function handleWebRequest(
   if (path === "/api/compare" && request.method === "POST") {
     const cik = parseCikSegment((request.form.get("cik") ?? "").trim());
     const accession = (request.form.get("accession") ?? "").trim();
-    if (cik === undefined || accession === "") return errorPage("Missing CIK or accession.", 400);
+    // Validated to the same shape the GET route enforces. The value reaches a
+    // cache-path composition (guarded downstream by `assertInsideDir`, but the
+    // guard is not the place to first learn the input was not an accession).
+    if (cik === undefined || !ACCESSION_PATTERN.test(accession)) {
+      return errorPage("Missing or malformed CIK / accession.", 400);
+    }
     const models = [
       ...request.form.getAll("models"),
       ...(request.form.get("extra_models") ?? "").split(","),
@@ -257,13 +268,15 @@ export async function handleWebRequest(
     );
   }
 
-  const filingMatch = /^\/spac\/(\d{1,10})\/filing\/([A-Za-z0-9-]{1,25})$/.exec(path);
+  const filingMatch = /^\/spac\/(\d{1,10})\/filing\/([^/]+)$/.exec(path);
   if (filingMatch) {
     const cik = parseCikSegment(filingMatch[1]!);
     if (cik === undefined) return errorPage("Not a CIK.", 400);
+    const accession = decodeURIComponent(filingMatch[2]!);
+    if (!ACCESSION_PATTERN.test(accession)) return errorPage("Not an accession number.", 400);
     const tabRaw = request.query.get("tab") ?? "document";
     const tab = tabRaw === "extractions" || tabRaw === "compare" ? tabRaw : "document";
-    return renderFiling(cik, filingMatch[2]!, tab, undefined);
+    return renderFiling(cik, accession, tab, undefined);
   }
 
   if (path === "/api/state") {
