@@ -198,6 +198,13 @@ describe("SecFetchJob", () => {
   describe("Retry-After cap", () => {
     afterEach(() => {
       vi.useRealTimers();
+      // This test signals a 600s cluster cooldown, and the ladder is module
+      // state keyed on wall-clock time — which `useRealTimers` rewinds back
+      // inside that window. Without the reset the NEXT test's block coalesces
+      // into this one's cooldown and writes nothing to the limiter, so the
+      // suite only passes on the accident that the following test happens to
+      // be a pure unit test whose own afterEach clears it.
+      resetSecFetchThrottleForTesting();
     });
 
     it("caps a huge Retry-After so a sweep cannot park for a day", async () => {

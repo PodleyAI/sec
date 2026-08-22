@@ -132,8 +132,15 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
     maxBackoffDelay: 60000,
   });
   // Expose the cluster-scoped limiter to the 429 cooldown path so an EDGAR
-  // throttle pauses every shard, not just the job that saw the 429.
-  setSecFetchLimiter(limiter);
+  // throttle pauses every shard, not just the job that saw the 429. The reader
+  // goes straight to the STORAGE sentinel rather than through the limiter's
+  // `getNextAvailableTime`, which folds in the rate wall and this instance's
+  // local backoff hint — neither of which belongs in a cluster-wide pause.
+  setSecFetchLimiter(limiter, async () => {
+    const iso = await rateLimiterStorage.getNextAvailableTime(SecJobQueueName);
+    const ms = iso ? new Date(iso).getTime() : 0;
+    return Number.isFinite(ms) ? ms : 0;
+  });
 
   const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(SecJobQueueName);
   const { messageQueue, jobStore } = wrapQueueStorage(storage);

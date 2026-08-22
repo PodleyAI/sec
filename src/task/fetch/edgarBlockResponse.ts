@@ -98,7 +98,13 @@ let installed = false;
  * Wrap the registered SafeFetch so every EDGAR fetch — queued, inline, or from
  * a bulk download — sees the translation. Idempotent, and composes with
  * whatever implementation is already registered (the Node/Bun entrypoints
- * install their own at module load), so call order does not matter.
+ * install their own at module load).
+ *
+ * It composes only with what came BEFORE it: `registerSafeFetch` replaces the
+ * slot rather than chaining, so anything registered afterwards — a downstream
+ * superset's stub, a test's fake — drops this wrapper, and the `installed` latch
+ * means a later `getSecJobQueue()` will not put it back. Register your own
+ * implementation before the queue is built, or re-install after.
  */
 export function installEdgarBlockTranslation(): void {
   if (installed) return;

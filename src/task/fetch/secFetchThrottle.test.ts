@@ -11,6 +11,7 @@ import {
   setSecFetchLimiter,
   signalSecFetchThrottle,
 } from "./secFetchThrottle";
+import type { ExternalPauseReader } from "./secFetchThrottle";
 
 // Captures the cluster-cooldown writes without a real limiter/DB.
 function makeFakeLimiter(): { limiter: RateLimiter; writes: Date[] } {
@@ -116,6 +117,39 @@ describe("signalSecFetchThrottle", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("never pulls the cluster pause backwards", async () => {
+    // The ladder is PROCESS state and the storage write is an unconditional
+    // upsert, so a second shard meeting the same block at rung 0 would replace
+    // another shard's 600s pause with its own 5s one and resume every shard
+    // deep inside a live ban.
+    const { limiter, writes } = makeFakeLimiter();
+    const farFuture = Date.now() + 500_000;
+    const reader: ExternalPauseReader = async () => farFuture;
+    setSecFetchLimiter(limiter, reader);
+
+    const cooldown = await signalSecFetchThrottle(); // first rung: 5s
+    expect(cooldown).toBeGreaterThan(400_000);
+    expect(writes[0].getTime()).toBeGreaterThanOrEqual(farFuture);
+  });
+
+  it("does not adopt a process-local backoff as a cluster-wide pause", async () => {
+    // `RateLimiter.getNextAvailableTime()` folds in `localBackoffUntilMs` — a
+    // hint libs keeps out of cluster state on purpose. Reading that composite
+    // and writing it back would publish it, turning a 5s first trip into a
+    // minute-long pause for every shard. The reader must see only the sentinel.
+    const { limiter, writes } = makeFakeLimiter();
+    // The limiter's own composite reports a far-future instant, as it does when
+    // `localBackoffUntilMs` is at its 60s ceiling. The SENTINEL is unset.
+    (limiter as unknown as { getNextAvailableTime: () => Promise<Date> }).getNextAvailableTime =
+      async () => new Date(Date.now() + 60_000);
+    setSecFetchLimiter(limiter, async () => 0);
+
+    const before = Date.now();
+    // The first rung, not the composite: local backoff must not be published.
+    expect(await signalSecFetchThrottle()).toBe(5_000);
+    expect(writes[0].getTime() - before).toBeLessThanOrEqual(6_000);
   });
 
   it("honors a server Retry-After exactly", async () => {

@@ -48,11 +48,29 @@ let cooldownUntil = 0;
 export function resetSecFetchThrottleForTesting(): void {
   rung = 0;
   cooldownUntil = 0;
+  readExternalPause = undefined;
 }
 
+/**
+ * Reads the cluster-visible pause sentinel, in epoch ms (0 when unset).
+ *
+ * Deliberately NOT `RateLimiter.getNextAvailableTime()`, which returns the
+ * latest of three things: the rate-limit wall, this sentinel, AND the
+ * instance's `localBackoffUntilMs` — a hint libs documents as keeping "this
+ * process's worker from re-acquiring without polluting cluster state". Feeding
+ * that composite back into {@link RateLimiter.setNextAvailableTime} publishes
+ * the process-local hint as a cluster-wide pause, so a 5s first-rung trip taken
+ * while local backoff sat at its 60s ceiling would pause every shard for a
+ * minute — the over-reaction the ladder exists to avoid.
+ */
+export type ExternalPauseReader = () => Promise<number>;
+
+let readExternalPause: ExternalPauseReader | undefined;
+
 /** Registered by {@link getSecJobQueue} once the shared limiter is built. */
-export function setSecFetchLimiter(limiter: RateLimiter): void {
+export function setSecFetchLimiter(limiter: RateLimiter, reader?: ExternalPauseReader): void {
   sharedLimiter = limiter;
+  readExternalPause = reader;
 }
 
 /**
@@ -91,16 +109,43 @@ export async function signalSecFetchThrottle(retryAfterMs?: number): Promise<num
       ? Math.max(0, retryAfterMs)
       : COOLDOWN_LADDER_MS[Math.min(rung, COOLDOWN_LADDER_MS.length - 1)]
   );
+  // A zero cooldown is a server saying "retry now", which is not evidence of a
+  // ban and must not climb the ladder — and it would ALSO defeat the coalescing
+  // above (`cooldownUntil = now` is already past for the next caller), so a
+  // fleet handed `Retry-After: 0` would climb one rung per in-flight job and
+  // land on the top rung from a response that asked for no wait at all.
+  if (cooldown <= 0) return 0;
+
   rung += 1;
   cooldownUntil = now + cooldown;
 
-  if (sharedLimiter && cooldown > 0) {
+  let applied = cooldown;
+  if (sharedLimiter) {
     try {
-      await sharedLimiter.setNextAvailableTime(new Date(now + cooldown));
+      // The cluster pause may only ever move FORWARD, so write the LATER of
+      // what is already there and what this trip asks for. `setNextAvailableTime`
+      // lands on an unconditional `DO UPDATE SET next_available_at = EXCLUDED`,
+      // and the ladder is PROCESS state, so a second shard meeting the same
+      // block at rung 0 would otherwise replace another shard's 600s pause with
+      // its own 5s one and resume the whole cluster nine minutes deep inside a
+      // live ban — the exact herd this sentinel exists to prevent. Whichever
+      // value wins is adopted as this job's own wait too, since the caller
+      // sleeps what we return and re-firing before the cluster may dispatch is
+      // what renews the ban.
+      //
+      // Read-then-write is not atomic across processes, so a simultaneous pair
+      // can still race; this turns a systematic clobber into a rare one. The
+      // race closes properly with a `GREATEST(...)` in the storage's upsert,
+      // which is a `@workglow/postgres` change.
+      const currentMs = readExternalPause ? await readExternalPause() : 0;
+      const targetMs = Math.min(now + MAX_COOLDOWN_MS, Math.max(now + cooldown, currentMs));
+      applied = targetMs - now;
+      cooldownUntil = targetMs;
+      await sharedLimiter.setNextAvailableTime(new Date(targetMs));
     } catch {
       // Best-effort: a cooldown-write failure must not mask the fetch error
       // that triggered it. The per-job sleep below still applies locally.
     }
   }
-  return cooldown;
+  return applied;
 }

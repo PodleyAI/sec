@@ -2740,6 +2740,16 @@ Two properties that policy depends on:
 - **The quiet period that resets the ladder is anchored on the END of the last
   cooldown**, not the block that caused it, so waiting out a full ban is not
   itself counted as the clean run that earns a reset.
+- **The cluster pause only ever moves FORWARD.** The rung is process state while
+  the sentinel is cluster state, and the storage write is last-writer-wins, so a
+  second shard meeting the same block at rung 0 would otherwise replace another
+  shard's 600s pause with its own 5s one and resume the whole cluster nine
+  minutes inside a live ban. `signalSecFetchThrottle` reads the current
+  next-available time first, skips the write when it is already later, and
+  returns that longer remaining time as this job's own wait — a shard that
+  re-fires early is the ban-renewing behavior, whichever shard's ladder set it.
+  A `Retry-After: 0` ("retry now") is not a block: it climbs no rung and arms no
+  window, which also keeps a fleet handed one from climbing a rung per job.
 
 `translateEdgarBlockResponse` deliberately synthesizes **no** `Retry-After`.
 EDGAR's ten-minute figure describes the ban it escalates to, not the first
@@ -2750,7 +2760,8 @@ Three things close the loop, separate fixes for separate halves:
 
 - **`translateEdgarBlockResponse`** (`edgarBlockResponse.ts`, installed onto
   SafeFetch by `getSecJobQueue`) re-labels the interstitial as the `429` it
-  describes, with `Retry-After: 600`. It belongs at the transport seam because
+  describes — and, as above, states no `Retry-After`, so the ladder rather than
+  EDGAR's ban figure sizes the first wait. It belongs at the transport seam because
   the status is the only thing the fetch layer carries forward — `buildHttpError`
   reads a `{message}` out of a JSON body and discards everything else, so an
   origin explaining itself in HTML loses its reason before any caller sees it.
