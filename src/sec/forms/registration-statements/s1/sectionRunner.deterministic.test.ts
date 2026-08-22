@@ -1,0 +1,281 @@
+/**
+ * @license
+ * Copyright 2026 Steven Roussey <sroussey@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, expect, it } from "vitest";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
+import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
+import { makeRunSection } from "./sectionRunner";
+import type { SectionPersistMeta } from "./sectionRunner";
+
+interface RecordedLetter {
+  section_name: string;
+  reason_code: string;
+}
+
+function stubDeadLetters(): {
+  repo: ExtractionDeadLetterRepo;
+  letters: RecordedLetter[];
+  resolved: string[];
+} {
+  const letters: RecordedLetter[] = [];
+  const resolved: string[] = [];
+  const repo = {
+    record: async (args: { section_name: string; reason_code: string }) => {
+      letters.push({ section_name: args.section_name, reason_code: args.reason_code });
+    },
+    markResolved: async (_id: string, _acc: string, section: string) => {
+      resolved.push(section);
+    },
+  } as unknown as ExtractionDeadLetterRepo;
+  return { repo, letters, resolved };
+}
+
+interface Row {
+  readonly confidence: number;
+  readonly span: string;
+}
+
+const TEXT = "alpha bravo charlie";
+
+/** One section, wired so each test only states what it is varying. */
+function harness(overrides: {
+  readonly clears?: ReadonlySet<string>;
+  readonly covers?: ReadonlySet<string>;
+  readonly detRows?: readonly Row[];
+  readonly complete?: (rows: readonly Row[], text: string) => boolean;
+  readonly modelRows?: readonly Row[];
+  readonly verify?: boolean;
+  readonly modelIds?: readonly string[];
+  readonly walkLast?: boolean;
+  readonly omitWalk?: boolean;
+}): {
+  readonly run: () => Promise<void>;
+  readonly modelCalls: () => number;
+  readonly detCalls: () => number;
+  readonly persisted: Array<{ rows: Row[]; meta: SectionPersistMeta }>;
+  readonly letters: RecordedLetter[];
+} {
+  const { repo, letters } = stubDeadLetters();
+  const runSection = makeRunSection({
+    deadLetters: repo,
+    extractor_id: "S-1",
+    extractor_version: "1.0.0",
+    accession_number: "acc-det",
+  });
+  let modelCalls = 0;
+  let detCalls = 0;
+  const persisted: Array<{ rows: Row[]; meta: SectionPersistMeta }> = [];
+  const detRows = overrides.detRows ?? [{ confidence: 1, span: "alpha" }];
+  const covers = overrides.covers ?? new Set(["person_observation"]);
+  // The slot closure `modelExtractChain` builds: it runs the parse and nothing
+  // else. Whether the parse MAY run — `covers` against `clears` — is the
+  // runner's call now, so a pass that cannot supply the columns never gets here.
+  const walk = async (): Promise<Row[]> => {
+    detCalls++;
+    return [...detRows];
+  };
+  const model = async (): Promise<Row[]> => {
+    modelCalls++;
+    return [...(overrides.modelRows ?? [{ confidence: 1, span: "bravo" }])];
+  };
+  const modelIds =
+    overrides.modelIds ??
+    (overrides.omitWalk
+      ? ["fake-s1-model"]
+      : overrides.walkLast
+        ? ["fake-s1-model", DETERMINISTIC_MODEL_ID]
+        : [DETERMINISTIC_MODEL_ID, "fake-s1-model"]);
+  const run = () =>
+    runSection<Row>({
+      sectionName: "management",
+      text: TEXT,
+      emptyDetail: "empty",
+      lowConfidenceDetail: "low",
+      ...(overrides.verify === false ? {} : { verifyRow: (text, r) => text.includes(r.span) }),
+      clears: overrides.clears,
+      modelIds,
+      ...(overrides.omitWalk
+        ? {}
+        : {
+            deterministic: {
+              extract: () => detRows,
+              covers,
+              ...(overrides.complete !== undefined ? { complete: overrides.complete } : {}),
+            },
+          }),
+      ...(overrides.omitWalk
+        ? { extract: model }
+        : overrides.walkLast
+          ? { extract: model, emptyExtracts: [walk] }
+          : { extract: walk, emptyExtracts: [model] }),
+      persist: async (rows, meta) => {
+        persisted.push({ rows, meta });
+        return rows.length;
+      },
+    });
+  return { run, modelCalls: () => modelCalls, detCalls: () => detCalls, persisted, letters };
+}
+
+describe("makeRunSection deterministic pass", () => {
+  it("discards the deterministic result when clears names a destination covers omits", async () => {
+    const h = harness({
+      clears: new Set(["person_observation", "related_party_transaction"]),
+      covers: new Set(["person_observation"]),
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted).toHaveLength(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+    expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["bravo"]);
+    // The column test is answerable before the walk runs, so a parse that
+    // cannot supply the destinations never reads the section at all.
+    expect(h.detCalls()).toBe(0);
+  });
+
+  it("declines every pass when the section never said what it rewrites", async () => {
+    // An undeclared `clears` is false, not vacuously true: a caller that has
+    // not said what `persist` rewrites has not shown a parse can supply it.
+    const h = harness({ covers: new Set(["person_observation"]), complete: () => true });
+    await h.run();
+
+    expect(h.detCalls()).toBe(0);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("preempts the model when covers is a superset of clears and the rows are complete", async () => {
+    const h = harness({
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation", "observation_provenance"]),
+      complete: () => true,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(0);
+    expect(h.persisted).toHaveLength(1);
+    expect(h.persisted[0]!.meta.source).toBe("deterministic");
+    expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["alpha"]);
+  });
+
+  // `covers` names destinations, so full coverage of a many-row table only says
+  // every COLUMN would be filled. The caller has already cleared that table, so
+  // a walk that found some of the rows would refill it with a subset and
+  // resolve the section clean.
+  it("does not preempt on full column coverage alone", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("does not preempt when the completeness claim is false for this filing", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+      complete: () => false,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  // Declining costs a model call; aborting would lose a section the model can
+  // still extract, which is how a throwing `covers` is already treated.
+  it("does not preempt when the completeness claim throws", async () => {
+    const h = harness({
+      clears: new Set(["use_of_proceeds"]),
+      covers: new Set(["use_of_proceeds"]),
+      complete: () => {
+        throw new Error("walk failed");
+      },
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("falls through to the model on a partial parse, once, with no dead letter", async () => {
+    const h = harness({
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation"]),
+      complete: () => true,
+      detRows: [
+        { confidence: 1, span: "alpha" },
+        { confidence: 1, span: "bravo" },
+        { confidence: 1, span: "nowhere in the text" },
+      ],
+    });
+    await h.run();
+
+    // Re-asking a pure function cannot change its answer.
+    expect(h.detCalls()).toBe(1);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.letters).toEqual([]);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  // Every returned row surviving says nothing about the section's population:
+  // a parser that filters its own output cannot tell a row it dropped from a
+  // row the section never had. So the model runs, and its own filtering
+  // decides `meta.complete`.
+  it("falls through to the model when the pass declares no completeness", async () => {
+    const h = harness({
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation"]),
+    });
+    await h.run();
+
+    expect(h.detCalls()).toBe(1);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.letters).toEqual([]);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("reports a complete population only when the pass says so", async () => {
+    const h = harness({
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation"]),
+      complete: () => true,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(0);
+    expect(h.persisted[0]!.meta.source).toBe("deterministic");
+    expect(h.persisted[0]!.meta.complete).toBe(true);
+  });
+
+  it("does not run the walk when deterministic is omitted from modelIds", async () => {
+    const h = harness({ omitWalk: true });
+    await h.run();
+
+    expect(h.detCalls()).toBe(0);
+    expect(h.modelCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("model");
+  });
+
+  it("runs the walk only after an empty primary when deterministic is last", async () => {
+    const h = harness({
+      walkLast: true,
+      modelRows: [],
+      clears: new Set(["person_observation"]),
+      covers: new Set(["person_observation"]),
+      complete: () => true,
+    });
+    await h.run();
+
+    expect(h.modelCalls()).toBe(1);
+    expect(h.detCalls()).toBe(1);
+    expect(h.persisted[0]!.meta.source).toBe("deterministic");
+    expect(h.persisted[0]!.rows.map((r) => r.span)).toEqual(["alpha"]);
+  });
+});

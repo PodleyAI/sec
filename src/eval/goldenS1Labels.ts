@@ -847,6 +847,7 @@ export const GOLDEN_S1_LABELS: Readonly<Record<string, readonly GoldenRow[]>> = 
     { purpose: "Nasdaq listing and filing fees", amount: 85000 },
     { purpose: "Travel and roadshow expenses", amount: 10000 },
     { purpose: "Miscellaneous", amount: 385641 },
+    { purpose: "Reimbursed expenses", amount: 3000000 },
     { purpose: "Held in trust account", amount: 300000000 },
     { purpose: "Not held in trust account", amount: 1000000 },
     { purpose: "Legal, accounting, due diligence, travel and other expenses in connection with business combination", amount: 100000 },

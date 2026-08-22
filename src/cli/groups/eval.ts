@@ -39,7 +39,27 @@ import {
   EVAL_S1_CONCURRENCY_DEFAULTS,
 } from "../../task/eval/evalS1Concurrency";
 import { EvalUnitTermsTask } from "../../task/eval/EvalUnitTermsTask";
+import { EvalOfferingTablesTask } from "../../task/eval/EvalOfferingTablesTask";
+import { EvalUnderwritersTask } from "../../task/eval/EvalUnderwritersTask";
+import { EvalUseOfProceedsTask } from "../../task/eval/EvalUseOfProceedsTask";
+import { EvalExecutiveCompensationTask } from "../../task/eval/EvalExecutiveCompensationTask";
+import { EvalBeneficialOwnershipTask } from "../../task/eval/EvalBeneficialOwnershipTask";
+import { EvalManagementTask } from "../../task/eval/EvalManagementTask";
+import { EvalRelatedPartyTask } from "../../task/eval/EvalRelatedPartyTask";
+import { EvalSpacSponsorsTask } from "../../task/eval/EvalSpacSponsorsTask";
+import { EvalSpacProfileTask } from "../../task/eval/EvalSpacProfileTask";
+import { EvalSpacClassificationTask } from "../../task/eval/EvalSpacClassificationTask";
 import { type UnitTermsReport } from "../../eval/runUnitTermsEval";
+import type { OfferingTablesReport } from "../../eval/runOfferingTablesEval";
+import type { UnderwritersReport } from "../../eval/runUnderwritersEval";
+import type { UseOfProceedsReport } from "../../eval/runUseOfProceedsEval";
+import type { ExecutiveCompensationReport } from "../../eval/runExecutiveCompensationEval";
+import type { BeneficialOwnershipReport } from "../../eval/runBeneficialOwnershipEval";
+import type { ManagementReport } from "../../eval/runManagementEval";
+import type { RelatedPartyReport } from "../../eval/runRelatedPartyEval";
+import type { SpacSponsorsReport } from "../../eval/runSpacSponsorsEval";
+import type { SpacProfileReport } from "../../eval/runSpacProfileEval";
+import type { SpacClassificationReport } from "../../eval/runSpacClassificationEval";
 
 /**
  * Default comparison set: Anthropic's cheap and strong tiers, plus the cheap
@@ -125,6 +145,18 @@ function parseModels(ids: readonly string[] | undefined): string[] {
 }
 
 /**
+ * `--models` as given, or `undefined` when the flag was omitted. Print-prompts
+ * must not default the list: a bare `--print-prompts` still dumps AI prompts,
+ * and only an explicit `deterministic` skips that dump.
+ */
+function printPromptModelIds(
+  modelsOpt: string | boolean | undefined,
+  defaults: readonly string[]
+): readonly string[] | undefined {
+  return csvOptionValue("--models", modelsOpt, () => modelIdsHint(defaults));
+}
+
+/**
  * What `--models` / `--reference` accept. Model ids are not a closed set — any
  * id whose shape a provider claims works — so the hint names the defaults and
  * the shapes rather than pretending to enumerate.
@@ -180,6 +212,52 @@ function pad(s: string, w: number): string {
 function truncate(s: string, max = 60): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
+}
+
+/**
+ * One scored case from a deterministic-parser eval. Every `run*Eval` report
+ * shares this shape; `kind` is present only where one command scores two
+ * destinations (offering terms vs sponsor promote).
+ */
+interface ParserEvalCase {
+  readonly bucket: string;
+  readonly accession_number: string;
+  readonly cik: number | null;
+  readonly cachePath: string | undefined;
+  readonly kind?: string;
+  readonly parsed?: unknown;
+  readonly stored?: unknown;
+}
+
+interface ParserEvalReport {
+  readonly cases: readonly ParserEvalCase[];
+  readonly counts: Record<string, number>;
+}
+
+/**
+ * The parser-vs-stored-rows table every `sec eval <parser>` command prints.
+ * One implementation: the ten commands differed only in the label, so ten
+ * copies of it could only drift.
+ */
+function printParserEvalReport(label: string, report: ParserEvalReport): void {
+  const { counts } = report;
+  console.log(
+    `${label} parser vs stored rows  ` +
+      `hit-agree=${counts["hit-agree"]}  hit-disagree=${counts["hit-disagree"]}  ` +
+      `miss=${counts.miss}  empty=${counts.empty}  skip=${counts.skip}`
+  );
+  const flagged = report.cases.filter((c) => c.bucket === "miss" || c.bucket === "hit-disagree");
+  if (flagged.length === 0) return;
+  console.log("\nmiss / hit-disagree:");
+  for (const c of flagged) {
+    const cik = c.cik === null ? "" : ` cik=${c.cik}`;
+    const kind = c.kind === undefined ? "" : ` ${c.kind}`;
+    console.log(`  ${c.bucket}${kind} ${c.accession_number}${cik}  ${c.cachePath ?? ""}`);
+    if (c.bucket === "hit-disagree") {
+      console.log(`    parsed  ${JSON.stringify(c.parsed)}`);
+      console.log(`    stored  ${JSON.stringify(c.stored)}`);
+    }
+  }
 }
 
 function hasDiff(d: ExtractionDiff): boolean {
@@ -594,7 +672,11 @@ export function addEvalCommands(program: Command): void {
                   extractor: name,
                   label: name,
                 }));
-            printEvalPrompts({ mode: printMode, items });
+            printEvalPrompts({
+              mode: printMode,
+              items,
+              modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
+            });
             return;
           }
           const format = requireFormat(opts.format);
@@ -765,11 +847,13 @@ export function addEvalCommands(program: Command): void {
                   label: `${s.filing} [${s.extractor}]`,
                   sectionText: preparedSectionText(s.extractor, s.text),
                 })),
+                modelIds: printPromptModelIds(opts.models, [ORACLE_DEFAULT_CANDIDATE]),
               });
             } else {
               printEvalPrompts({
                 mode: printMode,
                 items: extractors.map((extractor) => ({ extractor, label: extractor })),
+                modelIds: printPromptModelIds(opts.models, [ORACLE_DEFAULT_CANDIDATE]),
               });
             }
             return;
@@ -881,11 +965,13 @@ export function addEvalCommands(program: Command): void {
                   label: s.filing,
                   sectionText: s.text,
                 })),
+                modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
               });
             } else {
               printEvalPrompts({
                 mode: printMode,
                 items: [{ extractor: "offering-terms", label: "offering-terms" }],
+                modelIds: printPromptModelIds(opts.models, DEFAULT_MODELS),
               });
             }
             return;
@@ -926,4 +1012,146 @@ export function addEvalCommands(program: Command): void {
         });
       }
     );
+
+  for (const spec of PARSER_EVAL_COMMANDS) {
+    cmd
+      .command(spec.name)
+      .description(spec.description)
+      .option("--extractor-id [id]", "limit to S-1 or 424")
+      .option("--limit [n]", "max stored rows to score")
+      .option("--cik [n]", "limit to one issuer CIK")
+      .option("--format [fmt]", "table | json (default: table)")
+      .action(
+        async (opts: {
+          extractorId?: string | boolean;
+          limit?: string | boolean;
+          cik?: string | boolean;
+          format: string | boolean;
+        }) => {
+          await runCommand(async () => {
+            const format = requireFormat(opts.format);
+            const extractorRaw = optionValue("--extractor-id", opts.extractorId, () => "S-1, 424");
+            if (extractorRaw !== undefined && extractorRaw !== "S-1" && extractorRaw !== "424") {
+              throw new Error("--extractor-id needs a value — S-1, 424");
+            }
+            const limitRaw = optionValue("--limit", opts.limit, () => "a non-negative integer");
+            const cikRaw = optionValue("--cik", opts.cik, () => "an issuer CIK");
+            const input: ParserEvalInput = {
+              ...(extractorRaw ? { extractorId: extractorRaw } : {}),
+              ...(limitRaw !== undefined ? { limit: parseIntOption(limitRaw) } : {}),
+              ...(cikRaw !== undefined ? { cik: parseIntOption(cikRaw) } : {}),
+            };
+            const report = await spec.run(input);
+            if (format === "json") {
+              console.log(JSON.stringify(report, null, 2));
+              return;
+            }
+            printParserEvalReport(spec.label, report);
+          });
+        }
+      );
+  }
 }
+
+/**
+ * The three narrowing options every deterministic-parser eval command takes.
+ * A type alias, not an interface: each task's `defaults` is a `DataPorts`
+ * subtype, and only an alias picks up the implicit string index signature that
+ * assignment needs.
+ */
+type ParserEvalInput = {
+  readonly extractorId?: string;
+  readonly limit?: number;
+  readonly cik?: number;
+};
+
+/**
+ * The `sec eval <parser>` commands that score a deterministic parser against
+ * the rows already stored for a filing. They differ only in which task runs and
+ * how the table is labelled, so they are declared rather than repeated: ten
+ * copies of the same option parsing drifted apart the moment one was edited.
+ */
+const PARSER_EVAL_COMMANDS: ReadonlyArray<{
+  readonly name: string;
+  readonly label: string;
+  readonly description: string;
+  readonly run: (defaults: ParserEvalInput) => Promise<ParserEvalReport>;
+}> = [
+  {
+    name: "offering-tables",
+    label: "offering/promote",
+    description:
+      "Score the deterministic SPAC offering/promote table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<OfferingTablesReport>([new EvalOfferingTablesTask({ defaults })]),
+  },
+  {
+    name: "underwriters",
+    label: "underwriters",
+    description:
+      "Score the deterministic SPAC underwriter table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<UnderwritersReport>([new EvalUnderwritersTask({ defaults })]),
+  },
+  {
+    name: "use-of-proceeds",
+    label: "use-of-proceeds",
+    description:
+      "Score the deterministic SPAC use-of-proceeds table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<UseOfProceedsReport>([new EvalUseOfProceedsTask({ defaults })]),
+  },
+  {
+    name: "executive-compensation",
+    label: "executive-compensation",
+    description:
+      "Score the deterministic Summary Compensation Table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<ExecutiveCompensationReport>([
+        new EvalExecutiveCompensationTask({ defaults }),
+      ]),
+  },
+  {
+    name: "beneficial-ownership",
+    label: "beneficial-ownership",
+    description:
+      "Score the deterministic beneficial-ownership parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<BeneficialOwnershipReport>([new EvalBeneficialOwnershipTask({ defaults })]),
+  },
+  {
+    name: "management",
+    label: "management",
+    description:
+      "Score the deterministic management roster parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<ManagementReport>([new EvalManagementTask({ defaults })]),
+  },
+  {
+    name: "related-party",
+    label: "related-party",
+    description:
+      "Score the deterministic related-party table parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<RelatedPartyReport>([new EvalRelatedPartyTask({ defaults })]),
+  },
+  {
+    name: "spac-sponsors",
+    label: "spac-sponsors",
+    description:
+      "Score the deterministic SPAC sponsor parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<SpacSponsorsReport>([new EvalSpacSponsorsTask({ defaults })]),
+  },
+  {
+    name: "spac-profile",
+    label: "spac-profile",
+    description:
+      "Score the deterministic SPAC profile parser against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) => runWorkflowCli<SpacProfileReport>([new EvalSpacProfileTask({ defaults })]),
+  },
+  {
+    name: "spac-classification",
+    label: "spac-classification",
+    description:
+      "Score the deterministic SPAC classifier against stored rows (on-disk cache only; no EDGAR fetch)",
+    run: (defaults) =>
+      runWorkflowCli<SpacClassificationReport>([new EvalSpacClassificationTask({ defaults })]),
+  },
+];

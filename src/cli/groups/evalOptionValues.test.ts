@@ -102,6 +102,56 @@ describe("eval value-less options", () => {
     expect(await runEval(["unit-terms", "--format"])).toContain("one of: table, json");
   });
 
+  it("covers eval offering-tables' value options", async () => {
+    expect(await runEval(["offering-tables", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["offering-tables", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval underwriters' value options", async () => {
+    expect(await runEval(["underwriters", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["underwriters", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval use-of-proceeds' value options", async () => {
+    expect(await runEval(["use-of-proceeds", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["use-of-proceeds", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval executive-compensation' value options", async () => {
+    expect(await runEval(["executive-compensation", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["executive-compensation", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval beneficial-ownership' value options", async () => {
+    expect(await runEval(["beneficial-ownership", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["beneficial-ownership", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval management' value options", async () => {
+    expect(await runEval(["management", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["management", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval related-party' value options", async () => {
+    expect(await runEval(["related-party", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["related-party", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval spac-sponsors' value options", async () => {
+    expect(await runEval(["spac-sponsors", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["spac-sponsors", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval spac-profile' value options", async () => {
+    expect(await runEval(["spac-profile", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["spac-profile", "--format"])).toContain("one of: table, json");
+  });
+
+  it("covers eval spac-classification' value options", async () => {
+    expect(await runEval(["spac-classification", "--extractor-id"])).toContain("S-1, 424");
+    expect(await runEval(["spac-classification", "--format"])).toContain("one of: table, json");
+  });
+
   it("lists print-prompts modes for a bare --print-prompts on extract", async () => {
     const err = await runEval(["extract", "--print-prompts"]);
     expect(err).toContain("--print-prompts needs a value");

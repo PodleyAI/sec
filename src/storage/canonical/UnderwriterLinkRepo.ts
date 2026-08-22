@@ -34,6 +34,14 @@ export class UnderwriterLinkRepo {
     }
   }
 
+  async listByAccession(accession_number: string): Promise<UnderwriterLink[]> {
+    return (await this.repo.query({ accession_number })) ?? [];
+  }
+
+  async listAll(): Promise<UnderwriterLink[]> {
+    return (await this.repo.getAll()) ?? [];
+  }
+
   async listIssuerCiksForFamily(underwriter_family_id: string): Promise<number[]> {
     const rows = (await this.repo.query({ underwriter_family_id })) ?? [];
     return [...new Set(rows.map((r) => r.issuer_cik))];

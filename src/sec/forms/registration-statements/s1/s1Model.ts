@@ -6,7 +6,9 @@
 
 import type { ModelConfig } from "workglow";
 import { getGlobalModelRepository } from "workglow";
-import { modelIdsFromEnv } from "../../../../config/Constants";
+import { DETERMINISTIC_MODEL_ID, modelIdsFromEnv } from "../../../../config/Constants";
+import { deterministicModelRecord } from "../../../../config/registerModels";
+import type { DeterministicPass } from "./deterministicPass";
 import type { RunSectionArgs } from "./sectionRunner";
 
 /** The model ids used for S-1 extraction; overridable via SEC_S1_MODEL (CSV). */
@@ -80,26 +82,64 @@ export function persistModelId(models: readonly ModelConfig[], modelIndex: numbe
   return resolveModelId(models[modelIndex] ?? models[0]!);
 }
 
+export function deterministicModelConfig(): ModelConfig {
+  return deterministicModelRecord() as ModelConfig;
+}
+
+export function isDeterministicModel(model: ModelConfig): boolean {
+  return resolveModelId(model) === DETERMINISTIC_MODEL_ID;
+}
+
 /**
  * Primary extract plus fallbacks for {@link makeRunSection}. Later models run
  * when the previous extract returned `[]` **or threw** a provider/extraction
  * error (abort, config, and mixed-shape re-asks stay on the throwing model).
  * Pass `{ fallbackOnEmpty: false }` for detectors where `[]` is the expected
  * negative (redemption / LOI) so a later model only runs on a throw.
+ * A list id of {@link DETERMINISTIC_MODEL_ID} runs {@link options.deterministic}
+ * (or `[]` if omitted / if it does not cover `clears`).
  */
 export function modelExtractChain<TRow extends { confidence: number }>(
   models: readonly ModelConfig[],
   extract: (text: string, model: ModelConfig) => Promise<TRow[]>,
-  options?: { readonly fallbackOnEmpty?: boolean }
-): Pick<RunSectionArgs<TRow>, "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty"> {
+  options?: {
+    readonly fallbackOnEmpty?: boolean;
+    readonly deterministic?: DeterministicPass<TRow>;
+  }
+): Pick<
+  RunSectionArgs<TRow>,
+  "extract" | "emptyExtracts" | "modelIds" | "fallbackOnEmpty" | "deterministic"
+> {
   const primary = models[0];
   if (primary === undefined) {
     throw new Error("modelExtractChain requires at least one model");
   }
+  const slot =
+    (model: ModelConfig) =>
+    async (text: string): Promise<TRow[]> => {
+      if (!isDeterministicModel(model)) return extract(text, model);
+      // Whether the pass may stand in for the model is the RUNNER's question:
+      // it is the side that knows `clears`, the set of destinations `persist`
+      // rewrites. Asking it here meant every section declared that set twice —
+      // once on `runSection`, once here — with only this copy read, so the two
+      // could disagree about what the section rewrites and nothing would say so.
+      const pass = options?.deterministic;
+      if (pass === undefined) return [];
+      return [...pass.extract(text)];
+    };
   return {
-    extract: (text) => extract(text, primary),
-    emptyExtracts: models.slice(1).map((m) => (text: string) => extract(text, m)),
-    modelIds: models.map((m) => resolveModelId(m)).filter((id): id is string => id !== null),
+    extract: slot(primary),
+    emptyExtracts: models.slice(1).map((m) => slot(m)),
+    // Index-aligned with `models` (and therefore with the extract slots the
+    // runner builds): `sectionRunner` identifies the deterministic slot by
+    // `modelIds[i]`, and `persistModelId` reads `models[modelIndex]`, so
+    // dropping an unresolvable id here would shift every later slot onto the
+    // wrong model. An id that does not resolve becomes "" rather than a hole.
+    modelIds: models.map((m) => resolveModelId(m) ?? ""),
+    // Handed to the runner whole rather than reduced to its `complete`
+    // callback: the runner tests `covers` against its own `clears` before the
+    // walk runs, and claims completeness from the same pass afterwards.
+    ...(options?.deterministic !== undefined ? { deterministic: options.deterministic } : {}),
     ...(options?.fallbackOnEmpty === false ? { fallbackOnEmpty: false as const } : {}),
   };
 }

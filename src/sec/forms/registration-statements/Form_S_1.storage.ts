@@ -47,6 +47,13 @@ import {
 } from "./s1/sectionExtractors";
 import type { ExecutiveCompensationRow } from "./s1/executiveCompensationSchema";
 import { hasSummaryCompensationTable } from "./s1/compensationHeuristic";
+import { parseSummaryCompensationTable } from "./s1/parseSummaryCompensationTable";
+import { ownershipCoverage, parseBeneficialOwnership } from "./s1/parseBeneficialOwnership";
+import { parseManagementRoster } from "./s1/parseManagementRoster";
+import { parseRelatedPartyTables } from "./s1/parseRelatedPartyTables";
+import { parseSpacSponsors } from "./s1/parseSpacSponsors";
+import { parseSpacProfile } from "./s1/parseSpacProfile";
+import { parseSpacClassification } from "./s1/parseSpacClassification";
 import { looksLikePartIIOnlyAmendment } from "./s1/partIIOnlyAmendment";
 import { issuerHasCombinationListing } from "./s1/newcoListing";
 import { MAX_RISK_FACTORS_CHARS } from "./s1/riskFactorChunks";
@@ -61,7 +68,10 @@ import type { RiskFactorRow } from "./s1/riskFactorSchema";
 import { getRiskFactorsConfidenceFloor, getRiskFactorsModels } from "./s1/riskFactorsModel";
 import type { SpacClassificationRow } from "./s1/spacClassifierSchema";
 import { looksLikeBlankCheck } from "./s1/spacContentHeuristic";
-import { getSpacClassifierConfidenceFloor, getSpacClassifierModel } from "./s1/spacClassifierModel";
+import {
+  getSpacClassifierConfidenceFloor,
+  getSpacClassifierModels,
+} from "./s1/spacClassifierModel";
 import type { SpacProfileRow } from "./s1/spacProfileSchema";
 import type { BeneficialOwnerRow, ManagementPersonRow, RelatedPartyRow } from "./s1/sectionSchemas";
 import { makeRunSection } from "./s1/sectionRunner";
@@ -174,6 +184,7 @@ export interface ProcessFormS1Args {
   readonly form: string;
   readonly formS1: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly models?: readonly ModelConfig[];
   readonly context?: IExecuteContext;
   readonly extractRiskFactors?: boolean;
 }
@@ -188,7 +199,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
   let models: ModelConfig[] = [];
   let modelError: string | null = null;
   try {
-    models = args.model ? [args.model] : await getS1Models();
+    models = args.models ? [...args.models] : args.model ? [args.model] : await getS1Models();
   } catch (err) {
     modelError = err instanceof Error ? err.message : String(err);
   }
@@ -610,18 +621,24 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // (markResolved no-ops when no entry exists.)
       await deadLetters.markResolved(EXTRACTOR_ID, accession_number, "spac-classification");
     } else {
-      let classifierModel: ModelConfig | null = null;
+      let classifierModels: ModelConfig[] = [];
       let classifierError: string | null = null;
       try {
-        classifierModel = args.model ?? (await getSpacClassifierModel());
+        classifierModels = args.models
+          ? [...args.models]
+          : args.model
+            ? [args.model]
+            : await getSpacClassifierModels();
       } catch (err) {
         classifierError = err instanceof Error ? err.message : String(err);
       }
-      if (classifierModel === null) {
+      if (classifierModels.length === 0) {
         await recordFail("spac-classification", "MODEL_RESOLUTION_ERROR", classifierError);
       } else {
-        const classifierModelResolved = classifierModel;
-        const classifierHolder = { upgraded: false };
+        const classifierHolder: { upgraded: boolean; source: "ai" | "deterministic" } = {
+          upgraded: false,
+          source: "ai",
+        };
         const classifierRunSection = makeRunSection({
           deadLetters,
           extractor_id: EXTRACTOR_ID,
@@ -638,12 +655,29 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           verifyRow: (text, r) => classifySpan(text, r.source_span),
           unverifiedAllDetail:
             "the confident SPAC classification had source_span not present in section text",
-          extract: async (text) => {
-            const c = await extractSpacClassification(text, classifierModelResolved, args.context);
-            return c === null ? [] : [c];
-          },
-          persist: async () => {
+          clears: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
+          ...modelExtractChain(
+            classifierModels,
+            async (text, m) => {
+              const c = await extractSpacClassification(text, m, args.context);
+              return c === null ? [] : [c];
+            },
+            {
+              deterministic: {
+                extract: (text) => {
+                  const det = parseSpacClassification(text);
+                  return det === null ? [] : [det];
+                },
+                covers: new Set(["s1_classification.is_spac", "s1_classification.entity_kind"]),
+                // A filing is classified once, so the row IS the population: there
+                // is no second verdict the walk could have missed.
+                complete: (rows) => rows.length === 1,
+              },
+            }
+          ),
+          persist: async (_rows, meta) => {
             classifierHolder.upgraded = true;
+            if (meta.source === "deterministic") classifierHolder.source = "deterministic";
             return 1;
           },
         });
@@ -656,7 +690,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
             sic: headerSic,
             sic_description: formS1.header?.sicDescription ?? null,
             is_spac: true,
-            classifier_source: "ai",
+            classifier_source: classifierHolder.source,
             created_at: new Date().toISOString(),
           });
         } else {
@@ -697,10 +731,27 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       lowConfidenceDetail: "profile below confidence floor",
       verifyRow: (text, r) => classifySpan(text, r.source_span),
       unverifiedAllDetail: "the confident SPAC profile had source_span not present in section text",
-      ...modelExtractChain(models, async (text, m) => {
-        const p = await extractSpacProfile(text, m, args.context);
-        return p === null ? [] : [p];
-      }),
+      clears: new Set(["spac.focus", "spac.focus_location", "spac.description", "spac.team"]),
+      // Never preempts: the parser reads the summary's focus and geography
+      // sentences and nothing else, so the narrative fields would be handed to
+      // `recordRegistration` as nulls on this filing and on every replay, with
+      // the section resolving clean and nothing flagging the gap.
+      ...modelExtractChain(
+        models,
+        async (text, m) => {
+          const p = await extractSpacProfile(text, m, args.context);
+          return p === null ? [] : [p];
+        },
+        {
+          deterministic: {
+            extract: (text) => {
+              const det = parseSpacProfile(text);
+              return det === null ? [] : [det];
+            },
+            covers: new Set(["spac.focus", "spac.focus_location"]),
+          },
+        }
+      ),
       persist: async (rows) => {
         profileHolder.row = rows[0];
         return 1;
@@ -738,7 +789,34 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident management rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident management rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context)),
+    // `observePerson` UPSERTS the observation row, so every column of it that
+    // this section states is rewritten — `bio` included, and the roster table
+    // has no bio column. The officer's biography is the paragraphs BELOW the
+    // table, which the table walk never reads, so a table-granular claim here
+    // replaced a filed biography with null on every re-run.
+    //
+    // The gap is not closable by a better parse, either, which is why there is
+    // no `complete` here: the roster TABLE is not the roster POPULATION. A
+    // director named only in the prose beneath it is invisible to the walk, so
+    // even a parse that declined nothing could not assert it had enumerated
+    // everyone — and `s1:management` closure writes a departure from exactly
+    // that assertion.
+    clears: new Set([
+      "person_observation.titles",
+      "person_observation.birth_year",
+      "person_observation.bio",
+      "observation_provenance",
+    ]),
+    ...modelExtractChain(models, (text, m) => extractManagement(text, m, args.context), {
+      deterministic: {
+        extract: parseManagementRoster,
+        covers: new Set([
+          "person_observation.titles",
+          "person_observation.birth_year",
+          "observation_provenance",
+        ]),
+      },
+    }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
@@ -802,7 +880,45 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident ownership rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident ownership rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context)),
+    // Six of the nine ownership columns are hardcoded null by the table walk,
+    // and one of them — `is_selling_stockholder: false` — is a POSITIVE claim
+    // that this owner registers no resale, not an absent one. Whether those
+    // nulls are losses depends on the table: a SPAC's pre-IPO table prints one
+    // class and no offered/after columns, so null is the disclosure; a resale
+    // registration prints all of them, so the same nulls delete stated figures.
+    // `ownershipCoverage` answers that per filing off the same headers the
+    // parse walks.
+    clears: new Set([
+      "beneficial_ownership.owner_kind",
+      "beneficial_ownership.security_class",
+      "beneficial_ownership.shares_owned",
+      "beneficial_ownership.percent_owned",
+      "beneficial_ownership.shares_offered",
+      "beneficial_ownership.shares_after",
+      "beneficial_ownership.percent_after",
+      "beneficial_ownership.is_selling_stockholder",
+      "beneficial_ownership.footnote",
+      "person_observation",
+      "company_observation",
+      "observation_provenance",
+    ]),
+    // `ownershipCoverage` answers the COLUMN question and nothing else. The
+    // walk also drops a data row whose stub fails `looksLikeOwner` (a
+    // single-token owner name) and truncates one whose stub carries a street
+    // number, so the rows it returns are not the table's roster and no
+    // `complete` can be derived from the same walk. It therefore does not
+    // preempt, whatever the coverage function answers.
+    ...modelExtractChain(models, (text, m) => extractBeneficialOwnership(text, m, args.context), {
+      deterministic: {
+        extract: parseBeneficialOwnership,
+        covers: ownershipCoverage,
+      },
+      // Must name exactly what the section-level `clears` above names — this is
+      // the copy `preempts` actually tests, and the two had drifted: it was
+      // missing `owner_kind` and `security_class`, so a filing whose coverage
+      // function happened to claim the rest would have preempted on a set that
+      // understated what persist rewrites.
+    }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       for (const r of rows) {
@@ -871,7 +987,22 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident related-party rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident related-party rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context)),
+    clears: new Set([
+      "related_party_transaction",
+      "person_observation",
+      "company_observation",
+      "observation_provenance",
+    ]),
+    // Never preempts: the table walk names the parties but reads no
+    // transaction, and `related_party_transaction` is cleared above. The
+    // disclosure IS the transaction — a party with no dollar figure, period or
+    // nature records that someone was mentioned, not what they were paid.
+    ...modelExtractChain(models, (text, m) => extractRelatedParty(text, m, args.context), {
+      deterministic: {
+        extract: parseRelatedPartyTables,
+        covers: new Set(["person_observation", "company_observation", "observation_provenance"]),
+      },
+    }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       // Check every row against the storage schema's own declared bounds BEFORE
@@ -1003,8 +1134,49 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
         "all $T confident compensation rows had source_span not present in section text",
       unverifiedPartialDetail:
         "$N of $T confident compensation rows had source_span not present in section text",
-      ...modelExtractChain(models, (text, m) =>
-        extractExecutiveCompensation(text, m, args.context)
+      // Every money column is read off the grid; `footnote` is not, and the
+      // prompt gives it nowhere else to go — it tells the model to STRIP
+      // footnote markers out of `person_name` and out of every money field, so
+      // whatever a footnote says about a row appears on that row in no other
+      // column. Nulling it is a real loss, so the table is named column by
+      // column and this parse does not stand in for the model.
+      clears: new Set([
+        "executive_compensation.principal_position",
+        "executive_compensation.fiscal_year",
+        "executive_compensation.salary",
+        "executive_compensation.bonus",
+        "executive_compensation.stock_awards",
+        "executive_compensation.option_awards",
+        "executive_compensation.non_equity_incentive",
+        "executive_compensation.pension_and_nqdc",
+        "executive_compensation.all_other_compensation",
+        "executive_compensation.total",
+        "executive_compensation.footnote",
+        "person_observation",
+        "observation_provenance",
+      ]),
+      ...modelExtractChain(
+        models,
+        (text, m) => extractExecutiveCompensation(text, m, args.context),
+        {
+          deterministic: {
+            extract: parseSummaryCompensationTable,
+            covers: new Set([
+              "executive_compensation.principal_position",
+              "executive_compensation.fiscal_year",
+              "executive_compensation.salary",
+              "executive_compensation.bonus",
+              "executive_compensation.stock_awards",
+              "executive_compensation.option_awards",
+              "executive_compensation.non_equity_incentive",
+              "executive_compensation.pension_and_nqdc",
+              "executive_compensation.all_other_compensation",
+              "executive_compensation.total",
+              "person_observation",
+              "observation_provenance",
+            ]),
+          },
+        }
       ),
       persist: async (rows, meta) => {
         const model_id = persistModelId(models, meta.modelIndex);
@@ -1256,7 +1428,30 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       "all $T confident sponsor rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident sponsor rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context)),
+    clears: new Set([
+      "spac_sponsor_link",
+      "sponsor_family_membership",
+      "company_observation",
+      "observation_provenance",
+    ]),
+    // Never preempts: `spac_sponsor_link` holds one row per sponsor, and the
+    // parse is two prose patterns that both require `our|the` immediately
+    // before `sponsor`. A vehicle whose second sponsor is introduced as "our
+    // co-sponsor, Beta Holdings LLC, is …" matches neither, and the link table
+    // the caller has already cleared would be rebuilt with one of two sponsors
+    // and resolved clean. Nothing derived from those two patterns can say the
+    // prose named no other sponsor, so no `complete` is declared.
+    ...modelExtractChain(models, (text, m) => extractSpacSponsors(text, m, args.context), {
+      deterministic: {
+        extract: parseSpacSponsors,
+        covers: new Set([
+          "spac_sponsor_link",
+          "sponsor_family_membership",
+          "company_observation",
+          "observation_provenance",
+        ]),
+      },
+    }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;

@@ -5,9 +5,12 @@
  */
 
 import { TaskAbortedError } from "workglow";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import type { ExtractionDeadLetterRepo } from "../../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { SecCliConfigurationError } from "../../../../config/EnvToDI";
+import type { DeterministicPass } from "./deterministicPass";
+import { assertsCompletePopulation, preempts } from "./deterministicPass";
 import {
   MixedRiskCaptionShapeError,
   NonceMismatchError,
@@ -121,6 +124,20 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly unverifiedPartialDetail?: string;
   readonly extract: (text: string) => Promise<TRow[]>;
   /**
+   * Every destination {@link persist} rewrites for this section: rows cleared
+   * before the run, or overwritten in place.
+   *
+   * This is the set a {@link deterministic} pass must cover before it may stand
+   * in for the model, and it is declared HERE because this is the side that
+   * knows what `persist` writes. It used to be stated twice — once here and
+   * once on `modelExtractChain` — with only the chain's copy read, so a section
+   * could describe two different sets of destinations and the one that gated
+   * preemption was the one nobody was reading. Undeclared means no pass may
+   * preempt: a caller that has not said what the section rewrites has not shown
+   * a parse can supply it.
+   */
+  readonly clears?: ReadonlySet<string>;
+  /**
    * Tried in order when {@link extract} (and any earlier fallback) returns `[]`
    * **or throws** a provider/extraction error. Abort, an already-aborted
    * signal, {@link SecCliConfigurationError}, and {@link MixedRiskCaptionShapeError}
@@ -139,6 +156,16 @@ export interface RunSectionArgs<TRow extends { confidence: number }> {
   readonly fallbackOnEmpty?: boolean;
   /** Ids tried for this section; named in the MODEL_EMPTY detail when length > 1. */
   readonly modelIds?: readonly string[];
+  /**
+   * The model-free parse behind a `deterministic` slot in {@link modelIds}.
+   *
+   * The runner owns both halves of the preemption test: `covers` against
+   * {@link clears} before the walk runs, and {@link DeterministicPass.complete}
+   * against the rows it produced afterwards — which is also what
+   * `SectionPersistMeta.complete` reports. Absent, a `deterministic` slot
+   * yields nothing and the section falls through to the next model.
+   */
+  readonly deterministic?: DeterministicPass<NoInfer<TRow>>;
   readonly persist: (rows: TRow[], meta: SectionPersistMeta) => Promise<number>;
 }
 
@@ -152,6 +179,13 @@ export interface SectionPersistMeta {
   readonly complete: boolean;
   /** 0 = primary {@link RunSectionArgs.extract}; 1+ = {@link RunSectionArgs.emptyExtracts} index + 1. */
   readonly modelIndex: number;
+  /**
+   * Which path produced the rows. `"deterministic"` means the winning list
+   * slot was the reserved `deterministic` id and no model was called, so persist
+   * callbacks record the provenance model id from this, never from a field on a
+   * row.
+   */
+  readonly source: "deterministic" | "model";
 }
 
 /**
@@ -245,72 +279,20 @@ export function makeRunSection(opts: {
       // own, smaller budget, and an attempt spent on one question must not
       // spend the other's.
       let mixedShapeAttempts = 0;
-      let extractFn = sargs.extract;
       let modelIndex = 0;
-      let triedEmptyFallbacks = false;
-      const fallbacks = sargs.emptyExtracts;
+      const slots: ReadonlyArray<(text: string) => Promise<TRow[]>> = [
+        sargs.extract,
+        ...(sargs.emptyExtracts ?? []),
+      ];
       const fallbackOnEmpty = sargs.fallbackOnEmpty !== false;
       const isImmediateExtractFailure = (e: unknown): boolean =>
         e instanceof TaskAbortedError ||
         e instanceof SecCliConfigurationError ||
         e instanceof MixedRiskCaptionShapeError ||
         opts.signal?.aborted === true;
-      const runEmptyFallbacks = async (priorError: unknown | undefined): Promise<TRow[]> => {
-        triedEmptyFallbacks = true;
-        let lastError: unknown = priorError;
-        let lastRaw: TRow[] = [];
-        for (let i = 0; i < fallbacks!.length; i++) {
-          extractFn = fallbacks![i]!;
-          modelIndex = i + 1;
-          try {
-            lastRaw = await extractFn(text);
-            lastError = undefined;
-            if (lastRaw.length > 0) return lastRaw;
-          } catch (fe) {
-            if (isImmediateExtractFailure(fe)) throw fe;
-            lastError = fe;
-          }
-        }
-        if (lastError !== undefined) throw lastError;
-        return lastRaw;
-      };
-      for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
-        try {
-          try {
-            raw = await extractFn(text);
-            if (
-              raw.length === 0 &&
-              fallbackOnEmpty &&
-              !triedEmptyFallbacks &&
-              fallbacks !== undefined &&
-              fallbacks.length > 0
-            ) {
-              raw = await runEmptyFallbacks(undefined);
-            }
-          } catch (e) {
-            if (isImmediateExtractFailure(e)) throw e;
-            if (!triedEmptyFallbacks && fallbacks !== undefined && fallbacks.length > 0) {
-              raw = await runEmptyFallbacks(e);
-            } else {
-              throw e;
-            }
-          }
-        } catch (e) {
-          // A mixed caption shape is a property of ONE generation, not a verdict
-          // about the section: the model echoed a category heading back as a
-          // row, and the next call usually does not. Without this the throw
-          // escapes the loop entirely and the section gets zero re-asks, unlike
-          // every other recoverable response-shape failure here.
-          if (!(e instanceof MixedRiskCaptionShapeError)) throw e;
-          mixedShapeAttempts++;
-          if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
-            // Say what the re-ask cost, so the dead-letter detail records it
-            // rather than reading as a single unlucky generation.
-            e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
-            throw e;
-          }
-          continue;
-        }
+      const isWalkSlot = (i: number): boolean => sargs.modelIds?.[i] === DETERMINISTIC_MODEL_ID;
+      const applyRowFilters = (incoming: TRow[]): void => {
+        raw = incoming;
         confident = raw.filter((r) => r.confidence >= floor);
         droppedUnverified = 0;
         droppedTooLong = 0;
@@ -325,12 +307,95 @@ export function makeRunSection(opts: {
         } else {
           rows = confident;
         }
-        // Only a total verification wipeout is worth re-asking. An empty or
-        // all-low-confidence response is a judgement about the text rather
-        // than a malformed citation, and re-rolling it just burns calls.
-        if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
+      };
+      const clearSlot = (): void => {
+        raw = [];
+        confident = [];
+        rows = [];
+        droppedUnverified = 0;
+        droppedTooLong = 0;
+      };
+      let source: "deterministic" | "model" = "model";
+      let walkComplete = false;
+      let lastError: unknown;
+      for (let i = 0; i < slots.length; i++) {
+        const extractFn = slots[i]!;
+        modelIndex = i;
+        if (isWalkSlot(i)) {
+          const pass = sargs.deterministic;
+          // The COLUMN half of the preemption test, and it is answerable before
+          // the walk runs — a parse that cannot supply every destination
+          // `persist` rewrites never reads the section at all.
+          if (pass === undefined || !preempts(pass, sargs.clears, text)) {
+            clearSlot();
+            continue;
+          }
+          try {
+            applyRowFilters(await extractFn(text));
+            lastError = undefined;
+          } catch (e) {
+            if (isImmediateExtractFailure(e)) throw e;
+            lastError = e;
+            clearSlot();
+            continue;
+          }
+          // The ROW half: covering the columns says nothing about having found
+          // every row, and the caller has already cleared the destination.
+          const complete = assertsCompletePopulation(pass, rows, text);
+          if (complete && raw.length > 0 && rows.length === raw.length) {
+            source = "deterministic";
+            walkComplete = true;
+            lastError = undefined;
+            break;
+          }
+          clearSlot();
+          continue;
+        }
+        mixedShapeAttempts = 0;
+        let slotFailed = false;
+        for (let attempt = 1; attempt <= VERIFICATION_ATTEMPTS; attempt++) {
+          try {
+            applyRowFilters(await extractFn(text));
+            lastError = undefined;
+            slotFailed = false;
+          } catch (e) {
+            if (e instanceof MixedRiskCaptionShapeError) {
+              mixedShapeAttempts++;
+              if (mixedShapeAttempts >= MIXED_SHAPE_REASK_ATTEMPTS) {
+                e.message = `${e.message} (unchanged after ${mixedShapeAttempts} attempt(s))`;
+                throw e;
+              }
+              continue;
+            }
+            if (isImmediateExtractFailure(e)) throw e;
+            lastError = e;
+            slotFailed = true;
+            clearSlot();
+            break;
+          }
+          if (rows.length > 0 || droppedUnverified !== confident.length || confident.length === 0) {
+            break;
+          }
+        }
+        if (rows.length > 0) {
+          source = "model";
+          lastError = undefined;
           break;
         }
+        if (droppedUnverified > 0 && droppedUnverified === confident.length) {
+          lastError = undefined;
+          break;
+        }
+        if (raw.length > 0) {
+          lastError = undefined;
+          break;
+        }
+        if (!fallbackOnEmpty && !slotFailed) {
+          break;
+        }
+      }
+      if (lastError !== undefined && rows.length === 0 && raw.length === 0) {
+        throw lastError;
       }
       if (rows.length === 0) {
         const allDroppedUnverified =
@@ -361,8 +426,12 @@ export function makeRunSection(opts: {
         return { status: "dead-lettered", reason };
       }
       const wrote = await sargs.persist(rows, {
-        complete: rows.length === raw.length,
+        // On the deterministic path `raw` is already the parser's surviving
+        // output, so counting it would report every parse as complete. The
+        // pass says so itself, or it does not say so at all.
+        complete: source === "deterministic" ? walkComplete : rows.length === raw.length,
         modelIndex,
+        source,
       });
       if (sargs.invalidWriteDetail !== undefined && wrote === 0) {
         await record("MODEL_INVALID_OUTPUT", sargs.invalidWriteDetail);

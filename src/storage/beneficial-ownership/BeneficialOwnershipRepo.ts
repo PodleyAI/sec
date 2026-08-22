@@ -26,6 +26,10 @@ export class BeneficialOwnershipRepo {
     return (await this.storage.query({ accession_number })) ?? [];
   }
 
+  async listAll(): Promise<BeneficialOwnership[]> {
+    return (await this.storage.getAll()) ?? [];
+  }
+
   /**
    * Removes every beneficial-ownership row for a filing. Rows are keyed by a
    * positional `(accession_number, extractor_id, observation_index)`, so

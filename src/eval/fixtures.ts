@@ -5,6 +5,20 @@
  */
 
 import type { IExecuteContext, ModelConfig } from "workglow";
+import { isDeterministicModel } from "../sec/forms/registration-statements/s1/s1Model";
+import { parseBeneficialOwnership } from "../sec/forms/registration-statements/s1/parseBeneficialOwnership";
+import { parseManagementRoster } from "../sec/forms/registration-statements/s1/parseManagementRoster";
+import { parseRelatedPartyTables } from "../sec/forms/registration-statements/s1/parseRelatedPartyTables";
+import { parseSpacClassification } from "../sec/forms/registration-statements/s1/parseSpacClassification";
+import {
+  parseSpacOfferingTerms,
+  parseSpacPromoteTerms,
+} from "../sec/forms/registration-statements/s1/parseOfferingTables";
+import { parseSpacProfile } from "../sec/forms/registration-statements/s1/parseSpacProfile";
+import { parseSpacSponsors } from "../sec/forms/registration-statements/s1/parseSpacSponsors";
+import { parseSpacUnderwriters } from "../sec/forms/registration-statements/s1/parseSpacUnderwriters";
+import { parseSpacUseOfProceeds } from "../sec/forms/registration-statements/s1/parseSpacUseOfProceeds";
+import { parseSummaryCompensationTable } from "../sec/forms/registration-statements/s1/parseSummaryCompensationTable";
 import { ExecutiveCompensationOutputSchema } from "../sec/forms/registration-statements/s1/executiveCompensationSchema";
 import { LoiOutputSchema } from "../sec/forms/registration-statements/s1/loiSchema";
 import { OfferingTermsOutputSchema } from "../sec/forms/registration-statements/s1/offeringTermsSchema";
@@ -124,6 +138,27 @@ export interface EvalExtractor {
   readonly disabled?: boolean;
 }
 
+function asRows<T>(value: readonly T[] | T | null): T[] {
+  if (value === null) return [];
+  // `Array.isArray` cannot narrow `readonly T[] | T` — `T` may itself be an
+  // array — so the branch is asserted rather than inferred.
+  return Array.isArray(value) ? [...(value as readonly T[])] : [value as T];
+}
+
+function runWithDeterministic<T>(
+  parse: ((text: string) => readonly T[] | T | null) | undefined,
+  extract: (
+    text: string,
+    model: ModelConfig,
+    context?: IExecuteContext
+  ) => Promise<readonly T[] | T | null>
+): EvalExtractor["run"] {
+  return async (text, model, context) => {
+    if (isDeterministicModel(model)) return asRows(parse === undefined ? [] : parse(text));
+    return asRows(await extract(text, model, context));
+  };
+}
+
 /**
  * Registry of extractors the `sec eval` harness can exercise, keyed by the name
  * a fixture (and `--extractor`) references. Extend by adding an entry and a
@@ -131,7 +166,7 @@ export interface EvalExtractor {
  */
 export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   management: {
-    run: (text, model, context) => extractManagement(text, model, context),
+    run: runWithDeterministic(parseManagementRoster, extractManagement),
     instructions: managementInstructions,
     schema: () => ManagementOutputSchema,
     keyField: "full_name",
@@ -139,7 +174,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     personNameFields: ["full_name"],
   },
   "beneficial-ownership": {
-    run: (text, model, context) => extractBeneficialOwnership(text, model, context),
+    run: runWithDeterministic(parseBeneficialOwnership, extractBeneficialOwnership),
     instructions: beneficialOwnershipInstructions,
     schema: () => BeneficialOwnershipOutputSchema,
     keyField: "name",
@@ -157,7 +192,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // must NOT produce rows, so emitting one costs precision.
   // Disabled from default eval sweeps: low priority / may be dropped.
   "risk-factors": {
-    run: (text, model, context) => extractRiskFactors(text, model, context),
+    run: runWithDeterministic(undefined, extractRiskFactors),
     instructions: riskFactorsInstructions,
     schema: () => RiskFactorsOutputSchema,
     keyField: "headline",
@@ -165,7 +200,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
     disabled: true,
   },
   "related-party": {
-    run: (text, model, context) => extractRelatedParty(text, model, context),
+    run: runWithDeterministic(parseRelatedPartyTables, extractRelatedParty),
     instructions: relatedPartyInstructions,
     schema: () => RelatedPartyOutputSchema,
     keyField: "name",
@@ -174,10 +209,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Single-object extractor over an S-1/424 "The Offering" section; positional
   // alignment (no keyField). Scored on the objective numeric unit terms.
   "offering-terms": {
-    run: async (text, model, context) => {
-      const row = await extractOfferingTerms(text, model, context);
-      return row === null ? [] : [row];
-    },
+    run: runWithDeterministic(parseSpacOfferingTerms, extractOfferingTerms),
     instructions: offeringTermsInstructions,
     schema: () => OfferingTermsOutputSchema,
     compareFields: [
@@ -190,10 +222,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Single-object extractor over a SPAC "The Offering" / "The Sponsor" section;
   // positional alignment (no keyField). Scored on the objective promote figures.
   "sponsor-promote": {
-    run: async (text, model, context) => {
-      const row = await extractSponsorPromote(text, model, context);
-      return row === null ? [] : [row];
-    },
+    run: runWithDeterministic(parseSpacPromoteTerms, extractSponsorPromote),
     instructions: sponsorPromoteInstructions,
     schema: () => SponsorPromoteOutputSchema,
     compareFields: [
@@ -208,10 +237,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // true SPAC yields one row; a shell or operating company yields none, so a
   // fixture with `expected: []` scores a false positive as lost precision.
   "spac-classification": {
-    run: async (text, model, context) => {
-      const row = await extractSpacClassification(text, model, context);
-      return row === null ? [] : [row];
-    },
+    run: runWithDeterministic(parseSpacClassification, extractSpacClassification),
     instructions: spacClassificationInstructions,
     schema: () => SpacClassificationOutputSchema,
     keyField: "entity_kind",
@@ -224,7 +250,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // for. Scored on the cells every table has, whichever disclosure regime the
   // registrant reports under.
   "executive-compensation": {
-    run: (text, model, context) => extractExecutiveCompensation(text, model, context),
+    run: runWithDeterministic(parseSummaryCompensationTable, extractExecutiveCompensation),
     instructions: executiveCompensationInstructions,
     schema: () => ExecutiveCompensationOutputSchema,
     compareFields: ["person_name", "fiscal_year", "salary", "total"],
@@ -234,7 +260,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // Keyed on the bank's legal name — the field the persist path dedupes on, so
   // a model that repeats a syndicate member should not be rewarded for it.
   underwriters: {
-    run: (text, model, context) => extractUnderwriters(text, model, context),
+    run: runWithDeterministic(parseSpacUnderwriters, extractUnderwriters),
     instructions: underwritersInstructions,
     schema: () => UnderwriterOutputSchema,
     keyField: "legal_name",
@@ -242,7 +268,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   },
   // Multi-row extractor over the Use of Proceeds section: one row per line item.
   "use-of-proceeds": {
-    run: (text, model, context) => extractUseOfProceeds(text, model, context),
+    run: runWithDeterministic(parseSpacUseOfProceeds, extractUseOfProceeds),
     instructions: useOfProceedsInstructions,
     schema: () => UseOfProceedsOutputSchema,
     keyField: "purpose",
@@ -252,17 +278,14 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // controlled-vocabulary focus rather than the free-text description, which no
   // two models phrase alike.
   "spac-profile": {
-    run: async (text, model, context) => {
-      const row = await extractSpacProfile(text, model, context);
-      return row === null ? [] : [row];
-    },
+    run: runWithDeterministic(parseSpacProfile, extractSpacProfile),
     instructions: spacProfileInstructions,
     schema: () => SpacProfileOutputSchema,
     compareFields: ["focus", "focus_location"],
   },
   // Multi-row extractor naming the sponsor entities behind a blank-check issuer.
   "spac-sponsors": {
-    run: (text, model, context) => extractSpacSponsors(text, model, context),
+    run: runWithDeterministic(parseSpacSponsors, extractSpacSponsors),
     instructions: spacSponsorsInstructions,
     schema: () => SpacSponsorOutputSchema,
     keyField: "legal_name",
@@ -273,10 +296,7 @@ export const EVAL_EXTRACTORS: Record<string, EvalExtractor> = {
   // agreements, vote results, LOI terminations) yields none, so a fixture with
   // `expected: []` scores a false positive as lost precision.
   loi: {
-    run: async (text, model, context) => {
-      const row = await extractLoi(text, model, context);
-      return row === null ? [] : [row];
-    },
+    run: runWithDeterministic(undefined, extractLoi),
     instructions: loiInstructions,
     schema: () => LoiOutputSchema,
     keyField: "target_name",

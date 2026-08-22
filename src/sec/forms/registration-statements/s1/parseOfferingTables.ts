@@ -5,11 +5,13 @@
  */
 
 import { parseNumeric } from "../../../html/parseNumeric";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import type { OfferingTermsRow } from "./offeringTermsSchema";
 import type { SponsorPromoteRow } from "./sponsorPromoteSchema";
+import { isSeparatorRow, splitPipeRow } from "./gfmTables";
 
-export const DETERMINISTIC_MODEL_ID = "deterministic";
+export { DETERMINISTIC_MODEL_ID };
 
 const PRICE_MIN = 8;
 const PRICE_MAX = 12;
@@ -17,7 +19,7 @@ const PRICE_MAX = 12;
 const PLACEHOLDER = /^(?:\[●\]|●|\[•\]|•|—|–|-|\*|\u25cf)?$/;
 
 const WORD_FRACTIONS: ReadonlyArray<{ readonly re: RegExp; readonly value: number }> = [
-  { re: /\b(?:three[\s-]fourths?|3\/4)\b/i, value: 0.75 },
+  { re: /\b(?:three[\s-](?:fourths?|quarters?)|3\/4)\b/i, value: 0.75 },
   { re: /\b(?:two[\s-]thirds?|2\/3)\b/i, value: 0.6667 },
   { re: /\b(?:one[\s-]half|1\/2)\b/i, value: 0.5 },
   { re: /\b(?:one[\s-]third|1\/3)\b/i, value: 0.3333 },
@@ -46,8 +48,15 @@ interface WalkedFields {
   source_span: string;
 }
 
+/** The unit-IPO anchor: a per-unit price and a unit count, both off one walk. */
+function isUnitIpoWalk(fields: WalkedFields): boolean {
+  return fields.price_per_unit !== null && fields.units_offered !== null;
+}
+
 export function parseSpacOfferingTerms(text: string): OfferingTermsRow | null {
   const fields = walkFields(text);
+  // Spelled out rather than via `isUnitIpoWalk` so the two fields narrow to
+  // `number` for the `locates` calls below.
   if (fields.price_per_unit === null || fields.units_offered === null) return null;
   if (!locates(text, fields.price_per_unit, "per unit")) return null;
   if (!locates(text, fields.units_offered, "units")) return null;
@@ -79,8 +88,11 @@ export function parseSpacOfferingTerms(text: string): OfferingTermsRow | null {
 }
 
 export function parseSpacPromoteTerms(text: string): SponsorPromoteRow | null {
-  if (!looksLikeUnitIpo(text)) return null;
+  // One walk, not two: `looksLikeUnitIpo` re-scans the whole section to ask a
+  // question this walk already answers, and this parse is run per filing behind
+  // a coverage function that walks it a second time.
   const fields = walkFields(text);
+  if (!isUnitIpoWalk(fields)) return null;
   if (fields.founder_shares === null && fields.trust_per_public_share === null) return null;
   if (fields.founder_shares !== null && !locates(text, fields.founder_shares, "founder")) {
     return null;
@@ -107,9 +119,39 @@ export function parseSpacPromoteTerms(text: string): SponsorPromoteRow | null {
   };
 }
 
-export function looksLikeUnitIpo(text: string): boolean {
+/**
+ * The promote columns this walk actually reads out of `text`, as
+ * `spac_promote_terms.<column>` destinations.
+ *
+ * `parseSpacPromoteTerms` returns a row on EITHER of two anchors, so a table
+ * stating founder shares and nothing else yields a row whose other five columns
+ * are null — and a fixed coverage set would let that row overwrite figures the
+ * model reads from the surrounding prose. Coverage is therefore computed from
+ * the same {@link walkFields} pass the parse runs: a column is claimed only when
+ * this filing's tables state it. A second walk over one section's text is a
+ * pure scan and costs nothing worth caching — and a cache keyed on text would
+ * outlive the filing it was computed for.
+ */
+export function promoteCoverage(text: string): ReadonlySet<string> {
   const fields = walkFields(text);
-  return fields.price_per_unit !== null || fields.units_offered !== null;
+  const out = new Set<string>(["field_provenance:spac_promote_terms"]);
+  const columns: ReadonlyArray<readonly [string, number | null]> = [
+    ["founder_shares", fields.founder_shares],
+    ["founder_percent", fields.founder_percent],
+    ["private_placement_warrants", fields.private_placement_warrants],
+    ["private_placement_warrant_price", fields.private_placement_warrant_price],
+    ["public_warrant_coverage", fields.warrant_fraction_per_unit],
+    ["trust_per_public_share", fields.trust_per_public_share],
+    ["trust_total", fields.trust_total],
+  ];
+  for (const [column, value] of columns) {
+    if (value !== null) out.add(`spac_promote_terms.${column}`);
+  }
+  return out;
+}
+
+export function looksLikeUnitIpo(text: string): boolean {
+  return isUnitIpoWalk(walkFields(text));
 }
 
 function emptyWalk(): WalkedFields {
@@ -139,6 +181,7 @@ function walkFields(text: string): WalkedFields {
     if (out.source_span === "") out.source_span = value;
   };
   let section = "";
+  let outstandingBeforeShares: number | undefined;
   for (const row of iterTableRows(text)) {
     if (row.label === "continuation") {
       if (out.founder_percent === null) {
@@ -154,41 +197,43 @@ function walkFields(text: string): WalkedFields {
       section = row.label;
       continue;
     }
-    const unitAt = unitsAtPrice(row.value);
+    const unitAt = unitsAtPrice(row.value) ?? firstUnitsAtPrice(row.cells);
     if (unitAt) {
+      const span = unitsAtPrice(row.value) ? row.value : unitAtSpan(row.cells);
       if (out.units_offered === null) {
         out.units_offered = unitAt.units;
-        take(row.value);
+        take(span);
       }
       if (out.price_per_unit === null && unitAt.price >= PRICE_MIN && unitAt.price <= PRICE_MAX) {
         out.price_per_unit = unitAt.price;
-        take(row.value);
+        take(span);
       }
     }
+    const valueBlob = row.value !== "" ? row.value : (firstNonEmpty(row.cells.slice(1)) ?? "");
     const compositionCell =
       isCompositionLabel(row.label) ||
-      /consisting of/i.test(row.value) ||
+      /consisting of/i.test(valueBlob) ||
       (isBulletLabel(row.label) && isCompositionBullet(row.value));
     if (compositionCell) {
       if (out.unit_composition === null) {
-        const clause = compositionClause(row.value);
+        const clause = compositionClause(valueBlob);
         if (clause !== null) {
           out.unit_composition = clause;
-          take(row.value);
+          take(valueBlob);
         }
       }
       if (out.warrant_fraction_per_unit === null) {
-        const w = warrantFraction(row.value);
+        const w = warrantFraction(valueBlob);
         if (w !== undefined) {
           out.warrant_fraction_per_unit = w;
-          take(row.value);
+          take(valueBlob);
         }
       }
       if (out.right_fraction_per_unit === null) {
-        const r = rightFraction(row.value);
+        const r = rightFraction(valueBlob);
         if (r !== undefined) {
           out.right_fraction_per_unit = r;
-          take(row.value);
+          take(valueBlob);
         }
       }
     }
@@ -200,7 +245,7 @@ function walkFields(text: string): WalkedFields {
       }
     }
     if (out.units_offered === null && isUnitsOfferedLabel(row.label)) {
-      const n = firstInteger(row.value);
+      const n = unitsOfferedCount(row.label, row.value);
       if (n !== undefined) {
         out.units_offered = n;
         take(row.value);
@@ -279,6 +324,13 @@ function walkFields(text: string): WalkedFields {
         take(row.value);
       }
     }
+    if (outstandingBeforeShares === undefined && isOutstandingBeforeSharesRow(row)) {
+      const n = founderShareCount(row.value);
+      if (n !== undefined) outstandingBeforeShares = n;
+    }
+  }
+  if (out.founder_shares === null && outstandingBeforeShares !== undefined) {
+    out.founder_shares = outstandingBeforeShares;
   }
   return out;
 }
@@ -299,7 +351,9 @@ function iterTableRows(text: string): TableRow[] {
     const trimmed = line.trim();
     if (!trimmed.startsWith("|")) continue;
     if (isSeparatorRow(trimmed)) continue;
-    const cells = splitPipeRow(trimmed);
+    // The shared split returns cells verbatim; this walk has no `cleanCell`
+    // pass of its own, so it trims here exactly where its private copy did.
+    const cells = splitPipeRow(trimmed).map((cell) => cell.trim());
     const picked = pickLabelValue(cells);
     if (picked === null) continue;
     const { label, value } = picked;
@@ -344,31 +398,6 @@ function pickLabelValue(cells: string[]): TableRow | null {
   return { label, value, cells: c };
 }
 
-function isSeparatorRow(line: string): boolean {
-  return /^\|[\s:|-]+\|$/.test(line) || /^[\s|:-]+$/.test(line);
-}
-
-function splitPipeRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let cur = "";
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] === "\\" && inner[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (inner[i] === "|") {
-      cells.push(cur.trim());
-      cur = "";
-      continue;
-    }
-    cur += inner[i];
-  }
-  cells.push(cur.trim());
-  return cells;
-}
-
 function normalizeLabel(raw: string): string {
   const lowered = raw.toLowerCase().replace(/\s+/g, " ").trim();
   const stripped = lowered
@@ -408,6 +437,13 @@ function isUnitsOfferedLabel(label: string): boolean {
   return /number of units offered|units offered|^securities offered$/.test(label);
 }
 
+function unitsOfferedCount(label: string, cell: string): number | undefined {
+  const named = cell.match(/(\d{1,3}(?:,\d{3})+|\d+)\s+units?\b/i);
+  if (named) return parseNumeric(named[1]);
+  if (/^securities offered$/.test(label)) return undefined;
+  return firstInteger(cell);
+}
+
 function isTrustLabel(label: string): boolean {
   return /trust account|held in trust|proceeds to be held/.test(label);
 }
@@ -420,11 +456,24 @@ function isFounderLabel(label: string): boolean {
   return /founder shares|class b/.test(label);
 }
 
+function isOutstandingBeforeLabel(label: string): boolean {
+  return /number outstanding before this offering/.test(label);
+}
+
+function isNamedFounderValue(value: string): boolean {
+  return /class b|founder shares|ordinary shares/i.test(value);
+}
+
 function isFounderRow(row: TableRow): boolean {
   if (isFounderLabel(row.label)) return true;
+  return isOutstandingBeforeLabel(row.label) && isNamedFounderValue(row.value);
+}
+
+function isOutstandingBeforeSharesRow(row: TableRow): boolean {
   return (
-    /number outstanding before this offering/.test(row.label) &&
-    /class b|founder shares|ordinary shares/i.test(row.value)
+    isOutstandingBeforeLabel(row.label) &&
+    /\bshares\b/i.test(row.value) &&
+    !isNamedFounderValue(row.value)
   );
 }
 
@@ -487,13 +536,6 @@ function headlineTotal(cell: string): number | undefined {
   return undefined;
 }
 
-function wordFraction(cell: string): number | undefined {
-  for (const { re, value } of WORD_FRACTIONS) {
-    if (re.test(cell)) return value;
-  }
-  return undefined;
-}
-
 function warrantFraction(cell: string): number | undefined {
   if (!/warrant/i.test(cell)) return undefined;
   for (const { re, value } of WORD_FRACTIONS) {
@@ -503,14 +545,23 @@ function warrantFraction(cell: string): number | undefined {
     );
     if (attached.test(cell)) return value;
   }
-  if (/\bone (?:redeemable )?warrant\b/i.test(cell)) return 1;
+  // "three-quarters of one warrant" is a fraction, not a whole warrant.
+  if (/(?<!\bof\s+)\bone (?:redeemable )?warrant\b/i.test(cell)) return 1;
   return undefined;
 }
 
 function rightFraction(cell: string): number | undefined {
-  if (/\bone right\b/i.test(cell)) return 1;
   if (!/\brights?\b/i.test(cell)) return undefined;
-  return wordFraction(cell);
+  for (const { re, value } of WORD_FRACTIONS) {
+    const attached = new RegExp(
+      `${re.source}(?:\\s*\\([^)]*\\))?\\s+(?:of\\s+(?:one\\s+)?)?(?:share\\s+)?rights?`,
+      "i"
+    );
+    if (attached.test(cell)) return value;
+  }
+  // "one Share Right to receive one tenth of a share" is one right, not 0.1.
+  if (/(?<!\bof\s+)\bone(?:\s+share)?\s+rights?\b/i.test(cell)) return 1;
+  return undefined;
 }
 
 function compositionClause(cell: string): string | null {
@@ -564,9 +615,25 @@ function placementWarrantCount(cell: string): number | undefined {
   return parseNumeric(m[1]);
 }
 
+function firstNonEmpty(cells: readonly string[]): string | undefined {
+  return cells.find((c) => c !== "");
+}
+
+function firstUnitsAtPrice(cells: readonly string[]): { units: number; price: number } | undefined {
+  for (const cell of cells) {
+    const hit = unitsAtPrice(cell);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+function unitAtSpan(cells: readonly string[]): string {
+  return cells.find((cell) => unitsAtPrice(cell) !== undefined) ?? "";
+}
+
 function unitsAtPrice(cell: string): { units: number; price: number } | undefined {
   const m = cell.match(
-    /(\d{1,3}(?:,\d{3})+|\d+)\s+units?(?:\s+\([^)]*\))?,?\s+at\s+\$\s*(\d+(?:\.\d+)?)\s+per\s+unit/i
+    /(\d{1,3}(?:,\d{3})+|\d+)\s+units?(?:\s+\([^)]*\))?,?\s+at(?:\s+a\s+price\s+of)?\s+\$\s*(\d+(?:\.\d+)?)\s+per\s+unit/i
   );
   if (!m) return undefined;
   const units = parseNumeric(m[1]);

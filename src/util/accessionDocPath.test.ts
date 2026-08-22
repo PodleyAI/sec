@@ -8,6 +8,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertInsideDir,
+  cachedAccessionDocPath,
   resolvePrimaryDocName,
   sanitizePrimaryDoc,
   stripXslPrefix,
@@ -109,6 +110,20 @@ describe("sanitizePrimaryDoc", () => {
   it("returns the trimmed basename for a safe filename", () => {
     expect(sanitizePrimaryDoc("wf-form4.xml")).toBe("wf-form4.xml");
     expect(sanitizePrimaryDoc("  wf-form4.xml  ")).toBe("wf-form4.xml");
+  });
+});
+
+describe("cachedAccessionDocPath", () => {
+  it("joins accessiondocs / padded CIK / accession-no-dashes-filename", () => {
+    expect(cachedAccessionDocPath("/data", 1234, "0001193125-21-066104", "s1.htm")).toBe(
+      path.join("/data", "accessiondocs", "0000001234", "000119312521066104-s1.htm")
+    );
+  });
+
+  it("returns undefined for an unsafe primary-document name", () => {
+    expect(
+      cachedAccessionDocPath("/data", 1234, "0001193125-21-066104", "../etc/passwd")
+    ).toBeUndefined();
   });
 });
 

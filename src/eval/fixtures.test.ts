@@ -129,3 +129,22 @@ describe("EVAL_FIXTURES expected rows", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("EVAL_EXTRACTORS deterministic dispatch", () => {
+  it("deterministic id calls the parse function, not the AI extractor", async () => {
+    const { deterministicModelConfig } =
+      await import("../sec/forms/registration-statements/s1/s1Model");
+    const rows = await EVAL_EXTRACTORS.management.run(
+      "# Directors\n| Name | Age | Title |\n| --- | --- | --- |\n| Jane Doe | 40 | CEO |\n",
+      deterministicModelConfig()
+    );
+    expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it("deterministic id on an extractor with no parse returns []", async () => {
+    const { deterministicModelConfig } =
+      await import("../sec/forms/registration-statements/s1/s1Model");
+    const rows = await EVAL_EXTRACTORS["risk-factors"]!.run("any", deterministicModelConfig());
+    expect(rows).toEqual([]);
+  });
+});

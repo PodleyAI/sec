@@ -11,10 +11,13 @@ export async function runFormsSweep(options: {
   readonly formTypes: string[];
   readonly shard?: FormsShard;
   readonly ciks?: number[];
+  readonly filedOnOrAfter?: string;
 }): Promise<void> {
   await runWorkflowCli(
     [],
     undefined,
-    formsSweepLoop(newFormsWorklistTask(options.formTypes, options.shard, options.ciks))
+    formsSweepLoop(
+      newFormsWorklistTask(options.formTypes, options.shard, options.ciks, options.filedOnOrAfter)
+    )
   );
 }

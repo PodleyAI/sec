@@ -41,6 +41,13 @@ import { boundSourceSpan, classifySpan } from "./verifySourceSpan";
 import { verifyNumericObjectSpan } from "./verifyNumericObjectSpan";
 import { anchorFieldSpan } from "./anchorFieldSpan";
 import { FieldProvenanceRepo } from "../../../../storage/provenance/FieldProvenanceRepo";
+import {
+  parseSpacOfferingTerms,
+  parseSpacPromoteTerms,
+  promoteCoverage,
+} from "./parseOfferingTables";
+import { parseSpacUnderwriters } from "./parseSpacUnderwriters";
+import { parseSpacUseOfProceeds, useOfProceedsIsComplete } from "./parseSpacUseOfProceeds";
 
 /**
  * Concatenate the sections production hands the offering-terms parser, so eval
@@ -241,6 +248,10 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   // The extractor returns a single object; adapt it onto runSection by treating
   // a null result as an empty array and wrapping a present result as `[terms]`.
   const offeringText = offeringParseText(byName);
+  // The two destinations are mutually exclusive: a SPAC's unit terms, or an
+  // equity issuer's share terms. Naming the one in play keeps the coverage
+  // contract exact rather than asserting the section rewrites both.
+  const termsTable = isSpac ? "spac_unit_terms" : "offering_terms";
   await runSection<OfferingTermsRow>({
     sectionName: "offering-terms",
     text: offeringText,
@@ -263,13 +274,38 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
     unverifiedAllDetail: `all $T confident offering-terms rows had source_span not present in section text${OFFERING_TERMS_LOSS}`,
     unverifiedPartialDetail:
       "$N of $T confident offering-terms rows had source_span not present in section text",
-    ...modelExtractChain(models, async (text, m) => {
-      const terms = await extractOfferingTerms(text, m, context);
-      return terms === null ? [] : [terms];
-    }),
+    clears: new Set([
+      termsTable,
+      `field_provenance:${termsTable}`,
+      "issuer_ticker",
+      "field_provenance:issuer_ticker",
+    ]),
+    // SPAC-only: the walker reads a unit/price table a non-SPAC equity
+    // prospectus does not have. As declared it never stands in for the model —
+    // it reads the offering table, not the listing sentence naming the issuer's
+    // symbols, so the ticker series cleared above would be left empty. Teaching
+    // it to read that sentence is what would let `issuer_ticker` join `covers`.
+    ...modelExtractChain(
+      models,
+      async (text, m) => {
+        const terms = await extractOfferingTerms(text, m, context);
+        return terms === null ? [] : [terms];
+      },
+      {
+        deterministic: isSpac
+          ? {
+              extract: (text) => {
+                const det = parseSpacOfferingTerms(text);
+                return det === null ? [] : [det];
+              },
+              covers: new Set([termsTable, `field_provenance:${termsTable}`]),
+            }
+          : undefined,
+      }
+    ),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
       const terms = rows[0];
+      const model_id = persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
       if (isSpac) {
         await spacUnitTermsRepo.save({
@@ -408,13 +444,44 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       ]),
     unverifiedAllDetail:
       "all $T confident sponsor-promote rows had source_span not present in section text",
-    ...modelExtractChain(models, async (text, m) => {
-      const promote = await extractSponsorPromote(text, m, context);
-      return promote === null ? [] : [promote];
-    }),
+    // Column-granular because the parse is column-granular: `parseSpacPromoteTerms`
+    // returns a row on EITHER a founder-share or a trust-per-share anchor, so a
+    // table stating one of them yields a row whose other columns are null. Named
+    // as a table, that row would overwrite the five figures the model reads out
+    // of the surrounding prose with nulls, on this filing and on every replay.
+    clears: new Set([
+      "spac_promote_terms.founder_shares",
+      "spac_promote_terms.founder_percent",
+      "spac_promote_terms.private_placement_warrants",
+      "spac_promote_terms.private_placement_warrant_price",
+      "spac_promote_terms.public_warrant_coverage",
+      "spac_promote_terms.trust_per_public_share",
+      "spac_promote_terms.trust_total",
+      "field_provenance:spac_promote_terms",
+    ]),
+    ...modelExtractChain(
+      models,
+      async (text, m) => {
+        const promote = await extractSponsorPromote(text, m, context);
+        return promote === null ? [] : [promote];
+      },
+      {
+        deterministic: {
+          extract: (text) => {
+            const det = parseSpacPromoteTerms(text);
+            return det === null ? [] : [det];
+          },
+          covers: promoteCoverage,
+          // `spac_promote_terms` is keyed by (extractor, accession): one row per
+          // filing, so producing it IS enumerating the population. Which of its
+          // columns that row may state is `promoteCoverage`'s question.
+          complete: (rows) => rows.length === 1,
+        },
+      }
+    ),
     persist: async (rows, meta) => {
-      const model_id = persistModelId(models, meta.modelIndex);
       const promote = rows[0];
+      const model_id = persistModelId(models, meta.modelIndex);
       await spacPromoteTermsRepo.save({
         extractor_id,
         accession_number,
@@ -463,9 +530,10 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   });
 
   // --- Underwriters (Underwriting section; all filings) ---
+  const underwritingText = byName.get(S1_SECTIONS.UNDERWRITING);
   await runSection<UnderwriterRowOut>({
     sectionName: "underwriters",
-    text: byName.get(S1_SECTIONS.UNDERWRITING),
+    text: underwritingText,
     emptyDetail: "no underwriters returned",
     lowConfidenceDetail: "all rows below confidence floor",
     invalidWriteDetail: "no underwriter rows had a usable legal name",
@@ -476,7 +544,37 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       "all $T confident underwriter rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident underwriter rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context)),
+    // `underwriter_family_membership` is derived from the legal name, so the
+    // parse supplies it wherever it supplies the observation — it stays a bare
+    // table in both sets. `underwriter_link` does not: the syndicate table
+    // states an allocation and nothing else, while the ROLE ("sole book-running
+    // manager", "co-manager") is prose beside the table and the over-allotment
+    // column is often a separate table entirely. Named as a table, an S-1
+    // re-run would empty the links and rewrite a filed bookrunner as NULL.
+    clears: new Set([
+      "underwriter_link.role_detail",
+      "underwriter_link.shares_allocated",
+      "underwriter_link.over_allotment_shares",
+      "underwriter_family_membership",
+      "company_observation",
+      "observation_provenance",
+    ]),
+    // SPAC-only: the parser reads the syndicate table a unit IPO prints. As
+    // declared it never stands in for the model — teaching it to read the role
+    // sentence is what would let `role_detail` join `covers`.
+    ...modelExtractChain(models, (text, m) => extractUnderwriters(text, m, context), {
+      deterministic: isSpac
+        ? {
+            extract: parseSpacUnderwriters,
+            covers: new Set([
+              "underwriter_link.shares_allocated",
+              "underwriter_family_membership",
+              "company_observation",
+              "observation_provenance",
+            ]),
+          }
+        : undefined,
+    }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
       let wrote = 0;
@@ -559,19 +657,45 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
   });
 
   // --- Use of proceeds ---
+  const useOfProceedsText = byName.get(S1_SECTIONS.USE_OF_PROCEEDS);
   await runSection<UseOfProceedsLineRow>({
     sectionName: "use-of-proceeds",
-    text: byName.get(S1_SECTIONS.USE_OF_PROCEEDS),
+    text: useOfProceedsText,
     emptyDetail: "no line items returned",
     lowConfidenceDetail: "all rows below confidence floor",
-    // Prompt-injection backstop: refuse to persist any use-of-proceeds row whose
-    // source_span is not a verbatim substring of the Use of Proceeds section text.
     verifyRow: (text, r) => classifySpan(text, r.source_span),
     unverifiedAllDetail:
       "all $T confident use-of-proceeds rows had source_span not present in section text",
     unverifiedPartialDetail:
       "$N of $T confident use-of-proceeds rows had source_span not present in section text",
-    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context)),
+    // Bare on both sides, including the `note` the parse hardcodes null. The
+    // prompt directs every qualifier a line item carries into `purpose` ("the
+    // row label copied WHOLE, including any parenthetical the cell carries"),
+    // and the parse copies that same cell verbatim — so `note` holds nothing
+    // the row does not still say, which is not true of any other null in this
+    // change.
+    clears: new Set(["use_of_proceeds"]),
+    // SPAC-only: the parser reads the offering-expenses table a unit IPO
+    // prints. A single line is not one of those tables — it is one figure the
+    // row scan happened to match — so it is reported as no parse at all rather
+    // than as a one-line use of proceeds.
+    ...modelExtractChain(models, (text, m) => extractUseOfProceeds(text, m, context), {
+      deterministic: isSpac
+        ? {
+            extract: (text) => parseSpacUseOfProceeds(text),
+            covers: new Set(["use_of_proceeds"]),
+            // `use_of_proceeds` holds one row per line item, so covering its
+            // columns says nothing about the rows. The walk's own decline log
+            // does: a labelled row it could not represent means the table was
+            // not enumerated, and the model gets the section. It reads the
+            // section rather than `rows` because the count of rows the walk
+            // DECLINED is not recoverable from the ones it returned — and it
+            // is the same walk, not a second reading: `parseInner` is cached on
+            // the text `extract` just passed it.
+            complete: (_rows, text) => useOfProceedsIsComplete(text),
+          }
+        : undefined,
+    }),
     persist: async (rows) => {
       const now = new Date().toISOString();
       let lineIndex = 0;

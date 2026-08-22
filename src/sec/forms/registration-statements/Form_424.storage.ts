@@ -146,6 +146,7 @@ export interface ProcessForm424Args {
   readonly form: string;
   readonly form424: FormS1Parsed;
   readonly model?: ModelConfig;
+  readonly models?: readonly ModelConfig[];
   readonly context?: IExecuteContext;
 }
 
@@ -308,7 +309,7 @@ export async function processForm424(args: ProcessForm424Args): Promise<void> {
   // still records, mirroring the "XBRL failures never abort the filing" contract.
   let models: ModelConfig[] = [];
   try {
-    models = args.model ? [args.model] : await getS1Models();
+    models = args.models ? [...args.models] : args.model ? [args.model] : await getS1Models();
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     for (const section of offeringSectionNames(isSpac)) {

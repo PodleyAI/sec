@@ -4,17 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { getGoldenLabels } from "../../../../eval/goldenS1Labels";
-import { parseEdgarHtml } from "../../../html/parseEdgarHtml";
-import { DocumentTreeSegmenter } from "./DocumentTreeSegmenter";
+import { loadS1Corpus, S1_CORPUS_TIMEOUT_MS, type S1CorpusFiling } from "./testing/s1Corpus";
 import { offeringParseText, promoteParseText } from "./offeringSections";
-import { parseSpacOfferingTerms, parseSpacPromoteTerms } from "./parseOfferingTables";
-
-const MOCK_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "../../../html/mock_data/s1");
+import {
+  parseSpacOfferingTerms,
+  parseSpacPromoteTerms,
+  promoteCoverage,
+} from "./parseOfferingTables";
 
 const OFFERING_FIELDS = [
   "price_per_unit",
@@ -73,34 +71,23 @@ function isAllNull(row: Record<string, unknown>, fields: readonly string[]): boo
   return fields.every((f) => row[f] == null);
 }
 
-function fixtures(): Array<{ filing: string; byName: Map<string, string> }> {
-  const files = readdirSync(MOCK_DIR).filter((f) => f.endsWith(".htm"));
-  const out: Array<{ filing: string; byName: Map<string, string> }> = [];
-  for (const file of files.sort()) {
-    const html = readFileSync(join(MOCK_DIR, file), "utf8");
-    const doc = parseEdgarHtml(html, file);
-    const segmented = new DocumentTreeSegmenter().segment(doc);
-    out.push({
-      filing: file.replace(/\.htm$/, ""),
-      byName: new Map(segmented.map((s) => [s.name as string, s.text])),
-    });
-  }
-  return out;
-}
-
-let corpus: ReturnType<typeof fixtures> | undefined;
-function cases(): ReturnType<typeof fixtures> {
-  corpus ??= fixtures();
-  return corpus;
-}
+let cases: readonly S1CorpusFiling[] = [];
 
 describe("parseOfferingTables golden corpus", () => {
+  // Building the corpus is ~100 MB of HTML through the converter and the
+  // segmenter — that is the work, not a hang. It lives in `beforeAll` with its
+  // own budget so the cost is attributed to setup rather than charged to
+  // whichever assertion happened to touch it first.
+  beforeAll(() => {
+    cases = loadS1Corpus();
+  }, S1_CORPUS_TIMEOUT_MS);
+
   it("loads committed S-1 fixtures", () => {
-    expect(cases().length).toBeGreaterThan(0);
+    expect(cases.length).toBeGreaterThan(0);
   });
 
   it("never claims a required-set hit against an all-null offering golden or empty promote golden", () => {
-    for (const { filing, byName } of cases()) {
+    for (const { filing, byName } of cases) {
       const offeringLabels = getGoldenLabels(filing, "offering-terms");
       if (offeringLabels && offeringLabels.length === 1) {
         const expected = scored(offeringLabels[0] as Record<string, unknown>, OFFERING_FIELDS);
@@ -116,7 +103,7 @@ describe("parseOfferingTables golden corpus", () => {
   });
 
   it("matches scored offering fields when it hits a labelled SPAC table", () => {
-    for (const { filing, byName } of cases()) {
+    for (const { filing, byName } of cases) {
       const labels = getGoldenLabels(filing, "offering-terms");
       if (!labels || labels.length !== 1) continue;
       const expected = scored(labels[0] as Record<string, unknown>, OFFERING_FIELDS);
@@ -129,7 +116,7 @@ describe("parseOfferingTables golden corpus", () => {
   });
 
   it("matches scored promote fields when it hits a labelled SPAC table", () => {
-    for (const { filing, byName } of cases()) {
+    for (const { filing, byName } of cases) {
       const labels = getGoldenLabels(filing, "sponsor-promote");
       if (!labels || labels.length === 0) continue;
       const expected = scored(labels[0] as Record<string, unknown>, PROMOTE_FIELDS);
@@ -138,5 +125,34 @@ describe("parseOfferingTables golden corpus", () => {
       const got = scored(parsed as unknown as Record<string, unknown>, PROMOTE_FIELDS);
       expectScoredFields(filing, got, expected, PROMOTE_FIELDS);
     }
+  });
+
+  // `spac_promote_terms` holds one row per filing, so the promote pass answers
+  // the row question by producing that row and `promoteCoverage` carries the
+  // whole risk: a column it claims is a column the model will not be asked for
+  // and that persist will write. The assertion above forgives a null the walk
+  // returned; a CLAIMED column may not be null and may not disagree.
+  it("is right about every promote column its coverage claims", () => {
+    const wrong: string[] = [];
+    for (const { filing, byName } of cases) {
+      const labels = getGoldenLabels(filing, "sponsor-promote");
+      if (!labels || labels.length === 0) continue;
+      const text = promoteParseText(byName);
+      const parsed = parseSpacPromoteTerms(text);
+      if (parsed === null) continue;
+      const claimed = promoteCoverage(text);
+      const expected = scored(labels[0] as Record<string, unknown>, PROMOTE_FIELDS);
+      const got = scored(parsed as unknown as Record<string, unknown>, PROMOTE_FIELDS);
+      for (const field of PROMOTE_FIELDS) {
+        if (!claimed.has(`spac_promote_terms.${field}`)) continue;
+        if (expected[field] == null) continue;
+        if (got[field] !== expected[field]) {
+          wrong.push(
+            `${filing} ${field}: parsed ${String(got[field])}, golden ${String(expected[field])}`
+          );
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });

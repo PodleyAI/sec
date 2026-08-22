@@ -51,4 +51,27 @@ describe("parseEdgarHtml", () => {
     expect(md).toContain("Alice");
     expect(md).toContain("Bob");
   });
+
+  it("promotes The Offering out of a 1-column layout wrapper into a real heading", () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr><td>
+            <p style="text-align:center;font-weight:700"><b>The Offering</b></p>
+            <p>In making your decision on whether to invest in our securities, you should take into account the risks.</p>
+          </td></tr>
+        </table>
+        <table>
+          <tr><td>Securities offered</td><td>7,500,000 units, at $10.00 per unit</td></tr>
+        </table>
+      </body></html>`;
+    const doc = parseEdgarHtml(html, "S-1");
+    const sections = [...traverseDepthFirst(doc)].filter(
+      (n) => n.kind === NodeKind.SECTION
+    ) as SectionNode[];
+    expect(sections.map((s) => s.title)).toContain("The Offering");
+    expect(renderMarkdown(doc)).toMatch(
+      /\|\s*Securities offered\s*\|\s*7,500,000 units, at \$10\.00 per unit/
+    );
+  });
 });

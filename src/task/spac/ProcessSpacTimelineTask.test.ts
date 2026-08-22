@@ -19,7 +19,7 @@ import { SpacRepo } from "../../storage/spac/SpacRepo";
 import { ExtractorRunRepo } from "../../storage/versioning/ExtractorRunRepo";
 import { EXTRACTOR_RUN_REPOSITORY_TOKEN } from "../../storage/versioning/ExtractorRunSchema";
 import { ProcessAccessionDocFormTask } from "../forms/ProcessAccessionDocFormTask";
-import { ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
+import { MAX_RETAINED_FILING_ROWS, ProcessSpacTimelineTask } from "./ProcessSpacTimelineTask";
 
 const CIK = 1800001;
 
@@ -585,6 +585,56 @@ describe("ProcessSpacTimelineTask", () => {
     expect(out.matched).toBe(2);
   });
 
+  it("owns each filing as a child of the issuer so the CLI can nest them", async () => {
+    // An owned inner Workflow+Map sits two layers down; the CLI stops
+    // recursing there, so the issuer map row had no filing children. Directly
+    // owned form tasks are the issuer's subgraph.
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2021-02-04");
+    vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute").mockResolvedValue({
+      success: true,
+    });
+
+    const task = new ProcessSpacTimelineTask();
+    await task.run({ cik: CIK });
+
+    const children = task.subGraph?.getTasks() ?? [];
+    expect(children.map((child) => child.type)).toEqual([
+      "ProcessAccessionDocFormTask",
+      "ProcessAccessionDocFormTask",
+    ]);
+    expect(children.map((child) => child.title)).toEqual([
+      "D 0000000000-26-000001",
+      "D 0000000000-26-000002",
+    ]);
+  });
+
+  it("bounds the retained filing rows so a long timeline cannot grow the graph without limit", async () => {
+    // `own` is add-only, so an issuer with thousands of filings held one live
+    // task node per filing for the whole run. The nesting above is kept for
+    // the timelines a person watches; past the cap the finished row is
+    // released and the in-flight filing is still owned while it runs.
+    const total = MAX_RETAINED_FILING_ROWS + 5;
+    for (let i = 0; i < total; i++) {
+      await seedFiling(`0000000000-26-${String(i).padStart(6, "0")}`, "D", "2021-01-04");
+    }
+    vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute").mockResolvedValue({
+      success: true,
+    });
+
+    const task = new ProcessSpacTimelineTask();
+    const out = await task.run({ cik: CIK });
+
+    expect(out.matched).toBe(total);
+    expect(task.subGraph?.getTasks().length ?? 0).toBe(MAX_RETAINED_FILING_ROWS);
+  });
+
+  it("labels the issuer row with the CIK so map iterations are distinguishable", async () => {
+    const task = new ProcessSpacTimelineTask();
+    await task.run({ cik: CIK });
+    expect(task.title).toContain(String(CIK));
+  });
+
   it("echoes the cik so a fan-out's result columns are self-labelling", async () => {
     const out = await new ProcessSpacTimelineTask().run({ cik: CIK });
     // No filings at all is still an answer about THIS issuer.
@@ -596,5 +646,31 @@ describe("ProcessSpacTimelineTask", () => {
       failed: 0,
       error: "",
     });
+  });
+
+  it("filedOnOrAfter skips older unprocessed filings, keeping date order for the rest", async () => {
+    await seedFiling("0000000000-26-000001", "D", "2021-01-04");
+    await seedFiling("0000000000-26-000002", "D", "2026-08-20");
+    const spy = vi.spyOn(ProcessAccessionDocFormTask.prototype, "execute");
+
+    const out = await new ProcessSpacTimelineTask().run({
+      cik: CIK,
+      filedOnOrAfter: "2026-08-19",
+    });
+
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000002"]);
+    expect(out.matched).toBe(2);
+    expect(out.skipped).toBe(1);
+  });
+
+  it("filedOnOrAfter also keeps the repair pass from replaying older gated 8-Ks", async () => {
+    await seedFiling("0000000000-26-000001", "S-1", "2026-08-20", "s1.htm");
+    await seedFiling("0000000000-26-000002", "8-K", "2021-02-04", "d8k.htm", "5.07");
+    await seedSuccessfulRun("0000000000-26-000002", "8-K", "8-K");
+    const spy = mockFormProcessor();
+
+    await new ProcessSpacTimelineTask().run({ cik: CIK, filedOnOrAfter: "2026-08-19" });
+
+    expect(spy.mock.calls.map((c) => c[0]?.accessionNumber)).toEqual(["0000000000-26-000001"]);
   });
 });

@@ -8,6 +8,87 @@ import { NodeKind, renderMarkdown, uuid4 } from "workglow";
 import type { TableCell, TableNode } from "workglow";
 import { parseNumeric } from "./parseNumeric";
 
+const LAYOUT_CHILD_TAGS = new Set([
+  "p",
+  "div",
+  "table",
+  "ul",
+  "ol",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+]);
+
+function tagOf(el: unknown): string {
+  const node = el as { tagName?: string; name?: string };
+  return (node.tagName ?? node.name ?? "").toLowerCase();
+}
+
+const OFFERING_CAPTION = /^\s*(?:the|our)\s+offering\s*$/i;
+
+function directRows($: CheerioAPI, table: unknown): unknown[] {
+  return $(table as never)
+    .find("> tr, > thead > tr, > tbody > tr, > tfoot > tr")
+    .toArray();
+}
+
+/**
+ * First row is a full-width "The Offering" caption sitting on a 2+ column
+ * data table. The heading never becomes a heading node unless that row is
+ * peeled before {@link extractTable}.
+ */
+export function leadingOfferingCaption(
+  $: CheerioAPI,
+  table: unknown
+): { readonly row: unknown; readonly cell: unknown } | undefined {
+  const rows = directRows($, table);
+  if (rows.length < 2) return undefined;
+  const first = rows[0];
+  if (first === undefined) return undefined;
+  const firstCells = $(first as never).children("td, th");
+  if (firstCells.length !== 1) return undefined;
+  if (!rows.slice(1).some((tr) => $(tr as never).children("td, th").length > 1)) {
+    return undefined;
+  }
+  const cell = firstCells.get(0);
+  if (cell === undefined) return undefined;
+  const $cell = $(cell as never);
+  const kids = $cell.children().toArray();
+  for (const kid of kids) {
+    const t = $(kid).text().replace(/\s+/g, " ").trim();
+    if (t.length === 0) continue;
+    return OFFERING_CAPTION.test(t) ? { row: first, cell } : undefined;
+  }
+  const t = $cell.text().replace(/\s+/g, " ").trim();
+  return OFFERING_CAPTION.test(t) ? { row: first, cell } : undefined;
+}
+
+/**
+ * True when a table is a 1-column typesetter wrapper (heading + intro in one
+ * cell, or nested tables) rather than a 1-column data grid. A cell that is a
+ * single `<p>` of values must stay a table; a cell with two or more block
+ * children, or a nested `<table>`, is layout.
+ */
+export function isLayoutTable($: CheerioAPI, table: unknown): boolean {
+  const rows = $(table as never)
+    .find("> tr, > thead > tr, > tbody > tr, > tfoot > tr")
+    .toArray();
+  if (rows.length === 0) return false;
+  if (rows.some((tr) => $(tr).children("td, th").length > 1)) return false;
+  return rows.some((tr) => {
+    const cell = $(tr).children("td, th").get(0);
+    if (cell === undefined) return false;
+    const blocks = $(cell)
+      .children()
+      .toArray()
+      .filter((c) => LAYOUT_CHILD_TAGS.has(tagOf(c)));
+    return blocks.some((c) => tagOf(c) === "table") || blocks.length >= 2;
+  });
+}
+
 /** Convert a <table> element into a rectangular, colspan/rowspan-expanded TableNode. */
 export function extractTable($: CheerioAPI, table: unknown): TableNode {
   const rowEls = $(table as never)

@@ -5,13 +5,17 @@
  */
 
 import { Command } from "commander";
-import { globalServiceRegistry, type DataPorts, type ITask } from "workglow";
+import { globalServiceRegistry } from "workglow";
 import { parseIntOption, parseOutputFormat, type OutputFormat } from "../cli/GlobalOptions";
 import { isDryRun } from "../cli/isDryRun";
 import { statusMessage } from "../cli/output/Progress";
 import { renderTable, type ColumnDef } from "../cli/output/TableRenderer";
 import { runCommand } from "../cli/runCommand";
 import { runWorkflowCli } from "../cli/runWorkflow";
+import {
+  DEFAULT_SPAC_ISSUER_CONCURRENCY,
+  runSpacTimelineIssuers,
+} from "../cli/sync/runSpacTimelineIssuers";
 import {
   SPAC_CANDIDATE_CONFIDENCES,
   type SpacCandidateConfidence,
@@ -29,10 +33,7 @@ import {
   type SpacDownloadSet,
 } from "../task/spac/spacCandidateDownload";
 import { SpacRepo } from "../storage/spac/SpacRepo";
-import {
-  ProcessSpacTimelineTask,
-  type ProcessSpacTimelineTaskOutput,
-} from "../task/spac/ProcessSpacTimelineTask";
+import { type ProcessSpacTimelineTaskOutput } from "../task/spac/ProcessSpacTimelineTask";
 import { parseSpacProcessForce } from "../task/spac/parseSpacProcessForce";
 import { SPAC_SPONSOR_LINK_REPOSITORY_TOKEN } from "../storage/canonical/SpacSponsorLinkSchema";
 import { UNDERWRITER_LINK_REPOSITORY_TOKEN } from "../storage/canonical/UnderwriterLinkSchema";
@@ -95,64 +96,7 @@ const SPAC_CANDIDATE_COLUMNS: ReadonlyArray<ColumnDef> = [
   { key: "signal_renamed_from", header: "Was", width: 28 },
 ];
 
-/**
- * The `spac process` fan-out's merged output: one column per
- * {@link ProcessSpacTimelineTask} output port, index-aligned across columns.
- */
-type SpacProcessColumns = {
-  readonly [K in keyof ProcessSpacTimelineTaskOutput]?: ReadonlyArray<
-    ProcessSpacTimelineTaskOutput[K]
-  >;
-};
-
-/**
- * Transposes the fan-out's column arrays back into one row per issuer.
- *
- * The map merges each output port into an array across iterations — always an
- * array, including for the one-issuer run that is the commonest invocation, so
- * there is no scalar shape to unwrap. `cik` is echoed by the task rather than
- * zipped from the input list, so a row can never be reported under the wrong
- * issuer.
- */
-export function spacProcessRows(
-  columns: SpacProcessColumns
-): readonly ProcessSpacTimelineTaskOutput[] {
-  const column = <K extends keyof ProcessSpacTimelineTaskOutput>(
-    key: K
-  ): ReadonlyArray<ProcessSpacTimelineTaskOutput[K] | undefined> => columns[key] ?? [];
-  const ciks = column("cik");
-  const matched = column("matched");
-  const processed = column("processed");
-  const partial = column("partial");
-  const failed = column("failed");
-  const nonfatal = column("nonfatal");
-  const triage = column("triage");
-  const skipped = column("skipped");
-  const triageExtractors = column("triageExtractors");
-  const firstDate = column("firstDate");
-  const lastDate = column("lastDate");
-  const error = column("error");
-  const rows: ProcessSpacTimelineTaskOutput[] = [];
-  for (let i = 0; i < ciks.length; i++) {
-    const cik = ciks[i];
-    if (cik === undefined) continue;
-    rows.push({
-      cik,
-      matched: matched[i] ?? 0,
-      processed: processed[i] ?? 0,
-      partial: partial[i] ?? 0,
-      failed: failed[i] ?? 0,
-      nonfatal: nonfatal[i] ?? 0,
-      triage: triage[i] ?? 0,
-      skipped: skipped[i] ?? 0,
-      triageExtractors: triageExtractors[i] ?? "",
-      firstDate: firstDate[i] ?? "",
-      lastDate: lastDate[i] ?? "",
-      error: error[i] ?? "",
-    });
-  }
-  return rows;
-}
+export { spacProcessRows } from "../cli/sync/runSpacTimelineIssuers";
 
 /**
  * One issuer's replay summary. Partial/failed/triage are omitted when zero so
@@ -204,6 +148,30 @@ export function formatSpacProcessDeadLetterHint(
   return `Some sections did not extract. Inspect them with: ${inspect}`;
 }
 
+export function reportSpacProcessRows(
+  rows: readonly ProcessSpacTimelineTaskOutput[],
+  opts?: { readonly dryRun?: boolean; readonly rebuild?: boolean }
+): void {
+  for (const row of rows) {
+    if (row.error) {
+      console.error(`${row.cik}: ${row.error}`);
+    } else if (row.matched === 0) {
+      console.log(`${row.cik}: no processable filings`);
+    } else {
+      console.log(formatSpacProcessSummary(row, opts));
+      if (row.partial > 0 || row.failed > 0) {
+        console.error(
+          statusMessage("warn", formatSpacProcessDeadLetterHint(row.triageExtractors, "partial"))
+        );
+      } else if (row.triage > 0) {
+        console.error(
+          statusMessage("info", formatSpacProcessDeadLetterHint(row.triageExtractors, "dropped"))
+        );
+      }
+    }
+  }
+}
+
 /**
  * Issuers whose replay actually failed — what the command's exit code reports.
  *
@@ -249,7 +217,7 @@ export function registerSpacCommands(program: Command): void {
       "How many ISSUERS to process at once (default 3). Filings within an issuer are " +
         "always serial — that ordering is what makes the timeline correct.",
       parseIntOption,
-      3
+      DEFAULT_SPAC_ISSUER_CONCURRENCY
     )
     .option(
       "--force [extractors]",
@@ -266,59 +234,15 @@ export function registerSpacCommands(program: Command): void {
         // typo does not abandon the rest of the batch.
         const parsed = ciks.map((c) => parseCikArg(c)).filter((c): c is number => c !== null);
         if (parsed.length === 0) throw new Error("no valid CIKs given");
-        const limit = Math.max(1, opts.concurrency);
-        // ONE workflow over all issuers, fanned out by a map. The previous
-        // hand-rolled pool ran a separate `runWorkflowCli` per issuer, which on
-        // a TTY started a second Ink renderer while the first still owned the
-        // terminal, and — because the workflow renderer answers a thrown error
-        // with `process.exit(1)` — let one issuer's failure kill the whole
-        // batch mid-flight, which is exactly what the pool existed to prevent.
-        // The task now reports a failure on its `error` port instead of
-        // throwing, so nothing in the graph raises.
-        const results = await runWorkflowCli<SpacProcessColumns>([], { cik: [...parsed] }, (wf) => {
-          const loop = wf.map({
-            concurrencyLimit: Math.min(limit, parsed.length),
-            maxIterations: parsed.length,
-            preserveOrder: true,
-          });
-          loop.pipe(
-            new ProcessSpacTimelineTask({ defaults: { force: forceInput } }) as ITask<
-              DataPorts,
-              DataPorts
-            >
-          );
-          loop.endMap();
+        const rows = await runSpacTimelineIssuers({
+          ciks: parsed,
+          concurrency: opts.concurrency,
+          force: forceInput,
         });
-        const rows = spacProcessRows(results);
-        for (const row of rows) {
-          if (row.error) {
-            console.error(`${row.cik}: ${row.error}`);
-          } else if (row.matched === 0) {
-            console.log(`${row.cik}: no processable filings`);
-          } else {
-            console.log(
-              formatSpacProcessSummary(row, {
-                dryRun: isDryRun(),
-                rebuild: force.kind === "all",
-              })
-            );
-            if (row.partial > 0 || row.failed > 0) {
-              console.error(
-                statusMessage(
-                  "warn",
-                  formatSpacProcessDeadLetterHint(row.triageExtractors, "partial")
-                )
-              );
-            } else if (row.triage > 0) {
-              console.error(
-                statusMessage(
-                  "info",
-                  formatSpacProcessDeadLetterHint(row.triageExtractors, "dropped")
-                )
-              );
-            }
-          }
-        }
+        reportSpacProcessRows(rows, {
+          dryRun: isDryRun(),
+          rebuild: force.kind === "all",
+        });
         const failed = spacProcessFailureCount(rows);
         if (failed > 0) {
           throw new Error(`${failed} of ${parsed.length} issuer(s) had failed filings`);

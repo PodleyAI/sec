@@ -132,6 +132,12 @@ export interface ManagementPersonRow {
   bio: string | null;
   confidence: number;
   source_span: string;
+  /**
+   * Marks a row as produced by the model-free table parse — asserted by that
+   * parser's unit tests, and absent from the model's JSON schema. Persist does
+   * not read it: the provenance model id comes from `SectionPersistMeta.source`.
+   */
+  source?: "deterministic";
 }
 export interface BeneficialOwnerRow {
   name: string;
@@ -146,6 +152,12 @@ export interface BeneficialOwnerRow {
   footnote: string | null;
   confidence: number;
   source_span: string;
+  /**
+   * Marks a row as produced by the model-free table parse — asserted by that
+   * parser's unit tests, and absent from the model's JSON schema. Persist does
+   * not read it: the provenance model id comes from `SectionPersistMeta.source`.
+   */
+  source?: "deterministic";
 }
 export interface RelatedPartyRow {
   name: string;
@@ -159,4 +171,10 @@ export interface RelatedPartyRow {
     period: string | null;
     footnote: string | null;
   }>;
+  /**
+   * Marks a row as produced by the model-free table parse — asserted by that
+   * parser's unit tests, and absent from the model's JSON schema. Persist does
+   * not read it: the provenance model id comes from `SectionPersistMeta.source`.
+   */
+  source?: "deterministic";
 }

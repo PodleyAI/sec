@@ -36,10 +36,17 @@ export interface FormsShard {
 export function newFormsWorklistTask(
   form?: string[],
   shard?: FormsShard,
-  ciks?: number[]
+  ciks?: number[],
+  filedOnOrAfter?: string
 ): ComputeFormsWorklistTask {
   return new ComputeFormsWorklistTask({
-    defaults: { form, shardIndex: shard?.index, shardCount: shard?.count, ciks },
+    defaults: {
+      form,
+      shardIndex: shard?.index,
+      shardCount: shard?.count,
+      ciks,
+      filedOnOrAfter,
+    },
   });
 }
 

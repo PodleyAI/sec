@@ -22,6 +22,10 @@ export class RelatedPartyTransactionRepo {
     await this.storage.put(row);
   }
 
+  async listAll(): Promise<RelatedPartyTransaction[]> {
+    return (await this.storage.getAll()) ?? [];
+  }
+
   async queryByAccession(accession_number: string): Promise<RelatedPartyTransaction[]> {
     return (await this.storage.query({ accession_number })) ?? [];
   }

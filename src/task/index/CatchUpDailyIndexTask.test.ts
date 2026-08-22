@@ -19,10 +19,12 @@ import {
   DAILY_INDEX_CURSOR_REPOSITORY_TOKEN,
 } from "../../storage/processing/DailyIndexCursorSchema";
 import * as dailyIndexDates from "./dailyIndexDates";
+import * as dailyIndexPublication from "./dailyIndexPublication";
 import { dailyIndexCacheRelPath, planIndexDays } from "./dailyIndexDates";
 import { CatchUpDailyIndexTask } from "./CatchUpDailyIndexTask";
 import { FetchDailyIndexTask } from "./FetchDailyIndexTask";
 
+// A Tuesday. 2026-08-16 is the Sunday before it, 2026-08-15 the Saturday.
 const TODAY = "2026-08-18";
 
 let rawRoot: string | undefined;
@@ -32,6 +34,7 @@ function ctx(): IExecuteContext {
     signal: new AbortController().signal,
     updateProgress: () => {},
     own: <T>(v: T): T => v,
+    disown: () => {},
   } as unknown as IExecuteContext;
 }
 
@@ -44,6 +47,10 @@ describe("CatchUpDailyIndexTask", () => {
     resetDependencyInjectionsForTesting();
     await setupAllDatabases();
     vi.spyOn(dailyIndexDates, "todayEtYYYYdMMdDD").mockReturnValue(TODAY);
+    // Default for the weekday probe: EDGAR has not published that day. Today's
+    // index really has not been published for most of the day, and it keeps the
+    // pre-existing cases (which 403 on TODAY, a Tuesday) reading as before.
+    vi.spyOn(dailyIndexPublication, "dailyIndexWasPublished").mockResolvedValue(false);
     await globalServiceRegistry.get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN).put({
       id: DAILY_INDEX_CURSOR_ID,
       last_success: "2026-08-14",
@@ -58,6 +65,37 @@ describe("CatchUpDailyIndexTask", () => {
     vi.restoreAllMocks();
     globalServiceRegistry.registerInstance(SEC_DRY_RUN, false);
     resetDependencyInjectionsForTesting();
+  });
+
+  it("advances cursor through 403 on a completed Saturday (EDGAR's missing-day status) and finishes on 2xx days", async () => {
+    const runSpy = vi
+      .spyOn(FetchDailyIndexTask.prototype, "run")
+      .mockImplementation(async (input) => {
+        const date = input?.date;
+        if (date === "2026-08-16" || date === TODAY) {
+          throw httpError(403);
+        }
+        return { updateList: [[1018724, date!] as [number, string]] };
+      });
+
+    const result = await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    expect(runSpy).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      skipped404: 1,
+      todayFetched: false,
+      lastSuccess: "2026-08-17",
+    });
+    expect(result.fetched).toBe(2);
+
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
+
+    const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
+    expect((await cikRepo.get({ cik: 1018724 }))?.last_update).toBe("2026-08-17");
   });
 
   it("advances cursor through 404 on a completed Saturday and finishes on 2xx days", async () => {
@@ -131,6 +169,29 @@ describe("CatchUpDailyIndexTask", () => {
 
     const cikRepo = globalServiceRegistry.get(CIK_LAST_UPDATE_REPOSITORY_TOKEN);
     expect((await cikRepo.get({ cik: 320193 }))?.last_update).toBe(TODAY);
+  });
+
+  it("treats 403 today as success without changing the cursor", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
+      const date = input?.date;
+      if (date === TODAY) {
+        throw httpError(403);
+      }
+      return { updateList: [] };
+    });
+
+    const result = await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    expect(result).toMatchObject({
+      success: true,
+      todayFetched: false,
+      lastSuccess: "2026-08-17",
+    });
+
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
   });
 
   it("treats 404 today as success without changing the cursor", async () => {
@@ -229,5 +290,90 @@ describe("CatchUpDailyIndexTask", () => {
       .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
       .get({ id: DAILY_INDEX_CURSOR_ID });
     expect(cursor?.last_success).toBe("2026-08-17");
+  });
+  // --- 403 is ambiguous: unpublished day, or a client EDGAR is refusing? ---
+  //
+  // Accepting every 403 as "unpublished" walks `last_success` over every real
+  // trading day in the lookback and reports `success: true`, and nothing ever
+  // goes back for those days. These four pin the discrimination.
+
+  it("does not probe a weekend 403 — EDGAR never published one", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
+      const date = input?.date;
+      // The Saturday and the Sunday of the lookback window.
+      if (date === "2026-08-15" || date === "2026-08-16") throw httpError(403);
+      return { updateList: [] };
+    });
+    const probe = vi.mocked(dailyIndexPublication.dailyIndexWasPublished);
+    probe.mockClear();
+
+    const result = await new CatchUpDailyIndexTask().execute({ lookback: 4 }, ctx());
+
+    expect(result.success).toBe(true);
+    expect(result.skipped404).toBe(2);
+    // Only TODAY (a Tuesday) reaches the probe; neither weekend day does.
+    for (const call of probe.mock.calls) {
+      expect(call[0]).toBe(TODAY);
+    }
+  });
+
+  it("throws on a weekday 403 the quarter listing says WAS published, leaving the cursor put", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
+      // A blocked client: every day 403s, including real trading days.
+      throw httpError(403);
+    });
+    vi.mocked(dailyIndexPublication.dailyIndexWasPublished).mockImplementation(
+      async (date) => date !== TODAY
+    );
+
+    await expect(new CatchUpDailyIndexTask().execute({}, ctx())).rejects.toThrow(
+      /being refused|Refusing to advance/
+    );
+
+    // The Saturday and Sunday are skipped without a probe and do advance the
+    // cursor — EDGAR published nothing on them, so nothing is lost. It stops
+    // dead at the Monday, which is the day whose filings would have been.
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-16");
+  });
+
+  it("skips a weekday 403 the quarter listing does not name — a market holiday", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async (input) => {
+      const date = input?.date;
+      if (date === "2026-08-17" || date === TODAY) throw httpError(403);
+      return { updateList: [] };
+    });
+    vi.mocked(dailyIndexPublication.dailyIndexWasPublished).mockResolvedValue(false);
+
+    const result = await new CatchUpDailyIndexTask().execute({}, ctx());
+
+    expect(result.success).toBe(true);
+    expect(result.lastSuccess).toBe("2026-08-17");
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-17");
+  });
+
+  it("throws when the probe itself cannot answer, rather than assuming unpublished", async () => {
+    vi.spyOn(FetchDailyIndexTask.prototype, "run").mockImplementation(async () => {
+      throw httpError(403);
+    });
+    vi.mocked(dailyIndexPublication.dailyIndexWasPublished).mockRejectedValue(
+      new Error("listing fetch failed: 403")
+    );
+
+    await expect(new CatchUpDailyIndexTask().execute({}, ctx())).rejects.toThrow(
+      /could not be read either/
+    );
+
+    // Stops at the last weekend day, before the first weekday it could not
+    // classify — an unanswerable probe never advances past a trading day.
+    const cursor = await globalServiceRegistry
+      .get(DAILY_INDEX_CURSOR_REPOSITORY_TOKEN)
+      .get({ id: DAILY_INDEX_CURSOR_ID });
+    expect(cursor?.last_success).toBe("2026-08-16");
   });
 });

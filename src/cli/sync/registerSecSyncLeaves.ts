@@ -4,13 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { reportSpacProcessRows, spacProcessFailureCount } from "../../commands/spac";
 import { UpdateAllCompanyFactsTask } from "../../task/facts/UpdateAllCompanyFactsTask";
 import { CatchUpDailyIndexTask } from "../../task/index/CatchUpDailyIndexTask";
 import { IdentifySpacsTask } from "../../task/spac/IdentifySpacsTask";
 import { UpdateAllSubmissionsTask } from "../../task/submissions/UpdateAllSubmissionsTask";
+import { isDryRun } from "../isDryRun";
 import { runWorkflowCli } from "../runWorkflow";
 import { runFormsSweep } from "./runFormsSweep";
-import { listSpacProcessCiks } from "./spacSyncCiks";
+import { runSpacTimelineIssuers } from "./runSpacTimelineIssuers";
+import {
+  filterSpacCiksByHistory,
+  listSpacProcessCiks,
+  shardCiks,
+  spacUpdatesFiledOnOrAfter,
+} from "./spacSyncCiks";
 import { SYNC_FORM_DOMAINS, formsForExtractorIds } from "./syncFormDomains";
 import { getSyncLeaf, registerSyncLeaf, type SyncRunContext } from "./syncLeaves";
 
@@ -159,16 +167,32 @@ export function registerSecSyncLeaves(): void {
         id: "process",
         title: "Process SPAC filings",
         run: async (ctx: SyncRunContext) => {
-          const ciks = await listSpacProcessCiks();
-          if (ciks.length === 0) {
-            console.log("No known SPACs or high/medium candidates");
+          const processCiks = shardCiks(
+            await filterSpacCiksByHistory(await listSpacProcessCiks(), ctx.only),
+            ctx.shard
+          );
+          if (processCiks.length === 0) {
+            if (ctx.only === "never-processed") {
+              console.log("No never-processed SPACs");
+            } else if (ctx.only === "updates") {
+              console.log("No previously processed SPACs");
+            } else {
+              console.log("No known SPACs or high/medium candidates");
+            }
             return;
           }
-          await runFormsSweep({
-            formTypes: formsForExtractorIds([...SYNC_FORM_DOMAINS.spacs]),
-            shard: ctx.shard,
-            ciks,
+          const filedOnOrAfter =
+            ctx.only === "updates" ? await spacUpdatesFiledOnOrAfter() : undefined;
+          const rows = await runSpacTimelineIssuers({
+            ciks: processCiks,
+            concurrency: ctx.concurrency,
+            filedOnOrAfter,
           });
+          reportSpacProcessRows(rows, { dryRun: isDryRun() });
+          const failed = spacProcessFailureCount(rows);
+          if (failed > 0) {
+            throw new Error(`${failed} of ${processCiks.length} issuer(s) had failed filings`);
+          }
         },
       },
     ],

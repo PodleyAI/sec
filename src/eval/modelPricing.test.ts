@@ -150,3 +150,9 @@ describe("Gemini pricing", () => {
     expect(estimateCost("gemini-2.5-pro", 4_000_000, 4_000_000).usd).toBeCloseTo(1.25 + 10, 5);
   });
 });
+
+describe("deterministic pricing", () => {
+  it("prices deterministic at $0 without estimating a prompt", () => {
+    expect(estimateCost("deterministic", 40_000, 2_000).usd).toBe(0);
+  });
+});

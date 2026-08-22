@@ -222,24 +222,34 @@ override the inference — the enum is per-model, so an unsupported value like
 `minimal` on `gpt-5.6-luna` fails loudly rather than degrading. All extractors
 share a general default model (`SecModelDefault` in `src/config/Constants.ts`);
 set `SEC_MODEL_DEFAULT` to change every extractor at once, and a per-extractor
-env var (e.g. `SEC_S1_MODEL`) to override just one. CLI startup registers these
-model ids (the default plus any set overrides, plus the local HFT default
+env var (e.g. `SEC_S1_MODEL`) to override just one. Each of these variables is a
+CSV list. The reserved id `deterministic` is the sync table/prose walk for that
+extractor. Position is attempt order (`deterministic,claude-haiku-4-5` walks
+first; omit it and the walk does not run). The built-in `SEC_MODEL_DEFAULT`
+stays a cloud id — to restore walk-then-model after this change, set
+`SEC_S1_MODEL=deterministic,<current>` and, independently,
+`SEC_S1_CLASSIFIER_MODEL` if the content classifier should walk too. `sec eval
+extract --models deterministic` / `sec eval s1 --models deterministic` score the
+walk in the same table as cloud ids (`$0`, no API key).
+
+CLI startup registers these model ids (the default plus any set overrides, plus the local HFT default
 `SecHftModelDefault`) into the global model repository via `registerSecModels`
 (`src/config/registerModels.ts`). `secModelRecord` dispatches on id shape, and
 the full list is `KNOWN_MODEL_ID_SHAPES` in that file — the string the
 unknown-id error prints, so it cannot drift from the dispatch:
 
-| id shape                                     | provider               |
-| -------------------------------------------- | ---------------------- |
-| `llama:…` / `node-llama:…` / `gguf:…`        | `LOCAL_LLAMACPP`       |
-| `onnx:org/name`                              | `HF_TRANSFORMERS_ONNX` |
-| `hfi:[provider:]org/name`                    | `HF_INFERENCE`         |
-| `open-router:[provider:]vendor/model`        | `OPENROUTER`           |
-| `claude-*`                                   | `ANTHROPIC`            |
-| `gpt-*` / `chatgpt-*` / `o1-*`/`o3-*`/`o4-*` | `OPENAI`               |
-| `gemini-*`                                   | `GOOGLE_GEMINI`        |
-| `grok-*`                                     | `XAI`                  |
-| `deepseek-*`                                 | `DEEPSEEK`             |
+| id shape                                     | provider                |
+| -------------------------------------------- | ----------------------- |
+| `llama:…` / `node-llama:…` / `gguf:…`        | `LOCAL_LLAMACPP`        |
+| `onnx:org/name`                              | `HF_TRANSFORMERS_ONNX`  |
+| `hfi:[provider:]org/name`                    | `HF_INFERENCE`          |
+| `open-router:[provider:]vendor/model`        | `OPENROUTER`            |
+| `claude-*`                                   | `ANTHROPIC`             |
+| `gpt-*` / `chatgpt-*` / `o1-*`/`o3-*`/`o4-*` | `OPENAI`                |
+| `gemini-*`                                   | `GOOGLE_GEMINI`         |
+| `grok-*`                                     | `XAI`                   |
+| `deepseek-*`                                 | `DEEPSEEK`              |
+| `deterministic`                              | sync walk (no provider) |
 
 Every record explicitly declares the `json-mode` capability
 `StructuredGenerationTask` gates on (the installed provider's

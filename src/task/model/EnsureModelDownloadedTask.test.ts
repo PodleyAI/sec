@@ -53,6 +53,10 @@ describe("EnsureModelDownloadedTask / ensureModelDownloaded", () => {
     await expect(ensureModelDownloaded("grok-4.6", ctx())).rejects.toThrow(/model\.info/i);
   });
 
+  it("no-ops for the deterministic reserved id", async () => {
+    await expect(ensureModelDownloaded("deterministic", ctx())).resolves.toBeUndefined();
+  });
+
   it("is a no-op for an id whose shape sec does not route", async () => {
     // Such an id is legal — a record registered straight into the model
     // repository by an operator, a harness, or a test fixture. It is simply not

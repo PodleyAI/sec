@@ -80,3 +80,34 @@ export function assertInsideDir(fullPath: string, dir: string): void {
     );
   }
 }
+
+/**
+ * On-disk path for a cached accession primary document, matching
+ * `ProcessAccessionDocFormTask.readCachedDoc`. An unsafe filer-authored name
+ * is a miss (`undefined`), not a throw, so callers can fall through.
+ */
+export function cachedAccessionDocPath(
+  root: string,
+  cik: number,
+  accessionNumber: string,
+  fileName: string
+): string | undefined {
+  let safeName: string;
+  try {
+    safeName = sanitizePrimaryDoc(fileName);
+  } catch {
+    return undefined;
+  }
+  const cikDir = path.join(root, "accessiondocs", String(cik).padStart(10, "0"));
+  const rel = `accessiondocs/${String(cik).padStart(10, "0")}/${accessionNumber.replaceAll(
+    "-",
+    ""
+  )}-${safeName}`;
+  const fullPath = path.join(root, rel);
+  try {
+    assertInsideDir(fullPath, cikDir);
+  } catch {
+    return undefined;
+  }
+  return fullPath;
+}

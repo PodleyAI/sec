@@ -96,9 +96,10 @@ export {
 // Saves supersets from taking a direct `workglow` dependency. Routing DI +
 // schema access through the barrel is REQUIRED for correctness, not just
 // convenience: a downstream package that imported its own `workglow` /
-// `typebox` copy would get a *different* `globalServiceRegistry` singleton and a
-// different TypeBox instance, so its DI registrations and schemas would not be
-// visible to sec. Import these from `@workglow/sec` to share sec's instances.
+// `typebox` copy would get a *different* `globalServiceRegistry` singleton, a
+// different TypeBox instance, and a different `registerSafeFetch` slot, so its
+// DI registrations, schemas, and fetch stubs would not be visible to sec.
+// Import these from `@workglow/sec` to share sec's instances.
 export { Type, type Static } from "typebox";
 export { Value } from "typebox/value";
 export {

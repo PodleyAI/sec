@@ -4,60 +4,91 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_SEC_MODEL, parseModelIdList, SecModelDefault } from "../../../../config/Constants";
-import { getS1ModelId, getS1ModelIds } from "./s1Model";
+import { describe, expect, it } from "vitest";
+import type { ModelConfig } from "workglow";
+import { DETERMINISTIC_MODEL_ID } from "../../../../config/Constants";
+import { deterministicModelConfig, modelExtractChain, resolveModelId } from "./s1Model";
 
-const ORIG_S1 = process.env.SEC_S1_MODEL;
-const ORIG_DEFAULT = process.env.SEC_MODEL_DEFAULT;
-afterEach(() => {
-  if (ORIG_S1 === undefined) delete process.env.SEC_S1_MODEL;
-  else process.env.SEC_S1_MODEL = ORIG_S1;
-  if (ORIG_DEFAULT === undefined) delete process.env.SEC_MODEL_DEFAULT;
-  else process.env.SEC_MODEL_DEFAULT = ORIG_DEFAULT;
-});
+function ai(id: string): ModelConfig {
+  return {
+    model_id: id,
+    provider: "fake",
+    capabilities: [],
+    provider_config: {},
+    metadata: {},
+  } as ModelConfig;
+}
 
-describe("parseModelIdList", () => {
-  it("treats a scalar as a one-element list", () => {
-    expect(parseModelIdList("claude-opus-5", DEFAULT_SEC_MODEL)).toEqual(["claude-opus-5"]);
-  });
-  it("splits a CSV, trims, and drops duplicates and empty parts", () => {
-    expect(
-      parseModelIdList(" claude-sonnet-5, , claude-haiku-4-5, claude-sonnet-5 ", DEFAULT_SEC_MODEL)
-    ).toEqual(["claude-sonnet-5", "claude-haiku-4-5"]);
-  });
-  it("falls back when the value is unset or blank", () => {
-    expect(parseModelIdList(undefined, DEFAULT_SEC_MODEL)).toEqual([DEFAULT_SEC_MODEL]);
-    expect(parseModelIdList("  ", DEFAULT_SEC_MODEL)).toEqual([DEFAULT_SEC_MODEL]);
+describe("deterministicModelConfig", () => {
+  it("exposes the reserved id", () => {
+    expect(resolveModelId(deterministicModelConfig())).toBe(DETERMINISTIC_MODEL_ID);
   });
 });
 
-describe("getS1ModelId", () => {
-  it("returns the configured model id from SEC_S1_MODEL", () => {
-    process.env.SEC_S1_MODEL = "claude-opus-5";
-    expect(getS1ModelId()).toBe("claude-opus-5");
+describe("modelExtractChain", () => {
+  it("runs the pass at the deterministic slot and the AI extract at others", async () => {
+    const seen: string[] = [];
+    const chain = modelExtractChain(
+      [deterministicModelConfig(), ai("claude-haiku-4-5")],
+      async (_text, m) => {
+        seen.push(resolveModelId(m) ?? "none");
+        return [{ confidence: 1 }];
+      },
+      {
+        deterministic: {
+          extract: () => [{ confidence: 1, via: "walk" }],
+          covers: new Set(["t"]),
+        },
+      }
+    );
+    expect(chain.modelIds).toEqual(["deterministic", "claude-haiku-4-5"]);
+    const walk = await chain.extract("hello");
+    expect(walk).toEqual([{ confidence: 1, via: "walk" }]);
+    expect(seen).toEqual([]);
+    const fallback = await chain.emptyExtracts![0]!("hello");
+    expect(fallback).toEqual([{ confidence: 1 }]);
+    expect(seen).toEqual(["claude-haiku-4-5"]);
   });
-  it("returns the first id when SEC_S1_MODEL is a CSV list", () => {
-    process.env.SEC_S1_MODEL = "claude-sonnet-5,claude-haiku-4-5";
-    expect(getS1ModelId()).toBe("claude-sonnet-5");
-  });
-  // Asserts the fallback *wiring* — that an unset override defers to the shared
-  // default — not which model that default happens to name. Pinning the literal
-  // made every change to `DEFAULT_SEC_MODEL` fail this and its two siblings.
-  it("falls back to the shared default model id when unset", () => {
-    delete process.env.SEC_S1_MODEL;
-    expect(getS1ModelId()).toBe(SecModelDefault);
-  });
-});
 
-describe("getS1ModelIds", () => {
-  it("returns the full CSV list from SEC_S1_MODEL", () => {
-    process.env.SEC_S1_MODEL = "claude-sonnet-5,claude-haiku-4-5";
-    expect(getS1ModelIds()).toEqual(["claude-sonnet-5", "claude-haiku-4-5"]);
+  it("returns [] for a deterministic slot when no pass is provided", async () => {
+    const chain = modelExtractChain([deterministicModelConfig()], async () => [{ confidence: 1 }]);
+    expect(await chain.extract("x")).toEqual([]);
   });
-  it("inherits the full SEC_MODEL_DEFAULT list when the override is unset", () => {
-    delete process.env.SEC_S1_MODEL;
-    process.env.SEC_MODEL_DEFAULT = "claude-sonnet-5,claude-haiku-4-5";
-    expect(getS1ModelIds()).toEqual(["claude-sonnet-5", "claude-haiku-4-5"]);
+
+  it("hands the pass to the runner rather than testing coverage itself", async () => {
+    // The chain does not know `clears` — the section that declares what
+    // `persist` rewrites does, and it states it once, on `runSection`. Stating
+    // it here too meant the copy that gated preemption was the one nobody read.
+    const pass = {
+      extract: () => [{ confidence: 1, via: "walk" }],
+      covers: new Set(["a"]),
+    };
+    const chain = modelExtractChain([deterministicModelConfig()], async () => [{ confidence: 1 }], {
+      deterministic: pass,
+    });
+    expect(chain.deterministic).toBe(pass);
+    // The slot runs the parse unconditionally; the runner is what decides
+    // whether to call it.
+    expect(await chain.extract("x")).toEqual([{ confidence: 1, via: "walk" }]);
+  });
+
+  it("omits `deterministic` entirely when the section declares no pass", async () => {
+    const chain = modelExtractChain([ai("claude-haiku-4-5")], async () => [{ confidence: 1 }]);
+    expect(chain.deterministic).toBeUndefined();
+  });
+
+  it("places the walk last when deterministic is last in the list", async () => {
+    const chain = modelExtractChain(
+      [ai("claude-haiku-4-5"), deterministicModelConfig()],
+      async () => [{ confidence: 0.9, via: "ai" }],
+      {
+        deterministic: {
+          extract: () => [{ confidence: 1, via: "walk" }],
+          covers: new Set(["t"]),
+        },
+      }
+    );
+    expect(await chain.extract("x")).toEqual([{ confidence: 0.9, via: "ai" }]);
+    expect(await chain.emptyExtracts![0]!("x")).toEqual([{ confidence: 1, via: "walk" }]);
   });
 });
