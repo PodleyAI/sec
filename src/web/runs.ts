@@ -6,6 +6,7 @@
 
 import { globalServiceRegistry, uuid4 } from "workglow";
 import { registerModelIds } from "../config/registerModels";
+import { compareModels, type CompareResult } from "./data/compare";
 import { resetSpacProcessState } from "../task/spac/resetSpacProcessState";
 import { IdentifySpacsTask } from "../task/spac/IdentifySpacsTask";
 import { ProcessAccessionDocFormTask } from "../task/forms/ProcessAccessionDocFormTask";
@@ -35,7 +36,7 @@ export interface RunEvent {
 /** A unit of work the web server started, and everything it has said so far. */
 export interface RunRecord {
   readonly id: string;
-  readonly kind: "candidates" | "timeline" | "filing";
+  readonly kind: "candidates" | "timeline" | "filing" | "compare";
   readonly label: string;
   /** The issuer this run belongs to, so the process page can show only its own runs. */
   readonly cik: number | undefined;
@@ -46,6 +47,12 @@ export interface RunRecord {
   readonly error: string;
   readonly overrides: readonly string[];
   readonly events: readonly RunEvent[];
+  /**
+   * What the run produced, for the kinds that produce a value rather than a
+   * database write. A comparison is the only one: its answer exists nowhere
+   * else, so a page that shows it after the fact has to read it from here.
+   */
+  readonly result: unknown;
 }
 
 type Listener = (run: RunRecord, event: RunEvent | undefined) => void;
@@ -72,6 +79,7 @@ interface MutableRun {
   error: string;
   readonly overrides: readonly string[];
   readonly events: RunEvent[];
+  result: unknown;
   seq: number;
   /** Set while running, so a cancel request can reach the task in flight. */
   abort: (() => void) | undefined;
@@ -156,6 +164,7 @@ export class RunRegistry {
       error: "",
       overrides: describeOverrides(overrides),
       events: [],
+      result: undefined,
       seq: 0,
       abort: undefined,
       cancelRequested: false,
@@ -201,6 +210,9 @@ export class RunRegistry {
       setLabel: (label) => {
         run.label = label;
         this.emit(run, undefined);
+      },
+      setResult: (value) => {
+        run.result = value;
       },
       onAbort: (fn) => {
         run.abort = fn;
@@ -266,6 +278,8 @@ export interface RunContext {
     message: string
   ) => void;
   readonly setLabel: (label: string) => void;
+  /** Record the run's product, for a run whose answer is a value (see {@link RunRecord.result}). */
+  readonly setResult: (value: unknown) => void;
   readonly onAbort: (fn: () => void) => void;
   readonly cancelled: boolean;
 }
@@ -283,6 +297,7 @@ function snapshot(run: MutableRun): RunRecord {
     error: run.error,
     overrides: run.overrides,
     events: [...run.events],
+    result: run.result,
   };
 }
 
@@ -507,4 +522,55 @@ async function pendingTriage(accession: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/**
+ * Run a multi-model comparison as a queued run.
+ *
+ * A comparison is a sequence of cloud calls over a section that can run to 57k
+ * characters — tens of seconds each, one model at a time. As a blocking form
+ * POST it showed a dead page for its whole duration, with no way to tell a slow
+ * model from a wedged server. Routed through the queue it reports each model as
+ * it lands, on the same event stream the process page already uses, and the
+ * answer survives navigating away.
+ *
+ * The result is kept on the run rather than written anywhere: a comparison
+ * deliberately persists nothing, so the run record is the only place it exists.
+ */
+export function enqueueCompareRun(
+  registry: RunRegistry,
+  args: {
+    readonly cik: number;
+    readonly accessionNumber: string;
+    readonly extractor: string;
+    readonly models: readonly string[];
+  }
+): RunRecord {
+  return registry.enqueue({
+    kind: "compare",
+    label: `${args.extractor} on ${args.accessionNumber}: ${args.models.length} model(s)`,
+    cik: args.cik,
+    body: async (ctx) => {
+      const result: CompareResult = await compareModels({
+        cik: args.cik,
+        accessionNumber: args.accessionNumber,
+        extractor: args.extractor,
+        models: args.models,
+        onProgress: (message) => ctx.log("info", message),
+      });
+      ctx.setResult(result);
+      if (result.error !== "") {
+        // Reported rather than thrown: the page renders the message beside the
+        // form that produced it, which is where the reader can act on it.
+        ctx.log("warn", result.error);
+        return;
+      }
+      const failed = result.runs.filter((r) => !r.ok).length;
+      ctx.log(
+        "info",
+        `${result.runs.length - failed}/${result.runs.length} model(s) answered` +
+          (failed > 0 ? `; ${failed} failed` : "")
+      );
+    },
+  });
 }

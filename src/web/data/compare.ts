@@ -98,6 +98,12 @@ export async function compareModels(args: {
    * should not cost an API call to reach.
    */
   readonly previewOnly?: boolean | undefined;
+  /**
+   * Called as each stage completes. A cloud model over a 40k-char section takes
+   * tens of seconds and they run one at a time, so a caller with a live surface
+   * has something to say for most of a comparison's duration.
+   */
+  readonly onProgress?: ((message: string) => void) | undefined;
 }): Promise<CompareResult> {
   const extractor = EVAL_EXTRACTORS[args.extractor];
   const sectionName = EXTRACTOR_TO_SECTION[args.extractor];
@@ -121,6 +127,8 @@ export async function compareModels(args: {
     return { ...empty, error: "no models selected" };
   }
 
+  const report = args.onProgress ?? ((): void => {});
+  report(`converting and segmenting ${args.accessionNumber}`);
   const doc = await loadFilingDocument({
     cik: args.cik,
     accessionNumber: args.accessionNumber,
@@ -152,15 +160,21 @@ export async function compareModels(args: {
   };
   if (args.previewOnly === true) return { ...shown, error: "" };
 
+  report(
+    `section "${sectionName}" resolved — ${section.text.length.toLocaleString()} chars, ` +
+      `prompt ${prompt.length.toLocaleString()} chars`
+  );
   await registerModelIds(args.models);
   const repo = getGlobalModelRepository();
   const promptChars = estimateExtractionPromptChars(instructions, text);
 
   const runs: CompareRun[] = [];
   let reference: readonly unknown[] | undefined;
-  for (const modelId of args.models) {
+  for (const [index, modelId] of args.models.entries()) {
+    report(`[${index + 1}/${args.models.length}] ${modelId} — running`);
     const model = (await repo.findByName(modelId)) as ModelConfig | undefined;
     if (model === undefined) {
+      report(`[${index + 1}/${args.models.length}] ${modelId} — not registered`);
       runs.push({
         model: modelId,
         ok: false,
@@ -200,7 +214,15 @@ export async function compareModels(args: {
               }),
       });
       if (reference === undefined) reference = rows;
+      report(
+        `[${index + 1}/${args.models.length}] ${modelId} — ok, ${rows.length} row(s) in ` +
+          `${(latencyMs / 1000).toFixed(1)}s`
+      );
     } catch (e) {
+      report(
+        `[${index + 1}/${args.models.length}] ${modelId} — failed: ` +
+          `${e instanceof Error ? e.message : String(e)}`
+      );
       runs.push({
         model: modelId,
         ok: false,
@@ -214,4 +236,119 @@ export async function compareModels(args: {
   }
 
   return { ...shown, runs, error: "" };
+}
+
+/** One model's answer for one aligned row. */
+export interface CompareCell {
+  readonly model: string;
+  /** False when this model produced no row for the key — the interesting case. */
+  readonly present: boolean;
+  /** The compared fields, in `fields` order, formatted for a table cell. */
+  readonly values: readonly string[];
+}
+
+export interface CompareTableRow {
+  readonly key: string;
+  readonly cells: readonly CompareCell[];
+  /** True when every model answered for this key and they all agree. */
+  readonly agree: boolean;
+}
+
+/** Model answers aligned side by side, which is the shape a comparison is read in. */
+export interface CompareTable {
+  /** The field rows are aligned on, or undefined for a positional extractor. */
+  readonly keyField: string | undefined;
+  readonly fields: readonly string[];
+  readonly models: readonly string[];
+  readonly rows: readonly CompareTableRow[];
+  /** Rows where the models did not all produce the same values. */
+  readonly disagreements: number;
+}
+
+/** Provenance the models are not compared on; noise in a comparison table. */
+const NON_COMPARED_FIELDS: ReadonlySet<string> = new Set([
+  "source_span",
+  "confidence",
+  "nonce_seen",
+]);
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(formatValue).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/**
+ * Align every model's rows into one table, keyed the way the extractor keys them.
+ *
+ * Reading four JSON dumps side by side and diffing them by eye is what the
+ * comparison asked of its reader, and it is exactly what a table does better:
+ * one row per entity, one column per model, so a model that DROPPED an entity
+ * shows as a gap rather than as an absence you have to notice.
+ *
+ * Alignment mirrors `scoreExtraction`: on the extractor's `keyField` where it
+ * declares one, positionally where it does not (a single-object extractor, or
+ * an order-stable list like a compensation table).
+ */
+export function buildCompareTable(result: CompareResult): CompareTable {
+  const extractor = EVAL_EXTRACTORS[result.extractor];
+  const keyField = extractor?.keyField;
+  const ok = result.runs.filter((r) => r.ok);
+  const models = ok.map((r) => r.model);
+
+  // Field order comes from the extractor's own `compareFields` where it has
+  // them — the fields it is scored on — and otherwise from the rows' own keys,
+  // minus provenance.
+  const fields: string[] =
+    extractor?.compareFields !== undefined
+      ? [...extractor.compareFields]
+      : [
+          ...new Set(
+            ok
+              .flatMap((r) => r.rows)
+              .flatMap((row) => Object.keys((row ?? {}) as Record<string, unknown>))
+          ),
+        ].filter((f) => !NON_COMPARED_FIELDS.has(f));
+
+  const keyOf = (row: unknown, index: number): string =>
+    keyField === undefined
+      ? `#${index + 1}`
+      : formatValue((row as Record<string, unknown> | null)?.[keyField]) || `#${index + 1}`;
+
+  // Insertion order across models, reference first, so the table reads in the
+  // order the model you trust produced.
+  const order: string[] = [];
+  const byModel = new Map<string, Map<string, unknown>>();
+  for (const run of ok) {
+    const rows = new Map<string, unknown>();
+    run.rows.forEach((row, index) => {
+      const key = keyOf(row, index);
+      if (!rows.has(key)) rows.set(key, row);
+      if (!order.includes(key)) order.push(key);
+    });
+    byModel.set(run.model, rows);
+  }
+
+  let disagreements = 0;
+  const rows: CompareTableRow[] = order.map((key) => {
+    const cells: CompareCell[] = models.map((model) => {
+      const row = byModel.get(model)?.get(key);
+      return {
+        model,
+        present: row !== undefined,
+        values:
+          row === undefined
+            ? fields.map(() => "")
+            : fields.map((f) => formatValue((row as Record<string, unknown>)[f])),
+      };
+    });
+    const first = JSON.stringify(cells[0]?.values ?? []);
+    const agree =
+      cells.every((c) => c.present) && cells.every((c) => JSON.stringify(c.values) === first);
+    if (!agree) disagreements += 1;
+    return { key, cells, agree };
+  });
+
+  return { keyField, fields, models, rows, disagreements };
 }

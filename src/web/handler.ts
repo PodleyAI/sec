@@ -8,7 +8,12 @@ import { globalServiceRegistry } from "workglow";
 import { SEC_DB_NAME, SEC_DB_TYPE } from "../config/tokens";
 import { ENTITY_REPOSITORY_TOKEN } from "../storage/entity/EntitySchema";
 import { isCandidateConfidence, loadCandidates } from "./data/candidates";
-import { comparableExtractors, compareModels, type CompareResult } from "./data/compare";
+import {
+  buildCompareTable,
+  comparableExtractors,
+  compareModels,
+  type CompareResult,
+} from "./data/compare";
 import { loadDocumentPart, loadFilingDocument, type DocumentPart } from "./data/documents";
 import { loadAccessionExtractions, type AccessionExtractions } from "./data/extractions";
 import { currentSlotModels, MODEL_SLOTS, modelOptions, type ModelOverrides } from "./data/models";
@@ -20,7 +25,13 @@ import { renderIndexPage } from "./render/indexPage";
 import { renderProcessPage } from "./render/processPage";
 import { renderRunPage, renderRunsPage } from "./render/runsPage";
 import { renderSpacPage } from "./render/spacPage";
-import { enqueueCandidateRebuild, enqueueTimelineRun, type RunRegistry } from "./runs";
+import {
+  enqueueCandidateRebuild,
+  enqueueCompareRun,
+  enqueueTimelineRun,
+  type RunRecord,
+  type RunRegistry,
+} from "./runs";
 
 /** A request reduced to what the router needs, so the handler is runtime-neutral. */
 export interface WebRequest {
@@ -97,6 +108,9 @@ function intParam(params: URLSearchParams, name: string, fallback: number): numb
   const value = Number(raw);
   return Number.isFinite(value) ? Math.trunc(value) : fallback;
 }
+
+/** Long text panels the compare tab fetches on demand. */
+const PROMPT_PARTS: ReadonlySet<string> = new Set(["prompt", "instructions", "schema", "section"]);
 
 /** EDGAR accession numbers, dashed or bare. Anything else is not one. */
 const ACCESSION_PATTERN = /^[A-Za-z0-9-]{1,25}$/;
@@ -244,14 +258,40 @@ export async function handleWebRequest(
     ]
       .map((m) => m.trim())
       .filter((m) => m !== "");
-    const compare = await compareModels({
+    const extractor = (request.form.get("extractor") ?? "").trim();
+    const distinct = [...new Set(models)];
+    // A preview calls no model, so it answers immediately and is rendered
+    // inline. A comparison is a sequence of cloud calls over a section that can
+    // run to 57k characters, so it goes on the queue and the page follows its
+    // progress instead of holding the request open with nothing to show.
+    if ((request.form.get("mode") ?? "") === "preview") {
+      const preview = await compareModels({
+        cik,
+        accessionNumber: accession,
+        extractor,
+        models: distinct,
+        previewOnly: true,
+      });
+      return renderFiling(cik, accession, "compare", preview, undefined);
+    }
+    if (distinct.length === 0) {
+      const empty = await compareModels({
+        cik,
+        accessionNumber: accession,
+        extractor,
+        models: [],
+      });
+      return renderFiling(cik, accession, "compare", empty, undefined);
+    }
+    const run = enqueueCompareRun(registry, {
       cik,
       accessionNumber: accession,
-      extractor: (request.form.get("extractor") ?? "").trim(),
-      models: [...new Set(models)],
-      previewOnly: (request.form.get("mode") ?? "") === "preview",
+      extractor,
+      models: distinct,
     });
-    return renderFiling(cik, accession, "compare", compare);
+    return redirect(
+      `/spac/${cik}/filing/${encodeURIComponent(accession)}?tab=compare&run=${encodeURIComponent(run.id)}`
+    );
   }
 
   const spacMatch = /^\/spac\/(\d{1,10})$/.exec(path);
@@ -286,7 +326,11 @@ export async function handleWebRequest(
     if (!ACCESSION_PATTERN.test(accession)) return errorPage("Not an accession number.", 400);
     const tabRaw = request.query.get("tab") ?? "document";
     const tab = tabRaw === "extractions" || tabRaw === "compare" ? tabRaw : "document";
-    return renderFiling(cik, accession, tab, undefined);
+    // A comparison the page is following: its answer lives on the run, since
+    // nothing else records it.
+    const runId = (request.query.get("run") ?? "").trim();
+    const run = runId === "" ? undefined : registry.get(runId);
+    return renderFiling(cik, accession, tab, run?.result as CompareResult | undefined, run);
   }
 
   // One panel's text, fetched when the reader opens it — see `loadDocumentPart`.
@@ -313,6 +357,49 @@ export async function handleWebRequest(
     return result.error === "" ? textResponse(result.text) : textResponse(result.error, 404);
   }
 
+  // The compare tab's long text, fetched when a panel is opened. Recomputed
+  // from the memoized conversion rather than read off a run, so it works for a
+  // preview too — and with the nonce off (the default) the prompt is a pure
+  // function of the extractor and the cached document, so it is the same bytes
+  // the run sent.
+  if (path === "/api/prompt") {
+    const cik = parseCikSegment((request.query.get("cik") ?? "").trim());
+    const accession = (request.query.get("accession") ?? "").trim();
+    const partRaw = request.query.get("part") ?? "";
+    if (cik === undefined || !ACCESSION_PATTERN.test(accession)) {
+      return textResponse("missing or malformed CIK / accession", 400);
+    }
+    if (!PROMPT_PARTS.has(partRaw)) return textResponse(`unknown prompt part "${partRaw}"`, 400);
+    const built = await compareModels({
+      cik,
+      accessionNumber: accession,
+      extractor: (request.query.get("extractor") ?? "").trim(),
+      models: [],
+      previewOnly: true,
+    });
+    if (built.error !== "") return textResponse(built.error, 404);
+    const text =
+      partRaw === "prompt"
+        ? built.prompt
+        : partRaw === "instructions"
+          ? built.instructions
+          : partRaw === "schema"
+            ? built.schema
+            : built.sectionText;
+    return textResponse(text);
+  }
+
+  // One model's rows from a finished comparison. They live only on the run.
+  if (path === "/api/compare-rows") {
+    const run = registry.get((request.query.get("run") ?? "").trim());
+    const model = (request.query.get("model") ?? "").trim();
+    const result = run?.result as CompareResult | undefined;
+    if (result === undefined) return textResponse("no such comparison", 404);
+    const modelRun = result.runs.find((r) => r.model === model);
+    if (modelRun === undefined) return textResponse(`no run for model "${model}"`, 404);
+    return textResponse(JSON.stringify(modelRun.rows, null, 2));
+  }
+
   if (path === "/api/state") {
     return jsonResponse({ runs: registry.list() });
   }
@@ -325,7 +412,8 @@ async function renderFiling(
   cik: number,
   accessionNumber: string,
   tab: "document" | "extractions" | "compare",
-  compare: CompareResult | undefined
+  compare: CompareResult | undefined,
+  compareRun: RunRecord | undefined
 ): Promise<WebResponse> {
   const [doc, extractions, name] = await Promise.all([
     // The document tab is the only one that needs the converted text, and
@@ -352,6 +440,8 @@ async function renderFiling(
       extractors: comparableExtractors(),
       options: modelOptions(),
       compare,
+      compareRun,
+      compareTable: compare === undefined ? undefined : buildCompareTable(compare),
       tab,
     })
   );

@@ -2366,13 +2366,28 @@ Four things about it are load-bearing:
   sec row for an accession and silently omits the superset's own, which reads as
   "that extractor wrote nothing".
 
-**The model comparison writes nothing.** It runs one filing's segmented section
-through each candidate model via `EVAL_EXTRACTORS` and scores the rest against
-the FIRST one, which stands in as the reference — so it answers "would another
+**The model comparison writes nothing, and runs on the queue.** It sends one
+filing's segmented section to each candidate model via `EVAL_EXTRACTORS` and
+scores the rest against the FIRST one, which stands in as the reference — so it answers "would another
 model read this section better", and adopting one stays a separate, explicit act
 (pick it in the process page's model picker and re-run the filing). It is a
 comparison, not a verdict: `sec eval s1 --reference golden` is what scores a
 model against human-verified truth.
+
+A comparison is a sequence of cloud calls over a section that can run to 57k
+characters — tens of seconds each, one model at a time — so it is enqueued like
+any other run rather than held open as a form POST, which showed a dead page for
+its whole duration. The page follows it on the same event stream the process
+page uses, reporting each model as it lands, and the answer is kept on the run
+record: a comparison persists nothing, so that is the only place it exists.
+
+Results are read as a **table** — a row per aligned entity, a column per model,
+aligned by the extractor's own `keyField` (positionally where it declares none,
+exactly as `scoreExtraction` aligns). A model that DROPPED an entity is then a
+gap in a column rather than an absence to be spotted by diffing four JSON dumps,
+and rows the models disagree on are highlighted. A model whose run failed is
+omitted from the columns rather than rendered as blanks, which would read as
+"it dropped everything". The per-model JSON stays available under it.
 
 It also shows the **whole prompt**, not just the section: the injection-hardening
 preamble, the extractor's instructions, and the section fenced as untrusted
@@ -2382,8 +2397,11 @@ implementation of the prompt, and the first thing it would do is drift. The
 instructions alone and the output schema (through `schemaForPrint`, so it is the
 shape the current nonce setting really sends) get their own panels, since those
 are the parts you edit and the part that decides what a schema failure means.
-**Show prompt only** resolves the section and renders all of it without calling a
-model — inspecting what a model is about to be asked is the cheapest step in the
+Those four panels are lazy in the same way the document tab's are, over
+`/api/prompt` — a prompt runs to 31k characters and the section it fences can
+reach 57k, so inlining all four put a quarter of a megabyte in a page whose
+reader usually wants one of them. **Show prompt only** resolves the section and
+renders all of it without calling a model — inspecting what a model is about to be asked is the cheapest step in the
 loop and should not cost an API call. With `SEC_EXTRACTION_NONCE` on, the page
 says so: a cloud provider's real prompt then carries a per-attempt verification
 token, so no single rendering is _the_ prompt and what is shown is the no-nonce

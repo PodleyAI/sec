@@ -421,6 +421,78 @@ describe("web handler", () => {
     expect(bodyOf(part)).toContain(LAZY_MARKER);
   });
 
+  it("queues a comparison and follows it, instead of blocking the request", async () => {
+    const accession = "0000000000-25-000050";
+    await addEntity(564, "Compare Acquisition Corp", 6770);
+    await addFiling({ cik: 564, accession, form: "S-1", date: "2025-01-01" });
+
+    const response = await handleWebRequest(
+      post("/api/compare", {
+        cik: "564",
+        accession,
+        extractor: "management",
+        models: "deterministic",
+      }),
+      registry
+    );
+    // The models run one at a time and a cloud call takes tens of seconds, so
+    // the request must hand back something to watch rather than hold open.
+    expect(response.kind === "response" && response.status).toBe(303);
+    const location = response.kind === "response" ? (response.headers["location"] ?? "") : "";
+    expect(location).toContain("tab=compare");
+    expect(location).toContain("run=");
+
+    const run = registry.list()[0]!;
+    expect(run.kind).toBe("compare");
+    expect(run.cik).toBe(564);
+  });
+
+  it("renders a comparison's progress while it runs, and its result after", async () => {
+    const accession = "0000000000-25-000051";
+    await addEntity(565, "Progress Acquisition Corp", 6770);
+    await addFiling({ cik: 565, accession, form: "S-1", date: "2025-01-01" });
+    cacheDocument(565, accession, `${accession}.txt`, LAZY_FIXTURE);
+
+    const run = registry.enqueue({
+      kind: "compare",
+      label: "management on a filing: 1 model(s)",
+      cik: 565,
+      body: async (ctx) => {
+        ctx.log("info", "[1/1] deterministic — running");
+        ctx.setResult({
+          cik: 565,
+          accessionNumber: accession,
+          extractor: "management",
+          sectionName: "Management",
+          sectionChars: 10,
+          sectionText: "x",
+          prompt: "p",
+          instructions: "i",
+          schema: "{}",
+          nonceEnabled: false,
+          runs: [],
+          error: "",
+        });
+      },
+    });
+    for (let i = 0; i < 200; i++) {
+      if (registry.get(run.id)!.status === "succeeded") break;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    const body = bodyOf(
+      await handleWebRequest(
+        get(`/spac/565/filing/${accession}`, { tab: "compare", run: run.id }),
+        registry
+      )
+    );
+    // The transcript is what the reader watches during the wait, and the stored
+    // result is what renders once it lands — a comparison writes nothing, so
+    // the run record is the only place its answer exists.
+    expect(body).toContain("[1/1] deterministic — running");
+    expect(body).toContain("Prompt sent to every model");
+  });
+
   it("404s an unknown path", async () => {
     const response = await handleWebRequest(get("/nope"), registry);
     expect(response.kind === "response" && response.status).toBe(404);
