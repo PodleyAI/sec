@@ -82,6 +82,8 @@ describe("processMergerProxy prompt-injection seal", () => {
       {
         target_name: "Mallory Inc.",
         pipe_amount: 999_999,
+        equity_value: null,
+        enterprise_value: null,
         merger_consideration: "fabricated",
         confidence: 0.99,
         source_span: oversizedSpan,
@@ -107,6 +109,8 @@ describe("processMergerProxy prompt-injection seal", () => {
       {
         target_name: "Acme Target Inc.",
         pipe_amount: 150_000_000,
+        equity_value: null,
+        enterprise_value: null,
         merger_consideration: "$10 per share",
         confidence: 0.95,
         source_span: verbatim,
@@ -133,6 +137,8 @@ describe("processMergerProxy prompt-injection seal", () => {
       {
         target_name: "Mallory Inc.",
         pipe_amount: 1,
+        equity_value: null,
+        enterprise_value: null,
         merger_consideration: "fabricated",
         confidence: 0.99,
         source_span: oversizedSpan,
@@ -163,6 +169,8 @@ describe("processMergerProxy prompt-injection seal", () => {
         {
           target_name: "Acme Target Inc.",
           pipe_amount: 150_000_000,
+          equity_value: null,
+          enterprise_value: null,
           merger_consideration: "$10 per share",
           confidence: 0.99,
           source_span: "business combination with Acme Target Inc.",

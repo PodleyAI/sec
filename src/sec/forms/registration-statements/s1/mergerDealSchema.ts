@@ -19,6 +19,23 @@ export const MergerDealOutputSchema = Type.Object({
     TypeNullable(Type.String({ description: "Short description of the target company's business" }))
   ),
   pipe_amount: TypeNullable(Type.Number({ description: "Total PIPE investment in dollars" })),
+  // Optional, like `target_description`, so a pre-1.2.0 replay still validates.
+  // Both are the values the proxy ANNOUNCES for the combination, which is what
+  // makes them a valuation of the target at the deal — not a realized outcome.
+  equity_value: Type.Optional(
+    TypeNullable(
+      Type.Number({
+        description: "Announced equity value of the combined company, in whole dollars",
+      })
+    )
+  ),
+  enterprise_value: Type.Optional(
+    TypeNullable(
+      Type.Number({
+        description: "Announced enterprise value of the combined company, in whole dollars",
+      })
+    )
+  ),
   merger_consideration: TypeNullable(
     Type.String({ description: "Short verbatim description of the consideration" })
   ),

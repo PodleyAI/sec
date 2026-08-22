@@ -1859,6 +1859,44 @@ model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-5`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
 
+#### Announced deal values
+
+Alongside `target_*` / `pipe_amount`, the merger-proxy extractor reads the deal
+values the proxy ANNOUNCES — `equity_value` and `enterprise_value` of the
+combined company — and `deriveDeals` correlates them onto the matching
+`spac_deal` by the same filing-date window, so a definitive proxy supersedes a
+preliminary one exactly as the target does.
+
+They exist because a completed combination is otherwise unvaluable. The market
+never priced the target (it was private), and its book equity is a private
+company's accounting rather than what was paid for it, so the announced deal
+value is the only stated number that answers "what was this worth at the
+combination".
+
+**A figure written in the units of its own sentence is dropped, never stored and
+never rescaled** (`dealValueScale.ts`, floor `MIN_PLAUSIBLE_DEAL_VALUE` =
+$10,000,000). A prospectus says "$1.4 billion" and a model can answer `1.4`, or
+`1400`; both validate against the schema, both store, and both become a
+valuation off by a factor of a million that nothing downstream re-derives — a
+percentage change computed against one is merely very large rather than
+obviously wrong. The floor separates the two populations with nothing near it: a
+real combination is tens of millions at minimum (the trust alone is), and a
+scaled figure is single or quadruple digits. Rescaling instead of dropping would
+be a second model of the filing, and a wrong guess is indistinguishable from a
+right one once stored; a null says what is true, that the proxy stated a value
+and the figure read back could not be used. The prompt states the unit at the
+point the number is produced, which is the other half of the fix.
+
+Both fields are `Type.Optional` on the model schema, like `target_description`,
+so a replay under an older extractor version still validates. Adding them is a
+**minor bump** — run the ceremony before re-extracting:
+
+```bash
+sec version start-dev extractor merger-proxy --minor
+sec version promote extractor merger-proxy
+sec extractor backfill merger-proxy
+```
+
 #### Which statements emit the `proxy` event
 
 The `proxy` event (→ `proxy_date` / `status = proxy`) is **two-tier**, and the

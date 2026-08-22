@@ -178,6 +178,8 @@ describe("loadGatedNoOpAccessions", () => {
       target_observation_id: null,
       target_description: null,
       pipe_amount: null,
+      equity_value: null,
+      enterprise_value: null,
       merger_consideration: null,
       confidence: 0.9,
       source_span: null,

@@ -24,6 +24,8 @@ const orphanDeal = (cik: number, deal_index: number): SpacDeal => ({
   vote_date: null,
   loi_date: null,
   pipe_amount: null,
+  equity_value: null,
+  enterprise_value: null,
   redemption_amount: 999_999,
   redemption_shares: 1,
   outcome: "completed",
