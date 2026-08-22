@@ -10,6 +10,11 @@ import { estimateCost } from "../../eval/modelPricing";
 import { EXTRACTOR_TO_SECTION } from "../../eval/realSections";
 import { scoreExtraction, type ExtractionScore } from "../../eval/scoreExtraction";
 import { registerModelIds } from "../../config/registerModels";
+import { schemaForPrint } from "../../eval/printEvalPrompts";
+import {
+  buildExtractionPrompt,
+  isNonceEnabled,
+} from "../../sec/forms/registration-statements/s1/sectionExtractors";
 import { prefetchModel } from "../../task/model/EnsureModelDownloadedTask";
 import { loadFilingDocument } from "./documents";
 
@@ -36,7 +41,26 @@ export interface CompareResult {
   readonly extractor: string;
   readonly sectionName: string;
   readonly sectionChars: number;
+  /** The section prose after {@link EvalExtractor.prepareSectionText}, as fenced into the prompt. */
   readonly sectionText: string;
+  /**
+   * The complete prompt each model receives — injection-hardening preamble,
+   * the extractor's instructions, and the section fenced as untrusted filer
+   * text — built through the production `buildExtractionPrompt`, not a
+   * reconstruction. The section alone does not explain a model's answer; the
+   * instructions around it are most of what decides it.
+   */
+  readonly prompt: string;
+  /** The instructions block on its own — the part you would actually edit. */
+  readonly instructions: string;
+  /** The output schema as the model sees it under the current nonce setting. */
+  readonly schema: string;
+  /**
+   * True when `SEC_EXTRACTION_NONCE` is on, in which case a cloud provider's
+   * real prompt carries a per-attempt verification token this preview omits
+   * (it differs every attempt, so no single rendering is the prompt).
+   */
+  readonly nonceEnabled: boolean;
   readonly runs: readonly CompareRun[];
   readonly error: string;
 }
@@ -68,6 +92,12 @@ export async function compareModels(args: {
   readonly accessionNumber: string;
   readonly extractor: string;
   readonly models: readonly string[];
+  /**
+   * Resolve the section and build the prompt, but call no model. Inspecting
+   * what a model is about to be asked is the cheapest step in the loop and
+   * should not cost an API call to reach.
+   */
+  readonly previewOnly?: boolean | undefined;
 }): Promise<CompareResult> {
   const extractor = EVAL_EXTRACTORS[args.extractor];
   const sectionName = EXTRACTOR_TO_SECTION[args.extractor];
@@ -78,12 +108,16 @@ export async function compareModels(args: {
     sectionName: sectionName ?? "",
     sectionChars: 0,
     sectionText: "",
+    prompt: "",
+    instructions: "",
+    schema: "",
+    nonceEnabled: isNonceEnabled(),
     runs: [] as readonly CompareRun[],
   };
   if (extractor === undefined || sectionName === undefined) {
     return { ...empty, error: `unknown extractor "${args.extractor}"` };
   }
-  if (args.models.length === 0) {
+  if (args.models.length === 0 && args.previewOnly !== true) {
     return { ...empty, error: "no models selected" };
   }
 
@@ -103,10 +137,24 @@ export async function compareModels(args: {
   const text = extractor.prepareSectionText
     ? extractor.prepareSectionText(section.text)
     : section.text;
+  const instructions = extractor.instructions();
+  // Built through the production builder rather than reassembled here: a
+  // preview that composes its own preamble is a second implementation of the
+  // prompt, and the first thing it would do is drift from the real one.
+  const prompt = buildExtractionPrompt({ instructions, sectionText: text });
+  const shown = {
+    ...empty,
+    sectionChars: section.text.length,
+    sectionText: text,
+    prompt,
+    instructions,
+    schema: JSON.stringify(schemaForPrint(extractor.schema()), null, 2),
+  };
+  if (args.previewOnly === true) return { ...shown, error: "" };
 
   await registerModelIds(args.models);
   const repo = getGlobalModelRepository();
-  const promptChars = estimateExtractionPromptChars(extractor.instructions(), text);
+  const promptChars = estimateExtractionPromptChars(instructions, text);
 
   const runs: CompareRun[] = [];
   let reference: readonly unknown[] | undefined;
@@ -165,11 +213,5 @@ export async function compareModels(args: {
     }
   }
 
-  return {
-    ...empty,
-    sectionChars: section.text.length,
-    sectionText: text,
-    runs,
-    error: "",
-  };
+  return { ...shown, runs, error: "" };
 }

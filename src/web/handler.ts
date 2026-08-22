@@ -240,6 +240,7 @@ export async function handleWebRequest(
       accessionNumber: accession,
       extractor: (request.form.get("extractor") ?? "").trim(),
       models: [...new Set(models)],
+      previewOnly: (request.form.get("mode") ?? "") === "preview",
     });
     return renderFiling(cik, accession, "compare", compare);
   }

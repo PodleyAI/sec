@@ -2353,6 +2353,21 @@ model read this section better", and adopting one stays a separate, explicit act
 comparison, not a verdict: `sec eval s1 --reference golden` is what scores a
 model against human-verified truth.
 
+It also shows the **whole prompt**, not just the section: the injection-hardening
+preamble, the extractor's instructions, and the section fenced as untrusted
+filer text, built through the production `buildExtractionPrompt` rather than
+reassembled — a preview that composes its own preamble is a second
+implementation of the prompt, and the first thing it would do is drift. The
+instructions alone and the output schema (through `schemaForPrint`, so it is the
+shape the current nonce setting really sends) get their own panels, since those
+are the parts you edit and the part that decides what a schema failure means.
+**Show prompt only** resolves the section and renders all of it without calling a
+model — inspecting what a model is about to be asked is the cheapest step in the
+loop and should not cost an API call. With `SEC_EXTRACTION_NONCE` on, the page
+says so: a cloud provider's real prompt then carries a per-attempt verification
+token, so no single rendering is _the_ prompt and what is shown is the no-nonce
+shape.
+
 ### Generalized extractor backfill
 
 When a new extractor lands, its historical filings are recovered with the

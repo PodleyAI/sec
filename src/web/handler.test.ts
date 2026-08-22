@@ -345,6 +345,31 @@ describe("web handler", () => {
     expect(registry.list()).toHaveLength(0);
   });
 
+  it("builds the prompt without calling a model when asked for a preview", async () => {
+    await addEntity(562, "Prompt Acquisition Corp", 6770);
+    await addFiling({
+      cik: 562,
+      accession: "0000000000-25-000030",
+      form: "S-1",
+      date: "2025-01-01",
+    });
+    // No cached document, so the preview cannot resolve a section — but it must
+    // fail on THAT, not by trying to reach a provider it was never given.
+    const response = await handleWebRequest(
+      post("/api/compare", {
+        cik: "562",
+        accession: "0000000000-25-000030",
+        extractor: "management",
+        mode: "preview",
+      }),
+      registry
+    );
+    expect(response.kind === "response" && response.status).toBe(200);
+    // "no models selected" is the error a compare would have raised; a preview
+    // asks for the prompt, so naming no model is not a mistake.
+    expect(bodyOf(response)).not.toContain("no models selected");
+  });
+
   it("404s an unknown path", async () => {
     const response = await handleWebRequest(get("/nope"), registry);
     expect(response.kind === "response" && response.status).toBe(404);

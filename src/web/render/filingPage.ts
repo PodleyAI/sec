@@ -13,6 +13,12 @@ import { esc, html, page, raw, table, type Html } from "./layout";
 /** Bytes of raw source rendered inline. Enough to check a conversion, not a 3 MB dump. */
 const RAW_PREVIEW_CHARS = 200_000;
 
+/** Long text for a `<pre>`, capped, saying so when it was cut. */
+function truncate(text: string): string {
+  if (text.length <= RAW_PREVIEW_CHARS) return text;
+  return `${text.slice(0, RAW_PREVIEW_CHARS)}\n… truncated for display`;
+}
+
 function documentPanel(doc: FilingDocument): Html {
   if (doc.error !== "" && doc.raw === "") {
     return html`<div class="panel">
@@ -191,13 +197,15 @@ function comparePanel(args: {
         >Extra ids (comma separated)
         <input type="text" name="extra_models" placeholder="deterministic, gguf:…" />
       </label>
-      <button class="primary" type="submit">Compare</button>
+      <button class="primary" type="submit" name="mode" value="compare">Compare</button>
+      <button type="submit" name="mode" value="preview">Show prompt only</button>
     </div>
     <p class="small muted">
       Runs the section through each model and scores the rest against the FIRST one, which stands in
       as the reference. Nothing is written: this answers “would another model read this section
       better”, and adopting one is a separate act — pick it in the process page's model picker and
-      re-run the filing.
+      re-run the filing. <strong>Show prompt only</strong> resolves the section and builds the
+      prompt without calling any model.
     </p>
   </form>`;
 
@@ -207,6 +215,59 @@ function comparePanel(args: {
     return html`${form}
       <p class="notice">${r.error}</p>`;
   }
+
+  const promptPanels = html`
+    <div class="panel small">
+      Section <strong>${r.sectionName}</strong> · ${r.sectionChars.toLocaleString()} chars ·
+      extractor <code>${r.extractor}</code> · prompt ${r.prompt.length.toLocaleString()} chars
+      ${
+        r.nonceEnabled
+          ? html`<div class="notice" style="margin-top:.4rem">
+              <code>SEC_EXTRACTION_NONCE</code> is on, so a cloud provider's real prompt also
+              carries a per-attempt verification token. It differs on every attempt, so no single
+              rendering is "the" prompt — what is shown below is the no-nonce shape a local provider
+              receives.
+            </div>`
+          : null
+      }
+    </div>
+    <details class="panel" open>
+      <summary>
+        Prompt sent to every model
+        <span class="muted small">
+          ${r.prompt.length.toLocaleString()} chars — preamble, instructions, and the section fenced
+          as untrusted filer text
+        </span>
+      </summary>
+      <pre>${truncate(r.prompt)}</pre>
+    </details>
+    <details class="panel">
+      <summary>
+        Instructions only
+        <span class="muted small">
+          ${r.instructions.length.toLocaleString()} chars — the part you would edit
+        </span>
+      </summary>
+      <pre>${r.instructions}</pre>
+    </details>
+    <details class="panel">
+      <summary>
+        Output schema
+        <span class="muted small">as the model sees it under the current nonce setting</span>
+      </summary>
+      <pre>${r.schema}</pre>
+    </details>
+    <details class="panel">
+      <summary class="muted small">
+        Section prose on its own (${r.sectionText.length.toLocaleString()} chars, already fenced
+        inside the prompt above)
+      </summary>
+      <pre>${truncate(r.sectionText)}</pre>
+    </details>
+  `;
+
+  // A preview asked for the prompt, not for an answer.
+  if (r.runs.length === 0) return html`${form}${promptPanels}`;
 
   const rows = r.runs.map(
     (run) =>
@@ -231,18 +292,7 @@ function comparePanel(args: {
       </details>`
   );
 
-  return html`
-    ${form}
-    <div class="panel small">
-      Section <strong>${r.sectionName}</strong> · ${r.sectionChars.toLocaleString()} chars ·
-      extractor <code>${r.extractor}</code>
-    </div>
-    ${rows}
-    <details class="panel">
-      <summary class="muted small">Section prose sent to every model</summary>
-      <pre>${r.sectionText.slice(0, RAW_PREVIEW_CHARS)}</pre>
-    </details>
-  `;
+  return html`${form}${promptPanels}${rows}`;
 }
 
 /**
