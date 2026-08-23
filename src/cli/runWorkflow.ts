@@ -45,17 +45,18 @@ export async function runWorkflowCli<T>(
   // original flat pipe-through.
   buildAfter?.(wf);
   wf.pipe(sink as ITask<DataPorts, DataPorts>);
-  // Use the interactive Ink renderer only on a real TTY. When stdout is
-  // redirected (e.g. `update forms … --shard 1/6 > shard1.log 2>&1 &`), the Ink
-  // UI would write control codes into a logfile AND, worse, grab raw-mode on
-  // the terminal — a backgrounded process cannot own the TTY, so it is stopped
-  // by SIGTTIN and the run dies immediately. In that case run plainly; progress
-  // is monitored out-of-band (DB counts / logs) for batch/background shards.
-  const interactive = !isJsonOutput() && Boolean(process.stdout.isTTY);
-  if (interactive) {
-    await withCli(wf).run(input);
-  } else {
-    await wf.run(input);
-  }
+  // Always through `withCli`, which decides what a run should do with itself:
+  // draw the Ink UI on a TTY, report to a watching parent (the web console runs
+  // commands as child processes and reads their event stream), and otherwise
+  // run plainly. Branching here instead meant a piped run bypassed that seam
+  // entirely, so every backgrounded shard — and every run the console started —
+  // reported nothing.
+  //
+  // `interactive: false` is only about drawing: a command emitting JSON on
+  // stdout must not have Ink's rows interleaved with it. Off a TTY `withCli`
+  // runs plainly by itself, which is what a redirected shard needs — the Ink UI
+  // would write control codes into the logfile and grab raw mode, and a
+  // backgrounded process that cannot own the TTY is stopped by SIGTTIN.
+  await withCli(wf, { interactive: !isJsonOutput() }).run(input);
   return sink.runOutputData as T;
 }

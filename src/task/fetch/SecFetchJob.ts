@@ -11,7 +11,7 @@ import {
   IJobExecuteContext,
   JobConstructorParam,
 } from "workglow";
-import { SecUserAgent } from "../../config/Constants";
+import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecUserAgent } from "../../config/Constants";
 import { signalSecFetchThrottle } from "./secFetchThrottle";
 
 function readPositiveIntEnv(name: string, fallback: number): number {
@@ -160,11 +160,47 @@ function getRetryAfterMs(error: MaybeHttpError): number | undefined {
   return undefined;
 }
 
+/**
+ * Spread added to EVERY retry, over the window the cluster needs to drain one
+ * full set of in-flight fetches.
+ *
+ * A retry re-issues from inside the job, downstream of all three limiters, so
+ * none of them governs it — and the concurrency limiter, which does still hold
+ * this job's slot, bounds SIMULTANEITY rather than rate. Up to
+ * {@link SecFetchMaxConcurrent} requests are fine spread across the drain
+ * window and a violation arriving in one tick, which is exactly what a shared
+ * failure produces: every in-flight job fails on the same upstream event and
+ * computes the same delay. `backoffDelay`'s own 0.5–1.0x jitter only spreads
+ * the first retry across 500 ms — 16 requests in half a second is ~32/s, over
+ * EDGAR's ceiling, so the recovery from a transient 5xx tripped the very block
+ * it was recovering from.
+ */
+function retrySpread(): number {
+  return Math.floor(Math.random() * RETRY_SPREAD_MS);
+}
+
+/**
+ * How wide to spread retries: two full drain windows.
+ *
+ * One window is the arithmetic minimum — `SecFetchMaxConcurrent` re-issues
+ * spread uniformly across `maxConcurrent / maxPerSec` seconds arrive at exactly
+ * `maxPerSec`. Sitting exactly on the ceiling is not a margin, since uniform
+ * draws clump; doubling it halves the expected rate and leaves room for the
+ * clumping without materially delaying recovery.
+ */
+const RETRY_SPREAD_MS = Math.ceil(SecFetchMaxConcurrent / SecFetchMaxPerSec) * 2_000;
+
+/**
+ * Deterministic exponential backoff. De-synchronizing concurrent retries is
+ * {@link retrySpread}'s job, and doing it in both places is worse than doing it
+ * in one: summing two independent jitters CONCENTRATES the result toward the
+ * middle instead of spreading it, so a full set of in-flight fetches still
+ * cleared EDGAR's ceiling in the densest second. One uniform spread over a
+ * known window is the thing that can be reasoned about.
+ */
 function backoffDelay(attempt: number): number {
   const exponent = Math.min(attempt, 10);
-  const base = Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
-  // Jitter to avoid lockstep retries when many jobs fail at once.
-  return Math.floor(base * (0.5 + Math.random() * 0.5));
+  return Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
 }
 
 /**
@@ -299,6 +335,24 @@ export class SecFetchJob<
         // arrives as an abort, which keeps its own shape through that
         // classification and would otherwise drive straight through the ban.
         const timedOut = timeoutController?.signal.aborted === true;
+        const retryAfter = getRetryAfterMs(error as MaybeHttpError);
+
+        // A 429 means EDGAR is throttling this IP — including the 403
+        // interstitial, which `translateEdgarBlockResponse` re-labels at the
+        // transport seam so this stays one condition. Pause the WHOLE fetch
+        // cluster (every shard process) via the shared limiter's
+        // cluster-visible next-available sentinel, so NEW dispatches back off
+        // together instead of piling on and keeping the block alive.
+        //
+        // Signalled BEFORE the retry decision, not after it. A block that
+        // arrives on this job's last attempt is the same evidence about the
+        // cluster as any other — and under a sustained block that is most of
+        // them, since every in-flight job exhausts its attempts at once.
+        // Deciding this job's fate first meant the cluster learned nothing from
+        // precisely the jobs that saw the block most clearly.
+        const blocked = getHttpErrorStatus(error) === 429;
+        const cooldown = blocked ? await signalSecFetchThrottle(retryAfter) : undefined;
+
         if (
           deliveredToReceiver ||
           (!timedOut && !isRetriableError(error)) ||
@@ -306,21 +360,21 @@ export class SecFetchJob<
         ) {
           throw error;
         }
-        const retryAfter = getRetryAfterMs(error as MaybeHttpError);
-        // A 429 means EDGAR is throttling this IP. Pause the WHOLE fetch cluster
-        // (every shard process) via the shared limiter's cluster-visible
-        // next-available sentinel, so NEW dispatches back off together instead
-        // of piling on and keeping the block alive. This job's OWN retry keeps
-        // the normal backoff (honoring Retry-After when present, capped at
-        // MAX_RETRY_AFTER_MS) so an EDGAR 10-minute pushback is waited out
-        // rather than retried inside the window; a sustained block just
-        // exhausts this job's few attempts and dead-letters (retried next
-        // sweep) while the cluster stays paused. Non-429 retryables (5xx,
-        // timeouts, network blips) don't pause the cluster.
-        if (getHttpErrorStatus(error) === 429) {
-          await signalSecFetchThrottle(retryAfter);
-        }
-        const delay = Math.min(retryAfter ?? backoffDelay(attempt), MAX_RETRY_AFTER_MS);
+
+        // Wait out the cooldown this job just applied to everyone else, rather
+        // than the ordinary backoff. The cluster sentinel gates DISPATCH, and
+        // this job is already dispatched — its retry loop never re-consults
+        // the limiter — so a ~30s backoff put every in-flight request back on
+        // the wire deep inside EDGAR's ten-minute penalty window, extending it
+        // for the whole cluster. Sleeping the full cooldown costs nothing that
+        // was available anyway: no other fetch can start during it.
+        //
+        // Cap the wait FIRST and spread AFTER: capping the sum silently ate the
+        // spread whenever the base was already at the ceiling — which is the
+        // default block case exactly, a 600s cooldown against a 600s cap — so
+        // the herd it exists to disperse woke in one tick anyway.
+        const base = Math.min(cooldown ?? retryAfter ?? backoffDelay(attempt), MAX_RETRY_AFTER_MS);
+        const delay = base + retrySpread();
         await sleepWithAbort(delay, context.signal);
       } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);

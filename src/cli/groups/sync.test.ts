@@ -19,30 +19,75 @@ describe("validateLookback", () => {
   });
 });
 
-describe("sync --step help", () => {
+describe("sync leaf subcommands", () => {
   afterEach(() => {
     clearSyncLeavesForTesting();
   });
 
-  it("lists each multi-step leaf's step ids on the --step option", () => {
+  it("gives a multi-step leaf an `all` plus one subcommand per step", () => {
     const program = new Command();
     addSyncCommand(program);
     const sync = program.commands.find((cmd) => cmd.name() === "sync");
     expect(sync).toBeDefined();
 
     for (const leaf of listSyncLeaves()) {
+      if (leaf.id === "forms") continue; // takes a <types> argument, not steps
       const cmd = sync!.commands.find((c) => c.name() === leaf.id);
       expect(cmd, `sync ${leaf.id} command`).toBeDefined();
-      const help = cmd!.helpInformation();
-      const stepLine = help.split("\n").find((line) => line.includes("--step <name>"));
+      const subs = cmd!.commands.map((c) => c.name()).filter((name) => name !== "help");
 
       if (leaf.steps.length <= 1) {
-        expect(stepLine, `sync ${leaf.id} is single-step`).toBeUndefined();
+        // Nothing to choose between, so `sync facts all` would only be a longer
+        // way to say `sync facts`.
+        expect(subs, `sync ${leaf.id} is single-step`).toEqual([]);
         continue;
       }
 
-      expect(stepLine, `sync ${leaf.id} --step`).toBeDefined();
-      expect(stepLine).toContain(leaf.steps.map((step) => step.id).join(" | "));
+      expect(subs, `sync ${leaf.id} subcommands`).toEqual([
+        "all",
+        ...leaf.steps.map((step) => step.id),
+      ]);
     }
+  });
+
+  it("names the steps in help rather than hiding them behind --step", () => {
+    const program = new Command();
+    addSyncCommand(program);
+    const sync = program.commands.find((cmd) => cmd.name() === "sync");
+    const spacs = sync!.commands.find((c) => c.name() === "spacs");
+    const help = spacs!.helpInformation();
+
+    expect(help).toContain("identify");
+    expect(help).toContain("process");
+    // The option it replaced: a step list only `--help` could show, and no
+    // shell could complete.
+    expect(help).not.toContain("--step <name>");
+  });
+
+  it("carries the leaf's options onto every subcommand, not just the group", () => {
+    // Commander does not hand a parent's options to a subcommand's action, so
+    // a `--shard` declared once on the group would parse and then be dropped.
+    const program = new Command();
+    addSyncCommand(program);
+    const sync = program.commands.find((cmd) => cmd.name() === "sync");
+    const spacs = sync!.commands.find((c) => c.name() === "spacs");
+
+    for (const name of ["all", "identify", "process"]) {
+      const sub = spacs!.commands.find((c) => c.name() === name);
+      const flags = sub!.options.map((option) => option.long);
+      expect(flags, `sync spacs ${name}`).toContain("--shard");
+      expect(flags, `sync spacs ${name}`).toContain("--concurrency");
+    }
+  });
+
+  it("leaves a group with no action, so bare `sync spacs` needs no configuration", () => {
+    // An action would route a help listing through the CLI's preAction hook,
+    // which refuses to run until `init` has been done — so asking what a group
+    // contains would demand a configured database.
+    const program = new Command();
+    addSyncCommand(program);
+    const sync = program.commands.find((cmd) => cmd.name() === "sync");
+    const spacs = sync!.commands.find((c) => c.name() === "spacs");
+    expect((spacs as unknown as { _actionHandler?: unknown })._actionHandler).toBeFalsy();
   });
 });

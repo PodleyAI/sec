@@ -143,6 +143,15 @@ const LEGITIMATE_CONTAINMENTS: ReadonlyArray<{
   { container: S1_SECTIONS.PROSPECTUS_SUMMARY, nested: S1_SECTIONS.THE_OFFERING },
   { container: S1_SECTIONS.PROSPECTUS_SUMMARY, nested: S1_SECTIONS.THE_SPONSOR },
   { container: S1_SECTIONS.MANAGEMENT, nested: S1_SECTIONS.EXECUTIVE_COMPENSATION },
+  // A filer who gives the lock-up no Item 12 section of its own states it as a
+  // `Lock-Up Agreements` sub-heading INSIDE Underwriting — which is exactly why
+  // the lock-up extractor falls back to that section's text. When the converter
+  // emits that sub-heading as a section node it becomes the chosen LOCK_UP
+  // body, and without this pair Underwriting would be truncated at it,
+  // deleting everything the underwriters extractor reads after the lock-up
+  // paragraph (stabilization, selling restrictions, and on many filers the
+  // underwriter table itself).
+  { container: S1_SECTIONS.UNDERWRITING, nested: S1_SECTIONS.LOCK_UP },
 ];
 
 function isLegitimateContainment(container: S1SectionName, nested: S1SectionName): boolean {

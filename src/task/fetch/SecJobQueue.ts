@@ -25,6 +25,7 @@ import {
 import { SecFetchMaxConcurrent, SecFetchMaxPerSec, SecJobQueueName } from "../../config/Constants";
 import { SEC_DB_TYPE } from "../../config/tokens";
 import { getPgPool } from "../../util/pg";
+import { installEdgarBlockTranslation } from "./edgarBlockResponse";
 import { SecFetchJob } from "./SecFetchJob";
 import { SecFetchRateLimiterOptions } from "./secFetchRateLimiterConfig";
 import { setSecFetchLimiter } from "./secFetchThrottle";
@@ -114,6 +115,11 @@ let handles: SecJobQueueHandles | undefined;
 export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
   if (handles) return handles;
 
+  // Every EDGAR fetch converges here, so this is where the 403 rate-limit
+  // interstitial gets re-labelled as the 429 it describes — otherwise a block
+  // reads as a permanent client error and the cooldown below is never armed.
+  installEdgarBlockTranslation();
+
   const rateLimiterStorage: IRateLimiterStorage = isPostgres()
     ? createSecFetchRateLimiterStorage(getPgPool())
     : new InMemoryRateLimiterStorage();
@@ -126,8 +132,15 @@ export async function getSecJobQueue(): Promise<SecJobQueueHandles> {
     maxBackoffDelay: 60000,
   });
   // Expose the cluster-scoped limiter to the 429 cooldown path so an EDGAR
-  // throttle pauses every shard, not just the job that saw the 429.
-  setSecFetchLimiter(limiter);
+  // throttle pauses every shard, not just the job that saw the 429. The reader
+  // goes straight to the STORAGE sentinel rather than through the limiter's
+  // `getNextAvailableTime`, which folds in the rate wall and this instance's
+  // local backoff hint — neither of which belongs in a cluster-wide pause.
+  setSecFetchLimiter(limiter, async () => {
+    const iso = await rateLimiterStorage.getNextAvailableTime(SecJobQueueName);
+    const ms = iso ? new Date(iso).getTime() : 0;
+    return Number.isFinite(ms) ? ms : 0;
+  });
 
   const storage = new InMemoryQueueStorage<FetchUrlTaskInput, FetchUrlTaskOutput>(SecJobQueueName);
   const { messageQueue, jobStore } = wrapQueueStorage(storage);

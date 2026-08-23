@@ -34,6 +34,17 @@ export interface SyncLeaf {
   readonly order: number;
   readonly inAll: boolean;
   readonly steps: readonly SyncStep[];
+  /**
+   * Runs the whole leaf as one unit — what `sync <leaf> all` invokes.
+   *
+   * Steps exist so `sync <leaf> <step>` can select one, and running them one at a time
+   * means one task graph each — so a leaf whose steps are really N tasks of a
+   * single job reports as N separate runs, and a watching console sees the
+   * first and then a new one replacing it. A leaf that can express itself as
+   * one graph says so here; `steps` stays the vocabulary for selecting part of
+   * it, and must produce the same work either way.
+   */
+  readonly runAll?: (ctx: SyncRunContext) => Promise<void>;
 }
 
 export const EMPTY_SYNC_CONTEXT: SyncRunContext = {
@@ -82,12 +93,17 @@ export async function runSyncLeaves(
       throw new Error(`Unknown sync leaf '${leafId}'`);
     }
 
+    if (stepId === undefined && leaf.runAll !== undefined) {
+      await leaf.runAll(ctx);
+      continue;
+    }
+
     let steps: readonly SyncStep[];
     if (stepId !== undefined) {
       steps = leaf.steps.filter((step) => step.id === stepId);
       if (steps.length === 0) {
         const validIds = leaf.steps.map((step) => step.id).join(", ");
-        throw new Error(`Unknown --step '${stepId}' for sync ${leaf.id}; valid: ${validIds}`);
+        throw new Error(`Unknown step '${stepId}' for sync ${leaf.id}; valid: ${validIds}`);
       }
     } else {
       steps = leaf.steps;

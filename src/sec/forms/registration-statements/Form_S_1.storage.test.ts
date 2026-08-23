@@ -128,12 +128,15 @@ describe("processFormS1", () => {
 
     const dl = await new ExtractionDeadLetterRepo().listPending("S-1");
     // The Offering / Underwriting / Use of Proceeds headings are absent from
-    // this fixture, so those sections dead-letter SECTION_NOT_FOUND. Risk
-    // factors is parked and must not appear. Executive Compensation is
-    // deliberately NOT among them: most registration statements have no
-    // compensation section, so recording one would put an entry on the retry
-    // worklist for the majority of all S-1s, permanently.
+    // this fixture, so those sections dead-letter SECTION_NOT_FOUND — and so
+    // does `lockups`, whose text is the Item 12 block falling back to
+    // Underwriting, neither of which this fixture has. Risk factors is parked
+    // and must not appear. Executive Compensation is deliberately NOT among
+    // them: most registration statements have no compensation section, so
+    // recording one would put an entry on the retry worklist for the majority
+    // of all S-1s, permanently.
     expect(dl.map((d) => d.section_name).sort()).toEqual([
+      "lockups",
       "offering-terms",
       "underwriters",
       "use-of-proceeds",

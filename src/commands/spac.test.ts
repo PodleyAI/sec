@@ -122,7 +122,7 @@ describe("spacProcessRows", () => {
     async (_label, ciks: readonly number[]) => {
       // The shape `spacProcessRows` consumes is produced by `runSpacTimelineIssuers`,
       // not asserted anywhere else — so run the same graph `sec spac process` and
-      // `sync spacs --step process` build. Notably a ONE-iteration map still
+      // `sync spacs process` build. Notably a ONE-iteration map still
       // merges to a one-element array per port rather than a bare scalar.
       const rows = await runSpacTimelineIssuers({
         ciks,

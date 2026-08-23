@@ -33,6 +33,16 @@ wire it into `test.yml` in the change that gets the count to zero.
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
+A sync leaf with more than one step is a command GROUP, not a command with a
+`--step` flag: `sec sync spacs` lists `all | identify | process`, `sec sync
+spacs all` is the whole leaf and `sec sync spacs identify` is one step. `sec
+sync all` runs every `inAll` leaf and is exactly each leaf's own `all`. A
+single-step leaf stays a plain command — `sec sync facts all` would only be a
+longer way to say `sec sync facts`. The group itself has no action, so asking
+what it contains needs no configured database; a leaf declaring `runAll`
+(see `SyncLeaf`) runs its steps as ONE task graph rather than one per step,
+which is what keeps a multi-step leaf a single run in the progress UI.
+
 Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
 `use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. Finding no stubs is reported but does **not** skip the rebuild: `dist/` is gitignored, so "no stubs" most often means it was deleted, and returning early left the developer with "already in dist mode", no dist at all, and nothing saying why the build never ran. `prepack-check` fails if any stub is still present.
@@ -1548,7 +1558,7 @@ AI cost and no version bump. Tables carrying the old key: `addresses`,
 
 ```bash
 sec db setup                       # relaxes the NOT NULL (see below)
-sec sync submissions --step submissions
+sec sync submissions submissions
 for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
 sec resolve --kind person  --all
 sec resolve --kind company --all
@@ -1946,8 +1956,17 @@ so a replay under an older extractor version still validates. Adding them is a
 ```bash
 sec version start-dev extractor merger-proxy --minor
 sec version promote extractor merger-proxy
-sec extractor backfill merger-proxy
+sec extractor backfill merger-proxy --force
 ```
+
+`--force` is **required** here and is not the usual belt-and-braces. The
+merger-proxy descriptor REPLACES the default extractor-runs anti-join rather
+than widening it (it has to: the known-SPAC gate records a successful no-op
+run), so its `filterTodo` selects only proxies with no extraction row and the
+general definitive proxies whose approval verdict is still NULL. A version bump
+moves nothing into either set, so without `--force` the ceremony reports
+`processed 0` and every already-extracted proxy keeps a null `equity_value` /
+`enterprise_value` forever — a recovery that silently does nothing.
 
 #### Which statements emit the `proxy` event
 
@@ -2180,8 +2199,8 @@ alone** — no document fetches — so a usable list exists the moment submissio
 are ingested, and so the forms sweep has a worklist to aim at.
 
 ```bash
-sec sync spacs --step identify                        # incremental: CIKs whose submissions changed
-sec sync spacs --step identify --full                 # rescan every entity
+sec sync spacs identify                               # incremental: CIKs whose submissions changed
+sec sync spacs identify --full                        # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
 sec spac download registration [--confidence high,medium] [--force]
 sec spac download 8k
@@ -2785,6 +2804,115 @@ truncated file into place. Two consequences worth knowing:
   reported as a hit holding nothing — read downstream as "the document was
   empty" rather than "no entry", so the fetch was skipped and the caller parsed
   nothing.
+
+#### EDGAR's rate-limit block renews itself
+
+Exceeding EDGAR's 10 req/s serves an HTML interstitial ("Your request rate has
+exceeded the SEC's maximum allowable requests per second. Your access to SEC.gov
+will be limited for 10 minutes.") under **429 and, per SEC's own guidance, 403**.
+SEC states that requests made **during** the time-out extend it, so a client that
+keeps firing does not merely lose those requests: it renews the ban. That is what
+made this recur rather than pass, and the block is IP-wide — a captured 429 shows
+an ordinary browser on the same IP being refused mid-sweep.
+
+The **429 path alone was sufficient** to sustain it, and that is the half worth
+understanding first. A 429 was already retryable and did arm the cluster
+cooldown, so it looked handled; but the cooldown was 60s against a 600-second
+penalty, and each of the up-to-`SEC_FETCH_MAX_CONCURRENT` in-flight jobs then
+retried on its own ≤30s backoff — every one of those a fresh violation inside a
+live window. The cluster then resumed at full rate nine minutes early. The 403
+handling below is real hardening, not the load-bearing fix.
+
+Captured 429s carry **no `Retry-After`** and an empty reason phrase (HTTP/2
+carries none), so the cooldown policy is the only thing sizing the wait.
+
+**The first trip is not a ban, and is not treated as one.** EDGAR throttles the
+offending requests when a burst clears 10 req/s and escalates to the ~10-minute
+IP block only if the caller keeps pushing — and the budget is per IP, so an
+ordinary browser tab on the same address spends from it too. A flat ten minutes
+on the first 429 therefore stops the CLI dead over a condition a few seconds of
+quiet clears. `COOLDOWN_LADDER_MS` (`5s → 60s → 600s`) probes instead: back off
+briefly, and conclude we are genuinely banned only once a retry AFTER that pause
+is blocked again. Three rungs reach the full penalty after ~65s, which is the
+trade — each probe costs a round of requests and requests sent during a real ban
+extend it, so more rungs are gentler on a false alarm and worse on a true one.
+
+Two properties that policy depends on:
+
+- **A fleet blocking at once is ONE trip.** Every in-flight job sees the same
+  block and reports it, so escalating per caller would climb
+  `SEC_FETCH_MAX_CONCURRENT` rungs on the first overshoot and land on ten
+  minutes immediately — the exact behavior the ladder exists to avoid. A block
+  arriving while the cooldown is still in force is that same trip: the caller
+  gets the REMAINING time and the ladder does not move. Only a block that
+  survives a completed cooldown is new evidence.
+- **The quiet period that resets the ladder is anchored on the END of the last
+  cooldown**, not the block that caused it, so waiting out a full ban is not
+  itself counted as the clean run that earns a reset.
+- **The cluster pause only ever moves FORWARD.** The rung is process state while
+  the sentinel is cluster state, and the storage write is last-writer-wins, so a
+  second shard meeting the same block at rung 0 would otherwise replace another
+  shard's 600s pause with its own 5s one and resume the whole cluster nine
+  minutes inside a live ban. `signalSecFetchThrottle` reads the current
+  next-available time first, skips the write when it is already later, and
+  returns that longer remaining time as this job's own wait — a shard that
+  re-fires early is the ban-renewing behavior, whichever shard's ladder set it.
+  A `Retry-After: 0` ("retry now") is not a block: it climbs no rung and arms no
+  window, which also keeps a fleet handed one from climbing a rung per job.
+
+`translateEdgarBlockResponse` deliberately synthesizes **no** `Retry-After`.
+EDGAR's ten-minute figure describes the ban it escalates to, not the first
+overshoot, so stating it would hand every first trip a ten-minute wait and
+bypass the ladder entirely.
+
+Three things close the loop, separate fixes for separate halves:
+
+- **`translateEdgarBlockResponse`** (`edgarBlockResponse.ts`, installed onto
+  SafeFetch by `getSecJobQueue`) re-labels the interstitial as the `429` it
+  describes — and, as above, states no `Retry-After`, so the ladder rather than
+  EDGAR's ban figure sizes the first wait. It belongs at the transport seam because
+  the status is the only thing the fetch layer carries forward — `buildHttpError`
+  reads a `{message}` out of a JSON body and discards everything else, so an
+  origin explaining itself in HTML loses its reason before any caller sees it.
+  Translating there means nothing downstream needs a second notion of "blocked".
+  It is narrow on purpose: sec.gov only, `403` only, and only when the body
+  matches. The **other** 403 EDGAR serves — the "Undeclared Automated Tool"
+  User-Agent rejection — shares a headline with it but not the rate sentence, and
+  must keep failing fast, since no cooldown fixes a misconfigured `SEC_USER_AGENT`.
+- **The cooldown is signalled before the retry decision, not after it.** A block
+  landing on a job's last attempt is the same evidence about the cluster as any
+  other, and under a sustained block that is most of them — every in-flight job
+  exhausts its attempts at once. Deciding the job's own fate first meant the
+  cluster learned nothing from precisely the jobs that saw the block most clearly.
+- **A blocked job sleeps the applied cooldown.** The cluster sentinel gates
+  DISPATCH, and a job that already started never re-consults the limiter, so the
+  ordinary backoff put all `SEC_FETCH_MAX_CONCURRENT` in-flight requests back on
+  the wire inside the penalty window. Sleeping it out costs nothing
+  that was available anyway: no other fetch can start during the cooldown.
+
+**A concurrency bound is not a rate bound**, and that is the other half.
+`ConcurrencyLimiter(SecFetchMaxConcurrent)` sits first in the composite and holds
+its token until the job reaches a terminal state, so simultaneity really is
+capped — retries included. But 16 requests are fine spread over two seconds and a
+violation arriving in one tick, and a retry re-issues from inside the job,
+downstream of every limiter. A shared upstream failure is exactly the case that
+produces the tick: every in-flight job fails on the same event and computes the
+same delay. So `retrySpread()` adds a uniform spread over
+`ceil(maxConcurrent / maxPerSec) * 2` seconds to **every** retry, not just a
+blocked one — a transient 5xx burst otherwise re-issued 16 requests inside 500 ms
+(~32/s) and tripped the very block it was recovering from.
+
+Two details that pass a casual reading and were both wrong at first:
+
+- **`backoffDelay` is deterministic.** Jittering there _and_ in `retrySpread`
+  sums two independent uniforms, which concentrates the result toward the middle
+  instead of spreading it — measurably still over the ceiling in the densest
+  second. One uniform spread over a known window is the thing that can be
+  reasoned about.
+- **The cap is applied to the wait, then the spread is added** — never to the
+  sum. Capping the sum silently eats the spread whenever the base is already at
+  the ceiling, which is the default block case exactly (a 600s cooldown against a
+  600s cap), so the herd it exists to disperse woke in one tick anyway.
 
 `SecFetchJob` retries on 429/5xx/DNS/connect and per-attempt timeouts, but
 **only before the first byte reaches a stream receiver**. Past that point the

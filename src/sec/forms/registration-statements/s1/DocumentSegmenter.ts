@@ -143,7 +143,9 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
   // "Lock-Up Agreements" variants are the sub-heading filers use when they fold
   // the terms into Underwriting rather than giving them an Item 12 section.
   [S1_SECTIONS.LOCK_UP]: [
-    /^\s*shares eligible for future sale\s*$/i,
+    // One alternation, not two patterns: the bare "Shares Eligible for Future
+    // Sale" spelling this list used to state separately is already one of the
+    // branches here, so the separate pattern was a dead alternative.
     /^\s*(securities|shares|ordinary shares) eligible for future sale\s*$/i,
     /^\s*lock-?up agreements?\s*$/i,
     /^\s*lock-?up\s*$/i,

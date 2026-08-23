@@ -12,7 +12,7 @@ import {
 import { runWorkflowCli } from "../runWorkflow";
 
 /**
- * How many ISSUERS one `spac process` / `sync spacs --step process` process
+ * How many ISSUERS one `spac process` / `sync spacs process` process
  * replays at once. Filings within an issuer stay serial — that ordering is
  * what makes the timeline correct.
  */

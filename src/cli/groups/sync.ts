@@ -37,33 +37,27 @@ function contextFromAllOpts(opts: AllSyncOpts): SyncRunContext {
   };
 }
 
-function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
-  if (leaf.id === "forms") {
-    sync
-      .command("forms <types>")
-      .description(leaf.description)
-      .option(
-        "--shard <i/N>",
-        "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
-      )
-      .action(async (types: string, opts: { shard?: string }) => {
-        await runCommand(async () => {
-          const formTypes = types.split(",");
-          const shard = parseShardOption(opts.shard);
-          await runSyncLeaves(["forms"], { ...EMPTY_SYNC_CONTEXT, shard, formTypes }, undefined);
-        });
-      });
-    return;
-  }
+/** Options any leaf command may carry; each leaf uses the subset it declares. */
+interface LeafOpts {
+  readonly force?: boolean;
+  readonly retryFailed?: boolean;
+  readonly from?: string;
+  readonly lookback?: number;
+  readonly full?: boolean;
+  readonly shard?: string;
+  readonly only?: ReturnType<typeof parseSpacProcessOnly>;
+  readonly concurrency?: number;
+}
 
-  const cmd = sync.command(leaf.id).description(leaf.description);
-
-  if (leaf.steps.length > 1) {
-    const names = leaf.steps.map((step) => step.id).join(" | ");
-    cmd.option("--step <name>", `Run only this step (${names})`);
-  }
-
-  if (leaf.id === "submissions") {
+/**
+ * Declares a leaf's options on one command.
+ *
+ * Applied per subcommand rather than once on the group: commander does not
+ * hand a parent's options to a subcommand's action, so a `--shard` declared on
+ * the group would parse and then be dropped on the floor.
+ */
+function applyLeafOptions(cmd: Command, leafId: string): Command {
+  if (leafId === "submissions") {
     cmd
       .option("--force", "Reprocess submissions, ignoring processed state", false)
       .option(
@@ -73,13 +67,13 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
       .option("--lookback <n>", "Completed days to re-fetch (default 3)", parseIntOption, 3);
   }
 
-  if (leaf.id === "facts") {
+  if (leafId === "facts") {
     cmd
       .option("--force", "Reprocess all items, ignoring processed state", false)
       .option("--retry-failed", "Also re-fetch CIKs whose last facts processing failed", false);
   }
 
-  if (leaf.id === "spacs") {
+  if (leafId === "spacs") {
     cmd
       .option(
         "--full",
@@ -103,62 +97,101 @@ function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
       );
   }
 
-  if (leaf.id === "portals" || leaf.id === "crowdfunding" || leaf.id === "reg-a") {
+  if (leafId === "portals" || leafId === "crowdfunding" || leafId === "reg-a") {
     cmd.option(
       "--shard <i/N>",
       "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
     );
   }
 
-  cmd.action(
-    async (opts: {
-      step?: string;
-      force?: boolean;
-      retryFailed?: boolean;
-      from?: string;
-      lookback?: number;
-      full?: boolean;
-      shard?: string;
-      only?: ReturnType<typeof parseSpacProcessOnly>;
-      concurrency?: number;
-    }) => {
-      await runCommand(
-        async () => {
-          const shard = parseShardOption(opts.shard);
-          let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
+  return cmd;
+}
 
-          if (leaf.id === "submissions") {
-            ctx = {
-              ...ctx,
-              force: opts.force ?? false,
-              from: opts.from,
-              lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
-            };
-          }
+/** Runs a leaf, or one step of it, under the options that command declared. */
+async function runLeaf(leaf: SyncLeaf, opts: LeafOpts, stepId: string | undefined): Promise<void> {
+  await runCommand(
+    async () => {
+      const shard = parseShardOption(opts.shard);
+      let ctx: SyncRunContext = { ...EMPTY_SYNC_CONTEXT, shard };
 
-          if (leaf.id === "facts") {
-            ctx = {
-              ...ctx,
-              force: opts.force ?? false,
-              retryFailed: opts.retryFailed ?? false,
-            };
-          }
+      if (leaf.id === "submissions") {
+        ctx = {
+          ...ctx,
+          force: opts.force ?? false,
+          from: opts.from,
+          lookback: validateLookback(opts.lookback ?? EMPTY_SYNC_CONTEXT.lookback),
+        };
+      }
 
-          if (leaf.id === "spacs") {
-            ctx = {
-              ...ctx,
-              full: opts.full ?? false,
-              only: opts.only,
-              concurrency: Math.max(1, opts.concurrency ?? DEFAULT_SPAC_ISSUER_CONCURRENCY),
-            };
-          }
+      if (leaf.id === "facts") {
+        ctx = { ...ctx, force: opts.force ?? false, retryFailed: opts.retryFailed ?? false };
+      }
 
-          await runSyncLeaves([leaf.id], ctx, opts.step);
-        },
-        leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined
-      );
-    }
+      if (leaf.id === "spacs") {
+        ctx = {
+          ...ctx,
+          full: opts.full ?? false,
+          only: opts.only,
+          concurrency: Math.max(1, opts.concurrency ?? DEFAULT_SPAC_ISSUER_CONCURRENCY),
+        };
+      }
+
+      await runSyncLeaves([leaf.id], ctx, stepId);
+    },
+    leaf.id === "submissions" || leaf.id === "facts" ? { force: opts.force } : undefined
   );
+}
+
+function addOneLeafCommand(sync: Command, leaf: SyncLeaf): void {
+  if (leaf.id === "forms") {
+    sync
+      .command("forms <types>")
+      .description(leaf.description)
+      .option(
+        "--shard <i/N>",
+        "Process only shard i of N (1-based) — run N processes with distinct shards to fan out across cores"
+      )
+      .action(async (types: string, opts: { shard?: string }) => {
+        await runCommand(async () => {
+          const formTypes = types.split(",");
+          const shard = parseShardOption(opts.shard);
+          await runSyncLeaves(["forms"], { ...EMPTY_SYNC_CONTEXT, shard, formTypes }, undefined);
+        });
+      });
+    return;
+  }
+
+  const cmd = sync.command(leaf.id).description(leaf.description);
+
+  // A single-step leaf is its own command: there is nothing to choose between,
+  // so `sync quotes all` would only be a longer way to say `sync quotes`.
+  if (leaf.steps.length <= 1) {
+    applyLeafOptions(cmd, leaf.id);
+    cmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, undefined));
+    return;
+  }
+
+  // A multi-step leaf is a group: `all` runs the leaf, and each step runs
+  // alone. That replaces `--step <name>`, which hid the choices behind
+  // `--help` and could not be completed by a shell.
+  const all = cmd.command("all").description(`Run every ${leaf.id} step in order`);
+  applyLeafOptions(all, leaf.id);
+  all.action(async (opts: LeafOpts) => runLeaf(leaf, opts, undefined));
+
+  for (const step of leaf.steps) {
+    const stepCmd = cmd.command(step.id).description(step.title);
+    // Every step takes the leaf's options: they configure the leaf's work, and
+    // which part of it is running does not change what `--shard` or `--force`
+    // mean.
+    applyLeafOptions(stepCmd, leaf.id);
+    stepCmd.action(async (opts: LeafOpts) => runLeaf(leaf, opts, step.id));
+  }
+
+  // Deliberately no action on the group. Bare `sync spacs` names a group
+  // rather than a job, and commander answers a missing subcommand with the
+  // command's help — which is the listing we want, and which an action would
+  // instead route through the CLI's preAction hook, demanding configuration to
+  // print a help screen.
 }
 
 export function addSyncLeafCommands(program: Command): void {
