@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSyncLeavesForTesting,
   EMPTY_SYNC_CONTEXT,
@@ -153,5 +153,49 @@ describe("runSyncLeaves", () => {
     await expect(runSyncLeaves(["missing"], ctx, undefined)).rejects.toThrow(
       /Unknown sync leaf 'missing'/
     );
+  });
+});
+
+describe("runSyncLeaves runAll", () => {
+  afterEach(() => {
+    clearSyncLeavesForTesting();
+  });
+
+  it("runs a leaf as one unit when no step narrows it", async () => {
+    const calls: string[] = [];
+    registerSyncLeaf({
+      id: "batched",
+      description: "test",
+      order: 1,
+      inAll: true,
+      steps: [
+        { id: "a", title: "A", run: async () => void calls.push("step:a") },
+        { id: "b", title: "B", run: async () => void calls.push("step:b") },
+      ],
+      runAll: async () => void calls.push("all"),
+    });
+
+    await runSyncLeaves(["batched"], EMPTY_SYNC_CONTEXT, undefined);
+    // One call, so one task graph — which is what a watching console renders as
+    // a single run instead of one run per step replacing the last.
+    expect(calls).toEqual(["all"]);
+  });
+
+  it("still runs the one step a --step names, not the whole leaf", async () => {
+    const calls: string[] = [];
+    registerSyncLeaf({
+      id: "batched",
+      description: "test",
+      order: 1,
+      inAll: true,
+      steps: [
+        { id: "a", title: "A", run: async () => void calls.push("step:a") },
+        { id: "b", title: "B", run: async () => void calls.push("step:b") },
+      ],
+      runAll: async () => void calls.push("all"),
+    });
+
+    await runSyncLeaves(["batched"], EMPTY_SYNC_CONTEXT, "b");
+    expect(calls).toEqual(["step:b"]);
   });
 });
