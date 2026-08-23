@@ -1956,8 +1956,17 @@ so a replay under an older extractor version still validates. Adding them is a
 ```bash
 sec version start-dev extractor merger-proxy --minor
 sec version promote extractor merger-proxy
-sec extractor backfill merger-proxy
+sec extractor backfill merger-proxy --force
 ```
+
+`--force` is **required** here and is not the usual belt-and-braces. The
+merger-proxy descriptor REPLACES the default extractor-runs anti-join rather
+than widening it (it has to: the known-SPAC gate records a successful no-op
+run), so its `filterTodo` selects only proxies with no extraction row and the
+general definitive proxies whose approval verdict is still NULL. A version bump
+moves nothing into either set, so without `--force` the ceremony reports
+`processed 0` and every already-extracted proxy keeps a null `equity_value` /
+`enterprise_value` forever — a recovery that silently does nothing.
 
 #### Which statements emit the `proxy` event
 

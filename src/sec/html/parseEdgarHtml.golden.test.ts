@@ -26,6 +26,7 @@ const {
   PROSPECTUS_SUMMARY,
   EXECUTIVE_COMPENSATION,
   RISK_FACTORS,
+  LOCK_UP,
 } = S1_SECTIONS;
 const dir = join(importMetaDir, "mock_data", "s1");
 
@@ -64,6 +65,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_1507957_000143774926010088.htm": [
     PROSPECTUS_SUMMARY,
@@ -82,6 +84,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RISK_FACTORS,
     USE_OF_PROCEEDS,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_1563568_000143774926013504.htm": [
     PROSPECTUS_SUMMARY,
@@ -114,6 +117,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_1816017_000119312526173846.htm": [
     PROSPECTUS_SUMMARY,
@@ -171,6 +175,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_1853138_000162828026039200.htm": [
     PROSPECTUS_SUMMARY,
@@ -202,6 +207,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_1925283_000162828026027260.htm": [
     PROSPECTUS_SUMMARY,
@@ -212,6 +218,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2030954_000149315226027129.htm": [
     PROSPECTUS_SUMMARY,
@@ -220,6 +227,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     USE_OF_PROCEEDS,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2049662_000110465926079324.htm": [
     PROSPECTUS_SUMMARY,
@@ -242,6 +250,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2087989_000143774926019444.htm": [
     PROSPECTUS_SUMMARY,
@@ -261,6 +270,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2093507_000182912626003406.htm": [
     PROSPECTUS_SUMMARY,
@@ -272,6 +282,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2098410_000110465926086682.htm": [
     PROSPECTUS_SUMMARY,
@@ -284,6 +295,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2105318_000149315226031978.htm": [
     PROSPECTUS_SUMMARY,
@@ -306,6 +318,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2110119_000121390026072712.htm": [
     PROSPECTUS_SUMMARY,
@@ -317,6 +330,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2113481_000121390026068811.htm": [
     PROSPECTUS_SUMMARY,
@@ -328,6 +342,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2114227_000121390026039320.htm": [
     PROSPECTUS_SUMMARY,
@@ -361,6 +376,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2123955_000121390026080433.htm": [
     PROSPECTUS_SUMMARY,
@@ -383,6 +399,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2131350_000119312526294964.htm": [
     PROSPECTUS_SUMMARY,
@@ -394,6 +411,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2133239_000192998026000317.htm": [
     PROSPECTUS_SUMMARY,
@@ -405,6 +423,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2134856_000182912626007847.htm": [
     PROSPECTUS_SUMMARY,
@@ -416,6 +435,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2135163_000182912626006553.htm": [
     PROSPECTUS_SUMMARY,
@@ -427,6 +447,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2136360_000213636026000003.htm": [
     PROSPECTUS_SUMMARY,
@@ -436,6 +457,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     BENEFICIAL_OWNERSHIP,
     RELATED_PARTY,
     UNDERWRITING,
+    LOCK_UP,
   ],
   "s1_2137679_000182912626006500.htm": [
     PROSPECTUS_SUMMARY,
@@ -447,6 +469,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     UNDERWRITING,
     EXECUTIVE_COMPENSATION,
+    LOCK_UP,
   ],
   "s1_2137965_000119312526308950.htm": [
     PROSPECTUS_SUMMARY,
@@ -480,6 +503,7 @@ const EXPECTED: Record<string, readonly S1SectionName[]> = {
     RELATED_PARTY,
     BENEFICIAL_OWNERSHIP,
     UNDERWRITING,
+    LOCK_UP,
   ],
 };
 
@@ -539,6 +563,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 12_900,
     [BENEFICIAL_OWNERSHIP]: 13_800,
     [UNDERWRITING]: 16_800,
+    [LOCK_UP]: 12_400,
   },
   "s1_1507957_000143774926010088.htm": {
     [PROSPECTUS_SUMMARY]: 6_800,
@@ -554,6 +579,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RISK_FACTORS]: 10_400,
     [USE_OF_PROCEEDS]: 1_900,
     [UNDERWRITING]: 5_100,
+    [LOCK_UP]: 2_200,
   },
   "s1_1563568_000143774926013504.htm": {
     [PROSPECTUS_SUMMARY]: 24_300,
@@ -577,6 +603,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 4_300,
     [BENEFICIAL_OWNERSHIP]: 4_200,
     [UNDERWRITING]: 4_100,
+    [LOCK_UP]: 11_600,
   },
   "s1_1816017_000119312526173846.htm": {
     [PROSPECTUS_SUMMARY]: 1_400,
@@ -627,6 +654,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 6_000,
     [UNDERWRITING]: 18_800,
     [EXECUTIVE_COMPENSATION]: 11_600,
+    [LOCK_UP]: 2_900,
   },
   "s1_1853138_000162828026039200.htm": {
     [PROSPECTUS_SUMMARY]: 21_200,
@@ -656,6 +684,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 5_800,
     [BENEFICIAL_OWNERSHIP]: 3_400,
     [UNDERWRITING]: 5_300,
+    [LOCK_UP]: 4_700,
   },
   "s1_1925283_000162828026027260.htm": {
     [PROSPECTUS_SUMMARY]: 49_700,
@@ -666,6 +695,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 22_800,
     [BENEFICIAL_OWNERSHIP]: 10_900,
     [UNDERWRITING]: 20_900,
+    [LOCK_UP]: 12_600,
   },
   "s1_2030954_000149315226027129.htm": {
     [PROSPECTUS_SUMMARY]: 3_900,
@@ -674,6 +704,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [USE_OF_PROCEEDS]: 1_100,
     [BENEFICIAL_OWNERSHIP]: 2_100,
     [UNDERWRITING]: 12_800,
+    [LOCK_UP]: 10_800,
   },
   "s1_2049662_000110465926079324.htm": {
     [PROSPECTUS_SUMMARY]: 48_200,
@@ -694,6 +725,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 9_400,
     [BENEFICIAL_OWNERSHIP]: 2_800,
     [UNDERWRITING]: 5_300,
+    [LOCK_UP]: 1_700,
   },
   "s1_2087989_000143774926019444.htm": {
     [PROSPECTUS_SUMMARY]: 9_900,
@@ -710,6 +742,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [BENEFICIAL_OWNERSHIP]: 1_800,
     [RELATED_PARTY]: 3_600,
     [UNDERWRITING]: 4_500,
+    [LOCK_UP]: 2_400,
   },
   "s1_2093507_000182912626003406.htm": {
     [PROSPECTUS_SUMMARY]: 30_300,
@@ -721,6 +754,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 5_900,
     [BENEFICIAL_OWNERSHIP]: 2_700,
     [UNDERWRITING]: 7_400,
+    [LOCK_UP]: 2_700,
   },
   "s1_2098410_000110465926086682.htm": {
     [PROSPECTUS_SUMMARY]: 42_000,
@@ -733,6 +767,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 8_800,
     [UNDERWRITING]: 23_400,
     [EXECUTIVE_COMPENSATION]: 19_300,
+    [LOCK_UP]: 22_100,
   },
   "s1_2105318_000149315226031978.htm": {
     [PROSPECTUS_SUMMARY]: 78_100,
@@ -755,6 +790,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 34_800,
     [BENEFICIAL_OWNERSHIP]: 9_800,
     [UNDERWRITING]: 24_300,
+    [LOCK_UP]: 12_600,
   },
   "s1_2110119_000121390026072712.htm": {
     [PROSPECTUS_SUMMARY]: 87_900,
@@ -766,6 +802,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 7_700,
     [UNDERWRITING]: 22_500,
     [EXECUTIVE_COMPENSATION]: 17_000,
+    [LOCK_UP]: 21_300,
   },
   "s1_2113481_000121390026068811.htm": {
     [PROSPECTUS_SUMMARY]: 101_200,
@@ -777,6 +814,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 6_600,
     [UNDERWRITING]: 24_000,
     [EXECUTIVE_COMPENSATION]: 17_200,
+    [LOCK_UP]: 22_700,
   },
   "s1_2114227_000121390026039320.htm": {
     [PROSPECTUS_SUMMARY]: 92_200,
@@ -809,6 +847,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [BENEFICIAL_OWNERSHIP]: 8_300,
     [UNDERWRITING]: 20_500,
     [EXECUTIVE_COMPENSATION]: 11_400,
+    [LOCK_UP]: 2_600,
   },
   "s1_2123955_000121390026080433.htm": {
     [PROSPECTUS_SUMMARY]: 39_200,
@@ -831,6 +870,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 7_400,
     [UNDERWRITING]: 9_500,
     [EXECUTIVE_COMPENSATION]: 16_600,
+    [LOCK_UP]: 5_700,
   },
   "s1_2131350_000119312526294964.htm": {
     [PROSPECTUS_SUMMARY]: 96_900,
@@ -852,6 +892,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [BENEFICIAL_OWNERSHIP]: 8_300,
     [UNDERWRITING]: 20_100,
     [EXECUTIVE_COMPENSATION]: 12_300,
+    [LOCK_UP]: 2_600,
   },
   "s1_2134856_000182912626007847.htm": {
     [PROSPECTUS_SUMMARY]: 70_700,
@@ -863,6 +904,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [BENEFICIAL_OWNERSHIP]: 8_400,
     [RELATED_PARTY]: 8_700,
     [UNDERWRITING]: 17_000,
+    [LOCK_UP]: 6_700,
   },
   "s1_2135163_000182912626006553.htm": {
     [PROSPECTUS_SUMMARY]: 30_000,
@@ -873,6 +915,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 4_400,
     [UNDERWRITING]: 18_800,
     [EXECUTIVE_COMPENSATION]: 15_800,
+    [LOCK_UP]: 2_900,
   },
   "s1_2136360_000213636026000003.htm": {
     [PROSPECTUS_SUMMARY]: 90_000,
@@ -882,6 +925,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [BENEFICIAL_OWNERSHIP]: 8_300,
     [RELATED_PARTY]: 7_700,
     [UNDERWRITING]: 22_100,
+    [LOCK_UP]: 20_900,
   },
   "s1_2137679_000182912626006500.htm": {
     [PROSPECTUS_SUMMARY]: 30_300,
@@ -892,6 +936,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 4_500,
     [UNDERWRITING]: 18_900,
     [EXECUTIVE_COMPENSATION]: 15_100,
+    [LOCK_UP]: 2_700,
   },
   "s1_2137965_000119312526308950.htm": {
     [PROSPECTUS_SUMMARY]: 76_400,
@@ -925,6 +970,7 @@ const MIN_SECTION_CHARS: Readonly<Record<string, Partial<Record<S1SectionName, n
     [RELATED_PARTY]: 6_700,
     [BENEFICIAL_OWNERSHIP]: 1_700,
     [UNDERWRITING]: 9_900,
+    [LOCK_UP]: 2_100,
   },
 };
 
