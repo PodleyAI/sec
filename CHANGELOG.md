@@ -1,5 +1,106 @@
 # Changelog
 
+## 0.0.29
+
+### Features
+
+- add registerSafeFetch function to exports and update tests
+
+#### sync
+
+- make a leaf's steps subcommands instead of a --step flag
+- let a leaf run its steps as one task graph
+
+#### cli
+
+- serve the web console over sec's own command tree
+
+#### spac
+
+- enhance ProcessSpacTimelineTask to handle gated filings
+- enhance SPAC processing with new command options and improved handling
+
+#### sec
+
+- implement global setup for S-1 corpus tests
+- eval --models deterministic runs the sync walk
+- take the section walk from the model list
+- one-shot the deterministic walk at its list index
+- dispatch deterministic slots inside modelExtractChain
+- register deterministic as a reserved model id
+
+#### eval
+
+- add management, related-party, spac sponsors, spac profile, and spac classification evaluation commands
+- add beneficial ownership evaluation command and reporting
+- add use-of-proceeds and executive-compensation evaluation commands
+- introduce underwriters evaluation command and reporting
+- add offering tables evaluation command and report
+
+### Bug Fixes
+
+- a deterministic pass may not preempt what it cannot supply
+
+#### s1
+
+- stop the lock-up section truncating Underwriting, and regold
+- a deterministic pass may not preempt what it cannot supply
+- do not treat mixed outstanding-before shares as the founder promote
+
+#### cli
+
+- let the console name the binary it is actually serving
+- run every command through withCli, not just TTY ones
+
+#### spac
+
+- require approval evidence before a general definitive proxy emits a proxy event
+- make sec spac process reach a fixpoint
+
+### Refactors
+
+- remove eightKItems from forms sweep logic
+
+#### sec
+
+- remove redundant clears from form processing logic
+- streamline parser evaluation and reporting interfaces
+
+#### spac
+
+- enhance SPAC process handling with new sweeps and improved CIK management
+
+### Tests
+
+#### sec
+
+- opt storage tests into the deterministic walk
+
+### Documentation
+
+#### spac
+
+- update CLAUDE.md with SPAC classification details
+
+#### sec
+
+- align the model id-shape table for prettier
+- deterministic is an opt-in model-list slot
+
+### Chores
+
+- audit fix
+- update deps
+- update bun type deps
+- restore prettier formatting in src/index.ts
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.3.49
+- `typebox`: 1.3.17
+- `workglow`: 0.3.49
+- `@types/bun`: 1.4.0
+
 ## 0.0.28
 
 ### Bug Fixes
