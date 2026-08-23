@@ -8,6 +8,7 @@ import { parseNumeric } from "../../../html/parseNumeric";
 import { hasCompanyEnding } from "../../../../storage/company/CompanyNormalization";
 import { normalizeManagementTitles } from "./normalizeTitle";
 import { isCollectivePartyName, isCompensationPositionLabel } from "./sectionExtractors";
+import { isOverlongPersonName } from "../../../../util/personNameBounds";
 import type { ManagementPersonRow } from "./sectionSchemas";
 import {
   cleanCell,
@@ -163,6 +164,7 @@ function isSkipName(name: string): boolean {
   if (/^[·•●▪▫]/.test(name)) return true;
   if (/:\s*$/.test(name)) return true;
   if (isCollectivePartyName(name)) return true;
+  if (isOverlongPersonName(name)) return true;
   if (isCompensationPositionLabel(name)) return true;
   if (/^all\b/i.test(name) && /\b(directors?|officers?|nominees?)\b/i.test(name)) return true;
   return /table of contents|directors and executive|executive officers|named executive|principal occupation/i.test(

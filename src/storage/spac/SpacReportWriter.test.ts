@@ -56,6 +56,21 @@ describe("SpacReportWriter", () => {
     expect(row?.spac_name).toBe("Foo SPAC"); // merged, not clobbered by the IPO filing
   });
 
+  it("stores cleaned unique spac_tickers from dirty IPO input", async () => {
+    await writer.recordIpo({
+      cik: 88,
+      accession_number: "0000-ipo-clean",
+      filing_date: "2021-01-15",
+      form: "424B4",
+      primary_document: "424.htm",
+      ipo_proceeds: 100,
+      trust_amount: 100,
+      spac_tickers: ["(CMAQ)", "NASDAQ:CMAQ", "NONE"],
+    });
+    const row = await repo.getSpac(88);
+    expect(JSON.parse(row!.spac_tickers!)).toEqual(["CMAQ"]);
+  });
+
   it("an out-of-order older registration replay does not regress the row", async () => {
     await writer.recordIpo({
       cik: 6,
