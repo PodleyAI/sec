@@ -18,6 +18,7 @@ import { ITEM_MAPPED_EVENT_TYPES } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
 import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
 import { EntityRepo } from "../entity/EntityRepo";
+import { cleanListedTickers } from "../../util/listedTicker";
 import { AsyncMutex } from "../../util/AsyncMutex";
 
 /**
@@ -243,10 +244,10 @@ export class SpacReportWriter {
       await this.rebuild(args.cik, args.filing_date, `${args.form}:${args.accession_number}`, {
         ipo_proceeds: args.ipo_proceeds,
         trust_amount: args.trust_amount,
-        spac_tickers:
-          args.spac_tickers && args.spac_tickers.length > 0
-            ? JSON.stringify(args.spac_tickers)
-            : null,
+        spac_tickers: (() => {
+          const tickers = args.spac_tickers ? cleanListedTickers(args.spac_tickers) : [];
+          return tickers.length > 0 ? JSON.stringify(tickers) : null;
+        })(),
       });
     });
   }

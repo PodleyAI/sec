@@ -211,6 +211,7 @@ export { normalizePhone } from "./storage/phone/PhoneNormalization";
 export { streamMatchingRows } from "./cli/queries/_streamMatches";
 export { TypeSecCik } from "./sec/submissions/EnititySubmissionSchema";
 export { isBadPersonField } from "./types/edgar/bad-data";
+export { cleanListedTickers, normalizeListedTicker } from "./util/listedTicker";
 export { KeyedMutex } from "./util/KeyedMutex";
 export { parseCikSafely as parseCik } from "./util/parseCik";
 export { TypeNullable } from "./util/TypeBoxUtil";
