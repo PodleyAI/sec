@@ -142,7 +142,7 @@ describe("runSyncLeaves", () => {
     registerSyncLeaf(makeLeaf("multi", [makeStep("one"), makeStep("two"), makeStep("three")]));
 
     await expect(runSyncLeaves(["multi"], ctx, "nope")).rejects.toThrow(
-      /Unknown --step 'nope' for sync multi/
+      /Unknown step 'nope' for sync multi/
     );
     await expect(runSyncLeaves(["multi"], ctx, "nope")).rejects.toThrow(/one, two, three/);
   });
@@ -181,7 +181,7 @@ describe("runSyncLeaves runAll", () => {
     expect(calls).toEqual(["all"]);
   });
 
-  it("still runs the one step a --step names, not the whole leaf", async () => {
+  it("still runs the one step a subcommand names, not the whole leaf", async () => {
     const calls: string[] = [];
     registerSyncLeaf({
       id: "batched",
@@ -197,5 +197,38 @@ describe("runSyncLeaves runAll", () => {
 
     await runSyncLeaves(["batched"], EMPTY_SYNC_CONTEXT, "b");
     expect(calls).toEqual(["step:b"]);
+  });
+});
+
+describe("sync all and sync <leaf> all take the same path", () => {
+  afterEach(() => {
+    clearSyncLeavesForTesting();
+  });
+
+  it("runs each leaf exactly as its own `all` subcommand would", async () => {
+    const calls: string[] = [];
+    for (const id of ["one", "two"]) {
+      registerSyncLeaf({
+        id,
+        description: "test",
+        order: 1,
+        inAll: true,
+        steps: [
+          { id: "a", title: "A", run: async () => void calls.push(`${id}:step:a`) },
+          { id: "b", title: "B", run: async () => void calls.push(`${id}:step:b`) },
+        ],
+        runAll: async () => void calls.push(`${id}:all`),
+      });
+    }
+
+    // `sync all` walks every inAll leaf with no step, which is the same call
+    // `sync one all` makes for one leaf — so the sweep cannot drift from what
+    // running the leaves by hand does.
+    await runSyncLeaves(["one", "two"], EMPTY_SYNC_CONTEXT, undefined);
+    expect(calls).toEqual(["one:all", "two:all"]);
+
+    calls.length = 0;
+    await runSyncLeaves(["one"], EMPTY_SYNC_CONTEXT, undefined);
+    expect(calls).toEqual(["one:all"]);
   });
 });

@@ -35,9 +35,9 @@ export interface SyncLeaf {
   readonly inAll: boolean;
   readonly steps: readonly SyncStep[];
   /**
-   * Runs the whole leaf as one unit, used when no `--step` narrows it.
+   * Runs the whole leaf as one unit — what `sync <leaf> all` invokes.
    *
-   * Steps exist so `--step` can select one, and running them one at a time
+   * Steps exist so `sync <leaf> <step>` can select one, and running them one at a time
    * means one task graph each — so a leaf whose steps are really N tasks of a
    * single job reports as N separate runs, and a watching console sees the
    * first and then a new one replacing it. A leaf that can express itself as
@@ -103,7 +103,7 @@ export async function runSyncLeaves(
       steps = leaf.steps.filter((step) => step.id === stepId);
       if (steps.length === 0) {
         const validIds = leaf.steps.map((step) => step.id).join(", ");
-        throw new Error(`Unknown --step '${stepId}' for sync ${leaf.id}; valid: ${validIds}`);
+        throw new Error(`Unknown step '${stepId}' for sync ${leaf.id}; valid: ${validIds}`);
       }
     } else {
       steps = leaf.steps;

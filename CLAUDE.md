@@ -33,6 +33,16 @@ wire it into `test.yml` in the change that gets the count to zero.
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
+A sync leaf with more than one step is a command GROUP, not a command with a
+`--step` flag: `sec sync spacs` lists `all | identify | process`, `sec sync
+spacs all` is the whole leaf and `sec sync spacs identify` is one step. `sec
+sync all` runs every `inAll` leaf and is exactly each leaf's own `all`. A
+single-step leaf stays a plain command — `sec sync facts all` would only be a
+longer way to say `sec sync facts`. The group itself has no action, so asking
+what it contains needs no configured database; a leaf declaring `runAll`
+(see `SyncLeaf`) runs its steps as ONE task graph rather than one per step,
+which is what keeps a multi-step leaf a single run in the progress UI.
+
 Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
 `use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. Finding no stubs is reported but does **not** skip the rebuild: `dist/` is gitignored, so "no stubs" most often means it was deleted, and returning early left the developer with "already in dist mode", no dist at all, and nothing saying why the build never ran. `prepack-check` fails if any stub is still present.
@@ -1548,7 +1558,7 @@ AI cost and no version bump. Tables carrying the old key: `addresses`,
 
 ```bash
 sec db setup                       # relaxes the NOT NULL (see below)
-sec sync submissions --step submissions
+sec sync submissions submissions
 for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
 sec resolve --kind person  --all
 sec resolve --kind company --all
@@ -2180,8 +2190,8 @@ alone** — no document fetches — so a usable list exists the moment submissio
 are ingested, and so the forms sweep has a worklist to aim at.
 
 ```bash
-sec sync spacs --step identify                        # incremental: CIKs whose submissions changed
-sec sync spacs --step identify --full                 # rescan every entity
+sec sync spacs identify                               # incremental: CIKs whose submissions changed
+sec sync spacs identify --full                        # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
 sec spac download registration [--confidence high,medium] [--force]
 sec spac download 8k
