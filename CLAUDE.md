@@ -2649,6 +2649,39 @@ EXISTS` is a no-op on an existing table and `createStorage` declares no
 Both seams, plus the observation/versioning/normalization internals a feature
 needs, are re-exported from the package barrel (`src/index.ts`).
 
+## `sec-base` — the Workglow CLI carrying sec's tasks
+
+The package ships two binaries. `sec` is the data pipeline: named commands over
+EDGAR. `sec-base` (`src/libs-cli.ts`) is the generic Workglow surface instead —
+`task`, `model`, `mcp`, `workflow`, `agent`, `credential`, `web` — with sec's
+tasks registered into the global `TaskRegistry`, so they are listable and
+runnable beside the built-in ones and appear in the web console.
+
+```bash
+sec-base task list                 # built-in tasks + sec's
+sec-base task detail QueryFilings  # its real input schema
+sec-base task run QueryFilings --input-json '{"cik":1018724}'
+sec-base web                       # the console over this command set
+```
+
+Its body is `runWorkglowCli` from `@workglow/cli`, not a copy: the boot
+sequence, the HuggingFace worker path and the command set stay owned by that
+package, and sec passes hooks.
+
+Two things this arrangement depends on:
+
+- **`bootstrapSecRuntime`** (`src/config/bootstrapSecRuntime.ts`) is the one
+  path that brings up sec's runtime — SQLite binding, DI, resolvers, models,
+  providers, started fetch queue. The `sec` CLI's `preAction` hook and
+  `sec-base` both call it. A second entrypoint booting some other way drifts
+  silently, and the failures are late and misleading (a task resolving no
+  model, a fetch with no rate limiter).
+- **`registerSecTasks`** (`src/config/registerTasks.ts`) is a **curated** list,
+  not every class under `src/task/`. Most of those are pipeline steps — bulk
+  writers, version ceremonies, per-filing store handlers — that mean nothing
+  invoked alone and would bury the readable entries in a hundred-row
+  `task list`. Add a task here when it answers a question on its own.
+
 ## Architecture
 
 ### Temporal design: history + current state
