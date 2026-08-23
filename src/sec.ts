@@ -13,6 +13,10 @@ import {
 } from "./index";
 
 program
+  // Set explicitly rather than left to commander's argv[1] inference: the web
+  // console renders it as the command line to run, so `dist/sec.js` or a
+  // `bun src/sec.ts` invocation must still say `sec`.
+  .name("sec")
   .version("2.0.0")
   .description("SEC EDGAR data pipeline — fetch, store, and query SEC filings");
 

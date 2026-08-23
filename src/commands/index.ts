@@ -115,5 +115,11 @@ export const AddCommands = (program: Command): void => {
   addEvalCommands(program);
   // The console over sec's own tree: `registerWebCommand` reads the commands
   // registered above off the live program, so nothing here has to be restated.
-  registerWebCommand(program, { binaryName: "sec" });
+  //
+  // The binary name is deliberately NOT pinned to "sec". A superset calls this
+  // to inherit the whole SEC surface — embarc-data does — and a pinned name
+  // made its console render every command line as `sec …` for a binary that is
+  // not sec. `registerWebCommand` falls back to `program.name()`, which each
+  // entrypoint sets for itself.
+  registerWebCommand(program);
 };
