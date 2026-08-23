@@ -18,9 +18,9 @@ export function joinedPersonName(
   last: string | null | undefined,
   suffix: string | null | undefined = undefined
 ): string {
-  return [first, middle, last, suffix].filter((part) => typeof part === "string" && part !== "").join(
-    " "
-  );
+  return [first, middle, last, suffix]
+    .filter((part) => typeof part === "string" && part !== "")
+    .join(" ");
 }
 
 /** True when a name would overflow the leader-slug column. */

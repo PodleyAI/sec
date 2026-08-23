@@ -240,7 +240,12 @@ describe("processFormS1 offering terms", () => {
         source_span: "5,000,000 shares",
         tickers: [
           { ticker: "(CMAQ)", exchange: "NASDAQ", security_type: "Common Stock", is_primary: true },
-          { ticker: "NASDAQ:CMAQ", exchange: "NASDAQ", security_type: "Common Stock", is_primary: false },
+          {
+            ticker: "NASDAQ:CMAQ",
+            exchange: "NASDAQ",
+            security_type: "Common Stock",
+            is_primary: false,
+          },
         ],
       },
       { underwriters: [] },

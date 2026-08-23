@@ -5,11 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  isOverlongPersonName,
-  joinedPersonName,
-  MAX_PERSON_NAME_CHARS,
-} from "./personNameBounds";
+import { isOverlongPersonName, joinedPersonName, MAX_PERSON_NAME_CHARS } from "./personNameBounds";
 
 describe("isOverlongPersonName", () => {
   it("keeps a name at the leader-slug cap", () => {
