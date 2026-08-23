@@ -28,6 +28,8 @@ const deal = (cik: number, deal_index: number, overrides: Partial<SpacDeal> = {}
   proxy_date: null,
   vote_date: null,
   pipe_amount: null,
+  equity_value: null,
+  enterprise_value: null,
   redemption_amount: null,
   redemption_shares: null,
   outcome: "pending",

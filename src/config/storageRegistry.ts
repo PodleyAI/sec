@@ -241,6 +241,11 @@ import {
   SpacPromoteTermsSchema,
 } from "../storage/offering/SpacPromoteTermsSchema";
 import {
+  SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
+  SpacLockupTermsPrimaryKeyNames,
+  SpacLockupTermsSchema,
+} from "../storage/offering/SpacLockupTermsSchema";
+import {
   ISSUER_TICKER_REPOSITORY_TOKEN,
   IssuerTickerPrimaryKeyNames,
   IssuerTickerSchema,
@@ -1101,6 +1106,13 @@ export const SEC_STORAGE_REGISTRY: readonly StorageDefinition[] = [
     table: "spac_promote_terms",
     schema: SpacPromoteTermsSchema,
     primaryKeyNames: SpacPromoteTermsPrimaryKeyNames,
+    indexes: [["cik"]],
+  }),
+  defineStorage({
+    token: SPAC_LOCKUP_TERMS_REPOSITORY_TOKEN,
+    table: "spac_lockup_terms",
+    schema: SpacLockupTermsSchema,
+    primaryKeyNames: SpacLockupTermsPrimaryKeyNames,
     indexes: [["cik"]],
   }),
   defineStorage({

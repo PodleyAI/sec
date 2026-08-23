@@ -69,6 +69,9 @@ interface DealSkeleton {
   target_cik: number | null;
   target_description: string | null;
   pipe_amount: number | null;
+  /** Announced deal values, correlated from the proxy — see `SpacMergerExtractionSchema`. */
+  equity_value: number | null;
+  enterprise_value: number | null;
   // Columns derived by correlating redemption extractions (below).
   redemption_amount: number | null;
   redemption_shares: number | null;
@@ -141,6 +144,8 @@ export function deriveDeals(
       target_name: null,
       target_cik: null,
       target_description: null,
+      equity_value: null,
+      enterprise_value: null,
       pipe_amount: null,
       redemption_amount: null,
       redemption_shares: null,
@@ -270,6 +275,8 @@ export function deriveDeals(
       if (m.target_cik != null) d.target_cik = m.target_cik;
       if (m.target_description != null) d.target_description = m.target_description;
       if (m.pipe_amount != null) d.pipe_amount = m.pipe_amount;
+      if (m.equity_value != null) d.equity_value = m.equity_value;
+      if (m.enterprise_value != null) d.enterprise_value = m.enterprise_value;
     }
   }
 
@@ -314,6 +321,8 @@ export function deriveDeals(
     target_cik: s.target_cik,
     target_description: s.target_description,
     pipe_amount: s.pipe_amount,
+    equity_value: s.equity_value,
+    enterprise_value: s.enterprise_value,
     // proxy_date: derived from the proxy event in the walk.
     proxy_date: s.proxy_date,
     // Columns derived from correlated redemption extractions.

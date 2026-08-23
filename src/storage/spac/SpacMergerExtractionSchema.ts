@@ -30,6 +30,19 @@ export const SpacMergerExtractionSchema = Type.Object({
     Type.String({ maxLength: 4000, description: "Target company description" })
   ),
   pipe_amount: TypeNullable(Type.Number()),
+  /**
+   * The deal values the proxy ANNOUNCES, in whole dollars. Correlated onto the
+   * matching `spac_deal` by `deriveDeals`, alongside `target_*` / `pipe_amount`.
+   *
+   * These are what let a completed combination be valued on an `acquired`
+   * basis: the market cannot price a target that was never listed, and its book
+   * equity is the accounting of a private company rather than what was paid for
+   * it. A figure the model wrote in the units of its own sentence is rejected at
+   * extraction (`dealValueScale`) rather than stored, so a null here means "the
+   * proxy stated no usable figure", never "the figure was a million times off".
+   */
+  equity_value: TypeNullable(Type.Number()),
+  enterprise_value: TypeNullable(Type.Number()),
   merger_consideration: TypeNullable(Type.String({ maxLength: 2000 })),
   confidence: Type.Number(),
   source_span: TypeNullable(Type.String({ maxLength: 2000 })),

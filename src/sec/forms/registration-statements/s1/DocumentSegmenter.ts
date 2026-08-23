@@ -17,6 +17,10 @@ export const S1_SECTIONS = {
   THE_SPONSOR: "The Sponsor",
   EXECUTIVE_COMPENSATION: "Executive Compensation",
   RISK_FACTORS: "Risk Factors",
+  // Item 12's resale block, where the lock-up terms are stated. Filers who omit
+  // the Item 12 heading state the underwriter lock-up in Underwriting instead,
+  // which is why the lock-up extractor falls back to that section's text.
+  LOCK_UP: "Shares Eligible for Future Sale",
   // SPAC business/summary prose feeding the profile extractor (focus, focus
   // location, description, website).
   PROSPECTUS_SUMMARY: "Prospectus Summary",
@@ -132,6 +136,19 @@ export const SECTION_HEADING_PATTERNS: Readonly<Record<S1SectionName, readonly R
     /^\s*item\s*1a\.?\s*[-–—.]?\s*risk factors\s*$/i,
     /^\s*certain risk factors\s*$/i,
     /^\s*summary of risk factors\s*$/i,
+  ],
+  // Measured over the 42 committed S-1 fixtures: 14 carry an Item 12 "Shares
+  // Eligible for Future Sale" heading and 32 disclose a lock-up somewhere, so a
+  // dedicated heading is worth having AND cannot be the only way in. The
+  // "Lock-Up Agreements" variants are the sub-heading filers use when they fold
+  // the terms into Underwriting rather than giving them an Item 12 section.
+  [S1_SECTIONS.LOCK_UP]: [
+    // One alternation, not two patterns: the bare "Shares Eligible for Future
+    // Sale" spelling this list used to state separately is already one of the
+    // branches here, so the separate pattern was a dead alternative.
+    /^\s*(securities|shares|ordinary shares) eligible for future sale\s*$/i,
+    /^\s*lock-?up agreements?\s*$/i,
+    /^\s*lock-?up\s*$/i,
   ],
   // Whole-line anchoring keeps these from matching "Summary Financial Data",
   // "Summary of the Offering", etc.; the segmenter keeps the longest-body

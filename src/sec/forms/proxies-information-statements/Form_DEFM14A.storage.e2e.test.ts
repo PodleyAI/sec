@@ -36,6 +36,8 @@ function scriptMergerDeal(): () => void {
       target_name: "Acme Target Inc.",
       target_description: "Acme Target is a commercial EV manufacturer.",
       pipe_amount: 150000000,
+      equity_value: null,
+      enterprise_value: null,
       merger_consideration: "$10.00 per share in stock",
       confidence: 0.95,
       source_span: "business combination with Acme Target Inc.",

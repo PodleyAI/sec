@@ -33,6 +33,16 @@ wire it into `test.yml` in the change that gets the count to zero.
 
 The CLI entrypoint is `src/sec.ts` and uses Commander for subcommands (e.g., `./src/sec.ts company-submissions 1018724`).
 
+A sync leaf with more than one step is a command GROUP, not a command with a
+`--step` flag: `sec sync spacs` lists `all | identify | process`, `sec sync
+spacs all` is the whole leaf and `sec sync spacs identify` is one step. `sec
+sync all` runs every `inAll` leaf and is exactly each leaf's own `all`. A
+single-step leaf stays a plain command — `sec sync facts all` would only be a
+longer way to say `sec sync facts`. The group itself has no action, so asking
+what it contains needs no configured database; a leaf declaring `runAll`
+(see `SyncLeaf`) runs its steps as ONE task graph rather than one per step,
+which is what keeps a multi-step leaf a single run in the progress UI.
+
 Source is not shipped in the tarball. `use-source` is a workspace-local `bun link` flow that reads directly from the linked working copy on disk, so consumers using `bun link @workglow/sec` see live source without needing `src` inside `node_modules/@workglow/sec/`. Do not add `src` back to `files` in `package.json` — the `prepack-check` script guards this and CI will fail.
 
 `use-source` does not edit `package.json`. `exports` keeps pointing at `./dist/*`, and the script writes re-export stubs into the gitignored `dist` folder (`dist/index.js` → `src/index.ts`, plus a `dist/sec.js` bin stub so the linked CLI runs live source), so switching modes leaves `git status` clean. `bun run use-dist` removes the stubs — identified by a `@workglow-source-stub` sentinel, so real build output is never deleted — and rebuilds; `--no-build` skips the rebuild. Finding no stubs is reported but does **not** skip the rebuild: `dist/` is gitignored, so "no stubs" most often means it was deleted, and returning early left the developer with "already in dist mode", no dist at all, and nothing saying why the build never ran. `prepack-check` fails if any stub is still present.
@@ -1034,6 +1044,58 @@ shared offering-sections runner (`runOfferingSections`, SPAC-only) so both the
 S-1 and priced-424 pipelines populate it; the `sponsor-promote` entry in
 `EVAL_EXTRACTORS` ranks the prompt through `sec eval extract`.
 
+#### Lock-ups
+
+A prospectus's lock-up disclosure yields one `spac_lockup_terms` row per
+restricted class, keyed `(extractor_id, accession_number, lockup_index)` —
+several per filing, because a filing states several: the underwriters' lock-up
+on the whole float, the sponsor's on its founder shares, often a longer one on
+the private-placement warrants. They have different durations, different anchors
+and different price tests, and folding them into one row would state a release
+date that applies to none of them.
+
+The row is what the filing SAYS, never a date. A duration (`duration_days`) is
+meaningless without its `anchor_event` — a founder lock-up runs from the CLOSING
+of the combination, an underwriter lock-up from the pricing of the offering —
+and the price test is a condition on a series this extractor does not have:
+`price_trigger` at or above on `trigger_days_at_or_above` sessions within any
+`trigger_window_days`, no earlier than `trigger_start_delay_days` after the
+anchor. Evaluating that against real prices is a separate step downstream, which
+is what keeps this extractor from ever emitting a computed-looking release date
+it did not compute.
+
+Two things the prompt has to say, and does:
+
+- **A duration and a price trigger are ALTERNATIVES on one lock-up, not two
+  lock-ups.** "One year, or earlier if the shares close at or above $12.00 for
+  20 trading days within any 30-trading-day period" is one row carrying both. A
+  model that splits it invents a restriction the filing does not impose.
+- **Do not assume a customary term the filing omits.** The customary founder
+  lock-up is so standard that a model will supply it for a prospectus that
+  states only an underwriter lock-up, and the `lockup-underwriter-only-no-price-test`
+  fixture exists to measure exactly that.
+
+`holder_class` is constrained by the schema rather than by the prompt, and
+`persist` filters against the same vocabulary: a lock-up filed under a class
+nothing downstream knows is a restriction nobody will ever evaluate.
+
+The section text is the Item 12 `Shares Eligible for Future Sale` block, falling
+back to `Underwriting`. Both are needed, on measurement: of the 42 committed S-1
+fixtures, 14 carry the Item 12 heading and 32 disclose a lock-up somewhere — so
+the dedicated heading is worth reading first and cannot be the only way in.
+Unlike `sponsor-promote` the section is never skipped for a non-SPAC filing,
+since every registrant locks somebody up.
+
+Adding the section is a **minor bump** on the S-1 extractor — previously
+processed filings have no lock-up rows until they are re-run:
+
+```bash
+sec version start-dev extractor S-1 --minor
+sec version promote extractor S-1
+sec extractor backfill S-1 --force
+sec eval extract --extractor lockups     # rank the prompt
+```
+
 #### Risk factors (Item 105 list)
 
 The prospectus risk-factor section yields one `risk_factor` row per disclosed
@@ -1496,7 +1558,7 @@ AI cost and no version bump. Tables carrying the old key: `addresses`,
 
 ```bash
 sec db setup                       # relaxes the NOT NULL (see below)
-sec sync submissions --step submissions
+sec sync submissions submissions
 for id in D C 1-A 1-K 1-Z CFPORTAL 3 4 5 144; do sec extractor backfill "$id"; done
 sec resolve --kind person  --all
 sec resolve --kind company --all
@@ -1859,6 +1921,53 @@ model via `SEC_MERGER_PROXY_MODEL` (default `claude-sonnet-5`) and an optional
 confidence floor via `SEC_MERGER_PROXY_CONFIDENCE_FLOOR` (falls back to the shared
 `SEC_S1_CONFIDENCE_FLOOR` when unset).
 
+#### Announced deal values
+
+Alongside `target_*` / `pipe_amount`, the merger-proxy extractor reads the deal
+values the proxy ANNOUNCES — `equity_value` and `enterprise_value` of the
+combined company — and `deriveDeals` correlates them onto the matching
+`spac_deal` by the same filing-date window, so a definitive proxy supersedes a
+preliminary one exactly as the target does.
+
+They exist because a completed combination is otherwise unvaluable. The market
+never priced the target (it was private), and its book equity is a private
+company's accounting rather than what was paid for it, so the announced deal
+value is the only stated number that answers "what was this worth at the
+combination".
+
+**A figure written in the units of its own sentence is dropped, never stored and
+never rescaled** (`dealValueScale.ts`, floor `MIN_PLAUSIBLE_DEAL_VALUE` =
+$10,000,000). A prospectus says "$1.4 billion" and a model can answer `1.4`, or
+`1400`; both validate against the schema, both store, and both become a
+valuation off by a factor of a million that nothing downstream re-derives — a
+percentage change computed against one is merely very large rather than
+obviously wrong. The floor separates the two populations with nothing near it: a
+real combination is tens of millions at minimum (the trust alone is), and a
+scaled figure is single or quadruple digits. Rescaling instead of dropping would
+be a second model of the filing, and a wrong guess is indistinguishable from a
+right one once stored; a null says what is true, that the proxy stated a value
+and the figure read back could not be used. The prompt states the unit at the
+point the number is produced, which is the other half of the fix.
+
+Both fields are `Type.Optional` on the model schema, like `target_description`,
+so a replay under an older extractor version still validates. Adding them is a
+**minor bump** — run the ceremony before re-extracting:
+
+```bash
+sec version start-dev extractor merger-proxy --minor
+sec version promote extractor merger-proxy
+sec extractor backfill merger-proxy --force
+```
+
+`--force` is **required** here and is not the usual belt-and-braces. The
+merger-proxy descriptor REPLACES the default extractor-runs anti-join rather
+than widening it (it has to: the known-SPAC gate records a successful no-op
+run), so its `filterTodo` selects only proxies with no extraction row and the
+general definitive proxies whose approval verdict is still NULL. A version bump
+moves nothing into either set, so without `--force` the ceremony reports
+`processed 0` and every already-extracted proxy keeps a null `equity_value` /
+`enterprise_value` forever — a recovery that silently does nothing.
+
 #### Which statements emit the `proxy` event
 
 The `proxy` event (→ `proxy_date` / `status = proxy`) is **two-tier**, and the
@@ -2090,8 +2199,8 @@ alone** — no document fetches — so a usable list exists the moment submissio
 are ingested, and so the forms sweep has a worklist to aim at.
 
 ```bash
-sec sync spacs --step identify                        # incremental: CIKs whose submissions changed
-sec sync spacs --step identify --full                 # rescan every entity
+sec sync spacs identify                               # incremental: CIKs whose submissions changed
+sec sync spacs identify --full                        # rescan every entity
 sec spac candidates [--confidence high] [--limit n] [--format csv|json]
 sec spac download registration [--confidence high,medium] [--force]
 sec spac download 8k

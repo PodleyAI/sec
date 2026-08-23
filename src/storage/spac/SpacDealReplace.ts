@@ -70,6 +70,8 @@ function replaceSqlite(
       number | null,
       number | null,
       number | null,
+      number | null,
+      number | null,
       string,
       string | null,
       string | null,
@@ -80,9 +82,10 @@ function replaceSqlite(
     `INSERT OR REPLACE INTO "spac_deal"
       ("cik", "deal_index", "target_name", "target_cik", "target_description",
        "loi_date", "announced_date", "definitive_agreement_date", "proxy_date",
-       "vote_date", "pipe_amount", "redemption_amount", "redemption_shares",
+       "vote_date", "pipe_amount", "equity_value", "enterprise_value",
+       "redemption_amount", "redemption_shares",
        "outcome", "outcome_date", "source_accession", "created_at")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const tx = db.transaction((del: ReadonlyArray<SpacDeal>, ups: ReadonlyArray<SpacDeal>) => {
     for (const d of del) {
@@ -101,6 +104,8 @@ function replaceSqlite(
         d.proxy_date,
         d.vote_date,
         d.pipe_amount,
+        d.equity_value,
+        d.enterprise_value,
         d.redemption_amount,
         d.redemption_shares,
         d.outcome,
@@ -156,9 +161,10 @@ async function runPostgresOps(
       `INSERT INTO "spac_deal"
         ("cik", "deal_index", "target_name", "target_cik", "target_description",
          "loi_date", "announced_date", "definitive_agreement_date", "proxy_date",
-         "vote_date", "pipe_amount", "redemption_amount", "redemption_shares",
+         "vote_date", "pipe_amount", "equity_value", "enterprise_value",
+         "redemption_amount", "redemption_shares",
          "outcome", "outcome_date", "source_accession", "created_at")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        ON CONFLICT ("cik", "deal_index") DO UPDATE SET
          "target_name" = EXCLUDED."target_name",
          "target_cik" = EXCLUDED."target_cik",
@@ -169,6 +175,8 @@ async function runPostgresOps(
          "proxy_date" = EXCLUDED."proxy_date",
          "vote_date" = EXCLUDED."vote_date",
          "pipe_amount" = EXCLUDED."pipe_amount",
+         "equity_value" = EXCLUDED."equity_value",
+         "enterprise_value" = EXCLUDED."enterprise_value",
          "redemption_amount" = EXCLUDED."redemption_amount",
          "redemption_shares" = EXCLUDED."redemption_shares",
          "outcome" = EXCLUDED."outcome",
@@ -187,6 +195,8 @@ async function runPostgresOps(
         d.proxy_date,
         d.vote_date,
         d.pipe_amount,
+        d.equity_value,
+        d.enterprise_value,
         d.redemption_amount,
         d.redemption_shares,
         d.outcome,

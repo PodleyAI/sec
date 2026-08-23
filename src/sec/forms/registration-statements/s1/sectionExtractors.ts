@@ -31,6 +31,7 @@ import {
 } from "./spacProfileSchema";
 import { OfferingTermsOutputSchema, type OfferingTermsRow } from "./offeringTermsSchema";
 import { SponsorPromoteOutputSchema, type SponsorPromoteRow } from "./sponsorPromoteSchema";
+import { LockupOutputSchema, type LockupRow } from "./lockupSchema";
 import {
   SPAC_ENTITY_KINDS,
   SpacClassificationOutputSchema,
@@ -46,6 +47,7 @@ import {
   stripHeadingMarkers,
 } from "./riskFactorChunks";
 import { MergerDealOutputSchema, type MergerDealRow } from "./mergerDealSchema";
+import { usableDealValue } from "./dealValueScale";
 import { RedemptionOutputSchema, type RedemptionRow } from "./redemptionSchema";
 import { LoiOutputSchema, type LoiRow } from "./loiSchema";
 import { normalizeManagementTitles } from "./normalizeTitle";
@@ -1411,6 +1413,64 @@ export async function extractSponsorPromote(
   };
 }
 
+export function lockupInstructions(): string {
+  return (
+    "The text between the tags below is from a prospectus. Extract every LOCK-UP " +
+    "the text states, one row each. A filing states several with different terms " +
+    "— the underwriters' lock-up on the whole float, the sponsor's on its founder " +
+    "shares, often a longer one on the private placement warrants — so do NOT " +
+    "merge them into a single row. " +
+    "For each give holder_class (who is restricted: 'founder-shares' for founder / " +
+    "Class B / founders' shares, 'private-placement-warrants' for the sponsor " +
+    "warrants, 'sponsor' when the sponsor entity is restricted without naming a " +
+    "security, 'target-shareholders' for the target company's holders in a " +
+    "combination, 'pipe' for private-placement subscribers, 'management' for " +
+    "officers and directors, else 'other'), security (the restricted security as " +
+    "the filing names it, or null), duration_days (the length in DAYS — convert: " +
+    "six months is 180, one year is 365 — or null), anchor_event (what the clock " +
+    "runs from: 'closing' for the closing of the business combination, 'ipo' for " +
+    "the pricing or closing of this offering, 'effective-date' for effectiveness " +
+    "of the registration statement, else 'other'; null if the text does not say). " +
+    "When the lock-up also releases early on a price test, give price_trigger (the " +
+    "dollar price the security must reach, e.g. 12.00), trigger_days_at_or_above " +
+    "(how many trading days at or above it are required — the '20' in '20 trading " +
+    "days within any 30-trading-day period'), trigger_window_days (the window those " +
+    "days are counted in — the '30'), and trigger_start_delay_days (how long after " +
+    "the anchor the price test may begin — the '150' in 'commencing at least 150 " +
+    "days after the closing'); null for any the text does not state. " +
+    "A duration and a price trigger are ALTERNATIVES on one lock-up, not two " +
+    "lock-ups: 'one year, or earlier if the shares trade at or above $12.00 …' is " +
+    "ONE row carrying both. " +
+    "Report only what the text states; do not compute a release date and do not " +
+    "assume a customary term the filing omits. Give a confidence in [0,1] and the " +
+    "verbatim source_span for each row. Return JSON matching the schema."
+  );
+}
+
+/**
+ * Extracts the lock-ups a prospectus states, one row per restricted class.
+ *
+ * Returns them as filed rather than as dates: a duration means nothing without
+ * its anchor, and a price trigger is a condition on a series nobody has here.
+ * Evaluating either against a real price series is a separate step, downstream,
+ * so that this extractor never has to produce a computed-looking release date.
+ */
+export async function extractLockups(
+  sectionText: string,
+  model: ModelConfig,
+  context?: IExecuteContext
+): Promise<LockupRow[]> {
+  const obj = await runGuardedExtraction(
+    "lockups",
+    model,
+    lockupInstructions(),
+    sectionText,
+    LockupOutputSchema,
+    context
+  );
+  return (obj.lockups as LockupRow[] | undefined) ?? [];
+}
+
 export function underwritersInstructions(): string {
   return (
     "Extract every underwriter named in the S-1/F-1 Underwriting (or Plan of " +
@@ -1580,8 +1640,16 @@ export function mergerDealInstructions(): string {
     "operating company the SPAC will merge with), target_description (a concise 1-3 " +
     "sentence description of the target company's business, or null), pipe_amount (the " +
     "total PIPE investment in dollars, or null), merger_consideration (a short verbatim phrase " +
-    "describing the consideration — e.g. cash, stock, exchange ratio — or null), a " +
+    "describing the consideration — e.g. cash, stock, exchange ratio — or null), " +
+    "equity_value (the announced equity value of the combined company, or null) and " +
+    "enterprise_value (the announced enterprise value of the combined company, or null), a " +
     "confidence in [0,1], and the verbatim source_span you drew the target from. " +
+    // Every money field is read from prose that states its own units ("$1.4
+    // billion"), and a figure returned in those units validates, stores, and
+    // becomes a valuation off by a factor of a million with nothing downstream
+    // able to tell. Say the unit at the point the number is produced.
+    "Every dollar amount must be a WHOLE NUMBER OF DOLLARS, never abbreviated into millions " +
+    "or billions: write 1400000000 for $1.4 billion, not 1.4 and not 1400. " +
     "Return JSON matching the schema."
   );
 }
@@ -1600,7 +1668,14 @@ export async function extractMergerDeal(
     context
   );
   if (obj.confidence == null || obj.source_span == null) return null;
-  return obj as unknown as MergerDealRow;
+  const row = obj as unknown as MergerDealRow;
+  // A value the model wrote in the units of the sentence it read is unusable,
+  // and unusable in a way only detectable here — see `dealValueScale`.
+  return {
+    ...row,
+    equity_value: usableDealValue(row.equity_value),
+    enterprise_value: usableDealValue(row.enterprise_value),
+  };
 }
 
 /**

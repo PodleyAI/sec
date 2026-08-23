@@ -8,10 +8,21 @@ import { Type } from "typebox";
 import { globalServiceRegistry, Task } from "workglow";
 import { SEC_JSON_OUTPUT } from "../config/tokens";
 
-const interactiveRun = vi.fn(async (): Promise<void> => {});
+/**
+ * `withCli` decides what a run does with itself — draw Ink on a TTY, report to a
+ * watching parent, or run plainly — so these tests assert what sec HANDS it,
+ * not whether sec calls it. Branching here instead is what made every piped run
+ * invisible to the web console, which runs commands as child processes.
+ */
+const withCliCalls: Array<{ interactive: boolean | undefined }> = [];
 
 vi.mock("@workglow/cli", () => ({
-  withCli: vi.fn(() => ({ run: interactiveRun })),
+  withCli: vi.fn(
+    (wf: { run: (input?: unknown) => Promise<unknown> }, options?: { interactive?: boolean }) => {
+      withCliCalls.push({ interactive: options?.interactive });
+      return { run: (input?: unknown) => wf.run(input) };
+    }
+  ),
 }));
 
 class EchoTask extends Task<{ readonly value: string }, { readonly value: string }> {
@@ -33,10 +44,10 @@ class EchoTask extends Task<{ readonly value: string }, { readonly value: string
 describe("runWorkflowCli", () => {
   afterEach(() => {
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
-    interactiveRun.mockClear();
+    withCliCalls.length = 0;
   });
 
-  it("runs plainly in JSON mode so workflow errors can propagate to runCommand", async () => {
+  it("draws no terminal UI in JSON mode, whose stdout Ink's rows would interleave with", async () => {
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, true);
     const { runWorkflowCli } = await import("./runWorkflow");
 
@@ -45,10 +56,10 @@ describe("runWorkflowCli", () => {
     ]);
 
     expect(output).toEqual({ value: "ok" });
-    expect(interactiveRun).not.toHaveBeenCalled();
+    expect(withCliCalls).toEqual([{ interactive: false }]);
   });
 
-  it("runs plainly (no Ink) when stdout is not a TTY, so backgrounded/redirected shards don't grab the terminal", async () => {
+  it("still goes through withCli off a TTY, so a watching parent gets the run's events", async () => {
     globalServiceRegistry.registerInstance(SEC_JSON_OUTPUT, false);
     const originalIsTTY = process.stdout.isTTY;
     Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
@@ -58,8 +69,10 @@ describe("runWorkflowCli", () => {
         new EchoTask({ defaults: { value: "ok" } }),
       ]);
       expect(output).toEqual({ value: "ok" });
-      // Non-TTY, non-JSON => plain runner; the interactive renderer must NOT run.
-      expect(interactiveRun).not.toHaveBeenCalled();
+      // Off a TTY `withCli` runs plainly by itself — no Ink in a redirected
+      // shard's logfile — but it must still be the thing running the graph, or
+      // the run reports nothing to the console that started it.
+      expect(withCliCalls).toEqual([{ interactive: true }]);
     } finally {
       Object.defineProperty(process.stdout, "isTTY", {
         value: originalIsTTY,
