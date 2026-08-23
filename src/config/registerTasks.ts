@@ -30,7 +30,7 @@ import { SpacReportTask } from "../task/spac/SpacReportTask";
  * entries in a `task list` of a hundred rows. These read the database and
  * answer a question, which is what a task runner is for.
  */
-const SEC_CLI_TASKS = [
+export const SEC_CLI_TASKS = [
   ListFormTypesTask,
   QueryCiksTask,
   QueryCrowdfundingTask,

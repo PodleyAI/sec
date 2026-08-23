@@ -22,6 +22,8 @@ export class QueryCiksTask extends Task<QueryCiksTaskInput, TaskPorts<CikQueryRe
   static readonly type = "QueryCiksTask";
   static readonly category = "SEC";
   static readonly title = "Query CIK names";
+  static readonly description =
+    "Looks up filers by name from the CIK-to-name index, exact or substring";
   static readonly cacheable = false;
 
   public static inputSchema() {

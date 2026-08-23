@@ -27,6 +27,8 @@ export class QueryPersonsTask extends Task<
   static readonly type = "QueryPersonsTask";
   static readonly category = "SEC";
   static readonly title = "Query persons";
+  static readonly description =
+    "Queries persons observed in filings by name, issuer, or relationship";
   static readonly cacheable = false;
 
   public static inputSchema() {

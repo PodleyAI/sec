@@ -26,6 +26,8 @@ export class QueryPersonRolesTask extends Task<
   static readonly type = "QueryPersonRolesTask";
   static readonly category = "SEC";
   static readonly title = "Query person roles";
+  static readonly description =
+    "Lists dated officer and director tenures at one company, current or historical";
   static readonly cacheable = false;
 
   public static inputSchema() {
