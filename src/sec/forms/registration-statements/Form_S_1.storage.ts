@@ -17,6 +17,7 @@ import { ExecutiveCompensationRepo } from "../../../storage/executive-compensati
 import { RelatedPartyTransactionRepo } from "../../../storage/related-party/RelatedPartyTransactionRepo";
 import { RelatedPartyTransactionSchema } from "../../../storage/related-party/RelatedPartyTransactionSchema";
 import { assertWithinDeclaredBounds } from "../../../util/declaredBounds";
+import { usableWebsiteUrl } from "../../../util/websiteUrl";
 import { ExtractionDeadLetterRepo } from "../../../storage/dead-letter/ExtractionDeadLetterRepo";
 import type { DeadLetterReasonCode } from "../../../storage/dead-letter/ExtractionDeadLetterSchema";
 import { RiskFactorRepo } from "../../../storage/risk-factor/RiskFactorRepo";
@@ -771,7 +772,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           : null,
       description: profile?.description ?? null,
       team: profile?.team ?? null,
-      url_spac: profile?.url_spac ?? null,
+      url_spac: usableWebsiteUrl(profile?.url_spac) ?? null,
     });
   }
 

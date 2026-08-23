@@ -5,6 +5,8 @@
  */
 
 import { parse } from "csv-parse/sync";
+import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
+import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
 import { FamilyDescriptionRepo } from "../storage/canonical/FamilyDescriptionRepo";
 import {
   FAMILY_DESCRIPTION_KINDS,
@@ -12,8 +14,7 @@ import {
 } from "../storage/canonical/FamilyDescriptionSchema";
 import { SpacRepo } from "../storage/spac/SpacRepo";
 import { SpacReportWriter } from "../storage/spac/SpacReportWriter";
-import { normalizeSponsorFamilyName } from "../resolver/SponsorFamilyResolver";
-import { normalizeUnderwriterFamilyName } from "../resolver/UnderwriterFamilyResolver";
+import { usableWebsiteUrl } from "../util/websiteUrl";
 
 /**
  * CSV import for editorial data with no SEC-filing source. Two formats,
@@ -53,7 +54,7 @@ const SPAC_HEADER_REQUIRED = ["cik"];
 const FAMILY_HEADER_REQUIRED = ["family_kind", "name", "description"];
 
 function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
+  return usableWebsiteUrl(value) !== null;
 }
 
 function isJsonObject(value: string): boolean {

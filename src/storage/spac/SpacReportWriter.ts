@@ -5,20 +5,21 @@
  */
 
 import { globalServiceRegistry, uuid4 } from "workglow";
-import { SpacRepo } from "./SpacRepo";
-import { recomputeSpacDeals } from "./SpacDealReplace";
+import { AsyncMutex } from "../../util/AsyncMutex";
+import { usableWebsiteUrl } from "../../util/websiteUrl";
+import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
+import { EntityRepo } from "../entity/EntityRepo";
 import { isNewerTrustSnapshot } from "./pickLatestTrustFact";
-import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
 import { deriveDeals } from "./spacDealGrouping";
-import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
-import { SpacRedemptionExtractionRepo } from "./SpacRedemptionExtractionRepo";
-import type { Spac } from "./SpacSchema";
+import { recomputeSpacDeals } from "./SpacDealReplace";
 import type { SpacEvent, SpacEventType } from "./SpacEventSchema";
 import { ITEM_MAPPED_EVENT_TYPES } from "./SpacEventSchema";
 import type { SpacHistory } from "./SpacHistorySchema";
-import { CHANGE_LOG_REPOSITORY_TOKEN } from "../change-tracking/ChangeLogSchema";
-import { EntityRepo } from "../entity/EntityRepo";
-import { AsyncMutex } from "../../util/AsyncMutex";
+import { SpacMergerExtractionRepo } from "./SpacMergerExtractionRepo";
+import { SpacRedemptionExtractionRepo } from "./SpacRedemptionExtractionRepo";
+import { SpacRepo } from "./SpacRepo";
+import { buildSpacRow, type SpacRowPatch } from "./spacRollup";
+import type { Spac } from "./SpacSchema";
 
 /**
  * Per-CIK write serialisation. Each public `record*` method runs a
@@ -224,7 +225,8 @@ export class SpacReportWriter {
         focus_location: args.focus_location,
         description: args.description,
         team: args.team,
-        url_spac: args.url_spac,
+        url_spac:
+          usableWebsiteUrl(args.url_spac) ?? (args.url_spac === undefined ? undefined : null),
       });
     });
   }
@@ -579,8 +581,14 @@ export class SpacReportWriter {
    */
   async recordEditorial(args: RecordEditorialArgs): Promise<void> {
     const patch: { url_spac?: string; url_sponsor?: string; details?: string } = {};
-    if (args.url_spac !== undefined) patch.url_spac = args.url_spac;
-    if (args.url_sponsor !== undefined) patch.url_sponsor = args.url_sponsor;
+    if (args.url_spac !== undefined) {
+      const cleaned = usableWebsiteUrl(args.url_spac);
+      if (cleaned !== null) patch.url_spac = cleaned;
+    }
+    if (args.url_sponsor !== undefined) {
+      const cleaned = usableWebsiteUrl(args.url_sponsor);
+      if (cleaned !== null) patch.url_sponsor = cleaned;
+    }
     if (args.details !== undefined) patch.details = args.details;
     if (Object.keys(patch).length === 0) return;
     await withCikLock(args.cik, async () => {

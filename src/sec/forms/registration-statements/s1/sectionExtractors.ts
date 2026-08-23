@@ -11,6 +11,7 @@ import { getExtractionTemperature } from "../../../../config/extractionTemperatu
 import { ensureModelDownloaded } from "../../../../task/model/EnsureModelDownloadedTask";
 import { resolveModelId } from "./s1Model";
 import { MIN_SPAN_CAP_CHARS } from "./verifySourceSpan";
+import { usableWebsiteUrl } from "../../../../util/websiteUrl";
 import {
   BeneficialOwnershipOutputSchema,
   ManagementOutputSchema,
@@ -1509,7 +1510,7 @@ export async function extractSpacProfile(
     focus_location: Array.isArray(obj.focus_location) ? (obj.focus_location as string[]) : [],
     description: (obj.description as string | null) ?? null,
     team: (obj.team as string | null) ?? null,
-    url_spac: (obj.url_spac as string | null) ?? null,
+    url_spac: usableWebsiteUrl((obj.url_spac as string | null) ?? null),
     confidence: obj.confidence as number,
     source_span: obj.source_span as string,
   };

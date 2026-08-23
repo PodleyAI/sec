@@ -81,4 +81,42 @@ describe("processFormS1 spac-profile", () => {
     expect(spac?.description).toBe("A blank check company targeting healthcare businesses.");
     expect(spac?.team).toBe("Led by a team of healthcare operators.");
   });
+
+  it("does not persist a placeholder website the model invents when none was stated", async () => {
+    const { unregister } = registerFakeStructuredProvider([
+      {
+        focus: ["Healthcare"],
+        focus_location: [],
+        description: "A blank check company targeting healthcare businesses.",
+        team: "Led by a team of healthcare operators.",
+        url_spac: "www. .com",
+        confidence: 0.9,
+        source_span: "healthcare and biopharmaceuticals",
+      },
+      { people: [] },
+      { owners: [] },
+      { parties: [] },
+    ]);
+    cleanup = unregister;
+
+    await processFormS1({
+      cik: 1018724,
+      file_number: "333-1",
+      accession_number: "acc-prf-2",
+      filing_date: "2026-01-02",
+      primary_doc: "s1.htm",
+      form: "S-1",
+      formS1: {
+        header: HEADER_6770,
+        html: HTML_PARSEABLE,
+        xbrlInstanceXml: null,
+        feeExhibitHtml: null,
+      },
+      model: fakeS1Model(),
+    });
+
+    const spac = await new SpacRepo().getSpac(1018724);
+    expect(spac?.url_spac).toBeNull();
+  });
 });
+

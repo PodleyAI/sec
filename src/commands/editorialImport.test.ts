@@ -58,13 +58,14 @@ describe("parseEditorialCsv", () => {
         "5,NoValues,,,\n" +
         "6,BadUrl,ftp://x,,\n" +
         '7,BadJson,,,"[1,2]"\n' +
-        "8,Good,,https://ok.example.com,\n"
+        "8,PlaceholderUrl,https://www. .com,,\n" +
+        "9,Good,,https://ok.example.com,\n"
     );
     expect(parsed.spacRows).toHaveLength(1);
-    expect(parsed.spacRows[0].cik).toBe(8);
-    expect(parsed.errors).toHaveLength(4);
+    expect(parsed.spacRows[0].cik).toBe(9);
+    expect(parsed.errors).toHaveLength(5);
     expect(parsed.errors[0]).toContain("line 2");
-    expect(parsed.errors[3]).toContain("line 5");
+    expect(parsed.errors[4]).toContain("line 6");
   });
 
   it("rejects unknown family kinds", () => {
