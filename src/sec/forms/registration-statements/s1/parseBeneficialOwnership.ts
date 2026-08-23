@@ -7,6 +7,7 @@
 import { parseNumeric } from "../../../html/parseNumeric";
 import { hasCompanyEnding } from "../../../../storage/company/CompanyNormalization";
 import { isOwnershipGroupSubtotal } from "./sectionExtractors";
+import { isOverlongPersonName } from "../../../../util/personNameBounds";
 import type { BeneficialOwnerRow } from "./sectionSchemas";
 import {
   cleanCell,
@@ -220,6 +221,7 @@ function looksLikeOwner(name: string): boolean {
   if (name.length < 3) return false;
   if (isSkipStub(name) || isGroupRow(name)) return false;
   if (hasCompanyEnding(name)) return true;
+  if (isOverlongPersonName(name)) return false;
   const words = name.split(/\s+/).filter((w) => w !== "");
   return words.length >= 2;
 }

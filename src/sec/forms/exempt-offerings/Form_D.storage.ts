@@ -12,6 +12,7 @@ import { PhoneRepo } from "../../../storage/phone/PhoneRepo";
 import { hasCompanyEnding } from "../../../storage/company/CompanyNormalization";
 import { IssuerRepo } from "../../../storage/investment-offering/IssuerRepo";
 import { isBadPersonField } from "../../../types/edgar/bad-data";
+import { isOverlongPersonName, joinedPersonName } from "../../../util/personNameBounds";
 import { INDEFINITE } from "./Form_D.schema";
 import type {
   FormD,
@@ -331,6 +332,15 @@ async function processRelatedPerson(
       });
     }
     return "company";
+  }
+
+  const displayName = joinedPersonName(
+    person.relatedPersonName.firstName,
+    person.relatedPersonName.middleName,
+    person.relatedPersonName.lastName
+  );
+  if (isOverlongPersonName(displayName)) {
+    return "dropped";
   }
 
   let addr: Awaited<ReturnType<typeof addressRepo.saveAddress>> | null = null;
