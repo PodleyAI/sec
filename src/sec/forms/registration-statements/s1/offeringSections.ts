@@ -19,7 +19,7 @@ import { IssuerTickerRepo } from "../../../../storage/offering/IssuerTickerRepo"
 import type { ObservationProvenanceRepo } from "../../../../storage/provenance/ObservationProvenanceRepo";
 import { UseOfProceedsRepo } from "../../../../storage/use-of-proceeds/UseOfProceedsRepo";
 import { S1_SECTIONS, type S1SectionName } from "./DocumentSegmenter";
-import type { OfferingTermsRow } from "./offeringTermsSchema";
+import type { OfferingTermsRow, OfferingTickerRow } from "./offeringTermsSchema";
 import {
   extractLockups,
   extractOfferingTerms,
@@ -328,7 +328,9 @@ export async function runOfferingSections(args: OfferingSectionsArgs): Promise<v
       const terms = rows[0];
       const model_id = persistModelId(models, meta.modelIndex);
       const now = new Date().toISOString();
-      const tickers: typeof terms.tickers = [];
+      // A mutable local, not `typeof terms.tickers`: that alias is a
+      // ReadonlyArray, so writing the cleaned rows into it does not compile.
+      const tickers: OfferingTickerRow[] = [];
       const seenTickers = new Set<string>();
       for (const t of terms.tickers) {
         const ticker = normalizeListedTicker(t.ticker);

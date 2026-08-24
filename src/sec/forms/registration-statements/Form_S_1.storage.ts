@@ -819,8 +819,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
     }),
     persist: async (rows, meta) => {
       const model_id = persistModelId(models, meta.modelIndex);
+      let dropped = 0;
       for (const r of rows) {
-        if (isOverlongPersonName(r.full_name)) continue;
+        if (isOverlongPersonName(r.full_name)) {
+          dropped += 1;
+          continue;
+        }
         const name = splitPersonName(r.full_name);
         const { observation_id } = await observer.observePerson({
           ...base,
@@ -857,7 +861,12 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
       // by the confidence floor or span verification is still named in the
       // filing, and closing their role from the partial subset would record a
       // false departure.
-      if (meta.complete) {
+      //
+      // `meta.complete` is decided by the section runner BEFORE this loop, so
+      // it cannot see a row this loop itself declined. A name over the leader
+      // slug cap is dropped here, and closing on the remainder would write the
+      // departure of everyone that row still asserts.
+      if (meta.complete && dropped === 0) {
         await observer.closeUnassertedPersonRoles({
           accession_number,
           extractor_id: EXTRACTOR_ID,
@@ -866,7 +875,7 @@ export async function processFormS1(args: ProcessFormS1Args): Promise<void> {
           filing_date: args.filing_date,
         });
       }
-      return rows.length;
+      return rows.length - dropped;
     },
   });
 

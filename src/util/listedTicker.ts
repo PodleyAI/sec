@@ -34,7 +34,20 @@ const PLACEHOLDERS = new Set([
   "--",
 ]);
 
-const LISTED_FORM = /^[A-Z]{1,5}(?:\.(?:U|WS|WT|RT)|[UWR]| [A-Z]{1,3})?$/;
+/**
+ * A listed symbol: a root plus at most one class/series suffix.
+ *
+ * The suffix separator is `.` OR `-`, and the root admits digits, because EDGAR
+ * is the authority on both and uses them. The submissions API states a
+ * multi-class filer's symbols hyphenated (`BRK-A`, `BRK-B`, `HEI-A`, `LEN-B`),
+ * so a dot-only, letters-only form rejected every one of them — and this
+ * function's callers treat a rejection as "not a ticker" and drop the row, so a
+ * class share simply stopped being stored. The suffix vocabulary is likewise
+ * open (`A`, `B`, `U`, `WS`, `RT`, ...) rather than the four unit-split codes:
+ * a share class is not a warrant, and enumerating only the SPAC codes reads
+ * every other class as junk.
+ */
+const LISTED_FORM = /^[A-Z0-9]{1,5}(?:[.-][A-Z]{1,3}|[UWR]| [A-Z]{1,3})?$/;
 
 function stripExchangePrefix(token: string): string {
   for (const name of EXCHANGE_NAMES) {
@@ -63,7 +76,7 @@ export function normalizeListedTicker(raw: unknown): string | null {
     token = token.slice(1, -1).replace(WRAP_CHARS, "");
   }
   token = stripExchangePrefix(token);
-  if (token === "" || PLACEHOLDERS.has(token) || /^_+$/.test(token)) return null;
+  if (token === "" || PLACEHOLDERS.has(token)) return null;
   if (!LISTED_FORM.test(token)) return null;
   return token;
 }

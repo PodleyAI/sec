@@ -53,6 +53,19 @@ describe("normalizeListedTicker", () => {
     expect(normalizeListedTicker("GSAH U")).toBe("GSAH U");
   });
 
+  it("keeps EDGAR's hyphenated class symbols", () => {
+    // The submissions API states multi-class symbols this way; a dot-only form
+    // dropped every one of them.
+    expect(normalizeListedTicker("BRK-A")).toBe("BRK-A");
+    expect(normalizeListedTicker("BRK-B")).toBe("BRK-B");
+    expect(normalizeListedTicker("HEI-A")).toBe("HEI-A");
+    expect(normalizeListedTicker("BRK.B")).toBe("BRK.B");
+  });
+
+  it("keeps a root carrying a digit", () => {
+    expect(normalizeListedTicker("PBR2")).toBe("PBR2");
+  });
+
   it("drops placeholders", () => {
     expect(normalizeListedTicker("N/A")).toBeNull();
     expect(normalizeListedTicker("NONE")).toBeNull();
