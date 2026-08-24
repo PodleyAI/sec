@@ -153,12 +153,21 @@ function spacDeals(output: unknown): PanelData {
 }
 
 /**
- * The dead-letter worklist, coloured by what an operator can do about it.
+ * The dead-letter worklist, coloured by the CLASS of failure each row records.
  *
- * The distinction the table exists to draw is same-version retryable (a model
- * outage, a throttle — `retry-dead-letters` clears it now) versus version-gated
- * (fix the extractor first). Reading that off a reason-code column means
- * knowing the vocabulary by heart.
+ * The tone is a reading of the reason code and nothing more: amber where the
+ * code is retryable under the extractor version that recorded it, red where it
+ * is version-gated. It is deliberately NOT a verdict on whether a given row is
+ * retryable right now — that also depends on whether the extractor version has
+ * advanced past the row's `failed_extractor_version`, and this panel is built
+ * from the command's `pending` output, which carries no current versions. A red
+ * row whose version has since moved on IS eligible, and the note points at the
+ * surface that can actually answer that rather than implying this one does.
+ *
+ * The amber set is bounded in a way the tone cannot show either:
+ * `MIXED_CAPTION_SHAPE` is same-version retryable for a limited number of
+ * attempts and then falls back to the version gate, which is why the `attempts`
+ * column is rendered beside it.
  */
 const SAME_VERSION_RETRYABLE: ReadonlySet<string> = new Set([
   "MODEL_RESOLUTION_ERROR",
@@ -195,7 +204,7 @@ function deadLetterPanel(output: unknown): PanelData {
     rowTones: pending.map((entry) =>
       SAME_VERSION_RETRYABLE.has(String(entry.reason_code)) ? "warn" : "fail"
     ),
-    note: "Amber: retryable under the same version — run `extractor retry-dead-letters`. Red: version-gated — fix the extractor and bump it.",
+    note: "Amber: the reason code is retryable under the version that recorded it. Red: version-gated — but a red row whose extractor has since been bumped is already eligible, which this view cannot see. `extractor dead-letters <id> --eligible` counts what is actually retryable now.",
   };
 }
 

@@ -15,7 +15,7 @@ import { CANONICAL_SPONSOR_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/
 import { CANONICAL_UNDERWRITER_FAMILY_REPOSITORY_TOKEN } from "../storage/canonical/CanonicalUnderwriterFamilySchema";
 import { SPAC_CANDIDATE_REPOSITORY_TOKEN } from "../storage/spac/SpacCandidateSchema";
 import { SpacRepo } from "../storage/spac/SpacRepo";
-import { EXTRACTOR_IDS } from "../storage/versioning/extractorIds";
+import { EXTRACTOR_IDS, FORM_TO_EXTRACTOR_ID } from "../storage/versioning/extractorIds";
 import { readPendingDeadLetterCounts } from "./secWebReads";
 
 /**
@@ -188,9 +188,15 @@ async function searchForms(
       }));
     if (items.length > 0) return items;
   }
-  return EXTRACTOR_IDS.filter((id) => !needle || id.toLowerCase().includes(needle))
+  // The fallback offers FORM SYMBOLS, which is what the command takes. The
+  // extractor ids are a different vocabulary that merely overlaps it: `S-1` is
+  // both, but `merger-proxy`, `redemption`, `loi` and `25-15` name extractors
+  // and no form, so offering them produces a pick the CLI can never match.
+  return Object.keys(FORM_TO_EXTRACTOR_ID)
+    .filter((form) => !needle || form.toLowerCase().includes(needle))
+    .sort((a, b) => a.localeCompare(b))
     .slice(0, MAX_ITEMS)
-    .map((id) => ({ value: id, label: id, detail: "parsed form family" }));
+    .map((form) => ({ value: form, label: form, detail: "parsed form type" }));
 }
 
 /**
