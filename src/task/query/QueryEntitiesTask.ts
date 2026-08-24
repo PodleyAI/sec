@@ -29,6 +29,7 @@ export class QueryEntitiesTask extends Task<
   static readonly type = "QueryEntitiesTask";
   static readonly category = "SEC";
   static readonly title = "Query entities";
+  static readonly description = "Queries stored EDGAR entities by name, CIK, SIC code, or state";
   static readonly cacheable = false;
 
   public static inputSchema() {

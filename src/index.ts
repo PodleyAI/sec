@@ -62,8 +62,10 @@ export * from "./config/Constants";
 export { createStorage } from "./config/createStorage";
 export { DefaultDI } from "./config/DefaultDI";
 export { EnvToDI, SecCliConfigurationError } from "./config/EnvToDI";
+export { bootstrapSecRuntime } from "./config/bootstrapSecRuntime";
 export { registerSecModels } from "./config/registerModels";
 export { registerSecProviders } from "./config/registerProviders";
+export { registerSecTasks } from "./config/registerTasks";
 export { setupAllDatabases } from "./config/setupAllDatabases";
 export * from "./config/tokens";
 

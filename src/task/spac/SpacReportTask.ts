@@ -18,6 +18,8 @@ export class SpacReportTask extends Task<SpacReportTaskInput, TaskPorts<SpacRepo
   static readonly type = "SpacReportTask";
   static readonly category = "SEC";
   static readonly title = "SPAC consolidated report";
+  static readonly description =
+    "Returns the consolidated SPAC report for one CIK: status, amounts, deals and events";
   static readonly cacheable = false;
 
   public static inputSchema() {

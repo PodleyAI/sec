@@ -22,6 +22,7 @@ export class SpacHistoryTask extends Task<SpacHistoryTaskInput, SpacHistoryTaskO
   static readonly type = "SpacHistoryTask";
   static readonly category = "SEC";
   static readonly title = "SPAC state-change history";
+  static readonly description = "Returns the recorded state-change history of one SPAC";
   static readonly cacheable = false;
 
   public static inputSchema() {

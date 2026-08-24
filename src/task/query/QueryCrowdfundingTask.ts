@@ -30,6 +30,8 @@ export class QueryCrowdfundingTask extends Task<
   static readonly type = "QueryCrowdfundingTask";
   static readonly category = "SEC";
   static readonly title = "Query crowdfunding offerings";
+  static readonly description =
+    "Queries stored Reg CF offerings by issuer, funding portal, or filing date";
   static readonly cacheable = false;
 
   public static inputSchema() {

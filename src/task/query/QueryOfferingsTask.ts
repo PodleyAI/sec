@@ -30,6 +30,8 @@ export class QueryOfferingsTask extends Task<QueryOfferingsTaskInput, QueryOffer
   static readonly type = "QueryOfferingsTask";
   static readonly category = "SEC";
   static readonly title = "Query offerings";
+  static readonly description =
+    "Queries stored Form D offerings by issuer, industry, or exemption claimed";
   static readonly cacheable = false;
 
   public static inputSchema() {

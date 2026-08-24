@@ -15,6 +15,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "declarationMap": true,
+    "removeComments": true,
     "types": ["@types/bun"],
     "outDir": "dist",
     "rootDir": "./src",
