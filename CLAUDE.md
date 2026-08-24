@@ -2886,7 +2886,7 @@ Two properties that policy depends on:
   the sentinel is cluster state, and the storage write is last-writer-wins, so a
   second shard meeting the same block at rung 0 would otherwise replace another
   shard's 600s pause with its own 5s one and resume the whole cluster nine
-  minutes inside a live ban.   `signalSecFetchThrottle` reads the current
+  minutes inside a live ban. `signalSecFetchThrottle` reads the current
   next-available time first, skips the write when it is already later, and
   returns that longer remaining time so the job can set `RetryableJobError.retryDate`
   to the same instant — a shard that re-fires early is the ban-renewing
