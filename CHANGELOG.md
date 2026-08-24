@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0
+
+### Chores
+
+- update deps
+
+### Updated Dependencies
+
+- `@workglow/cli`: 0.4.0
+- `workglow`: 0.4.0
+
 ## 0.0.29
 
 ### Features
